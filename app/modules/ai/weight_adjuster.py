@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.ai.models import AIPredictionAudit, ModelMetadata
+from app.services.accuracy_enhancer import compute_log_loss_delta, log_loss_for_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -91,11 +92,15 @@ async def adjust_weights_for_match(
         correct = argmax_key == actual_outcome
 
         # Brier contribution for this model
-        prob_correct = model_pred.get(target_key, 0.33)
+        prob_correct = float(model_pred.get(target_key, 0.33))
         brier_contrib = (prob_correct - 1.0) ** 2  # lower is better
 
-        # Weight update
-        delta = PERFORMANCE_DELTA if correct else -PERFORMANCE_DELTA
+        # Log-loss contribution (proper scoring rule)
+        nll_contrib = log_loss_for_outcome(hp, dp, ap, actual_outcome)
+
+        # Weight update — magnitude scales with how confident & how right/wrong
+        # the model was, instead of a flat ±10% based on argmax alone.
+        delta = compute_log_loss_delta(prob_correct, base_delta=PERFORMANCE_DELTA)
         old_weight = reg_row.weight
         new_weight = old_weight * (1 + delta * LEARNING_RATE)
         new_weight = round(max(MIN_WEIGHT, min(MAX_WEIGHT, new_weight)), 6)
@@ -109,10 +114,12 @@ async def adjust_weights_for_match(
         correct_total = reg_row.predictions_correct
         reg_row.accuracy_1x2 = round(correct_total / total, 4) if total else None
 
-        # Rolling Brier score (exponential moving average)
+        # Rolling Brier + log-loss (exponential moving average)
         alpha = 2 / (ACCURACY_WINDOW + 1)
         old_brier = reg_row.brier_score or 0.25
         reg_row.brier_score = round(alpha * brier_contrib + (1 - alpha) * old_brier, 4)
+        old_nll = reg_row.log_loss or math.log(3.0)
+        reg_row.log_loss = round(alpha * nll_contrib + (1 - alpha) * old_nll, 4)
 
         reg_row.weight = new_weight
 
@@ -124,10 +131,13 @@ async def adjust_weights_for_match(
             "model_key":  reg_row.key,
             "model_name": model_name,
             "correct":    correct,
+            "p_actual":   round(prob_correct, 4),
+            "delta":      round(delta, 6),
             "old_weight": old_weight,
             "new_weight": new_weight,
             "accuracy":   reg_row.accuracy_1x2,
             "brier":      reg_row.brier_score,
+            "log_loss":   reg_row.log_loss,
         })
 
     await db.commit()

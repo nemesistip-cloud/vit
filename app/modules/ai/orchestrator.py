@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.ai.models import AIPredictionAudit
+from app.services.accuracy_enhancer import TemperatureScaler
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,15 @@ async def generate_ai_prediction(
     hp = float(preds["home_prob"])
     dp = float(preds["draw_prob"])
     ap = float(preds["away_prob"])
+
+    # Temperature scaling — global calibration on the final ensemble
+    # distribution. T=1.0 (default) is a no-op; values are tuned by
+    # `fit_temperature_from_history` and persisted in models/temperature.json.
+    scaler = TemperatureScaler.load()
+    hp, dp, ap = scaler.apply(hp, dp, ap)
+    preds["home_prob"], preds["draw_prob"], preds["away_prob"] = hp, dp, ap
+    if abs(scaler.temperature - 1.0) > 1e-6:
+        preds["temperature"] = scaler.temperature
 
     # Risk score: entropy of final distribution (high entropy = uncertain)
     ent = _entropy(hp, dp, ap)
