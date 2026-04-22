@@ -95,10 +95,13 @@ export default function AuthPage() {
     }
     setTotpLoading(true);
     try {
-      const res = await apiPost("/auth/2fa/complete-login", {
-        pre_auth_token: preAuthToken,
-        totp_code: totpCode.replace(/\s/g, ""),
-      });
+      const res = await apiPost<{ access_token: string; refresh_token: string }>(
+        "/auth/2fa/complete-login",
+        {
+          pre_auth_token: preAuthToken,
+          totp_code: totpCode.replace(/\s/g, ""),
+        },
+      );
       setAuthToken(res.access_token, res.refresh_token);
       toast.success("Welcome back!");
     } catch (error: any) {

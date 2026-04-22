@@ -265,18 +265,20 @@ export default function WalletPage() {
             </div>
             <div className="flex flex-row sm:flex-col items-center sm:items-end gap-3 sm:gap-2">
               <div className="flex items-center gap-1.5 text-sm font-mono">
-                {(wallet.win_rate ?? 0) >= 0.5
+                {wallet.kyc_verified
                   ? <TrendingUp className="w-4 h-4 text-green-400" />
-                  : <TrendingDown className="w-4 h-4 text-destructive" />
+                  : <TrendingDown className="w-4 h-4 text-muted-foreground" />
                 }
-                <span className={(wallet.win_rate ?? 0) >= 0.5 ? "text-green-400" : "text-destructive"}>
-                  {((wallet.win_rate ?? 0) * 100).toFixed(0)}% win rate
+                <span className={wallet.kyc_verified ? "text-green-400" : "text-muted-foreground"}>
+                  {wallet.kyc_verified ? "KYC verified" : "KYC pending"}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-sm font-mono text-muted-foreground">
-                <ArrowUpRight className="w-4 h-4 text-green-400" />
-                <span className="text-green-400">+{Number(wallet.total_earnings ?? 0).toFixed(2)} VIT earned</span>
-              </div>
+              {wallet.is_frozen && (
+                <div className="flex items-center gap-1.5 text-sm font-mono text-destructive">
+                  <ArrowUpRight className="w-4 h-4 rotate-180" />
+                  <span>Wallet frozen</span>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

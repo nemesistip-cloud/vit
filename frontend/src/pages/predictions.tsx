@@ -494,7 +494,7 @@ function TicketBuilder() {
                             {leg.home_team} vs {leg.away_team}
                           </div>
                           <div className="text-[10px] text-muted-foreground">
-                            {leg.market_label || MARKET_LABEL[leg.market_key] || prettifyMarketKey(leg.market_key)} · {(leg.probability * 100).toFixed(1)}%
+                            {leg.market_label || MARKET_LABEL[leg.market] || prettifyMarketKey(leg.market)} · {(leg.probability * 100).toFixed(1)}%
                           </div>
                         </div>
                         <div className="text-right shrink-0 ml-2">

@@ -272,7 +272,11 @@ export default function AccumulatorPage() {
                         : "border-border/30 hover:bg-muted/30"
                     }`}
                   >
-                    <Checkbox checked={selectedIds.has(c.match_id)} readOnly className="flex-shrink-0" />
+                    <Checkbox
+                      checked={selectedIds.has(c.match_id)}
+                      onCheckedChange={() => toggleCandidate(c.match_id)}
+                      className="flex-shrink-0"
+                    />
                     <div className="flex-1 min-w-0">
                       <span className="font-mono text-xs font-medium truncate block">
                         {c.home_team} vs {c.away_team}
