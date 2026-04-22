@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 type LandingTickerItem = { match: string; edge: string; outcome: string; confidence: number };
 type LandingTestimonial = { user: string; role: string; stars: number; text: string };
@@ -31,11 +32,13 @@ type LandingData = {
   plans: LandingPlan[];
 };
 
-const FEATURES = [
+// FEATURES is now built inside the component so the model count and
+// welcome bonus reflect live platform config (see /config/public).
+const buildFeatures = (modelCount: number) => [
   {
     icon: Brain,
-    title: "12-Model AI Ensemble",
-    desc: "Random Forest, LSTM, XGBoost and 9 more models vote on every prediction. No black boxes.",
+    title: `${modelCount}-Model AI Ensemble`,
+    desc: `Random Forest, LSTM, XGBoost and ${Math.max(modelCount - 3, 0)} more models vote on every prediction. No black boxes.`,
     color: "text-primary",
     bg: "bg-primary/10 border-primary/20",
   },
@@ -115,6 +118,10 @@ export default function LandingPage() {
     queryKey: ["public-landing"],
     queryFn: () => apiGet("/api/public/landing"),
   });
+  const { data: publicCfg } = usePublicConfig();
+  const modelCount   = publicCfg?.platform.model_count       ?? 12;
+  const welcomeBonus = publicCfg?.platform.welcome_bonus_vit ?? 100;
+  const FEATURES     = buildFeatures(modelCount);
 
   const stats = data?.stats;
   const testimonials = data?.testimonials ?? [];
@@ -423,7 +430,7 @@ export default function LandingPage() {
             </Button>
           </Link>
           <p className="text-xs text-muted-foreground mt-4 font-mono">
-            100 VITCoin bonus on first prediction · No credit card required
+            {welcomeBonus} VITCoin bonus on first prediction · No credit card required
           </p>
         </div>
       </section>

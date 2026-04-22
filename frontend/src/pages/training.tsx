@@ -43,14 +43,11 @@ export default function TrainingPage() {
   const ensembleAccuracy = performance?.ensemble_accuracy ?? performance?.accuracy_rate ?? 0;
   const totalPredictions = performance?.total_predictions ?? 0;
 
-  const chartData = models.length > 0
-    ? models
-    : [
-        { name: "XGBoost", accuracy: 0 },
-        { name: "LightGBM", accuracy: 0 },
-        { name: "Random Forest", accuracy: 0 },
-        { name: "Neural Net", accuracy: 0 },
-      ];
+  // Use real model performance data only — never invent placeholder rows
+  // (the previous code rendered XGBoost/LightGBM/RF/NN at 0% accuracy
+  //  which looked like a real dataset). When `models` is empty the chart
+  //  renders an empty state below.
+  const chartData = models;
 
   return (
     <div className="space-y-6">

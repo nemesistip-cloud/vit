@@ -875,6 +875,9 @@ function SystemTab() {
         </Dialog>
       )}
 
+      {/* Football-Data Integration */}
+      <FootballDataCard />
+
       {/* System Actions */}
       <Card className="bg-gray-900 border-gray-700">
         <CardHeader>
@@ -896,6 +899,118 @@ function SystemTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ─── Football-Data.org Integration Card ──────────────────────────────
+
+function FootballDataCard() {
+  const qc = useQueryClient();
+  const [testResult, setTestResult] = useState<{ status: string; message: string } | null>(null);
+
+  const testMutation = useMutation({
+    mutationFn: () => apiPost<{ status: string; message: string }>(
+      "/admin/data-sources/test/football_data", {}),
+    onSuccess: (r) => {
+      setTestResult(r);
+      if (r.status === "ok") toast.success(r.message);
+      else toast.error(r.message);
+    },
+    onError: (e: any) => {
+      const msg = e?.message || "Connection test failed";
+      setTestResult({ status: "down", message: msg });
+      toast.error(msg);
+    },
+  });
+
+  const fetchMutation = useMutation({
+    mutationFn: () => apiPost<{ stored: number; skipped_existing?: number; message?: string }>(
+      "/admin/matches/fetch-fixtures?count=100&days=14", {}),
+    onSuccess: (d) => {
+      toast.success(`Fetched ${d.stored ?? 0} new fixtures (${d.skipped_existing ?? 0} duplicates skipped)`);
+      qc.invalidateQueries({ queryKey: ["matches-recent"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
+    },
+    onError: () => toast.error("Fixture fetch failed — check the Football-Data.org key first"),
+  });
+
+  const settleMutation = useMutation({
+    mutationFn: () => apiPost<{ settled: number; already_settled: number; created_new?: number; message?: string }>(
+      "/admin/settle-results?days_back=7", {}),
+    onSuccess: (d) => {
+      toast.success(`Settled ${d.settled ?? 0} match(es), ${d.already_settled ?? 0} already done, ${d.created_new ?? 0} new records created`);
+      qc.invalidateQueries({ queryKey: ["matches-recent"] });
+    },
+    onError: () => toast.error("Settle pass failed — check the API key"),
+  });
+
+  const backfillMutation = useMutation({
+    mutationFn: () => apiPost<{ settled_real: number; simulated_local: number; skipped_real_no_api: number }>(
+      "/admin/matches/backfill-ft-results?settle_real=true&simulate_local=true&days_back=14", {}),
+    onSuccess: (d) => {
+      toast.success(`Backfill done — ${d.settled_real} from API + ${d.simulated_local} simulated, ${d.skipped_real_no_api} real matches skipped`);
+      qc.invalidateQueries({ queryKey: ["matches-recent"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
+    },
+    onError: () => toast.error("Backfill failed"),
+  });
+
+  const statusColor =
+    testResult?.status === "ok" ? "text-emerald-400" :
+    testResult?.status === "no_key" ? "text-amber-400" :
+    testResult ? "text-red-400" : "text-gray-500";
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2">
+          <Globe className="w-5 h-5 text-emerald-400" /> Football-Data.org Integration
+        </CardTitle>
+        <CardDescription className="text-gray-400">
+          Update <span className="font-mono text-amber-400">FOOTBALL_DATA_API_KEY</span> above first,
+          then test the connection and pull fixtures or finished-match results.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="border-emerald-500/50 text-emerald-400 hover:border-emerald-400"
+            disabled={testMutation.isPending}
+            onClick={() => testMutation.mutate()}>
+            <CheckCircle className="w-4 h-4 mr-2" />
+            {testMutation.isPending ? "Testing…" : "Test Connection"}
+          </Button>
+          <Button variant="outline" className="border-cyan-500/50 text-cyan-400 hover:border-cyan-400"
+            disabled={fetchMutation.isPending}
+            onClick={() => fetchMutation.mutate()}>
+            <Download className="w-4 h-4 mr-2" />
+            {fetchMutation.isPending ? "Fetching…" : "Fetch Upcoming Fixtures"}
+          </Button>
+          <Button variant="outline" className="border-purple-500/50 text-purple-400 hover:border-purple-400"
+            disabled={settleMutation.isPending}
+            onClick={() => settleMutation.mutate()}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            {settleMutation.isPending ? "Syncing…" : "Sync FT Results"}
+          </Button>
+          <Button variant="outline" className="border-amber-500/50 text-amber-400 hover:border-amber-400"
+            disabled={backfillMutation.isPending}
+            onClick={() => backfillMutation.mutate()}>
+            <Activity className="w-4 h-4 mr-2" />
+            {backfillMutation.isPending ? "Working…" : "Backfill Past Results"}
+          </Button>
+        </div>
+        {testResult && (
+          <div className={`text-xs px-3 py-2 rounded border border-gray-800 bg-gray-950 ${statusColor}`}>
+            <span className="font-semibold uppercase mr-2">{testResult.status}</span>
+            {testResult.message}
+          </div>
+        )}
+        <div className="text-xs text-gray-500 space-y-1">
+          <div>• <span className="text-cyan-400">Fetch Upcoming Fixtures</span> — pulls scheduled matches for the next 14 days, dedup'd against existing rows.</div>
+          <div>• <span className="text-purple-400">Sync FT Results</span> — settles predictions against finished matches from the API (last 7 days).</div>
+          <div>• <span className="text-amber-400">Backfill Past Results</span> — runs the API settle, then simulates final scores for any past local-only/seed matches that have no provider counterpart.</div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

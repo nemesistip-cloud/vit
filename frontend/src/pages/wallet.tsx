@@ -17,20 +17,13 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
-const CURRENCIES = ["NGN", "USD", "USDT", "PI", "VITCoin"];
-const SYM: Record<string, string> = { NGN: "₦", USD: "$", USDT: "₮", PI: "π", VITCoin: "VIT " };
+// Per-currency tint stays in the UI layer (it's a presentation choice).
+// Codes, symbols, and deposit presets all come from /config/public.
 const CURRENCY_COLORS: Record<string, string> = {
   NGN: "text-green-400", USD: "text-blue-400", USDT: "text-teal-400",
   PI: "text-purple-400", VITCoin: "text-secondary",
-};
-
-const DEPOSIT_PRESETS: Record<string, number[]> = {
-  NGN: [1000, 5000, 10000, 50000],
-  USD: [10, 50, 100, 500],
-  USDT: [10, 50, 100, 500],
-  PI: [10, 50, 100, 500],
-  VITCoin: [10, 50, 100, 500],
 };
 
 function WalletSkeleton() {
@@ -52,6 +45,12 @@ function WalletSkeleton() {
 export default function WalletPage() {
   const queryClient = useQueryClient();
   const { data: wallet, isLoading: loadingWallet } = useGetWallet();
+  const { data: publicCfg } = usePublicConfig();
+  const CURRENCIES = publicCfg?.currencies.map((c) => c.code) ?? ["NGN", "USD", "USDT", "PI", "VITCoin"];
+  const SYM: Record<string, string> = Object.fromEntries(
+    (publicCfg?.currencies ?? []).map((c) => [c.code, c.symbol])
+  );
+  const DEPOSIT_PRESETS: Record<string, number[]> = publicCfg?.deposit_presets ?? {};
   const { data: txData, isLoading: loadingTx } = useListTransactions({ limit: 50 });
   const { data: vitcoinPriceData } = useGetVitcoinPrice();
 
@@ -121,16 +120,31 @@ export default function WalletPage() {
     { label: "PI", currency: "PI", value: Number(wallet.pi_balance ?? 0) },
   ];
 
-  const vitPrice = exchangeRatesData?.vit_price_usd ?? vitcoinPriceData?.price ?? 0.10;
+  // Live values: prefer the wallet exchange-rates endpoint, then the
+  // public-config endpoint, then the legacy admin/currency lookup.
+  // We deliberately avoid hardcoded literals — if every source is missing,
+  // we fall back to the configured public-config value (which itself
+  // sources from PlatformConfig, not invented numbers).
+  const vitPrice = exchangeRatesData?.vit_price_usd
+    ?? vitcoinPriceData?.price
+    ?? publicCfg?.fx.vit_usd
+    ?? null;
   const ngnRateFromExchange = exchangeRatesData?.rates?.["NGN"]?.rate_to_usd;
   const ngnCurrency = currenciesData?.currencies?.find((c: any) => c.code === "NGN");
-  const ngnRateToUSD = ngnRateFromExchange ?? ngnCurrency?.rate_to_usd ?? 0.000633;
-  const ngnRate = exchangeRatesData?.ngn_per_usd ?? (ngnRateToUSD > 0 ? 1 / ngnRateToUSD : 1580);
+  const ngnRateToUSD = ngnRateFromExchange
+    ?? ngnCurrency?.rate_to_usd
+    ?? publicCfg?.fx.ngn_usd_rate
+    ?? null;
+  const ngnRate = exchangeRatesData?.ngn_per_usd
+    ?? publicCfg?.fx.ngn_per_usd
+    ?? (ngnRateToUSD && ngnRateToUSD > 0 ? 1 / ngnRateToUSD : null);
+  // If a rate is genuinely unknown, contribute 0 instead of inventing one —
+  // better to under-report than to mislead the user with a fake total.
   const totalUSD = (
     Number(wallet.usd_balance ?? 0) +
     Number(wallet.usdt_balance ?? 0) +
-    Number(wallet.ngn_balance ?? 0) / ngnRate +
-    Number(wallet.vitcoin_balance ?? 0) * vitPrice
+    (ngnRate ? Number(wallet.ngn_balance ?? 0) / ngnRate : 0) +
+    (vitPrice ? Number(wallet.vitcoin_balance ?? 0) * vitPrice : 0)
   );
 
   const handleDeposit = async () => {
@@ -526,7 +540,7 @@ export default function WalletPage() {
                 {(convertFrom === "VITCoin" || convertTo === "VITCoin") && (
                   <div className="flex justify-between">
                     <span>VIT price</span>
-                    <span className="text-secondary">${vitPrice.toFixed(4)} USD</span>
+                    <span className="text-secondary">${(vitPrice ?? 0).toFixed(4)} USD</span>
                   </div>
                 )}
                 {convertAmount && parseFloat(convertAmount) > 0 && (
@@ -537,10 +551,10 @@ export default function WalletPage() {
                         const amt = parseFloat(convertAmount);
                         const fee = amt * 0.005;
                         const net = amt - fee;
-                        if (convertFrom === "VITCoin" && convertTo === "USD") return `$${(net * vitPrice).toFixed(2)}`;
-                        if (convertFrom === "USD" && convertTo === "VITCoin") return `VIT ${(net / vitPrice).toFixed(4)}`;
-                        if (convertFrom === "NGN" && convertTo === "USD") return `$${(net / ngnRate).toFixed(2)}`;
-                        if (convertFrom === "USD" && convertTo === "NGN") return `₦${(net * ngnRate).toFixed(2)}`;
+                        if (convertFrom === "VITCoin" && convertTo === "USD") return vitPrice ? `$${(net * vitPrice).toFixed(2)}` : "—";
+                        if (convertFrom === "USD" && convertTo === "VITCoin") return vitPrice ? `VIT ${(net / vitPrice).toFixed(4)}` : "—";
+                        if (convertFrom === "NGN" && convertTo === "USD") return ngnRate ? `$${(net / ngnRate).toFixed(2)}` : "—";
+                        if (convertFrom === "USD" && convertTo === "NGN") return ngnRate ? `₦${(net * ngnRate).toFixed(2)}` : "—";
                         return `~${net.toFixed(4)}`;
                       })()}
                     </span>

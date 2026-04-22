@@ -141,10 +141,20 @@ async def toggle_model(key: str, db: AsyncSession = Depends(get_db)):
 async def upload_pkl(
     key: str,
     file: UploadFile = File(...),
+    auto_promote: bool = Query(False, description="If true, immediately promote this version to active. Default false — uploads are staged."),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Upload a Colab-trained .pkl file for a specific model key.
+
+    Versioning behaviour (Apr 2026):
+    - Each upload is saved with a version-suffixed filename
+      (e.g. `xgb_v1__v1.2.pkl`); the previously promoted file is NEVER
+      overwritten.
+    - The upload is appended to `model_metadata.version_history` as a
+      staged version.
+    - The active production model only changes when `auto_promote=true`
+      is passed OR the operator calls `POST /models/{key}/promote/{version}`.
 
     Expected pkl format (joblib-serialised dict):
     {
@@ -156,6 +166,9 @@ async def upload_pkl(
         "metrics":          {"accuracy": 0.62, "brier_score": 0.21, ...}
     }
     """
+    from datetime import datetime, timezone
+    import re
+
     if not file.filename.endswith(".pkl"):
         raise HTTPException(status_code=400, detail="Only .pkl files are accepted")
 
@@ -163,60 +176,77 @@ async def upload_pkl(
     if row is None:
         raise HTTPException(status_code=404, detail=f"Model '{key}' not in registry")
 
-    dest_path = os.path.join(MODELS_DIR, f"{key}.pkl")
+    # Stage the upload to a temp path first so we can validate before naming it
+    staged_path = os.path.join(MODELS_DIR, f"_staging_{key}_{int(datetime.now(timezone.utc).timestamp())}.pkl")
     content = await file.read()
-    with open(dest_path, "wb") as f:
+    with open(staged_path, "wb") as f:
         f.write(content)
 
-    # Attempt to validate the pkl immediately
     try:
         import joblib
-        payload = joblib.load(dest_path)
+        payload = joblib.load(staged_path)
         if not isinstance(payload, dict) or "model" not in payload:
-            os.remove(dest_path)
+            os.remove(staged_path)
             raise HTTPException(
                 status_code=422,
                 detail="pkl must be a dict with at least a 'model' key"
             )
         metrics = payload.get("metrics", {})
         samples = payload.get("training_samples", 0)
-        version = payload.get("version", "?")
+        version = str(payload.get("version", "?")).strip() or "?"
     except HTTPException:
         raise
     except Exception as exc:
-        os.remove(dest_path)
+        if os.path.exists(staged_path):
+            os.remove(staged_path)
         raise HTTPException(status_code=422, detail=f"Failed to load pkl: {exc}")
 
-    # Update registry
-    row.pkl_loaded = True
-    row.pkl_path = dest_path
-    row.training_samples = samples
-    row.version = version
-    if metrics.get("accuracy"):
-        row.accuracy = metrics["accuracy"]
-        row.accuracy_1x2 = metrics.get("accuracy", row.accuracy_1x2)
-    if metrics.get("brier_score"):
-        row.brier_score = metrics["brier_score"]
-    if metrics.get("log_loss"):
-        row.log_loss = metrics["log_loss"]
+    # Sanitise version for filename use
+    safe_version = re.sub(r"[^a-zA-Z0-9._-]+", "_", version) or "unknown"
+    dest_path = os.path.join(MODELS_DIR, f"{key}__{safe_version}.pkl")
 
-    # Boost weight to 2× if it was at default
-    if row.weight < 2.0:
-        row.weight = 2.0
+    # Refuse to overwrite an existing version file — operator must bump the version
+    if os.path.exists(dest_path):
+        os.remove(staged_path)
+        raise HTTPException(
+            status_code=409,
+            detail=f"Version '{version}' already exists for model '{key}'. "
+                   f"Bump the version in the pkl payload before re-uploading."
+        )
+    os.replace(staged_path, dest_path)
 
+    # Append to version_history (never replace existing entries)
+    history = list(row.version_history or [])
+    entry = {
+        "version":          version,
+        "pkl_path":         dest_path,
+        "training_samples": samples,
+        "metrics":          metrics,
+        "uploaded_at":      datetime.now(timezone.utc).isoformat(),
+        "promoted_at":      None,
+        "filename":         file.filename,
+        "size_bytes":       len(content),
+    }
+    history.append(entry)
+    row.version_history = history
+
+    promoted = False
+    if auto_promote:
+        promoted = await _promote_version_inplace(row, version, history)
     await db.commit()
 
-    # Hot-reload in live orchestrator
+    # Hot-reload only if we promoted
     reloaded = False
-    orch = get_orchestrator()
-    if orch:
-        try:
-            orch.load_all_models()
-            reloaded = True
-            # Sync the new weight to orchestrator model_meta
-            orch.model_meta[key]["weight"] = row.weight
-        except Exception as exc:
-            logger.warning(f"Orchestrator reload failed after pkl upload: {exc}")
+    if promoted:
+        orch = get_orchestrator()
+        if orch:
+            try:
+                orch.load_all_models()
+                reloaded = True
+                if key in orch.model_meta:
+                    orch.model_meta[key]["weight"] = row.weight
+            except Exception as exc:
+                logger.warning(f"Orchestrator reload failed after promote: {exc}")
 
     return {
         "key":              key,
@@ -225,7 +255,118 @@ async def upload_pkl(
         "training_samples": samples,
         "version":          version,
         "metrics":          metrics,
-        "new_weight":       row.weight,
+        "promoted":         promoted,
+        "active_version":   row.active_version,
+        "version_count":    len(history),
+        "orchestrator_reloaded": reloaded,
+        "message":          ("Staged. Call POST /models/{key}/promote/{version} to activate."
+                             if not promoted
+                             else f"Version {version} promoted to active."),
+    }
+
+
+async def _promote_version_inplace(row, version: str, history: list) -> bool:
+    """
+    Mark the named version as active on the row + history. Returns True on success.
+    Caller is responsible for db.commit().
+    """
+    from datetime import datetime, timezone
+    target = next((h for h in history if h.get("version") == version), None)
+    if target is None:
+        return False
+    target["promoted_at"] = datetime.now(timezone.utc).isoformat()
+    row.active_version   = version
+    row.version          = version
+    row.pkl_loaded       = True
+    row.pkl_path         = target.get("pkl_path")
+    row.training_samples = target.get("training_samples", 0)
+    metrics = target.get("metrics") or {}
+    if metrics.get("accuracy") is not None:
+        row.accuracy     = metrics["accuracy"]
+        row.accuracy_1x2 = metrics.get("accuracy", row.accuracy_1x2)
+    if metrics.get("brier_score") is not None:
+        row.brier_score  = metrics["brier_score"]
+    if metrics.get("log_loss") is not None:
+        row.log_loss     = metrics["log_loss"]
+    if (row.weight or 0) < 2.0:
+        row.weight = 2.0
+    # Reassign to trigger ORM mutation tracking on JSON column
+    row.version_history = list(history)
+    return True
+
+
+@router.get("/models/{key}/versions")
+async def list_versions(key: str, db: AsyncSession = Depends(get_db)):
+    """List all uploaded versions for a model key, with the active one flagged."""
+    row = await get_model_by_key(db, key)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Model '{key}' not in registry")
+    history = list(row.version_history or [])
+    return {
+        "key":            key,
+        "active_version": row.active_version,
+        "version_count":  len(history),
+        "versions":       history,
+    }
+
+
+@router.post("/models/{key}/promote/{version}")
+async def promote_version(
+    key: str,
+    version: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Promote a previously-uploaded version to active production.
+
+    The previous active version is preserved on disk and in version_history;
+    promotion never deletes or overwrites historical artifacts.
+    """
+    row = await get_model_by_key(db, key)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Model '{key}' not in registry")
+
+    history = list(row.version_history or [])
+    if not history:
+        raise HTTPException(status_code=404, detail=f"No uploaded versions for '{key}'")
+
+    target = next((h for h in history if h.get("version") == version), None)
+    if target is None:
+        available = [h.get("version") for h in history]
+        raise HTTPException(
+            status_code=404,
+            detail=f"Version '{version}' not found for '{key}'. Available: {available}"
+        )
+
+    pkl_path = target.get("pkl_path")
+    if not pkl_path or not os.path.exists(pkl_path):
+        raise HTTPException(
+            status_code=410,
+            detail=f"Artifact for version '{version}' is missing on disk: {pkl_path}"
+        )
+
+    previous_version = row.active_version
+    promoted = await _promote_version_inplace(row, version, history)
+    if not promoted:
+        raise HTTPException(status_code=500, detail="Promotion failed")
+    await db.commit()
+
+    # Hot-reload orchestrator
+    reloaded = False
+    orch = get_orchestrator()
+    if orch:
+        try:
+            orch.load_all_models()
+            reloaded = True
+        except Exception as exc:
+            logger.warning(f"Orchestrator reload failed after promote: {exc}")
+
+    return {
+        "key":              key,
+        "previous_version": previous_version,
+        "active_version":   row.active_version,
+        "pkl_path":         row.pkl_path,
+        "version_count":    len(history),
         "orchestrator_reloaded": reloaded,
     }
 

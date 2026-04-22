@@ -15,7 +15,15 @@ interface MatchInfo {
   away_team: string;
   league: string;
   kickoff_time: string;
-  odds?: { home?: number | null; draw?: number | null; away?: number | null };
+  odds?: {
+    home?: number | null;
+    draw?: number | null;
+    away?: number | null;
+    over_25?: number | null;
+    under_25?: number | null;
+    btts_yes?: number | null;
+    btts_no?: number | null;
+  };
   home_prob?: number | null;
   draw_prob?: number | null;
   away_prob?: number | null;
@@ -50,35 +58,42 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
     queryFn: () => apiGet("/matches/markets/enabled"),
   });
   const enabledMarkets = match.enabled_markets ?? marketData?.markets ?? [];
-  const activeMarketIds = new Set((enabledMarkets.length ? enabledMarkets : [{ id: "1x2" }, { id: "over_under" }, { id: "btts" }]).map((m: any) => m.id));
+  // Real enabled-markets only — no invented fallback list. If the backend
+  // returns an empty array, the UI shows just the markets it actually has.
+  const activeMarketIds = new Set(enabledMarkets.map((m: any) => m.id));
   const stakeMarket = enabledMarkets.find((m: any) => activeMarketIds.has(m.id));
   const minStake = Number(stakeMarket?.min_stake ?? 1);
 
-  const homeOdds = match.odds?.home ?? 2.0;
-  const drawOdds = match.odds?.draw ?? 3.3;
-  const awayOdds = match.odds?.away ?? 3.5;
+  // Real odds only. If a side's odds are missing, that side is disabled
+  // (selectedOdds becomes 0 → submit button stays disabled). We never
+  // render fabricated 2.0 / 3.3 / 3.5 numbers as if they were market prices.
+  const homeOdds = match.odds?.home ?? null;
+  const drawOdds = match.odds?.draw ?? null;
+  const awayOdds = match.odds?.away ?? null;
 
-  const oddsMap: Record<Side, number> = {
+  const oddsMap: Record<Side, number | null> = {
     home: homeOdds,
     draw: drawOdds,
     away: awayOdds,
-    over_25: 1.91,
-    under_25: 1.91,
-    btts_yes: 1.91,
-    btts_no: 1.91,
+    over_25: match.odds?.over_25 ?? null,
+    under_25: match.odds?.under_25 ?? null,
+    btts_yes: match.odds?.btts_yes ?? null,
+    btts_no:  match.odds?.btts_no  ?? null,
   };
 
-  const probMap: Record<Side, number> = {
-    home: match.home_prob ?? 0.33,
-    draw: match.draw_prob ?? 0.33,
-    away: match.away_prob ?? 0.33,
-    over_25: match.over_25_prob ?? 0.5,
-    under_25: match.under_25_prob ?? (match.over_25_prob != null ? 1 - match.over_25_prob : 0.5),
-    btts_yes: match.btts_prob ?? 0.5,
-    btts_no: match.no_btts_prob ?? (match.btts_prob != null ? 1 - match.btts_prob : 0.5),
+  // Probabilities default to null when the model hasn't run for that market —
+  // UI hides the row instead of showing a fake 33% / 50% split.
+  const probMap: Record<Side, number | null> = {
+    home: match.home_prob ?? null,
+    draw: match.draw_prob ?? null,
+    away: match.away_prob ?? null,
+    over_25: match.over_25_prob ?? null,
+    under_25: match.under_25_prob ?? (match.over_25_prob != null ? 1 - match.over_25_prob : null),
+    btts_yes: match.btts_prob ?? null,
+    btts_no: match.no_btts_prob ?? (match.btts_prob != null ? 1 - match.btts_prob : null),
   };
 
-  const selectedOdds = selectedSide ? oddsMap[selectedSide] : 0;
+  const selectedOdds = (selectedSide && oddsMap[selectedSide]) || 0;
   const potentialPayout = selectedOdds > 0 ? parseFloat(stake || "0") * selectedOdds : 0;
 
   const mutation = useMutation({
@@ -91,17 +106,20 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
         ? match.kickoff_time
         : match.kickoff_time + "Z";
 
+      // Only send odds that are real — omit unknowns so the backend
+      // doesn't get bogus data.
+      const market_odds: Record<string, number> = {};
+      if (homeOdds != null) market_odds.home = homeOdds;
+      if (drawOdds != null) market_odds.draw = drawOdds;
+      if (awayOdds != null) market_odds.away = awayOdds;
+
       return apiPost("/predict", {
         home_team: match.home_team,
         away_team: match.away_team,
         league: match.league,
         kickoff_time: kickoff,
         fixture_id: String(match.match_id),
-        market_odds: {
-          home: homeOdds,
-          draw: drawOdds,
-          away: awayOdds,
-        },
+        market_odds,
       });
     },
     onSuccess: (result: any) => {
@@ -204,8 +222,10 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
                           </span>
                         )}
                         <span className="text-[10px] text-muted-foreground uppercase">{label}</span>
-                        <span className="text-lg font-bold text-primary">{odds.toFixed(2)}</span>
-                        {prob > 0 && (
+                        <span className="text-lg font-bold text-primary">
+                          {odds != null ? odds.toFixed(2) : "—"}
+                        </span>
+                        {prob != null && prob > 0 && (
                           <span className="text-[10px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
                         )}
                         {isSelected && <CheckCircle2 className="w-3 h-3 text-primary absolute top-2 right-2" />}

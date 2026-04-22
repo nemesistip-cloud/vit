@@ -14,6 +14,7 @@ import { Trophy, ArrowRight, Sparkles, Eye, EyeOff, Shield, Brain, Coins, Gift, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { WelcomeModal, OnboardingTour } from "@/components/onboarding";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -27,15 +28,18 @@ const registerSchema = z.object({
   referral_code: z.string().optional(),
 });
 
-const FEATURE_ITEMS = [
-  { icon: Brain,  text: "12-Model AI Ensemble" },
-  { icon: Coins,  text: "100 VIT Welcome Bonus" },
-  { icon: Shield, text: "Blockchain Verified Results" },
-];
+// FEATURE_ITEMS is now constructed inside the component using /config/public,
+// so the model count and welcome bonus track the live platform settings.
 
 export default function AuthPage() {
   const [, setLocation] = useLocation();
   const search = useSearch();
+  const { data: publicCfg } = usePublicConfig();
+  const FEATURE_ITEMS = [
+    { icon: Brain,  text: `${publicCfg?.platform.model_count ?? 12}-Model AI Ensemble` },
+    { icon: Coins,  text: `${publicCfg?.platform.welcome_bonus_vit ?? 100} VIT Welcome Bonus` },
+    { icon: Shield, text: "Blockchain Verified Results" },
+  ];
   const { login: setAuthToken } = useAuth();
 
   const refCode = new URLSearchParams(search).get("ref") ?? "";

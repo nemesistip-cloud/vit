@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,22 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { BarChart2, Gem, Activity, ClipboardList, RefreshCw, Plus, X } from "lucide-react";
-
-const LEAGUES = [
-  { value: "premier_league", label: "Premier League" },
-  { value: "la_liga",        label: "La Liga" },
-  { value: "bundesliga",     label: "Bundesliga" },
-  { value: "serie_a",        label: "Serie A" },
-  { value: "ligue_1",        label: "Ligue 1" },
-  { value: "championship",   label: "Championship" },
-  { value: "eredivisie",     label: "Eredivisie" },
-  { value: "primeira_liga",  label: "Primeira Liga" },
-];
-
-const BK_LABELS: Record<string, string> = {
-  pinnacle: "Pinnacle", bet365: "Bet365", betfair_ex: "Betfair",
-  betway: "Betway", unibet_eu: "Unibet", williamhill: "William Hill", bwin: "Bwin",
-};
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 type Tab = "compare" | "arbitrage" | "injuries" | "audit";
 
@@ -36,7 +21,14 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 function OddsCompare() {
-  const [league, setLeague] = useState("premier_league");
+  const { data: cfg } = usePublicConfig();
+  const LEAGUES = (cfg?.leagues ?? []).map((l) => ({ value: l.id, label: l.label }));
+  const BK_LABELS = cfg?.bookmaker_labels ?? {};
+  const [league, setLeague] = useState<string>("");
+  // Default to first available league once config loads.
+  useEffect(() => {
+    if (!league && LEAGUES.length > 0) setLeague(LEAGUES[0].value);
+  }, [LEAGUES.length]);
 
   const { data, isLoading, isFetching, refetch } = useQuery<any>({
     queryKey: ["odds-compare", league],
@@ -129,6 +121,9 @@ function OddsCompare() {
 }
 
 function ArbitrageScanner() {
+  const { data: cfg } = usePublicConfig();
+  const BK_LABELS = cfg?.bookmaker_labels ?? {};
+  const LEAGUES = (cfg?.leagues ?? []).map((l) => ({ value: l.id, label: l.label }));
   const [league, setLeague] = useState("premier_league");
   const [minProfit, setMinProfit] = useState("0.5");
 

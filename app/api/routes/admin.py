@@ -297,6 +297,17 @@ async def update_api_keys(body: ApiKeyUpdate, api_key: Optional[str] = Query(def
             logger.info(
                 "API key updated: %s (persisted=%s)", key_name, persisted,
             )
+            # When the football-data key changes, reset the in-memory
+            # invalidation flags so the new key gets a fresh chance.
+            if key_name == "FOOTBALL_DATA_API_KEY":
+                try:
+                    import app.services.results_settler as _rs
+                    _rs._KEY_PERMANENTLY_INVALID = False
+                    _rs._FORBIDDEN_LEAGUES = set()
+                    _rs._FORBIDDEN_LEAGUES_RESET_AT = 0.0
+                    logger.info("Reset football-data settler invalidation state after key update")
+                except Exception as _re:
+                    logger.debug(f"Could not reset settler state: {_re}")
         except Exception as e:
             errors[key_name] = str(e)
 
@@ -1392,8 +1403,8 @@ async def _fetch_fixtures(count: int, target_date: Optional[str] = None) -> list
         except Exception as _e:
             logger.warning(f"DB fallback failed: {_e}")
 
-    if not fixtures:
-        logger.warning("No DB fixtures either; using synthetic fixtures fallback.")
+    if not fixtures and os.getenv("ENABLE_SYNTHETIC_FIXTURES", "false").lower() == "true":
+        logger.warning("No DB fixtures either; using synthetic fixtures fallback (ENABLE_SYNTHETIC_FIXTURES=true).")
         now = datetime.now(timezone.utc)
         
         # More realistic synthetic team pairings for each league
@@ -1549,6 +1560,107 @@ async def settle_past_results(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/matches/backfill-ft-results")
+async def backfill_ft_results_endpoint(
+    api_key: Optional[str] = Query(default=None),
+    settle_real: bool = Query(default=True, description="Run real-API Football-Data settle pass first"),
+    simulate_local: bool = Query(default=True, description="Simulate FT scores for past local-only (seed/synthetic) matches"),
+    days_back: int = Query(default=14, ge=1, le=60),
+):
+    """
+    Make sure every past match has a final-time result.
+
+    For real-source matches (footballdata/odds_api/etc.) this calls
+    `settle_results()` against Football-Data.org. For local-only matches
+    (seed/synthetic) it deterministically simulates a score from opening odds
+    so the database isn't littered with "past but unfinished" rows. Simulated
+    matches are tagged `source='<orig>+sim_ft'`.
+    """
+    _verify_key(api_key)
+    try:
+        from app.services.ft_backfill import backfill_ft_results
+        return await backfill_ft_results(
+            settle_real_first=settle_real,
+            simulate_local=simulate_local,
+            days_back=days_back,
+        )
+    except Exception as e:
+        logger.error(f"FT backfill failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/data-sources/test/{key_name}")
+async def test_data_source_key(
+    key_name: str,
+    api_key: Optional[str] = Query(default=None),
+):
+    """
+    Probe a single external data source with the currently-configured key.
+    Lets the admin click "Test Connection" right after pasting a new key.
+
+    Currently supports: football_data, odds_api.
+    """
+    _verify_key(api_key)
+    key_name = key_name.lower().replace("-", "_")
+
+    if key_name in ("football_data", "footballdata", "football-data.org"):
+        token = os.getenv("FOOTBALL_DATA_API_KEY", "")
+        if not token:
+            return {"key": "football_data", "status": "no_key",
+                    "message": "FOOTBALL_DATA_API_KEY is not set"}
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.get(
+                    "https://api.football-data.org/v4/competitions/PL",
+                    headers={"X-Auth-Token": token},
+                )
+            if r.status_code == 200:
+                body = r.json()
+                return {
+                    "key": "football_data",
+                    "status": "ok",
+                    "message": f"Connected — Premier League season {body.get('currentSeason', {}).get('startDate', '?')[:4]}",
+                    "remaining_today": r.headers.get("X-Requests-Available-Minute"),
+                }
+            if r.status_code == 401:
+                return {"key": "football_data", "status": "invalid",
+                        "message": "Key rejected (401). Check that you copied it correctly."}
+            if r.status_code == 403:
+                return {"key": "football_data", "status": "forbidden",
+                        "message": "Key valid but tier blocks this resource (403)."}
+            if r.status_code == 429:
+                return {"key": "football_data", "status": "rate_limited",
+                        "message": "Rate-limited. Wait 60s and try again."}
+            return {"key": "football_data", "status": "error",
+                    "message": f"HTTP {r.status_code} — {r.text[:120]}"}
+        except Exception as e:
+            return {"key": "football_data", "status": "down", "message": str(e)}
+
+    if key_name in ("odds_api", "the_odds_api"):
+        token = os.getenv("ODDS_API_KEY", "") or os.getenv("THE_ODDS_API_KEY", "")
+        if not token:
+            return {"key": "odds_api", "status": "no_key",
+                    "message": "ODDS_API_KEY is not set"}
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.get("https://api.the-odds-api.com/v4/sports", params={"apiKey": token})
+            if r.status_code == 200:
+                return {
+                    "key": "odds_api", "status": "ok",
+                    "message": f"Connected — {len(r.json())} sports available",
+                    "requests_remaining": r.headers.get("x-requests-remaining"),
+                }
+            if r.status_code in (401, 403):
+                return {"key": "odds_api", "status": "invalid",
+                        "message": "Key rejected. Check that it's correct and active."}
+            return {"key": "odds_api", "status": "error",
+                    "message": f"HTTP {r.status_code}"}
+        except Exception as e:
+            return {"key": "odds_api", "status": "down", "message": str(e)}
+
+    raise HTTPException(status_code=400, detail=f"Unknown data source key: {key_name}")
+
+
 @router.get("/fixtures/live")
 async def get_live_fixtures(api_key: Optional[str] = Query(default=None)):
     """
@@ -1615,13 +1727,25 @@ async def admin_fetch_and_store_fixtures(
                                     kickoff = datetime.fromisoformat(kickoff_str.replace("Z", "+00:00")).replace(tzinfo=None)
                                 except Exception:
                                     continue
+                                from app.data.match_dedup import compute_fingerprint, find_existing_match
+                                home_team = m["homeTeam"]["name"]
+                                away_team = m["awayTeam"]["name"]
+                                # Cross-source dedup: never overwrite manually-uploaded matches
+                                existing_fp = await find_existing_match(db, home_team, away_team, kickoff, league)
+                                if existing_fp:
+                                    if not existing_fp.external_id:
+                                        existing_fp.external_id = ext_id
+                                    skipped += 1
+                                    continue
                                 db.add(Match(
                                     external_id=ext_id,
-                                    home_team=m["homeTeam"]["name"],
-                                    away_team=m["awayTeam"]["name"],
+                                    home_team=home_team,
+                                    away_team=away_team,
                                     league=league,
                                     kickoff_time=kickoff,
                                     status="upcoming",
+                                    source="footballdata",
+                                    fingerprint=compute_fingerprint(home_team, away_team, kickoff, league),
                                 ))
                                 stored += 1
                         elif r.status_code == 429:
@@ -1631,9 +1755,10 @@ async def admin_fetch_and_store_fixtures(
                         errors += 1
                 await db.commit()
 
-    source = "football_data" if stored > 0 else "synthetic"
+    allow_synthetic = os.getenv("ENABLE_SYNTHETIC_FIXTURES", "false").lower() == "true"
+    source = "football_data" if stored > 0 else ("synthetic" if allow_synthetic else "none")
 
-    if stored == 0:
+    if stored == 0 and allow_synthetic:
         _synthetic_teams = {
             "premier_league": [("Arsenal","Manchester City",2.20,3.40,3.30),("Liverpool","Chelsea",1.85,3.60,4.20),("Manchester United","Tottenham",2.10,3.50,3.40),("Newcastle","Brighton",2.40,3.20,2.90),("Aston Villa","West Ham",2.00,3.30,3.70),("Brentford","Fulham",2.60,3.10,2.70),("Crystal Palace","Everton",2.30,3.20,3.10)],
             "la_liga":        [("Real Madrid","Barcelona",2.50,3.30,2.70),("Atletico Madrid","Sevilla",1.75,3.50,4.50),("Valencia","Villarreal",2.30,3.30,3.00),("Real Betis","Athletic Bilbao",2.40,3.20,2.90)],
@@ -1657,6 +1782,7 @@ async def admin_fetch_and_store_fixtures(
                     if existing:
                         skipped += 1
                         continue
+                    from app.data.match_dedup import compute_fingerprint
                     db.add(Match(
                         external_id=ext_id,
                         home_team=home,
@@ -1667,6 +1793,8 @@ async def admin_fetch_and_store_fixtures(
                         opening_odds_draw=draw_odds,
                         opening_odds_away=away_odds,
                         status="upcoming",
+                        source="synthetic",
+                        fingerprint=compute_fingerprint(home, away, kickoff, league),
                     ))
                     stored += 1
             await db.commit()
@@ -1674,12 +1802,21 @@ async def admin_fetch_and_store_fixtures(
     async with AsyncSessionLocal() as db:
         await _log_audit(db, "fixtures.sync", getattr(current_user, "email", "admin"), "matches", None, {"stored": stored, "source": source})
 
+    if source == "synthetic":
+        msg = f"Synced {stored} synthetic fixtures (ENABLE_SYNTHETIC_FIXTURES=true)"
+    elif source == "none":
+        msg = (f"No fixtures synced. FOOTBALL_DATA_API_KEY missing or rate-limited "
+               f"and synthetic fallback is disabled. Set ENABLE_SYNTHETIC_FIXTURES=true "
+               f"to allow demo data.")
+    else:
+        msg = f"Stored {stored} new fixtures from Football-Data API"
+
     return {
         "stored": stored,
         "skipped_existing": skipped,
         "errors": errors,
         "source": source,
-        "message": f"Synced {stored} fixtures (synthetic fallback — set FOOTBALL_DATA_API_KEY for real data)" if source == "synthetic" else f"Stored {stored} new fixtures from Football-Data API",
+        "message": msg,
     }
 
 

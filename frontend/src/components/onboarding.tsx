@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Brain, Coins, Target, X, ChevronRight, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { Badge } from "@/components/ui/badge";
 
 /* ============================================================
@@ -16,6 +17,9 @@ interface WelcomeModalProps {
 
 export function WelcomeModal({ username, onClose, onStartTour }: WelcomeModalProps) {
   const [celebrating, setCelebrating] = useState(false);
+  const { data: cfg } = usePublicConfig();
+  const welcomeBonus = cfg?.platform.welcome_bonus_vit ?? 100;
+  const modelCount   = cfg?.platform.model_count       ?? 12;
 
   const handleStart = () => {
     setCelebrating(true);
@@ -68,14 +72,14 @@ export function WelcomeModal({ username, onClose, onStartTour }: WelcomeModalPro
           </h2>
           <p className="text-muted-foreground text-sm mb-4 leading-relaxed">
             Your account is active and your wallet has been funded with a{" "}
-            <span className="text-secondary font-bold">100 VIT welcome bonus</span>.
+            <span className="text-secondary font-bold">{welcomeBonus} VIT welcome bonus</span>.
           </p>
 
           <div className="grid grid-cols-3 gap-3 mb-6">
             {[
-              { icon: Brain,  label: "12 AI Models", color: "text-primary"  },
-              { icon: Coins,  label: "100 VIT Bonus", color: "text-secondary" },
-              { icon: Target, label: "First Prediction", color: "text-purple-400" },
+              { icon: Brain,  label: `${modelCount} AI Models`,    color: "text-primary"   },
+              { icon: Coins,  label: `${welcomeBonus} VIT Bonus`,  color: "text-secondary" },
+              { icon: Target, label: "First Prediction",            color: "text-purple-400" },
             ].map(({ icon: Icon, label, color }) => (
               <div key={label} className="bg-background/50 rounded-lg p-3 border border-border/50">
                 <Icon className={`w-5 h-5 ${color} mx-auto mb-1`} />
