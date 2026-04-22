@@ -76,7 +76,7 @@ export default function AccumulatorPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [candFilters, setCandFilters] = useState({ minConfidence: 0.60, minEdge: 0.01, count: 20 });
-  const [accFilters, setAccFilters] = useState({ minLegs: 2, maxLegs: 5, topN: 10 });
+  const [accFilters, setAccFilters] = useState({ minLegs: 1, maxLegs: 5, topN: 10 });
   const [accumulators, setAccumulators] = useState<Accumulator[]>([]);
   const [expandedAcc, setExpandedAcc] = useState<number | null>(null);
   const [stakeCurrency, setStakeCurrency] = useState("USD");
@@ -155,15 +155,16 @@ export default function AccumulatorPage() {
   function handleGenerate() {
     if (generateMutation.isPending) return;
     const selected = candidates.filter((c) => selectedIds.has(c.match_id));
-    if (selected.length < accFilters.minLegs) {
-      toast.error(`Select at least ${accFilters.minLegs} candidates`);
+    const minLegs = Math.max(1, accFilters.minLegs);
+    if (selected.length < minLegs) {
+      toast.error(`Select at least ${minLegs} ${minLegs === 1 ? "candidate" : "candidates"}`);
       return;
     }
     generateMutation.mutate({
       candidates: selected,
-      minLegs: accFilters.minLegs,
-      maxLegs: Math.min(accFilters.maxLegs, selected.length),
-      topN: accFilters.topN,
+      min_legs: minLegs,
+      max_legs: Math.max(minLegs, Math.min(accFilters.maxLegs, selected.length)),
+      top_n: accFilters.topN,
     });
   }
 
@@ -310,17 +311,19 @@ export default function AccumulatorPage() {
               <div className="space-y-1.5">
                 <Label className="font-mono text-xs uppercase">Min Legs</Label>
                 <Input
-                  type="number" min="2" max="8" className="font-mono bg-background/50"
+                  type="number" min="1" max="8" className="font-mono bg-background/50"
                   value={accFilters.minLegs}
-                  onChange={(e) => setAccFilters((f) => ({ ...f, minLegs: parseInt(e.target.value) }))}
+                  onChange={(e) => setAccFilters((f) => ({ ...f, minLegs: Math.max(1, parseInt(e.target.value) || 1) }))}
+                  data-testid="input-min-legs"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label className="font-mono text-xs uppercase">Max Legs</Label>
                 <Input
-                  type="number" min="2" max="8" className="font-mono bg-background/50"
+                  type="number" min="1" max="8" className="font-mono bg-background/50"
                   value={accFilters.maxLegs}
-                  onChange={(e) => setAccFilters((f) => ({ ...f, maxLegs: parseInt(e.target.value) }))}
+                  onChange={(e) => setAccFilters((f) => ({ ...f, maxLegs: Math.max(1, parseInt(e.target.value) || 1) }))}
+                  data-testid="input-max-legs"
                 />
               </div>
               <div className="space-y-1.5">
@@ -335,16 +338,25 @@ export default function AccumulatorPage() {
             <div className="flex items-center gap-4">
               <Button
                 onClick={handleGenerate}
-                disabled={generateMutation.isPending || selectedIds.size < accFilters.minLegs}
+                disabled={generateMutation.isPending || selectedIds.size < Math.max(1, accFilters.minLegs)}
                 className="font-mono gap-2"
+                data-testid="button-generate-accumulator"
               >
                 <Trophy className="w-4 h-4" />
-                {generateMutation.isPending ? "GENERATING..." : `GENERATE (${selectedIds.size} selected)`}
+                {generateMutation.isPending
+                  ? "GENERATING..."
+                  : selectedIds.size === 1 && accFilters.minLegs <= 1
+                    ? "PLACE SINGLE BET (1 selected)"
+                    : `GENERATE (${selectedIds.size} selected)`}
               </Button>
-              {selectedIds.size < accFilters.minLegs && (
+              {selectedIds.size < Math.max(1, accFilters.minLegs) && (
                 <p className="text-xs font-mono text-yellow-400 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  Select at least {accFilters.minLegs} candidates
+                  {candidates.length === 0
+                    ? "Run a fixture scan first."
+                    : candidates.length < accFilters.minLegs
+                      ? `Only ${candidates.length} candidate${candidates.length === 1 ? "" : "s"} available — lower Min Legs to ${candidates.length}, lower Min Edge / Min Confidence, or scan more fixtures.`
+                      : `Select at least ${accFilters.minLegs} ${accFilters.minLegs === 1 ? "candidate" : "candidates"}.`}
                 </p>
               )}
             </div>

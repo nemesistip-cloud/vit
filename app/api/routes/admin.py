@@ -1040,6 +1040,12 @@ class AccumulatorRequest(BaseModel):
     min_combined_edge: float = 0.0
     top_n:          int   = 10
 
+    def normalised(self) -> "AccumulatorRequest":
+        # Floor min_legs/max_legs at 1 so a single-candidate "ticket" is allowed.
+        self.min_legs = max(1, int(self.min_legs))
+        self.max_legs = max(self.min_legs, int(self.max_legs))
+        return self
+
 
 def _correlation_penalty(legs: List[dict]) -> float:
     """
@@ -1068,6 +1074,7 @@ async def generate_accumulators(body: AccumulatorRequest, api_key: Optional[str]
     """
     _verify_key(api_key)
 
+    body = body.normalised()
     candidates = body.candidates
     if len(candidates) < body.min_legs:
         raise HTTPException(
