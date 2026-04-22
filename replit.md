@@ -79,3 +79,12 @@ Stake placement (`/predictions/{match_id}/stake`) now:
 - Locks the wallet row before the debit
 
 Validator endpoints (`apply`, `withdraw`, admin `reject`, admin `slash`) all use the same locked, audited path.
+
+## Recent Changes — Per-Route Code Splitting (Apr 22 2026)
+`frontend/src/App.tsx` now imports every authenticated/secondary page through `React.lazy` with a single `<Suspense>` boundary around `<Switch>`. Eager pages: landing, auth, info (legal), not-found.
+
+Bundle results (gzip in parens):
+- **Main bundle: 814 KB → 412 KB (122 KB gz)** — 49% reduction
+- `vendor-charts` (394 KB / 108 KB gz) is no longer in the critical path; only loaded by chart-using pages (dashboard, analytics, admin, training)
+- Each route is its own chunk — heaviest are admin (63 KB / 13 KB gz), training (30 KB / 8 KB gz), predictions (28 KB / 9 KB gz)
+- 24 route chunks total, fetched on demand

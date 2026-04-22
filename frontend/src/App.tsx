@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
@@ -8,33 +9,47 @@ import { ThemeProvider } from "@/lib/theme";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
 
+// Eager — first-paint surfaces (landing + auth) and the tiny info page used for legal routes.
 import LandingPage from "@/pages/landing";
 import AuthPage from "@/pages/auth";
-import DashboardPage from "@/pages/dashboard";
-import MatchesPage from "@/pages/matches";
-import MatchDetailPage from "@/pages/match-detail";
-import PredictionsPage from "@/pages/predictions";
-import WalletPage from "@/pages/wallet";
-import ValidatorsPage from "@/pages/validators";
-import TrainingPage from "@/pages/training";
-import AnalyticsPage from "@/pages/analytics";
-import SubscriptionPage from "@/pages/subscription";
-import AdminPage from "@/pages/admin";
-import MarketplacePage from "@/pages/marketplace";
-import TrustPage from "@/pages/trust";
-import BridgePage from "@/pages/bridge";
-import DeveloperPage from "@/pages/developer";
-import GovernancePage from "@/pages/governance";
-import AccumulatorPage from "@/pages/accumulator";
-import OddsPage from "@/pages/odds";
-import PaymentCallbackPage from "@/pages/payment-callback";
-import LeaderboardPage from "@/pages/leaderboard";
-import ReferralPage from "@/pages/referral";
-import SettingsPage from "@/pages/settings";
-import ForgotPasswordPage from "@/pages/forgot-password";
-import ResetPasswordPage from "@/pages/reset-password";
-import VerifyEmailPage from "@/pages/verify-email";
 import InfoPage from "@/pages/info";
+
+// Lazy — every authenticated/secondary route ships in its own chunk.
+const DashboardPage       = lazy(() => import("@/pages/dashboard"));
+const MatchesPage         = lazy(() => import("@/pages/matches"));
+const MatchDetailPage     = lazy(() => import("@/pages/match-detail"));
+const PredictionsPage     = lazy(() => import("@/pages/predictions"));
+const WalletPage          = lazy(() => import("@/pages/wallet"));
+const ValidatorsPage      = lazy(() => import("@/pages/validators"));
+const TrainingPage        = lazy(() => import("@/pages/training"));
+const AnalyticsPage       = lazy(() => import("@/pages/analytics"));
+const SubscriptionPage    = lazy(() => import("@/pages/subscription"));
+const AdminPage           = lazy(() => import("@/pages/admin"));
+const MarketplacePage     = lazy(() => import("@/pages/marketplace"));
+const TrustPage           = lazy(() => import("@/pages/trust"));
+const BridgePage          = lazy(() => import("@/pages/bridge"));
+const DeveloperPage       = lazy(() => import("@/pages/developer"));
+const GovernancePage      = lazy(() => import("@/pages/governance"));
+const AccumulatorPage     = lazy(() => import("@/pages/accumulator"));
+const OddsPage            = lazy(() => import("@/pages/odds"));
+const PaymentCallbackPage = lazy(() => import("@/pages/payment-callback"));
+const LeaderboardPage     = lazy(() => import("@/pages/leaderboard"));
+const ReferralPage        = lazy(() => import("@/pages/referral"));
+const SettingsPage        = lazy(() => import("@/pages/settings"));
+const ForgotPasswordPage  = lazy(() => import("@/pages/forgot-password"));
+const ResetPasswordPage   = lazy(() => import("@/pages/reset-password"));
+const VerifyEmailPage     = lazy(() => import("@/pages/verify-email"));
+
+function RouteFallback() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Loading…</span>
+      </div>
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -77,6 +92,7 @@ function Router() {
   const { user } = useAuth();
 
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Switch>
       <Route path="/">
         {user ? <Redirect to="/dashboard" /> : <LandingPage />}
@@ -157,6 +173,7 @@ function Router() {
         <Layout><NotFound /></Layout>
       </Route>
     </Switch>
+    </Suspense>
   );
 }
 
