@@ -939,17 +939,26 @@ async def get_accumulator_candidates(
     min_confidence:  float = Query(default=0.60),
     min_edge:        float = Query(default=0.01),
     count:           int   = Query(default=15, le=30),
+    auto_relax:      bool  = Query(default=True, description="Loosen filters automatically until target_min candidates are found"),
+    target_min:      int   = Query(default=4, ge=2, le=20, description="Minimum candidates desired before auto-relax stops"),
 ):
     """
     Fetch upcoming fixtures and return top candidates for accumulators.
     Each candidate includes edge, confidence, and market type.
+
+    If `auto_relax=True` (default) and fewer than `target_min` candidates pass the user's
+    filters, the engine progressively loosens `min_confidence` (steps of 0.05, floor 0.50)
+    and `min_edge` (steps of 0.005, floor 0.0) until at least `target_min` candidates are
+    available — accumulators need ≥2 legs to be useful, so a 1-candidate result is treated
+    as a failure mode worth recovering from automatically.
     """
     _verify_key(api_key)
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Orchestrator not initialized")
 
     fixtures = await _fetch_fixtures(count)
-    candidates = []
+    # Score every fixture once, then filter — lets us re-filter on relax without re-scoring.
+    scored: list[dict] = []
 
     for fix in fixtures:
         home = fix["home_team"]
@@ -988,40 +997,70 @@ async def get_accumulator_candidates(
         best_side = best.get("best_side")
         best_odds_val = best.get("odds", 2.0)
 
-        if best_side and confidence >= min_confidence and edge >= min_edge:
-            db_match_id = fix.get("db_match_id")
-            if not db_match_id:
-                try:
-                    async with AsyncSessionLocal() as _db:
-                        _q = await _db.execute(
-                            select(_Match).where(
-                                _Match.home_team.ilike(f"%{home}%"),
-                                _Match.away_team.ilike(f"%{away}%"),
-                            ).limit(1)
-                        )
-                        _m = _q.scalar_one_or_none()
-                        db_match_id = _m.id if _m else abs(hash(f"{home}_{away}")) % 1000000
-                except Exception:
-                    db_match_id = abs(hash(f"{home}_{away}")) % 1000000
-            candidates.append({
-                "match_id":    db_match_id,
-                "home_team":   home,
-                "away_team":   away,
-                "league":      fix["league"],
-                "kickoff":     fix["kickoff_time"][:16],
-                "best_side":   best_side,
-                "best_odds":   round(best_odds_val, 2),
-                "edge":        round(edge, 4),
-                "confidence":  round(confidence, 3),
-                "home_prob":   round(home_prob, 3),
-                "draw_prob":   round(draw_prob, 3),
-                "away_prob":   round(away_prob, 3),
-                "models_used": models_used,
-                "data_source": data_source,
-                "home_odds":   home_odds,
-                "draw_odds":   draw_odds,
-                "away_odds":   away_odds,
-            })
+        if not best_side:
+            continue
+        db_match_id = fix.get("db_match_id")
+        if not db_match_id:
+            try:
+                async with AsyncSessionLocal() as _db:
+                    _q = await _db.execute(
+                        select(_Match).where(
+                            _Match.home_team.ilike(f"%{home}%"),
+                            _Match.away_team.ilike(f"%{away}%"),
+                        ).limit(1)
+                    )
+                    _m = _q.scalar_one_or_none()
+                    db_match_id = _m.id if _m else abs(hash(f"{home}_{away}")) % 1000000
+            except Exception:
+                db_match_id = abs(hash(f"{home}_{away}")) % 1000000
+        scored.append({
+            "match_id":    db_match_id,
+            "home_team":   home,
+            "away_team":   away,
+            "league":      fix["league"],
+            "kickoff":     fix["kickoff_time"][:16],
+            "best_side":   best_side,
+            "best_odds":   round(best_odds_val, 2),
+            "edge":        round(edge, 4),
+            "confidence":  round(confidence, 3),
+            "home_prob":   round(home_prob, 3),
+            "draw_prob":   round(draw_prob, 3),
+            "away_prob":   round(away_prob, 3),
+            "models_used": models_used,
+            "data_source": data_source,
+            "home_odds":   home_odds,
+            "draw_odds":   draw_odds,
+            "away_odds":   away_odds,
+        })
+
+    # Apply user's filters; if too few, progressively relax until target_min is met.
+    applied_conf = float(min_confidence)
+    applied_edge = float(min_edge)
+
+    def _filter(scored_list, conf_floor, edge_floor):
+        return [c for c in scored_list if c["confidence"] >= conf_floor and c["edge"] >= edge_floor]
+
+    candidates = _filter(scored, applied_conf, applied_edge)
+    relaxed = False
+    relax_steps: list[dict] = []
+
+    if auto_relax and len(candidates) < target_min:
+        # Try edge first (smaller economic impact than confidence), then confidence.
+        for _ in range(20):  # hard cap on iterations
+            if len(candidates) >= target_min:
+                break
+            # Drop edge by 0.005 down to 0
+            if applied_edge > 0:
+                applied_edge = max(0.0, round(applied_edge - 0.005, 4))
+            # Then drop confidence by 0.05 down to 0.50
+            elif applied_conf > 0.50:
+                applied_conf = round(applied_conf - 0.05, 3)
+            else:
+                break
+            new_count = len(_filter(scored, applied_conf, applied_edge))
+            relax_steps.append({"min_confidence": applied_conf, "min_edge": applied_edge, "candidates": new_count})
+            candidates = _filter(scored, applied_conf, applied_edge)
+        relaxed = (applied_conf != min_confidence) or (applied_edge != min_edge)
 
     # Sort by confidence × edge (highest expected value first)
     candidates.sort(key=lambda x: x["confidence"] * x["edge"], reverse=True)
@@ -1029,7 +1068,12 @@ async def get_accumulator_candidates(
     return {
         "candidates":  candidates[:count],
         "total_found": len(candidates),
-        "filters": {"min_confidence": min_confidence, "min_edge": min_edge},
+        "scored":      len(scored),
+        "filters":     {"min_confidence": min_confidence, "min_edge": min_edge},
+        "applied_filters": {"min_confidence": applied_conf, "min_edge": applied_edge},
+        "relaxed":     relaxed,
+        "relax_steps": relax_steps,
+        "target_min":  target_min,
     }
 
 

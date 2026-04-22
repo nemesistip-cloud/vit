@@ -88,3 +88,17 @@ Bundle results (gzip in parens):
 - `vendor-charts` (394 KB / 108 KB gz) is no longer in the critical path; only loaded by chart-using pages (dashboard, analytics, admin, training)
 - Each route is its own chunk — heaviest are admin (63 KB / 13 KB gz), training (30 KB / 8 KB gz), predictions (28 KB / 9 KB gz)
 - 24 route chunks total, fetched on demand
+
+## Recent Changes — Accumulator Auto-Relax (Apr 22 2026)
+The accumulator engine now refuses to leave the user with a 1-candidate scan (which can't form an accumulator).
+
+`GET /admin/accumulator/candidates` (`app/api/routes/admin.py`):
+- Scores every fixture once, then filters; new params `auto_relax=True` and `target_min=4`
+- If fewer than `target_min` candidates pass the user's filters, edge is dropped first in 0.005 steps to 0, then confidence in 0.05 steps to 0.50, until enough candidates emerge
+- Response now includes `applied_filters`, `relaxed`, `relax_steps`, `scored`
+
+`frontend/src/pages/accumulator.tsx`:
+- Default Min Legs raised from 1 → 2 (an accumulator is by definition multi-leg)
+- Yellow "auto-loosened" banner shows the actually-applied filters when they differ from requested
+- Orange single-candidate banner with one-tap "Loosen & rescan" button (drops edge to 0, drops confidence by 0.10, scans 10 more fixtures)
+- Pluralization fix ("1 candidate" / "N candidates")

@@ -76,7 +76,8 @@ export default function AccumulatorPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [candFilters, setCandFilters] = useState({ minConfidence: 0.60, minEdge: 0.01, count: 20 });
-  const [accFilters, setAccFilters] = useState({ minLegs: 1, maxLegs: 5, topN: 10 });
+  // An accumulator is by definition ≥2 legs; default min to 2.
+  const [accFilters, setAccFilters] = useState({ minLegs: 2, maxLegs: 5, topN: 10 });
   const [accumulators, setAccumulators] = useState<Accumulator[]>([]);
   const [expandedAcc, setExpandedAcc] = useState<number | null>(null);
   const [stakeCurrency, setStakeCurrency] = useState("USD");
@@ -84,10 +85,17 @@ export default function AccumulatorPage() {
   const [receipts, setReceipts] = useState<Record<number, BetReceipt>>({});
   const [sendingTg, setSendingTg] = useState<number | null>(null);
 
-  const candidatesQuery = useQuery<{ candidates: Candidate[] }>({
+  const candidatesQuery = useQuery<{
+    candidates: Candidate[];
+    total_found: number;
+    scored?: number;
+    relaxed?: boolean;
+    applied_filters?: { min_confidence: number; min_edge: number };
+    target_min?: number;
+  }>({
     queryKey: ["accumulator-candidates", candFilters],
-    queryFn: () => apiGet<{ candidates: Candidate[] }>(
-      `/admin/accumulator/candidates?min_confidence=${candFilters.minConfidence}&min_edge=${candFilters.minEdge}&count=${candFilters.count}`
+    queryFn: () => apiGet(
+      `/admin/accumulator/candidates?min_confidence=${candFilters.minConfidence}&min_edge=${candFilters.minEdge}&count=${candFilters.count}&auto_relax=true&target_min=4`
     ),
     enabled: false,
   });
@@ -240,11 +248,47 @@ export default function AccumulatorPage() {
             {candidatesQuery.isFetching ? "SCANNING..." : "SCAN FIXTURES"}
           </Button>
 
+          {candidatesQuery.data?.relaxed && candidatesQuery.data?.applied_filters && (
+            <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-mono text-[11px] text-yellow-300/90 leading-snug">
+                  Auto-loosened filters to reach {candidatesQuery.data.target_min ?? 4}+ candidates.
+                  Now using min confidence{" "}
+                  <span className="font-semibold">{(candidatesQuery.data.applied_filters.min_confidence * 100).toFixed(0)}%</span>{" "}
+                  · min edge{" "}
+                  <span className="font-semibold">{(candidatesQuery.data.applied_filters.min_edge * 100).toFixed(1)}%</span>
+                  {" "}(you asked for {(candFilters.minConfidence * 100).toFixed(0)}% / {(candFilters.minEdge * 100).toFixed(1)}%).
+                </p>
+              </div>
+            </div>
+          )}
+          {candidates.length === 1 && (
+            <div className="rounded-md border border-orange-500/30 bg-orange-500/5 px-3 py-2 flex items-center justify-between gap-2">
+              <p className="font-mono text-[11px] text-orange-300/90">
+                Only 1 candidate — accumulators need at least 2 legs.
+              </p>
+              <Button
+                variant="outline" size="sm" className="font-mono text-[10px] h-6 px-2 flex-shrink-0"
+                onClick={() => {
+                  setCandFilters((f) => ({
+                    ...f,
+                    minEdge: 0,
+                    minConfidence: Math.max(0.50, f.minConfidence - 0.1),
+                    count: Math.min(30, f.count + 10),
+                  }));
+                  setTimeout(() => candidatesQuery.refetch(), 0);
+                }}
+              >
+                Loosen & rescan
+              </Button>
+            </div>
+          )}
           {candidates.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-mono text-muted-foreground">
-                  {candidates.length} candidates found · {selectedIds.size}/{MAX_SELECTIONS} selected
+                  {candidates.length} candidate{candidates.length === 1 ? "" : "s"} found · {selectedIds.size}/{MAX_SELECTIONS} selected
                 </p>
                 <div className="flex gap-2">
                   <Button
