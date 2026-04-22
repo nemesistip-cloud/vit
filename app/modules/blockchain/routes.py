@@ -106,8 +106,24 @@ async def stake_on_prediction(
         select(ConsensusPrediction).where(ConsensusPrediction.match_id == match_id)
     )
     cp = cp_res.scalar_one_or_none()
-    if not cp or cp.status not in (ConsensusStatus.OPEN.value,):
-        raise HTTPException(400, "Match is not open for staking")
+
+    # Auto-bootstrap an AI-only consensus row the first time anyone stakes on a
+    # fixture. Without this, only matches that already received a validator
+    # prediction can be staked on, which blocks normal user flow.
+    if not cp:
+        match_exists = (
+            await db.execute(select(Match.id).where(Match.id == match_id))
+        ).scalar_one_or_none()
+        if not match_exists:
+            raise HTTPException(404, "Match not found")
+        try:
+            cp = await calculate_consensus(match_id, db)
+        except Exception as exc:
+            logger.warning(f"Failed to bootstrap consensus for {match_id}: {exc}")
+            raise HTTPException(400, "Match is not open for staking")
+
+    if cp.status != ConsensusStatus.OPEN.value:
+        raise HTTPException(400, f"Match is {cp.status} — staking is closed")
 
     # Block staking after kickoff — stops in-play / post-result staking abuse
     match_row = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
