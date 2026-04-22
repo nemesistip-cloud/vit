@@ -14,7 +14,7 @@ Institutional-grade football prediction platform combining a 12-model AI ensembl
 | Module | Path | Status |
 |--------|------|--------|
 | AI Orchestrator (12 models) | `app/modules/ai/` | ✅ Running (synthetic mode) |
-| Auth (JWT + TOTP) | `app/auth/` | ✅ Complete (email stub) |
+| Auth (JWT + TOTP) | `app/auth/` | ✅ Complete — 2FA login gate enforced |
 | Wallet + VITCoin | `app/modules/wallet/` | ✅ Core complete |
 | Predictions | `app/api/routes/predict.py` | ✅ Working |
 | Blockchain / Staking | `app/modules/blockchain/` | 🚧 Disabled (flag) |
@@ -22,7 +22,7 @@ Institutional-grade football prediction platform combining a 12-model AI ensembl
 | Governance DAO | `app/modules/governance/` | 🚧 Partial |
 | Marketplace | `app/modules/marketplace/` | ✅ UI live |
 | Developer API | `app/modules/developer/` | ✅ Key management done |
-| Notifications + WS | `app/modules/notifications/` | 🚧 WS not wired to frontend |
+| Notifications + WS | `app/modules/notifications/` | ✅ WS toasts + exponential reconnect |
 | Referral | `app/modules/referral/` | 🚧 No reward distribution |
 | Trust Engine | `app/modules/trust/` | 🚧 Partial |
 | Training Pipeline | `app/api/routes/training.py` | 🚧 Colab-only |
@@ -33,8 +33,8 @@ Institutional-grade football prediction platform combining a 12-model AI ensembl
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — Admin seed account
 - `FOOTBALL_DATA_API_KEY` — Configured
 - `GEMINI_API_KEY` — Configured
-- `STRIPE_SECRET_KEY` — **Missing** (payments disabled)
-- `PAYSTACK_SECRET_KEY` — **Missing** (NGN deposits disabled)
+- `STRIPE_SECRET_KEY` — Configured (webhook activates subscriptions)
+- `PAYSTACK_SECRET_KEY` — Configured (NGN deposits enabled)
 - `SMTP_HOST` — **Missing** (email is console-stub)
 - `REDIS_URL` — **Missing** (in-memory rate limiting only)
 - `ANTHROPIC_API_KEY` — **Missing** (Claude insights disabled)

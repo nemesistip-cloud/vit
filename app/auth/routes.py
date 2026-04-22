@@ -73,6 +73,18 @@ class TokenResponse(BaseModel):
     role: str
 
 
+class TwoFARequired(BaseModel):
+    """Returned when the user has 2FA enabled — full tokens are withheld."""
+    requires_2fa: bool = True
+    pre_auth_token: str
+    token_type: str = "pre_auth"
+
+
+class Complete2FARequest(BaseModel):
+    pre_auth_token: str
+    totp_code: str
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
@@ -159,10 +171,9 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 async def login(body: LoginRequest, request: Request = None, db: AsyncSession = Depends(get_db)):
     from app.core.rate_limit import check_login_allowed, record_login_failure, clear_login_failures
-    from fastapi import Request as _Request
 
     client_ip = request.client.host if request and request.client else None
 
@@ -182,12 +193,62 @@ async def login(body: LoginRequest, request: Request = None, db: AsyncSession = 
         raise HTTPException(status_code=403, detail="Account is deactivated")
 
     clear_login_failures(body.email)
+
+    # ── 2FA gate: if enabled, return a short-lived pre-auth token ───────
+    if getattr(user, "totp_enabled", False):
+        from datetime import timedelta as _td
+        pre_auth = create_access_token(
+            {"sub": str(user.id), "role": user.role, "type": "pre_auth"},
+            expires_delta=_td(minutes=5),
+        )
+        return TwoFARequired(pre_auth_token=pre_auth)
+
+    # ── Full login ───────────────────────────────────────────────────────
     user.last_login = datetime.now(timezone.utc)
     await db.commit()
 
     access_token = create_access_token({"sub": str(user.id), "role": user.role})
     refresh_token = create_refresh_token({"sub": str(user.id)})
     await _write_audit(db, "user.login", user.email, "auth", str(user.id))
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+    )
+
+
+@router.post("/2fa/complete-login", response_model=TokenResponse)
+async def complete_login_2fa(body: Complete2FARequest, db: AsyncSession = Depends(get_db)):
+    """Exchange a pre-auth token + TOTP code for full access/refresh tokens."""
+    import pyotp
+
+    payload = decode_token(body.pre_auth_token)
+    if not payload or payload.get("type") != "pre_auth":
+        raise HTTPException(status_code=401, detail="Invalid or expired 2FA session. Please log in again.")
+
+    user_id = payload.get("sub")
+    result = await db.execute(select(User).where(User.id == int(user_id)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
+    secret = getattr(user, "totp_secret", None)
+    if not secret:
+        raise HTTPException(status_code=400, detail="2FA secret missing. Please re-setup 2FA.")
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(body.totp_code.strip(), valid_window=1):
+        raise HTTPException(status_code=401, detail="Invalid or expired 2FA code.")
+
+    user.last_login = datetime.now(timezone.utc)
+    await db.commit()
+
+    access_token = create_access_token({"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+    await _write_audit(db, "user.login.2fa", user.email, "auth", str(user.id))
 
     return TokenResponse(
         access_token=access_token,

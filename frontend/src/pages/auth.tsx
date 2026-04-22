@@ -5,11 +5,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useLogin, useRegister } from "@/api-client";
 import { useAuth } from "@/lib/auth";
+import { apiPost } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Trophy, ArrowRight, Sparkles, Eye, EyeOff, Shield, Brain, Coins, Gift } from "lucide-react";
+import { Trophy, ArrowRight, Sparkles, Eye, EyeOff, Shield, Brain, Coins, Gift, Lock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { WelcomeModal, OnboardingTour } from "@/components/onboarding";
@@ -48,6 +49,12 @@ export default function AuthPage() {
   const [showTour, setShowTour] = useState(false);
   const [newUsername, setNewUsername] = useState("");
 
+  // 2FA step state
+  const [totpStep, setTotpStep] = useState(false);
+  const [preAuthToken, setPreAuthToken] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [totpLoading, setTotpLoading] = useState(false);
+
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
@@ -61,11 +68,40 @@ export default function AuthPage() {
   const onLoginSubmit = async (data: z.infer<typeof loginSchema>) => {
     try {
       const res = await loginMutation.mutateAsync({ data });
+      // Check if 2FA is required before issuing full tokens
+      if ((res as any).requires_2fa) {
+        setPreAuthToken((res as any).pre_auth_token);
+        setTotpCode("");
+        setTotpStep(true);
+        return;
+      }
       setAuthToken(res.access_token, res.refresh_token);
       toast.success("Welcome back!");
     } catch (error: any) {
       const msg = error?.response?.data?.detail || error.message || "Login failed";
       toast.error(msg);
+    }
+  };
+
+  const onTotpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (totpCode.replace(/\s/g, "").length !== 6) {
+      toast.error("Enter the 6-digit code from your authenticator app.");
+      return;
+    }
+    setTotpLoading(true);
+    try {
+      const res = await apiPost("/auth/2fa/complete-login", {
+        pre_auth_token: preAuthToken,
+        totp_code: totpCode.replace(/\s/g, ""),
+      });
+      setAuthToken(res.access_token, res.refresh_token);
+      toast.success("Welcome back!");
+    } catch (error: any) {
+      const msg = error?.response?.data?.detail || error.message || "Invalid code";
+      toast.error(msg);
+    } finally {
+      setTotpLoading(false);
     }
   };
 
@@ -170,79 +206,134 @@ export default function AuthPage() {
                 <CardContent className="p-6">
                   {/* ── Login Tab ────────────────────────── */}
                   <TabsContent value="login" className="mt-0">
-                    <div className="mb-5">
-                      <h2 className="text-lg font-bold font-mono">Welcome back</h2>
-                      <p className="text-xs text-muted-foreground font-mono mt-0.5">Enter your credentials to access your account</p>
-                    </div>
-                    <Form {...loginForm}>
-                      <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
-                        <FormField
-                          control={loginForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="font-mono text-xs text-muted-foreground uppercase">Email</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="you@example.com"
-                                  className="bg-background/60 font-mono border-border/60 focus-visible:ring-primary/50 h-10"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage className="text-xs" />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={loginForm.control}
-                          name="password"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="font-mono text-xs text-muted-foreground uppercase">Password</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Input
-                                    type={showPasswordLogin ? "text" : "password"}
-                                    placeholder="••••••••"
-                                    className="bg-background/60 font-mono border-border/60 focus-visible:ring-primary/50 h-10 pr-10"
-                                    {...field}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowPasswordLogin((s) => !s)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                  >
-                                    {showPasswordLogin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                  </button>
-                                </div>
-                              </FormControl>
-                              <FormMessage className="text-xs" />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="text-right -mt-1">
-                          <Link href="/forgot-password">
-                            <span className="text-xs font-mono text-muted-foreground hover:text-primary cursor-pointer transition-colors">
-                              Forgot password?
-                            </span>
-                          </Link>
+                    {totpStep ? (
+                      /* ── 2FA verification step ── */
+                      <div>
+                        <div className="mb-5 flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Lock className="w-4 h-4 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-lg font-bold font-mono">Two-Factor Auth</h2>
+                            <p className="text-xs text-muted-foreground font-mono mt-0.5">Open your authenticator app and enter the 6-digit code</p>
+                          </div>
                         </div>
-                        <Button
-                          type="submit"
-                          className="w-full font-mono h-11 gap-2"
-                          disabled={loginMutation.isPending}
-                        >
-                          {loginMutation.isPending ? (
-                            <span className="flex items-center gap-2">
-                              <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                              Authenticating...
-                            </span>
-                          ) : (
-                            <>Sign In <ArrowRight className="w-4 h-4" /></>
-                          )}
-                        </Button>
-                      </form>
-                    </Form>
+                        <form onSubmit={onTotpSubmit} className="space-y-4">
+                          <div>
+                            <label className="font-mono text-xs text-muted-foreground uppercase block mb-1.5">
+                              Authenticator Code
+                            </label>
+                            <Input
+                              value={totpCode}
+                              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                              placeholder="000000"
+                              maxLength={6}
+                              autoFocus
+                              inputMode="numeric"
+                              className="bg-background/60 font-mono border-border/60 focus-visible:ring-primary/50 h-11 text-center tracking-[0.4em] text-lg"
+                            />
+                          </div>
+                          <Button
+                            type="submit"
+                            className="w-full font-mono h-11 gap-2"
+                            disabled={totpLoading || totpCode.length < 6}
+                          >
+                            {totpLoading ? (
+                              <span className="flex items-center gap-2">
+                                <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                                Verifying...
+                              </span>
+                            ) : (
+                              <>Verify & Sign In <ArrowRight className="w-4 h-4" /></>
+                            )}
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => { setTotpStep(false); setPreAuthToken(""); setTotpCode(""); }}
+                            className="w-full text-xs font-mono text-muted-foreground hover:text-foreground transition-colors text-center"
+                          >
+                            ← Back to login
+                          </button>
+                        </form>
+                      </div>
+                    ) : (
+                      /* ── Normal login form ── */
+                      <div>
+                        <div className="mb-5">
+                          <h2 className="text-lg font-bold font-mono">Welcome back</h2>
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5">Enter your credentials to access your account</p>
+                        </div>
+                        <Form {...loginForm}>
+                          <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                            <FormField
+                              control={loginForm.control}
+                              name="email"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="font-mono text-xs text-muted-foreground uppercase">Email</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder="you@example.com"
+                                      className="bg-background/60 font-mono border-border/60 focus-visible:ring-primary/50 h-10"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="text-xs" />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={loginForm.control}
+                              name="password"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="font-mono text-xs text-muted-foreground uppercase">Password</FormLabel>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <Input
+                                        type={showPasswordLogin ? "text" : "password"}
+                                        placeholder="••••••••"
+                                        className="bg-background/60 font-mono border-border/60 focus-visible:ring-primary/50 h-10 pr-10"
+                                        {...field}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowPasswordLogin((s) => !s)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                      >
+                                        {showPasswordLogin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                      </button>
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage className="text-xs" />
+                                </FormItem>
+                              )}
+                            />
+                            <div className="text-right -mt-1">
+                              <Link href="/forgot-password">
+                                <span className="text-xs font-mono text-muted-foreground hover:text-primary cursor-pointer transition-colors">
+                                  Forgot password?
+                                </span>
+                              </Link>
+                            </div>
+                            <Button
+                              type="submit"
+                              className="w-full font-mono h-11 gap-2"
+                              disabled={loginMutation.isPending}
+                            >
+                              {loginMutation.isPending ? (
+                                <span className="flex items-center gap-2">
+                                  <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                                  Authenticating...
+                                </span>
+                              ) : (
+                                <>Sign In <ArrowRight className="w-4 h-4" /></>
+                              )}
+                            </Button>
+                          </form>
+                        </Form>
+                      </div>
+                    )}
                   </TabsContent>
 
                   {/* ── Register Tab ─────────────────────── */}

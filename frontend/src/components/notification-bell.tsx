@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 interface Notification {
   id: number;
@@ -96,16 +97,57 @@ export function NotificationBell() {
     },
   });
 
-  // WebSocket for real-time push
+  // WebSocket for real-time push with exponential-backoff reconnect
   useEffect(() => {
     if (!user) return;
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const host = window.location.host;
-    const ws = new WebSocket(`${proto}://${host}/api/notifications/ws/${user.id}`);
-    ws.onmessage = () => {
-      qc.invalidateQueries({ queryKey: ["notifications"] });
+
+    let ws: WebSocket | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+    let destroyed = false;
+
+    function connect() {
+      if (destroyed) return;
+      const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      const host = window.location.host;
+      ws = new WebSocket(`${proto}://${host}/api/notifications/ws/${user!.id}`);
+
+      ws.onopen = () => { attempt = 0; };
+
+      ws.onmessage = (event) => {
+        qc.invalidateQueries({ queryKey: ["notifications"] });
+        try {
+          const data = JSON.parse(event.data);
+          // Show a toast for incoming notifications (not for ping/pong or count updates)
+          if (data.type && data.title && data.type !== "unread_count") {
+            const icon = TYPE_ICONS[data.type] ?? "🔔";
+            toast(data.title, {
+              description: data.body,
+              icon,
+              duration: 5000,
+            });
+          }
+        } catch {
+          // non-JSON message, ignore
+        }
+      };
+
+      ws.onclose = () => {
+        if (destroyed) return;
+        // Reconnect with exponential backoff: 1s, 2s, 4s, 8s, max 30s
+        const delay = Math.min(1000 * 2 ** attempt, 30000);
+        attempt += 1;
+        retryTimeout = setTimeout(connect, delay);
+      };
+    }
+
+    connect();
+
+    return () => {
+      destroyed = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      ws?.close();
     };
-    return () => ws.close();
   }, [user, qc]);
 
   // Close on outside click

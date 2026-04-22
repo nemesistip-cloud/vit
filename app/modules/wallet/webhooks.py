@@ -56,6 +56,73 @@ async def _credit_wallet_by_reference(reference: str) -> bool:
         return True
 
 
+async def _activate_subscription(user_id: int, plan: str, billing: str) -> bool:
+    """
+    Grant a subscription tier to a user after successful Stripe payment.
+    Updates User.subscription_tier and sends an in-app notification.
+    """
+    from datetime import timedelta
+    from app.db.models import User
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+            if not user:
+                logger.warning(f"_activate_subscription: user {user_id} not found")
+                return False
+
+            old_tier = getattr(user, "subscription_tier", "viewer")
+            user.subscription_tier = plan
+
+            # Also update/create a UserSubscription record for API-key-based gating
+            from app.db.models import UserSubscription
+            now = datetime.utcnow()
+            days = 365 if billing == "yearly" else 30
+            # Use a stable hash of user_id as the "api_key" for webhook-activated subs
+            import hashlib
+            pseudo_key_hash = hashlib.sha256(f"stripe_user_{user_id}".encode()).hexdigest()
+            sub_result = await db.execute(
+                select(UserSubscription).where(UserSubscription.api_key_hash == pseudo_key_hash)
+            )
+            sub = sub_result.scalar_one_or_none()
+            if sub:
+                sub.plan_name = plan
+                sub.status = "active"
+                sub.current_period_start = now
+                sub.current_period_end = now + timedelta(days=days)
+            else:
+                sub = UserSubscription(
+                    api_key_hash=pseudo_key_hash,
+                    plan_name=plan,
+                    status="active",
+                    current_period_start=now,
+                    current_period_end=now + timedelta(days=days),
+                )
+                db.add(sub)
+
+            await db.commit()
+
+            # Send in-app notification
+            try:
+                from app.modules.notifications.service import NotificationService
+                await NotificationService.create(
+                    db=db,
+                    user_id=user_id,
+                    type="subscription_upgrade",
+                    title=f"Plan Upgraded to {plan.capitalize()}",
+                    body=f"Your VIT {plan.capitalize()} plan is now active. Enjoy your new features!",
+                    channel="in_app",
+                )
+            except Exception as ne:
+                logger.warning(f"Notification after subscription activation failed: {ne}")
+
+            logger.info(f"User {user_id} upgraded {old_tier} → {plan} (billing={billing})")
+            return True
+    except Exception as e:
+        logger.error(f"_activate_subscription failed for user {user_id}: {e}", exc_info=True)
+        return False
+
+
 async def _mark_withdrawal_processed(reference: str) -> bool:
     """Mark a withdrawal transaction as processed."""
     async with AsyncSessionLocal() as db:
@@ -160,8 +227,18 @@ async def stripe_webhook(
         return {"status": "ok", "credited": credited}
 
     if event_type in ("charge.succeeded", "checkout.session.completed"):
-        reference = obj.get("metadata", {}).get("reference", obj.get("id", ""))
+        metadata = obj.get("metadata", {})
+        reference = metadata.get("reference", obj.get("id", ""))
         credited = await _credit_wallet_by_reference(reference)
+
+        # If this is a VIT subscription checkout, also activate the plan
+        vit_plan    = metadata.get("vit_plan", "")
+        vit_user_id = metadata.get("vit_user_id", "")
+        vit_billing = metadata.get("vit_billing", "monthly")
+        if vit_plan and vit_user_id:
+            activated = await _activate_subscription(int(vit_user_id), vit_plan, vit_billing)
+            logger.info(f"Stripe subscription activation: user={vit_user_id} plan={vit_plan} activated={activated}")
+
         return {"status": "ok", "credited": credited}
 
     if event_type == "payout.paid":
