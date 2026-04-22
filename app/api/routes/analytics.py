@@ -708,19 +708,31 @@ async def get_system_analytics(db: AsyncSession = Depends(get_db)):
 
 
 # ── 9. Leaderboard — Validators ───────────────────────────────────────
+_VAL_SORT_ALIASES = {
+    "trust": "trust_score",
+    "trust_score": "trust_score",
+    "acc": "accuracy_rate",
+    "accuracy": "accuracy_rate",
+    "accuracy_rate": "accuracy_rate",
+    "stake": "stake_amount",
+    "stake_amount": "stake_amount",
+}
+
+
 @router.get("/leaderboard/validators")
 async def get_validator_leaderboard(
-    sort_by: str = Query("trust_score", enum=["trust_score", "accuracy_rate", "stake_amount"]),
+    sort_by: str = Query("trust_score"),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Return validators ranked by trust score, accuracy, or stake."""
+    sort_col = _VAL_SORT_ALIASES.get(sort_by, "trust_score")
     try:
         from app.modules.blockchain.models import ValidatorNode
         result = await db.execute(
             select(ValidatorNode)
             .where(ValidatorNode.status == "active")
-            .order_by(getattr(ValidatorNode, sort_by, ValidatorNode.trust_score).desc())
+            .order_by(getattr(ValidatorNode, sort_col, ValidatorNode.trust_score).desc())
             .limit(limit)
         )
         validators = result.scalars().all()
@@ -745,18 +757,37 @@ async def get_validator_leaderboard(
 
 
 # ── 10. Leaderboard — Users ───────────────────────────────────────────
+_USER_SORT_ALIASES = {
+    "xp": "xp",
+    "roi": "roi",
+    "profit": "profit",
+    "win_rate": "win_rate",
+    "w/r": "win_rate",
+    "wr": "win_rate",
+    "predictions": "predictions",
+    "stake": "total_staked",
+    "stake_amount": "total_staked",
+    "total_staked": "total_staked",
+}
+
+
 @router.get("/leaderboard/users")
 async def get_user_leaderboard(
-    sort_by: str = Query("xp", enum=["xp", "win_rate", "predictions"]),
+    sort_by: str = Query("xp"),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return top users ranked by XP, win rate, or prediction count."""
+    """Return top users ranked by XP, ROI, profit, win rate, predictions, or stake."""
+    sort_key = _USER_SORT_ALIASES.get((sort_by or "").lower(), "xp")
     try:
         result = await db.execute(
             select(User).where(User.is_active == True, User.is_banned == False)
         )
         users = result.scalars().all()
+
+        # Default unit stake (VITCoin) used when CLVEntry has no recorded stake.
+        # Keeps ROI computation deterministic and consistent with single-unit bankroll model.
+        UNIT_STAKE = 1.0
 
         leaderboard = []
         for u in users:
@@ -778,6 +809,25 @@ async def get_user_leaderboard(
                 .where(CLVEntry.bet_outcome == "win")
             )).scalar() or 0
 
+            # Real P&L from CLV ledger when present, else simulated from outcomes
+            profit_sum = (await db.execute(
+                select(func.coalesce(func.sum(CLVEntry.profit), 0.0))
+                .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
+                .where(CLVEntry.bet_outcome.in_(["win", "loss"]))
+            )).scalar() or 0.0
+
+            if settled > 0 and (profit_sum is None or float(profit_sum) == 0.0):
+                # Fall back: estimate using avg odds * UNIT_STAKE
+                avg_odds = (await db.execute(
+                    select(func.coalesce(func.avg(CLVEntry.entry_odds), 0.0))
+                    .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
+                    .where(CLVEntry.bet_outcome.in_(["win", "loss"]))
+                )).scalar() or 0.0
+                profit_sum = (wins * (float(avg_odds) - 1.0) - (settled - wins)) * UNIT_STAKE
+
+            total_staked = float(settled) * UNIT_STAKE
+            roi = (float(profit_sum) / total_staked) if total_staked > 0 else 0.0
+
             stored_xp = getattr(u, "total_xp", None) or 0
             xp = stored_xp if stored_xp > 0 else (total_preds * 10 + wins * 20)
             win_rate = round(wins / settled, 4) if settled > 0 else 0.0
@@ -791,18 +841,23 @@ async def get_user_leaderboard(
                 "xp": xp,
                 "win_rate": win_rate,
                 "predictions": total_preds,
+                "total_bets": settled,
+                "settled": settled,
+                "wins": wins,
+                "total_staked": round(total_staked, 4),
+                "profit": round(float(profit_sum), 4),
+                "roi": round(float(roi), 4),
                 "streak": streak,
                 "level": level_map.get(tier, "Novice"),
                 "tier": tier,
             })
 
-        sort_key = {"xp": "xp", "win_rate": "win_rate", "predictions": "predictions"}.get(sort_by, "xp")
-        leaderboard.sort(key=lambda x: x[sort_key], reverse=True)
+        leaderboard.sort(key=lambda x: x.get(sort_key, 0) or 0, reverse=True)
         leaderboard = leaderboard[:limit]
         for i, entry in enumerate(leaderboard):
             entry["rank"] = i + 1
 
-        return {"leaderboard": leaderboard, "total": len(leaderboard), "sort_by": sort_by}
+        return {"leaderboard": leaderboard, "total": len(leaderboard), "sort_by": sort_key}
     except Exception as e:
         logger.warning(f"user leaderboard error: {e}")
-        return {"leaderboard": [], "total": 0, "sort_by": sort_by}
+        return {"leaderboard": [], "total": 0, "sort_by": sort_key}

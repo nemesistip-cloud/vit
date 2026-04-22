@@ -27,6 +27,41 @@ import {
 import { Link } from "wouter";
 import { toast } from "sonner";
 
+const MARKET_LABEL: Record<string, string> = {
+  "1x2": "1X2",
+  home_win: "Home Win",
+  away_win: "Away Win",
+  draw: "Draw",
+  btts: "Both Teams to Score",
+  btts_yes: "BTTS – Yes",
+  btts_no: "BTTS – No",
+  over_2_5: "Over 2.5 Goals",
+  under_2_5: "Under 2.5 Goals",
+  over_1_5: "Over 1.5 Goals",
+  under_1_5: "Under 1.5 Goals",
+  over_3_5: "Over 3.5 Goals",
+  under_3_5: "Under 3.5 Goals",
+  ah_home: "Asian Handicap – Home",
+  ah_away: "Asian Handicap – Away",
+  double_chance_1x: "Double Chance 1X",
+  double_chance_x2: "Double Chance X2",
+  double_chance_12: "Double Chance 12",
+  correct_score: "Correct Score",
+  ht_ft: "Half-Time / Full-Time",
+  first_half_result: "First-Half Result",
+  second_half_result: "Second-Half Result",
+  clean_sheet: "Clean Sheet",
+  win_to_nil: "Win to Nil",
+};
+
+function prettifyMarketKey(key: string): string {
+  if (!key) return "—";
+  return key
+    .split(/[_\s]+/)
+    .map((p) => (p.length <= 3 ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join(" ");
+}
+
 function safeFormat(dateStr: string | null | undefined, fmt: string): string {
   if (!dateStr) return "—";
   try {
@@ -459,7 +494,7 @@ function TicketBuilder() {
                             {leg.home_team} vs {leg.away_team}
                           </div>
                           <div className="text-[10px] text-muted-foreground">
-                            {leg.market_label} · {(leg.probability * 100).toFixed(1)}%
+                            {leg.market_label || MARKET_LABEL[leg.market_key] || prettifyMarketKey(leg.market_key)} · {(leg.probability * 100).toFixed(1)}%
                           </div>
                         </div>
                         <div className="text-right shrink-0 ml-2">
@@ -484,7 +519,7 @@ function TicketBuilder() {
 
         {unsupported.length > 0 && (
           <div className="text-[10px] font-mono text-muted-foreground/70 pt-1">
-            Coming soon: {unsupported.map((u) => u.key).join(", ")}.
+            Coming soon: {unsupported.map((u) => MARKET_LABEL[u.key] ?? prettifyMarketKey(u.key)).join(", ")}.
           </div>
         )}
       </CardContent>

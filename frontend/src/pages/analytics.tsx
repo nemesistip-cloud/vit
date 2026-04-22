@@ -61,7 +61,7 @@ export default function AnalyticsPage() {
     return d.toISOString().split("T")[0];
   });
   const [lbSort, setLbSort] = useState<"trust_score" | "accuracy" | "stake">("trust_score");
-  const [userSort, setUserSort] = useState<"roi" | "profit" | "win_rate">("roi");
+  const [userSort, setUserSort] = useState<"roi" | "profit" | "win_rate" | "stake">("roi");
 
   function buildDateParams() {
     const params: string[] = [];
@@ -532,7 +532,9 @@ export default function AnalyticsPage() {
                       </div>
                     ))}
                     {(!validatorLb?.leaderboard?.length) && (
-                      <div className="py-8 text-center font-mono text-muted-foreground text-sm">NO_VALIDATORS_YET</div>
+                      <div className="py-8 text-center font-mono text-muted-foreground text-sm">
+                        No active validators yet.
+                      </div>
                     )}
                   </div>
                 )}
@@ -547,11 +549,12 @@ export default function AnalyticsPage() {
                     <Trophy className="w-4 h-4 text-secondary" /> Top Stakers
                   </CardTitle>
                   <div className="flex gap-1">
-                    {(["roi", "profit", "win_rate"] as const).map((s) => (
+                    {(["roi", "profit", "stake", "win_rate"] as const).map((s) => (
                       <Button key={s} variant={userSort === s ? "default" : "ghost"} size="sm"
                         className="font-mono text-[10px] h-6 px-2 uppercase"
-                        onClick={() => setUserSort(s)}>
-                        {s === "roi" ? "ROI" : s === "profit" ? "Profit" : "W/R"}
+                        onClick={() => setUserSort(s)}
+                        data-testid={`button-userlb-sort-${s}`}>
+                        {s === "roi" ? "ROI" : s === "profit" ? "Profit" : s === "stake" ? "Stake" : "W/R"}
                       </Button>
                     ))}
                   </div>
@@ -562,31 +565,75 @@ export default function AnalyticsPage() {
                   <div className="py-8 text-center font-mono text-muted-foreground text-sm">Loading...</div>
                 ) : (
                   <div className="divide-y divide-muted/20">
-                    {userLb?.leaderboard?.slice(0, 10).map((u: any) => (
-                      <div key={u.username} className="flex items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <RankBadge rank={u.rank} />
-                          <div>
-                            <div className="font-bold font-mono text-sm">{u.username}</div>
-                            <div className="text-xs text-muted-foreground font-mono flex gap-2">
-                              <span>{u.total_bets} bets</span>
-                              <span>·</span>
-                              <span className={u.win_rate >= 0.5 ? "text-primary" : "text-destructive"}>
-                                {(u.win_rate * 100).toFixed(1)}% W/R
-                              </span>
+                    {userLb?.leaderboard?.slice(0, 10).map((u: any) => {
+                      const totalBets = Number(u.total_bets ?? u.settled ?? u.predictions ?? 0);
+                      const winRate = Number.isFinite(Number(u.win_rate)) ? Number(u.win_rate) : 0;
+                      const roi = Number.isFinite(Number(u.roi)) ? Number(u.roi) : 0;
+                      const profit = Number.isFinite(Number(u.profit)) ? Number(u.profit) : 0;
+                      const stake = Number.isFinite(Number(u.total_staked)) ? Number(u.total_staked) : 0;
+                      const hasActivity = totalBets > 0;
+
+                      let primaryLabel = "ROI";
+                      let primaryValue = "—";
+                      let primaryClass = "text-muted-foreground";
+                      if (userSort === "roi") {
+                        primaryLabel = "ROI";
+                        if (hasActivity) {
+                          primaryValue = `${roi >= 0 ? "+" : ""}${(roi * 100).toFixed(1)}%`;
+                          primaryClass = roi >= 0 ? "text-primary" : "text-destructive";
+                        }
+                      } else if (userSort === "profit") {
+                        primaryLabel = "Profit";
+                        if (hasActivity) {
+                          primaryValue = `${profit >= 0 ? "+" : ""}${profit.toFixed(2)}`;
+                          primaryClass = profit >= 0 ? "text-primary" : "text-destructive";
+                        }
+                      } else if (userSort === "stake") {
+                        primaryLabel = "Stake";
+                        if (hasActivity) {
+                          primaryValue = stake.toFixed(2);
+                          primaryClass = "text-secondary";
+                        }
+                      } else {
+                        primaryLabel = "W/R";
+                        if (hasActivity) {
+                          primaryValue = `${(winRate * 100).toFixed(1)}%`;
+                          primaryClass = winRate >= 0.5 ? "text-primary" : "text-destructive";
+                        }
+                      }
+
+                      return (
+                        <div key={u.username} className="flex items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors" data-testid={`row-userlb-${u.username}`}>
+                          <div className="flex items-center gap-3">
+                            <RankBadge rank={u.rank} />
+                            <div>
+                              <div className="font-bold font-mono text-sm">{u.username}</div>
+                              <div className="text-xs text-muted-foreground font-mono flex gap-2">
+                                <span>{totalBets} {totalBets === 1 ? "bet" : "bets"}</span>
+                                <span>·</span>
+                                {hasActivity ? (
+                                  <span className={winRate >= 0.5 ? "text-primary" : "text-destructive"}>
+                                    {(winRate * 100).toFixed(1)}% W/R
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">No settled bets</span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="text-right font-mono">
-                          <div className={`font-bold text-sm ${u.roi >= 0 ? "text-primary" : "text-destructive"}`}>
-                            {u.roi >= 0 ? "+" : ""}{(u.roi * 100).toFixed(1)}%
+                          <div className="text-right font-mono">
+                            <div className={`font-bold text-sm ${primaryClass}`} data-testid={`text-userlb-primary-${u.username}`}>
+                              {primaryValue}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground uppercase">{primaryLabel}</div>
                           </div>
-                          <div className="text-[10px] text-muted-foreground uppercase">ROI</div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {(!userLb?.leaderboard?.length) && (
-                      <div className="py-8 text-center font-mono text-muted-foreground text-sm">NO_STAKING_DATA_YET</div>
+                      <div className="py-8 text-center font-mono text-muted-foreground text-sm">
+                        No staking activity yet.
+                      </div>
                     )}
                   </div>
                 )}
