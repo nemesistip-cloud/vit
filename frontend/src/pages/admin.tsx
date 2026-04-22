@@ -1709,6 +1709,7 @@ export default function AdminPage() {
               { value: "users",          label: "Users",          icon: Users },
               { value: "kyc",            label: "KYC",            icon: UserCheck },
               { value: "models",         label: "Models",         icon: Cpu },
+              { value: "calibration",    label: "Calibration",    icon: Activity },
               { value: "leagues",        label: "Leagues",        icon: Globe },
               { value: "markets",        label: "Markets",        icon: TrendingUp },
               { value: "currency",       label: "Currency",       icon: Coins },
@@ -1728,6 +1729,7 @@ export default function AdminPage() {
           <TabsContent value="users"><UsersTab /></TabsContent>
           <TabsContent value="kyc"><KYCTab /></TabsContent>
           <TabsContent value="models"><ModelsTab /></TabsContent>
+          <TabsContent value="calibration"><CalibrationTab /></TabsContent>
           <TabsContent value="leagues"><LeaguesTab /></TabsContent>
           <TabsContent value="markets"><MarketsTab /></TabsContent>
           <TabsContent value="currency"><CurrencyTab /></TabsContent>
@@ -1736,6 +1738,123 @@ export default function AdminPage() {
           <TabsContent value="audit"><AuditTab /></TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+function CalibrationTab() {
+  const [window, setWindow] = useState(50);
+  const [busy, setBusy] = useState(false);
+  const reportQ = useQuery<any>({
+    queryKey: ["ai-accuracy-report", window],
+    queryFn: () => apiGet(`/api/ai-engine/accuracy/report?window=${window}`),
+  });
+
+  async function refit() {
+    setBusy(true);
+    try {
+      const res = await apiPost<any>(
+        `/api/ai-engine/accuracy/enhance?window=${window}`, {},
+      );
+      const fit = res?.temperature_fit;
+      if (fit?.fitted) {
+        toast.success(
+          `Temperature refit: T=${fit.best_T} (NLL ${fit.pre_nll?.toFixed(4)} → ${fit.best_nll?.toFixed(4)})`,
+        );
+      } else {
+        toast.message(fit?.reason || "Temperature not refit");
+      }
+      reportQ.refetch();
+    } catch (e: any) {
+      toast.error(e?.message || "Re-fit failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const data = reportQ.data;
+  const models: any[] = data?.models || [];
+  const T = data?.current_temperature ?? 1.0;
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-cyan-400" />
+            Ensemble Calibration
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-sm text-gray-300">
+              Current temperature:{" "}
+              <span className="font-mono text-cyan-400">{Number(T).toFixed(3)}</span>
+              <span className="ml-2 text-xs text-gray-500">
+                (T&gt;1 softens overconfident probabilities)
+              </span>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <label className="text-xs text-gray-400">Window</label>
+              <input
+                type="number"
+                min={10}
+                max={500}
+                value={window}
+                onChange={(e) => setWindow(Math.max(10, Math.min(500, Number(e.target.value) || 50)))}
+                className="w-20 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white"
+              />
+              <Button onClick={refit} disabled={busy} size="sm">
+                {busy ? "Re-fitting…" : "Re-fit Temperature"}
+              </Button>
+            </div>
+          </div>
+
+          {reportQ.isLoading ? (
+            <div className="text-gray-400 text-sm">Loading rolling-window report…</div>
+          ) : models.length === 0 ? (
+            <div className="text-gray-400 text-sm">
+              No settled predictions yet. Wait for matches to settle, then a report will appear here.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-400 border-b border-gray-700">
+                    <th className="py-2 px-2">Model</th>
+                    <th className="py-2 px-2 text-right">Samples</th>
+                    <th className="py-2 px-2 text-right">Accuracy</th>
+                    <th className="py-2 px-2 text-right">Log-loss</th>
+                    <th className="py-2 px-2 text-right">Brier</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map((m, i) => (
+                    <tr key={m.model_key} className="border-b border-gray-800/50">
+                      <td className="py-2 px-2 font-mono text-cyan-300">
+                        {i + 1}. {m.model_key}
+                      </td>
+                      <td className="py-2 px-2 text-right text-gray-300">{m.samples}</td>
+                      <td className="py-2 px-2 text-right text-gray-200">
+                        {(m.accuracy_1x2 * 100).toFixed(1)}%
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-yellow-400">
+                        {Number(m.log_loss).toFixed(4)}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-gray-300">
+                        {Number(m.brier).toFixed(4)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="text-xs text-gray-500 mt-3">
+                Models sorted best → worst by log-loss (a strictly proper score). Lower is better.
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

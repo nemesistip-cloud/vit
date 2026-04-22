@@ -68,6 +68,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--default-stake", type=float, default=0.02,
                    help="Fallback recommended_stake fraction if missing (default 0.02 = 2%%)")
     p.add_argument("--json", action="store_true", help="Emit JSON only")
+    p.add_argument("--save-report", metavar="PATH",
+                   help="Write the full JSON report (incl. equity curve) to PATH")
+    p.add_argument("--include-history", action="store_true",
+                   help="With --save-report, embed the bet-by-bet equity curve")
     args = p.parse_args(argv)
 
     # ── 1. MODEL → PREDICTIONS ──────────────────────────────────────
@@ -112,6 +116,26 @@ def main(argv: list[str] | None = None) -> int:
         },
         "backtest": bt.summary(),
     }
+
+    if args.save_report:
+        out_path = Path(args.save_report)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        save_payload = dict(payload)
+        if args.include_history:
+            save_payload["equity_curve"] = [
+                {
+                    "index": h.index,
+                    "stake": round(h.stake, 6),
+                    "odds": round(h.odds, 4),
+                    "outcome": h.outcome,
+                    "pnl": round(h.pnl, 6),
+                    "bankroll_after": round(h.bankroll_after, 6),
+                    "cumulative_profit": round(h.cumulative_profit, 6),
+                }
+                for h in bt.history
+            ]
+        out_path.write_text(json.dumps(save_payload, indent=2))
+        print(f"[pipeline] report written to {out_path}", file=sys.stderr)
 
     if args.json:
         print(json.dumps(payload, indent=2))

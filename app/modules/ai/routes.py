@@ -38,6 +38,14 @@ from app.modules.ai.weight_adjuster import (
     run_bulk_weight_adjustment,
     get_model_performance_report,
 )
+from app.api.deps import get_current_admin
+from app.db.models import User
+from app.services.accuracy_enhancer import (
+    fit_temperature_from_history,
+    rolling_window_accuracy,
+    TemperatureScaler,
+    TEMPERATURE_PATH,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai-engine", tags=["ai-engine"])
@@ -446,6 +454,54 @@ async def sync_weights(db: AsyncSession = Depends(get_db)):
 
     synced = await sync_weights_to_orchestrator(db, orch)
     return {"synced_models": len(synced), "weights": synced}
+
+
+# ── Calibration / Accuracy enhancement ───────────────────────────────────────
+
+@router.get("/accuracy/report")
+async def get_accuracy_report(
+    window: int = Query(50, ge=10, le=500),
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-model rolling-window calibration metrics (acc, log-loss, Brier).
+
+    Lower log-loss is better — it's a strictly proper score, so this is
+    the most honest measure of probability quality. Sorted best→worst.
+    """
+    metrics = await rolling_window_accuracy(db, window=window)
+    current_T = TemperatureScaler.load().temperature
+    return {
+        "window": window,
+        "models": [m.__dict__ for m in metrics],
+        "current_temperature": current_T,
+        "temperature_file": str(TEMPERATURE_PATH),
+    }
+
+
+@router.post("/accuracy/enhance")
+async def enhance_accuracy(
+    min_samples: int = Query(100, ge=20, le=10000),
+    window: int = Query(50, ge=10, le=500),
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-fit the global temperature on settled history + return latest report.
+
+    This is safe to run at any time — it only refits a single scalar,
+    persists it to disk, and is consumed lazily by the orchestrator on
+    its next prediction cycle.
+    """
+    fit = await fit_temperature_from_history(db, min_samples=min_samples)
+    metrics = await rolling_window_accuracy(db, window=window)
+    return {
+        "temperature_fit": fit,
+        "rolling_window": {
+            "window": window,
+            "models": [m.__dict__ for m in metrics],
+        },
+        "current_temperature": TemperatureScaler.load().temperature,
+    }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

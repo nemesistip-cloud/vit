@@ -279,6 +279,93 @@ def _print_table(report: dict, top: int) -> None:
               f"ROI={b['test_roi_pct']:+.2f}%  growth={b['test_growth_pct']:+.2f}%")
 
 
+def walk_forward(
+    bets: list[dict],
+    *,
+    window: int,
+    step: int,
+    bankroll: float,
+    min_bets: int,
+    kelly_fractions: Iterable[float],
+    score_metric: str,
+) -> dict:
+    """Walk-forward optimization: re-fit best strategy on each rolling window
+    of `window` bets, then evaluate on the next `step` bets out-of-sample.
+
+    Reduces overfit risk vs. a single train/test split because the winner must
+    survive across many independent fits — a much stronger signal than ranking
+    once on a held-out tail.
+    """
+    n = len(bets)
+    if n < window + step:
+        return {
+            "n_dataset": n,
+            "window": window,
+            "step": step,
+            "folds": 0,
+            "reason": f"need at least window+step={window + step} bets",
+            "fold_results": [],
+            "aggregate": None,
+        }
+
+    folds: list[dict] = []
+    label_wins: dict[str, int] = {}
+    oos_rois: list[float] = []
+    oos_growths: list[float] = []
+
+    start = 0
+    while start + window + step <= n:
+        train = bets[start : start + window]
+        test  = bets[start + window : start + window + step]
+
+        report = optimize(
+            train, bankroll=bankroll, min_bets=min_bets,
+            kelly_fractions=kelly_fractions, score_metric=score_metric,
+        )
+        best = report.get("best")
+        if not best:
+            start += step
+            continue
+
+        oos = evaluate_strategy(
+            test, best["sides"], best["min_edge"], best["max_edge"],
+            best["min_odds"], best["max_odds"], best["kelly_fraction"], bankroll,
+        )
+        fold = {
+            "train_window": [start, start + window],
+            "test_window":  [start + window, start + window + step],
+            "best_label":   best["label"],
+            "train_roi_pct":   best["roi_pct"],
+            "train_growth_pct": best["growth_pct"],
+            "oos_bets":       oos.bets if oos else 0,
+            "oos_roi_pct":    oos.roi_pct if oos else None,
+            "oos_growth_pct": oos.growth_pct if oos else None,
+            "oos_max_drawdown_pct": oos.max_drawdown_pct if oos else None,
+        }
+        folds.append(fold)
+        label_wins[best["label"]] = label_wins.get(best["label"], 0) + 1
+        if oos and oos.roi_pct is not None:
+            oos_rois.append(oos.roi_pct)
+            oos_growths.append(oos.growth_pct)
+        start += step
+
+    most_common = sorted(label_wins.items(), key=lambda kv: kv[1], reverse=True)
+    return {
+        "n_dataset": n,
+        "window": window,
+        "step":   step,
+        "folds":  len(folds),
+        "fold_results": folds,
+        "aggregate": {
+            "mean_oos_roi_pct":    round(sum(oos_rois) / len(oos_rois), 4) if oos_rois else None,
+            "mean_oos_growth_pct": round(sum(oos_growths) / len(oos_growths), 4) if oos_growths else None,
+            "min_oos_roi_pct":     round(min(oos_rois), 4) if oos_rois else None,
+            "max_oos_roi_pct":     round(max(oos_rois), 4) if oos_rois else None,
+            "winning_strategies":  [{"label": l, "wins": c} for l, c in most_common[:5]],
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Strategy optimizer with risk-adjusted scoring.")
     p.add_argument("dataset", nargs="?", help="Path to .csv or .json (omit for demo)")
@@ -291,6 +378,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="Stake-fraction multipliers to sweep")
     p.add_argument("--score", choices=["composite", "roi", "growth", "profit"],
                    default="composite")
+    p.add_argument("--walk-forward", type=int, metavar="WINDOW",
+                   help="Run walk-forward optimization with this train-window size "
+                        "(re-fits best strategy on each rolling window)")
+    p.add_argument("--wf-step", type=int, default=20,
+                   help="Out-of-sample step size for --walk-forward (default 20)")
     p.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
 
@@ -302,6 +394,34 @@ def main(argv: list[str] | None = None) -> int:
         bets = _load(path)
     else:
         bets = _demo_dataset()
+
+    if args.walk_forward:
+        wf_report = walk_forward(
+            bets,
+            window=args.walk_forward,
+            step=args.wf_step,
+            bankroll=args.bankroll,
+            min_bets=args.min_bets,
+            kelly_fractions=args.kelly,
+            score_metric=args.score,
+        )
+        if args.json:
+            print(json.dumps(wf_report, indent=2))
+        else:
+            print(f"\n=== Walk-Forward Optimization ===")
+            print(f"  Dataset : {wf_report['n_dataset']} bets  "
+                  f"window={wf_report['window']}  step={wf_report['step']}")
+            print(f"  Folds   : {wf_report['folds']}")
+            agg = wf_report.get("aggregate") or {}
+            if agg:
+                print(f"  Mean OOS ROI    : {agg.get('mean_oos_roi_pct')}%")
+                print(f"  Mean OOS growth : {agg.get('mean_oos_growth_pct')}%")
+                print(f"  OOS ROI range   : "
+                      f"{agg.get('min_oos_roi_pct')}% .. {agg.get('max_oos_roi_pct')}%")
+                print(f"  Top strategies (by fold wins):")
+                for w in agg.get("winning_strategies", []):
+                    print(f"    {w['wins']:>2}× {w['label']}")
+        return 0
 
     report = optimize(
         bets,

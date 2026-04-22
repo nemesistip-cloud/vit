@@ -420,6 +420,27 @@ async def settle_results(days_back: int = 2) -> dict:
                         await bm.save_state()
                     except Exception as be:
                         logger.warning(f"Bankroll update failed (non-fatal): {be}")
+
+                    # ── Auto-settle user notification ──────────────────
+                    if prediction.user_id:
+                        try:
+                            from app.modules.notifications.service import NotificationService
+                            from app.modules.notifications.models import NotificationType
+                            prefs = await NotificationService.get_or_create_prefs(db, prediction.user_id)
+                            if prefs.match_results:
+                                score = f"{home_g}-{away_g}"
+                                outcome_label = "WIN" if won else "LOSS"
+                                await NotificationService.create(
+                                    db, prediction.user_id, NotificationType.MATCH_RESULT,
+                                    {
+                                        "home_team": db_match.home_team,
+                                        "away_team": db_match.away_team,
+                                        "score": score,
+                                        "outcome": f"{outcome_label} ({profit:+.2f}u)",
+                                    },
+                                )
+                        except Exception as ne:
+                            logger.warning(f"Auto-settle notification failed (non-fatal): {ne}")
                 else:
                     no_prediction += 1
 
