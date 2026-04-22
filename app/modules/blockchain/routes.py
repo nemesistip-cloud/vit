@@ -22,6 +22,7 @@ from app.modules.blockchain.models import (
     ValidatorProfile,
     ValidatorStatus,
 )
+from app.modules.notifications.service import NotificationService
 from app.modules.wallet.models import Wallet
 from app.modules.wallet.pricing import VITCoinPricingEngine
 
@@ -242,6 +243,10 @@ async def admin_approve_validator(
     await db.commit()
     await db.refresh(vp)
     logger.info(f"Admin approved validator {vp.id} (user {user.username})")
+    await NotificationService.notify_validator_status(
+        db, user.id, status="approved",
+        detail=f"Welcome to the validator network — your stake of {vp.stake_amount} VIT is now active.",
+    )
     return {"ok": True, "validator": _serialize_validator(vp, user)}
 
 
@@ -265,6 +270,10 @@ async def admin_reject_validator(
     await db.delete(vp)
     await db.commit()
     logger.info(f"Admin rejected validator {vp_id} (refunded {refund} VIT to {user.username})")
+    await NotificationService.notify_validator_status(
+        db, user.id, status="rejected",
+        detail=f"Your application was not approved. {float(refund):.2f} VIT has been refunded to your wallet.",
+    )
     return {"ok": True, "refunded": float(refund), "user_id": user.id}
 
 
@@ -281,6 +290,10 @@ async def admin_suspend_validator(
     await db.commit()
     await db.refresh(vp)
     logger.info(f"Admin suspended validator {vp.id}")
+    await NotificationService.notify_validator_status(
+        db, user.id, status="suspended",
+        detail="Your validator privileges have been temporarily suspended. Contact support if you believe this is an error.",
+    )
     return {"ok": True, "validator": _serialize_validator(vp, user)}
 
 
@@ -296,6 +309,10 @@ async def admin_reactivate_validator(
     vp.status = ValidatorStatus.ACTIVE.value
     await db.commit()
     await db.refresh(vp)
+    await NotificationService.notify_validator_status(
+        db, user.id, status="reactivated",
+        detail="Your validator privileges have been restored. You can resume submitting predictions.",
+    )
     return {"ok": True, "validator": _serialize_validator(vp, user)}
 
 
@@ -332,6 +349,15 @@ async def admin_slash_validator(
     logger.warning(
         f"Admin slashed validator {vp.id} — burned {burn} VIT, refunded {refund} VIT. "
         f"Reason: {body.reason or '(none)'}"
+    )
+    reason_part = f" Reason: {body.reason}." if body.reason else ""
+    await NotificationService.notify_validator_status(
+        db, user.id, status="slashed",
+        detail=(
+            f"Your validator stake has been slashed.{reason_part} "
+            f"Burned: {float(burn):.2f} VIT. Refunded: {float(refund):.2f} VIT. "
+            f"This action is final."
+        ),
     )
     return {
         "ok": True,

@@ -25,6 +25,7 @@ interface Preferences {
   wallet_activity: boolean;
   validator_rewards: boolean;
   subscription_expiry: boolean;
+  validator_status: boolean;
   email_enabled: boolean;
   telegram_enabled: boolean;
   in_app_enabled: boolean;
@@ -36,6 +37,7 @@ const TYPE_ICONS: Record<string, string> = {
   wallet_activity: "💰",
   validator_reward: "🏆",
   subscription_expiry: "⚠️",
+  validator_status: "🛡️",
   system: "🔔",
 };
 
@@ -234,6 +236,7 @@ export function NotificationBell() {
                 ["match_results", "Match Results"],
                 ["wallet_activity", "Wallet Activity"],
                 ["validator_rewards", "Validator Rewards"],
+                ["validator_status", "Validator Status Updates"],
                 ["subscription_expiry", "Subscription Expiry"],
               ] as [keyof Preferences, string][]).map(([key, label]) => (
                 <div key={key} className="flex items-center justify-between">

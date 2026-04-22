@@ -17,6 +17,7 @@ class NotificationType(PyEnum):
     WALLET_ACTIVITY     = "wallet_activity"
     VALIDATOR_REWARD    = "validator_reward"
     SUBSCRIPTION_EXPIRY = "subscription_expiry"
+    VALIDATOR_STATUS    = "validator_status"
     SYSTEM              = "system"
 
 
@@ -52,6 +53,7 @@ class NotificationPreference(Base):
     wallet_activity     : Mapped[bool] = mapped_column(Boolean, default=True)
     validator_rewards   : Mapped[bool] = mapped_column(Boolean, default=True)
     subscription_expiry : Mapped[bool] = mapped_column(Boolean, default=True)
+    validator_status    : Mapped[bool] = mapped_column(Boolean, default=True)
     email_enabled       : Mapped[bool] = mapped_column(Boolean, default=False)
     telegram_enabled    : Mapped[bool] = mapped_column(Boolean, default=False)
     in_app_enabled      : Mapped[bool] = mapped_column(Boolean, default=True)

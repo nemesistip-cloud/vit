@@ -40,6 +40,10 @@ TEMPLATES: dict[str, tuple[str, str]] = {
         "⚠️ Subscription Expiring",
         "Your {plan} subscription expires in {days} day(s). Renew to keep access.",
     ),
+    NotificationType.VALIDATOR_STATUS.value: (
+        "🛡️ Validator Status Update",
+        "Your validator application is now {status}. {detail}",
+    ),
     NotificationType.SYSTEM.value: (
         "🔔 System Notice",
         "{message}",
@@ -147,6 +151,50 @@ class NotificationService:
         )
 
     @classmethod
+    async def notify_validator_status(
+        cls,
+        db: AsyncSession,
+        user_id: int,
+        status: str,
+        detail: str = "",
+        *,
+        send_email: bool = True,
+    ) -> Optional[Notification]:
+        """In-app + WS push for validator status changes; optional email.
+
+        Respects NotificationPreference.validator_status (in-app gate) and
+        email_enabled (email gate). Silent no-op if user opted out.
+        """
+        prefs = await cls.get_or_create_prefs(db, user_id)
+        if not prefs.validator_status:
+            return None
+
+        notif = await cls.create(
+            db, user_id, NotificationType.VALIDATOR_STATUS,
+            {"status": status, "detail": detail or ""},
+        )
+
+        if send_email and prefs.email_enabled:
+            try:
+                from app.db.models import User
+                from app.auth.verification import _send_email
+                u = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+                if u and u.email:
+                    await _send_email(
+                        u.email,
+                        f"VIT Validator status: {status}",
+                        f"<p>Hi {u.username or ''},</p>"
+                        f"<p>Your validator application status has been updated to "
+                        f"<strong>{status}</strong>.</p>"
+                        f"<p>{detail}</p>"
+                        f"<p>Visit your dashboard for full details.</p>",
+                    )
+            except Exception as exc:
+                logger.warning(f"validator email send failed for user {user_id}: {exc}")
+
+        return notif
+
+    @classmethod
     async def notify_system(
         cls, db: AsyncSession, user_id: int, message: str
     ) -> Notification:
@@ -238,7 +286,7 @@ class NotificationService:
 
         allowed = {
             "prediction_alerts", "match_results", "wallet_activity",
-            "validator_rewards", "subscription_expiry",
+            "validator_rewards", "subscription_expiry", "validator_status",
             "email_enabled", "telegram_enabled", "in_app_enabled",
         }
         for k, v in updates.items():
