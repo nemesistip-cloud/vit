@@ -132,7 +132,7 @@ logger = logging.getLogger("uvicorn.error")
 # BACKGROUND TASKS
 # ============================================
 
-_SETTLEMENT_INTERVAL_HOURS = 6
+_SETTLEMENT_INTERVAL_HOURS = 0.5  # run every 30 minutes
 _ACCOUNTABILITY_INTERVAL_HOURS = 24
 _VITCOIN_PRICING_INTERVAL_HOURS = 6
 
@@ -222,11 +222,12 @@ async def auto_settle_loop():
             try:
                 from app.db.database import AsyncSessionLocal
                 from app.modules.ai.weight_adjuster import adjust_weights_for_match
-                settlement_result = await settle_results(days_back=2)
-                print(f"[settlement] {settlement_result}")
+                # Use days_back=7 to catch any backlog of unsettled matches
+                settlement_result = await settle_results(days_back=7)
+                if settlement_result.get("settled", 0) > 0 or settlement_result.get("errors", 0) > 0:
+                    print(f"[settlement] {settlement_result.get('message')} | errors={settlement_result.get('errors',0)}")
 
                 # E3 — weight adjustment for each newly settled match
-                # settle_results() returns a dict like {"settled": N, "matches": [...]}
                 if isinstance(settlement_result, dict):
                     settled_matches = settlement_result.get("details", settlement_result.get("matches", []))
                 elif isinstance(settlement_result, list):
@@ -264,84 +265,151 @@ async def model_accountability_loop():
 
 async def live_match_tracker_loop():
     """
-    Polls Football-Data API every 2 minutes while matches are live.
-    Updates match status to 'live' / 'completed' and triggers settlement.
+    Polls Football-Data API every 2 minutes.
+    - Marks IN_PLAY matches as 'live' with current scores
+    - Marks FINISHED matches as 'completed' immediately with final scores
+    - Triggers a full settlement pass every cycle
     """
+    import httpx as _httpx
+    from difflib import SequenceMatcher as _SM
+    from datetime import datetime as _dt, timedelta as _td
+
     _LIVE_POLL_INTERVAL = 120  # seconds
+
+    COMP_MAP = {
+        "PL": "premier_league", "PD": "la_liga", "BL1": "bundesliga",
+        "SA": "serie_a", "FL1": "ligue_1", "DED": "eredivisie",
+        "ELC": "championship", "PPL": "primeira_liga",
+    }
+
+    def _sim(a: str, b: str) -> float:
+        return _SM(None, a.lower(), b.lower()).ratio()
+
+    def _names_match(a: str, b: str) -> bool:
+        if a.lower() == b.lower():
+            return True
+        for suf in [" FC", " AFC", " CF", " SC"]:
+            a = a.replace(suf, "")
+            b = b.replace(suf, "")
+        return _sim(a.strip(), b.strip()) >= 0.72
 
     await asyncio.sleep(90)
     while True:
         try:
             football_key = os.getenv("FOOTBALL_DATA_API_KEY", "")
             if football_key:
-                import httpx
                 from app.db.database import AsyncSessionLocal
                 from app.db.models import Match
-                from sqlalchemy import select as _sel, or_ as _or_
+                from sqlalchemy import select as _sel
 
-                now_utc = __import__("datetime").datetime.utcnow()
-                window_start = now_utc - __import__("datetime").timedelta(hours=3)
-                window_end   = now_utc + __import__("datetime").timedelta(minutes=30)
+                # Load all unsettled matches once
+                async with AsyncSessionLocal() as db:
+                    unsettled_q = await db.execute(_sel(Match).where(Match.actual_outcome.is_(None)))
+                    unsettled_matches = unsettled_q.scalars().all()
 
-                COMP_MAP = {
-                    "PL": "premier_league", "PD": "la_liga", "BL1": "bundesliga",
-                    "SA": "serie_a", "FL1": "ligue_1", "DED": "eredivisie",
-                    "ELC": "championship", "PPL": "primeira_liga",
-                }
+                now_utc = _dt.utcnow()
 
-                async with httpx.AsyncClient(timeout=15) as client:
+                async with _httpx.AsyncClient(timeout=15) as client:
                     for code, league in COMP_MAP.items():
-                        try:
-                            r = await client.get(
-                                f"https://api.football-data.org/v4/competitions/{code}/matches",
-                                headers={"X-Auth-Token": football_key},
-                                params={"status": "IN_PLAY"},
-                            )
-                            if r.status_code != 200:
-                                continue
+                        # Poll both IN_PLAY and FINISHED in one call using TIMED status
+                        date_from = (now_utc - _td(hours=6)).strftime("%Y-%m-%d")
+                        date_to   = now_utc.strftime("%Y-%m-%d")
+                        for api_status in ("IN_PLAY", "FINISHED"):
+                            try:
+                                params = {"status": api_status}
+                                if api_status == "FINISHED":
+                                    params["dateFrom"] = date_from
+                                    params["dateTo"]   = date_to
+                                r = await client.get(
+                                    f"https://api.football-data.org/v4/competitions/{code}/matches",
+                                    headers={"X-Auth-Token": football_key},
+                                    params=params,
+                                )
+                                if r.status_code in (401, 403):
+                                    break  # skip this competition on auth error, do not blacklist
+                                if r.status_code != 200:
+                                    continue
 
-                            live_matches = r.json().get("matches", [])
-                            if not live_matches:
-                                continue
+                                api_matches = r.json().get("matches", [])
+                                if not api_matches:
+                                    continue
 
-                            async with AsyncSessionLocal() as db:
-                                for api_m in live_matches:
-                                    home_name = api_m["homeTeam"]["name"]
-                                    away_name = api_m["awayTeam"]["name"]
-                                    # Football-Data API v4 uses score.fullTime / score.halfTime with nested home/away
-                                    _score_obj = api_m.get("score", {})
-                                    score = _score_obj.get("fullTime") or _score_obj.get("halfTime") or {}
+                                async with AsyncSessionLocal() as db:
+                                    for api_m in api_matches:
+                                        home_name = api_m["homeTeam"]["name"]
+                                        away_name = api_m["awayTeam"]["name"]
+                                        _score_obj = api_m.get("score", {})
 
-                                    from difflib import SequenceMatcher as _SM
-                                    def _sim(a, b):
-                                        return _SM(None, a.lower(), b.lower()).ratio()
+                                        # For live: use currentScore → halfTime → fullTime
+                                        # For finished: use fullTime
+                                        if api_status == "IN_PLAY":
+                                            score = (_score_obj.get("currentScore") or
+                                                     _score_obj.get("halfTime") or
+                                                     _score_obj.get("fullTime") or {})
+                                        else:
+                                            score = _score_obj.get("fullTime") or {}
 
-                                    result = await db.execute(_sel(Match).where(
-                                        Match.actual_outcome.is_(None)
-                                    ))
-                                    all_m = result.scalars().all()
-                                    db_match = None
-                                    for m in all_m:
-                                        if _sim(home_name, m.home_team) > 0.72 and _sim(away_name, m.away_team) > 0.72:
+                                        home_g = score.get("home")
+                                        away_g = score.get("away")
+
+                                        # Find matching DB record with kickoff proximity check
+                                        api_kickoff_str = api_m.get("utcDate", "")
+                                        api_kickoff = None
+                                        if api_kickoff_str:
+                                            try:
+                                                api_kickoff = _dt.fromisoformat(api_kickoff_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                                            except Exception:
+                                                pass
+
+                                        db_match = None
+                                        for m in unsettled_matches:
+                                            if not _names_match(home_name, m.home_team):
+                                                continue
+                                            if not _names_match(away_name, m.away_team):
+                                                continue
+                                            # Kickoff proximity: within 36 hours
+                                            if api_kickoff and m.kickoff_time:
+                                                delta = abs((m.kickoff_time - api_kickoff).total_seconds())
+                                                if delta > 36 * 3600:
+                                                    continue
                                             db_match = m
                                             break
 
-                                    if db_match and db_match.status != "live":
-                                        db_match.status = "live"
-                                        if score:
-                                            db_match.home_goals = score.get("home")
-                                            db_match.away_goals = score.get("away")
-                                        await db.commit()
+                                        if not db_match:
+                                            continue
 
-                        except Exception as e:
-                            print(f"[live-tracker] {league}: {e}")
-                            continue
+                                        changed = False
+                                        if api_status == "IN_PLAY" and db_match.status != "live":
+                                            db_match.status = "live"
+                                            changed = True
+                                        elif api_status == "FINISHED" and home_g is not None and away_g is not None:
+                                            if db_match.home_goals != home_g or db_match.away_goals != away_g or db_match.actual_outcome is None:
+                                                db_match.home_goals = home_g
+                                                db_match.away_goals = away_g
+                                                db_match.actual_outcome = (
+                                                    "home" if home_g > away_g else
+                                                    "draw" if home_g == away_g else "away"
+                                                )
+                                                db_match.status = "completed"
+                                                changed = True
+                                                print(f"[live-tracker] Completed: {home_name} {home_g}-{away_g} {away_name}")
 
-                # After checking live matches, also do a quick settlement pass
-                from app.services.results_settler import settle_results as _settle
-                sr = await _settle(days_back=1)
+                                        if changed:
+                                            await db.commit()
+                                            # Refresh unsettled list after commit
+                                            if api_status == "FINISHED" and db_match in unsettled_matches:
+                                                unsettled_matches.remove(db_match)
+
+                            except Exception as e:
+                                print(f"[live-tracker] {league}/{api_status}: {e}")
+                                continue
+
+                # After checking live/finished, settle any DB-completed matches
+                # (no extra API calls — the full API pass happens every 30 min)
+                from app.services.results_settler import settle_completed_db_matches as _settle_db
+                sr = await _settle_db()
                 if sr.get("settled", 0) > 0:
-                    print(f"[live-tracker] Settled {sr['settled']} finished matches")
+                    print(f"[live-tracker] DB settlement: settled={sr['settled']} errors={sr.get('errors',0)}")
 
         except Exception as e:
             print(f"[live-tracker] ERROR: {e}")

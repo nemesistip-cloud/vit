@@ -13,6 +13,7 @@ Key improvements over v1:
 - Thread-safe asyncio DB session usage
 """
 
+import asyncio
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -44,6 +45,7 @@ COMPETITIONS = {
 
 _FORBIDDEN_LEAGUES: set = set()
 _KEY_PERMANENTLY_INVALID: bool = False
+_FORBIDDEN_LEAGUES_RESET_AT: float = 0.0   # epoch seconds; reset blacklist every 12 h
 
 # Similarity threshold for fuzzy name matching (0-1).
 # 0.72 allows "Man. United" ↔ "Manchester United FC" but rejects "Man City" ↔ "Man United"
@@ -95,7 +97,8 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
     Pull FINISHED matches from Football-Data.org for the last `days_back` days.
     Returns a list of dicts: home_team, away_team, league, kickoff, home_goals, away_goals.
     """
-    global _KEY_PERMANENTLY_INVALID
+    import time as _time
+    global _KEY_PERMANENTLY_INVALID, _FORBIDDEN_LEAGUES, _FORBIDDEN_LEAGUES_RESET_AT
     key = os.getenv("FOOTBALL_DATA_API_KEY", "")
     if not key:
         logger.warning("FOOTBALL_DATA_API_KEY not set — cannot fetch finished matches")
@@ -105,9 +108,16 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
         logger.debug("Skipping finished-match fetch — API key permanently invalid")
         return []
 
+    # Reset the forbidden-league blacklist every 12 hours so temporary 403s
+    # (e.g., rate-limit spikes or plan changes) don't block leagues forever.
+    _now_epoch = _time.time()
+    if _FORBIDDEN_LEAGUES and (_now_epoch - _FORBIDDEN_LEAGUES_RESET_AT) > 12 * 3600:
+        logger.info(f"[settle] Resetting forbidden-league blacklist: {sorted(_FORBIDDEN_LEAGUES)}")
+        _FORBIDDEN_LEAGUES = set()
+        _FORBIDDEN_LEAGUES_RESET_AT = _now_epoch
+
     now       = datetime.now(timezone.utc)
-    date_from = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
-    date_to   = now.strftime("%Y-%m-%d")
+    cutoff    = now - timedelta(days=days_back)
     finished  = []
     new_forbidden = 0
 
@@ -116,10 +126,13 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
             if league in _FORBIDDEN_LEAGUES:
                 continue
             try:
+                # Do NOT send dateFrom/dateTo — those require a paid tier.
+                # Fetch the last N matches for the competition (free tier supports
+                # the plain /matches endpoint) and filter by date in Python.
                 r = await client.get(
                     f"https://api.football-data.org/v4/competitions/{code}/matches",
                     headers={"X-Auth-Token": key},
-                    params={"status": "FINISHED", "dateFrom": date_from, "dateTo": date_to},
+                    params={"status": "FINISHED"},
                 )
                 if r.status_code == 200:
                     for m in r.json().get("matches", []):
@@ -128,33 +141,58 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
                         away_g = score.get("away")
                         if home_g is None or away_g is None:
                             continue
+                        # Filter by date in Python — only keep matches within days_back
+                        utc_date_str = m.get("utcDate", "")
+                        if utc_date_str:
+                            try:
+                                match_dt = datetime.fromisoformat(utc_date_str.replace("Z", "+00:00"))
+                                if match_dt < cutoff:
+                                    continue
+                            except Exception:
+                                pass
                         finished.append({
                             "home_team":  m["homeTeam"]["name"],
                             "away_team":  m["awayTeam"]["name"],
                             "league":     league,
-                            "kickoff":    m.get("utcDate", ""),
+                            "kickoff":    utc_date_str,
                             "home_goals": int(home_g),
                             "away_goals": int(away_g),
                         })
-                elif r.status_code == 401:
-                    logger.warning("FOOTBALL_DATA_API_KEY is invalid or expired — suspending all settlement fetch")
-                    _KEY_PERMANENTLY_INVALID = True
-                    break
-                elif r.status_code == 429:
-                    logger.warning(f"Rate limit hit for {league}")
-                elif r.status_code == 403:
+                elif r.status_code in (401, 403):
+                    # Check if the account itself is disabled (vs. a plan restriction)
+                    try:
+                        err_body = r.json()
+                    except Exception:
+                        err_body = {}
+                    err_msg = str(err_body.get("message", "")).lower()
+                    if r.status_code == 401 or "disabled" in err_msg or "invalid" in err_msg:
+                        logger.warning(
+                            "FOOTBALL_DATA_API_KEY account disabled/invalid — "
+                            "suspending all settlement fetch until restart"
+                        )
+                        _KEY_PERMANENTLY_INVALID = True
+                        return []
+                    # Regular plan-tier 403: blacklist this league only
                     _FORBIDDEN_LEAGUES.add(league)
+                    if _FORBIDDEN_LEAGUES_RESET_AT == 0.0:
+                        import time as _t
+                        _FORBIDDEN_LEAGUES_RESET_AT = _t.time()
                     new_forbidden += 1
-                    logger.debug(f"API key tier does not cover {league} — blacklisted for this session")
+                    logger.debug(f"API key tier does not cover {league} — skipping for now")
+                elif r.status_code == 429:
+                    logger.warning(f"Rate limit hit for {league} — waiting 12s before continuing")
+                    await asyncio.sleep(12)
+                # Brief pause between requests to respect 10 req/min free-tier rate limit
+                await asyncio.sleep(7)
             except Exception as e:
                 logger.warning(f"Finished-match fetch failed for {league}: {e}")
 
     if new_forbidden:
         logger.warning(
-            f"FOOTBALL_DATA_API_KEY tier excludes {new_forbidden} league(s) — "
-            f"upgrade key or remove them from COMPETITIONS. Blacklisted: {sorted(_FORBIDDEN_LEAGUES)}"
+            f"FOOTBALL_DATA_API_KEY tier excludes {new_forbidden} league(s). "
+            f"Blacklisted: {sorted(_FORBIDDEN_LEAGUES)}"
         )
-    logger.info(f"Fetched {len(finished)} finished match(es) from Football-Data API")
+    logger.info(f"Fetched {len(finished)} finished match(es) from Football-Data API (days_back={days_back})")
     return finished
 
 
@@ -230,6 +268,9 @@ async def settle_results(days_back: int = 2) -> dict:
       c) If no Match row exists at all               → create one (status=completed)
          so analytics always has complete result history
 
+    Match pairing uses fuzzy team-name matching AND kickoff-date proximity (≤36 h)
+    to prevent cross-fixture confusion when two teams meet more than once.
+
     Bankroll is updated after every settled prediction.
     """
     finished = await fetch_finished_matches(days_back)
@@ -260,16 +301,24 @@ async def settle_results(days_back: int = 2) -> dict:
                 outcome = _determine_outcome(home_g, away_g)
                 kickoff = _parse_kickoff(api_match.get("kickoff", ""))
 
-                # ── Find DB match (any status) ────────────────────────
+                # ── Find DB match with name + kickoff proximity check ─
                 db_match: Optional[Match] = None
                 for m in all_matches:
-                    if (_names_match(api_match["home_team"], m.home_team) and
+                    if not (_names_match(api_match["home_team"], m.home_team) and
                             _names_match(api_match["away_team"], m.away_team)):
-                        db_match = m
-                        break
+                        continue
+                    # Kickoff date proximity: matches must be within 36 hours of each other
+                    # This prevents pairing the same two teams from different fixtures
+                    if m.kickoff_time:
+                        delta_seconds = abs((m.kickoff_time - kickoff).total_seconds())
+                        if delta_seconds > 36 * 3600:
+                            continue
+                    db_match = m
+                    break
 
                 # ── Already settled → skip ────────────────────────────
-                if db_match and db_match.status == "completed":
+                # Check both status AND actual_outcome to avoid false misses
+                if db_match and (db_match.status == "completed" or db_match.actual_outcome is not None):
                     already_settled += 1
                     continue
 
@@ -290,87 +339,89 @@ async def settle_results(days_back: int = 2) -> dict:
                     all_matches.append(db_match)
                     created_new  += 1
                     no_prediction += 1
+                    await db.commit()
+                    settled += 1
                     logger.info(
                         f"[settle] New record created: "
                         f"{api_match['home_team']} {home_g}-{away_g} {api_match['away_team']}"
                     )
-                else:
-                    # ── Existing unsettled match → update scores ──────
-                    db_match.home_goals     = home_g
-                    db_match.away_goals     = away_g
-                    db_match.actual_outcome = outcome
-                    db_match.status         = "completed"
+                    details.append({
+                        "home_team":  db_match.home_team,
+                        "away_team":  db_match.away_team,
+                        "home_goals": home_g,
+                        "away_goals": away_g,
+                        "outcome":    outcome,
+                        "bet_side":   None,
+                        "profit":     None,
+                        "clv_value":  None,
+                    })
+                    continue
 
-                    # ── Settle linked prediction ───────────────────────
-                    pred_res = await db.execute(
-                        select(Prediction).where(Prediction.match_id == db_match.id)
+                # ── Existing unsettled match → update scores ──────────
+                db_match.home_goals     = home_g
+                db_match.away_goals     = away_g
+                db_match.actual_outcome = outcome
+                db_match.status         = "completed"
+
+                # ── Settle linked prediction ───────────────────────────
+                pred_res = await db.execute(
+                    select(Prediction).where(Prediction.match_id == db_match.id)
+                )
+                prediction = pred_res.scalar_one_or_none()
+
+                profit: float = 0.0
+                won: bool = False
+                if prediction and prediction.bet_side:
+                    won    = prediction.bet_side == outcome
+                    stake  = float(prediction.recommended_stake or 0.0)
+                    odds   = float(prediction.entry_odds or 2.0)
+                    profit = stake * (odds - 1) if won else -stake
+
+                    # CLV update
+                    clv_res = await db.execute(
+                        select(CLVEntry).where(CLVEntry.prediction_id == prediction.id)
                     )
-                    prediction = pred_res.scalar_one_or_none()
+                    clv_entry = clv_res.scalar_one_or_none()
+                    clv_home = db_match.closing_odds_home or None
+                    clv_draw = db_match.closing_odds_draw or None
+                    clv_away = db_match.closing_odds_away or None
+                    closing_available = all(x is not None for x in [clv_home, clv_draw, clv_away])
+                    side_odds = (
+                        {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)
+                        or odds
+                    )
 
-                    profit = 0.0
-                    if prediction and prediction.bet_side:
-                        won    = prediction.bet_side == outcome
-                        stake  = prediction.recommended_stake or 0.0
-                        odds   = prediction.entry_odds or 2.0
-                        profit = stake * (odds - 1) if won else -stake
-
-                        # CLV update
-                        clv_res = await db.execute(
-                            select(CLVEntry).where(CLVEntry.prediction_id == prediction.id)
+                    if clv_entry:
+                        clv_entry.closing_odds = side_odds if closing_available else None
+                        clv_entry.clv = (
+                            CLVTracker.calculate_clv(clv_entry.entry_odds or odds, side_odds)
+                            if closing_available else None
                         )
-                        clv_entry = clv_res.scalar_one_or_none()
-                        # Use actual closing odds only; fall back to entry_odds (same side)
-                        # rather than hardcoded market averages so CLV is not fabricated.
-                        clv_home = db_match.closing_odds_home or None
-                        clv_draw = db_match.closing_odds_draw or None
-                        clv_away = db_match.closing_odds_away or None
-                        closing_available = all(
-                            x is not None for x in [clv_home, clv_draw, clv_away]
-                        )
-                        side_odds = (
-                            {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(
-                                prediction.bet_side
-                            )
-                            or odds
-                        )
-
-                        if clv_entry:
-                            clv_entry.closing_odds = side_odds if closing_available else None
-                            clv_entry.clv          = (
-                                CLVTracker.calculate_clv(clv_entry.entry_odds or odds, side_odds)
-                                if closing_available else None
-                            )
-                            clv_entry.bet_outcome  = "win" if won else "loss"
-                            clv_entry.profit       = profit
-                            if not closing_available:
-                                logger.warning(
-                                    "[settle] Closing odds missing for match=%s — CLV not calculated",
-                                    db_match.id,
-                                )
-                        else:
-                            if closing_available:
-                                await CLVTracker.update_closing_by_prediction(
-                                    db, prediction.id,
-                                    clv_home, clv_draw, clv_away,
-                                    outcome, profit,
-                                )
-                            else:
-                                logger.warning(
-                                    "[settle] Closing odds missing for match=%s — CLV entry skipped",
-                                    db_match.id,
-                                )
-
-                        # ── Bankroll update ───────────────────────────
-                        try:
-                            from app.services.bankroll import BankrollManager
-                            bm = BankrollManager(db)
-                            await bm.load_state()
-                            bm.bankroll.update_bet(stake, odds, won)
-                            await bm.save_state()
-                        except Exception as be:
-                            logger.warning(f"Bankroll update failed (non-fatal): {be}")
+                        clv_entry.bet_outcome = "win" if won else "loss"
+                        clv_entry.profit      = profit
+                        if not closing_available:
+                            logger.warning("[settle] Closing odds missing for match=%s — CLV not calculated", db_match.id)
                     else:
-                        no_prediction += 1
+                        if closing_available:
+                            await CLVTracker.update_closing_by_prediction(
+                                db, prediction.id,
+                                clv_home, clv_draw, clv_away,
+                                outcome, profit,
+                            )
+                        else:
+                            logger.warning("[settle] Closing odds missing for match=%s — CLV entry skipped", db_match.id)
+
+                    # ── Bankroll update ────────────────────────────────
+                    try:
+                        from app.services.bankroll import BankrollManager
+                        bm = BankrollManager(db)
+                        await bm.load_state()
+                        bm.bankroll.update_bet(stake, odds, won)
+                        await bm.save_state()
+                    except Exception as be:
+                        logger.warning(f"Bankroll update failed (non-fatal): {be}")
+                else:
+                    no_prediction += 1
 
                 await db.commit()
                 settled += 1
@@ -384,10 +435,8 @@ async def settle_results(days_back: int = 2) -> dict:
                     "home_goals": home_g,
                     "away_goals": away_g,
                     "outcome":    outcome,
-                    "bet_side":   (prediction.bet_side
-                                   if (db_match and 'prediction' in dir() and prediction) else None),
-                    "profit":     (profit
-                                   if (db_match and 'prediction' in dir() and prediction) else None),
+                    "bet_side":   prediction.bet_side if prediction else None,
+                    "profit":     profit if (prediction and prediction.bet_side) else None,
                     "clv_value":  None,
                 })
 
@@ -399,7 +448,6 @@ async def settle_results(days_back: int = 2) -> dict:
                 except Exception:
                     pass
 
-    total_processed = settled + already_settled
     return {
         "settled":         settled,
         "already_settled": already_settled,
@@ -415,3 +463,108 @@ async def settle_results(days_back: int = 2) -> dict:
             f"{created_new} new records created"
         ),
     }
+
+
+async def settle_completed_db_matches() -> dict:
+    """
+    Lightweight settlement pass that only touches the local database —
+    no API calls.  Processes any Match rows already marked status='completed'
+    (e.g. written by the live-tracker) whose linked Prediction has not yet
+    been settled (no bankroll / CLV update).
+
+    Called by the live-match tracker every 2 minutes so predictions get
+    settled quickly without burning extra API quota.
+    """
+    settled       = 0
+    no_prediction = 0
+    errors        = 0
+
+    async with AsyncSessionLocal() as db:
+        # Find completed matches where the linked prediction is still pending
+        result = await db.execute(
+            select(Match).where(
+                Match.status == "completed",
+                Match.actual_outcome.is_not(None),
+            )
+        )
+        completed_matches: list[Match] = result.scalars().all()
+
+        for db_match in completed_matches:
+            try:
+                pred_res = await db.execute(
+                    select(Prediction).where(Prediction.match_id == db_match.id)
+                )
+                prediction = pred_res.scalar_one_or_none()
+
+                if not prediction or not prediction.bet_side:
+                    no_prediction += 1
+                    continue
+
+                # Skip if bankroll/CLV already applied (use a simple proxy:
+                # CLVEntry.bet_outcome is set after settlement)
+                clv_res = await db.execute(
+                    select(CLVEntry).where(CLVEntry.prediction_id == prediction.id)
+                )
+                clv_entry = clv_res.scalar_one_or_none()
+                if clv_entry and clv_entry.bet_outcome is not None:
+                    continue  # already settled
+
+                outcome = db_match.actual_outcome
+                home_g  = db_match.home_goals or 0
+                away_g  = db_match.away_goals or 0
+                won     = prediction.bet_side == outcome
+                stake   = float(prediction.recommended_stake or 0.0)
+                odds    = float(prediction.entry_odds or 2.0)
+                profit  = stake * (odds - 1) if won else -stake
+
+                # CLV update
+                clv_home = db_match.closing_odds_home
+                clv_draw = db_match.closing_odds_draw
+                clv_away = db_match.closing_odds_away
+                closing_available = all(x is not None for x in [clv_home, clv_draw, clv_away])
+                side_odds = (
+                    {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)
+                    or odds
+                )
+
+                if clv_entry:
+                    clv_entry.closing_odds = side_odds if closing_available else None
+                    clv_entry.clv = (
+                        CLVTracker.calculate_clv(clv_entry.entry_odds or odds, side_odds)
+                        if closing_available else None
+                    )
+                    clv_entry.bet_outcome = "win" if won else "loss"
+                    clv_entry.profit      = profit
+                elif closing_available:
+                    await CLVTracker.update_closing_by_prediction(
+                        db, prediction.id,
+                        clv_home, clv_draw, clv_away,
+                        outcome, profit,
+                    )
+
+                # Bankroll update
+                try:
+                    from app.services.bankroll import BankrollManager
+                    bm = BankrollManager(db)
+                    await bm.load_state()
+                    bm.bankroll.update_bet(stake, odds, won)
+                    await bm.save_state()
+                except Exception as be:
+                    logger.warning(f"[settle_db] Bankroll update failed (non-fatal): {be}")
+
+                await db.commit()
+                settled += 1
+                logger.info(
+                    f"[settle_db] {db_match.home_team} {home_g}-{away_g} {db_match.away_team}"
+                    f" → {outcome} ({'WIN' if won else 'LOSS'}) profit={profit:.2f}"
+                )
+
+            except Exception as e:
+                errors += 1
+                logger.error(f"[settle_db] Error for match {db_match.id}: {e}", exc_info=True)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+
+    return {"settled": settled, "no_prediction": no_prediction, "errors": errors}
