@@ -1,0 +1,248 @@
+/* ============================================================
+   VIT Sports Intelligence Network — Design Tokens
+   Institutional-Grade Design System
+   ============================================================ */
+
+:root {
+  /* ── Brand Colors ─────────────────────────────────────────── */
+  --vit-brand-cyan:        #00f5ff;
+  --vit-brand-cyan-dim:    #00c8d4;
+  --vit-brand-cyan-muted:  rgba(0, 245, 255, 0.15);
+  --vit-brand-cyan-glow:   rgba(0, 245, 255, 0.35);
+
+  --vit-brand-gold:        #ffd700;
+  --vit-brand-gold-dim:    #d4a800;
+  --vit-brand-gold-muted:  rgba(255, 215, 0, 0.15);
+  --vit-brand-gold-glow:   rgba(255, 215, 0, 0.30);
+
+  --vit-brand-purple:      #a855f7;
+  --vit-brand-purple-dim:  #8b3cf7;
+  --vit-brand-purple-muted:rgba(168, 85, 247, 0.15);
+
+  --vit-brand-green:       #22c55e;
+  --vit-brand-green-muted: rgba(34, 197, 94, 0.15);
+
+  --vit-brand-red:         #ef4444;
+  --vit-brand-red-muted:   rgba(239, 68, 68, 0.15);
+
+  --vit-brand-orange:      #f97316;
+  --vit-brand-orange-muted:rgba(249, 115, 22, 0.15);
+
+  /* ── Deep Space Grays ─────────────────────────────────────── */
+  --vit-gray-950:  #050509;
+  --vit-gray-900:  #0a0a0f;
+  --vit-gray-850:  #0f0f18;
+  --vit-gray-800:  #141420;
+  --vit-gray-750:  #1a1a2a;
+  --vit-gray-700:  #20203a;
+  --vit-gray-600:  #2d2d50;
+  --vit-gray-500:  #3d3d66;
+  --vit-gray-400:  #6366a0;
+  --vit-gray-300:  #9ca3c8;
+  --vit-gray-200:  #c4c8e0;
+  --vit-gray-100:  #e2e4f0;
+  --vit-gray-50:   #f0f1f8;
+
+  /* ── Typography Scale (Perfect Fourth — 1.333 ratio) ─────── */
+  --vit-text-2xs:   0.563rem;   /* 9px  */
+  --vit-text-xs:    0.75rem;    /* 12px */
+  --vit-text-sm:    1rem;       /* 16px base */
+  --vit-text-md:    1.333rem;   /* 21px */
+  --vit-text-lg:    1.777rem;   /* 28px */
+  --vit-text-xl:    2.369rem;   /* 38px */
+  --vit-text-2xl:   3.157rem;   /* 51px */
+  --vit-text-3xl:   4.209rem;   /* 67px */
+
+  --vit-font-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
+  --vit-font-mono:  'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  --vit-font-serif: Georgia, serif;
+
+  /* ── Spacing (4px base grid) ──────────────────────────────── */
+  --vit-space-1:   0.25rem;   /* 4px  */
+  --vit-space-2:   0.5rem;    /* 8px  */
+  --vit-space-3:   0.75rem;   /* 12px */
+  --vit-space-4:   1rem;      /* 16px */
+  --vit-space-5:   1.25rem;   /* 20px */
+  --vit-space-6:   1.5rem;    /* 24px */
+  --vit-space-8:   2rem;      /* 32px */
+  --vit-space-10:  2.5rem;    /* 40px */
+  --vit-space-12:  3rem;      /* 48px */
+  --vit-space-16:  4rem;      /* 64px */
+  --vit-space-20:  5rem;      /* 80px */
+  --vit-space-24:  6rem;      /* 96px */
+  --vit-space-32:  8rem;      /* 128px */
+
+  /* ── Border Radius ────────────────────────────────────────── */
+  --vit-radius-sm:  0.25rem;
+  --vit-radius-md:  0.5rem;
+  --vit-radius-lg:  0.75rem;
+  --vit-radius-xl:  1rem;
+  --vit-radius-2xl: 1.5rem;
+  --vit-radius-full: 9999px;
+
+  /* ── Shadows ──────────────────────────────────────────────── */
+  --vit-shadow-sm:  0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --vit-shadow-md:  0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
+  --vit-shadow-lg:  0 10px 30px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.4);
+  --vit-shadow-xl:  0 20px 60px rgba(0,0,0,0.7), 0 8px 16px rgba(0,0,0,0.5);
+
+  --vit-shadow-cyan-glow:   0 0 20px rgba(0,245,255,0.25), 0 0 40px rgba(0,245,255,0.10);
+  --vit-shadow-gold-glow:   0 0 20px rgba(255,215,0,0.20), 0 0 40px rgba(255,215,0,0.08);
+  --vit-shadow-purple-glow: 0 0 20px rgba(168,85,247,0.20), 0 0 40px rgba(168,85,247,0.08);
+  --vit-shadow-green-glow:  0 0 15px rgba(34,197,94,0.20);
+  --vit-shadow-red-glow:    0 0 15px rgba(239,68,68,0.20);
+
+  /* ── Animation Durations ──────────────────────────────────── */
+  --vit-duration-fast:    150ms;
+  --vit-duration-normal:  250ms;
+  --vit-duration-slow:    350ms;
+  --vit-duration-slower:  500ms;
+  --vit-duration-slowest: 800ms;
+
+  --vit-ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --vit-ease-in:      cubic-bezier(0.4, 0, 1, 1);
+  --vit-ease-in-out:  cubic-bezier(0.4, 0, 0.2, 1);
+  --vit-ease-bounce:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --vit-ease-spring:  cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* ── Z-Index Scale ────────────────────────────────────────── */
+  --vit-z-base:     0;
+  --vit-z-raised:   10;
+  --vit-z-dropdown: 100;
+  --vit-z-sticky:   200;
+  --vit-z-overlay:  300;
+  --vit-z-modal:    400;
+  --vit-z-toast:    500;
+  --vit-z-top:      999;
+
+  /* ── Glassmorphism ────────────────────────────────────────── */
+  --vit-glass-bg:     rgba(10, 10, 20, 0.6);
+  --vit-glass-border: rgba(255, 255, 255, 0.07);
+  --vit-glass-blur:   12px;
+
+  /* ── Gradients ────────────────────────────────────────────── */
+  --vit-gradient-brand:   linear-gradient(135deg, var(--vit-brand-cyan), var(--vit-brand-purple));
+  --vit-gradient-gold:    linear-gradient(135deg, var(--vit-brand-gold), var(--vit-brand-orange));
+  --vit-gradient-dark:    linear-gradient(180deg, var(--vit-gray-900) 0%, var(--vit-gray-950) 100%);
+  --vit-gradient-surface: linear-gradient(180deg, var(--vit-gray-800) 0%, var(--vit-gray-850) 100%);
+}
+
+/* ── Utility Classes ──────────────────────────────────────────── */
+
+.vit-glass {
+  background: var(--vit-glass-bg);
+  border: 1px solid var(--vit-glass-border);
+  backdrop-filter: blur(var(--vit-glass-blur));
+  -webkit-backdrop-filter: blur(var(--vit-glass-blur));
+}
+
+.vit-glow-cyan {
+  box-shadow: var(--vit-shadow-cyan-glow);
+}
+.vit-glow-gold {
+  box-shadow: var(--vit-shadow-gold-glow);
+}
+.vit-glow-purple {
+  box-shadow: var(--vit-shadow-purple-glow);
+}
+
+.vit-gradient-text {
+  background: var(--vit-gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.vit-gradient-text-gold {
+  background: var(--vit-gradient-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Scanning line animation (cyberpunk effect) ───────────────── */
+@keyframes vit-scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes vit-pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1;   }
+}
+
+@keyframes vit-float {
+  0%, 100% { transform: translateY(0px);   }
+  50%       { transform: translateY(-6px);  }
+}
+
+@keyframes vit-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200%  0; }
+}
+
+@keyframes vit-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes vit-slide-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+@keyframes vit-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes vit-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes vit-celebrate {
+  0%   { transform: scale(1);    }
+  25%  { transform: scale(1.08); }
+  50%  { transform: scale(0.97); }
+  75%  { transform: scale(1.03); }
+  100% { transform: scale(1);    }
+}
+
+@keyframes vit-ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.vit-animate-slide-up    { animation: vit-slide-up    var(--vit-duration-slow) var(--vit-ease-out) forwards; }
+.vit-animate-slide-down  { animation: vit-slide-down  var(--vit-duration-slow) var(--vit-ease-out) forwards; }
+.vit-animate-fade-in     { animation: vit-fade-in     var(--vit-duration-normal) var(--vit-ease-out) forwards; }
+.vit-animate-scale-in    { animation: vit-scale-in    var(--vit-duration-slow) var(--vit-ease-spring) forwards; }
+.vit-animate-float       { animation: vit-float       3s ease-in-out infinite; }
+.vit-animate-pulse-glow  { animation: vit-pulse-glow  2s ease-in-out infinite; }
+.vit-animate-celebrate   { animation: vit-celebrate   0.6s var(--vit-ease-bounce); }
+
+/* ── Shimmer loading skeleton ─────────────────────────────────── */
+.vit-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--vit-gray-800) 25%,
+    var(--vit-gray-700) 50%,
+    var(--vit-gray-800) 75%
+  );
+  background-size: 200% 100%;
+  animation: vit-shimmer 1.5s infinite;
+}
+
+/* ── Ticker tape ──────────────────────────────────────────────── */
+.vit-ticker-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.vit-ticker-content {
+  display: inline-flex;
+  animation: vit-ticker 30s linear infinite;
+}
+.vit-ticker-content:hover {
+  animation-play-state: paused;
+}

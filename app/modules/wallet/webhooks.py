@@ -1,0 +1,214 @@
+"""Payment provider webhooks — Module B5.
+
+Webhook signature verification:
+- Paystack: HMAC-SHA512 of raw body with PAYSTACK_WEBHOOK_SECRET
+- Stripe:   Stripe-Signature header verified via STRIPE_WEBHOOK_SECRET
+- USDT:     Internal listener (trust via network policy)
+- Pi:       Pi Network payment approval
+"""
+
+import hashlib
+import hmac
+import json
+import logging
+import os
+import time
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Request, Header
+from pydantic import BaseModel
+from sqlalchemy import select
+
+from app.db.database import AsyncSessionLocal
+from app.modules.wallet.models import WalletTransaction, Wallet
+
+router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
+logger = logging.getLogger(__name__)
+
+PAYSTACK_WEBHOOK_SECRET = os.getenv("PAYSTACK_WEBHOOK_SECRET", "")
+STRIPE_WEBHOOK_SECRET   = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+USDT_MIN_CONFIRMATIONS  = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
+
+
+async def _credit_wallet_by_reference(reference: str) -> bool:
+    """Find a pending transaction by reference and credit the wallet."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(WalletTransaction).where(WalletTransaction.reference == reference)
+        )
+        tx = result.scalar_one_or_none()
+        if not tx or tx.status == "confirmed":
+            return False
+
+        wallet_result = await db.execute(select(Wallet).where(Wallet.id == tx.wallet_id))
+        wallet = wallet_result.scalar_one_or_none()
+        if not wallet:
+            return False
+
+        balance_attr = f"{tx.currency.lower()}_balance"
+        current = getattr(wallet, balance_attr, 0) or 0
+        setattr(wallet, balance_attr, current + tx.amount)
+        tx.status = "confirmed"
+        tx.processed_at = datetime.utcnow()
+        await db.commit()
+        logger.info(f"Webhook credited {tx.amount} {tx.currency} to wallet {tx.wallet_id} (ref={reference})")
+        return True
+
+
+async def _mark_withdrawal_processed(reference: str) -> bool:
+    """Mark a withdrawal transaction as processed."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(WalletTransaction).where(WalletTransaction.reference == reference)
+        )
+        tx = result.scalar_one_or_none()
+        if not tx:
+            return False
+        tx.status = "confirmed"
+        tx.processed_at = datetime.utcnow()
+        await db.commit()
+        return True
+
+
+# ── Paystack ───────────────────────────────────────────────────────────
+
+@router.post("/paystack")
+async def paystack_webhook(request: Request):
+    body = await request.body()
+    signature = request.headers.get("x-paystack-signature", "")
+    secret = os.getenv("PAYSTACK_WEBHOOK_SECRET", "")
+
+    if secret:
+        computed = hmac.new(secret.encode(), body, hashlib.sha512).hexdigest()
+        if not hmac.compare_digest(computed, signature):
+            raise HTTPException(400, "Invalid Paystack signature")
+
+    try:
+        payload = json.loads(body)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+
+    event = payload.get("event", "")
+
+    if event == "charge.success":
+        reference = payload.get("data", {}).get("reference", "")
+        await _credit_wallet_by_reference(reference)
+
+    elif event == "transfer.success":
+        reference = payload.get("data", {}).get("reference", "")
+        await _mark_withdrawal_processed(reference)
+
+    return {"status": "ok"}
+
+
+# ── Stripe ─────────────────────────────────────────────────────────────
+
+def _verify_stripe_signature(body: bytes, sig_header: str, secret: str) -> bool:
+    """
+    Verify Stripe webhook signature (Stripe-Signature header).
+    Stripe format: t=<timestamp>,v1=<signature>
+    Ref: https://stripe.com/docs/webhooks/signatures
+    """
+    if not secret or not sig_header:
+        return not bool(secret)  # allow-through when no secret configured
+    try:
+        parts = {}
+        for part in sig_header.split(","):
+            k, v = part.split("=", 1)
+            parts[k.strip()] = v.strip()
+        timestamp = parts.get("t", "")
+        v1_sig = parts.get("v1", "")
+        if not timestamp or not v1_sig:
+            return False
+        # Reject stale webhooks (> 5 minutes old)
+        if abs(time.time() - int(timestamp)) > 300:
+            logger.warning("Stripe webhook: timestamp too old (possible replay)")
+            return False
+        signed_payload = f"{timestamp}.".encode() + body
+        expected = hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, v1_sig)
+    except Exception as exc:
+        logger.warning(f"Stripe signature verification error: {exc}")
+        return False
+
+
+@router.post("/stripe", summary="Stripe payment webhook")
+async def stripe_webhook(
+    request: Request,
+    stripe_signature: Optional[str] = Header(default=None, alias="stripe-signature"),
+):
+    body = await request.body()
+
+    if STRIPE_WEBHOOK_SECRET:
+        if not stripe_signature or not _verify_stripe_signature(body, stripe_signature, STRIPE_WEBHOOK_SECRET):
+            logger.warning("Stripe webhook: invalid signature rejected")
+            raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+
+    try:
+        payload = json.loads(body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    event_type = payload.get("type", "")
+    obj = payload.get("data", {}).get("object", {})
+    logger.info(f"Stripe webhook event: {event_type}")
+
+    if event_type == "payment_intent.succeeded":
+        reference = obj.get("metadata", {}).get("reference", obj.get("id", ""))
+        credited = await _credit_wallet_by_reference(reference)
+        return {"status": "ok", "credited": credited}
+
+    if event_type in ("charge.succeeded", "checkout.session.completed"):
+        reference = obj.get("metadata", {}).get("reference", obj.get("id", ""))
+        credited = await _credit_wallet_by_reference(reference)
+        return {"status": "ok", "credited": credited}
+
+    if event_type == "payout.paid":
+        processed = await _mark_withdrawal_processed(obj.get("id", ""))
+        return {"status": "ok", "processed": processed}
+
+    if event_type == "payment_intent.payment_failed":
+        logger.warning(f"Stripe payment failed: {obj.get('id', '')}")
+        return {"status": "ok", "note": "payment_failed logged"}
+
+    return {"status": "ok", "event": event_type, "handled": False}
+
+
+# ── USDT (internal listener) ───────────────────────────────────────────
+
+class USDTWebhookBody(BaseModel):
+    address: str
+    amount: float
+    tx_hash: str
+    confirmations: int
+
+
+@router.post("/usdt")
+async def usdt_webhook(body: USDTWebhookBody):
+    min_conf = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
+    if body.confirmations < min_conf:
+        return {
+            "status": "waiting_confirmations",
+            "required": min_conf,
+            "current": body.confirmations,
+        }
+
+    credited = await _credit_wallet_by_reference(body.tx_hash)
+    return {"status": "confirmed" if credited else "not_found"}
+
+
+# ── Pi Network ─────────────────────────────────────────────────────────
+
+class PiWebhookBody(BaseModel):
+    payment_id: str
+    approved: bool = False
+
+
+@router.post("/pi")
+async def pi_webhook(body: PiWebhookBody):
+    if not body.approved:
+        return {"status": "not_approved"}
+
+    credited = await _credit_wallet_by_reference(body.payment_id)
+    return {"status": "confirmed" if credited else "not_found"}

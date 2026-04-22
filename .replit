@@ -1,2 +1,51 @@
+modules = ["python-3.11", "nodejs-20"]
 [agent]
 expertMode = true
+
+[userenv]
+
+[userenv.shared]
+APP_VERSION = "4.0.0"
+ENVIRONMENT = "development"
+PORT = "5000"
+CORS_ALLOWED_ORIGINS = "*"
+VIT_DATABASE_URL = "sqlite+aiosqlite:///./vit.db"
+AUTH_ENABLED = "false"
+USE_REAL_ML_MODELS = "false"
+ML_MODEL_CACHE_ENABLED = "true"
+BLOCKCHAIN_ENABLED = "false"
+ADMIN_EMAIL = "admin@vit.network"
+ADMIN_USERNAME = "vit_admin"
+ENABLE_SCRAPING = "false"
+ENABLE_ODDS = "true"
+MAX_STAKE = "0.05"
+MIN_EDGE_THRESHOLD = "0.02"
+SECRET_KEY = "5970dc283a81cbea1fba0e33ad0b1c381b8231b7f3f46c431b46a7fd01e47ff9"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80

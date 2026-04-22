@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "VIT Sports Intelligence Network"
+version = "1.0.0"
+id = "artifacts/vit-sports"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23979
+
+[services.development]
+run = "pnpm --filter @workspace/vit-sports run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/vit-sports", "run", "build" ]
+publicDir = "artifacts/vit-sports/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23979"
+BASE_PATH = "/"
