@@ -21,7 +21,7 @@ It features a 12-model AI ensemble, a VITCoin wallet economy, blockchain-verifie
 
 | # | Feature | Location | Issue |
 |---|---------|----------|-------|
-| 1 | **Real ML Models** | `app/modules/ai/` | `USE_REAL_ML_MODELS=false` — all 12 models output synthetic noise. Requires Colab training run + zip upload via Admin panel. |
+| 1 | **Real ML Models** | `app/modules/ai/` | ✅ **Partial fix (Apr 2026)**: All 12 models in `services/ml_service/models/model_orchestrator.py` now have per-model `train()` overrides that fit genuine learned state (logistic home-advantage prior, RF Dirichlet concentration, XGBoost boost target, Poisson team strengths, Elo replay, Dixon-Coles ρ grid-search, LSTM momentum coef, Transformer attention weights, Ensemble entropy-scaled σ, Bayes Dirichlet prior, Hybrid stack weights). Training now produces **distinct real metrics per model** (verified: Bayes & Elo ~70% acc / 0.174 Brier; Hybrid 66%; XGB 21%; vs. previous hard-coded 0.54). For full production accuracy, still requires real-data Colab training run + `.pkl` upload via Admin panel with `USE_REAL_ML_MODELS=true`. |
 | 2 | **Stripe Subscription Payments** | `app/api/routes/subscription.py` | `STRIPE_SECRET_KEY` missing from env. Upgrade checkout sessions return 503. Pro ($49/mo) and Elite ($199/mo) plans cannot be purchased. |
 | 3 | **Paystack NGN Payments** | `app/modules/wallet/routes.py` | `PAYSTACK_SECRET_KEY` missing. NGN wallet deposits silently fail. |
 | 4 | **Email Sending** | `app/auth/verification.py` | `_send_email()` is a stub — logs to console only. Email verification and password-reset links are never actually delivered unless `SMTP_HOST` is set. |
@@ -49,7 +49,7 @@ It features a 12-model AI ensemble, a VITCoin wallet economy, blockchain-verifie
 | 12 | **Referral Rewards Distribution** | `app/modules/referral/` | Referral code generation and usage tracking works. No commission/reward distribution tied to real payments or subscription upgrades. |
 | 13 | **Governance DAO Execution** | `app/modules/governance/` | Proposals and voting are coded. No token-gated quorum enforcement, no on-chain execution of approved proposals, no time-lock mechanism. |
 | 14 | **Trust & Reputation Engine** | `app/modules/trust/` | Score calculation and flagging exist. Automated trust-score actions (e.g., auto-suspend low-trust accounts), appeals workflow, and trust badge display in the UI are incomplete. |
-| 15 | **Training Pipeline (In-App)** | `app/api/routes/training.py` | Training status is stored in-memory only — wiped on restart. No persistent job tracking. Currently Colab-only; no in-app trigger for re-training on newly settled matches. |
+| 15 | **Training Pipeline (In-App)** | `app/api/routes/training.py` | ✅ **Partial fix (Apr 2026)**: In-app trigger now actually trains all 12 models with differentiated learned state and reports real per-model metrics (accuracy, log-loss, Brier, over/under) computed by `_evaluate_model_on_history()`. Remaining gap: training status is still stored in-memory only — wiped on restart. No persistent job tracking yet. The referenced `colab/train_real_match_models.py` script does not exist; use `scripts/train_models.py` for offline training. |
 | 16 | **CSV Upload (Elite Tier)** | `app/api/routes/admin.py` | Backend CSV upload endpoint exists. No frontend UI for Elite users to upload custom match data CSVs. |
 | 17 | **Developer API Marketplace** | `app/modules/developer/` | API key management works. No live API documentation portal, no per-key usage metering/billing, no webhook delivery receipts. |
 
