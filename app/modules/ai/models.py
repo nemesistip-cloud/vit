@@ -48,6 +48,12 @@ class ModelMetadata(Base):
     pkl_path    = Column(String(512), nullable=True)
     training_samples = Column(Integer, default=0)
 
+    # Promotion / version history
+    # active_version: the version currently promoted into production
+    # version_history: list of {version, pkl_path, uploaded_at, metrics, training_samples, promoted_at}
+    active_version  = Column(String(32), nullable=True)
+    version_history = Column(JSON, default=list)
+
     # Markets this model supports
     supported_markets = Column(JSON, default=list)
 

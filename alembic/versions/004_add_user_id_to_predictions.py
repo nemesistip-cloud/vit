@@ -13,25 +13,44 @@ branch_labels = None
 depends_on = None
 
 
+def _existing_columns(bind, table: str) -> set:
+    return {c["name"] for c in sa.inspect(bind).get_columns(table)}
+
+
+def _existing_indexes(bind, table: str) -> set:
+    return {i["name"] for i in sa.inspect(bind).get_indexes(table)}
+
+
 def upgrade() -> None:
-    # Add user_id to predictions (nullable for backward compat)
-    with op.batch_alter_table('predictions', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('user_id', sa.Integer(), nullable=True))
+    bind = op.get_bind()
 
-    # Add user_id FK index
-    op.create_index('idx_predictions_user_id', 'predictions', ['user_id'])
+    pred_cols = _existing_columns(bind, "predictions")
+    if "user_id" not in pred_cols:
+        with op.batch_alter_table('predictions', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('user_id', sa.Integer(), nullable=True))
 
-    # Add kyc fields to users table
-    with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('kyc_status', sa.String(20), server_default='none', nullable=True))
-        batch_op.add_column(sa.Column('kyc_submitted_at', sa.DateTime(timezone=True), nullable=True))
-        batch_op.add_column(sa.Column('kyc_data', sa.JSON(), nullable=True))
+    if "idx_predictions_user_id" not in _existing_indexes(bind, "predictions"):
+        op.create_index('idx_predictions_user_id', 'predictions', ['user_id'])
 
-    # Add streak tracking to users
-    with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('current_streak', sa.Integer(), server_default='0', nullable=True))
-        batch_op.add_column(sa.Column('best_streak', sa.Integer(), server_default='0', nullable=True))
-        batch_op.add_column(sa.Column('total_xp', sa.Integer(), server_default='0', nullable=True))
+    user_cols = _existing_columns(bind, "users")
+    to_add_users = []
+    if "kyc_status" not in user_cols:
+        to_add_users.append(sa.Column('kyc_status', sa.String(20), server_default='none', nullable=True))
+    if "kyc_submitted_at" not in user_cols:
+        to_add_users.append(sa.Column('kyc_submitted_at', sa.DateTime(timezone=True), nullable=True))
+    if "kyc_data" not in user_cols:
+        to_add_users.append(sa.Column('kyc_data', sa.JSON(), nullable=True))
+    if "current_streak" not in user_cols:
+        to_add_users.append(sa.Column('current_streak', sa.Integer(), server_default='0', nullable=True))
+    if "best_streak" not in user_cols:
+        to_add_users.append(sa.Column('best_streak', sa.Integer(), server_default='0', nullable=True))
+    if "total_xp" not in user_cols:
+        to_add_users.append(sa.Column('total_xp', sa.Integer(), server_default='0', nullable=True))
+
+    if to_add_users:
+        with op.batch_alter_table('users', schema=None) as batch_op:
+            for col in to_add_users:
+                batch_op.add_column(col)
 
 
 def downgrade() -> None:

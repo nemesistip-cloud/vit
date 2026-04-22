@@ -16,6 +16,14 @@ class Match(Base):
     kickoff_time = Column(DateTime, nullable=False)
     status = Column(String, default="scheduled")
 
+    # Provenance: where this fixture came from
+    # values: manual_upload | footballdata | odds_api | sportmonks | api_football
+    #         | user_csv | seed | synthetic | unknown
+    source = Column(String(32), default="unknown", index=True)
+    # Stable fingerprint for cross-source dedup: lowercase normalized
+    # "{date}::{home}::{away}::{league}"
+    fingerprint = Column(String(255), nullable=True, index=True)
+
     # Actual results (filled post-match)
     home_goals = Column(Integer, nullable=True)
     away_goals = Column(Integer, nullable=True)
