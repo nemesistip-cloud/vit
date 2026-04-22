@@ -60,3 +60,22 @@ Run after switching to PostgreSQL.
 
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
+
+## Recent Changes — Staking Hardening (Apr 22 2026)
+All VITCoin balance changes in the staking subsystem now flow through `WalletService.credit/debit`, which:
+- Locks the wallet row with `SELECT … FOR UPDATE` (no more double-spend race)
+- Records a `WalletTransaction` for every move (full audit trail using existing `STAKE`/`REWARD`/`SLASH` types)
+- Honors `is_frozen` and validates balance atomically
+
+Settlement (`settlement.py`) now:
+- Refunds (status `REFUNDED`) stakes whose market the oracle could not resolve, instead of marking them LOST
+- Accumulates `ValidatorProfile.reward_earned` (was overwriting per-match)
+- Batch-loads all involved wallets (no N+1)
+- Sends per-stake `MATCH_RESULT` notifications (won / lost / refunded) with PnL
+
+Stake placement (`/predictions/{match_id}/stake`) now:
+- Enforces `MIN_STAKE=1`, `MAX_STAKE=100000` VIT
+- Blocks staking once `Match.kickoff_time` has passed
+- Locks the wallet row before the debit
+
+Validator endpoints (`apply`, `withdraw`, admin `reject`, admin `slash`) all use the same locked, audited path.

@@ -23,8 +23,14 @@ from app.modules.blockchain.models import (
     ValidatorStatus,
 )
 from app.modules.notifications.service import NotificationService
-from app.modules.wallet.models import Wallet
+from app.modules.wallet.models import Currency, TransactionType, Wallet, WalletTransaction
 from app.modules.wallet.pricing import VITCoinPricingEngine
+from app.modules.wallet.services import WalletService
+from app.db.models import Match
+from datetime import datetime, timezone
+
+MIN_STAKE_VITCOIN = Decimal("1")
+MAX_STAKE_VITCOIN = Decimal("100000")
 
 router = APIRouter(prefix="/api/blockchain", tags=["Blockchain"])
 logger = logging.getLogger(__name__)
@@ -90,6 +96,12 @@ async def stake_on_prediction(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    amount = Decimal(str(body.amount))
+    if amount < MIN_STAKE_VITCOIN:
+        raise HTTPException(400, f"Minimum stake is {MIN_STAKE_VITCOIN} VITCoin")
+    if amount > MAX_STAKE_VITCOIN:
+        raise HTTPException(400, f"Maximum single stake is {MAX_STAKE_VITCOIN} VITCoin")
+
     cp_res = await db.execute(
         select(ConsensusPrediction).where(ConsensusPrediction.match_id == match_id)
     )
@@ -97,18 +109,26 @@ async def stake_on_prediction(
     if not cp or cp.status not in (ConsensusStatus.OPEN.value,):
         raise HTTPException(400, "Match is not open for staking")
 
-    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == current_user.id))
+    # Block staking after kickoff — stops in-play / post-result staking abuse
+    match_row = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
+    if match_row and match_row.kickoff_time:
+        kt = match_row.kickoff_time
+        if kt.tzinfo is None:
+            kt = kt.replace(tzinfo=timezone.utc)
+        if kt <= datetime.now(timezone.utc):
+            raise HTTPException(400, "Staking window has closed — match has already kicked off")
+
+    wallet_res = await db.execute(
+        select(Wallet).where(Wallet.user_id == current_user.id).with_for_update()
+    )
     wallet = wallet_res.scalar_one_or_none()
     if not wallet:
         raise HTTPException(400, "No wallet found — please create one first")
-
-    amount = Decimal(str(body.amount))
-    if wallet.vitcoin_balance < amount:
-        raise HTTPException(400, "Insufficient VITCoin balance")
     if wallet.is_frozen:
         raise HTTPException(403, "Wallet is frozen")
+    if wallet.vitcoin_balance < amount:
+        raise HTTPException(400, "Insufficient VITCoin balance")
 
-    wallet.vitcoin_balance -= amount
     stake = UserStake(
         user_id=current_user.id,
         match_id=match_id,
@@ -118,8 +138,25 @@ async def stake_on_prediction(
         status=StakeStatus.ACTIVE.value,
     )
     db.add(stake)
+    await db.flush()  # populate stake.id for tx reference
+
+    try:
+        await WalletService(db).debit(
+            wallet_id=wallet.id,
+            user_id=current_user.id,
+            currency=Currency.VITCOIN,
+            amount=amount,
+            tx_type=TransactionType.STAKE.value,
+            reference=f"stake:{stake.id}",
+            metadata={"match_id": match_id, "prediction": body.prediction},
+        )
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(400, str(e))
+
     await db.commit()
     await db.refresh(stake)
+    await db.refresh(wallet)
 
     return {
         "stake_id": stake.id,
@@ -261,11 +298,23 @@ async def admin_reject_validator(
     if vp.status != ValidatorStatus.PENDING.value:
         raise HTTPException(409, "Only pending applications can be rejected")
 
-    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == user.id))
+    wallet_res = await db.execute(
+        select(Wallet).where(Wallet.user_id == user.id).with_for_update()
+    )
     wallet = wallet_res.scalar_one_or_none()
     refund = vp.stake_amount
     if wallet and refund > 0:
-        wallet.vitcoin_balance += refund
+        try:
+            await WalletService(db).credit(
+                wallet_id=wallet.id, user_id=user.id,
+                currency=Currency.VITCOIN, amount=refund,
+                tx_type=TransactionType.REWARD.value,
+                reference=f"validator-reject-refund:{vp.id}",
+                metadata={"validator_id": vp.id, "reason": "admin_rejected"},
+            )
+        except ValueError as e:
+            await db.rollback()
+            raise HTTPException(400, str(e))
 
     await db.delete(vp)
     await db.commit()
@@ -335,11 +384,36 @@ async def admin_slash_validator(
 
     burn = vp.stake_amount * Decimal(str(body.burn_pct))
     refund = vp.stake_amount - burn
+    original_stake = vp.stake_amount
 
-    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == user.id))
+    wallet_res = await db.execute(
+        select(Wallet).where(Wallet.user_id == user.id).with_for_update()
+    )
     wallet = wallet_res.scalar_one_or_none()
-    if wallet and refund > 0:
-        wallet.vitcoin_balance += refund
+    if wallet:
+        try:
+            ws = WalletService(db)
+            if refund > 0:
+                await ws.credit(
+                    wallet_id=wallet.id, user_id=user.id,
+                    currency=Currency.VITCOIN, amount=refund,
+                    tx_type=TransactionType.REWARD.value,
+                    reference=f"slash-refund:{vp.id}",
+                    metadata={"validator_id": vp.id, "reason": body.reason or "slashed", "original_stake": float(original_stake)},
+                )
+            # Audit-only SLASH record (zero-amount workaround not allowed; record burn as separate metadata note)
+            if burn > 0:
+                db.add(WalletTransaction(
+                    user_id=user.id, wallet_id=wallet.id,
+                    type=TransactionType.SLASH.value, currency=Currency.VITCOIN.value,
+                    amount=burn, direction="debit", status="confirmed",
+                    reference=f"slash-burn:{vp.id}",
+                    tx_metadata={"validator_id": vp.id, "reason": body.reason or "slashed", "note": "stake_burned_not_from_balance"},
+                    processed_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                ))
+        except ValueError as e:
+            await db.rollback()
+            raise HTTPException(400, str(e))
 
     vp.stake_amount = Decimal("0")
     vp.influence_score = Decimal("0")
@@ -384,11 +458,24 @@ async def withdraw_validator(
     if vp.status == ValidatorStatus.SLASHED.value:
         raise HTTPException(403, "Slashed validators cannot withdraw — stake is forfeit")
 
-    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == current_user.id))
+    wallet_res = await db.execute(
+        select(Wallet).where(Wallet.user_id == current_user.id).with_for_update()
+    )
     wallet = wallet_res.scalar_one_or_none()
     refund = vp.stake_amount
+    vp_id = vp.id
     if wallet and refund > 0:
-        wallet.vitcoin_balance += refund
+        try:
+            await WalletService(db).credit(
+                wallet_id=wallet.id, user_id=current_user.id,
+                currency=Currency.VITCOIN, amount=refund,
+                tx_type=TransactionType.REWARD.value,
+                reference=f"validator-refund:{vp_id}",
+                metadata={"validator_id": vp_id, "reason": "self_withdraw"},
+            )
+        except ValueError as e:
+            await db.rollback()
+            raise HTTPException(400, str(e))
 
     await db.delete(vp)
     await db.commit()
@@ -425,16 +512,18 @@ async def apply_as_validator(
     if existing.scalar_one_or_none():
         raise HTTPException(409, "Already applied or registered as validator")
 
-    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == current_user.id))
+    wallet_res = await db.execute(
+        select(Wallet).where(Wallet.user_id == current_user.id).with_for_update()
+    )
     wallet = wallet_res.scalar_one_or_none()
     if not wallet:
         raise HTTPException(400, "No wallet found")
 
     amount = Decimal(str(body.stake_amount))
+    if wallet.is_frozen:
+        raise HTTPException(403, "Wallet is frozen")
     if wallet.vitcoin_balance < amount:
         raise HTTPException(400, "Insufficient VITCoin balance to stake")
-
-    wallet.vitcoin_balance -= amount
 
     vp = ValidatorProfile(
         user_id=current_user.id,
@@ -444,6 +533,19 @@ async def apply_as_validator(
         status=ValidatorStatus.PENDING.value,
     )
     db.add(vp)
+    await db.flush()  # populate vp.id
+
+    try:
+        await WalletService(db).debit(
+            wallet_id=wallet.id, user_id=current_user.id,
+            currency=Currency.VITCOIN, amount=amount,
+            tx_type=TransactionType.STAKE.value,
+            reference=f"validator-stake:{vp.id}",
+            metadata={"validator_id": vp.id, "purpose": "validator_application"},
+        )
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(400, str(e))
     await db.commit()
     await db.refresh(vp)
 
