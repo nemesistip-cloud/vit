@@ -127,8 +127,10 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
         `Prediction submitted: ${selectedSide?.toUpperCase()} @ ${selectedOdds.toFixed(2)}`,
         { description: `Edge: ${((result?.edge ?? 0) * 100).toFixed(2)}% | Confidence: ${((result?.confidence ?? 0) * 100).toFixed(1)}%` }
       );
-      queryClient.invalidateQueries({ queryKey: ["matches-recent"] });
-      queryClient.invalidateQueries({ queryKey: ["/history"] });
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const k = String(q.queryKey?.[0] ?? "");
+        return k.startsWith("/matches") || k.startsWith("matches-") || k.startsWith("/history");
+      }});
       onClose();
     },
     onError: (e: any) => {

@@ -36,13 +36,42 @@ export default function MatchesPage() {
   const recent = recentData?.matches ?? [];
   const completed = completedData?.matches ?? [];
 
-  const allMatches = statusFilter === "completed" ? completed : upcoming.length > 0 ? upcoming : recent;
-  const hasSynced = upcoming.length > 0 || recent.length > 0 || completed.length > 0;
-  const isSynthetic = hasSynced && !upcoming.some((m: any) => m.external_id);
+  // Merge upcoming + recent + completed deduped by match_id so every dropdown
+  // sees every match regardless of which collection it lives in.
+  const allMatches = (() => {
+    const seen = new Set<string>();
+    const merged: any[] = [];
+    for (const m of [...upcoming, ...recent, ...completed]) {
+      const id = String((m as any).match_id ?? "");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      merged.push(m);
+    }
+    return merged;
+  })();
 
-  const leagues = leaguesData?.leagues ?? [
-    ...new Set(allMatches.map((m) => m.league).filter(Boolean)),
-  ].map((l: any) => typeof l === "string" ? { key: l, display: l } : l);
+  const hasSynced = allMatches.length > 0;
+  const isSynthetic = hasSynced && !allMatches.some((m: any) => m.external_id);
+
+  // Live = explicit status OR kickoff within the last ~2.5h and not settled.
+  const isLive = (m: any) => {
+    const s = String(m.status ?? "").toLowerCase();
+    if (s === "live" || s === "in_play" || s === "playing") return true;
+    if (m.actual_outcome) return false;
+    const ko = m.kickoff_time ? new Date(m.kickoff_time).getTime() : NaN;
+    if (!Number.isFinite(ko)) return false;
+    const now = Date.now();
+    return ko <= now && now - ko <= 2.5 * 60 * 60 * 1000;
+  };
+
+  // League list — prefer backend, fallback to deduped union from ALL collections.
+  const leagues = leaguesData?.leagues ?? Array.from(
+    new Map(
+      allMatches
+        .map((m) => [(m as any).league_key ?? m.league, m.league])
+        .filter(([k]) => !!k)
+    ).entries()
+  ).map(([key, display]) => ({ key: String(key), display: String(display ?? key) }));
 
   const matches = allMatches.filter((m) => {
     const searchLower = search.toLowerCase();
@@ -59,15 +88,13 @@ export default function MatchesPage() {
     }
 
     if (statusFilter === "completed") return !!m.actual_outcome;
-    if (statusFilter === "upcoming") return !m.actual_outcome;
-    if (statusFilter === "live") return m.status === "live" || m.status === "IN_PLAY" || m.status === "LIVE";
+    if (statusFilter === "upcoming") return !m.actual_outcome && !isLive(m);
+    if (statusFilter === "live")     return isLive(m);
 
-    return true;
+    return true; // "all"
   });
 
-  const liveCount = allMatches.filter((m) =>
-    m.status === "live" || m.status === "IN_PLAY" || m.status === "LIVE"
-  ).length;
+  const liveCount = allMatches.filter(isLive).length;
 
   const handleSync = async () => {
     try {
@@ -77,9 +104,10 @@ export default function MatchesPage() {
       } else {
         toast.info("All fixtures already up to date");
       }
-      queryClient.invalidateQueries({ queryKey: ["/matches/upcoming", { days: daysFilter }] });
-      queryClient.invalidateQueries({ queryKey: ["matches-recent"] });
-      queryClient.invalidateQueries({ queryKey: ["matches-completed"] });
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const k = String(q.queryKey?.[0] ?? "");
+        return k.startsWith("/matches") || k.startsWith("matches-");
+      }});
       refetch();
     } catch (e: any) {
       toast.error(e.message || "Sync failed");
@@ -94,11 +122,13 @@ export default function MatchesPage() {
           <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Intelligence Feed</h1>
           <p className="text-muted-foreground font-mono text-sm">
             {statusFilter === "completed"
-              ? `${completed.length} completed fixtures`
-              : upcoming.length > 0
-              ? `${upcoming.length} upcoming fixtures loaded`
-              : recent.length > 0
-              ? `${recent.length} unsettled fixtures available`
+              ? `${matches.length} of ${completed.length} completed fixtures`
+              : statusFilter === "live"
+              ? `${matches.length} live now`
+              : statusFilter === "upcoming"
+              ? `${matches.length} upcoming fixtures`
+              : hasSynced
+              ? `${matches.length} of ${allMatches.length} fixtures`
               : "Real-time match data & ML consensus"}
             {liveCount > 0 && (
               <span className="ml-2 inline-flex items-center gap-1 text-green-400">
@@ -159,7 +189,7 @@ export default function MatchesPage() {
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="flex-1 font-mono bg-card/50 text-xs min-w-0">
-              <SelectValue />
+              <SelectValue placeholder="All Matches" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Matches</SelectItem>
