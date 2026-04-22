@@ -596,7 +596,10 @@ async def lifespan(app: FastAPI):
             ("platform_treasury", {"address": "vit_treasury_001"}, "Platform treasury wallet reference"),
             ("exchange_rates", {"usd_ngn": 1580, "usd_pi": 0.5, "usd_usdt": 1.0}, "Fiat/crypto exchange rates"),
             ("vitcoin_price_formula", {"window_days": 30, "method": "revenue_backed"}, "VITCoin price calculation parameters"),
-            ("vitcoin_price_floor", {"amount": "1.00"}, "Minimum VITCoin price in USD"),
+            ("vitcoin_price_floor", {"amount": "0.10"}, "Minimum VITCoin price in USD"),
+            ("exchange_rates_usd",
+             {"NGN": 0.000633, "USD": 1.0, "USDT": 1.0, "PI": 0.314159, "VITCoin": 0.10},
+             "Per-currency rate to 1 USD (used by the conversion engine)"),
             ("conversion_fee_pct", {"value": 0.5}, "Currency conversion fee percentage"),
         ]
         async with AsyncSessionLocal() as _db:
@@ -604,6 +607,16 @@ async def lifespan(app: FastAPI):
                 existing = (await _db.execute(_select(PlatformConfig).where(PlatformConfig.key == key))).scalar_one_or_none()
                 if not existing:
                     _db.add(PlatformConfig(key=key, value=value, description=desc))
+                elif key == "vitcoin_price_floor":
+                    # One-shot heal: drop legacy $1.00 floor that disagreed with
+                    # the conversion engine's $0.10 default.
+                    try:
+                        from decimal import Decimal as _D
+                        cur = _D(str((existing.value or {}).get("amount", "0.10")))
+                        if cur >= _D("1.00"):
+                            existing.value = value
+                    except Exception:
+                        pass
             await _db.commit()
         print("✅ PlatformConfig defaults seeded")
     except Exception as _e:
@@ -822,14 +835,42 @@ async def lifespan(app: FastAPI):
             _price_count = (await _db.execute(_select(_func.count()).select_from(VITCoinPriceHistory))).scalar()
             if _price_count == 0:
                 _db.add(VITCoinPriceHistory(
-                    price_usd=_Decimal("1.00"),
+                    price_usd=_Decimal("0.10"),
                     circulating_supply=_Decimal("1000000"),
                     rolling_revenue_usd=_Decimal("0"),
                 ))
                 await _db.commit()
-                print("✅ VITCoin initial price seeded: $1.00 USD")
+                print("✅ VITCoin initial price seeded: $0.10 USD")
             else:
-                print(f"✅ VITCoin price history: {_price_count} record(s) present")
+                # One-shot heal: previous seed used $1.00 which disagreed with the
+                # conversion engine's default ($0.10). Realign so the displayed
+                # price matches what users actually receive on conversion.
+                from app.modules.wallet.models import PlatformConfig as _PC2
+                _floor_row = (await _db.execute(
+                    _select(_PC2).where(_PC2.key == "vitcoin_price_floor")
+                )).scalar_one_or_none()
+                _floor_amt = _Decimal("0.10")
+                if _floor_row and isinstance(_floor_row.value, dict):
+                    try:
+                        _floor_amt = _Decimal(str(_floor_row.value.get("amount", "0.10")))
+                    except Exception:
+                        pass
+                from sqlalchemy import update as _update
+                _stale = (await _db.execute(
+                    _select(_func.count()).select_from(VITCoinPriceHistory).where(
+                        VITCoinPriceHistory.price_usd >= _Decimal("1.00")
+                    )
+                )).scalar() or 0
+                if _stale > 0 and _floor_amt < _Decimal("1.00"):
+                    await _db.execute(
+                        _update(VITCoinPriceHistory)
+                        .where(VITCoinPriceHistory.price_usd >= _Decimal("1.00"))
+                        .values(price_usd=_floor_amt)
+                    )
+                    await _db.commit()
+                    print(f"✅ VITCoin price history: realigned {_stale} stale row(s) to ${_floor_amt}")
+                else:
+                    print(f"✅ VITCoin price history: {_price_count} record(s) present")
     except Exception as _e:
         print(f"⚠️  VITCoin price seeding failed: {_e}")
 

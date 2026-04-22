@@ -56,8 +56,8 @@ class WalletService:
                 select(_PC).where(_PC.key == "exchange_rates_usd")
             )
             row = result.scalar_one_or_none()
+            merged = dict(self._DEFAULT_RATES_TO_USD)
             if row and isinstance(row.value, dict):
-                merged = dict(self._DEFAULT_RATES_TO_USD)
                 # Normalize keys: case-insensitive override of defaults so
                 # admin-supplied keys like "vitcoin"/"VITCOIN" still match the
                 # canonical enum value "VITCoin".
@@ -68,7 +68,19 @@ class WalletService:
                         merged[canon] = Decimal(str(v))
                     except Exception:
                         pass
-                return merged
+            # Always overlay the live VIT price from VITCoinPriceHistory so
+            # conversions, the /exchange-rates endpoint, and analytics agree.
+            try:
+                from app.modules.wallet.models import VITCoinPriceHistory as _VPH
+                live = await self.db.execute(
+                    select(_VPH).order_by(_VPH.calculated_at.desc()).limit(1)
+                )
+                latest = live.scalar_one_or_none()
+                if latest and latest.price_usd and Decimal(latest.price_usd) > Decimal("0"):
+                    merged["VITCoin"] = Decimal(latest.price_usd)
+            except Exception:
+                pass
+            return merged
         except Exception as _e:
             logger.warning(
                 "EXCHANGE_RATE_FALLBACK could not load 'exchange_rates_usd' from "

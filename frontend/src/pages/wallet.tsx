@@ -140,12 +140,17 @@ export default function WalletPage() {
     ?? (ngnRateToUSD && ngnRateToUSD > 0 ? 1 / ngnRateToUSD : null);
   // If a rate is genuinely unknown, contribute 0 instead of inventing one —
   // better to under-report than to mislead the user with a fake total.
+  const piRate = exchangeRatesData?.rates?.["PI"]?.rate_to_usd
+    ?? publicCfg?.fx.pi_usd_rate
+    ?? null;
   const totalUSD = (
     Number(wallet.usd_balance ?? 0) +
     Number(wallet.usdt_balance ?? 0) +
     (ngnRate ? Number(wallet.ngn_balance ?? 0) / ngnRate : 0) +
-    (vitPrice ? Number(wallet.vitcoin_balance ?? 0) * vitPrice : 0)
+    (vitPrice ? Number(wallet.vitcoin_balance ?? 0) * vitPrice : 0) +
+    (piRate  ? Number(wallet.pi_balance  ?? 0) * piRate  : 0)
   );
+  const totalVIT = vitPrice && vitPrice > 0 ? totalUSD / vitPrice : Number(wallet.vitcoin_balance ?? 0);
 
   const handleDeposit = async () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) {
@@ -208,7 +213,7 @@ export default function WalletPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 lg:pb-6">
       {/* ── Header ────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
@@ -257,10 +262,13 @@ export default function WalletPage() {
                 Total Portfolio Value
               </div>
               <div className="text-4xl font-bold font-mono text-secondary mb-1">
-                {SYM["VITCoin"]}{Number(wallet.vitcoin_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                ${totalUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               <div className="text-sm font-mono text-muted-foreground">
-                ≈ ${totalUSD.toFixed(2)} USD equivalent
+                ≈ {SYM["VITCoin"] ?? "VIT"}{totalVIT.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {vitPrice ? (
+                  <span className="ml-2 text-[10px] opacity-70">@ ${Number(vitPrice).toFixed(4)}/VIT</span>
+                ) : null}
               </div>
             </div>
             <div className="flex flex-row sm:flex-col items-center sm:items-end gap-3 sm:gap-2">
@@ -577,19 +585,24 @@ export default function WalletPage() {
 
       {/* ── Transaction History ──────────────────────── */}
       <Card className="bg-card/50 backdrop-blur border-border">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/40 rounded-t-xl">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
               <Landmark className="w-4 h-4 text-muted-foreground" />
               Transaction History
+              {filteredTx.length > 0 && (
+                <span className="text-[10px] text-muted-foreground/70 font-normal normal-case">
+                  ({filteredTx.length})
+                </span>
+              )}
             </CardTitle>
             <div className="flex gap-1 flex-wrap">
               {["all", "deposit", "withdrawal", "conversion"].map((f) => (
                 <button
                   key={f}
                   onClick={() => setTxFilter(f)}
-                  className={`text-[10px] font-mono px-2 py-1 rounded border transition-all capitalize ${
-                    txFilter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-border/80"
+                  className={`text-[10px] font-mono px-2.5 py-1 rounded-md border transition-all capitalize ${
+                    txFilter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
                   }`}
                 >
                   {f}
