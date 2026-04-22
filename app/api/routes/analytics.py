@@ -728,26 +728,34 @@ async def get_validator_leaderboard(
     """Return validators ranked by trust score, accuracy, or stake."""
     sort_col = _VAL_SORT_ALIASES.get(sort_by, "trust_score")
     try:
-        from app.modules.blockchain.models import ValidatorNode
+        from app.modules.blockchain.models import ValidatorProfile
+        from app.db.models import User as _User
+
+        col = getattr(ValidatorProfile, sort_col, ValidatorProfile.trust_score)
         result = await db.execute(
-            select(ValidatorNode)
-            .where(ValidatorNode.status == "active")
-            .order_by(getattr(ValidatorNode, sort_col, ValidatorNode.trust_score).desc())
+            select(ValidatorProfile, _User)
+            .join(_User, ValidatorProfile.user_id == _User.id)
+            .where(ValidatorProfile.status == "active")
+            .order_by(col.desc())
             .limit(limit)
         )
-        validators = result.scalars().all()
+        rows = result.all()
 
         leaderboard = []
-        for i, v in enumerate(validators):
+        for i, (vp, user) in enumerate(rows):
+            acc = (
+                float(vp.accurate_predictions) / float(vp.total_predictions)
+                if vp.total_predictions else 0.0
+            )
             leaderboard.append({
                 "rank": i + 1,
-                "username": v.username,
-                "trust_score": float(v.trust_score or 0),
-                "accuracy_rate": float(v.accuracy_rate or 0),
-                "stake_amount": float(v.stake_amount or 0),
-                "total_predictions": v.total_predictions or 0,
-                "status": v.status,
-                "joined_at": v.joined_at.isoformat() if v.joined_at else None,
+                "username": user.username,
+                "trust_score": float(vp.trust_score or 0),
+                "accuracy_rate": acc,
+                "stake_amount": float(vp.stake_amount or 0),
+                "total_predictions": vp.total_predictions or 0,
+                "status": vp.status,
+                "joined_at": vp.joined_at.isoformat() if vp.joined_at else None,
             })
 
         return {"leaderboard": leaderboard, "total": len(leaderboard), "sort_by": sort_by}

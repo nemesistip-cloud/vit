@@ -1,33 +1,192 @@
 import { useState } from "react";
 import {
   useListValidators, useGetEconomy, useGetMyValidator, useApplyAsValidator,
+  useAdminListValidators, useAdminApproveValidator, useAdminRejectValidator,
+  useAdminSuspendValidator, useAdminReactivateValidator, useAdminSlashValidator,
+  useWithdrawValidator,
 } from "@/api-client";
+import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ShieldCheck, Trophy, Activity, CheckCircle2, Coins } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ShieldCheck, Trophy, Activity, CheckCircle2, Coins, Lock, AlertTriangle, Ban, Play, Pause, Hourglass } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
+const STATUS_BADGE: Record<string, { label: string; cls: string; icon: any }> = {
+  pending:   { label: "Pending review",  cls: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: Hourglass },
+  active:    { label: "Active",          cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: CheckCircle2 },
+  suspended: { label: "Suspended",       cls: "bg-orange-500/15 text-orange-400 border-orange-500/30", icon: Pause },
+  slashed:   { label: "Slashed",         cls: "bg-red-500/15 text-red-400 border-red-500/30", icon: Ban },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const s = STATUS_BADGE[status?.toLowerCase()] || STATUS_BADGE.pending;
+  const Icon = s.icon;
+  return (
+    <Badge variant="outline" className={`text-[10px] uppercase font-mono gap-1 ${s.cls}`}>
+      <Icon className="w-3 h-3" /> {s.label}
+    </Badge>
+  );
+}
+
+// ── Admin management panel ─────────────────────────────────────────────
+function AdminValidatorPanel() {
+  const [tab, setTab] = useState<"pending" | "active" | "suspended" | "slashed" | "all">("pending");
+  const filter = tab === "all" ? undefined : tab;
+  const { data, isLoading, refetch } = useAdminListValidators(filter);
+  const approve = useAdminApproveValidator();
+  const reject = useAdminRejectValidator();
+  const suspend = useAdminSuspendValidator();
+  const reactivate = useAdminReactivateValidator();
+  const slash = useAdminSlashValidator();
+
+  const list = data?.validators ?? [];
+
+  const run = async (action: () => Promise<any>, label: string) => {
+    try { await action(); toast.success(label); refetch(); }
+    catch (e: any) { toast.error(e?.message || `${label} failed`); }
+  };
+
+  return (
+    <Card className="bg-card/50 backdrop-blur border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.08)]">
+      <CardHeader className="border-b border-border/50 pb-4">
+        <CardTitle className="font-mono uppercase flex items-center text-amber-400">
+          <Lock className="w-5 h-5 mr-2" /> Admin · Validator Management
+        </CardTitle>
+        <CardDescription className="font-mono">
+          Approve applications, suspend, reactivate, or slash validators
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-4">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+          <TabsList className="grid grid-cols-5 font-mono text-xs">
+            <TabsTrigger value="pending">Pending</TabsTrigger>
+            <TabsTrigger value="active">Active</TabsTrigger>
+            <TabsTrigger value="suspended">Suspended</TabsTrigger>
+            <TabsTrigger value="slashed">Slashed</TabsTrigger>
+            <TabsTrigger value="all">All</TabsTrigger>
+          </TabsList>
+          <TabsContent value={tab} className="pt-4">
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground font-mono text-sm">Loading…</div>
+            ) : list.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground font-mono text-sm">
+                No {tab} validators
+              </div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {list.map((v: any) => (
+                  <div key={v.id} className="py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-mono font-bold flex items-center gap-2">
+                        {v.username}
+                        <StatusBadge status={v.status} />
+                        <span className="text-[10px] text-muted-foreground uppercase">{v.role}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono mt-1">
+                        {v.email} · Stake {Number(v.stake_amount).toLocaleString()} VIT · Trust {(v.trust_score * 100).toFixed(0)}/100 · Applied {format(new Date(v.joined_at), "yyyy-MM-dd HH:mm")}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {v.status === "pending" && (
+                        <>
+                          <Button size="sm" variant="default" disabled={approve.isPending}
+                            onClick={() => run(() => approve.mutateAsync(v.id), "Validator approved")}>
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Approve
+                          </Button>
+                          <Button size="sm" variant="destructive" disabled={reject.isPending}
+                            onClick={() => {
+                              if (confirm(`Reject ${v.username}'s application and refund ${v.stake_amount} VIT?`))
+                                run(() => reject.mutateAsync(v.id), "Application rejected, stake refunded");
+                            }}>
+                            Reject + Refund
+                          </Button>
+                        </>
+                      )}
+                      {v.status === "active" && (
+                        <>
+                          <Button size="sm" variant="outline" disabled={suspend.isPending}
+                            onClick={() => run(() => suspend.mutateAsync(v.id), "Validator suspended")}>
+                            <Pause className="w-3 h-3 mr-1" /> Suspend
+                          </Button>
+                          <Button size="sm" variant="destructive" disabled={slash.isPending}
+                            onClick={() => {
+                              const reason = prompt(`Slash ${v.username}? This burns their entire ${v.stake_amount} VIT stake. Enter a reason:`);
+                              if (reason)
+                                run(() => slash.mutateAsync({ id: v.id, burn_pct: 1.0, reason }), "Validator slashed, stake burned");
+                            }}>
+                            <Ban className="w-3 h-3 mr-1" /> Slash
+                          </Button>
+                        </>
+                      )}
+                      {v.status === "suspended" && (
+                        <>
+                          <Button size="sm" variant="default" disabled={reactivate.isPending}
+                            onClick={() => run(() => reactivate.mutateAsync(v.id), "Validator reactivated")}>
+                            <Play className="w-3 h-3 mr-1" /> Reactivate
+                          </Button>
+                          <Button size="sm" variant="destructive" disabled={slash.isPending}
+                            onClick={() => {
+                              const reason = prompt(`Slash ${v.username}? Burns ${v.stake_amount} VIT. Enter a reason:`);
+                              if (reason)
+                                run(() => slash.mutateAsync({ id: v.id, burn_pct: 1.0, reason }), "Validator slashed");
+                            }}>
+                            <Ban className="w-3 h-3 mr-1" /> Slash
+                          </Button>
+                        </>
+                      )}
+                      {v.status === "slashed" && (
+                        <span className="text-xs text-muted-foreground font-mono italic flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Terminal — stake burned
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Page ───────────────────────────────────────────────────────────────
 export default function ValidatorsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { data: validators, isLoading: isLoadingVal } = useListValidators();
   const { data: economy, isLoading: isLoadingEcon } = useGetEconomy();
   const { data: myValidator } = useGetMyValidator();
   const apply = useApplyAsValidator();
+  const withdraw = useWithdrawValidator();
   const [stakeInput, setStakeInput] = useState("100");
 
   if (isLoadingVal || isLoadingEcon) {
-    return <div className="h-full flex items-center justify-center font-mono text-muted-foreground">SCANNING_NODES...</div>;
+    return <div className="h-full flex items-center justify-center font-mono text-muted-foreground">Scanning consensus nodes…</div>;
   }
 
   const handleApply = async () => {
     try {
       await apply.mutateAsync({ stake_amount: parseFloat(stakeInput) });
-      toast.success("Validator application submitted");
+      toast.success("Application submitted — awaiting admin review");
     } catch (e: any) {
-      toast.error(e.message || "Application failed");
+      toast.error(e?.message || "Application failed");
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!confirm("Withdraw your validator profile? Your locked stake will be refunded to your wallet.")) return;
+    try {
+      const r: any = await withdraw.mutateAsync();
+      toast.success(`Withdrawn — ${Number(r.refunded || 0).toLocaleString()} VIT refunded`);
+    } catch (e: any) {
+      toast.error(e?.message || "Withdraw failed");
     }
   };
 
@@ -65,6 +224,8 @@ export default function ValidatorsPage() {
         </div>
       )}
 
+      {isAdmin && <AdminValidatorPanel />}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card className="bg-card/50 backdrop-blur border-border">
@@ -77,7 +238,7 @@ export default function ValidatorsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border/50">
-                {validatorList.map((validator, idx) => (
+                {validatorList.map((validator: any, idx: number) => (
                   <div key={validator.username + idx} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-muted/10 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className="relative">
@@ -131,7 +292,9 @@ export default function ValidatorsPage() {
                   </div>
                 ))}
                 {validatorList.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground font-mono">NO_ACTIVE_VALIDATORS</div>
+                  <div className="text-center py-12 text-muted-foreground font-mono text-sm">
+                    No active validators yet — be the first to apply.
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -142,16 +305,27 @@ export default function ValidatorsPage() {
           {myValidator ? (
             <Card className="bg-card/50 backdrop-blur border-primary/20">
               <CardHeader className="border-b border-border/50 pb-4">
-                <CardTitle className="font-mono uppercase text-sm flex items-center">
-                  <CheckCircle2 className="w-4 h-4 mr-2 text-primary" />
-                  My Validator Profile
+                <CardTitle className="font-mono uppercase text-sm flex items-center justify-between">
+                  <span className="flex items-center"><CheckCircle2 className="w-4 h-4 mr-2 text-primary" /> My Validator Profile</span>
+                  <StatusBadge status={myValidator.status} />
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6 space-y-3 font-mono text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground uppercase text-xs">Status</span>
-                  <Badge variant="outline" className="text-xs uppercase">{myValidator.status}</Badge>
-                </div>
+                {myValidator.status === "pending" && (
+                  <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+                    Your application is awaiting admin review. You'll be notified once approved.
+                  </div>
+                )}
+                {myValidator.status === "suspended" && (
+                  <div className="rounded border border-orange-500/30 bg-orange-500/10 p-3 text-xs text-orange-300">
+                    Your validator is currently suspended. Contact an admin for reinstatement.
+                  </div>
+                )}
+                {myValidator.status === "slashed" && (
+                  <div className="rounded border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                    Your validator has been slashed. Stake forfeited and predictions disabled.
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground uppercase text-xs">Staked</span>
                   <span className="font-bold text-secondary">{Number(myValidator.stake_amount).toLocaleString()} VIT</span>
@@ -168,6 +342,12 @@ export default function ValidatorsPage() {
                   <span className="text-muted-foreground uppercase text-xs">Accuracy</span>
                   <span className="font-bold text-primary">{(myValidator.accuracy_rate * 100).toFixed(1)}%</span>
                 </div>
+                {myValidator.status !== "slashed" && (
+                  <Button variant="outline" className="w-full mt-3" size="sm"
+                    onClick={handleWithdraw} disabled={withdraw.isPending}>
+                    {withdraw.isPending ? "Withdrawing…" : "Withdraw & Refund Stake"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
@@ -181,6 +361,7 @@ export default function ValidatorsPage() {
               <CardContent className="pt-6 space-y-4">
                 <p className="text-xs font-mono text-muted-foreground">
                   Stake VITCoin to join the consensus network and earn rewards for accurate predictions.
+                  Applications require admin approval before activation.
                 </p>
                 <Dialog>
                   <DialogTrigger asChild>
@@ -207,7 +388,7 @@ export default function ValidatorsPage() {
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Requires Analyst role or higher. Your VITCoin will be locked as stake.
+                        Requires Analyst, Pro, Elite, or Admin tier. Your VITCoin will be locked until an admin approves or rejects your application.
                       </p>
                       <Button
                         className="w-full"
@@ -215,7 +396,7 @@ export default function ValidatorsPage() {
                         onClick={handleApply}
                         disabled={apply.isPending || parseFloat(stakeInput) < 100}
                       >
-                        {apply.isPending ? "SUBMITTING..." : "SUBMIT_APPLICATION"}
+                        {apply.isPending ? "Submitting…" : "Submit Application"}
                       </Button>
                     </div>
                   </DialogContent>
@@ -233,7 +414,7 @@ export default function ValidatorsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border/50">
-                {validatorList.slice(0, 5).map((v, idx) => (
+                {validatorList.slice(0, 5).map((v: any, idx: number) => (
                   <div key={v.username + idx} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className={`w-8 h-8 rounded flex items-center justify-center font-mono font-bold text-sm ${
@@ -261,7 +442,7 @@ export default function ValidatorsPage() {
                   </div>
                 ))}
                 {validatorList.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground font-mono text-sm">NO_DATA</div>
+                  <div className="text-center py-8 text-muted-foreground font-mono text-sm">No data yet</div>
                 )}
               </div>
             </CardContent>

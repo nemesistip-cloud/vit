@@ -43,6 +43,13 @@ export const API = {
   myValidator: "/api/blockchain/validators/my",
   applyValidator: "/api/blockchain/validators/apply",
   validatorPredict: "/api/blockchain/validators/predict",
+  withdrawValidator: "/api/blockchain/validators/withdraw",
+  adminValidators: "/api/blockchain/admin/validators",
+  adminApproveValidator: (id: string) => `/api/blockchain/admin/validators/${id}/approve`,
+  adminRejectValidator: (id: string) => `/api/blockchain/admin/validators/${id}/reject`,
+  adminSuspendValidator: (id: string) => `/api/blockchain/admin/validators/${id}/suspend`,
+  adminReactivateValidator: (id: string) => `/api/blockchain/admin/validators/${id}/reactivate`,
+  adminSlashValidator: (id: string) => `/api/blockchain/admin/validators/${id}/slash`,
   stake: (matchId: string) => `/api/blockchain/predictions/${matchId}/stake`,
   myStakes: "/api/blockchain/stakes/my",
   consensusPrediction: (matchId: string) => `/api/blockchain/predictions/${matchId}`,
@@ -434,6 +441,74 @@ export function useApplyAsValidator() {
       queryClient.invalidateQueries({ queryKey: getListValidatorsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetMyValidatorQueryKey() });
     },
+  });
+}
+
+export const getAdminValidatorsQueryKey = (status?: string) => [API.adminValidators, status ?? "all"];
+
+export function useAdminListValidators(status?: string) {
+  return useQuery<{ total: number; validators: any[] }>({
+    queryKey: getAdminValidatorsQueryKey(status),
+    queryFn: () =>
+      apiGet<{ total: number; validators: any[] }>(
+        status ? `${API.adminValidators}?status=${status}` : API.adminValidators
+      ),
+  });
+}
+
+function _invalidateValidatorQueries(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: [API.adminValidators] });
+  qc.invalidateQueries({ queryKey: getListValidatorsQueryKey() });
+  qc.invalidateQueries({ queryKey: getGetMyValidatorQueryKey() });
+  qc.invalidateQueries({ queryKey: getGetEconomyQueryKey() });
+}
+
+export function useAdminApproveValidator() {
+  const qc = useQueryClient();
+  return useMutation<any, Error, string>({
+    mutationFn: (id) => apiPost<any>(API.adminApproveValidator(id), {}),
+    onSuccess: () => _invalidateValidatorQueries(qc),
+  });
+}
+
+export function useAdminRejectValidator() {
+  const qc = useQueryClient();
+  return useMutation<any, Error, string>({
+    mutationFn: (id) => apiPost<any>(API.adminRejectValidator(id), {}),
+    onSuccess: () => _invalidateValidatorQueries(qc),
+  });
+}
+
+export function useAdminSuspendValidator() {
+  const qc = useQueryClient();
+  return useMutation<any, Error, string>({
+    mutationFn: (id) => apiPost<any>(API.adminSuspendValidator(id), {}),
+    onSuccess: () => _invalidateValidatorQueries(qc),
+  });
+}
+
+export function useAdminReactivateValidator() {
+  const qc = useQueryClient();
+  return useMutation<any, Error, string>({
+    mutationFn: (id) => apiPost<any>(API.adminReactivateValidator(id), {}),
+    onSuccess: () => _invalidateValidatorQueries(qc),
+  });
+}
+
+export function useAdminSlashValidator() {
+  const qc = useQueryClient();
+  return useMutation<any, Error, { id: string; burn_pct?: number; reason?: string }>({
+    mutationFn: ({ id, burn_pct = 1.0, reason }) =>
+      apiPost<any>(API.adminSlashValidator(id), { burn_pct, reason }),
+    onSuccess: () => _invalidateValidatorQueries(qc),
+  });
+}
+
+export function useWithdrawValidator() {
+  const qc = useQueryClient();
+  return useMutation<any, Error, void>({
+    mutationFn: () => apiPost<any>(API.withdrawValidator, {}),
+    onSuccess: () => _invalidateValidatorQueries(qc),
   });
 }
 

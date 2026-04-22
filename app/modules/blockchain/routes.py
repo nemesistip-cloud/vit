@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_admin
 from app.db.database import get_db
 from app.db.models import User
 from app.modules.blockchain.consensus import calculate_consensus
@@ -158,30 +158,215 @@ async def my_stakes(
 
 # ── GET /validators ────────────────────────────────────────────────────
 
+def _serialize_validator(vp: ValidatorProfile, user: User) -> dict:
+    return {
+        "id": vp.id,
+        "user_id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "status": vp.status,
+        "trust_score": float(vp.trust_score),
+        "stake": float(vp.stake_amount),
+        "stake_amount": float(vp.stake_amount),
+        "total_predictions": vp.total_predictions,
+        "accurate_predictions": vp.accurate_predictions,
+        "accuracy_rate": (
+            round(vp.accurate_predictions / vp.total_predictions, 4)
+            if vp.total_predictions > 0 else 0.0
+        ),
+        "influence_score": float(vp.influence_score),
+        "joined_at": vp.joined_at.isoformat(),
+        "last_active": vp.last_active.isoformat() if vp.last_active else None,
+    }
+
+
 @router.get("/validators")
 async def list_validators(db: AsyncSession = Depends(get_db)):
+    """Public list — only ACTIVE validators."""
     result = await db.execute(
         select(ValidatorProfile, User)
         .join(User, ValidatorProfile.user_id == User.id)
         .where(ValidatorProfile.status == ValidatorStatus.ACTIVE.value)
         .order_by(ValidatorProfile.trust_score.desc())
     )
-    rows = result.all()
-    return [
-        {
-            "username": user.username,
-            "trust_score": float(vp.trust_score),
-            "stake": float(vp.stake_amount),
-            "total_predictions": vp.total_predictions,
-            "accuracy_rate": (
-                round(vp.accurate_predictions / vp.total_predictions, 4)
-                if vp.total_predictions > 0 else 0.0
-            ),
-            "influence_score": float(vp.influence_score),
-            "joined_at": vp.joined_at.isoformat(),
-        }
-        for vp, user in rows
-    ]
+    return [_serialize_validator(vp, user) for vp, user in result.all()]
+
+
+# ── Admin endpoints — manage validator lifecycle ──────────────────────
+
+@router.get("/admin/validators")
+async def admin_list_validators(
+    status: str | None = None,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: list all validators, optionally filtered by status."""
+    stmt = select(ValidatorProfile, User).join(User, ValidatorProfile.user_id == User.id)
+    if status:
+        stmt = stmt.where(ValidatorProfile.status == status.lower())
+    stmt = stmt.order_by(ValidatorProfile.joined_at.desc())
+    rows = (await db.execute(stmt)).all()
+    return {
+        "total": len(rows),
+        "validators": [_serialize_validator(vp, u) for vp, u in rows],
+    }
+
+
+async def _get_validator_or_404(vp_id: str, db: AsyncSession) -> tuple[ValidatorProfile, User]:
+    res = await db.execute(
+        select(ValidatorProfile, User)
+        .join(User, ValidatorProfile.user_id == User.id)
+        .where(ValidatorProfile.id == vp_id)
+    )
+    row = res.first()
+    if not row:
+        raise HTTPException(404, "Validator profile not found")
+    return row
+
+
+@router.post("/admin/validators/{vp_id}/approve")
+async def admin_approve_validator(
+    vp_id: str,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    vp, user = await _get_validator_or_404(vp_id, db)
+    if vp.status == ValidatorStatus.ACTIVE.value:
+        raise HTTPException(409, "Validator is already active")
+    if vp.status == ValidatorStatus.SLASHED.value:
+        raise HTTPException(409, "Cannot approve a slashed validator")
+    vp.status = ValidatorStatus.ACTIVE.value
+    if user.role not in ("admin", "validator"):
+        user.role = "validator"
+    await db.commit()
+    await db.refresh(vp)
+    logger.info(f"Admin approved validator {vp.id} (user {user.username})")
+    return {"ok": True, "validator": _serialize_validator(vp, user)}
+
+
+@router.post("/admin/validators/{vp_id}/reject")
+async def admin_reject_validator(
+    vp_id: str,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reject a pending application and refund the staked VITCoin."""
+    vp, user = await _get_validator_or_404(vp_id, db)
+    if vp.status != ValidatorStatus.PENDING.value:
+        raise HTTPException(409, "Only pending applications can be rejected")
+
+    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == user.id))
+    wallet = wallet_res.scalar_one_or_none()
+    refund = vp.stake_amount
+    if wallet and refund > 0:
+        wallet.vitcoin_balance += refund
+
+    await db.delete(vp)
+    await db.commit()
+    logger.info(f"Admin rejected validator {vp_id} (refunded {refund} VIT to {user.username})")
+    return {"ok": True, "refunded": float(refund), "user_id": user.id}
+
+
+@router.post("/admin/validators/{vp_id}/suspend")
+async def admin_suspend_validator(
+    vp_id: str,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    vp, user = await _get_validator_or_404(vp_id, db)
+    if vp.status == ValidatorStatus.SLASHED.value:
+        raise HTTPException(409, "Slashed validators cannot be suspended (already terminal)")
+    vp.status = ValidatorStatus.SUSPENDED.value
+    await db.commit()
+    await db.refresh(vp)
+    logger.info(f"Admin suspended validator {vp.id}")
+    return {"ok": True, "validator": _serialize_validator(vp, user)}
+
+
+@router.post("/admin/validators/{vp_id}/reactivate")
+async def admin_reactivate_validator(
+    vp_id: str,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    vp, user = await _get_validator_or_404(vp_id, db)
+    if vp.status != ValidatorStatus.SUSPENDED.value:
+        raise HTTPException(409, "Only suspended validators can be reactivated")
+    vp.status = ValidatorStatus.ACTIVE.value
+    await db.commit()
+    await db.refresh(vp)
+    return {"ok": True, "validator": _serialize_validator(vp, user)}
+
+
+class SlashRequest(BaseModel):
+    burn_pct: float = Field(1.0, ge=0, le=1, description="Fraction of stake to burn (0..1)")
+    reason: str | None = None
+
+
+@router.post("/admin/validators/{vp_id}/slash")
+async def admin_slash_validator(
+    vp_id: str,
+    body: SlashRequest,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Slash (burn part/all of) a validator's stake and mark them SLASHED."""
+    vp, user = await _get_validator_or_404(vp_id, db)
+    if vp.status == ValidatorStatus.SLASHED.value:
+        raise HTTPException(409, "Already slashed")
+
+    burn = vp.stake_amount * Decimal(str(body.burn_pct))
+    refund = vp.stake_amount - burn
+
+    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == user.id))
+    wallet = wallet_res.scalar_one_or_none()
+    if wallet and refund > 0:
+        wallet.vitcoin_balance += refund
+
+    vp.stake_amount = Decimal("0")
+    vp.influence_score = Decimal("0")
+    vp.status = ValidatorStatus.SLASHED.value
+    await db.commit()
+    await db.refresh(vp)
+    logger.warning(
+        f"Admin slashed validator {vp.id} — burned {burn} VIT, refunded {refund} VIT. "
+        f"Reason: {body.reason or '(none)'}"
+    )
+    return {
+        "ok": True,
+        "burned": float(burn),
+        "refunded": float(refund),
+        "validator": _serialize_validator(vp, user),
+    }
+
+
+# ── User self-service: withdraw application / leave network ──────────
+
+@router.post("/validators/withdraw")
+async def withdraw_validator(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel a pending application or voluntarily leave (active) — refunds stake."""
+    res = await db.execute(
+        select(ValidatorProfile).where(ValidatorProfile.user_id == current_user.id)
+    )
+    vp = res.scalar_one_or_none()
+    if not vp:
+        raise HTTPException(404, "No validator profile found")
+    if vp.status == ValidatorStatus.SLASHED.value:
+        raise HTTPException(403, "Slashed validators cannot withdraw — stake is forfeit")
+
+    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == current_user.id))
+    wallet = wallet_res.scalar_one_or_none()
+    refund = vp.stake_amount
+    if wallet and refund > 0:
+        wallet.vitcoin_balance += refund
+
+    await db.delete(vp)
+    await db.commit()
+    return {"ok": True, "refunded": float(refund)}
 
 
 # ── POST /validators/apply ─────────────────────────────────────────────
@@ -196,8 +381,17 @@ async def apply_as_validator(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user.role not in ("analyst", "admin", "validator"):
-        raise HTTPException(403, "Analyst role or higher required to become a validator")
+    allowed_roles = {"analyst", "pro", "elite", "admin", "validator"}
+    if current_user.role not in allowed_roles:
+        raise HTTPException(
+            403,
+            "Analyst, Pro, Elite, or Admin tier required to apply as a validator. "
+            "Upgrade your subscription to unlock validator status.",
+        )
+
+    MIN_STAKE = Decimal("100")
+    if Decimal(str(body.stake_amount)) < MIN_STAKE:
+        raise HTTPException(400, f"Minimum stake to apply is {MIN_STAKE} VITCoin")
 
     existing = await db.execute(
         select(ValidatorProfile).where(ValidatorProfile.user_id == current_user.id)
