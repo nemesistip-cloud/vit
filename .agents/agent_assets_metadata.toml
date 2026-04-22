@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "1QamuRqNBRB0zFkSpRopU"
+uri = "file://TRAINING_PLAN.md"
+type = "text"
+title = "VIT Real Model Weights — Training Plan & Guide"
