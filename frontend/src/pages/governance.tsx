@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Vote, Plus, CheckCircle2, XCircle, Clock, Loader2, Settings, BarChart2 } from "lucide-react";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 interface Proposal {
   id: number;
@@ -72,10 +73,10 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-const CATEGORIES = ["general", "fee_change", "parameter_update", "feature_approval"];
-
 export default function GovernancePage() {
   const qc = useQueryClient();
+  const { data: publicCfg } = usePublicConfig();
+  const CATEGORIES = (publicCfg?.governance_categories ?? []).map((c) => c.id);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"proposals" | "config" | "stats">("proposals");
   const [showCreateForm, setShowCreateForm] = useState(false);

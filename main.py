@@ -44,6 +44,7 @@ from app.api.routes import (
     admin,
     ai_feed,
     ai as ai_route,
+    config as config_route,
     training as training_route,
     analytics as analytics_route,
     odds_compare as odds_route,
@@ -1096,6 +1097,7 @@ app.include_router(ai_feed.router)
 app.include_router(ai_route.router)
 app.include_router(subscription_route.router)
 app.include_router(audit_route.router)
+app.include_router(config_route.router)
 
 # Auth (JWT)
 app.include_router(auth_router)

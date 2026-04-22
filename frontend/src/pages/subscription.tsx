@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Crown, Zap, Star, Check, Minus, ExternalLink, AlertCircle } from "lucide-react";
 import { useLocation } from "wouter";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 const PLAN_ICONS: Record<string, React.ElementType> = {
   free:      Star,
@@ -23,9 +24,10 @@ const PLAN_COLORS: Record<string, { border: string; glow: string; badge: string 
   elite:     { border: "border-secondary/60",       glow: "shadow-secondary/10 shadow-lg",  badge: "bg-secondary/20 text-secondary"         },
 };
 
-const PLAN_ORDER = ["free", "analyst", "pro", "validator", "elite"];
-
-const FEATURE_LABELS: Record<string, string> = {
+// PLAN_ORDER and FEATURE_LABELS now come from /config/public via usePublicConfig().
+// Local fallbacks below are used only on first paint while the config is loading.
+const FALLBACK_PLAN_ORDER = ["free", "analyst", "pro", "validator", "elite"];
+const FALLBACK_FEATURE_LABELS: Record<string, string> = {
   predictions:          "Match Predictions",
   basic_history:        "Prediction History",
   over_under:           "Over/Under Markets",
@@ -60,6 +62,9 @@ export default function SubscriptionPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [location] = useLocation();
+  const { data: publicCfg } = usePublicConfig();
+  const PLAN_ORDER = publicCfg?.plan_order ?? FALLBACK_PLAN_ORDER;
+  const FEATURE_LABELS = publicCfg?.plan_feature_labels ?? FALLBACK_FEATURE_LABELS;
 
   const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const upgradedPlan = params.get("upgraded");

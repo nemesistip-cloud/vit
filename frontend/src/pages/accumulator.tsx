@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,12 +16,8 @@ import {
 } from "lucide-react";
 
 const MAX_SELECTIONS = 12;
-const CURRENCIES = ["USD", "NGN", "USDT", "VITCoin"];
 const SIDE_LABELS: Record<string, string> = { home: "HOME", draw: "DRAW", away: "AWAY" };
-const LEAGUE_SHORT: Record<string, string> = {
-  premier_league: "EPL", la_liga: "LIGA", bundesliga: "BUND",
-  serie_a: "SERIE A", ligue_1: "L1", championship: "CHAMP",
-};
+// CURRENCIES and LEAGUE_SHORT now come from /config/public via usePublicConfig().
 
 function edgeLabel(e: number) {
   if (e >= 0.05) return "🔥🔥🔥 FIRE";
@@ -70,6 +67,13 @@ interface BetReceipt {
 }
 
 export default function AccumulatorPage() {
+  const { data: publicCfg } = usePublicConfig();
+  const CURRENCIES = (publicCfg?.currencies ?? []).map((c) => c.code).filter(
+    // accumulator stakes don't accept Pi for now (no settlement path)
+    (c) => c !== "PI",
+  );
+  const LEAGUE_SHORT = publicCfg?.league_short ?? {};
+
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [candFilters, setCandFilters] = useState({ minConfidence: 0.60, minEdge: 0.01, count: 20 });
   const [accFilters, setAccFilters] = useState({ minLegs: 2, maxLegs: 5, topN: 10 });
