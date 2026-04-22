@@ -19,6 +19,7 @@ export const API = {
   matches: "/matches/upcoming",
   matchesExplore: "/matches/explore",
   matchesRecent: "/matches/recent",
+  matchesCompleted: "/matches/completed",
   match: (id: string) => `/matches/${id}`,
   predictions: "/history",
   ticketMarkets: "/history/ticket/markets",
@@ -170,6 +171,13 @@ export function useListRecentMatches() {
   return useQuery<{ matches: Match[]; count: number }>({
     queryKey: ["matches-recent"],
     queryFn: () => apiGet<{ matches: Match[]; count: number }>(API.matchesRecent),
+  });
+}
+
+export function useListCompletedMatches() {
+  return useQuery<{ matches: Match[]; count: number }>({
+    queryKey: ["matches-completed"],
+    queryFn: () => apiGet<{ matches: Match[]; count: number }>(API.matchesCompleted),
   });
 }
 

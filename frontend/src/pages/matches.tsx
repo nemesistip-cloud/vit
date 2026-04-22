@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListMatches, useListRecentMatches, useSyncFixtures, useListLeagues } from "@/api-client";
+import { useListMatches, useListRecentMatches, useListCompletedMatches, useSyncFixtures, useListLeagues } from "@/api-client";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,16 +26,18 @@ export default function MatchesPage() {
   const matchParams = { days: daysFilter };
   const { data: upcomingData, isLoading: upcomingLoading, refetch } = useListMatches(matchParams);
   const { data: recentData, isLoading: recentLoading } = useListRecentMatches();
+  const { data: completedData, isLoading: completedLoading } = useListCompletedMatches();
   const { data: leaguesData } = useListLeagues();
   const syncMutation = useSyncFixtures();
 
-  const isLoading = upcomingLoading;
+  const isLoading = upcomingLoading || recentLoading || completedLoading;
 
   const upcoming = upcomingData?.matches ?? [];
   const recent = recentData?.matches ?? [];
+  const completed = completedData?.matches ?? [];
 
-  const allMatches = statusFilter === "completed" ? recent : upcoming.length > 0 ? upcoming : recent;
-  const hasSynced = upcoming.length > 0 || recent.length > 0;
+  const allMatches = statusFilter === "completed" ? completed : upcoming.length > 0 ? upcoming : recent;
+  const hasSynced = upcoming.length > 0 || recent.length > 0 || completed.length > 0;
   const isSynthetic = hasSynced && !upcoming.some((m: any) => m.external_id);
 
   const leagues = leaguesData?.leagues ?? [
@@ -75,8 +77,9 @@ export default function MatchesPage() {
       } else {
         toast.info("All fixtures already up to date");
       }
-      queryClient.invalidateQueries({ queryKey: ["matches-upcoming"] });
+      queryClient.invalidateQueries({ queryKey: ["/matches/upcoming", { days: daysFilter }] });
       queryClient.invalidateQueries({ queryKey: ["matches-recent"] });
+      queryClient.invalidateQueries({ queryKey: ["matches-completed"] });
       refetch();
     } catch (e: any) {
       toast.error(e.message || "Sync failed");
@@ -90,10 +93,12 @@ export default function MatchesPage() {
         <div>
           <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Intelligence Feed</h1>
           <p className="text-muted-foreground font-mono text-sm">
-            {upcoming.length > 0
+            {statusFilter === "completed"
+              ? `${completed.length} completed fixtures`
+              : upcoming.length > 0
               ? `${upcoming.length} upcoming fixtures loaded`
               : recent.length > 0
-              ? `${recent.length} fixtures available`
+              ? `${recent.length} unsettled fixtures available`
               : "Real-time match data & ML consensus"}
             {liveCount > 0 && (
               <span className="ml-2 inline-flex items-center gap-1 text-green-400">
@@ -187,7 +192,7 @@ export default function MatchesPage() {
             <Skeleton key={i} className="h-64 rounded-xl" />
           ))}
         </div>
-      ) : upcoming.length === 0 && recent.length === 0 ? (
+      ) : upcoming.length === 0 && recent.length === 0 && completed.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center space-y-4">
           <Clock className="w-10 h-10 text-muted-foreground mx-auto" />
           <p className="font-mono text-sm text-muted-foreground uppercase tracking-wider">No match data loaded yet.</p>
@@ -211,6 +216,15 @@ export default function MatchesPage() {
               <Zap className="w-4 h-4 text-primary" />
               <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">
                 {statusFilter === "live" ? "Live Matches" : "Upcoming Fixtures"}
+              </span>
+              <Badge variant="outline" className="font-mono text-[10px]">{matches.length}</Badge>
+            </div>
+          )}
+          {statusFilter === "completed" && completed.length > 0 && (
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4 text-green-500" />
+              <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">
+                Completed Matches
               </span>
               <Badge variant="outline" className="font-mono text-[10px]">{matches.length}</Badge>
             </div>

@@ -376,6 +376,36 @@ async def get_recent_matches(
     return {"count": len(formatted), "enabled_markets": markets, "matches": formatted}
 
 
+@router.get("/completed")
+async def get_completed_matches(
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Show: completed matches (with actual outcomes), ordered most recent first
+    q = (
+        select(Match, Prediction)
+        .outerjoin(Prediction, Match.id == Prediction.match_id)
+        .where(Match.actual_outcome.isnot(None))
+        .order_by(Match.kickoff_time.desc())
+        .limit(limit)
+    )
+    result = await db.execute(q)
+    rows = result.all()
+    markets = await _load_markets(db)
+
+    seen: set = set()
+    formatted = []
+    for row in rows:
+        m, pred = row.Match, row.Prediction
+        if m.id in seen:
+            continue
+        seen.add(m.id)
+        formatted.append(_fmt_match(m, pred, markets))
+
+    return {"count": len(formatted), "enabled_markets": markets, "matches": formatted}
+
+
 @router.get("/leagues/list")
 async def list_leagues(db: AsyncSession = Depends(get_db)):
     """Return all distinct leagues with display names."""
