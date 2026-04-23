@@ -1380,7 +1380,7 @@ class ModelOrchestrator:
                 from app.services.calibration import CalibratorRegistry, DEFAULT_METHOD
                 reg = CalibratorRegistry.get()
                 (hp, dp, ap), calibration_meta = reg.apply(
-                    meta["model_name"], hp, dp, ap, method=DEFAULT_METHOD,
+                    key, hp, dp, ap, method=DEFAULT_METHOD,
                 )
             except Exception as _cal_e:
                 logger.debug("Calibration unavailable for %s: %s", key, _cal_e)

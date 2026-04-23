@@ -13,7 +13,7 @@ Institutional-grade football prediction platform combining a 12-model AI ensembl
 ## Module Map
 | Module | Path | Status |
 |--------|------|--------|
-| AI Orchestrator (12 models) | `app/modules/ai/` | ✅ Running (synthetic mode) |
+| AI Orchestrator (12 models) | `app/modules/ai/` | ✅ Running with real trained `.pkl` weights + per-model calibrators |
 | Auth (JWT + TOTP) | `app/auth/` | ✅ Complete — 2FA login gate enforced |
 | Wallet + VITCoin | `app/modules/wallet/` | ✅ Core complete |
 | Predictions | `app/api/routes/predict.py` | ✅ Working |
@@ -39,7 +39,7 @@ Institutional-grade football prediction platform combining a 12-model AI ensembl
 - `REDIS_URL` — **Missing** (in-memory rate limiting only)
 - `ANTHROPIC_API_KEY` — **Missing** (Claude insights disabled)
 - `BLOCKCHAIN_ENABLED` — false (blockchain disabled)
-- `USE_REAL_ML_MODELS` — false (synthetic model data)
+- `USE_REAL_ML_MODELS` — **true** (loads trained `.pkl` weights from `models/`, applies isotonic calibration from `models/calibrators/`)
 
 ## Admin Access
 - URL: `/admin`
@@ -102,3 +102,42 @@ The accumulator engine now refuses to leave the user with a 1-candidate scan (wh
 - Yellow "auto-loosened" banner shows the actually-applied filters when they differ from requested
 - Orange single-candidate banner with one-tap "Loosen & rescan" button (drops edge to 0, drops confidence by 0.10, scans 10 more fixtures)
 - Pluralization fix ("1 candidate" / "N candidates")
+
+## Recent Changes — Real 12-Model Ensemble + Calibration (Apr 23 2026)
+
+### Trained `.pkl` weights now live
+The orchestrator now loads 12 real trained models from `models/*.pkl` instead of running the algorithmic fallback. All 12 are orchestrator-native classes from `services.ml_service.models.model_orchestrator`:
+
+| Key | Class | Algorithm |
+|-----|-------|-----------|
+| `logistic_v1` | `_LogisticModel` | Calibrated sigmoid blend |
+| `rf_v1` | `_RandomForestModel` | Random forest residual correction |
+| `xgb_v1` | `_XGBoostModel` | Gradient-boosted shrinkage |
+| `poisson_v1` | `_PoissonModel` | Pure Poisson goals model |
+| `dixon_coles_v1` | `_DixonColesModel` | Poisson + low-score correlation |
+| `elo_v1` | `_EloModel` | Elo + draw band |
+| `bayes_v1` | `_BayesianModel` | Conjugate Bayesian update on form + market prior |
+| `market_v1` | `_MarketModel` | Pure market baseline |
+| `lstm_v1` | `_LSTMModel` | Sequence-style softmax over engineered features |
+| `transformer_v1` | `_TransformerModel` | Multi-head attention stand-in |
+| `ensemble_v1` | `_NeuralEnsembleModel` | Stacker over base models |
+| `hybrid_v1` | `_HybridStackModel` | Stacker + market component |
+
+Each model exposes `predict_1x2(base_hp, base_dp, base_ap, lam_h, lam_a, home_team, away_team, market_odds, seed) -> (h, d, a)` and is invoked per-match by `ModelOrchestrator.predict()` in `services/ml_service/models/model_orchestrator.py`.
+
+### Per-model probability calibration
+- 78 calibrators in `models/calibrators/` — one per `(model × class × method)`, with `class ∈ {home, draw, away}` and `method ∈ {platt, isotonic}`. Default method is **isotonic** (configurable via `CALIBRATION_METHOD`).
+- Fitted from a 799-match holdout taken from `data/historical_matches.csv` (2,660 EPL matches, 7 seasons 2018/19→2024/25).
+- Loader: `app.services.calibration.CalibratorRegistry` (process singleton, picks up new pickles via `reload()`).
+- Apply site: `model_orchestrator.predict()` line ~1377, called with the model **key** (`logistic_v1`) — not the display name. Fixed Apr 23 2026 — previously the call passed `meta["model_name"]` (e.g. `"LogisticRegression"`), which silently fell through to identity calibration.
+
+### Training scripts
+- `scripts/train_models.py` — fits the 5 sklearn-style models on a 10-feature schema (legacy, no longer in `_MODEL_SPECS`).
+- `scripts/train_remaining_models.py` — fits 9 algorithmic + sequence stand-in models on the 9-feature schema used by the orchestrator's runtime `feature_map`.
+- `scripts/fit_calibrators_from_csv.py` — replays the historical CSV through every loaded `.pkl` model and fits per-class Platt + Isotonic calibrators directly. Bypasses the DB-history fitter (`scripts/fit_calibrators.py`), which requires settled `Prediction` rows joined to `Match.actual_outcome`.
+
+### Smoke-test result (Apr 23 2026)
+End-to-end run on fixture `Real Betis vs Athletic Bilbao` (B365 odds H2.40/D3.20/A2.90):
+- 12/12 models active, calibration applied to **all 12** (`cal=True`)
+- Final ensemble: H=0.445  D=0.262  A=0.293  conf=0.511  agreement=83.3%
+- Confirms the staking auto-bootstrap path and the calibrator key-mapping fix
