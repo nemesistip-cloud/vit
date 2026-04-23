@@ -247,7 +247,7 @@ def _parse_kickoff(utc_str: str) -> datetime:
         dt = datetime.fromisoformat(utc_str.replace("Z", "+00:00"))
         return dt.replace(tzinfo=None)
     except Exception:
-        return datetime.utcnow()
+        return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _determine_outcome(home_g: int, away_g: int) -> str:

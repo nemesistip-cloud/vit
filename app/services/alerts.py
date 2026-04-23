@@ -8,7 +8,7 @@
 import httpx
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -179,7 +179,7 @@ class TelegramAlert:
         """Return a human-friendly countdown like 'in 2h 14m' or 'LIVE'."""
         if not kickoff:
             return ""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Treat naive kickoffs as UTC (matches the rest of the stack).
         delta = kickoff - now
         secs = delta.total_seconds()

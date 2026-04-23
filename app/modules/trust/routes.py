@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,8 @@ router = APIRouter(prefix="/api/trust", tags=["trust"])
 # ─── Schemas ────────────────────────────────────────────────────────────────
 
 class TrustScoreOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     user_id:            int
     composite_score:    float
     transaction_score:  float
@@ -35,9 +37,6 @@ class TrustScoreOut(BaseModel):
     total_flags:        int
     open_flags:         int
     last_calculated_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
 
 
 class FraudFlagOut(BaseModel):

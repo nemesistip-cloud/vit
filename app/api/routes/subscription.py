@@ -358,12 +358,12 @@ async def upgrade_plan(
     Upgrade plan directly (used by admins or post-payment webhook confirmation).
     For user-initiated upgrades, use /subscription/create-checkout instead.
     """
-    if body.plan not in PLANS:
-        raise HTTPException(status_code=400, detail=f"Unknown plan: {body.plan}")
-
     api_key = request.headers.get("x-api-key", "")
     if not api_key:
         raise HTTPException(status_code=401, detail="API key required to manage subscription")
+
+    if body.plan not in PLANS:
+        raise HTTPException(status_code=400, detail=f"Unknown plan: {body.plan}")
 
     key_hash = _hash_api_key(api_key)
 

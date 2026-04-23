@@ -1,7 +1,7 @@
 """Background tasks for wallet operations — VITCoin price, subscription renewals."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -36,7 +36,7 @@ class WalletScheduler:
             return None
 
         window_days = config.value.get("window_days", 30)
-        cutoff = datetime.utcnow() - timedelta(days=window_days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
 
         fee_result = await self.db.execute(
             select(func.sum(WalletTransaction.amount)).where(
@@ -80,7 +80,7 @@ class WalletScheduler:
 
     async def process_subscription_renewals(self) -> int:
         """Auto-renew subscriptions expiring within 24 hours."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now + timedelta(days=1)
 
         result = await self.db.execute(

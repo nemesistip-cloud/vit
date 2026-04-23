@@ -3,7 +3,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import select, func
@@ -304,7 +304,7 @@ class NotificationService:
         """Warn users whose subscription expires within 3 days."""
         try:
             from app.db.models import UserSubscription
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             soon = now + timedelta(days=3)
             result = await db.execute(
                 select(UserSubscription).where(

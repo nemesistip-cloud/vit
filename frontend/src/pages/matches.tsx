@@ -68,7 +68,7 @@ export default function MatchesPage() {
   const leagues = leaguesData?.leagues ?? Array.from(
     new Map(
       allMatches
-        .map((m) => [(m as any).league_key ?? m.league, m.league])
+        .map((m) => [(m as any).league_key ?? m.league, m.league] as const)
         .filter(([k]) => !!k)
     ).entries()
   ).map(([key, display]) => ({ key: String(key), display: String(display ?? key) }));

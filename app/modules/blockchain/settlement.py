@@ -10,7 +10,7 @@ Fee split:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -244,12 +244,12 @@ async def settle_match(match_id: str, oracle_result: str, db: AsyncSession) -> M
         treasury_fund=treasury_fund,
         burn_amount=burn_amount,
         ai_fund=ai_fund,
-        settled_at=datetime.utcnow(),
+        settled_at=datetime.now(timezone.utc),
     )
     db.add(settlement)
 
     cp.status = ConsensusStatus.SETTLED.value
-    cp.settled_at = datetime.utcnow()
+    cp.settled_at = datetime.now(timezone.utc)
 
     await db.flush()
     await update_trust_scores(match_id, oracle_result, db)
