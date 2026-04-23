@@ -1,7 +1,10 @@
-"""Leaderboard endpoint — prediction accuracy, ROI, streak, and XP rankings."""
+"""Leaderboard endpoint — prediction accuracy, ROI, streak, and XP rankings.
+
+v4.5: Replaced N+1 query pattern with a single SQL aggregation.
+"""
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -16,44 +19,65 @@ async def get_leaderboard(
     limit: int = Query(20, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """Public leaderboard — no auth required."""
-    users_res = await db.execute(
-        select(User).where(User.is_active == True, User.is_banned == False)
-        .limit(200)
+    """Public leaderboard — no auth required. Uses a single aggregated SQL query."""
+
+    settled_pred = case((Prediction.final_ev.is_not(None), 1), else_=0)
+    win_pred     = case(
+        (
+            (Prediction.final_ev.is_not(None)) & (Prediction.final_ev > 0),
+            1,
+        ),
+        else_=0,
     )
-    users = users_res.scalars().all()
+    roi_pred = func.coalesce(Prediction.final_ev, 0.0)
+
+    agg = (
+        select(
+            User.id,
+            User.username,
+            func.coalesce(User.total_xp, 0).label("xp"),
+            func.coalesce(User.current_streak, 0).label("streak"),
+            func.coalesce(User.subscription_tier, "viewer").label("subscription_tier"),
+            func.count(Prediction.id).label("total_predictions"),
+            func.sum(settled_pred).label("total_settled"),
+            func.sum(win_pred).label("total_wins"),
+            func.sum(roi_pred).label("total_roi"),
+        )
+        .outerjoin(Prediction, Prediction.user_id == User.id)
+        .where(User.is_active == True, User.is_banned == False)
+        .group_by(
+            User.id, User.username, User.total_xp,
+            User.current_streak, User.subscription_tier,
+        )
+    )
+
+    rows = (await db.execute(agg)).all()
 
     board = []
-    for user in users:
-        preds = await db.execute(
-            select(Prediction).where(Prediction.user_id == user.id)
-        )
-        predictions = preds.scalars().all()
-        total = len(predictions)
-        settled = [p for p in predictions if p.final_ev is not None]
-        wins = sum(1 for p in settled if (p.final_ev or 0) > 0)
-        win_rate = (wins / len(settled) * 100) if settled else 0.0
-        roi = sum((p.final_ev or 0) for p in settled)
+    for row in rows:
+        total_settled = int(row.total_settled or 0)
+        total_wins    = int(row.total_wins or 0)
+        win_rate      = round(total_wins / total_settled * 100, 1) if total_settled else 0.0
+        roi           = round(float(row.total_roi or 0.0), 2)
 
         board.append({
-            "user_id": user.id,
-            "username": user.username,
-            "total_predictions": total,
-            "win_rate": round(win_rate, 1),
-            "roi": round(roi, 2),
-            "xp": getattr(user, "total_xp", 0) or 0,
-            "streak": getattr(user, "current_streak", 0) or 0,
-            "subscription_tier": getattr(user, "subscription_tier", "viewer") or "viewer",
+            "user_id":           row.id,
+            "username":          row.username,
+            "total_predictions": int(row.total_predictions or 0),
+            "win_rate":          win_rate,
+            "roi":               roi,
+            "xp":                int(row.xp or 0),
+            "streak":            int(row.streak or 0),
+            "subscription_tier": row.subscription_tier or "viewer",
         })
 
-    if category == "win_rate":
-        board.sort(key=lambda x: x["win_rate"], reverse=True)
-    elif category == "xp":
-        board.sort(key=lambda x: x["xp"], reverse=True)
-    elif category == "streak":
-        board.sort(key=lambda x: x["streak"], reverse=True)
-    elif category == "predictions":
-        board.sort(key=lambda x: x["total_predictions"], reverse=True)
+    sort_keys = {
+        "win_rate":    lambda x: x["win_rate"],
+        "xp":          lambda x: x["xp"],
+        "streak":      lambda x: x["streak"],
+        "predictions": lambda x: x["total_predictions"],
+    }
+    board.sort(key=sort_keys[category], reverse=True)
 
     for i, entry in enumerate(board[:limit], 1):
         entry["rank"] = i

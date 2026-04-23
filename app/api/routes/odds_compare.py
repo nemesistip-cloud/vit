@@ -71,8 +71,12 @@ def _verify_key(api_key: Optional[str] = None):
 
 
 # ── Odds API helper ───────────────────────────────────────────────────
-async def _fetch_multi_bookmaker_odds(sport: str, odds_key: str) -> List[dict]:
-    """Fetch odds from multiple bookmakers via The Odds API."""
+async def _fetch_multi_bookmaker_odds(sport: str, odds_key: str) -> tuple[List[dict], str]:
+    """Fetch odds from multiple bookmakers via The Odds API.
+
+    Returns (events, status) where status is one of:
+    "ok" | "api_error" | "invalid_key" | "rate_limited" | "timeout" | "no_key"
+    """
     try:
         async with httpx.AsyncClient(timeout=12) as client:
             r = await client.get(
@@ -85,17 +89,26 @@ async def _fetch_multi_bookmaker_odds(sport: str, odds_key: str) -> List[dict]:
                 }
             )
             if r.status_code == 200:
-                return r.json()
-            elif r.status_code == 401:
-                raise HTTPException(status_code=503, detail="Odds API: invalid key")
+                return r.json(), "ok"
+            elif r.status_code in (401, 403):
+                logger.warning(f"Odds API auth error {r.status_code} for {sport}")
+                raise HTTPException(status_code=503, detail="Odds API: invalid or expired API key")
+            elif r.status_code == 422:
+                return [], "invalid_sport"
+            elif r.status_code == 429:
+                logger.warning("Odds API rate limit hit")
+                return [], "rate_limited"
             else:
                 logger.warning(f"Odds API {r.status_code} for {sport}")
-                return []
+                return [], f"api_error_{r.status_code}"
     except HTTPException:
         raise
+    except httpx.TimeoutException:
+        logger.warning("Odds API request timed out")
+        return [], "timeout"
     except Exception as e:
         logger.warning(f"Odds API fetch failed: {e}")
-        return []
+        return [], "fetch_error"
 
 
 def _extract_h2h_odds(event: dict) -> dict:
@@ -213,7 +226,7 @@ async def compare_odds(
         raise HTTPException(status_code=503, detail="ODDS_API_KEY not configured")
 
     sport  = SPORT_MAP.get(league, "soccer_epl")
-    events = await _fetch_multi_bookmaker_odds(sport, odds_key)
+    events, data_status = await _fetch_multi_bookmaker_odds(sport, odds_key)
 
     comparison = []
     for ev in events[:20]:
@@ -221,13 +234,14 @@ async def compare_odds(
         if parsed:
             comparison.append(parsed)
 
-    _audit("odds_compare", {"league": league, "events_found": len(comparison)})
+    _audit("odds_compare", {"league": league, "events_found": len(comparison), "status": data_status})
 
     return {
-        "league":    league,
-        "events":    comparison,
-        "total":     len(comparison),
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "league":      league,
+        "events":      comparison,
+        "total":       len(comparison),
+        "data_status": data_status,
+        "fetched_at":  datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -248,7 +262,7 @@ async def scan_arbitrage(
         raise HTTPException(status_code=503, detail="ODDS_API_KEY not configured")
 
     sport  = SPORT_MAP.get(league, "soccer_epl")
-    events = await _fetch_multi_bookmaker_odds(sport, odds_key)
+    events, data_status = await _fetch_multi_bookmaker_odds(sport, odds_key)
 
     opportunities = []
     scanned = 0
@@ -263,15 +277,16 @@ async def scan_arbitrage(
             opportunities.append(arb)
 
     opportunities.sort(key=lambda x: x["profit_pct"], reverse=True)
-    _audit("arbitrage_scan", {"league": league, "scanned": scanned, "found": len(opportunities)})
+    _audit("arbitrage_scan", {"league": league, "scanned": scanned, "found": len(opportunities), "status": data_status})
 
     return {
-        "league":        league,
-        "scanned":       scanned,
-        "opportunities": opportunities,
-        "total_found":   len(opportunities),
+        "league":         league,
+        "scanned":        scanned,
+        "opportunities":  opportunities,
+        "total_found":    len(opportunities),
         "min_profit_pct": min_profit_pct,
-        "fetched_at":    datetime.now(timezone.utc).isoformat(),
+        "data_status":    data_status,
+        "fetched_at":     datetime.now(timezone.utc).isoformat(),
     }
 
 

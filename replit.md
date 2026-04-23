@@ -3,6 +3,8 @@
 ## Overview
 Institutional-grade football prediction platform combining a 12-model AI ensemble, a VITCoin wallet economy, blockchain-verified staking, a model marketplace, governance DAO, and multi-tier subscriptions (Free / Pro $49/mo / Elite $199/mo).
 
+**Version: 4.5.0** — Bug fixes + enhancements: settlement multi-prediction fix, live-tracker cross-session fix, leaderboard N+1 fix, referral commission on subscription, trust engine auto-suspension, odds compare error transparency.
+
 ## Architecture
 - **Backend:** Python 3.11, FastAPI, SQLAlchemy (async), Alembic, Uvicorn on port 5000
 - **Database:** SQLite (development) / PostgreSQL (production via `VIT_DATABASE_URL`)

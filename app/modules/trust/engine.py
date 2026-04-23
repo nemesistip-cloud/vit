@@ -455,6 +455,40 @@ async def calculate_trust_score(db: AsyncSession, user_id: int) -> UserTrustScor
 
     await db.commit()
     await db.refresh(record)
+
+    # ── v4.5: Auto-suspension for critical trust scores ───────────────────
+    # If composite drops below 30 and there are open fraud flags, auto-suspend
+    # the user and create a system notification for admin review.
+    if composite < 30 and len(open_flags) + len(new_flags) > 0:
+        try:
+            from app.db.models import User
+            user_res = await db.execute(select(User).where(User.id == user_id))
+            user = user_res.scalars().first()
+            if user and user.is_active and not getattr(user, "is_banned", False):
+                user.is_active = False
+                await db.commit()
+                log.warning(
+                    "[trust] AUTO-SUSPENDED user %s (score=%.1f, open_flags=%d)",
+                    user_id, composite, len(open_flags) + len(new_flags),
+                )
+                try:
+                    from app.modules.notifications.service import NotificationService
+                    await NotificationService.create(
+                        db=db,
+                        user_id=user_id,
+                        type="account_suspended",
+                        title="Account Temporarily Suspended",
+                        body=(
+                            "Your account has been temporarily suspended due to suspicious activity. "
+                            "Please contact support to appeal."
+                        ),
+                        channel="in_app",
+                    )
+                except Exception:
+                    pass
+        except Exception as exc:
+            log.error("[trust] Auto-suspension failed for user %s: %s", user_id, exc)
+
     return record
 
 

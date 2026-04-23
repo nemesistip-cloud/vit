@@ -299,6 +299,8 @@ async def predict(
             db_match = ext_res.scalar_one_or_none()
 
         # Then try by teams + kickoff (within 1-hour window for tolerance)
+        # Use .scalars().first() instead of scalar_one_or_none() to safely handle
+        # duplicate rows without raising MultipleResultsFound.
         if db_match is None:
             window_start = naive_kickoff.replace(second=0, microsecond=0)
             existing_match_res = await db.execute(
@@ -309,7 +311,7 @@ async def predict(
                     Match.kickoff_time >= window_start,
                 )
             )
-            db_match = existing_match_res.scalar_one_or_none()
+            db_match = existing_match_res.scalars().first()
 
         if db_match is None:
             # Create new match record

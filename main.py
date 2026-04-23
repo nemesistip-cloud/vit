@@ -303,16 +303,32 @@ async def live_match_tracker_loop():
                 from app.db.models import Match
                 from sqlalchemy import select as _sel
 
-                # Load all unsettled matches once
+                # Load unsettled matches as lightweight dicts to avoid cross-session
+                # detached-instance errors (greenlet_spawn bug).
                 async with AsyncSessionLocal() as db:
                     unsettled_q = await db.execute(_sel(Match).where(Match.actual_outcome.is_(None)))
-                    unsettled_matches = unsettled_q.scalars().all()
+                    _raw = unsettled_q.scalars().all()
+                    unsettled_index: dict[int, dict] = {
+                        m.id: {
+                            "id":          m.id,
+                            "home_team":   m.home_team,
+                            "away_team":   m.away_team,
+                            "kickoff_time": m.kickoff_time,
+                            "status":      m.status,
+                            "home_goals":  m.home_goals,
+                            "away_goals":  m.away_goals,
+                        }
+                        for m in _raw
+                    }
+                    unsettled_list = list(unsettled_index.values())
 
                 now_utc = _dt.utcnow()
 
+                # Pending DB changes collected across all API responses: {match_id: patch_dict}
+                pending_updates: dict[int, dict] = {}
+
                 async with _httpx.AsyncClient(timeout=15) as client:
                     for code, league in COMP_MAP.items():
-                        # Poll both IN_PLAY and FINISHED in one call using TIMED status
                         date_from = (now_utc - _td(hours=6)).strftime("%Y-%m-%d")
                         date_to   = now_utc.strftime("%Y-%m-%d")
                         for api_status in ("IN_PLAY", "FINISHED"):
@@ -327,7 +343,7 @@ async def live_match_tracker_loop():
                                     params=params,
                                 )
                                 if r.status_code in (401, 403):
-                                    break  # skip this competition on auth error, do not blacklist
+                                    break
                                 if r.status_code != 200:
                                     continue
 
@@ -335,78 +351,89 @@ async def live_match_tracker_loop():
                                 if not api_matches:
                                     continue
 
-                                async with AsyncSessionLocal() as db:
-                                    for api_m in api_matches:
-                                        home_name = api_m["homeTeam"]["name"]
-                                        away_name = api_m["awayTeam"]["name"]
-                                        _score_obj = api_m.get("score", {})
+                                for api_m in api_matches:
+                                    home_name  = api_m["homeTeam"]["name"]
+                                    away_name  = api_m["awayTeam"]["name"]
+                                    _score_obj = api_m.get("score", {})
 
-                                        # For live: use currentScore → halfTime → fullTime
-                                        # For finished: use fullTime
-                                        if api_status == "IN_PLAY":
-                                            score = (_score_obj.get("currentScore") or
-                                                     _score_obj.get("halfTime") or
-                                                     _score_obj.get("fullTime") or {})
-                                        else:
-                                            score = _score_obj.get("fullTime") or {}
+                                    if api_status == "IN_PLAY":
+                                        score = (_score_obj.get("currentScore") or
+                                                 _score_obj.get("halfTime") or
+                                                 _score_obj.get("fullTime") or {})
+                                    else:
+                                        score = _score_obj.get("fullTime") or {}
 
-                                        home_g = score.get("home")
-                                        away_g = score.get("away")
+                                    home_g = score.get("home")
+                                    away_g = score.get("away")
 
-                                        # Find matching DB record with kickoff proximity check
-                                        api_kickoff_str = api_m.get("utcDate", "")
-                                        api_kickoff = None
-                                        if api_kickoff_str:
-                                            try:
-                                                api_kickoff = _dt.fromisoformat(api_kickoff_str.replace("Z", "+00:00")).replace(tzinfo=None)
-                                            except Exception:
-                                                pass
+                                    api_kickoff_str = api_m.get("utcDate", "")
+                                    api_kickoff = None
+                                    if api_kickoff_str:
+                                        try:
+                                            api_kickoff = _dt.fromisoformat(
+                                                api_kickoff_str.replace("Z", "+00:00")
+                                            ).replace(tzinfo=None)
+                                        except Exception:
+                                            pass
 
-                                        db_match = None
-                                        for m in unsettled_matches:
-                                            if not _names_match(home_name, m.home_team):
-                                                continue
-                                            if not _names_match(away_name, m.away_team):
-                                                continue
-                                            # Kickoff proximity: within 36 hours
-                                            if api_kickoff and m.kickoff_time:
-                                                delta = abs((m.kickoff_time - api_kickoff).total_seconds())
-                                                if delta > 36 * 3600:
-                                                    continue
-                                            db_match = m
-                                            break
-
-                                        if not db_match:
+                                    # Match against lightweight dict index (no ORM session needed)
+                                    matched_info = None
+                                    for m_info in unsettled_list:
+                                        if not _names_match(home_name, m_info["home_team"]):
                                             continue
+                                        if not _names_match(away_name, m_info["away_team"]):
+                                            continue
+                                        if api_kickoff and m_info["kickoff_time"]:
+                                            delta = abs((m_info["kickoff_time"] - api_kickoff).total_seconds())
+                                            if delta > 36 * 3600:
+                                                continue
+                                        matched_info = m_info
+                                        break
 
-                                        changed = False
-                                        if api_status == "IN_PLAY" and db_match.status != "live":
-                                            db_match.status = "live"
-                                            changed = True
-                                        elif api_status == "FINISHED" and home_g is not None and away_g is not None:
-                                            if db_match.home_goals != home_g or db_match.away_goals != away_g or db_match.actual_outcome is None:
-                                                db_match.home_goals = home_g
-                                                db_match.away_goals = away_g
-                                                db_match.actual_outcome = (
-                                                    "home" if home_g > away_g else
-                                                    "draw" if home_g == away_g else "away"
-                                                )
-                                                db_match.status = "completed"
-                                                changed = True
-                                                print(f"[live-tracker] Completed: {home_name} {home_g}-{away_g} {away_name}")
+                                    if not matched_info:
+                                        continue
 
-                                        if changed:
-                                            await db.commit()
-                                            # Refresh unsettled list after commit
-                                            if api_status == "FINISHED" and db_match in unsettled_matches:
-                                                unsettled_matches.remove(db_match)
+                                    mid = matched_info["id"]
+                                    patch: dict = {}
+
+                                    if api_status == "IN_PLAY" and matched_info["status"] != "live":
+                                        patch["status"] = "live"
+                                    elif api_status == "FINISHED" and home_g is not None and away_g is not None:
+                                        if (matched_info["home_goals"] != home_g or
+                                                matched_info["away_goals"] != away_g or
+                                                matched_info.get("actual_outcome") is None):
+                                            patch["home_goals"]     = home_g
+                                            patch["away_goals"]     = away_g
+                                            patch["actual_outcome"] = (
+                                                "home" if home_g > away_g else
+                                                "draw" if home_g == away_g else "away"
+                                            )
+                                            patch["status"] = "completed"
+                                            print(f"[live-tracker] Completed: {home_name} {home_g}-{away_g} {away_name}")
+
+                                    if patch:
+                                        pending_updates.setdefault(mid, {}).update(patch)
+                                        matched_info.update(patch)  # keep local index current
 
                             except Exception as e:
                                 print(f"[live-tracker] {league}/{api_status}: {e}")
                                 continue
 
-                # After checking live/finished, settle any DB-completed matches
-                # (no extra API calls — the full API pass happens every 30 min)
+                # Apply all collected patches in a single session
+                if pending_updates:
+                    async with AsyncSessionLocal() as db:
+                        for match_id, patch in pending_updates.items():
+                            db_match = await db.get(Match, match_id)
+                            if db_match:
+                                for k, v in patch.items():
+                                    setattr(db_match, k, v)
+                        try:
+                            await db.commit()
+                        except Exception as ce:
+                            print(f"[live-tracker] Commit error: {ce}")
+                            await db.rollback()
+
+                # Settle any DB-completed matches (no API calls)
                 from app.services.results_settler import settle_completed_db_matches as _settle_db
                 sr = await _settle_db()
                 if sr.get("settled", 0) > 0:

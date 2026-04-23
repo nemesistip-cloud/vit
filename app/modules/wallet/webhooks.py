@@ -117,6 +117,50 @@ async def _activate_subscription(user_id: int, plan: str, billing: str) -> bool:
                 logger.warning(f"Notification after subscription activation failed: {ne}")
 
             logger.info(f"User {user_id} upgraded {old_tier} → {plan} (billing={billing})")
+
+            # ── Credit referrer commission (v4.5) ────────────────────────
+            # If the new subscriber used a referral code, award the referrer
+            # a commission in VITCoin (5 VIT for analyst, 15 for pro/validator).
+            if plan in ("analyst", "pro", "validator") and old_tier in ("viewer", "free", None):
+                try:
+                    from app.modules.referral.models import ReferralUse
+                    from app.modules.wallet.models import Wallet
+                    from decimal import Decimal
+
+                    COMMISSION = {"analyst": Decimal("5"), "pro": Decimal("15"), "validator": Decimal("20")}
+                    commission = COMMISSION.get(plan, Decimal("5"))
+
+                    ref_use_res = await db.execute(
+                        select(ReferralUse).where(ReferralUse.referee_id == user_id)
+                    )
+                    ref_use = ref_use_res.scalar_one_or_none()
+                    if ref_use and ref_use.referrer_id:
+                        referrer_wallet_res = await db.execute(
+                            select(Wallet).where(Wallet.user_id == ref_use.referrer_id)
+                        )
+                        referrer_wallet = referrer_wallet_res.scalar_one_or_none()
+                        if referrer_wallet:
+                            referrer_wallet.vitcoin_balance = (referrer_wallet.vitcoin_balance or Decimal("0")) + commission
+                            await db.commit()
+                            logger.info(
+                                f"Referral commission: {commission} VIT credited to user {ref_use.referrer_id} "
+                                f"(referee {user_id} upgraded to {plan})"
+                            )
+                            try:
+                                from app.modules.notifications.service import NotificationService as _NS
+                                await _NS.create(
+                                    db=db,
+                                    user_id=ref_use.referrer_id,
+                                    type="referral_reward",
+                                    title="Referral Commission Earned!",
+                                    body=f"You earned {commission} VIT — your referral just upgraded to {plan.capitalize()}!",
+                                    channel="in_app",
+                                )
+                            except Exception:
+                                pass
+                except Exception as re:
+                    logger.warning(f"Referral commission failed (non-fatal): {re}")
+
             return True
     except Exception as e:
         logger.error(f"_activate_subscription failed for user {user_id}: {e}", exc_info=True)

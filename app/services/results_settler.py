@@ -512,69 +512,74 @@ async def settle_completed_db_matches() -> dict:
 
         for db_match in completed_matches:
             try:
+                # Fetch ALL predictions for this match — multiple users may have
+                # predicted the same fixture; scalar_one_or_none would raise if >1.
                 pred_res = await db.execute(
                     select(Prediction).where(Prediction.match_id == db_match.id)
                 )
-                prediction = pred_res.scalar_one_or_none()
+                predictions_for_match = pred_res.scalars().all()
 
-                if not prediction or not prediction.bet_side:
+                if not predictions_for_match:
                     no_prediction += 1
                     continue
 
-                # Skip if bankroll/CLV already applied (use a simple proxy:
-                # CLVEntry.bet_outcome is set after settlement)
-                clv_res = await db.execute(
-                    select(CLVEntry).where(CLVEntry.prediction_id == prediction.id)
-                )
-                clv_entry = clv_res.scalar_one_or_none()
-                if clv_entry and clv_entry.bet_outcome is not None:
-                    continue  # already settled
-
                 outcome = db_match.actual_outcome
-                home_g  = db_match.home_goals or 0
-                away_g  = db_match.away_goals or 0
-                won     = prediction.bet_side == outcome
-                stake   = float(prediction.recommended_stake or 0.0)
-                odds    = float(prediction.entry_odds or 2.0)
-                profit  = stake * (odds - 1) if won else -stake
-
-                # CLV update
                 clv_home = db_match.closing_odds_home
                 clv_draw = db_match.closing_odds_draw
                 clv_away = db_match.closing_odds_away
                 closing_available = all(x is not None for x in [clv_home, clv_draw, clv_away])
-                side_odds = (
-                    {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)
-                    or odds
-                )
 
-                if clv_entry:
-                    clv_entry.closing_odds = side_odds if closing_available else None
-                    clv_entry.clv = (
-                        CLVTracker.calculate_clv(clv_entry.entry_odds or odds, side_odds)
-                        if closing_available else None
+                for prediction in predictions_for_match:
+                    if not prediction.bet_side:
+                        continue
+
+                    # Skip if bankroll/CLV already applied
+                    clv_res = await db.execute(
+                        select(CLVEntry).where(CLVEntry.prediction_id == prediction.id)
+                        .limit(1)
                     )
-                    clv_entry.bet_outcome = "win" if won else "loss"
-                    clv_entry.profit      = profit
-                elif closing_available:
-                    await CLVTracker.update_closing_by_prediction(
-                        db, prediction.id,
-                        clv_home, clv_draw, clv_away,
-                        outcome, profit,
+                    clv_entry = clv_res.scalar_one_or_none()
+                    if clv_entry and clv_entry.bet_outcome is not None:
+                        continue  # already settled
+
+                    won    = prediction.bet_side == outcome
+                    stake  = float(prediction.recommended_stake or 0.0)
+                    odds   = float(prediction.entry_odds or 2.0)
+                    profit = stake * (odds - 1) if won else -stake
+
+                    side_odds = (
+                        {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)
+                        or odds
                     )
 
-                # Bankroll update
-                try:
-                    from app.services.bankroll import BankrollManager
-                    bm = BankrollManager(db)
-                    await bm.load_state()
-                    bm.bankroll.update_bet(stake, odds, won)
-                    await bm.save_state()
-                except Exception as be:
-                    logger.warning(f"[settle_db] Bankroll update failed (non-fatal): {be}")
+                    if clv_entry:
+                        clv_entry.closing_odds = side_odds if closing_available else None
+                        clv_entry.clv = (
+                            CLVTracker.calculate_clv(clv_entry.entry_odds or odds, side_odds)
+                            if closing_available else None
+                        )
+                        clv_entry.bet_outcome = "win" if won else "loss"
+                        clv_entry.profit      = profit
+                    elif closing_available:
+                        await CLVTracker.update_closing_by_prediction(
+                            db, prediction.id,
+                            clv_home, clv_draw, clv_away,
+                            outcome, profit,
+                        )
 
-                await db.commit()
-                settled += 1
+                    # Bankroll update
+                    try:
+                        from app.services.bankroll import BankrollManager
+                        bm = BankrollManager(db)
+                        await bm.load_state()
+                        bm.bankroll.update_bet(stake, odds, won)
+                        await bm.save_state()
+                    except Exception as be:
+                        logger.warning(f"[settle_db] Bankroll update failed (non-fatal): {be}")
+
+                    await db.commit()
+                    settled += 1
+
                 logger.info(
                     f"[settle_db] {db_match.home_team} {home_g}-{away_g} {db_match.away_team}"
                     f" → {outcome} ({'WIN' if won else 'LOSS'}) profit={profit:.2f}"
