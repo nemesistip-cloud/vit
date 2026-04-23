@@ -44,8 +44,11 @@ class FootballDataClient:
         - Team mapping to internal UUIDs
         - Response caching
         - Clean error handling
+        - Circuit breaker: suspends all requests after a 401/403
     """
-    
+
+    _key_forbidden: bool = False   # class-level circuit breaker
+
     BASE_URL = "https://api.football-data.org/v4"
     
     # Competition codes mapping
@@ -91,6 +94,10 @@ class FootballDataClient:
     
     async def _cached_request(self, endpoint: str, params: Optional[Dict] = None, ttl: int = 300) -> Dict:
         """Make request with caching"""
+        if self.__class__._key_forbidden:
+            logger.debug(f"Skipping football API request for {endpoint} — key is forbidden")
+            return {}
+
         cache_key = self._get_cache_key(endpoint, params)
         
         if self.enable_cache and cache_key in self._cache:
@@ -101,7 +108,7 @@ class FootballDataClient:
         
         data = await self._request(endpoint, params)
         
-        if self.enable_cache:
+        if self.enable_cache and data:
             self._cache[cache_key] = (data, datetime.now())
         
         return data
@@ -109,6 +116,9 @@ class FootballDataClient:
     @rate_limit_backoff
     async def _request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """Make authenticated request to football-data.org"""
+        if self.__class__._key_forbidden:
+            return {}
+
         url = f"{self.BASE_URL}{endpoint}"
         
         logger.debug(f"Requesting {url} with params {params}")
@@ -119,12 +129,16 @@ class FootballDataClient:
             return response.json()
         
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
-                logger.error("API key invalid or missing")
-            elif e.response.status_code == 403:
-                logger.error("Access forbidden - check your API key permissions")
+            if e.response.status_code in (401, 403):
+                self.__class__._key_forbidden = True
+                logger.warning(
+                    "Football Data API key is forbidden/invalid — suspending all requests for this session. "
+                    "Renew your API subscription at football-data.org to restore live data."
+                )
+                return {}
             elif e.response.status_code == 404:
-                logger.error(f"Endpoint not found: {endpoint}")
+                logger.warning(f"Endpoint not found: {endpoint}")
+                return {}
             elif e.response.status_code == 429:
                 logger.warning("Rate limit exceeded")
                 raise  # Re-raise for retry decorator

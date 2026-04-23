@@ -133,11 +133,8 @@ class OddsAPIClient:
     ) -> Dict[str, Any]:
         """Make authenticated request to Odds API"""
         if self.__class__._key_invalid:
-            raise httpx.HTTPStatusError(
-                "Odds API key is invalid — skipping request",
-                request=None,  # type: ignore[arg-type]
-                response=None,  # type: ignore[arg-type]
-            )
+            logger.debug("Skipping odds API request — key is suspended")
+            return {}
         params["apiKey"] = self.api_key
 
         try:
@@ -155,9 +152,10 @@ class OddsAPIClient:
             return response.json()
 
         except httpx.HTTPStatusError as e:
-            if e.response is not None and e.response.status_code == 401:
+            if e.response is not None and e.response.status_code in (401, 403):
                 logger.warning("Odds API key is invalid or expired — suspending all odds requests for this session")
                 self.__class__._key_invalid = True
+                return {}
             elif e.response is not None and e.response.status_code == 429:
                 logger.warning("Odds API rate limit exceeded")
             raise

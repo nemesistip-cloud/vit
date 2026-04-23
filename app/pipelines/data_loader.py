@@ -103,15 +103,16 @@ class DataLoader:
         today = datetime.now().date()
         future = today + timedelta(days=days_ahead)
 
-        # Build tasks for parallel execution
-        tasks = {
-            "fixtures": self.api_client.get_fixtures(
+        # Build tasks for parallel execution — skip football API if key is suspended
+        api_available = not getattr(self.api_client, "_key_forbidden", False)
+        tasks = {}
+        if api_available:
+            tasks["fixtures"] = self.api_client.get_fixtures(
                 competition,
                 str(today),
                 str(future)
-            ),
-            "standings": self.api_client.get_standings(competition)
-        }
+            )
+            tasks["standings"] = self.api_client.get_standings(competition)
 
         # Add scraper tasks if enabled
         if self.enable_scraping and self.scraper:
