@@ -424,6 +424,11 @@ class TrainingJob(Base):
     config = Column(JSON, nullable=True)
     results = Column(JSON, nullable=True)
     summary = Column(JSON, nullable=True)
+    events = Column(JSON, nullable=True)          # persisted event log for SSE replay
+    progress_pct = Column(Float, default=0.0)     # 0-100, updated per-model
+    current_model = Column(String(200), nullable=True)  # model being trained right now
+    total_models = Column(Integer, default=0)
+    error_message = Column(Text, nullable=True)   # set when status=failed
     data_quality_score = Column(Float, nullable=True)
     training_prompt = Column(Text, nullable=True)
     created_by = Column(String(100), default="system")

@@ -65,10 +65,34 @@ async def _db_create_job(job_id: str, config: dict, created_by: str = "system") 
                 status="queued",
                 config=config,
                 created_by=created_by,
+                events=[],
+                progress_pct=0.0,
+                total_models=0,
             ))
             await db.commit()
     except Exception as _e:
         logger.warning(f"Could not persist training job {job_id} to DB: {_e}")
+
+
+async def _db_flush_progress(job_id: str, events: list, progress_pct: float,
+                              current_model: Optional[str], total_models: int) -> None:
+    """Persist in-progress training state to DB (called after each model)."""
+    try:
+        from sqlalchemy import update as sa_update
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                sa_update(_TrainingJobModel)
+                .where(_TrainingJobModel.job_id == job_id)
+                .values(
+                    events=events,
+                    progress_pct=round(progress_pct, 1),
+                    current_model=current_model,
+                    total_models=total_models,
+                )
+            )
+            await db.commit()
+    except Exception as _e:
+        logger.debug(f"Could not flush training progress for {job_id}: {_e}")
 
 
 async def _db_update_job(job_id: str, **fields) -> None:
@@ -104,10 +128,12 @@ async def _db_get_job(job_id: str) -> Optional[dict]:
                 "completed_at":  row.completed_at.isoformat() if row.completed_at else None,
                 "summary":       row.summary or {},
                 "results":       row.results or {},
-                "events":        [],
-                "total_models":  0,
-                "current_model": None,
-                "current_index": 0,
+                "events":        row.events or [],
+                "total_models":  row.total_models or 0,
+                "current_model": row.current_model,
+                "current_index": row.total_models or 0,
+                "progress_pct":  row.progress_pct or 0.0,
+                "error_message": row.error_message,
             }
     except Exception as _e:
         logger.warning(f"Could not load training job {job_id} from DB: {_e}")
@@ -255,6 +281,26 @@ async def _run_training(job_id: str, config: TrainingConfig, orchestrator):
     # ── DB: mark as running ───────────────────────────────────────────────
     await _db_update_job(job_id, status="running", started_at=started_at)
 
+    try:
+        await _run_training_body(job_id, job, config, orchestrator, started_at)
+    except Exception as _top_exc:
+        _err = str(_top_exc)
+        logger.error(f"Training job {job_id} crashed: {_err}", exc_info=True)
+        job["status"]        = "failed"
+        job["completed_at"]  = datetime.now(timezone.utc).isoformat()
+        job["events"].append({"type": "error", "message": _err, "ts": time.time()})
+        await _db_update_job(
+            job_id,
+            status="failed",
+            completed_at=datetime.now(timezone.utc),
+            error_message=_err,
+            events=job["events"],
+        )
+    return
+
+
+async def _run_training_body(job_id: str, job: dict, config, orchestrator, started_at):
+    """Inner body of _run_training — separated so top-level can catch all exceptions."""
     # Load historical matches with Odds API enrichment
     historical = []
     odds_enriched_count = 0
@@ -337,6 +383,7 @@ async def _run_training(job_id: str, config: TrainingConfig, orchestrator):
 
     job["total_models"] = n
     job["events"].append({"type": "start", "message": f"Training {n} models on {len(historical)} matches", "ts": time.time()})
+    await _db_flush_progress(job_id, job["events"], 0.0, None, n)
 
     for i, (key, model) in enumerate(models.items()):
         model_name = orchestrator.model_meta.get(key, {}).get("model_name", key)
@@ -416,6 +463,9 @@ async def _run_training(job_id: str, config: TrainingConfig, orchestrator):
                 "ts": time.time()
             })
 
+        # Flush progress to DB after every model so restarts can replay events
+        _progress_pct = round((i + 1) / n * 100, 1) if n else 0.0
+        await _db_flush_progress(job_id, job["events"], _progress_pct, model_name, n)
         await asyncio.sleep(0.1)   # yield to event loop
 
     # Aggregate metrics with over/under accuracy
@@ -460,13 +510,17 @@ async def _run_training(job_id: str, config: TrainingConfig, orchestrator):
     if weights_reloaded:
         job["events"].append({"type": "weights_reloaded", "message": "Production model cache reloaded with new real weights", "ts": time.time()})
 
-    # ── DB: mark as completed ─────────────────────────────────────────────
+    # ── DB: mark as completed (persist full event log + final progress) ────
     await _db_update_job(
         job_id,
         status="completed",
         completed_at=completed_at,
         results=results,
         summary=job["summary"],
+        events=job["events"],
+        progress_pct=100.0,
+        current_model=None,
+        total_models=n,
     )
 
     # Store as candidate version
@@ -578,14 +632,18 @@ async def stream_training_progress(job_id: str, api_key: Optional[str] = Query(d
             job = _training_jobs.get(job_id)
             if not job:
                 # In-memory dict is wiped on every backend restart. Fall back
-                # to the persisted DB record so the UI can still show the
-                # final state of a job that finished in a previous process.
+                # to the persisted DB record and replay stored events so the
+                # UI can reconstruct the full progress timeline.
                 db_job = await _db_get_job(job_id)
                 if not db_job:
                     yield f"data: {json.dumps({'type': 'error', 'message': 'Job not found'})}\n\n"
                     return
-                yield f"data: {json.dumps({'type': 'heartbeat', 'status': db_job['status'], 'current': 0, 'total': 0})}\n\n"
-                yield f"data: {json.dumps({'type': 'stream_end', 'status': db_job['status'], 'restored_from_db': True})}\n\n"
+                stored_events = db_job.get("events") or []
+                for evt in stored_events:
+                    yield f"data: {json.dumps(evt)}\n\n"
+                yield f"data: {json.dumps({'type': 'heartbeat', 'status': db_job['status'], 'current': db_job['total_models'], 'total': db_job['total_models'], 'progress_pct': db_job.get('progress_pct', 0)})}\n\n"
+                final_type = "stream_end" if db_job["status"] in ("completed", "failed") else "stream_paused"
+                yield f"data: {json.dumps({'type': final_type, 'status': db_job['status'], 'restored_from_db': True, 'error_message': db_job.get('error_message')})}\n\n"
                 return
 
             events = job["events"]

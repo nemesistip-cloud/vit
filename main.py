@@ -566,6 +566,23 @@ async def lifespan(app: FastAPI):
                         await conn.execute(text("ALTER TABLE marketplace_usage_logs ADD COLUMN error_message TEXT"))
                 except Exception as _mkt_e:
                     print(f"⚠️  marketplace column migration skipped: {_mkt_e}")
+
+                # ── training_jobs new columns (SQLite) ────────────────────────
+                try:
+                    tj_cols = (await conn.execute(text("PRAGMA table_info(training_jobs)"))).fetchall()
+                    tj_col_names = {row[1] for row in tj_cols}
+                    tj_additions = {
+                        "events":        "JSON",
+                        "progress_pct":  "REAL DEFAULT 0.0",
+                        "current_model": "VARCHAR(200)",
+                        "total_models":  "INTEGER DEFAULT 0",
+                        "error_message": "TEXT",
+                    }
+                    for col, ddl in tj_additions.items():
+                        if col not in tj_col_names:
+                            await conn.execute(text(f"ALTER TABLE training_jobs ADD COLUMN {col} {ddl}"))
+                except Exception as _tj_e:
+                    print(f"⚠️  training_jobs column migration skipped: {_tj_e}")
             else:
                 await conn.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER"))
                 await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'"))
@@ -592,10 +609,45 @@ async def lifespan(app: FastAPI):
                     await conn.execute(text("ALTER TABLE marketplace_usage_logs ADD COLUMN IF NOT EXISTS error_message TEXT"))
                 except Exception as _mkt_e:
                     print(f"⚠️  marketplace column migration skipped: {_mkt_e}")
+                # ── training_jobs new columns (PostgreSQL) ────────────────────
+                try:
+                    for col, ddl in [
+                        ("events",        "JSON"),
+                        ("progress_pct",  "REAL DEFAULT 0.0"),
+                        ("current_model", "VARCHAR(200)"),
+                        ("total_models",  "INTEGER DEFAULT 0"),
+                        ("error_message", "TEXT"),
+                    ]:
+                        await conn.execute(text(f"ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS {col} {ddl}"))
+                except Exception as _tj_e:
+                    print(f"⚠️  training_jobs column migration skipped: {_tj_e}")
     except Exception as _e:
         print(f"⚠️  Compatibility schema update skipped: {_e}")
 
     print("✅ Database migrations applied")
+
+    # ── Reconcile abandoned training jobs ─────────────────────────────────
+    try:
+        from sqlalchemy import select as _sa_sel, update as _sa_upd
+        from app.db.models import TrainingJob as _TrainingJobModel
+        from app.db.database import AsyncSessionLocal as _AsyncSessionLocal
+        from datetime import timezone as _tz
+        async with _AsyncSessionLocal() as _db:
+            _abandoned = (await _db.execute(
+                _sa_sel(_TrainingJobModel).where(
+                    _TrainingJobModel.status.in_(["running", "queued"])
+                )
+            )).scalars().all()
+            if _abandoned:
+                _now = datetime.now(_tz.utc)
+                for _j in _abandoned:
+                    _j.status = "failed"
+                    _j.error_message = "Server restarted — job was abandoned mid-run"
+                    _j.completed_at = _now
+                await _db.commit()
+                print(f"✅ Reconciled {len(_abandoned)} abandoned training job(s) → failed")
+    except Exception as _rec_e:
+        print(f"⚠️  Training job reconciliation skipped: {_rec_e}")
 
     # BACKFILL MATCH FINGERPRINTS (idempotent, only fills NULLs)
     try:
