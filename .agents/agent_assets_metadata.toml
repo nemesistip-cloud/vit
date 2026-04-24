@@ -6,3 +6,9 @@ id = "1QamuRqNBRB0zFkSpRopU"
 uri = "file://TRAINING_PLAN.md"
 type = "text"
 title = "VIT Real Model Weights — Training Plan & Guide"
+
+[[outputs]]
+id = "MyBdsCbBOQbxO66Mb9yhC"
+uri = "file://FRONTEND_TODO.md"
+type = "text"
+title = "Frontend Audit & Master Prompt"
