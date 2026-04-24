@@ -22,7 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { format, isValid, parseISO } from "date-fns";
 import {
   Activity, Coins, RefreshCw, Ticket, Sparkles, Users, User as UserIcon,
-  Layers, AlertTriangle, Trophy, TrendingUp,
+  Layers, AlertTriangle, Trophy, TrendingUp, Download,
 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -283,9 +283,20 @@ function TicketBuilder() {
             <Ticket className="w-5 h-5 text-primary" />
             <CardTitle className="font-mono uppercase tracking-tight text-lg">Ticket Builder</CardTitle>
           </div>
-          <p className="text-xs text-muted-foreground font-mono">
-            High-confidence selections, combined into a single ticket.
-          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open('/api/exports/predictions/csv', '_blank')}
+              className="font-mono text-xs"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+            <p className="text-xs text-muted-foreground font-mono">
+              High-confidence selections, combined into a single ticket.
+            </p>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">

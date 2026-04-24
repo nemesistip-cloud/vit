@@ -62,6 +62,30 @@ export const API = {
   plans: "/api/wallet/plans",
   subscribe: "/api/wallet/subscribe",
   vitcoinPrice: "/api/wallet/vitcoin-price",
+  // Admin endpoints
+  adminCalibrationFit: "/admin/calibration/fit",
+  adminCalibrationReload: "/admin/calibration/reload",
+  adminSettleResults: "/admin/settle-results",
+  adminBackfillFtResults: "/admin/matches/backfill-ft-results",
+  adminAccumulatorPlaceBet: "/admin/accumulator/place-bet",
+  adminAccumulatorSend: "/admin/accumulator/send",
+  // Analytics endpoints
+  analyticsRoi: "/analytics/roi",
+  analyticsClv: "/analytics/clv",
+  // AI endpoints
+  aiPerformance: "/ai/performance",
+  aiReport: "/ai/report",
+  // Odds endpoints
+  oddsInjuries: "/odds/injuries",
+  oddsAuditLog: "/odds/audit-log",
+  // AI Feed
+  aiFeedConsensus: "/ai-feed/consensus",
+  // Audit
+  auditLogs: "/audit/logs",
+  // Exports
+  exportPredictionsCsv: "/api/exports/predictions/csv",
+  exportWalletCsv: "/api/exports/wallet/csv",
+  exportAnalyticsCsv: "/api/exports/analytics/csv",
 };
 
 export const getGetMeQueryKey = () => [API.me];
@@ -80,6 +104,14 @@ export const getListTransactionsQueryKey = () => [API.transactions];
 export const getGetMyStakesQueryKey = () => [API.myStakes];
 export const getGetMyValidatorQueryKey = () => [API.myValidator];
 export const getConsensusPredictionQueryKey = (matchId: string) => [API.consensusPrediction(matchId)];
+// New query keys
+export const getAnalyticsRoiQueryKey = () => [API.analyticsRoi];
+export const getAnalyticsClvQueryKey = () => [API.analyticsClv];
+export const getAiPerformanceQueryKey = () => [API.aiPerformance];
+export const getAiReportQueryKey = () => [API.aiReport];
+export const getOddsInjuriesQueryKey = (params?: Record<string, unknown>) => [API.oddsInjuries, params];
+export const getOddsAuditLogQueryKey = () => [API.oddsAuditLog];
+export const getAuditLogsQueryKey = (params?: Record<string, unknown>) => [API.auditLogs, params];
 
 export function useGetMe(opts?: { query?: { enabled?: boolean; retry?: boolean } }) {
   return useQuery<User>({
@@ -654,6 +686,109 @@ export function useAdminFetchLive() {
     mutationFn: () => apiPost<any>("/admin/matches/fetch-live"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+    },
+  });
+}
+
+// New hooks for missing backend wiring
+export function useAdminCalibrationFit() {
+  return useMutation<any, Error, void>({
+    mutationFn: () => apiPost<any>(API.adminCalibrationFit),
+  });
+}
+
+export function useAdminCalibrationReload() {
+  return useMutation<any, Error, void>({
+    mutationFn: () => apiPost<any>(API.adminCalibrationReload),
+  });
+}
+
+export function useAdminSettleResults() {
+  return useMutation<any, Error, void>({
+    mutationFn: () => apiPost<any>(API.adminSettleResults),
+  });
+}
+
+export function useAdminBackfillFtResults() {
+  return useMutation<any, Error, void>({
+    mutationFn: () => apiPost<any>(API.adminBackfillFtResults),
+  });
+}
+
+export function useAdminAccumulatorPlaceBet() {
+  return useMutation<any, Error, { accumulator_id: string; stake_amount: number }>({
+    mutationFn: (data) => apiPost<any>(API.adminAccumulatorPlaceBet, data),
+  });
+}
+
+export function useAdminAccumulatorSend() {
+  return useMutation<any, Error, { accumulator_id: string; message?: string }>({
+    mutationFn: (data) => apiPost<any>(API.adminAccumulatorSend, data),
+  });
+}
+
+export function useGetAnalyticsRoi() {
+  return useQuery<any>({
+    queryKey: getAnalyticsRoiQueryKey(),
+    queryFn: () => apiGet<any>(API.analyticsRoi),
+  });
+}
+
+export function useGetAnalyticsClv() {
+  return useQuery<any>({
+    queryKey: getAnalyticsClvQueryKey(),
+    queryFn: () => apiGet<any>(API.analyticsClv),
+  });
+}
+
+export function useGetAiPerformance() {
+  return useQuery<any>({
+    queryKey: getAiPerformanceQueryKey(),
+    queryFn: () => apiGet<any>(API.aiPerformance),
+  });
+}
+
+export function useGetAiReport() {
+  return useQuery<any>({
+    queryKey: getAiReportQueryKey(),
+    queryFn: () => apiGet<any>(API.aiReport),
+  });
+}
+
+export function useGetOddsInjuries(params?: { team?: string }) {
+  return useQuery<any>({
+    queryKey: getOddsInjuriesQueryKey(params),
+    queryFn: () => {
+      const qs = params?.team ? `?team=${encodeURIComponent(params.team)}` : "";
+      return apiGet<any>(API.oddsInjuries + qs);
+    },
+  });
+}
+
+export function useGetOddsAuditLog() {
+  return useQuery<any>({
+    queryKey: getOddsAuditLogQueryKey(),
+    queryFn: () => apiGet<any>(API.oddsAuditLog),
+  });
+}
+
+export function useAiFeedConsensus() {
+  return useMutation<any, Error, { home_team: string; away_team: string; league: string; market_odds: any }>({
+    mutationFn: (data) => apiPost<any>(API.aiFeedConsensus, data),
+  });
+}
+
+export function useGetAuditLogs(params?: { limit?: number; offset?: number; action?: string; actor?: string; status?: string }) {
+  return useQuery<any>({
+    queryKey: getAuditLogsQueryKey(params),
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set("limit", String(params.limit));
+      if (params?.offset) qs.set("offset", String(params.offset));
+      if (params?.action) qs.set("action", params.action);
+      if (params?.actor) qs.set("actor", params.actor);
+      if (params?.status) qs.set("status", params.status);
+      return apiGet<any>(`${API.auditLogs}?${qs.toString()}`);
     },
   });
 }

@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   useGetMatch, useGetConsensusPrediction, useStakeOnPrediction, useGetWallet,
+  useGetOddsInjuries,
 } from "@/api-client";
 import { AIInsightComparison } from "@/components/AIInsightComparison";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { BrainCircuit, ShieldCheck, ChevronLeft, Zap, Coins, TrendingUp, Target, BarChart2, Radio } from "lucide-react";
 import { format } from "date-fns";
@@ -22,6 +24,7 @@ export default function MatchDetailPage() {
   const { data: consensus } = useGetConsensusPrediction(matchId);
   const { data: wallet } = useGetWallet();
   const stake = useStakeOnPrediction();
+  const { data: injuries } = useGetOddsInjuries({ team: match?.home_team });
 
   type StakeSide = "home" | "draw" | "away" | "over_25" | "under_25" | "btts_yes" | "btts_no";
   const [selectedSide, setSelectedSide] = useState<StakeSide | null>(null);
@@ -126,18 +129,25 @@ export default function MatchDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <AIInsightComparison matchId={matchId} />
+      <Tabs defaultValue="analysis" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="analysis">Analysis</TabsTrigger>
+          <TabsTrigger value="injuries">Injuries</TabsTrigger>
+          <TabsTrigger value="audit">Audit Log</TabsTrigger>
+        </TabsList>
 
-          <Card className="bg-card/50 backdrop-blur border-border">
-            <CardHeader className="border-b border-border/50 pb-4">
-              <CardTitle className="font-mono uppercase flex items-center">
-                <BrainCircuit className="w-5 h-5 mr-2 text-primary" />
-                Ensemble Intelligence
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-6">
+        <TabsContent value="analysis" className="mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <AIInsightComparison matchId={matchId} />
+
+              <Card className="bg-card/50 backdrop-blur border-border">
+                <CardHeader className="border-b border-border/50 pb-4">
+                  <CardTitle className="font-mono uppercase flex items-center">
+                    <BrainCircuit className="w-5 h-5 mr-2 text-primary" />
+                    Ensemble Intelligence</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-6">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div className="space-y-2">
                   <div className="font-mono text-sm text-muted-foreground uppercase">Home Win</div>
@@ -547,6 +557,60 @@ export default function MatchDetailPage() {
           </Card>
         </div>
       </div>
+        </TabsContent>
+
+        <TabsContent value="injuries" className="mt-6">
+          <Card className="bg-card/50 backdrop-blur border-border">
+            <CardHeader>
+              <CardTitle className="font-mono uppercase">Injury Reports</CardTitle>
+              <CardDescription>Latest injury updates for participating teams</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {injuries?.injuries?.length ? (
+                <div className="space-y-4">
+                  {injuries.injuries.map((injury: any) => (
+                    <div key={injury.id} className="border border-border rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-semibold">{injury.player_name}</h4>
+                          <p className="text-sm text-muted-foreground">{injury.team_name}</p>
+                          <p className="text-sm">{injury.injury_type} - {injury.status}</p>
+                        </div>
+                        <Badge variant={injury.status === 'doubtful' ? 'destructive' : 'secondary'}>
+                          {injury.status}
+                        </Badge>
+                      </div>
+                      {injury.expected_return && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Expected return: {injury.expected_return}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No injury reports available
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="audit" className="mt-6">
+          <Card className="bg-card/50 backdrop-blur border-border">
+            <CardHeader>
+              <CardTitle className="font-mono uppercase">Odds Audit Log</CardTitle>
+              <CardDescription>Historical changes to odds and market data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8 text-muted-foreground">
+                Audit log feature coming soon
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

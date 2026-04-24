@@ -596,18 +596,29 @@ export default function WalletPage() {
                 </span>
               )}
             </CardTitle>
-            <div className="flex gap-1 flex-wrap">
-              {["all", "deposit", "withdrawal", "conversion"].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setTxFilter(f)}
-                  className={`text-[10px] font-mono px-2.5 py-1 rounded-md border transition-all capitalize ${
-                    txFilter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open('/api/exports/wallet/csv', '_blank')}
+                className="font-mono text-xs"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+              <div className="flex gap-1 flex-wrap">
+                {["all", "deposit", "withdrawal", "conversion"].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setTxFilter(f)}
+                    className={`text-[10px] font-mono px-2.5 py-1 rounded-md border transition-all capitalize ${
+                      txFilter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </CardHeader>

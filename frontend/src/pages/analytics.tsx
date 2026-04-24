@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
+import { useGetAiPerformance, useGetAiReport } from "@/api-client/index";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,9 @@ export default function AnalyticsPage() {
     enabled: tab === "models",
   });
 
+  const { data: aiPerformance } = useGetAiPerformance();
+  const { data: aiReport } = useGetAiReport();
+
   const { data: clv, isLoading: loadingClv } = useQuery({
     queryKey: ["analytics-clv", dateParams],
     queryFn: () => apiGet<any>(`/analytics/clv${dateParams}`),
@@ -121,8 +125,7 @@ export default function AnalyticsPage() {
   });
 
   const handleExport = () => {
-    const qs = dateParams || "";
-    window.open(`${API_BASE}/analytics/export/csv${qs}`, "_blank");
+    window.open('/api/exports/analytics/csv', "_blank");
   };
 
   const hasDates = dateFrom || dateTo;
@@ -311,15 +314,16 @@ export default function AnalyticsPage() {
           {loadingModels ? (
             <div className="text-muted-foreground font-mono text-center py-12">Loading model data...</div>
           ) : (
-            <Card className="bg-card/50 border-muted/50">
-              <CardHeader>
-                <CardTitle className="font-mono text-sm uppercase">12-Model Ensemble Breakdown</CardTitle>
-                {models?.data_source && (
-                  <p className="text-xs text-muted-foreground font-mono">
-                    Source: {models.data_source === "estimated" ? "estimated from prediction metadata" : "model insights"}
-                  </p>
-                )}
-              </CardHeader>
+            <div className="space-y-4">
+              <Card className="bg-card/50 border-muted/50">
+                <CardHeader>
+                  <CardTitle className="font-mono text-sm uppercase">12-Model Ensemble Breakdown</CardTitle>
+                  {models?.data_source && (
+                    <p className="text-xs text-muted-foreground font-mono">
+                      Source: {models.data_source === "estimated" ? "estimated from prediction metadata" : "model insights"}
+                    </p>
+                  )}
+                </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <table className="min-w-[720px] w-full text-xs font-mono">
@@ -360,6 +364,54 @@ export default function AnalyticsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="bg-card/50 border-muted/50">
+              <CardHeader>
+                <CardTitle className="font-mono text-sm uppercase">AI Source Performance</CardTitle>
+                <p className="text-xs text-muted-foreground font-mono">
+                  Performance metrics from external AI prediction sources
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-[720px] w-full text-xs font-mono">
+                    <thead>
+                      <tr className="border-b border-muted/50">
+                        {["Source", "Sample Size", "Accuracy", "Avg Confidence", "Last Updated"].map((h) => (
+                          <th key={h} className="text-left py-2 pr-4 text-muted-foreground uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aiPerformance && Object.entries(aiPerformance).map(([source, data]: [string, any]) => (
+                        <tr key={source} className="border-b border-muted/20 hover:bg-muted/10 transition-colors">
+                          <td className="py-2 pr-4 text-primary font-bold">{source}</td>
+                          <td className="py-2 pr-4">{data.sample_size || 0}</td>
+                          <td className="py-2 pr-4">
+                            {data.accuracy != null
+                              ? <span className={data.accuracy > 0.6 ? "text-primary" : data.accuracy > 0.5 ? "text-secondary" : "text-destructive"}>
+                                  {(data.accuracy * 100).toFixed(1)}%
+                                </span>
+                              : <span className="text-muted-foreground">—</span>
+                            }
+                          </td>
+                          <td className="py-2 pr-4">{data.avg_confidence != null ? `${(data.avg_confidence * 100).toFixed(1)}%` : "—"}</td>
+                          <td className="py-2 pr-4 text-muted-foreground">
+                            {data.last_updated ? new Date(data.last_updated).toLocaleDateString() : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!aiPerformance || Object.keys(aiPerformance).length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground font-mono text-sm">
+                      No AI performance data yet.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            </div>
           )}
         </TabsContent>
 

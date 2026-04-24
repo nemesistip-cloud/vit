@@ -1,6 +1,17 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "@/lib/apiClient";
+import {
+  useAdminCalibrationFit,
+  useAdminCalibrationReload,
+  useAdminSettleResults,
+  useAdminBackfillFtResults,
+  useAdminAccumulatorPlaceBet,
+  useAdminAccumulatorSend,
+  useAiFeedConsensus,
+  useGetAiPerformance,
+  useGetAiReport,
+} from "@/api-client/index";
 import { useAuth } from "@/lib/auth";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { Redirect } from "wouter";
@@ -21,7 +32,8 @@ import {
   Trash2, Ban, Edit, Plus, CheckCircle, XCircle, AlertCircle,
   TrendingUp, Server, Zap, Save, Search, Eye, EyeOff,
   ChevronRight, Shield, Lock, Unlock, Download,
-  Users, UserCheck, Upload, Package, ClipboardList, Star,
+  Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
+  Brain,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -898,6 +910,18 @@ function SystemTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* ML Calibration */}
+      <MLCalibrationCard />
+
+      {/* Manual Settlement */}
+      <ManualSettlementCard />
+
+      {/* Global Accumulator */}
+      <GlobalAccumulatorCard />
+
+      {/* AI Feed Consensus */}
+      <AIFeedConsensusCard />
     </div>
   );
 }
@@ -1009,6 +1033,323 @@ function FootballDataCard() {
           <div>• <span className="text-purple-400">Sync FT Results</span> — settles predictions against finished matches from the API (last 7 days).</div>
           <div>• <span className="text-amber-400">Backfill Past Results</span> — runs the API settle, then simulates final scores for any past local-only/seed matches that have no provider counterpart.</div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── ML Calibration Card ─────────────────────────────────────────────
+
+function MLCalibrationCard() {
+  const qc = useQueryClient();
+  const fitMutation = useAdminCalibrationFit();
+  const reloadMutation = useAdminCalibrationReload();
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2">
+          <Activity className="w-5 h-5 text-green-400" /> ML Calibration
+        </CardTitle>
+        <CardDescription className="text-gray-400">
+          Fit and reload probability calibrators for improved prediction accuracy
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-3">
+        <Button
+          variant="outline"
+          className="border-green-500/50 text-green-400 hover:border-green-400"
+          disabled={fitMutation.isPending}
+          onClick={() => fitMutation.mutate(undefined, {
+            onSuccess: () => toast.success("Calibration fit completed"),
+            onError: () => toast.error("Calibration fit failed")
+          })}
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${fitMutation.isPending ? 'animate-spin' : ''}`} />
+          {fitMutation.isPending ? "Fitting…" : "Fit Calibrators"}
+        </Button>
+        <Button
+          variant="outline"
+          className="border-blue-500/50 text-blue-400 hover:border-blue-400"
+          disabled={reloadMutation.isPending}
+          onClick={() => reloadMutation.mutate(undefined, {
+            onSuccess: () => toast.success("Calibrators reloaded"),
+            onError: () => toast.error("Reload failed")
+          })}
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${reloadMutation.isPending ? 'animate-spin' : ''}`} />
+          {reloadMutation.isPending ? "Reloading…" : "Reload Calibrators"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Manual Settlement Card ──────────────────────────────────────────
+
+function ManualSettlementCard() {
+  const qc = useQueryClient();
+  const settleMutation = useAdminSettleResults();
+  const backfillMutation = useAdminBackfillFtResults();
+  const [confirmDialog, setConfirmDialog] = useState<{ type: 'settle' | 'backfill'; open: boolean }>({ type: 'settle', open: false });
+
+  return (
+    <>
+      <Card className="bg-gray-900 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-orange-400" /> Manual Settlement
+          </CardTitle>
+          <CardDescription className="text-gray-400">
+            Manually trigger result settlement and backfill operations
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            className="border-orange-500/50 text-orange-400 hover:border-orange-400"
+            onClick={() => setConfirmDialog({ type: 'settle', open: true })}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Settle Results
+          </Button>
+          <Button
+            variant="outline"
+            className="border-red-500/50 text-red-400 hover:border-red-400"
+            onClick={() => setConfirmDialog({ type: 'backfill', open: true })}
+          >
+            <Activity className="w-4 h-4 mr-2" />
+            Backfill FT Results
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="bg-gray-900 border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Confirm {confirmDialog.type === 'settle' ? 'Result Settlement' : 'Backfill Operation'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-gray-300">
+            {confirmDialog.type === 'settle'
+              ? "This will settle all unsettled predictions against completed matches. Continue?"
+              : "This will backfill full-time results for past matches. This operation may take time. Continue?"
+            }
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog({ type: 'settle', open: false })}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-orange-500 hover:bg-orange-400 text-black"
+              disabled={settleMutation.isPending || backfillMutation.isPending}
+              onClick={() => {
+                const mutation = confirmDialog.type === 'settle' ? settleMutation : backfillMutation;
+                mutation.mutate(undefined, {
+                  onSuccess: (data) => {
+                    toast.success(`${confirmDialog.type === 'settle' ? 'Settlement' : 'Backfill'} completed`);
+                    setConfirmDialog({ type: 'settle', open: false });
+                    qc.invalidateQueries({ queryKey: ['matches-recent'] });
+                  },
+                  onError: () => toast.error(`${confirmDialog.type === 'settle' ? 'Settlement' : 'Backfill'} failed`)
+                });
+              }}
+            >
+              {settleMutation.isPending || backfillMutation.isPending ? 'Processing…' : 'Confirm'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─── Global Accumulator Card ─────────────────────────────────────────
+
+function GlobalAccumulatorCard() {
+  const [accumulatorId, setAccumulatorId] = useState("");
+  const [stakeAmount, setStakeAmount] = useState("");
+  const [message, setMessage] = useState("");
+
+  const placeBetMutation = useAdminAccumulatorPlaceBet();
+  const sendMutation = useAdminAccumulatorSend();
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2">
+          <Package className="w-5 h-5 text-purple-400" /> Global Accumulator
+        </CardTitle>
+        <CardDescription className="text-gray-400">
+          Place bets on and broadcast accumulator tips
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label className="text-gray-300">Accumulator ID</Label>
+            <Input
+              placeholder="Enter accumulator ID"
+              value={accumulatorId}
+              onChange={(e) => setAccumulatorId(e.target.value)}
+              className="bg-gray-800 border-gray-600 text-white"
+            />
+          </div>
+          <div>
+            <Label className="text-gray-300">Stake Amount</Label>
+            <Input
+              type="number"
+              placeholder="0.00"
+              value={stakeAmount}
+              onChange={(e) => setStakeAmount(e.target.value)}
+              className="bg-gray-800 border-gray-600 text-white"
+            />
+          </div>
+        </div>
+        <div>
+          <Label className="text-gray-300">Broadcast Message (Optional)</Label>
+          <Input
+            placeholder="Custom message for broadcast"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            className="bg-gray-800 border-gray-600 text-white"
+          />
+        </div>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            className="border-purple-500/50 text-purple-400 hover:border-purple-400"
+            disabled={placeBetMutation.isPending || !accumulatorId || !stakeAmount}
+            onClick={() => placeBetMutation.mutate(
+              { accumulator_id: accumulatorId, stake_amount: parseFloat(stakeAmount) },
+              {
+                onSuccess: () => {
+                  toast.success("Bet placed successfully");
+                  setAccumulatorId("");
+                  setStakeAmount("");
+                },
+                onError: () => toast.error("Failed to place bet")
+              }
+            )}
+          >
+            <Coins className="w-4 h-4 mr-2" />
+            {placeBetMutation.isPending ? "Placing…" : "Place Bet"}
+          </Button>
+          <Button
+            variant="outline"
+            className="border-blue-500/50 text-blue-400 hover:border-blue-400"
+            disabled={sendMutation.isPending || !accumulatorId}
+            onClick={() => sendMutation.mutate(
+              { accumulator_id: accumulatorId, message: message || undefined },
+              {
+                onSuccess: () => {
+                  toast.success("Accumulator broadcast sent");
+                  setMessage("");
+                },
+                onError: () => toast.error("Failed to send broadcast")
+              }
+            )}
+          >
+            <Send className="w-4 h-4 mr-2" />
+            {sendMutation.isPending ? "Sending…" : "Broadcast"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── AI Feed Consensus Card ──────────────────────────────────────────
+
+function AIFeedConsensusCard() {
+  const [homeTeam, setHomeTeam] = useState("");
+  const [awayTeam, setAwayTeam] = useState("");
+  const [league, setLeague] = useState("");
+  const [marketOdds, setMarketOdds] = useState("");
+
+  const consensusMutation = useAiFeedConsensus();
+
+  const handleConsensus = () => {
+    const odds = marketOdds ? JSON.parse(marketOdds) : {};
+    consensusMutation.mutate(
+      {
+        home_team: homeTeam,
+        away_team: awayTeam,
+        league: league,
+        market_odds: odds
+      },
+      {
+        onSuccess: (data) => {
+          toast.success("Consensus pushed successfully");
+          setHomeTeam("");
+          setAwayTeam("");
+          setLeague("");
+          setMarketOdds("");
+        },
+        onError: () => toast.error("Failed to push consensus")
+      }
+    );
+  };
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2">
+          <Zap className="w-5 h-5 text-yellow-400" /> AI Feed Consensus
+        </CardTitle>
+        <CardDescription className="text-gray-400">
+          Manually push AI consensus predictions
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <Label className="text-gray-300">Home Team</Label>
+            <Input
+              placeholder="Home team name"
+              value={homeTeam}
+              onChange={(e) => setHomeTeam(e.target.value)}
+              className="bg-gray-800 border-gray-600 text-white"
+            />
+          </div>
+          <div>
+            <Label className="text-gray-300">Away Team</Label>
+            <Input
+              placeholder="Away team name"
+              value={awayTeam}
+              onChange={(e) => setAwayTeam(e.target.value)}
+              className="bg-gray-800 border-gray-600 text-white"
+            />
+          </div>
+          <div>
+            <Label className="text-gray-300">League</Label>
+            <Input
+              placeholder="League name"
+              value={league}
+              onChange={(e) => setLeague(e.target.value)}
+              className="bg-gray-800 border-gray-600 text-white"
+            />
+          </div>
+        </div>
+        <div>
+          <Label className="text-gray-300">Market Odds (JSON)</Label>
+          <Input
+            placeholder='{"home": 2.1, "draw": 3.2, "away": 3.5}'
+            value={marketOdds}
+            onChange={(e) => setMarketOdds(e.target.value)}
+            className="bg-gray-800 border-gray-600 text-white"
+          />
+        </div>
+        <Button
+          variant="outline"
+          className="border-yellow-500/50 text-yellow-400 hover:border-yellow-400"
+          disabled={consensusMutation.isPending || !homeTeam || !awayTeam || !league}
+          onClick={handleConsensus}
+        >
+          <Zap className="w-4 h-4 mr-2" />
+          {consensusMutation.isPending ? "Pushing…" : "Push Consensus"}
+        </Button>
       </CardContent>
     </Card>
   );
@@ -1749,6 +2090,8 @@ function CalibrationTab() {
     queryKey: ["ai-accuracy-report", window],
     queryFn: () => apiGet(`/api/ai-engine/accuracy/report?window=${window}`),
   });
+  const { data: aiPerformance } = useGetAiPerformance();
+  const { data: aiReport } = useGetAiReport();
 
   async function refit() {
     setBusy(true);
@@ -1851,6 +2194,54 @@ function CalibrationTab() {
               <div className="text-xs text-gray-500 mt-3">
                 Models sorted best → worst by log-loss (a strictly proper score). Lower is better.
               </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* AI Performance */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Brain className="w-4 h-4 text-purple-400" />
+            AI Source Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {aiPerformance && Object.keys(aiPerformance).length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-400 border-b border-gray-700">
+                    <th className="py-2 px-2">Source</th>
+                    <th className="py-2 px-2 text-right">Samples</th>
+                    <th className="py-2 px-2 text-right">Accuracy</th>
+                    <th className="py-2 px-2 text-right">Avg Confidence</th>
+                    <th className="py-2 px-2 text-right">Last Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(aiPerformance).map(([source, data]: [string, any]) => (
+                    <tr key={source} className="border-b border-gray-800/50">
+                      <td className="py-2 px-2 font-mono text-purple-300">{source}</td>
+                      <td className="py-2 px-2 text-right text-gray-300">{data.sample_size || 0}</td>
+                      <td className="py-2 px-2 text-right text-gray-200">
+                        {data.accuracy != null ? `${(data.accuracy * 100).toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-blue-400">
+                        {data.avg_confidence != null ? `${(data.avg_confidence * 100).toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="py-2 px-2 text-right text-gray-400 text-xs">
+                        {data.last_updated ? new Date(data.last_updated).toLocaleDateString() : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-gray-400 text-sm text-center py-4">
+              No AI performance data available yet.
             </div>
           )}
         </CardContent>
