@@ -3,7 +3,7 @@ import logging
 from typing import Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import numpy as np
 
 from app.db.models import ModelPerformance, Prediction, CLVEntry
@@ -48,7 +48,7 @@ class ModelAccountability:
             
             # Enforce minimum weight
             model.current_weight = max(model.current_weight, model.min_weight_threshold)
-            model.last_weight_update = datetime.now(timezone.utc)
+            model.last_weight_update = datetime.utcnow()
             model.accuracy_score = accuracy
 
             # Sync weight to ModelMetadata so both systems share one source of truth
@@ -66,7 +66,7 @@ class ModelAccountability:
     
     async def _get_recent_performance(self, model_name: str, days: int = 30) -> List[Dict]:
         """Get recent performance metrics for a model"""
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
         
         result = await self.db.execute(
             select(Prediction, CLVEntry)

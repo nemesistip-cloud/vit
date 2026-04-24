@@ -6,7 +6,6 @@ import logging
 import os
 import time
 import uuid
-from datetime import timezone
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
@@ -274,7 +273,7 @@ async def live_match_tracker_loop():
     """
     import httpx as _httpx
     from difflib import SequenceMatcher as _SM
-    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    from datetime import datetime as _dt, timedelta as _td
 
     _LIVE_POLL_INTERVAL = 120  # seconds
 
@@ -323,7 +322,7 @@ async def live_match_tracker_loop():
                     }
                     unsettled_list = list(unsettled_index.values())
 
-                now_utc = _dt.now(_tz.utc)
+                now_utc = _dt.utcnow()
 
                 # Pending DB changes collected across all API responses: {match_id: patch_dict}
                 pending_updates: dict[int, dict] = {}
@@ -1458,7 +1457,7 @@ async def system_status(db: AsyncSession = Depends(get_db)):
     import datetime
 
     total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
-    thirty_days_ago = datetime.datetime.now(timezone.utc) - datetime.timedelta(days=30)
+    thirty_days_ago = datetime.datetime.utcnow() - datetime.timedelta(days=30)
     active_30d = (await db.execute(
         select(func.count(User.id)).where(User.created_at >= thirty_days_ago)
     )).scalar() or 0

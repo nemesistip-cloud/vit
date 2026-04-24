@@ -4,7 +4,7 @@
 import logging
 from decimal import Decimal
 from typing import Dict, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -185,7 +185,7 @@ class VITCoinPricingEngine:
     async def get_rolling_revenue(self, days: int = 30) -> Decimal:
         """Get rolling revenue from fees for the last N days."""
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
         result = await self.db.execute(
             select(func.sum(WalletTransaction.amount))

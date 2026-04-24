@@ -4,7 +4,7 @@
 import csv
 import io
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
@@ -263,7 +263,7 @@ async def initiate_deposit(
         "reference": ref,
         "payment_link": fallback_link,
         "gateway_error": gateway_error,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "expires_at": (datetime.utcnow() + timedelta(hours=1)).isoformat(),
         "currency": request.currency,
         "amount": request.amount,
         "method": request.method,
@@ -315,7 +315,7 @@ async def verify_deposit(
         if tx:
             tx.status = "confirmed"
             tx.amount = verified_amount
-            tx.processed_at = datetime.now(timezone.utc)
+            tx.processed_at = datetime.utcnow()
         else:
             import uuid as _uuid
             db.add(_WalletTx(
@@ -398,7 +398,7 @@ async def submit_kyc(
                 }
             db_user.kyc_status = "pending"
         if hasattr(db_user, "kyc_submitted_at"):
-            db_user.kyc_submitted_at = _dt.now(timezone.utc)
+            db_user.kyc_submitted_at = _dt.utcnow()
 
     await db.commit()
 
@@ -667,7 +667,7 @@ async def export_statement_csv(
         ])
     output.seek(0)
 
-    filename = f"vit_statement_{current_user.username}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
+    filename = f"vit_statement_{current_user.username}_{datetime.utcnow().strftime('%Y%m%d')}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -700,7 +700,7 @@ async def get_exchange_rates(db: AsyncSession = Depends(get_db)):
         },
         "ngn_per_usd": ngn_rate,
         "vit_price_usd": vit_usd,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": __import__("datetime").datetime.utcnow().isoformat(),
     }
 
 

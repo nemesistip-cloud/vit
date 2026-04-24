@@ -13,7 +13,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, Header
@@ -50,7 +50,7 @@ async def _credit_wallet_by_reference(reference: str) -> bool:
         current = getattr(wallet, balance_attr, 0) or 0
         setattr(wallet, balance_attr, current + tx.amount)
         tx.status = "confirmed"
-        tx.processed_at = datetime.now(timezone.utc)
+        tx.processed_at = datetime.utcnow()
         await db.commit()
         logger.info(f"Webhook credited {tx.amount} {tx.currency} to wallet {tx.wallet_id} (ref={reference})")
         return True
@@ -76,7 +76,7 @@ async def _activate_subscription(user_id: int, plan: str, billing: str) -> bool:
 
             # Also update/create a UserSubscription record for API-key-based gating
             from app.db.models import UserSubscription
-            now = datetime.now(timezone.utc)
+            now = datetime.utcnow()
             days = 365 if billing == "yearly" else 30
             # Use a stable hash of user_id as the "api_key" for webhook-activated subs
             import hashlib
@@ -177,7 +177,7 @@ async def _mark_withdrawal_processed(reference: str) -> bool:
         if not tx:
             return False
         tx.status = "confirmed"
-        tx.processed_at = datetime.now(timezone.utc)
+        tx.processed_at = datetime.utcnow()
         await db.commit()
         return True
 

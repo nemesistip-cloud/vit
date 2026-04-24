@@ -4,7 +4,7 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Optional
 
@@ -130,7 +130,7 @@ async def upload_dataset(
         generated_prompt=prompt,
         vitcoin_reward=reward,
         vitcoin_earned=False,
-        completed_at=datetime.now(timezone.utc),
+        completed_at=datetime.utcnow(),
     )
     db.add(job)
     await db.flush()

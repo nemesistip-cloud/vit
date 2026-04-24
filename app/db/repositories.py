@@ -2,7 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, func
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app.db.models import Match, Prediction, CLVEntry, Edge, ModelPerformance, AIPrediction, AIPerformance, AISignalCache
 
@@ -40,7 +40,7 @@ class MatchRepository:
         await self.db.execute(
             update(Match)
             .where(Match.id == match_id)
-            .values(**kwargs, updated_at=datetime.now(timezone.utc))
+            .values(**kwargs, updated_at=datetime.utcnow())
         )
         await self.db.flush()
         return await self.get_by_id(match_id)
@@ -50,7 +50,7 @@ class MatchRepository:
         result = await self.db.execute(
             select(Match)
             .where(Match.status == "scheduled")
-            .where(Match.kickoff_time > datetime.now(timezone.utc))
+            .where(Match.kickoff_time > datetime.utcnow())
             .order_by(Match.kickoff_time)
             .limit(limit)
         )
@@ -222,7 +222,14 @@ class EdgeRepository:
                 sample_size=edge.sample_size + 1,
                 status=status,
                 confidence=min(0.95, (edge.sample_size + 1) / 100),
-                last_updated=datetime.now(timezone.utc)
+                last_updated=datetime.utcnow()
+            )
+        )
+        await self.db.flush()
+        return await self.get_by_id(edge_id)
+
+
+class AIPredictionRepository:
     """Data access layer for AI predictions"""
 
     def __init__(self, db: AsyncSession):
@@ -301,7 +308,7 @@ class AIPerformanceRepository:
         perf.calibration_score = calibration_score
         perf.sample_size = sample_size
         perf.total_predictions += sample_size
-        perf.last_updated = datetime.now(timezone.utc)
+        perf.last_updated = datetime.utcnow()
         await self.db.flush()
 
     async def get_all(self) -> List[AIPerformance]:
@@ -314,7 +321,7 @@ class AIPerformanceRepository:
         await self.db.execute(
             update(AIPerformance)
             .where(AIPerformance.source == source)
-            .values(current_weight=new_weight, last_updated=datetime.now(timezone.utc))
+            .values(current_weight=new_weight, last_updated=datetime.utcnow())
         )
         await self.db.flush()
 
@@ -341,7 +348,7 @@ class AISignalCacheRepository:
             for key, value in signals.items():
                 if hasattr(cache, key):
                     setattr(cache, key, value)
-            cache.timestamp = datetime.now(timezone.utc)
+            cache.timestamp = datetime.utcnow()
         else:
             # Create new
             cache = AISignalCache(match_id=match_id, **signals)

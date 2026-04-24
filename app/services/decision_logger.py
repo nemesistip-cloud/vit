@@ -1,7 +1,7 @@
 # app/services/decision_logger.py
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,7 +35,7 @@ class DecisionLogger:
             model_contributions=json.dumps(decision.get("model_weights", {})),
             market_context=json.dumps(context.get("market", {})),
             bankroll_state=json.dumps(context.get("bankroll", {})),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.utcnow()
         )
         self.db.add(log_entry)
         await self.db.commit()

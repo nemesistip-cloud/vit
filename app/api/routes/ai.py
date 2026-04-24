@@ -3,11 +3,9 @@
 import logging
 from typing import List, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.db.models import AIPrediction
 from app.services.ai_ingestion import AIIngestionService
 from app.services.ai_profiler import AIProfilerService
 from app.services.ai_signals import AISignalService
@@ -20,30 +18,6 @@ router = APIRouter(
     tags=["ai"],
     dependencies=[Depends(verify_api_key)]
 )
-
-
-@router.get("/predictions")
-async def list_ai_predictions(
-    db: AsyncSession = Depends(get_db)
-):
-    """List all AI predictions."""
-    result = await db.execute(select(AIPrediction))
-    predictions = result.scalars().all()
-    return {
-        "predictions": [
-            {
-                "match_id": pred.match_id,
-                "source": pred.source,
-                "home_prob": pred.home_prob,
-                "draw_prob": pred.draw_prob,
-                "away_prob": pred.away_prob,
-                "confidence": pred.confidence,
-                "reason": pred.reason,
-                "timestamp": pred.timestamp,
-            }
-            for pred in predictions
-        ]
-    }
 
 
 @router.get("/predictions/{match_id}")
