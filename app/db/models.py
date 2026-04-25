@@ -62,6 +62,17 @@ class Prediction(Base):
     btts_prob = Column(Float, nullable=True)
     no_btts_prob = Column(Float, nullable=True)
 
+    # Asian Handicap (v4.6.1) — fair line + ladder + per-side probs at fair line
+    ah_line = Column(Float, nullable=True)              # e.g. -0.5 (home favourite)
+    ah_home_prob = Column(Float, nullable=True)         # P(home covers @ ah_line)
+    ah_away_prob = Column(Float, nullable=True)         # P(away covers @ ah_line)
+    ah_lines = Column(JSON, nullable=True)              # [{line: -1.5, home: 0.22, away: 0.78}, …]
+
+    # Correct Score (v4.6.1) — full score-matrix probabilities
+    cs_probs = Column(JSON, nullable=True)              # {"0-0": 0.08, "1-0": 0.12, …}
+    top_correct_score = Column(String(8), nullable=True) # e.g. "1-1"
+    top_cs_prob = Column(Float, nullable=True)
+
     # Metadata
     consensus_prob = Column(Float)
     final_ev = Column(Float)

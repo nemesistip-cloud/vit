@@ -198,6 +198,114 @@ def _poisson_over25(lam: float) -> float:
     return round(max(0.05, min(0.95, 1 - p0 - p1 - p2)), 4)
 
 
+# ── Asian Handicap + Correct Score helpers (v4.6.1) ──────────────────────────
+
+# Standard AH ladder. Negative line ⇒ home is favoured by that many goals.
+# Half-lines (-0.5, -1.5 …) cannot push, full lines can.
+AH_LINES: Tuple[float, ...] = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
+
+# Maximum number of goals per side considered when building the score-prob
+# matrix. 6×6 = 49 cells covers >99.9 % of football match probability mass.
+_CS_MAX_GOALS: int = 6
+
+
+def _build_score_matrix(
+    lam_h: float, lam_a: float, max_goals: int = _CS_MAX_GOALS,
+) -> List[List[float]]:
+    """Independent-Poisson 2-D probability grid P(home_g, away_g)."""
+    return [
+        [_poisson_pmf(g, lam_h) * _poisson_pmf(h, lam_a) for h in range(max_goals + 1)]
+        for g in range(max_goals + 1)
+    ]
+
+
+def _ah_prob_from_matrix(
+    matrix: List[List[float]], line: float, side: str = "home",
+) -> Tuple[float, float]:
+    """
+    Returns (cover_prob, push_prob) for the given Asian-handicap line.
+
+    A 'home -0.5' bet wins iff the home side wins by more than 0.5 goals.
+    A 'home  0'   bet pushes on a draw, wins on a home victory.
+    A 'home -1'   bet pushes when home wins by exactly 1.
+
+    Push probability is reported separately so callers can compute either the
+    raw cover probability or the vig-free no-push price as needed.
+    """
+    win = push = 0.0
+    n = len(matrix)
+    for g in range(n):
+        for h in range(n):
+            p = matrix[g][h]
+            if p <= 0:
+                continue
+            margin = (g - h) if side == "home" else (h - g)
+            adj = margin + line
+            if abs(adj) < 1e-9:
+                push += p
+            elif adj > 0:
+                win += p
+    total = sum(sum(row) for row in matrix) or 1.0
+    return win / total, push / total
+
+
+def _build_ah_ladder(
+    matrix: List[List[float]], lines: Tuple[float, ...] = AH_LINES,
+) -> List[Dict[str, float]]:
+    out: List[Dict[str, float]] = []
+    for ln in lines:
+        h_cov, h_push = _ah_prob_from_matrix(matrix, ln, "home")
+        a_cov, a_push = _ah_prob_from_matrix(matrix, -ln, "away")
+        # Renormalise so the two sides + push sum to 1
+        total = h_cov + a_cov + max(h_push, a_push)
+        if total <= 0:
+            continue
+        out.append({
+            "line":      round(ln, 2),
+            "home_prob": round(h_cov, 4),
+            "away_prob": round(a_cov, 4),
+            "push_prob": round(max(h_push, a_push), 4),
+        })
+    return out
+
+
+def _pick_fair_ah_line(
+    ladder: List[Dict[str, float]],
+) -> Tuple[float, float, float]:
+    """Pick the half-line (no-push) closest to a 50/50 home/away split."""
+    half_lines = [row for row in ladder if abs((row["line"] * 2) - round(row["line"] * 2)) < 1e-9 and (row["line"] * 2) % 2 != 0]
+    pool = half_lines if half_lines else ladder
+    best = min(pool, key=lambda r: abs(r["home_prob"] - r["away_prob"]))
+    return best["line"], best["home_prob"], best["away_prob"]
+
+
+def _correct_score_probs(
+    matrix: List[List[float]], top_n: int = 12,
+) -> Tuple[Dict[str, float], str, float]:
+    """
+    Flatten the score matrix to {"H-A": prob, …} and return the top score too.
+
+    Returns at most `top_n` distinct scorelines, sorted by probability desc.
+    Probabilities are renormalised so they sum to 1 over the kept entries.
+    """
+    flat: List[Tuple[str, float]] = []
+    n = len(matrix)
+    total = 0.0
+    for g in range(n):
+        for h in range(n):
+            p = matrix[g][h]
+            total += p
+            flat.append((f"{g}-{h}", p))
+    if total <= 0:
+        return {}, "1-1", 0.0
+    flat.sort(key=lambda x: x[1], reverse=True)
+    kept = flat[:top_n]
+    kept_sum = sum(p for _, p in kept) or 1.0
+    cs_dict = {label: round(p / kept_sum, 4) for label, p in kept}
+    top_label, top_prob = flat[0]
+    return cs_dict, top_label, round(top_prob / total, 4)
+
+
 # ── Elo utilities ─────────────────────────────────────────────────────────────
 
 def _elo_expected(rating_a: float, rating_b: float) -> float:
@@ -1590,6 +1698,15 @@ class ModelOrchestrator:
         p_a_scores = 1 - math.exp(-lam_a)
         final_btts  = round(max(0.05, min(0.95, p_h_scores * p_a_scores)), 4)
 
+        # ── v4.6.1: Asian Handicap + Correct Score from score matrix ──────────
+        score_matrix = _build_score_matrix(lam_h, lam_a, _CS_MAX_GOALS)
+        ah_ladder    = _build_ah_ladder(score_matrix)
+        try:
+            fair_line, fair_h, fair_a = _pick_fair_ah_line(ah_ladder)
+        except (ValueError, IndexError):
+            fair_line, fair_h, fair_a = -0.5, 0.5, 0.5
+        cs_dict, top_cs, top_cs_p = _correct_score_probs(score_matrix, top_n=15)
+
         overall_conf = _confidence_from_probs(final_hp, final_dp, final_ap)
 
         # Compute model agreement: % models within ±5% of ensemble home_prob
@@ -1609,6 +1726,15 @@ class ModelOrchestrator:
                 "no_btts_prob":  round(1 - final_btts, 4),
                 "home_xg":       round(lam_h, 2),
                 "away_xg":       round(lam_a, 2),
+                # Asian Handicap (v4.6.1)
+                "ah_line":       fair_line,
+                "ah_home_prob":  fair_h,
+                "ah_away_prob":  fair_a,
+                "ah_lines":      ah_ladder,
+                # Correct Score (v4.6.1)
+                "cs_probs":          cs_dict,
+                "top_correct_score": top_cs,
+                "top_cs_prob":       top_cs_p,
                 "confidence": {
                     "1x2":        overall_conf,
                     "over_under": round(overall_conf * 0.92, 3),

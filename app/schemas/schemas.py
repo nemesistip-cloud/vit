@@ -51,6 +51,16 @@ class PredictionResponse(BaseModel):
     over_25_prob: Optional[float]
     under_25_prob: Optional[float]
     btts_prob: Optional[float]
+
+    # v4.6.1 — Asian Handicap + Correct Score
+    ah_line: Optional[float] = None
+    ah_home_prob: Optional[float] = None
+    ah_away_prob: Optional[float] = None
+    ah_lines: Optional[List[Dict[str, Any]]] = None
+    cs_probs: Optional[Dict[str, float]] = None
+    top_correct_score: Optional[str] = None
+    top_cs_prob: Optional[float] = None
+
     consensus_prob: float
     final_ev: float
     recommended_stake: float

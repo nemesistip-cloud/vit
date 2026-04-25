@@ -112,6 +112,7 @@ from app.modules.referral.routes import router as referral_router
 from app.api.routes.leaderboard import router as leaderboard_router
 from app.api.routes.exports import router as exports_router
 from app.api.routes.admin_ai_sources import router as admin_ai_sources_router
+from app.api.routes.admin_clv import router as admin_clv_router
 
 # ===== MIDDLEWARE =====
 from app.api.middleware.auth import APIKeyMiddleware
@@ -259,6 +260,7 @@ async def auto_settle_loop():
 async def model_accountability_loop():
     from app.db.database import AsyncSessionLocal
     from app.services.clv_streak_monitor import check_clv_streaks
+    from app.services.clv_backfill import backfill_missing_clv
 
     await asyncio.sleep(120)
     while True:
@@ -266,6 +268,22 @@ async def model_accountability_loop():
             async with AsyncSessionLocal() as db:
                 ma = ModelAccountability(db)
                 await ma.update_model_weights()
+
+                # v4.6.1 — auto CLV backfill: fill in any settled
+                # predictions whose CLVEntry never received a closing
+                # price (e.g. closing odds arrived after settlement).
+                try:
+                    bf = await backfill_missing_clv(db, limit=500)
+                    if bf["created"] or bf["updated"]:
+                        print(
+                            f"[clv-backfill] created={bf['created']} "
+                            f"updated={bf['updated']} scanned={bf['scanned']} "
+                            f"skipped={bf['skipped']} "
+                            f"missing_close={bf['missing_closing_odds']}"
+                        )
+                except Exception as bf_err:
+                    print(f"[clv-backfill] ERROR: {bf_err}")
+
                 # Close the loop: tick CLV streak counters and auto-demote
                 # any model whose rolling CLV has been negative too long.
                 streak = await check_clv_streaks(db)
@@ -1338,6 +1356,7 @@ app.include_router(tasks_router)
 app.include_router(postbacks_router)
 app.include_router(admin_rewards_router)
 app.include_router(admin_ai_sources_router)
+app.include_router(admin_clv_router)
 
 # Marketplace (Module G)
 app.include_router(marketplace_router)

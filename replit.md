@@ -63,6 +63,46 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Asian Handicap + Correct Score + CLV Backfill (Apr 25 2026)
+Two-feature drop. Adds AH and CS market support to the orchestrator + persistence layer
+and an automatic backfill job that fills CLV rows the live settler missed.
+
+**1) Asian Handicap & Correct Score markets**
+- **Schema**: alembic `008_add_ah_cs_markets.py` adds `ah_line`, `ah_home_prob`,
+  `ah_away_prob`, `ah_lines` (JSON ladder), `cs_probs` (JSON {"H-A": p}),
+  `top_correct_score`, `top_cs_prob` to `predictions`. Idempotent (column-existence
+  guards) so it is safe to re-run.
+- **Orchestrator** (`services/ml_service/models/model_orchestrator.py`): new helpers
+  `_build_score_matrix(λh, λa)`, `_ah_prob_from_matrix(line, side)`,
+  `_build_ah_ladder()`, `_pick_fair_ah_line()`, `_correct_score_probs(top_n=15)`.
+  `predict()` now emits `ah_line / ah_home_prob / ah_away_prob / ah_lines` and
+  `cs_probs / top_correct_score / top_cs_prob` from the same Poisson λ_h, λ_a it
+  already solves for 1X2 / OU2.5 / BTTS. Matrix is 7×7 (≥99.9% mass).
+- **Persistence + response**: `app/api/routes/predict.py` writes the seven new
+  fields onto every Prediction and `build_prediction_response` surfaces them;
+  `PredictionResponse` schema in `app/schemas/schemas.py` extended.
+- **Bet selection**: `MarketUtils.determine_best_bet` now scores AH (when bookmaker
+  `ah_home`/`ah_away` odds are present in `match.market_odds`) and CS (when a
+  `cs_odds: {"H-A": price}` dict is provided), with proper two-way devig for AH and
+  proportional inverse-odds devig across the priced CS subset.
+
+**2) Automatic CLV backfill**
+- **Service**: new `app/services/clv_backfill.py` exposes `backfill_missing_clv(db,
+  limit, dry_run)`. Scans settled predictions (`Match.actual_outcome IS NOT NULL`,
+  `bet_side`+`entry_odds` set) whose paired `CLVEntry` is absent or has `clv IS NULL`,
+  reads `closing_odds_{home,draw,away}` off the Match, computes `profit = stake*(odds-1)`
+  on win else `-stake`, and upserts the CLV row. Returns counters
+  `{scanned, created, updated, skipped, missing_closing_odds}`.
+- **Background loop**: `model_accountability_loop` in `main.py` now calls
+  `backfill_missing_clv(db, limit=500)` once per cycle and logs the counters.
+  Runs alongside the existing weight-update + CLV-streak monitor passes.
+- **Admin endpoint**: new `app/api/routes/admin_clv.py` exposes
+  `POST /admin/clv/backfill?limit=&dry_run=` (admin role only). Returns the same
+  counters dict; useful when closing odds arrive after the live settler has fired.
+- Verified: route registered at `/admin/clv/backfill` (returns 401 without auth);
+  helpers smoke-tested against λh=1.6, λa=1.1 ⇒ fair AH line –0.5 with 49/51 split,
+  top score 1-1 at 11.8%.
+
 ## Recent Changes — AI Sources Upload Panel (Apr 25 2026)
 Built a dedicated AI data ingestion surface so admins **and** analyst+ tier users can feed
 raw Claude / Grok / ChatGPT analysis into the prediction ensemble match-by-match.

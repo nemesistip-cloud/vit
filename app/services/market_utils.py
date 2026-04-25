@@ -222,6 +222,15 @@ class MarketUtils:
         no_btts_prob: Optional[float] = None,
         btts_yes_odds: Optional[float] = None,
         btts_no_odds: Optional[float] = None,
+        # Asian Handicap (v4.6.1)
+        ah_line: Optional[float] = None,
+        ah_home_prob: Optional[float] = None,
+        ah_away_prob: Optional[float] = None,
+        ah_home_odds: Optional[float] = None,
+        ah_away_odds: Optional[float] = None,
+        # Correct Score (v4.6.1) — optional bookmaker odds keyed by "H-A"
+        cs_probs: Optional[Dict[str, float]] = None,
+        cs_odds: Optional[Dict[str, float]] = None,
     ) -> Dict[str, any]:
         """
         Determine which bet (if any) has the highest edge after vig removal,
@@ -300,6 +309,51 @@ class MarketUtils:
                 "raw_edge":  float(n_prob) - (1 / btts_no_odds),
                 "odds":      float(btts_no_odds),
             })
+
+        # ── Asian Handicap (v4.6.1) ───────────────────────────────────
+        # Both sides must be priced + at least one model probability provided.
+        if (ah_line is not None
+                and ah_home_odds and ah_home_odds > 1
+                and ah_away_odds and ah_away_odds > 1
+                and (ah_home_prob is not None or ah_away_prob is not None)):
+            h_p = float(ah_home_prob) if ah_home_prob is not None else max(0.0, 1.0 - float(ah_away_prob))
+            a_p = float(ah_away_prob) if ah_away_prob is not None else max(0.0, 1.0 - float(ah_home_prob))
+            vf_h, vf_a = MarketUtils._remove_vig_two_way(ah_home_odds, ah_away_odds)
+            line_label = f"{ah_line:+g}"
+            candidates.append({
+                "market": f"ah_{line_label}", "side": f"ah_home_{line_label}",
+                "model_prob": h_p, "vig_free_prob": vf_h,
+                "true_edge": h_p - vf_h,
+                "raw_edge":  h_p - (1 / ah_home_odds),
+                "odds":      float(ah_home_odds),
+            })
+            candidates.append({
+                "market": f"ah_{line_label}", "side": f"ah_away_{line_label}",
+                "model_prob": a_p, "vig_free_prob": vf_a,
+                "true_edge": a_p - vf_a,
+                "raw_edge":  a_p - (1 / ah_away_odds),
+                "odds":      float(ah_away_odds),
+            })
+
+        # ── Correct Score (v4.6.1) ────────────────────────────────────
+        # Vig is removed across the priced subset of scorelines.
+        if cs_probs and cs_odds:
+            priced = {
+                lbl: float(o) for lbl, o in cs_odds.items()
+                if isinstance(o, (int, float)) and o > 1 and lbl in cs_probs
+            }
+            if priced:
+                inv_total = sum(1.0 / o for o in priced.values()) or 1.0
+                for lbl, o in priced.items():
+                    p = float(cs_probs[lbl])
+                    vf = (1.0 / o) / inv_total
+                    candidates.append({
+                        "market": "correct_score", "side": f"cs_{lbl}",
+                        "model_prob": p, "vig_free_prob": vf,
+                        "true_edge": p - vf,
+                        "raw_edge":  p - (1 / o),
+                        "odds":      o,
+                    })
 
         best = None
         for c in candidates:

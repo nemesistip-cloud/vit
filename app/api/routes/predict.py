@@ -188,6 +188,14 @@ def build_prediction_response(
         over_25_prob=prediction.over_25_prob,
         under_25_prob=prediction.under_25_prob,
         btts_prob=prediction.btts_prob,
+        # v4.6.1 — AH + CS
+        ah_line=prediction.ah_line,
+        ah_home_prob=prediction.ah_home_prob,
+        ah_away_prob=prediction.ah_away_prob,
+        ah_lines=prediction.ah_lines,
+        cs_probs=prediction.cs_probs,
+        top_correct_score=prediction.top_correct_score,
+        top_cs_prob=prediction.top_cs_prob,
         consensus_prob=prediction.consensus_prob,
         final_ev=prediction.final_ev,
         recommended_stake=prediction.recommended_stake,
@@ -406,6 +414,15 @@ async def predict(
             no_btts_prob=_no_btts,
             btts_yes_odds=_mo.get("btts_yes") or _mo.get("btts"),
             btts_no_odds=_mo.get("btts_no"),
+            # v4.6.1 — Asian Handicap (only scored if bookmaker prices are present)
+            ah_line=result.get("ah_line"),
+            ah_home_prob=result.get("ah_home_prob"),
+            ah_away_prob=result.get("ah_away_prob"),
+            ah_home_odds=_mo.get("ah_home"),
+            ah_away_odds=_mo.get("ah_away"),
+            # v4.6.1 — Correct Score (bookmaker priced ladder)
+            cs_probs=result.get("cs_probs"),
+            cs_odds=_mo.get("cs_odds") if isinstance(_mo.get("cs_odds"), dict) else None,
         )
 
         recommended_stake = min(best_bet.get("kelly_stake", 0), MAX_STAKE)
@@ -508,6 +525,14 @@ async def predict(
             under_25_prob=result.get("under_25_prob") or result.get("under_2_5_prob"),
             btts_prob=result.get("btts_prob"),
             no_btts_prob=result.get("no_btts_prob"),
+            # v4.6.1 — Asian Handicap + Correct Score
+            ah_line=result.get("ah_line"),
+            ah_home_prob=result.get("ah_home_prob"),
+            ah_away_prob=result.get("ah_away_prob"),
+            ah_lines=result.get("ah_lines"),
+            cs_probs=result.get("cs_probs"),
+            top_correct_score=result.get("top_correct_score"),
+            top_cs_prob=result.get("top_cs_prob"),
             consensus_prob=consensus_prob,
             final_ev=best_bet.get("edge", 0),
             recommended_stake=recommended_stake,
