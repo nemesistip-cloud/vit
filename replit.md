@@ -3,7 +3,7 @@
 ## Overview
 Institutional-grade football prediction platform combining a 12-model AI ensemble, a VITCoin wallet economy, blockchain-verified staking, a model marketplace, governance DAO, and multi-tier subscriptions (Free / Pro $49/mo / Elite $199/mo).
 
-**Version: 4.5.0** — Bug fixes + enhancements: settlement multi-prediction fix, live-tracker cross-session fix, leaderboard N+1 fix, referral commission on subscription, trust engine auto-suspension, odds compare error transparency.
+**Version: 4.6.0** — 12-model spec bumped to v2 with `parent_version` lineage; backward-compatible pkl + calibrator fallback to v1; admin `Textarea` import restored; `vitcoin_pricing_loop()` restored; planned-feature roadmap captured in `CHANGELOG_v4.6.md`.
 
 ## Architecture
 - **Backend:** Python 3.11, FastAPI, SQLAlchemy (async), Alembic, Uvicorn on port 5000
@@ -62,6 +62,28 @@ Run after switching to PostgreSQL.
 
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
+
+## Recent Changes — v4.6.0 Model Spec Bump to v2 (Apr 25 2026)
+
+`services/ml_service/models/model_orchestrator.py` `_MODEL_SPECS` is now a list of dicts (was a list of 5-tuples). Every entry carries:
+- `key` — bumped from `*_v1` to `*_v2` (12 keys total)
+- `parent_version` — pointer back to the v1 key
+- `change_summary` — one-line description of the algorithmic upgrade landing in v2
+- the original `name`, `markets`, `sigma`, `market_trust` fields
+
+**Backward compatibility (no v1 regressions):**
+- `_try_load_pkl(key)` falls through to `parent_version` if the v2 `.pkl` is missing — existing v1 trained weights keep loading.
+- The calibration call site in `predict()` retries with `parent_version` when no v2 calibrators are fitted — all 78 v1 calibrators in `models/calibrators/` continue to apply.
+- `_MODEL_CLASS_MAP` registers both v1 and v2 keys against the same Python classes, so any cached prediction record referencing `*_v1` still resolves.
+
+**Registry (`app/modules/ai/registry.py`):**
+- Inserts a `model_metadata` row for each v2 key with `version="v4.6.0"`.
+- When a v2 row is inserted, the matching v1 row (if present) is `is_active=False` but **never deleted** — preserves history for already-settled predictions.
+- Bootstrap log line confirms: `[registry] Bootstrap complete — 12 new v2 models registered`.
+
+**Per-model v2 changes (definition of done; algorithmic deltas land in subsequent commits):** logistic = league-strength interaction term, RF = `class_weight='balanced'`, XGB = early-stopping on log-loss, Poisson = per-league λ priors, Elo = recency-decayed K, Dixon-Coles = ρ grid-search, LSTM = seq-len 10 + dropout 0.2, Transformer = 4-head attention over 64-d, Ensemble = entropy-weighted stacking, Market = Shin devigging, Bayes = Dirichlet-per-league priors, Hybrid = isotonic post-calibration.
+
+**Branch reconciliation:** `branches.md` documents all three remote branches; `MERGE_CONFLICTS.md` explains why `feat/v4.6-implementation` was *not* merged into local `main` (the merge would delete the v4.6 changelog, requirements.txt, and the admin/startup bug fixes — only a cherry-pick of the task-system delta is recommended).
 
 ## Recent Changes — Staking Hardening (Apr 22 2026)
 All VITCoin balance changes in the staking subsystem now flow through `WalletService.credit/debit`, which:
