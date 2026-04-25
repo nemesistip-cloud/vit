@@ -40,7 +40,7 @@ def _get_secure_secret_key() -> str:
 
 
 # ── Application version (single source of truth) ──────────────────────
-APP_VERSION: str = get_env("APP_VERSION", "4.5.0")
+APP_VERSION: str = "4.5.0"
 
 # ── Prediction / bankroll constants (override via env vars) ────────────
 MAX_STAKE: float          = float(get_env("MAX_STAKE",           "0.05"))
