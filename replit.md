@@ -63,6 +63,20 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Model Accountability Dashboard (Apr 25 2026)
+
+The CLV signal now has a UI. **Admin → Models → Accountability** renders the per-model CLV-blended scoreboard powered by `/api/ai-engine/performance`.
+
+Per row: status badge (Healthy / Watch / At Risk / Demoted / Insufficient), weight, accuracy %, log-loss, Brier, **rolling CLV score** (green > 0, red < 0), CLV samples, total predictions, and a Demote / Reactivate button.
+
+Status thresholds (computed client-side from a single snapshot — no streak tracking yet):
+- Healthy: `clv_score > 0` and `accuracy >= 0.50`
+- Watch: `clv_score < 0` or `accuracy < 0.50`
+- At Risk: `clv_score < -0.005` with `clv_samples >= 50` (red banner shows at-risk count at the top of the card and on the sub-section button)
+- Insufficient: `< 30` settled samples (skip judging until more data)
+
+Backend: new `POST /admin/models/set-active` (admin-auth required) toggles `model_metadata.is_active`. Demoted models are skipped by the predictor's `is_active=True` filter and the weight adjuster's per-model lookup; their history is preserved.
+
 ## Recent Changes — CLV-Blended Weight Adjuster (Apr 25 2026)
 
 The model weight loop now uses **Closing Line Value (CLV)** — the leading indicator of true betting edge — as a primary signal alongside log-loss.

@@ -420,6 +420,44 @@ async def reload_models(body: ReloadRequest, api_key: Optional[str] = Query(defa
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class ModelActiveRequest(BaseModel):
+    key: str
+    is_active: bool
+
+
+@router.post("/models/set-active")
+async def set_model_active(
+    body: ModelActiveRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """
+    Demote (is_active=False) or reactivate (is_active=True) a model in the
+    ensemble. Demoted models are skipped by the predictor and the weight
+    adjuster but their history is preserved. Powers the Accountability card
+    in the admin panel.
+    """
+    from app.modules.ai.models import ModelMetadata
+
+    result = await db.execute(
+        select(ModelMetadata).where(ModelMetadata.key == body.key)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Model '{body.key}' not found")
+
+    row.is_active = bool(body.is_active)
+    await db.commit()
+
+    action = "reactivated" if body.is_active else "demoted"
+    logger.info(f"Admin {current_user.email or 'unknown'} {action} model {body.key}")
+    return {
+        "key": body.key,
+        "is_active": row.is_active,
+        "message": f"Model {body.key} {action}",
+    }
+
+
 @router.post("/models/train")
 async def train_model_weights(
     body: ModelTrainRequest,

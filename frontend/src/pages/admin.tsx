@@ -1543,7 +1543,7 @@ function UsersTab() {
 
 function ModelsTab() {
   const qc = useQueryClient();
-  const [activeSection, setActiveSection] = useState<"engine" | "marketplace">("engine");
+  const [activeSection, setActiveSection] = useState<"engine" | "accountability" | "marketplace">("engine");
 
   const { data: modelsData, isLoading: mLoading } = useQuery<{ models: ModelInfo[] }>({
     queryKey: ["admin-models"],
@@ -1556,6 +1556,36 @@ function ModelsTab() {
     queryFn: () => apiGet("/admin/marketplace/pending"),
     refetchInterval: 20000,
   });
+
+  // CLV-blended accountability leaderboard (powers the Accountability section)
+  const { data: perfRaw, isLoading: perfLoading } = useQuery<any>({
+    queryKey: ["admin-ai-performance"],
+    queryFn: () => apiGet("/api/ai-engine/performance"),
+    refetchInterval: 30000,
+  });
+  // The endpoint returns either {models: [...]} or a bare array depending on
+  // the route version — handle both so we don't crash if it changes shape.
+  const perfData: any[] = Array.isArray(perfRaw)
+    ? perfRaw
+    : Array.isArray(perfRaw?.models)
+      ? perfRaw.models
+      : [];
+
+  const setActiveMutation = useMutation({
+    mutationFn: ({ key, is_active }: { key: string; is_active: boolean }) =>
+      apiPost("/admin/models/set-active", { key, is_active }),
+    onSuccess: (d: any) => {
+      toast.success(d?.message ?? "Model status updated");
+      qc.invalidateQueries({ queryKey: ["admin-ai-performance"] });
+      qc.invalidateQueries({ queryKey: ["admin-models"] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to update model status"),
+  });
+
+  // At-risk = negative rolling CLV with enough samples to be confident in it.
+  const atRiskCount = (perfData ?? []).filter(
+    (m: any) => m.is_active && (m.clv_samples ?? 0) >= 50 && (m.clv_score ?? 0) < -0.005,
+  ).length;
 
   const reloadMutation = useMutation({
     mutationFn: (key?: string) => apiPost("/admin/models/reload", key ? { model_key: key } : {}),
@@ -1595,12 +1625,25 @@ function ModelsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button
           variant={activeSection === "engine" ? "default" : "outline"}
           className={activeSection === "engine" ? "bg-cyan-500 text-black" : "border-gray-600 text-gray-300"}
           onClick={() => setActiveSection("engine")}>
           <Cpu className="w-4 h-4 mr-2" /> AI Engine ({modelsData?.models?.length ?? 0})
+        </Button>
+        <Button
+          variant={activeSection === "accountability" ? "default" : "outline"}
+          className={activeSection === "accountability"
+            ? "bg-purple-500 text-black"
+            : "border-gray-600 text-gray-300"}
+          onClick={() => setActiveSection("accountability")}>
+          <Activity className="w-4 h-4 mr-2" /> Accountability
+          {atRiskCount > 0 && (
+            <span className="ml-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+              {atRiskCount} at risk
+            </span>
+          )}
         </Button>
         <Button
           variant={activeSection === "marketplace" ? "default" : "outline"}
@@ -1692,6 +1735,154 @@ function ModelsTab() {
                     )}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeSection === "accountability" && (
+        <Card className="bg-gray-900 border-gray-700">
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-white flex items-center gap-2">
+                <Activity className="w-5 h-5 text-purple-400" /> CLV-Blended Accountability
+              </CardTitle>
+              <Button size="sm" variant="outline"
+                className="border-purple-500/30 text-purple-400 hover:border-purple-400"
+                onClick={() => qc.invalidateQueries({ queryKey: ["admin-ai-performance"] })}>
+                <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+              </Button>
+            </div>
+            <CardDescription className="text-gray-400">
+              Per-model rolling Closing-Line Value alongside log-loss and accuracy.
+              CLV is the leading indicator of true edge — a sustained negative
+              CLV means the model is on the wrong side of sharp money.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {atRiskCount > 0 && (
+              <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm flex items-center gap-2">
+                <span className="font-semibold">{atRiskCount}</span>
+                <span>
+                  model{atRiskCount === 1 ? "" : "s"} at risk —
+                  rolling CLV below −0.005 with ≥ 50 settled samples.
+                  Recommend demotion until investigated.
+                </span>
+              </div>
+            )}
+            {perfLoading ? (
+              <div className="flex justify-center py-10">
+                <div className="w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : !perfData?.length ? (
+              <div className="text-center text-gray-500 py-8">
+                No performance data yet. Wait for matches to settle.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700 text-gray-400">
+                      <th className="text-left p-3">Model</th>
+                      <th className="text-center p-3">Status</th>
+                      <th className="text-right p-3">Weight</th>
+                      <th className="text-right p-3">Accuracy</th>
+                      <th className="text-right p-3">Log-loss</th>
+                      <th className="text-right p-3">Brier</th>
+                      <th className="text-right p-3">CLV score</th>
+                      <th className="text-right p-3">CLV samples</th>
+                      <th className="text-right p-3">Total</th>
+                      <th className="text-center p-3">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {perfData.map((m: any) => {
+                      const clv = m.clv_score ?? 0;
+                      const clvN = m.clv_samples ?? 0;
+                      const acc = m.accuracy_1x2 ?? 0;
+                      const total = m.predictions_total ?? 0;
+                      let status: "healthy" | "watch" | "risk" | "new";
+                      if (!m.is_active) status = "risk";
+                      else if (clvN < 30 && total < 30) status = "new";
+                      else if (clvN >= 50 && clv < -0.005) status = "risk";
+                      else if (clv < 0 || acc < 0.5) status = "watch";
+                      else status = "healthy";
+                      const statusBadge = {
+                        healthy: { label: "Healthy", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
+                        watch:   { label: "Watch",   cls: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
+                        risk:    { label: m.is_active ? "At Risk" : "Demoted", cls: "bg-red-500/20 text-red-400 border-red-500/30" },
+                        new:     { label: "Insufficient",  cls: "bg-gray-500/20 text-gray-400 border-gray-500/30" },
+                      }[status];
+                      return (
+                        <tr key={m.key} className={`border-b border-gray-800 ${!m.is_active ? "opacity-60" : "hover:bg-gray-800/40"}`}>
+                          <td className="p-3">
+                            <div className="text-white font-medium">{m.name}</div>
+                            <div className="text-xs text-gray-500 font-mono">{m.key}</div>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`text-xs border px-2 py-0.5 rounded ${statusBadge.cls}`}>
+                              {statusBadge.label}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right text-cyan-400 font-mono text-xs">
+                            {typeof m.weight === "number" ? m.weight.toFixed(3) : "—"}
+                          </td>
+                          <td className="p-3 text-right text-gray-200 font-mono text-xs">
+                            {typeof m.accuracy_1x2 === "number" ? `${(m.accuracy_1x2 * 100).toFixed(1)}%` : "—"}
+                          </td>
+                          <td className="p-3 text-right font-mono text-xs text-yellow-400">
+                            {typeof m.log_loss === "number" ? m.log_loss.toFixed(4) : "—"}
+                          </td>
+                          <td className="p-3 text-right font-mono text-xs text-gray-300">
+                            {typeof m.brier_score === "number" ? m.brier_score.toFixed(4) : "—"}
+                          </td>
+                          <td className={`p-3 text-right font-mono text-xs ${
+                            clv > 0.001 ? "text-emerald-400"
+                            : clv < -0.001 ? "text-red-400"
+                            : "text-gray-400"
+                          }`}>
+                            {clvN > 0 ? (clv > 0 ? "+" : "") + clv.toFixed(4) : "—"}
+                          </td>
+                          <td className="p-3 text-right font-mono text-xs text-gray-400">
+                            {clvN}
+                          </td>
+                          <td className="p-3 text-right font-mono text-xs text-gray-400">
+                            {total.toLocaleString()}
+                          </td>
+                          <td className="p-3 text-center">
+                            {m.is_active ? (
+                              <Button size="sm" variant="ghost"
+                                className="h-7 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                disabled={setActiveMutation.isPending}
+                                onClick={() => {
+                                  if (confirm(`Demote "${m.name}"? Its predictions will stop contributing to the ensemble until reactivated.`)) {
+                                    setActiveMutation.mutate({ key: m.key, is_active: false });
+                                  }
+                                }}>
+                                <XCircle className="w-3 h-3 mr-1" /> Demote
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="ghost"
+                                className="h-7 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                disabled={setActiveMutation.isPending}
+                                onClick={() => setActiveMutation.mutate({ key: m.key, is_active: true })}>
+                                <CheckCircle className="w-3 h-3 mr-1" /> Reactivate
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="text-xs text-gray-500 px-4 py-3 border-t border-gray-800">
+                  CLV score is a rolling EMA of (model_prob − market_prob) × CLV per settled match.
+                  Status thresholds: Healthy = positive CLV &amp; ≥ 50% accuracy ·
+                  Watch = negative CLV or accuracy &lt; 50% ·
+                  At Risk = CLV &lt; −0.005 with ≥ 50 samples ·
+                  Insufficient = fewer than 30 settled samples.
+                </div>
               </div>
             )}
           </CardContent>
