@@ -20,11 +20,14 @@ class AIIngestionService:
 
     async def ingest_prediction(self, match_id: int, source: str, home_prob: float,
                               draw_prob: float, away_prob: float, confidence: float = 0.7,
-                              reason: str = None) -> bool:
-        """Ingest a single AI prediction"""
+                              reason: str = None, raw_content: str = None,
+                              submitted_by: int = None) -> bool:
+        """Ingest a single AI prediction (supports raw analysis text + submitter)."""
 
         # Validate probabilities
         total = home_prob + draw_prob + away_prob
+        if total <= 0:
+            return False
         if abs(total - 1.0) > 0.01:
             # Normalize
             home_prob /= total
@@ -47,6 +50,10 @@ class AIIngestionService:
             pred.away_prob = away_prob
             pred.confidence = confidence
             pred.reason = reason
+            if raw_content is not None:
+                pred.raw_content = raw_content
+            if submitted_by is not None:
+                pred.submitted_by = submitted_by
             pred.timestamp = datetime.now()
         else:
             # Create
@@ -57,7 +64,9 @@ class AIIngestionService:
                 draw_prob=draw_prob,
                 away_prob=away_prob,
                 confidence=confidence,
-                reason=reason
+                reason=reason,
+                raw_content=raw_content,
+                submitted_by=submitted_by,
             )
             self.db.add(pred)
 

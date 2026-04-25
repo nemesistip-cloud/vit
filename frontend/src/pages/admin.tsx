@@ -2737,6 +2737,310 @@ function TasksTab() {
   );
 }
 
+// ─── AI Sources Tab (manual Claude/Grok ingestion) ───────────────────
+
+interface AISourceMatch {
+  id: number;
+  home_team: string;
+  away_team: string;
+  league: string | null;
+  match_date: string | null;
+  status: string;
+  sources: string[];
+}
+
+interface AISourcePred {
+  id: number;
+  source: string;
+  home_prob: number;
+  draw_prob: number;
+  away_prob: number;
+  confidence: number;
+  reason: string | null;
+  raw_content: string | null;
+  submitted_by: number | null;
+  is_certified: boolean;
+  was_correct: boolean | null;
+  timestamp: string | null;
+}
+
+const AI_SOURCE_OPTIONS = [
+  "claude", "grok", "chatgpt", "gemini", "deepseek", "perplexity", "mistral", "manual",
+];
+
+export function AISourcesTab() {
+  const qc = useQueryClient();
+  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
+  const [form, setForm] = useState({
+    source: "claude",
+    home_prob: "0.40",
+    draw_prob: "0.28",
+    away_prob: "0.32",
+    confidence: "0.7",
+    reason: "",
+    raw_content: "",
+  });
+
+  const permsQ = useQuery({
+    queryKey: ["ai-sources", "perms"],
+    queryFn: () => apiGet<{ can_upload: boolean; role: string; tier: string; allowed_sources: string[] }>("/admin/ai-sources/permissions"),
+  });
+
+  const matchesQ = useQuery({
+    queryKey: ["ai-sources", "matches"],
+    queryFn: () => apiGet<{ matches: AISourceMatch[] }>("/admin/ai-sources/matches?limit=50"),
+    enabled: !!permsQ.data?.can_upload,
+  });
+
+  const detailQ = useQuery({
+    queryKey: ["ai-sources", "match", selectedMatchId],
+    queryFn: () => apiGet<{ match: AISourceMatch; predictions: AISourcePred[] }>(`/admin/ai-sources/match/${selectedMatchId}`),
+    enabled: !!selectedMatchId && !!permsQ.data?.can_upload,
+  });
+
+  const ingest = useMutation({
+    mutationFn: (body: any) => apiPost("/admin/ai-sources/ingest", body),
+    onSuccess: () => {
+      toast.success("AI source uploaded");
+      setForm(f => ({ ...f, reason: "", raw_content: "" }));
+      qc.invalidateQueries({ queryKey: ["ai-sources"] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Upload failed"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => apiDelete(`/admin/ai-sources/${id}`),
+    onSuccess: () => {
+      toast.success("Removed");
+      qc.invalidateQueries({ queryKey: ["ai-sources"] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Delete failed"),
+  });
+
+  if (permsQ.isLoading) {
+    return <Skeleton className="h-64 w-full bg-gray-800" />;
+  }
+
+  if (permsQ.data && !permsQ.data.can_upload) {
+    return (
+      <Card className="bg-gray-800 border-gray-700">
+        <CardContent className="p-6 text-center text-gray-300">
+          <Lock className="w-10 h-10 mx-auto mb-3 text-amber-400" />
+          <h3 className="text-lg font-semibold mb-2">AI Source Uploads Locked</h3>
+          <p className="text-sm text-gray-400">
+            Uploading raw Claude / Grok analysis requires an admin account or an
+            <span className="text-cyan-400"> analyst, pro, or elite</span> subscription tier.
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            Current role: <span className="text-white">{permsQ.data.role}</span> · tier: <span className="text-white">{permsQ.data.tier}</span>
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const matches = matchesQ.data?.matches ?? [];
+
+  const submit = () => {
+    if (!selectedMatchId) {
+      toast.error("Pick a match first");
+      return;
+    }
+    const h = parseFloat(form.home_prob);
+    const d = parseFloat(form.draw_prob);
+    const a = parseFloat(form.away_prob);
+    if ([h, d, a].some(n => Number.isNaN(n))) {
+      toast.error("Probabilities must be valid numbers");
+      return;
+    }
+    ingest.mutate({
+      match_id: selectedMatchId,
+      source: form.source,
+      home_prob: h,
+      draw_prob: d,
+      away_prob: a,
+      confidence: parseFloat(form.confidence) || 0.7,
+      reason: form.reason || null,
+      raw_content: form.raw_content || null,
+    });
+  };
+
+  const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Brain className="w-5 h-5 text-cyan-400" />
+            Upload AI Match Analysis
+          </CardTitle>
+          <CardDescription>
+            Paste raw insights from Claude, Grok, ChatGPT, etc. and feed them
+            into the ensemble — match by match. Updates an existing entry if the
+            same source is re-uploaded.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-gray-300">Match</Label>
+              <Select
+                value={selectedMatchId ? String(selectedMatchId) : ""}
+                onValueChange={v => setSelectedMatchId(parseInt(v, 10))}
+              >
+                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                  <SelectValue placeholder={matchesQ.isLoading ? "Loading…" : "Select a match"} />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700 text-white max-h-80">
+                  {matches.map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.home_team} vs {m.away_team}
+                      {m.league ? ` · ${m.league}` : ""}
+                      {m.sources.length > 0 ? ` · [${m.sources.join(", ")}]` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-gray-300">AI Source</Label>
+              <Select value={form.source} onValueChange={v => setForm(f => ({ ...f, source: v }))}>
+                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                  {(permsQ.data?.allowed_sources ?? AI_SOURCE_OPTIONS).map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {(["home_prob", "draw_prob", "away_prob", "confidence"] as const).map(k => (
+              <div key={k}>
+                <Label className="text-gray-300 capitalize">{k.replace("_", " ")}</Label>
+                <Input
+                  type="number" step="0.01" min="0" max="1"
+                  value={(form as any)[k]}
+                  onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
+                  className="bg-gray-900 border-gray-700 text-white"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500">
+            Sum of home + draw + away should be ≈ 1.00 (auto-normalised within ±10%).
+          </p>
+
+          <div>
+            <Label className="text-gray-300">Short reason (one line)</Label>
+            <Input
+              value={form.reason}
+              onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
+              placeholder="e.g. Home side missing 2 starting CBs, away in form"
+              maxLength={500}
+              className="bg-gray-900 border-gray-700 text-white"
+            />
+          </div>
+
+          <div>
+            <Label className="text-gray-300">Raw Claude / Grok analysis (full paste)</Label>
+            <Textarea
+              value={form.raw_content}
+              onChange={e => setForm(f => ({ ...f, raw_content: e.target.value }))}
+              placeholder="Paste the full reasoning text from the AI here…"
+              rows={8}
+              maxLength={20000}
+              className="bg-gray-900 border-gray-700 text-white font-mono text-xs"
+            />
+            <p className="text-xs text-gray-500 mt-1">{form.raw_content.length}/20000 chars</p>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={submit}
+              disabled={ingest.isPending || !selectedMatchId}
+              className="bg-cyan-500 hover:bg-cyan-600 text-black"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {ingest.isPending ? "Uploading…" : "Upload AI Source"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedMatchId && (
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-white text-base">
+              Existing AI sources for this match
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {detailQ.isLoading ? (
+              <Skeleton className="h-24 w-full bg-gray-700" />
+            ) : (detailQ.data?.predictions ?? []).length === 0 ? (
+              <p className="text-sm text-gray-400">No AI sources uploaded yet for this match.</p>
+            ) : (
+              <div className="space-y-3">
+                {detailQ.data!.predictions.map(p => (
+                  <div key={p.id} className="border border-gray-700 rounded p-3 bg-gray-900/40">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          {p.source}
+                        </Badge>
+                        <span className="text-xs text-gray-400">
+                          conf {fmtPct(p.confidence)} · {p.timestamp ? new Date(p.timestamp).toLocaleString() : ""}
+                        </span>
+                        {p.was_correct === true && (
+                          <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">correct</Badge>
+                        )}
+                        {p.was_correct === false && (
+                          <Badge className="bg-rose-500/20 text-rose-300 border border-rose-500/30">missed</Badge>
+                        )}
+                      </div>
+                      <Button
+                        size="sm" variant="ghost"
+                        className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                        onClick={() => remove.mutate(p.id)}
+                        disabled={remove.isPending}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs text-gray-300 mb-2">
+                      <div>Home: <span className="text-white">{fmtPct(p.home_prob)}</span></div>
+                      <div>Draw: <span className="text-white">{fmtPct(p.draw_prob)}</span></div>
+                      <div>Away: <span className="text-white">{fmtPct(p.away_prob)}</span></div>
+                    </div>
+                    {p.reason && (
+                      <p className="text-sm text-gray-200 mb-1">{p.reason}</p>
+                    )}
+                    {p.raw_content && (
+                      <details className="text-xs text-gray-400">
+                        <summary className="cursor-pointer text-cyan-400 hover:text-cyan-300">
+                          View raw analysis ({p.raw_content.length} chars)
+                        </summary>
+                        <pre className="whitespace-pre-wrap mt-2 p-2 bg-black/40 rounded border border-gray-700">
+{p.raw_content}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── Root Admin Page ──────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -2784,6 +3088,7 @@ export default function AdminPage() {
               { value: "kyc",            label: "KYC",            icon: UserCheck },
               { value: "tasks",          label: "Tasks",          icon: ClipboardList },
               { value: "models",         label: "Models",         icon: Cpu },
+              { value: "ai-sources",     label: "AI Sources",     icon: Brain },
               { value: "calibration",    label: "Calibration",    icon: Activity },
               { value: "leagues",        label: "Leagues",        icon: Globe },
               { value: "markets",        label: "Markets",        icon: TrendingUp },
@@ -2805,6 +3110,7 @@ export default function AdminPage() {
           <TabsContent value="kyc"><KYCTab /></TabsContent>
           <TabsContent value="tasks"><TasksTab /></TabsContent>
           <TabsContent value="models"><ModelsTab /></TabsContent>
+          <TabsContent value="ai-sources"><AISourcesTab /></TabsContent>
           <TabsContent value="calibration"><CalibrationTab /></TabsContent>
           <TabsContent value="leagues"><LeaguesTab /></TabsContent>
           <TabsContent value="markets"><MarketsTab /></TabsContent>

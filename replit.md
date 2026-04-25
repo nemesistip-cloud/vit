@@ -63,6 +63,29 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — AI Sources Upload Panel (Apr 25 2026)
+Built a dedicated AI data ingestion surface so admins **and** analyst+ tier users can feed
+raw Claude / Grok / ChatGPT analysis into the prediction ensemble match-by-match.
+- **Schema**: alembic `007_add_ai_source_raw_content.py` adds `raw_content TEXT` and
+  `submitted_by INTEGER` columns to `ai_predictions`.
+- **Backend**: new `app/api/routes/admin_ai_sources.py` router (`/admin/ai-sources/*`):
+  `permissions`, `matches`, `match/{id}`, `POST /ingest`, `DELETE /{id}`.
+  Gated via `get_current_user` + `_can_upload` (admin role OR
+  `subscription_tier ∈ {analyst, pro, elite}`). Validates probability range, normalises
+  ±10%, allows up to 20 000 chars of pasted analysis.
+- **Service**: `AIIngestionService.ingest_prediction()` extended with `raw_content` and
+  `submitted_by` parameters; upserts on `(match_id, source)`.
+- **Frontend**:
+  - New `AISourcesTab` in `frontend/src/pages/admin.tsx` (also exported) with match
+    selector, source dropdown (claude/grok/chatgpt/gemini/…), home/draw/away/confidence
+    inputs, one-line reason, full-text textarea, and a list of existing sources per
+    match with delete buttons.
+  - New standalone page `frontend/src/pages/ai-sources.tsx` so analyst+ users (without
+    admin access) can reach it via `/ai-sources`.
+  - Sidebar (`layout.tsx`) shows the **AI Sources** link in the **Pro** group whenever
+    `isAdmin || hasTier("analyst")`.
+  - Route `/ai-sources` registered in `App.tsx`.
+
 ## Recent Changes — Dashboard / Plan / Predictions Audit Fixes (Apr 25 2026)
 
 Audit of the live mobile screenshots surfaced four cross-cutting bugs that made the dashboard read inconsistently with the underlying data. All fixed front-to-back.

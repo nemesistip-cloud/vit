@@ -111,6 +111,7 @@ from app.auth.totp import router as totp_router
 from app.modules.referral.routes import router as referral_router
 from app.api.routes.leaderboard import router as leaderboard_router
 from app.api.routes.exports import router as exports_router
+from app.api.routes.admin_ai_sources import router as admin_ai_sources_router
 
 # ===== MIDDLEWARE =====
 from app.api.middleware.auth import APIKeyMiddleware
@@ -1336,6 +1337,7 @@ app.include_router(tasks_router)
 # Reward Postback Routes
 app.include_router(postbacks_router)
 app.include_router(admin_rewards_router)
+app.include_router(admin_ai_sources_router)
 
 # Marketplace (Module G)
 app.include_router(marketplace_router)

@@ -7,7 +7,7 @@ import {
   CreditCard, Gift, Home, Lock, LogOut, Menu, ShieldCheck,
   ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
-  Sparkles,
+  Sparkles, Brain,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -72,16 +72,29 @@ const MOBILE_BOTTOM_NAV = [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasTier } = useAuth();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   if (!user) return <>{children}</>;
 
+  const isAdmin = user?.role === "admin";
+  const canUploadAi = isAdmin || hasTier("analyst");
+
+  const proGroup: NavGroup = {
+    name: "Pro",
+    items: [
+      ...NAV_GROUPS.find(g => g.name === "Pro")!.items,
+      ...(canUploadAi
+        ? [{ name: "AI Sources", href: "/ai-sources", icon: Brain }]
+        : []),
+    ],
+  };
+
   const allGroups: NavGroup[] = [
-    ...NAV_GROUPS,
-    ...(user?.role === "admin"
+    ...NAV_GROUPS.map(g => (g.name === "Pro" ? proGroup : g)),
+    ...(isAdmin
       ? [{ name: "Admin", items: [{ name: "Admin Panel", href: "/admin", icon: Lock }] }]
       : []),
   ];

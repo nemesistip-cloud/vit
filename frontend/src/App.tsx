@@ -25,6 +25,7 @@ const TrainingPage        = lazy(() => import("@/pages/training"));
 const AnalyticsPage       = lazy(() => import("@/pages/analytics"));
 const SubscriptionPage    = lazy(() => import("@/pages/subscription"));
 const AdminPage           = lazy(() => import("@/pages/admin"));
+const AISourcesPage       = lazy(() => import("@/pages/ai-sources"));
 const MarketplacePage     = lazy(() => import("@/pages/marketplace"));
 const TrustPage           = lazy(() => import("@/pages/trust"));
 const BridgePage          = lazy(() => import("@/pages/bridge"));
@@ -151,6 +152,9 @@ function Router() {
       </Route>
       <Route path="/admin">
         <Layout><ProtectedRoute component={AdminPage} /></Layout>
+      </Route>
+      <Route path="/ai-sources">
+        <Layout><ProtectedRoute component={AISourcesPage} /></Layout>
       </Route>
       <Route path="/accumulator">
         <Layout><ProtectedRoute component={AccumulatorPage} /></Layout>

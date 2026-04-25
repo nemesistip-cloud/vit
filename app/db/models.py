@@ -229,6 +229,8 @@ class AIPrediction(Base):
     away_prob = Column(Float, nullable=False)
     confidence = Column(Float, default=0.7)
     reason = Column(String(500), nullable=True)
+    raw_content = Column(Text, nullable=True)  # Full pasted analysis from Claude/Grok/etc
+    submitted_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # who uploaded it
     model_version = Column(String(50), default="manual_v1")
     is_certified = Column(Boolean, default=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
