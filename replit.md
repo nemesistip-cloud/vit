@@ -63,6 +63,25 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Subscription / Markets / Training Gap-Fix (Apr 25 2026)
+
+Closed five P0/P1 gaps found during a deep audit. All changes are wired front-to-back; backend imports clean, TypeScript clean, frontend rebuilt, server restarted, `/health` green.
+
+- **G1 — Admin subscription pricing was unreachable (P0).** The frontend `SubscriptionsTab` was hitting `GET /admin/subscriptions` and `PUT /admin/subscriptions/{id}`, but **neither route existed in `app/api/routes/admin.py`** — admins literally could not view or change pricing. Added three endpoints under `get_current_admin`:
+  - `GET /admin/subscriptions` — list every plan with id/name/display_name/price_monthly/price_yearly/prediction_limit/features/is_active.
+  - `PUT /admin/subscriptions/{plan_id}` — partial update (price, limit, features, active flag) with audit-log entry capturing old→new diffs.
+  - `POST /admin/subscriptions` — create a new plan with 409 conflict guard on `name`.
+- **G2 — Training upload was destroying the dataset (P0).** `POST /api/training/dataset/upload` defaulted `merge=False`, so every upload **replaced** `historical_matches.json` instead of appending to it. Flipped the default to `merge=True` and added duplicate suppression on `(home_team, away_team, date)`. Response now also returns `duplicates_skipped` so users can see what was filtered.
+- **G3 — Best-bet logic only knew H/D/A (P0).** `MarketUtils.determine_best_bet()` ranked only the 1X2 market, ignoring `over_25_prob`/`btts_prob` even though both were already computed by the orchestrator and stored on `Prediction`. Added a 2-way vig-removal helper and extended `determine_best_bet()` with optional `over_25_prob/under_25_prob/over_25_odds/under_25_odds/btts_prob/no_btts_prob/btts_yes_odds/btts_no_odds` params. Picks the highest-edge candidate across **1X2 + Over/Under 2.5 + BTTS** and returns a new `best_market` field plus the full `candidates` list. `app/api/routes/predict.py` now passes the orchestrator's O/U + BTTS probabilities and pulls the matching odds out of `match.market_odds` (`over_2_5`/`under_2_5`/`btts_yes`/`btts_no`).
+- **G4 — Admin's own plan badge said "free" (P1).** `/auth/me` returned the raw `User.subscription_tier` which defaults to `"viewer"`, so the admin's own UI gates locked them out of paid features on their own platform. The endpoint now returns `subscription_tier="elite"` whenever `admin_role` is set, while preserving the original value as `raw_subscription_tier` for audit/display.
+- **G5 — AI Source Performance had no refresh trigger (P1).** The "AI Source Performance" panel relied on something else writing to `ai_performances` first, so the table sat permanently empty on a fresh install. Added `useUpdateAiPerformance()` hook (POST `/ai/performance/update`) and a purple "Update Performance" button in the panel header that recomputes accuracy/Brier from settled match outcomes and invalidates both the performance and report queries on success.
+
+**Verification**
+- `python -c "..."` smoke test of the multi-market scorer → with `home=0.50, draw=0.25, away=0.25, O2.5=0.65@1.85, U2.5@2.0, BTTS yes=0.62@1.75, no@2.05` it correctly picks `over_2_5` (edge 0.1305) instead of the `home` 1X2 leg.
+- `GET /admin/subscriptions` → 401 (mounted, auth-gated as designed).
+- `PUT /admin/subscriptions/1` → 401 (mounted, auth-gated as designed).
+- `npx tsc --noEmit --skipLibCheck` → 0 errors. `npm run build` → green. Backend `/health` → ok.
+
 ## Recent Changes — Polish & Bug-Fix Pass (Apr 25 2026)
 
 Tightened both surfaces, fixed a runtime-breaking page, and hardened a couple of small UX rough edges. Full TypeScript pass (`npx tsc --noEmit --skipLibCheck`) now reports **zero errors**.

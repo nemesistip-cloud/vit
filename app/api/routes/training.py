@@ -1522,7 +1522,7 @@ def _normalize_record(raw: dict) -> dict:
 async def upload_training_dataset(
     file: UploadFile = File(...),
     api_key: Optional[str] = Query(default=None),
-    merge: bool = Query(default=False, description="Merge with existing historical_matches.json instead of replacing"),
+    merge: bool = Query(default=True, description="Merge with existing historical_matches.json (default). Pass merge=false to replace."),
 ):
     """
     Upload a CSV or JSON file of historical match data.
@@ -1590,13 +1590,24 @@ async def upload_training_dataset(
         raise HTTPException(status_code=400, detail="No valid records found after normalization")
 
     hist_path = os.path.join(_DATA_DIR, "historical_matches.json")
+    duplicates_skipped = 0
     if merge and os.path.exists(hist_path):
         try:
             with open(hist_path) as f:
                 existing = json.load(f)
         except Exception:
             existing = []
-        combined = existing + valid_records
+        seen = {(r.get("home_team", ""), r.get("away_team", ""), r.get("date", ""))
+                for r in existing if isinstance(r, dict)}
+        new_unique = []
+        for r in valid_records:
+            key = (r.get("home_team", ""), r.get("away_team", ""), r.get("date", ""))
+            if key in seen:
+                duplicates_skipped += 1
+                continue
+            seen.add(key)
+            new_unique.append(r)
+        combined = existing + new_unique
     else:
         combined = valid_records
 
@@ -1616,13 +1627,20 @@ async def upload_training_dataset(
         "records_uploaded": len(valid_records),
         "records_in_dataset": len(combined),
         "merged": merge,
+        "duplicates_skipped": duplicates_skipped,
         "leagues": leagues,
         "date_range": {
             "start": min(dates) if dates else None,
             "end": max(dates) if dates else None,
         },
         "parse_errors": errors[:20],
-        "message": f"Uploaded {len(valid_records)} records → historical_matches.json ({len(combined)} total)",
+        "message": (
+            f"Uploaded {len(valid_records)} records "
+            f"({duplicates_skipped} duplicates skipped) → "
+            f"historical_matches.json now contains {len(combined)} total"
+            if merge else
+            f"Replaced dataset with {len(valid_records)} records"
+        ),
     }
 
 

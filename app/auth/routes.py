@@ -303,13 +303,18 @@ async def me(
 
     from app.core.roles import get_permissions_for_admin_role
     admin_role = getattr(user, "admin_role", None)
+    raw_tier = getattr(user, "subscription_tier", "viewer") or "viewer"
+    # v4.6.1: Admins (including super_admin) always get effective elite tier
+    # so feature gates don't lock them out of their own platform.
+    effective_tier = "elite" if admin_role else raw_tier
     return {
         "id": user.id,
         "email": user.email,
         "username": user.username,
         "role": user.role,
         "admin_role": admin_role,
-        "subscription_tier": getattr(user, "subscription_tier", "viewer") or "viewer",
+        "subscription_tier": effective_tier,
+        "raw_subscription_tier": raw_tier,
         "is_banned": getattr(user, "is_banned", False),
         "is_active": user.is_active,
         "is_verified": user.is_verified,

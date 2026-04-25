@@ -10,6 +10,48 @@ The `# main.py — VIT Sports Intelligence Network v4.6.0` header in `main.py` l
 
 ## Upgrade History
 
+### Apr 25 2026 — Subscription / Markets / Training Gap-Fix
+
+Five gaps found during a deep audit, all closed in one pass.
+
+**G1 · Admin subscription pricing was unreachable (P0)**
+- Frontend `SubscriptionsTab` was calling `GET /admin/subscriptions` and `PUT /admin/subscriptions/{id}` but **neither route existed**. Admins could not view or edit pricing — the tab spun forever on a 404.
+- Added 3 admin-gated endpoints in `app/api/routes/admin.py`:
+  - `GET /admin/subscriptions` — list every plan.
+  - `PUT /admin/subscriptions/{plan_id}` — partial update (`display_name`, `price_monthly`, `price_yearly`, `prediction_limit`, `features`, `is_active`); writes an `AuditLog` entry capturing old→new field diffs.
+  - `POST /admin/subscriptions` — create a new plan with 409 conflict guard on `name`.
+
+**G2 · Training upload was destroying the dataset (P0)**
+- `POST /api/training/dataset/upload` defaulted `merge=False`, so each upload silently replaced `historical_matches.json`. The user explicitly flagged this: *"when I upload a training data it replaces the existing ones — that is how back infrastructure failed."*
+- Flipped the default to `merge=True` and added dedup on `(home_team, away_team, date)`. Response now exposes `duplicates_skipped` so the operator can see what was filtered, and the success message branches between merge / replace wording.
+
+**G3 · Best-bet logic only ranked 1X2 (P0)**
+- `MarketUtils.determine_best_bet()` ranked only home/draw/away, ignoring the orchestrator's `over_25_prob` and `btts_prob` outputs — the user wrote: *"the model can also pick bet sides on TOTAL, HDC, BTTS etc."*
+- Added a 2-way vig-removal helper `_remove_vig_two_way()` and extended `determine_best_bet()` with optional kwargs: `over_25_prob`, `under_25_prob`, `over_25_odds`, `under_25_odds`, `btts_prob`, `no_btts_prob`, `btts_yes_odds`, `btts_no_odds`. The function now scores **1X2 + Over/Under 2.5 + BTTS** in one pass, picks the highest-edge candidate across all of them, and returns a new `best_market` field plus the full `candidates` list for transparency.
+- `app/api/routes/predict.py` now feeds the orchestrator's O/U + BTTS probabilities and pulls the matching market odds out of `match.market_odds` (`over_2_5` / `under_2_5` / `btts_yes` / `btts_no`).
+- Sanity check: `home=0.50, draw=0.25, away=0.25` + `O2.5=0.65@1.85, U2.5@2.0` + `BTTS yes=0.62@1.75, no@2.05` → picks `over_2_5` with edge **0.1305**, instead of returning the `home` 1X2 leg (edge ~0.04 after vig removal).
+
+**G4 · Admin's own subscription badge always showed "free" (P1)**
+- `/auth/me` returned `User.subscription_tier` which defaults to `"viewer"`. Admins were therefore locked out of their own paid feature gates and the badge in `layout.tsx` sat on the grey "viewer" colour.
+- `/auth/me` now resolves an `effective_tier` of `"elite"` whenever `admin_role` is set; the original value is still exposed as `raw_subscription_tier` so audit views can display it.
+
+**G5 · AI Source Performance had no refresh trigger (P1)**
+- The admin **AI Source Performance** card relied on something external writing to `ai_performances` first, so the panel sat permanently empty on a fresh install.
+- New `useUpdateAiPerformance()` hook (POST `/ai/performance/update`) and a purple "Update Performance" button in the card header — recomputes accuracy / Brier from settled match outcomes and invalidates both the performance and report queries on success.
+
+**Verification**
+- Backend imports clean (`python -c "from app.api.routes.admin import router; ..."`).
+- Multi-market scorer smoke test passes (correctly elevates Over 2.5 above 1X2 on synthetic input).
+- `GET /admin/subscriptions` → 401 (mounted, auth-gated as designed).
+- `PUT /admin/subscriptions/1` → 401 (mounted, auth-gated as designed).
+- `npx tsc --noEmit --skipLibCheck` → 0 errors.
+- `npm run build` → green; admin chunk 96.84 kB gzip:18.86 kB.
+- Backend `/health` → `{status:"ok",models_loaded:12,db_connected:true}`.
+
+**Known gaps (not in this pass)**
+- Asian Handicap and Correct Score still aren't trained markets; no `ah_prob` / `correct_score_prob` columns exist on `Prediction` yet, so the multi-market scorer can't include them. Adding requires new ML output heads + a calibration cycle.
+- AI sources beyond Gemini still need `ANTHROPIC_API_KEY` / `XAI_API_KEY` to actually populate the new performance refresh.
+
 ### Apr 25 2026 — Polish & Bug-Fix Pass
 
 **Bugs fixed**

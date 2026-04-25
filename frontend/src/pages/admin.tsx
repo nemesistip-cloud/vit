@@ -10,6 +10,7 @@ import {
   useAdminAccumulatorSend,
   useAiFeedConsensus,
   useGetAiPerformance,
+  useUpdateAiPerformance,
   useGetAiReport,
 } from "@/api-client/index";
 import { useAuth } from "@/lib/auth";
@@ -2826,6 +2827,7 @@ function CalibrationTab() {
   });
   const { data: aiPerformance } = useGetAiPerformance();
   const { data: aiReport } = useGetAiReport();
+  const updatePerfMutation = useUpdateAiPerformance();
 
   async function refit() {
     setBusy(true);
@@ -2936,10 +2938,27 @@ function CalibrationTab() {
       {/* AI Performance */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Brain className="w-4 h-4 text-purple-400" />
-            AI Source Performance
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white flex items-center gap-2">
+              <Brain className="w-4 h-4 text-purple-400" />
+              AI Source Performance
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-purple-500/50 text-purple-300 hover:text-white hover:bg-purple-950/50"
+              disabled={updatePerfMutation.isPending}
+              onClick={() => updatePerfMutation.mutate(undefined, {
+                onSuccess: () => toast.success("AI performance metrics refreshed"),
+                onError: (e: any) => toast.error(e?.message || "Refresh failed"),
+              })}
+            >
+              {updatePerfMutation.isPending ? "Updating…" : "Update Performance"}
+            </Button>
+          </div>
+          <CardDescription className="text-gray-500 text-xs mt-1">
+            Recomputes accuracy / Brier from settled match outcomes for every AI source (Gemini, Claude, Grok…).
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {aiPerformance && Object.keys(aiPerformance).length > 0 ? (

@@ -751,6 +751,17 @@ export function useGetAiPerformance() {
   });
 }
 
+export function useUpdateAiPerformance() {
+  const qc = useQueryClient();
+  return useMutation<any, Error, void>({
+    mutationFn: () => apiPost<any>("/ai/performance/update", {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: getAiPerformanceQueryKey() });
+      qc.invalidateQueries({ queryKey: getAiReportQueryKey() });
+    },
+  });
+}
+
 export function useGetAiReport() {
   return useQuery<any>({
     queryKey: getAiReportQueryKey(),

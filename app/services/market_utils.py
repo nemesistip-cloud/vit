@@ -193,6 +193,17 @@ class MarketUtils:
         return (entry_odds - closing_odds) / closing_odds
 
     @staticmethod
+    def _remove_vig_two_way(odds_a: float, odds_b: float) -> Tuple[float, float]:
+        """Remove bookmaker vig from a 2-way market (BTTS Yes/No, Over/Under)."""
+        if odds_a <= 1 or odds_b <= 1:
+            return 0.5, 0.5
+        ip_a, ip_b = 1 / odds_a, 1 / odds_b
+        total = ip_a + ip_b
+        if total <= 0:
+            return 0.5, 0.5
+        return ip_a / total, ip_b / total
+
+    @staticmethod
     def determine_best_bet(
         home_prob: float,
         draw_prob: float,
@@ -201,17 +212,28 @@ class MarketUtils:
         draw_odds: float,
         away_odds: float,
         min_edge: float = 0.02,
-        max_kelly: float = 0.10
+        max_kelly: float = 0.10,
+        # v4.6.1: multi-market support — pass any subset; markets without odds are skipped
+        over_25_prob: Optional[float] = None,
+        under_25_prob: Optional[float] = None,
+        over_25_odds: Optional[float] = None,
+        under_25_odds: Optional[float] = None,
+        btts_prob: Optional[float] = None,
+        no_btts_prob: Optional[float] = None,
+        btts_yes_odds: Optional[float] = None,
+        btts_no_odds: Optional[float] = None,
     ) -> Dict[str, any]:
         """
-        Determine which bet (if any) has positive edge after vig removal.
+        Determine which bet (if any) has the highest edge after vig removal,
+        scanning across the 1X2, Over/Under 2.5 and BTTS markets simultaneously.
 
-        v2.1.0: Added min_edge and max_kelly parameters.
+        v4.6.1: Multi-market scoring. Earlier versions only ranked H/D/A.
         """
         vig_free = MarketUtils.remove_vig(home_odds, draw_odds, away_odds)
 
         candidates = [
             {
+                "market":       "1x2",
                 "side":         "home",
                 "model_prob":   home_prob,
                 "vig_free_prob": vig_free["home"],
@@ -220,6 +242,7 @@ class MarketUtils:
                 "odds":         home_odds,
             },
             {
+                "market":       "1x2",
                 "side":         "draw",
                 "model_prob":   draw_prob,
                 "vig_free_prob": vig_free["draw"],
@@ -228,6 +251,7 @@ class MarketUtils:
                 "odds":         draw_odds,
             },
             {
+                "market":       "1x2",
                 "side":         "away",
                 "model_prob":   away_prob,
                 "vig_free_prob": vig_free["away"],
@@ -236,6 +260,46 @@ class MarketUtils:
                 "odds":         away_odds,
             },
         ]
+
+        # ── Over/Under 2.5 ────────────────────────────────────────────
+        if (over_25_prob is not None and over_25_odds and over_25_odds > 1
+                and under_25_odds and under_25_odds > 1):
+            u_prob = under_25_prob if under_25_prob is not None else max(0.0, 1.0 - float(over_25_prob))
+            vf_o, vf_u = MarketUtils._remove_vig_two_way(over_25_odds, under_25_odds)
+            candidates.append({
+                "market": "over_under_2_5", "side": "over_2_5",
+                "model_prob": float(over_25_prob), "vig_free_prob": vf_o,
+                "true_edge": float(over_25_prob) - vf_o,
+                "raw_edge":  float(over_25_prob) - (1 / over_25_odds),
+                "odds":      float(over_25_odds),
+            })
+            candidates.append({
+                "market": "over_under_2_5", "side": "under_2_5",
+                "model_prob": float(u_prob), "vig_free_prob": vf_u,
+                "true_edge": float(u_prob) - vf_u,
+                "raw_edge":  float(u_prob) - (1 / under_25_odds),
+                "odds":      float(under_25_odds),
+            })
+
+        # ── BTTS Yes/No ───────────────────────────────────────────────
+        if (btts_prob is not None and btts_yes_odds and btts_yes_odds > 1
+                and btts_no_odds and btts_no_odds > 1):
+            n_prob = no_btts_prob if no_btts_prob is not None else max(0.0, 1.0 - float(btts_prob))
+            vf_y, vf_n = MarketUtils._remove_vig_two_way(btts_yes_odds, btts_no_odds)
+            candidates.append({
+                "market": "btts", "side": "btts_yes",
+                "model_prob": float(btts_prob), "vig_free_prob": vf_y,
+                "true_edge": float(btts_prob) - vf_y,
+                "raw_edge":  float(btts_prob) - (1 / btts_yes_odds),
+                "odds":      float(btts_yes_odds),
+            })
+            candidates.append({
+                "market": "btts", "side": "btts_no",
+                "model_prob": float(n_prob), "vig_free_prob": vf_n,
+                "true_edge": float(n_prob) - vf_n,
+                "raw_edge":  float(n_prob) - (1 / btts_no_odds),
+                "odds":      float(btts_no_odds),
+            })
 
         best = None
         for c in candidates:
@@ -253,19 +317,23 @@ class MarketUtils:
             return {
                 "has_edge":      True,
                 "best_side":     best["side"],
+                "best_market":   best["market"],
                 "edge":          best["true_edge"],
                 "raw_edge":      best["raw_edge"],
                 "vig_free_prob": best["vig_free_prob"],
                 "odds":          best["odds"],
                 "kelly_stake":   kelly,
+                "candidates":    candidates,
             }
 
         return {
             "has_edge":      False,
             "best_side":     None,
+            "best_market":   None,
             "edge":          0,
             "raw_edge":      0,
             "vig_free_prob": 0,
             "odds":          0,
             "kelly_stake":   0,
+            "candidates":    candidates,
         }

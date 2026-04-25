@@ -389,10 +389,23 @@ async def predict(
         draw_odds = float(match.market_odds.get("draw") or fallback.get("draw", 3.30))
         away_odds = float(match.market_odds.get("away") or fallback.get("away", 3.10))
 
-        # --- Best bet calculation ---
+        # --- Best bet calculation (v4.6.1: multi-market — 1X2 + O/U 2.5 + BTTS) ---
+        _o25 = result.get("over_25_prob") or result.get("over_2_5_prob")
+        _u25 = result.get("under_25_prob") or result.get("under_2_5_prob")
+        _btts = result.get("btts_prob")
+        _no_btts = result.get("no_btts_prob")
+        _mo = match.market_odds or {}
         best_bet = MarketUtils.determine_best_bet(
             home_prob, draw_prob, away_prob,
             home_odds, draw_odds, away_odds,
+            over_25_prob=_o25,
+            under_25_prob=_u25,
+            over_25_odds=_mo.get("over_2_5") or _mo.get("over_25"),
+            under_25_odds=_mo.get("under_2_5") or _mo.get("under_25"),
+            btts_prob=_btts,
+            no_btts_prob=_no_btts,
+            btts_yes_odds=_mo.get("btts_yes") or _mo.get("btts"),
+            btts_no_odds=_mo.get("btts_no"),
         )
 
         recommended_stake = min(best_bet.get("kelly_stake", 0), MAX_STAKE)

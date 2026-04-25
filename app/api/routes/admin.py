@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_env, APP_VERSION
 from app.db.database import AsyncSessionLocal
-from app.db.models import Match, Prediction
+from app.db.models import Match, Prediction, SubscriptionPlan
 from app.services.market_utils import MarketUtils
 from app.core.dependencies import get_orchestrator, get_telegram_alerts
 from app.services.results_settler import settle_results, fetch_live_matches
@@ -3206,3 +3206,131 @@ async def admin_list_training_jobs(
         ],
         "total": len(jobs),
     }
+
+
+# ── 12. Subscription Plan Management (admin pricing config) ────────────
+# v4.6.1: Frontend SubscriptionsTab was calling these endpoints, but the
+# backend wasn't implementing them — admin couldn't view or edit pricing.
+
+@router.get("/subscriptions")
+async def list_subscription_plans(
+    current_user=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all subscription plans (admin pricing config)."""
+    rows = (await db.execute(select(SubscriptionPlan).order_by(SubscriptionPlan.price_monthly.asc()))).scalars().all()
+    return {
+        "plans": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "display_name": p.display_name,
+                "price_monthly": p.price_monthly,
+                "price_yearly": p.price_yearly,
+                "prediction_limit": p.prediction_limit,
+                "features": p.features or {},
+                "is_active": p.is_active,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in rows
+        ],
+        "total": len(rows),
+    }
+
+
+class SubscriptionPlanUpdate(BaseModel):
+    display_name: Optional[str] = None
+    price_monthly: Optional[float] = None
+    price_yearly: Optional[float] = None
+    prediction_limit: Optional[int] = None
+    features: Optional[dict] = None
+    is_active: Optional[bool] = None
+
+
+@router.put("/subscriptions/{plan_id}")
+async def update_subscription_plan(
+    plan_id: int,
+    body: SubscriptionPlanUpdate,
+    current_user=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an existing subscription plan (price, limit, features, active)."""
+    plan = (await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id))).scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail=f"Plan {plan_id} not found")
+
+    changes = {}
+    for field in ("display_name", "price_monthly", "price_yearly", "prediction_limit", "features", "is_active"):
+        val = getattr(body, field)
+        if val is not None:
+            old = getattr(plan, field)
+            if old != val:
+                changes[field] = {"from": old, "to": val}
+                setattr(plan, field, val)
+
+    if changes:
+        await db.commit()
+        await db.refresh(plan)
+        try:
+            from app.db.models import AuditLog
+            db.add(AuditLog(
+                action="subscription_plan_update",
+                actor=str(getattr(current_user, "username", current_user.email)),
+                resource="subscription_plan",
+                resource_id=str(plan_id),
+                details={"plan_name": plan.name, "changes": changes},
+                status="success",
+            ))
+            await db.commit()
+        except Exception:
+            await db.rollback()
+
+    return {
+        "success": True,
+        "plan": {
+            "id": plan.id,
+            "name": plan.name,
+            "display_name": plan.display_name,
+            "price_monthly": plan.price_monthly,
+            "price_yearly": plan.price_yearly,
+            "prediction_limit": plan.prediction_limit,
+            "features": plan.features or {},
+            "is_active": plan.is_active,
+        },
+        "changes": changes,
+    }
+
+
+class SubscriptionPlanCreate(BaseModel):
+    name: str
+    display_name: str
+    price_monthly: float = 0.0
+    price_yearly: float = 0.0
+    prediction_limit: Optional[int] = None
+    features: dict = {}
+    is_active: bool = True
+
+
+@router.post("/subscriptions")
+async def create_subscription_plan(
+    body: SubscriptionPlanCreate,
+    current_user=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new subscription plan."""
+    existing = (await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.name == body.name))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Plan '{body.name}' already exists (id={existing.id})")
+    plan = SubscriptionPlan(
+        name=body.name,
+        display_name=body.display_name,
+        price_monthly=body.price_monthly,
+        price_yearly=body.price_yearly,
+        prediction_limit=body.prediction_limit,
+        features=body.features,
+        is_active=body.is_active,
+    )
+    db.add(plan)
+    await db.commit()
+    await db.refresh(plan)
+    return {"success": True, "id": plan.id, "name": plan.name}
