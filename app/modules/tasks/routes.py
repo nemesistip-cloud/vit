@@ -53,6 +53,8 @@ class TaskResponse(BaseModel):
     color: Optional[str]
     is_featured: bool
     requirements: dict
+    action_url: Optional[str] = None
+    action_label: Optional[str] = None
     created_at: str
 
     class Config:
@@ -99,6 +101,8 @@ class CreateTaskRequest(BaseModel):
     color: Optional[str] = Field(None, max_length=20)
     is_featured: bool = False
     requirements: dict = Field(default_factory=dict)
+    action_url: Optional[str] = Field(None, max_length=200)
+    action_label: Optional[str] = Field(None, max_length=50)
 
 
 class UpdateTaskRequest(BaseModel):
@@ -115,6 +119,8 @@ class UpdateTaskRequest(BaseModel):
     color: Optional[str] = Field(None, max_length=20)
     is_featured: Optional[bool] = None
     requirements: Optional[dict] = None
+    action_url: Optional[str] = Field(None, max_length=200)
+    action_label: Optional[str] = Field(None, max_length=50)
 
 
 class TaskStatsResponse(BaseModel):

@@ -687,6 +687,17 @@ async def lifespan(app: FastAPI):
                         await conn.execute(text(f"ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS {col} {ddl}"))
                 except Exception as _mm_e:
                     print(f"⚠️  model_metadata CLV column migration skipped: {_mm_e}")
+
+                # tasks: action_url + action_label so each task can deep-link
+                # the user to the page where they actually do the work.
+                try:
+                    for col, ddl in [
+                        ("action_url",   "VARCHAR(200)"),
+                        ("action_label", "VARCHAR(50)"),
+                    ]:
+                        await conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {ddl}"))
+                except Exception as _t_e:
+                    print(f"⚠️  tasks action-link column migration skipped: {_t_e}")
     except Exception as _e:
         print(f"⚠️  Compatibility schema update skipped: {_e}")
 

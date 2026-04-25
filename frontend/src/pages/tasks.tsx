@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Clock, Trophy, Zap, Target, Star } from "lucide-react";
+import { CheckCircle, Clock, Trophy, Zap, Target, Star, ArrowRight, Sparkles, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 interface TaskCategory {
@@ -38,6 +40,8 @@ interface Task {
   color?: string;
   is_featured: boolean;
   requirements: Record<string, any>;
+  action_url?: string | null;
+  action_label?: string | null;
   created_at: string;
 }
 
@@ -169,45 +173,66 @@ export default function TasksPage() {
     }
   };
 
+  // Smart action-URL inference — uses the explicit task.action_url if set,
+  // otherwise scans the title/description for a known section keyword and
+  // returns the matching page. Returns null if nothing relevant matches.
+  const inferActionUrl = (task: Task): string | null => {
+    if (task.action_url) return task.action_url;
+    const t = (task.title + " " + task.description + " " + (task.short_description ?? "")).toLowerCase();
+    if (/(predict|tip|forecast)/.test(t)) return "/predictions";
+    if (/(accumulator|acca|parlay|combo)/.test(t)) return "/accumulator";
+    if (/(match|fixture|game)/.test(t)) return "/matches";
+    if (/(refer|invite|friend)/.test(t)) return "/referral";
+    if (/(wallet|deposit|stake|withdraw|balance)/.test(t)) return "/wallet";
+    if (/(validator|validate|verify)/.test(t)) return "/validators";
+    if (/(training|course|learn|tutorial|study)/.test(t)) return "/training";
+    if (/(leaderboard|rank|standing)/.test(t)) return "/leaderboard";
+    if (/(marketplace|listing|model.*sell|buy.*model)/.test(t)) return "/marketplace";
+    if (/(profile|settings|account)/.test(t)) return "/settings";
+    if (/(analytics|insight|stats|chart)/.test(t)) return "/analytics";
+    if (/(odds|line|spread)/.test(t)) return "/odds";
+    if (/(governance|vote|proposal)/.test(t)) return "/governance";
+    if (/(subscribe|subscription|premium|pro plan)/.test(t)) return "/subscription";
+    return null;
+  };
+
+  // A task is "ready to claim" when the user has met the requirement count
+  // but the completion API hasn't yet been called to award the reward.
+  const isReadyToClaim = (task: Task) => {
+    const p = progressMap.get(task.id);
+    return !!p && !p.is_completed && p.current_progress >= p.required_progress;
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Tasks</h1>
-          <p className="text-muted-foreground">
-            Complete tasks to earn VIT rewards and XP. Build your reputation and unlock new features.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Tasks</h1>
+        <p className="text-muted-foreground">
+          Complete tasks to earn VIT rewards and XP. Build your reputation and unlock new features.
+        </p>
+      </div>
 
-        {/* Stats Card */}
-        {userStats && (
-          <Card className="w-80">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Your Progress</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div className="text-2xl font-bold text-primary">{userStats.total_completions}</div>
-                  <div className="text-muted-foreground">Completed</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-primary">{userStats.total_vit_earned.toFixed(2)}</div>
-                  <div className="text-muted-foreground">VIT Earned</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-primary">{userStats.total_xp_earned}</div>
-                  <div className="text-muted-foreground">XP Earned</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-primary">{userStats.total_tasks_attempted}</div>
-                  <div className="text-muted-foreground">Attempted</div>
-                </div>
+      {/* KPI summary strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Completed",  value: userStats?.total_completions ?? 0,                       icon: CheckCircle, tint: "text-emerald-400", bg: "bg-emerald-500/10", ring: "border-emerald-500/30" },
+          { label: "VIT Earned", value: (userStats?.total_vit_earned ?? 0).toFixed(2),           icon: Zap,         tint: "text-yellow-400",  bg: "bg-yellow-500/10",  ring: "border-yellow-500/30" },
+          { label: "XP Earned",  value: userStats?.total_xp_earned ?? 0,                         icon: Trophy,      tint: "text-blue-400",    bg: "bg-blue-500/10",    ring: "border-blue-500/30" },
+          { label: "Attempted",  value: userStats?.total_tasks_attempted ?? 0,                   icon: Target,      tint: "text-cyan-400",    bg: "bg-cyan-500/10",    ring: "border-cyan-500/30" },
+        ].map((kpi) => (
+          <Card key={kpi.label} className={`${kpi.ring} transition-colors`}>
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono truncate">{kpi.label}</div>
+                <div className={`text-3xl font-bold mt-1 ${kpi.tint} font-mono tabular-nums`}>{kpi.value}</div>
+              </div>
+              <div className={`p-2.5 rounded-lg ${kpi.bg}`}>
+                <kpi.icon className={`w-5 h-5 ${kpi.tint}`} />
               </div>
             </CardContent>
           </Card>
-        )}
+        ))}
       </div>
 
       <Tabs defaultValue="all" className="space-y-6">
@@ -310,20 +335,16 @@ export default function TasksPage() {
                       </div>
                     )}
 
-                    {/* Action Button */}
-                    <Button
-                      onClick={() => handleUpdateProgress(task.id)}
-                      disabled={!canUpdate || updateProgressMutation.isPending}
-                      className="w-full"
-                      variant={status === "completed" ? "secondary" : "default"}
-                    >
-                      {status === "completed"
-                        ? "Completed"
-                        : status === "in_progress"
-                        ? "Continue Task"
-                        : "Start Task"
-                      }
-                    </Button>
+                    {/* Action Row — "Go" link + "Mark Progress" button */}
+                    <TaskActionRow
+                      task={task}
+                      status={status}
+                      canUpdate={canUpdate}
+                      ready={isReadyToClaim(task)}
+                      pending={updateProgressMutation.isPending}
+                      actionUrl={inferActionUrl(task)}
+                      onUpdate={() => handleUpdateProgress(task.id)}
+                    />
                   </CardContent>
                 </Card>
               );
@@ -405,19 +426,15 @@ export default function TasksPage() {
                       </div>
                     )}
 
-                    <Button
-                      onClick={() => handleUpdateProgress(task.id)}
-                      disabled={!canUpdate || updateProgressMutation.isPending}
-                      className="w-full"
-                      variant={status === "completed" ? "secondary" : "default"}
-                    >
-                      {status === "completed"
-                        ? "Completed"
-                        : status === "in_progress"
-                        ? "Continue Task"
-                        : "Start Task"
-                      }
-                    </Button>
+                    <TaskActionRow
+                      task={task}
+                      status={status}
+                      canUpdate={canUpdate}
+                      ready={isReadyToClaim(task)}
+                      pending={updateProgressMutation.isPending}
+                      actionUrl={inferActionUrl(task)}
+                      onUpdate={() => handleUpdateProgress(task.id)}
+                    />
                   </CardContent>
                 </Card>
               );
@@ -485,14 +502,15 @@ export default function TasksPage() {
                     </div>
                   )}
 
-                  <Button
-                    onClick={() => handleUpdateProgress(completion.task_id)}
-                    disabled={!canUpdateProgress(completion.task) || updateProgressMutation.isPending}
-                    className="w-full"
-                    variant={completion.is_completed ? "secondary" : "default"}
-                  >
-                    {completion.is_completed ? "Completed" : "Continue"}
-                  </Button>
+                  <TaskActionRow
+                    task={completion.task}
+                    status={completion.is_completed ? "completed" : "in_progress"}
+                    canUpdate={canUpdateProgress(completion.task)}
+                    ready={!completion.is_completed && completion.current_progress >= completion.required_progress}
+                    pending={updateProgressMutation.isPending}
+                    actionUrl={inferActionUrl(completion.task)}
+                    onUpdate={() => handleUpdateProgress(completion.task_id)}
+                  />
                 </CardContent>
               </Card>
             ))}

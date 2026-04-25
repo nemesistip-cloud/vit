@@ -73,6 +73,10 @@ class Task(Base):
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
     requirements: Mapped[dict] = mapped_column(JSON, default=dict)  # Additional requirements
 
+    # Call-to-action — where to send the user to actually do the work
+    action_url: Mapped[str] = mapped_column(String(200), nullable=True)
+    action_label: Mapped[str] = mapped_column(String(50), nullable=True)
+
     # Audit
     created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
