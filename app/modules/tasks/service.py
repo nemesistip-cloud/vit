@@ -91,6 +91,33 @@ class TaskService:
         return list(result.scalars().all())
 
     @staticmethod
+    async def get_suggested_tasks(
+        db: AsyncSession,
+        user_id: int,
+        limit: int = 10
+    ) -> List[Task]:
+        """Get the most relevant suggested tasks for a user."""
+        tasks = await TaskService.get_tasks(db, limit=200)
+        completions = await TaskService.get_user_task_completions(db, user_id=user_id, limit=500)
+        completion_map = {completion.task_id: completion for completion in completions}
+
+        suggestions = []
+        for task in tasks:
+            completion = completion_map.get(task.id)
+            if completion and completion.is_completed:
+                continue
+            suggestions.append((task, completion))
+
+        suggestions.sort(key=lambda entry: (
+            0 if entry[0].is_featured else 1,
+            0 if entry[1] and entry[1].current_progress > 0 else 1,
+            -(float(entry[0].vit_reward or 0)),
+            entry[0].task_type
+        ))
+
+        return [task for task, _ in suggestions[:limit]]
+
+    @staticmethod
     async def get_task_by_id(db: AsyncSession, task_id: int) -> Optional[Task]:
         """Get a task by ID with category and creator loaded."""
         result = await db.execute(
@@ -225,6 +252,17 @@ class TaskService:
         return completion
 
     @staticmethod
+    def _resolve_reward_multiplier(task: Task, completion: UserTaskCompletion) -> Decimal:
+        multiplier = Decimal(str(task.requirements.get("reward_multiplier", 1.0)))
+        streak_bonus = Decimal(str(task.requirements.get("streak_bonus", 0)))
+
+        if streak_bonus > 0 and task.task_type == TaskType.DAILY.value:
+            streak_level = min(completion.completed_count, 5)
+            multiplier += streak_bonus * Decimal(str(streak_level))
+
+        return max(Decimal("1.0"), multiplier)
+
+    @staticmethod
     async def _complete_task(
         db: AsyncSession,
         completion: UserTaskCompletion
@@ -234,22 +272,30 @@ class TaskService:
         if not task:
             return
 
+        reward_multiplier = TaskService._resolve_reward_multiplier(task, completion)
+        earned_vit = (task.vit_reward * reward_multiplier).quantize(Decimal("0.00000001"))
+
         # Mark as completed
         completion.is_completed = True
         completion.completed_count += 1
         completion.last_completed_at = datetime.utcnow()
-        completion.total_vit_earned += task.vit_reward
+        completion.total_vit_earned += earned_vit
         completion.total_xp_earned += task.xp_reward
 
         # Award VIT reward if any
-        if task.vit_reward > 0:
+        if earned_vit > 0:
             try:
                 wallet_service = WalletService(db)
                 await wallet_service.deposit_vitcoin(
                     user_id=completion.user_id,
-                    amount=task.vit_reward,
+                    amount=earned_vit,
                     description=f"Task completion: {task.title}",
-                    tx_type="TASK_REWARD"
+                    tx_type="TASK_REWARD",
+                    metadata={
+                        "task_id": task.id,
+                        "base_vit_reward": str(task.vit_reward),
+                        "reward_multiplier": str(reward_multiplier),
+                    }
                 )
             except Exception as e:
                 logger.error(f"Failed to award VIT reward for task {task.id}: {e}")
@@ -282,7 +328,10 @@ class TaskService:
             completion.current_progress = 0
             completion.is_completed = False
 
-        logger.info(f"Task {task.id} completed by user {completion.user_id}")
+        logger.info(
+            f"Task {task.id} completed by user {completion.user_id} "
+            f"earned_vit={earned_vit} multiplier={reward_multiplier}"
+        )
 
     @staticmethod
     async def reset_expired_tasks(db: AsyncSession) -> int:

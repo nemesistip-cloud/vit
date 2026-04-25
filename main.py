@@ -31,6 +31,7 @@ import app.data.models  # register Module F models (MatchFeatureStore, PipelineR
 import app.modules.notifications.models  # register Module K notification models
 import app.modules.marketplace.models    # register Module G marketplace models
 import app.modules.trust.models          # register Module I trust models
+import app.modules.rewards.models        # register reward and postback audit models
 import app.modules.bridge.models         # register Module J bridge models
 import app.modules.developer.models      # register Module L developer models
 import app.modules.governance.models     # register Module M governance models
@@ -86,7 +87,9 @@ from app.modules.notifications.websocket import router as notifications_ws_route
 # ===== TASKS ROUTES (Module T) =====
 from app.modules.tasks.routes import router as tasks_router
 
-# ===== MARKETPLACE ROUTES (Module G) =====
+# ===== REWARD POSTBACK ROUTES =====
+from app.api.routes.postbacks import router as postbacks_router
+from app.api.routes.admin_rewards import router as admin_rewards_router
 from app.modules.marketplace.routes import router as marketplace_router
 
 # ===== TRUST ROUTES (Module I) =====
@@ -1327,6 +1330,10 @@ app.include_router(notifications_ws_router)
 
 # Tasks (Module T)
 app.include_router(tasks_router)
+
+# Reward Postback Routes
+app.include_router(postbacks_router)
+app.include_router(admin_rewards_router)
 
 # Marketplace (Module G)
 app.include_router(marketplace_router)

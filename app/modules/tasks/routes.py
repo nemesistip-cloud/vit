@@ -156,6 +156,17 @@ async def get_tasks(
     return tasks
 
 
+@router.get("/suggested", response_model=List[TaskResponse])
+async def get_suggested_tasks(
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get personalized suggested tasks for the current user."""
+    tasks = await TaskService.get_suggested_tasks(db=db, user_id=current_user.id, limit=limit)
+    return tasks
+
+
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: int, db: AsyncSession = Depends(get_db)):
     """Get a specific task."""

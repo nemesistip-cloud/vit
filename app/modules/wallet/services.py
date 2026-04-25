@@ -201,6 +201,32 @@ class WalletService:
         logger.info(f"Credited {amount} {currency.value} to wallet {wallet_id}")
         return tx
 
+    async def deposit_vitcoin(
+        self,
+        user_id: int,
+        amount: Decimal,
+        description: str,
+        tx_type: str,
+        reference: Optional[str] = None,
+        metadata: Optional[Dict] = None,
+    ) -> WalletTransaction:
+        """Convenience wrapper to credit VITCoin to a user's wallet."""
+        wallet = await self.get_or_create_wallet(user_id)
+        payload = dict(metadata or {})
+        payload.update({
+            "description": description,
+            "task_type": tx_type,
+        })
+        return await self.credit(
+            wallet_id=wallet.id,
+            user_id=user_id,
+            currency=Currency.VITCOIN,
+            amount=amount,
+            tx_type=tx_type,
+            reference=reference,
+            metadata=payload,
+        )
+
     async def debit(
         self,
         wallet_id: str,

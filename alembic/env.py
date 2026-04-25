@@ -23,7 +23,7 @@ import app.modules.trust.models
 import app.modules.bridge.models
 import app.modules.developer.models
 import app.modules.governance.models
-import app.modules.referral.models
+import app.modules.rewards.models
 from app.db.database import DATABASE_URL
 
 config = context.config

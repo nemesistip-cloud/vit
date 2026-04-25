@@ -129,7 +129,8 @@ async def seed_task_data():
                     "vit_reward": Decimal("15.0"),
                     "xp_reward": 75,
                     "required_count": 3,
-                    "icon": "📅"
+                    "icon": "📅",
+                    "requirements": {"streak_bonus": 0.05}
                 },
                 {
                     "category_id": 2,
@@ -140,7 +141,8 @@ async def seed_task_data():
                     "vit_reward": Decimal("50.0"),
                     "xp_reward": 250,
                     "required_count": 7,
-                    "icon": "🔥"
+                    "icon": "🔥",
+                    "requirements": {"reward_multiplier": 1.25}
                 },
                 {
                     "category_id": 2,
