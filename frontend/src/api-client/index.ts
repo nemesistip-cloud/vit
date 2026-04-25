@@ -80,6 +80,9 @@ export const API = {
   oddsAuditLog: "/odds/audit-log",
   // AI Feed
   aiFeedConsensus: "/ai-feed/consensus",
+  // AI Assistant
+  aiAssistantChat: "/ai/assistant/chat",
+  aiAssistantStatus: "/ai/assistant/status",
   // Audit
   auditLogs: "/audit/logs",
   // Exports
@@ -775,6 +778,26 @@ export function useGetOddsAuditLog() {
 export function useAiFeedConsensus() {
   return useMutation<any, Error, { home_team: string; away_team: string; league: string; market_odds: any }>({
     mutationFn: (data) => apiPost<any>(API.aiFeedConsensus, data),
+  });
+}
+
+export type AssistantTurn = { role: "user" | "assistant"; content: string };
+
+export function useAssistantStatus() {
+  return useQuery<{ available: boolean; provider: string; message: string }>({
+    queryKey: [API.aiAssistantStatus],
+    queryFn: () => apiGet(API.aiAssistantStatus),
+    staleTime: 60_000,
+  });
+}
+
+export function useAssistantChat() {
+  return useMutation<
+    { available: boolean; reply: string; error: string | null },
+    Error,
+    { message: string; history?: AssistantTurn[]; context?: string }
+  >({
+    mutationFn: (data) => apiPost(API.aiAssistantChat, data),
   });
 }
 

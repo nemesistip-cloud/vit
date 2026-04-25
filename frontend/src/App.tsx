@@ -37,6 +37,7 @@ const LeaderboardPage     = lazy(() => import("@/pages/leaderboard"));
 const ReferralPage        = lazy(() => import("@/pages/referral"));
 const SettingsPage        = lazy(() => import("@/pages/settings"));
 const TasksPage           = lazy(() => import("@/pages/tasks"));
+const AssistantPage       = lazy(() => import("@/pages/assistant"));
 const ForgotPasswordPage  = lazy(() => import("@/pages/forgot-password"));
 const ResetPasswordPage   = lazy(() => import("@/pages/reset-password"));
 const VerifyEmailPage     = lazy(() => import("@/pages/verify-email"));
@@ -169,6 +170,9 @@ function Router() {
       </Route>
       <Route path="/tasks">
         <Layout><ProtectedRoute component={TasksPage} /></Layout>
+      </Route>
+      <Route path="/assistant">
+        <Layout><ProtectedRoute component={AssistantPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />

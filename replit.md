@@ -63,6 +63,14 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Conversational AI Assistant (Apr 25 2026)
+
+Added an in-app **AI Assistant** so any logged-in user can chat with the platform.
+
+- **Backend:** `app/services/gemini_chat.py` wraps Gemini-1.5-Flash for multi-turn dialogue with a VIT-aware system prompt; `app/api/routes/ai_assistant.py` exposes `POST /ai/assistant/chat` (with history + optional context) and `GET /ai/assistant/status` (reports whether `GEMINI_API_KEY` is set). Both routes require auth (Bearer JWT or `X-API-Key`).
+- **Frontend:** `frontend/src/pages/assistant.tsx` — full chat UI with streaming-style typing indicator, history-aware turns, suggested prompts, and graceful "key missing" fallback. Wired through `useAssistantChat` / `useAssistantStatus` hooks in `frontend/src/api-client/index.ts`. Routed at `/assistant` and surfaced in the **Pro** sidebar group.
+- **Developer docs (same release):** `GET /api/developer/docs` now introspects the live FastAPI route table instead of returning a hand-written list, so the SDK reference always matches deployed reality.
+
 ## Recent Changes — Auto-Demotion Monitor (Apr 25 2026)
 
 The accountability loop now **acts on its own signal** instead of just displaying it. Inside `model_accountability_loop` (main.py), after each weight refresh, `app/services/clv_streak_monitor.check_clv_streaks(db)` walks every active model and:

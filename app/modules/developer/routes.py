@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -163,25 +163,63 @@ async def usage_summary(
 
 @router.get("/docs", summary="Developer documentation links")
 async def developer_docs(
+    request: Request,
     _: User = Depends(get_current_user),
 ):
+    """Return developer reference docs.
+
+    Endpoints are introspected from the live FastAPI app so the list always
+    reflects what the server actually exposes — no hand-maintained snippets.
+    """
+    app = request.app
+    seen: set[tuple[str, str]] = set()
+    endpoints: list[dict] = []
+
+    EXCLUDE_PREFIXES = (
+        "/openapi", "/docs", "/redoc", "/static", "/assets", "/favicon",
+        "/__", "/api/dev/admin",  # admin/dev internals
+    )
+
+    for route in app.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        if not path or not methods:
+            continue
+        if any(path.startswith(p) for p in EXCLUDE_PREFIXES):
+            continue
+        # Skip websocket / mount routes
+        if any(m in {"HEAD", "OPTIONS"} for m in methods):
+            methods = {m for m in methods if m not in {"HEAD", "OPTIONS"}}
+        if not methods:
+            continue
+
+        summary = getattr(route, "summary", None) or ""
+        tags = getattr(route, "tags", None) or []
+        for method in sorted(methods):
+            key = (method, path)
+            if key in seen:
+                continue
+            seen.add(key)
+            endpoints.append({
+                "method":      method,
+                "path":        path,
+                "description": summary,
+                "tags":        list(tags),
+            })
+
+    endpoints.sort(key=lambda e: (e["path"], e["method"]))
+
     return {
         "openapi_url":         "/openapi.json",
         "redoc_url":           "/redoc",
+        "swagger_url":         "/docs",
         "sdk_typescript_url":  "https://github.com/vit-network/typescript-sdk",
         "sdk_python_url":      "https://github.com/vit-network/python-sdk",
         "base_api_url":        "/api",
         "authentication":      "Include your API key in the `X-API-Key` header.",
         "rate_limiting":       "Rate limits are enforced per minute and per day per key.",
-        "endpoints": [
-            {"method": "POST", "path": "/predict",                  "description": "Create a match prediction"},
-            {"method": "GET",  "path": "/history",                  "description": "List prediction history"},
-            {"method": "GET",  "path": "/api/blockchain/economy",   "description": "Blockchain economy stats"},
-            {"method": "GET",  "path": "/api/marketplace/models",   "description": "Browse AI marketplace models"},
-            {"method": "GET",  "path": "/api/bridge/pools",         "description": "List bridge pools"},
-            {"method": "GET",  "path": "/api/governance/proposals", "description": "List governance proposals"},
-            {"method": "GET",  "path": "/health",                   "description": "Health check"},
-        ],
+        "endpoint_count":      len(endpoints),
+        "endpoints":           endpoints,
     }
 
 

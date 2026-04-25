@@ -52,6 +52,7 @@ from app.api.routes import (
     subscription as subscription_route,
     audit as audit_route,
     matches as matches_route,
+    ai_assistant as ai_assistant_route,
 )
 
 # ===== AUTH ROUTES =====
@@ -1299,6 +1300,7 @@ app.include_router(ai_route.router)
 app.include_router(subscription_route.router)
 app.include_router(audit_route.router)
 app.include_router(config_route.router)
+app.include_router(ai_assistant_route.router)
 
 # Auth (JWT)
 app.include_router(auth_router)

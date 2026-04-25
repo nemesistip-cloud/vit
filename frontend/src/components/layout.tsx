@@ -7,6 +7,7 @@ import {
   CreditCard, Gift, Home, Lock, LogOut, Menu, ShieldCheck,
   ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -37,10 +38,11 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "Pro",
     items: [
-      { name: "Training",    href: "/training",    icon: BookOpen },
-      { name: "Analytics",   href: "/analytics",   icon: BarChart2 },
-      { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
-      { name: "Validators",  href: "/validators",  icon: ShieldCheck },
+      { name: "AI Assistant", href: "/assistant",   icon: Sparkles },
+      { name: "Training",     href: "/training",    icon: BookOpen },
+      { name: "Analytics",    href: "/analytics",   icon: BarChart2 },
+      { name: "Marketplace",  href: "/marketplace", icon: ShoppingBag },
+      { name: "Validators",   href: "/validators",  icon: ShieldCheck },
     ],
   },
   {
