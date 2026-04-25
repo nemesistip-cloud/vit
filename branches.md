@@ -2,11 +2,11 @@
 
 Snapshot taken: 2026-04-25 (during v4.6.0 prep).
 
-| Branch | Head SHA | Subject |
-|---|---|---|
-| `main` | `146a7d8` | Update version information for software release (v4.5.0 baseline) |
-| `feat/v4.6-complete-rollout` | `146a7d8` | Same SHA as `main` — already up to date |
-| `feat/v4.6-implementation` | `ae55200` | feat(tasks): add task management system with categories, tasks, and user progress tracking |
+| Branch | Head SHA | Date | Subject |
+|---|---|---|---|
+| `main` | `146a7d8` | 2026-04-25 | Update version information for software release (v4.5.0 baseline) |
+| `feat/v4.6-complete-rollout` | `146a7d8` | 2026-04-25 | Same SHA as `main` — already up to date |
+| `feat/v4.6-implementation` | `ae55200` | 2026-04-25 | feat(tasks): add task management system with categories, tasks, and user progress tracking |
 
 ## Local main (`8fa2450`) vs `origin/main` (`ae55200`)
 
