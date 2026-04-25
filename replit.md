@@ -63,6 +63,14 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Polish & Bug-Fix Pass (Apr 25 2026)
+
+Tightened both surfaces, fixed a runtime-breaking page, and hardened a couple of small UX rough edges. Full TypeScript pass (`npx tsc --noEmit --skipLibCheck`) now reports **zero errors**.
+
+- **Tasks page (page-breaking bug):** `frontend/src/pages/tasks.tsx` referenced a `TaskActionRow` component in three places that was never defined — opening **/tasks** would throw `ReferenceError: TaskActionRow is not defined` and crash the route. Implemented the component locally with the props the call sites already passed (`task`, `status`, `canUpdate`, `ready`, `pending`, `actionUrl`, `onUpdate`). Internal/external links are detected and rendered with the correct affordance (`<Link>` vs `<a target="_blank">`), and the action button switches between "Mark Progress", "Claim Reward", "Completed" badge, and a "Locked" hint based on state. Also dropped the unused `useEffect` and `Sparkles` imports that survived in the file.
+- **Developer page (React warning):** `frontend/src/pages/developer.tsx` mapped the now-dynamic endpoint list with `key={ep.path}`. The new `/api/developer/docs` endpoint emits one row per `(method, path)` pair, so paths with both `GET` and `DELETE` produced React duplicate-key warnings. Composite key `${ep.method}-${ep.path}` is used now.
+- **AI Assistant page (a11y polish):** `frontend/src/pages/assistant.tsx` chat textarea now sets `name`, `autoComplete="off"`, `spellCheck`, and `aria-label` — kills the Chrome "input elements should have autocomplete attributes" warning seen on the assistant route and gives screen readers a clear field name.
+
 ## Recent Changes — Conversational AI Assistant (Apr 25 2026)
 
 Added an in-app **AI Assistant** so any logged-in user can chat with the platform.

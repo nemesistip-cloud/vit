@@ -184,6 +184,10 @@ export default function AssistantPage() {
 
           <form onSubmit={onSubmit} className="border-t bg-background px-3 py-3 flex items-end gap-2">
             <textarea
+              name="assistant-message"
+              autoComplete="off"
+              spellCheck
+              aria-label="Message the AI Assistant"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {

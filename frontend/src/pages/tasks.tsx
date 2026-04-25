@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiGet, apiPost } from "@/lib/apiClient";
@@ -8,8 +8,90 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Clock, Trophy, Zap, Target, Star, ArrowRight, Sparkles, ExternalLink } from "lucide-react";
+import { CheckCircle, Clock, Trophy, Zap, Target, Star, ArrowRight, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+
+interface TaskActionRowProps {
+  task: { id: number; task_type: string; required_count: number };
+  status: "not_started" | "in_progress" | "completed" | string;
+  canUpdate: boolean;
+  ready: boolean;
+  pending: boolean;
+  actionUrl: string | null;
+  onUpdate: () => void;
+}
+
+function TaskActionRow({
+  task,
+  status,
+  canUpdate,
+  ready,
+  pending,
+  actionUrl,
+  onUpdate,
+}: TaskActionRowProps) {
+  const isCompleted = status === "completed";
+  const isExternal = actionUrl?.startsWith("http://") || actionUrl?.startsWith("https://");
+  const goLabel = ready ? "Open" : isCompleted ? "Revisit" : "Go";
+
+  return (
+    <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+      {actionUrl ? (
+        isExternal ? (
+          <a
+            href={actionUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-mono text-primary hover:underline"
+          >
+            {goLabel}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : (
+          <Link href={actionUrl}>
+            <span className="inline-flex items-center gap-1.5 text-xs font-mono text-primary hover:underline cursor-pointer">
+              {goLabel}
+              <ArrowRight className="h-3 w-3" />
+            </span>
+          </Link>
+        )
+      ) : (
+        <span className="text-xs text-muted-foreground font-mono">No quick link</span>
+      )}
+
+      <div className="ml-auto">
+        {isCompleted ? (
+          <Badge variant="outline" className="font-mono text-[10px] border-emerald-500/40 text-emerald-400">
+            Completed
+          </Badge>
+        ) : ready ? (
+          <Button
+            size="sm"
+            onClick={onUpdate}
+            disabled={pending}
+            className="h-7 text-xs font-mono"
+          >
+            {pending ? "Claiming…" : "Claim Reward"}
+          </Button>
+        ) : canUpdate ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onUpdate}
+            disabled={pending}
+            className="h-7 text-xs font-mono"
+          >
+            {pending ? "Updating…" : "Mark Progress"}
+          </Button>
+        ) : (
+          <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
+            Locked
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface TaskCategory {
   id: number;

@@ -8,6 +8,45 @@ The `# main.py — VIT Sports Intelligence Network v4.6.0` header in `main.py` l
 
 ---
 
+## Upgrade History
+
+### Apr 25 2026 — Polish & Bug-Fix Pass
+
+**Bugs fixed**
+- **Tasks route crash (P0).** `frontend/src/pages/tasks.tsx` referenced `<TaskActionRow>` in three render paths but the component was never defined. Vite skipped the typecheck so the bundle built fine, but `/tasks` would throw `ReferenceError: TaskActionRow is not defined` at runtime. Implemented the component inline with the props the call sites already use (`task`, `status`, `canUpdate`, `ready`, `pending`, `actionUrl`, `onUpdate`); supports internal `<Link>` vs external `<a target="_blank">` rendering and switches between **Mark Progress / Claim Reward / Completed / Locked** based on state.
+- **Developer page React duplicate-key warning.** `developer.tsx` keyed the endpoint list by `ep.path`, but the now-dynamic `/api/developer/docs` returns one row per `(method, path)` pair so any route with multiple verbs (e.g. `GET` + `DELETE`) tripped React's duplicate-key check. Switched to composite `${ep.method}-${ep.path}`.
+
+**Polish**
+- Removed dead `useEffect` and `Sparkles` imports left in `tasks.tsx`.
+- AI Assistant chat textarea now declares `name`, `autoComplete="off"`, `spellCheck`, and `aria-label` — silences the Chrome DOM warning about missing autocomplete attributes and gives assistive tech a proper label.
+
+**Verification**
+- `npx tsc --noEmit --skipLibCheck` in `frontend/` → **0 errors** (was 3).
+- `npm run build` → green; assistant chunk 6.30 kB gzip:2.48 kB.
+- Backend cold-boot → `Application startup complete`, `/health` returns `{status:"ok",models_loaded:12,db_connected:true,clv_tracking_enabled:true}`.
+
+### Apr 25 2026 — Conversational AI Assistant + Dynamic Developer Docs
+
+**Backend (new)**
+- `app/services/gemini_chat.py` — multi-turn Gemini-1.5-Flash wrapper with a VIT-aware system prompt, sliding 12-turn context window, structured error handling for 401/403/429/timeouts, and a graceful "no key" fallback.
+- `app/api/routes/ai_assistant.py` — `POST /ai/assistant/chat` (auth-gated, accepts `{message, history?, context?}`) and `GET /ai/assistant/status` (reports whether `GEMINI_API_KEY` is configured). Wired into `main.py` alongside the other API routes.
+
+**Backend (improved)**
+- `app/modules/developer/routes.py` — `GET /api/developer/docs` now introspects `app.routes` and returns every `(method, path, summary, tags)` exposed by the live server, plus an `endpoint_count` field. The previous hand-curated 7-item list has been retired so the SDK reference can no longer drift.
+
+**Frontend (new)**
+- `frontend/src/pages/assistant.tsx` — chat surface with suggested prompts, animated typing indicator, history-aware turns, "New chat" reset, "Ready / Not configured" status pill, and a friendly fallback card when the API key is missing.
+- `frontend/src/api-client/index.ts` — `useAssistantChat` mutation + `useAssistantStatus` query hooks (with `AssistantTurn` type) and two new `API` constants (`aiAssistantChat`, `aiAssistantStatus`).
+- `frontend/src/App.tsx` — lazy-loaded `/assistant` route under the standard `<ProtectedRoute>` + `<Layout>` shell.
+- `frontend/src/components/layout.tsx` — **AI Assistant** entry added to the **Pro** sidebar group with the `Sparkles` icon.
+
+**Verification**
+- Frontend `npm run build` → clean; assistant chunk 6.30 kB gzip:2.48 kB.
+- Backend startup → router mounted, `/ai/assistant/status` returns `401` without a token (correct), returns `{available, provider, message}` with one.
+- `/api/developer/docs` (auth-gated) returns `endpoint_count` matching the live FastAPI route table.
+
+---
+
 ## 1. Models (`app/modules/ai/`, `services/ml_service/`)
 
 ### Planned upgrades

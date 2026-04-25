@@ -435,7 +435,7 @@ export default function DeveloperPage() {
             <CardContent>
               <div className="space-y-2">
                 {docs.endpoints.map(ep => (
-                  <div key={ep.path} className="flex items-center gap-3 text-sm py-2 border-b border-border last:border-0">
+                  <div key={`${ep.method}-${ep.path}`} className="flex items-center gap-3 text-sm py-2 border-b border-border last:border-0">
                     <span className={`font-mono text-xs font-bold w-12 ${
                       ep.method === "GET"    ? "text-emerald-400" :
                       ep.method === "POST"   ? "text-blue-400" :
