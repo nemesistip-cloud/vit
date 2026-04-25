@@ -63,6 +63,14 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Match-Aware AI Assistant (Apr 25 2026)
+
+The AI Assistant is now embedded directly inside every match-detail page, with that fixture's prediction pre-loaded as context — users can ask things like *"Why does the model favor Arsenal here?"* or *"Is there value on Over 2.5 in this match?"* and get answers grounded in the actual numbers.
+
+- **`frontend/src/components/MatchAssistantCard.tsx` (new):** Reusable collapsible chat card. Builds a structured context block from the match (teams, league, kickoff, FT score, 1X2 / O/U 2.5 / BTTS probabilities, model confidence, market odds, best-bet recommendation, top model contributors) and sends it with every message via the existing `useAssistantChat({ message, history, context })` hook. Match-specific suggested prompts are auto-generated from the team names and probability distribution.
+- **`frontend/src/pages/match-detail.tsx`:** Card mounted at the top of the **Analysis** tab so the chat sits above the existing AIInsightComparison + Ensemble Intelligence panels. Collapsed by default to keep the page light; expands on click.
+- **Backend reuse:** No new endpoints — the existing `POST /ai/assistant/chat` already accepts `context: Optional[str]`, so the card piggybacks on the same Gemini wrapper used by the standalone `/assistant` page.
+
 ## Recent Changes — Subscription / Markets / Training Gap-Fix (Apr 25 2026)
 
 Closed five P0/P1 gaps found during a deep audit. All changes are wired front-to-back; backend imports clean, TypeScript clean, frontend rebuilt, server restarted, `/health` green.

@@ -5,6 +5,7 @@ import {
   useGetOddsInjuries,
 } from "@/api-client";
 import { AIInsightComparison } from "@/components/AIInsightComparison";
+import { MatchAssistantCard } from "@/components/MatchAssistantCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -139,6 +140,8 @@ export default function MatchDetailPage() {
         <TabsContent value="analysis" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+              <MatchAssistantCard match={match} consensus={consensus} />
+
               <AIInsightComparison matchId={matchId} />
 
               <Card className="bg-card/50 backdrop-blur border-border">
