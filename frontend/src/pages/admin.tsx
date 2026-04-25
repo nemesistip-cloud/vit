@@ -1802,16 +1802,21 @@ function ModelsTab() {
                       const clvN = m.clv_samples ?? 0;
                       const acc = m.accuracy_1x2 ?? 0;
                       const total = m.predictions_total ?? 0;
+                      const streak = m.clv_negative_streak_days ?? 0;
+                      const autoDemoted = !!m.auto_demoted;
                       let status: "healthy" | "watch" | "risk" | "new";
                       if (!m.is_active) status = "risk";
                       else if (clvN < 30 && total < 30) status = "new";
                       else if (clvN >= 50 && clv < -0.005) status = "risk";
                       else if (clv < 0 || acc < 0.5) status = "watch";
                       else status = "healthy";
+                      const demotedLabel = m.is_active
+                        ? (streak > 0 ? `At Risk · day ${streak}/7` : "At Risk")
+                        : (autoDemoted ? "Demoted (auto)" : "Demoted");
                       const statusBadge = {
                         healthy: { label: "Healthy", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
-                        watch:   { label: "Watch",   cls: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
-                        risk:    { label: m.is_active ? "At Risk" : "Demoted", cls: "bg-red-500/20 text-red-400 border-red-500/30" },
+                        watch:   { label: streak > 0 ? `Watch · day ${streak}/7` : "Watch", cls: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
+                        risk:    { label: demotedLabel, cls: "bg-red-500/20 text-red-400 border-red-500/30" },
                         new:     { label: "Insufficient",  cls: "bg-gray-500/20 text-gray-400 border-gray-500/30" },
                       }[status];
                       return (

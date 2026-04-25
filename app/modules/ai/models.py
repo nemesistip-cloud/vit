@@ -41,11 +41,14 @@ class ModelMetadata(Base):
     log_loss        = Column(Float, nullable=True)
     clv_score       = Column(Float, nullable=True)     # rolling EMA of CLV-weighted contribution; positive = beats market
     clv_samples     = Column(Integer, default=0)       # how many settled matches had a CLV signal contribute
+    clv_negative_streak_days = Column(Integer, default=0)  # consecutive daily checks where clv_score breached the demote threshold
+    last_clv_check_at = Column(DateTime(timezone=True), nullable=True)  # last time the streak monitor evaluated this row
     predictions_total = Column(Integer, default=0)
     predictions_correct = Column(Integer, default=0)
 
     # State
     is_active   = Column(Boolean, default=True)
+    auto_demoted = Column(Boolean, default=False)      # True when the streak monitor turned is_active off (vs. a human admin)
     pkl_loaded  = Column(Boolean, default=False)
     pkl_path    = Column(String(512), nullable=True)
     training_samples = Column(Integer, default=0)

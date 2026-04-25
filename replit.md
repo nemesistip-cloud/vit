@@ -63,6 +63,22 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Auto-Demotion Monitor (Apr 25 2026)
+
+The accountability loop now **acts on its own signal** instead of just displaying it. Inside `model_accountability_loop` (main.py), after each weight refresh, `app/services/clv_streak_monitor.check_clv_streaks(db)` walks every active model and:
+
+- If `clv_score < CLV_DEMOTE_THRESHOLD` (default −0.005) AND `clv_samples ≥ CLV_DEMOTE_MIN_SAMPLES` (default 50) → increment `clv_negative_streak_days` (max once per `CLV_CHECK_MIN_HOURS`, default 18h, so faster loops don't inflate the counter).
+- Else → reset `clv_negative_streak_days = 0`.
+- When the streak hits `CLV_DEMOTE_DAYS` (default 7) → flip `is_active=False` and `auto_demoted=True`. The predictor and weight adjuster already filter on `is_active=True`, so the model stops contributing immediately. A WARNING-level log entry tells the operator which model was demoted and why.
+
+Manual **Reactivate** from the dashboard now clears both `clv_negative_streak_days` and `auto_demoted`, so a model that's been investigated isn't re-demoted on the next tick.
+
+The dashboard's status badge now shows `Watch · day 3/7` and `At Risk · day 5/7` while the streak is climbing, and `Demoted (auto)` vs plain `Demoted` so operators can tell apart machine vs human action.
+
+Migration adds `clv_negative_streak_days INTEGER DEFAULT 0`, `last_clv_check_at TIMESTAMP`, and `auto_demoted BOOLEAN DEFAULT FALSE` to `model_metadata` on both SQLite and PostgreSQL.
+
+All four monitor paths verified end-to-end against the live DB: streak progression 1→7 with no early demotion, demotion firing exactly on tick 7, the cooldown guard skipping faster ticks, positive-CLV resetting the streak without demoting, and manual reactivation clearing the auto-demoted flag.
+
 ## Recent Changes — Model Accountability Dashboard (Apr 25 2026)
 
 The CLV signal now has a UI. **Admin → Models → Accountability** renders the per-model CLV-blended scoreboard powered by `/api/ai-engine/performance`.

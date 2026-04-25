@@ -253,6 +253,7 @@ async def auto_settle_loop():
 
 async def model_accountability_loop():
     from app.db.database import AsyncSessionLocal
+    from app.services.clv_streak_monitor import check_clv_streaks
 
     await asyncio.sleep(120)
     while True:
@@ -260,7 +261,19 @@ async def model_accountability_loop():
             async with AsyncSessionLocal() as db:
                 ma = ModelAccountability(db)
                 await ma.update_model_weights()
-                print("[accountability] updated")
+                # Close the loop: tick CLV streak counters and auto-demote
+                # any model whose rolling CLV has been negative too long.
+                streak = await check_clv_streaks(db)
+                if streak["demoted"]:
+                    print(f"[clv-monitor] AUTO-DEMOTED {len(streak['demoted'])} model(s): {streak['demoted']}")
+                if streak["ticked"]:
+                    print(
+                        f"[accountability] updated · clv-monitor ticked={streak['ticked']} "
+                        f"+streak={len(streak['incremented'])} reset={len(streak['reset'])} "
+                        f"demoted={len(streak['demoted'])}"
+                    )
+                else:
+                    print("[accountability] updated")
         except Exception as e:
             print(f"[accountability] ERROR: {e}")
 
@@ -613,8 +626,11 @@ async def lifespan(app: FastAPI):
                     mm_cols = (await conn.execute(text("PRAGMA table_info(model_metadata)"))).fetchall()
                     mm_col_names = {row[1] for row in mm_cols}
                     mm_additions = {
-                        "clv_score":   "REAL",
-                        "clv_samples": "INTEGER DEFAULT 0",
+                        "clv_score":                "REAL",
+                        "clv_samples":              "INTEGER DEFAULT 0",
+                        "clv_negative_streak_days": "INTEGER DEFAULT 0",
+                        "last_clv_check_at":        "TIMESTAMP",
+                        "auto_demoted":             "INTEGER DEFAULT 0",
                     }
                     for col, ddl in mm_additions.items():
                         if col not in mm_col_names:
@@ -662,8 +678,11 @@ async def lifespan(app: FastAPI):
                 # ── model_metadata CLV columns (PostgreSQL) ───────────────────
                 try:
                     for col, ddl in [
-                        ("clv_score",   "DOUBLE PRECISION"),
-                        ("clv_samples", "INTEGER DEFAULT 0"),
+                        ("clv_score",                "DOUBLE PRECISION"),
+                        ("clv_samples",              "INTEGER DEFAULT 0"),
+                        ("clv_negative_streak_days", "INTEGER DEFAULT 0"),
+                        ("last_clv_check_at",        "TIMESTAMP WITH TIME ZONE"),
+                        ("auto_demoted",             "BOOLEAN DEFAULT FALSE"),
                     ]:
                         await conn.execute(text(f"ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS {col} {ddl}"))
                 except Exception as _mm_e:

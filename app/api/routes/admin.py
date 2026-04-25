@@ -447,6 +447,11 @@ async def set_model_active(
         raise HTTPException(status_code=404, detail=f"Model '{body.key}' not found")
 
     row.is_active = bool(body.is_active)
+    # Reactivating clears the streak monitor state so a model coming back from
+    # an investigation isn't re-demoted on the very next check tick.
+    if body.is_active:
+        row.clv_negative_streak_days = 0
+        row.auto_demoted = False
     await db.commit()
 
     action = "reactivated" if body.is_active else "demoted"
@@ -454,6 +459,8 @@ async def set_model_active(
     return {
         "key": body.key,
         "is_active": row.is_active,
+        "auto_demoted": bool(getattr(row, "auto_demoted", False)),
+        "clv_negative_streak_days": int(row.clv_negative_streak_days or 0),
         "message": f"Model {body.key} {action}",
     }
 
