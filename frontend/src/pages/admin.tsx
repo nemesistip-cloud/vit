@@ -2203,9 +2203,21 @@ function AuditTab() {
 
 // ─── Module 12: Tasks Management ──────────────────────────────────────
 
+interface EditingTask {
+  id: number;
+  name: string;
+  category_id: number | null;
+  xp_reward: number;
+  vit_reward: number;
+  trigger_type: string;
+  reset_frequency: string;
+  description: string;
+  is_active: boolean;
+}
+
 function TasksTab() {
   const qc = useQueryClient();
-  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
   const [newTask, setNewTask] = useState({
     name: "",
     description: "",
@@ -2530,13 +2542,13 @@ function TasksTab() {
                   <Label className="text-gray-300">Task Name</Label>
                   <Input
                     value={editingTask.name}
-                    onChange={e => setEditingTask(t => ({ ...t, name: e.target.value }))}
+                    onChange={e => setEditingTask(t => t && ({ ...t, name: e.target.value } as EditingTask))}
                     className="bg-gray-800 border-gray-600 text-white"
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-gray-300">Category</Label>
-                  <Select value={editingTask.category_id?.toString()} onValueChange={v => setEditingTask(t => ({ ...t, category_id: v }))}>
+                  <Select value={editingTask.category_id?.toString()} onValueChange={v => setEditingTask(t => t && ({ ...t, category_id: Number(v) } as EditingTask))}>
                     <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
                       <SelectValue />
                     </SelectTrigger>
@@ -2552,7 +2564,7 @@ function TasksTab() {
                   <Input
                     type="number"
                     value={editingTask.xp_reward}
-                    onChange={e => setEditingTask(t => ({ ...t, xp_reward: +e.target.value }))}
+                    onChange={e => setEditingTask(t => t && ({ ...t, xp_reward: +e.target.value } as EditingTask))}
                     className="bg-gray-800 border-gray-600 text-white"
                   />
                 </div>
@@ -2562,13 +2574,13 @@ function TasksTab() {
                     type="number"
                     step="0.01"
                     value={editingTask.vit_reward}
-                    onChange={e => setEditingTask(t => ({ ...t, vit_reward: +e.target.value }))}
+                    onChange={e => setEditingTask(t => t && ({ ...t, vit_reward: +e.target.value } as EditingTask))}
                     className="bg-gray-800 border-gray-600 text-white"
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-gray-300">Trigger Type</Label>
-                  <Select value={editingTask.trigger_type} onValueChange={v => setEditingTask(t => ({ ...t, trigger_type: v }))}>
+                  <Select value={editingTask.trigger_type} onValueChange={v => setEditingTask(t => t && ({ ...t, trigger_type: v } as EditingTask))}>
                     <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
                       <SelectValue />
                     </SelectTrigger>
@@ -2583,7 +2595,7 @@ function TasksTab() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-gray-300">Reset Frequency</Label>
-                  <Select value={editingTask.reset_frequency} onValueChange={v => setEditingTask(t => ({ ...t, reset_frequency: v }))}>
+                  <Select value={editingTask.reset_frequency} onValueChange={v => setEditingTask(t => t && ({ ...t, reset_frequency: v } as EditingTask))}>
                     <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
                       <SelectValue />
                     </SelectTrigger>
@@ -2600,7 +2612,7 @@ function TasksTab() {
                 <Label className="text-gray-300">Description</Label>
                 <Textarea
                   value={editingTask.description}
-                  onChange={e => setEditingTask(t => ({ ...t, description: e.target.value }))}
+                  onChange={e => setEditingTask(t => t && ({ ...t, description: e.target.value } as EditingTask))}
                   className="bg-gray-800 border-gray-600 text-white"
                   rows={3}
                 />
@@ -2609,7 +2621,7 @@ function TasksTab() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     checked={editingTask.is_active}
-                    onCheckedChange={v => setEditingTask(t => ({ ...t, is_active: v }))}
+                    onCheckedChange={v => setEditingTask(t => t && ({ ...t, is_active: v } as EditingTask))}
                   />
                   <Label className="text-gray-300">Active</Label>
                 </div>

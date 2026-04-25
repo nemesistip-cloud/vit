@@ -96,8 +96,15 @@ export default function TasksPage() {
   });
 
   // Update task progress mutation
+  interface TaskProgressResult {
+    is_completed: boolean;
+    vit_earned: number;
+    xp_earned: number;
+    current_progress: number;
+    required_progress: number;
+  }
   const updateProgressMutation = useMutation({
-    mutationFn: (taskId: number) => apiPost(`/api/tasks/${taskId}/progress`),
+    mutationFn: (taskId: number) => apiPost<TaskProgressResult>(`/api/tasks/${taskId}/progress`),
     onSuccess: (data, taskId) => {
       queryClient.invalidateQueries({ queryKey: ["user-task-progress"] });
       queryClient.invalidateQueries({ queryKey: ["user-task-stats"] });
