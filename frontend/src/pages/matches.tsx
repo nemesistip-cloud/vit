@@ -16,6 +16,11 @@ const DAY_OPTIONS = [
   { value: "14", label: "Next 14 Days" },
 ];
 
+interface League {
+  key: string;
+  display: string;
+}
+
 export default function MatchesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -65,7 +70,7 @@ export default function MatchesPage() {
   };
 
   // League list — prefer backend, fallback to deduped union from ALL collections.
-  const leagues = leaguesData?.leagues ?? Array.from(
+  const leagues: League[] = leaguesData?.leagues ?? Array.from(
     new Map(
       allMatches
         .map((m) => [(m as any).league_key ?? m.league, m.league] as [string, string])
@@ -178,13 +183,9 @@ export default function MatchesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Leagues</SelectItem>
-              {(Array.isArray(leagues) ? leagues : []).map((lg: any) => {
-                const key = typeof lg === "string" ? lg : lg.key;
-                const display = typeof lg === "string" ? lg : lg.display;
-                return (
-                  <SelectItem key={key} value={key}>{display}</SelectItem>
-                );
-              })}
+              {(Array.isArray(leagues) ? leagues : []).map((lg: League) => (
+                <SelectItem key={lg.key} value={lg.key}>{lg.display}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
