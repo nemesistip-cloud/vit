@@ -71,6 +71,28 @@ async def get_audit_logs(
     }
 
 
+@router.get("/log")
+async def get_audit_log(
+    request: Request,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    action: Optional[str] = Query(None),
+    actor: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias for /audit/logs to support legacy clients."""
+    return await get_audit_logs(
+        request=request,
+        limit=limit,
+        offset=offset,
+        action=action,
+        actor=actor,
+        status=status,
+        db=db,
+    )
+
+
 class AuditLogCreate(BaseModel):
     action: str
     actor: Optional[str] = "system"

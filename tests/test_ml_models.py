@@ -19,9 +19,9 @@ def test_orchestrator_loads_12_models(orchestrator):
 
 def test_all_model_keys_present(orchestrator):
     expected = {
-        "logistic_v1", "rf_v1", "xgb_v1", "poisson_v1", "elo_v1",
-        "dixon_coles_v1", "lstm_v1", "transformer_v1", "ensemble_v1",
-        "market_v1", "bayes_v1", "hybrid_v1",
+        "logistic_v2", "rf_v2", "xgb_v2", "poisson_v2", "elo_v2",
+        "dixon_coles_v2", "lstm_v2", "transformer_v2", "ensemble_v2",
+        "market_v2", "bayes_v2", "hybrid_v2",
     }
     assert expected == set(orchestrator.models.keys())
 

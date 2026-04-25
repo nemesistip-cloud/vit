@@ -4,8 +4,10 @@ import logging
 from typing import List, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.db.database import get_db
+from app.db.models import AIPrediction
 from app.services.ai_ingestion import AIIngestionService
 from app.services.ai_profiler import AIProfilerService
 from app.services.ai_signals import AISignalService
@@ -18,6 +20,37 @@ router = APIRouter(
     tags=["ai"],
     dependencies=[Depends(verify_api_key)]
 )
+
+
+@router.get("/predictions")
+async def list_ai_predictions(
+    match_id: Optional[int] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    """List AI predictions, optionally filtered by match."""
+    query = select(AIPrediction)
+    if match_id is not None:
+        query = query.where(AIPrediction.match_id == match_id)
+
+    result = await db.execute(query.offset(offset).limit(limit))
+    predictions = result.scalars().all()
+    return {
+        "predictions": [
+            {
+                "match_id": p.match_id,
+                "source": p.source,
+                "home_prob": p.home_prob,
+                "draw_prob": p.draw_prob,
+                "away_prob": p.away_prob,
+                "confidence": p.confidence,
+                "reason": p.reason,
+                "timestamp": p.timestamp,
+            }
+            for p in predictions
+        ]
+    }
 
 
 @router.get("/predictions/{match_id}")
