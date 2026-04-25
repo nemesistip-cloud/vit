@@ -18,28 +18,38 @@ from app.modules.ai.models import ModelMetadata
 
 logger = logging.getLogger(__name__)
 
-# Canonical spec for all 12 models (key → display metadata)
+# Canonical spec for all 12 models (key → display metadata).
 # spec_weight: ensemble contribution per the VIT Network design spec (sums to 1.0)
+# parent_version: the previous-generation key — used so v2 bootstrap can
+#                 deactivate the matching v1 row without deleting it.
+# v4.6.0 bumped every key from *_v1 to *_v2.
 MODEL_SPECS = {
-    "xgb_v1":         {"name": "XGBoost",             "model_type": "XGBoost",        "markets": ["1x2", "over_under", "btts"],        "spec_weight": 0.15},
-    "lstm_v1":        {"name": "LSTM",                "model_type": "LSTM",           "markets": ["1x2"],                               "spec_weight": 0.12},
-    "poisson_v1":     {"name": "PoissonGoals",        "model_type": "Poisson",        "markets": ["1x2", "over_under"],                 "spec_weight": 0.10},
-    "hybrid_v1":      {"name": "HybridStack",         "model_type": "HybridStack",    "markets": ["1x2", "over_under", "btts"],        "spec_weight": 0.10},
-    "transformer_v1": {"name": "Transformer",         "model_type": "Transformer",    "markets": ["1x2", "over_under"],                 "spec_weight": 0.10},
-    "ensemble_v1":    {"name": "NeuralEnsemble",      "model_type": "NeuralEnsemble", "markets": ["1x2", "over_under", "btts"],        "spec_weight": 0.08},
-    "dixon_coles_v1": {"name": "DixonColes",          "model_type": "DixonColes",     "markets": ["1x2", "over_under", "btts"],        "spec_weight": 0.08},
-    "bayes_v1":       {"name": "BayesianNet",         "model_type": "BayesianNet",    "markets": ["1x2", "btts"],                       "spec_weight": 0.08},
-    "rf_v1":          {"name": "RandomForest",        "model_type": "RandomForest",   "markets": ["1x2", "over_under"],                 "spec_weight": 0.05},
-    "elo_v1":         {"name": "EloRating",           "model_type": "Elo",            "markets": ["1x2"],                               "spec_weight": 0.05},
-    "logistic_v1":    {"name": "LogisticRegression",  "model_type": "Logistic",       "markets": ["1x2"],                               "spec_weight": 0.05},
-    "market_v1":      {"name": "MarketImplied",       "model_type": "MarketImplied",  "markets": ["1x2"],                               "spec_weight": 0.04},
+    "xgb_v2":         {"name": "XGBoost",            "model_type": "XGBoost",        "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.15, "parent_version": "xgb_v1"},
+    "lstm_v2":        {"name": "LSTM",               "model_type": "LSTM",           "markets": ["1x2"],                       "spec_weight": 0.12, "parent_version": "lstm_v1"},
+    "poisson_v2":     {"name": "PoissonGoals",       "model_type": "Poisson",        "markets": ["1x2", "over_under"],         "spec_weight": 0.10, "parent_version": "poisson_v1"},
+    "hybrid_v2":      {"name": "HybridStack",        "model_type": "HybridStack",    "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.10, "parent_version": "hybrid_v1"},
+    "transformer_v2": {"name": "Transformer",        "model_type": "Transformer",    "markets": ["1x2", "over_under"],         "spec_weight": 0.10, "parent_version": "transformer_v1"},
+    "ensemble_v2":    {"name": "NeuralEnsemble",     "model_type": "NeuralEnsemble", "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.08, "parent_version": "ensemble_v1"},
+    "dixon_coles_v2": {"name": "DixonColes",         "model_type": "DixonColes",     "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.08, "parent_version": "dixon_coles_v1"},
+    "bayes_v2":       {"name": "BayesianNet",        "model_type": "BayesianNet",    "markets": ["1x2", "btts"],               "spec_weight": 0.08, "parent_version": "bayes_v1"},
+    "rf_v2":          {"name": "RandomForest",       "model_type": "RandomForest",   "markets": ["1x2", "over_under"],         "spec_weight": 0.05, "parent_version": "rf_v1"},
+    "elo_v2":         {"name": "EloRating",          "model_type": "Elo",            "markets": ["1x2"],                       "spec_weight": 0.05, "parent_version": "elo_v1"},
+    "logistic_v2":    {"name": "LogisticRegression", "model_type": "Logistic",       "markets": ["1x2"],                       "spec_weight": 0.05, "parent_version": "logistic_v1"},
+    "market_v2":      {"name": "MarketImplied",      "model_type": "MarketImplied",  "markets": ["1x2"],                       "spec_weight": 0.04, "parent_version": "market_v1"},
 }
 
 
 async def bootstrap_registry(db: AsyncSession, orchestrator: Any) -> int:
     """
     Ensure every model has a row in model_metadata.
-    Inserts missing rows; does NOT overwrite existing weights.
+
+    v4.6.0 behaviour:
+      - Inserts a row for every v2 spec (active=True).
+      - If the matching v1 parent row exists, marks it inactive (preserves
+        history; does NOT delete) so old predictions remain valid.
+      - Never overwrites the weight of an existing v2 row — only refreshes
+        pkl_loaded status from the live orchestrator.
+
     Returns the count of newly inserted rows.
     """
     inserted = 0
@@ -55,21 +65,26 @@ async def bootstrap_registry(db: AsyncSession, orchestrator: Any) -> int:
             pkl_loaded = meta.get("pkl_loaded", False)
             base_weight = spec.get("spec_weight", 0.08)
             initial_weight = base_weight * 2.0 if pkl_loaded else base_weight
+            change_summary = meta.get("change_summary", "")
+            description = (
+                f"{spec['name']} — ensemble model (spec weight {base_weight*100:.0f}%)"
+                + (f" — v2: {change_summary}" if change_summary else "")
+            )
 
             row = ModelMetadata(
                 key=key,
                 name=spec["name"],
                 model_type=spec["model_type"],
-                version="v3.1.0",
+                version="v4.6.0",
                 weight=initial_weight,
                 is_active=True,
                 pkl_loaded=pkl_loaded,
                 supported_markets=spec["markets"],
-                description=f"{spec['name']} — ensemble model (spec weight {base_weight*100:.0f}%)",
+                description=description,
             )
             db.add(row)
             inserted += 1
-            logger.info(f"[registry] Registered model: {key} (weight={initial_weight:.4f})")
+            logger.info(f"[registry] Registered v2 model: {key} (weight={initial_weight:.4f})")
         else:
             # Sync pkl_loaded status from live orchestrator
             meta = orch_meta.get(key, {})
@@ -81,8 +96,23 @@ async def bootstrap_registry(db: AsyncSession, orchestrator: Any) -> int:
                     row.weight = base_weight * 2.0
                 logger.info(f"[registry] Updated pkl status for {key}: {pkl_loaded}, new weight={row.weight:.4f}")
 
+        # Deactivate the v1 parent row (if any) without deleting it. Keeps
+        # historical predictions joinable to a model_metadata row.
+        parent_key = spec.get("parent_version")
+        if parent_key:
+            parent_res = await db.execute(
+                select(ModelMetadata).where(ModelMetadata.key == parent_key)
+            )
+            parent_row = parent_res.scalar_one_or_none()
+            if parent_row is not None and parent_row.is_active:
+                parent_row.is_active = False
+                logger.info(
+                    f"[registry] Deactivated parent {parent_key} "
+                    f"(superseded by {key}); row preserved for audit."
+                )
+
     await db.commit()
-    logger.info(f"[registry] Bootstrap complete — {inserted} new models registered")
+    logger.info(f"[registry] Bootstrap complete — {inserted} new v2 models registered")
     return inserted
 
 

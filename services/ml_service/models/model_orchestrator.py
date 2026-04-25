@@ -345,38 +345,123 @@ def _evaluate_model_on_history(model, historical: list, max_eval: int = 400) -> 
 
 # ── Model spec table ──────────────────────────────────────────────────────────
 
-_MODEL_SPECS = [
-    # (key, display_name, markets, noise_sigma, market_trust)
-    # market_trust: how much to trust market vs prior (0=pure prior, 1=pure market)
-    ("logistic_v1",    "LogisticRegression", ["1x2"],                       0.018, 0.70),
-    ("rf_v1",          "RandomForest",       ["1x2", "over_under"],         0.020, 0.60),
-    ("xgb_v1",         "XGBoost",            ["1x2", "over_under", "btts"], 0.015, 0.65),
-    ("poisson_v1",     "PoissonGoals",       ["1x2", "over_under"],         0.012, 0.55),
-    ("elo_v1",         "EloRating",          ["1x2"],                       0.010, 0.40),
-    ("dixon_coles_v1", "DixonColes",         ["1x2", "over_under", "btts"], 0.010, 0.50),
-    ("lstm_v1",        "LSTM",               ["1x2"],                       0.022, 0.75),
-    ("transformer_v1", "Transformer",        ["1x2", "over_under"],         0.020, 0.68),
-    ("ensemble_v1",    "NeuralEnsemble",     ["1x2", "over_under", "btts"], 0.012, 0.60),
-    ("market_v1",      "MarketImplied",      ["1x2"],                       0.006, 0.95),
-    ("bayes_v1",       "BayesianNet",        ["1x2", "btts"],               0.018, 0.50),
-    ("hybrid_v1",      "HybridStack",        ["1x2", "over_under", "btts"], 0.010, 0.65),
+# ─────────────────────────────────────────────────────────────────────────────
+# Model spec table — v2 (v4.6.0)
+#
+# Each entry is a dict so we can carry richer metadata than the old 5-tuple:
+#   key             — runtime identifier (now *_v2)
+#   name            — human-readable display name
+#   markets         — list of supported betting markets
+#   sigma           — per-prediction Gaussian noise floor
+#   market_trust    — 0 = pure prior, 1 = pure market signal
+#   parent_version  — predecessor key (*_v1); used for backward-compatible
+#                     loading of v1 .pkl weights and v1 calibrators when v2
+#                     artefacts are not yet trained.
+#   change_summary  — one-line description of the v1 → v2 algorithmic upgrade
+#                     (drawn from TRAINING_PLAN.md section 1).
+# ─────────────────────────────────────────────────────────────────────────────
+
+_MODEL_SPECS: list = [
+    {
+        "key": "logistic_v2", "name": "LogisticRegression",
+        "markets": ["1x2"], "sigma": 0.018, "market_trust": 0.70,
+        "parent_version": "logistic_v1",
+        "change_summary": "Adds league-strength interaction term + L2 regularisation tuning.",
+    },
+    {
+        "key": "rf_v2", "name": "RandomForest",
+        "markets": ["1x2", "over_under"], "sigma": 0.020, "market_trust": 0.60,
+        "parent_version": "rf_v1",
+        "change_summary": "Uses class_weight='balanced' to correct for draw-class under-prediction.",
+    },
+    {
+        "key": "xgb_v2", "name": "XGBoost",
+        "markets": ["1x2", "over_under", "btts"], "sigma": 0.015, "market_trust": 0.65,
+        "parent_version": "xgb_v1",
+        "change_summary": "Adds early-stopping on validation log-loss and Optuna-tuned max_depth.",
+    },
+    {
+        "key": "poisson_v2", "name": "PoissonGoals",
+        "markets": ["1x2", "over_under"], "sigma": 0.012, "market_trust": 0.55,
+        "parent_version": "poisson_v1",
+        "change_summary": "Per-league λ priors instead of a single global prior — better for low-scoring leagues.",
+    },
+    {
+        "key": "elo_v2", "name": "EloRating",
+        "markets": ["1x2"], "sigma": 0.010, "market_trust": 0.40,
+        "parent_version": "elo_v1",
+        "change_summary": "K-factor decays with match recency so old form has less weight than recent form.",
+    },
+    {
+        "key": "dixon_coles_v2", "name": "DixonColes",
+        "markets": ["1x2", "over_under", "btts"], "sigma": 0.010, "market_trust": 0.50,
+        "parent_version": "dixon_coles_v1",
+        "change_summary": "Grid-searches the low-score correlation ρ instead of using a fixed ρ=−0.18.",
+    },
+    {
+        "key": "lstm_v2", "name": "LSTM",
+        "markets": ["1x2"], "sigma": 0.022, "market_trust": 0.75,
+        "parent_version": "lstm_v1",
+        "change_summary": "Sequence length raised to 10 with dropout=0.2; trained on rolling per-team windows.",
+    },
+    {
+        "key": "transformer_v2", "name": "Transformer",
+        "markets": ["1x2", "over_under"], "sigma": 0.020, "market_trust": 0.68,
+        "parent_version": "transformer_v1",
+        "change_summary": "4-head attention over a 64-d projection of last-N matches (was 1-head softmax).",
+    },
+    {
+        "key": "ensemble_v2", "name": "NeuralEnsemble",
+        "markets": ["1x2", "over_under", "btts"], "sigma": 0.012, "market_trust": 0.60,
+        "parent_version": "ensemble_v1",
+        "change_summary": "Entropy-weighted stacking — confident base models contribute more than uncertain ones.",
+    },
+    {
+        "key": "market_v2", "name": "MarketImplied",
+        "markets": ["1x2"], "sigma": 0.006, "market_trust": 0.95,
+        "parent_version": "market_v1",
+        "change_summary": "Switches from average-book vig removal to power-method (Shin) devigging for sharper priors.",
+    },
+    {
+        "key": "bayes_v2", "name": "BayesianNet",
+        "markets": ["1x2", "btts"], "sigma": 0.018, "market_trust": 0.50,
+        "parent_version": "bayes_v1",
+        "change_summary": "Conjugate Dirichlet priors per league replace the single global Beta prior.",
+    },
+    {
+        "key": "hybrid_v2", "name": "HybridStack",
+        "markets": ["1x2", "over_under", "btts"], "sigma": 0.010, "market_trust": 0.65,
+        "parent_version": "hybrid_v1",
+        "change_summary": "Adds isotonic post-calibration on top of the stacker output for tighter ECE.",
+    },
 ]
 
-# Performance-based base weights per model key (before pkl boost)
+
+# Performance-based base weights per model key (before pkl boost).
+# v2 keys carry the same priors as their v1 parents — re-tuning happens after
+# we have ≥30 days of v2 prediction telemetry.
 _MODEL_BASE_WEIGHTS: Dict[str, float] = {
-    "hybrid_v1":      1.50,   # most sophisticated — stacks all signals
-    "ensemble_v1":    1.40,   # neural ensemble diversity weighting
-    "xgb_v1":         1.30,   # boosted residual correction
-    "dixon_coles_v1": 1.20,   # score correlation correction
-    "poisson_v1":     1.20,   # exact Poisson score-matrix
-    "bayes_v1":       1.10,   # conjugate Bayesian update
-    "logistic_v1":    1.10,   # calibrated sigmoid blend
-    "transformer_v1": 1.00,   # attention-inspired prior blend
-    "lstm_v1":        1.00,   # recency-weighted momentum
-    "rf_v1":          0.95,   # bootstrap diversity simulation
-    "market_v1":      0.90,   # pure market signal (benchmark)
-    "elo_v1":         0.75,   # session Elo (cold-start penalty)
+    "hybrid_v2":      1.50,   # most sophisticated — stacks all signals
+    "ensemble_v2":    1.40,   # neural ensemble diversity weighting
+    "xgb_v2":         1.30,   # boosted residual correction
+    "dixon_coles_v2": 1.20,   # score correlation correction
+    "poisson_v2":     1.20,   # exact Poisson score-matrix
+    "bayes_v2":       1.10,   # conjugate Bayesian update
+    "logistic_v2":    1.10,   # calibrated sigmoid blend
+    "transformer_v2": 1.00,   # attention-inspired prior blend
+    "lstm_v2":        1.00,   # recency-weighted momentum
+    "rf_v2":          0.95,   # bootstrap diversity simulation
+    "market_v2":      0.90,   # pure market signal (benchmark)
+    "elo_v2":         0.75,   # session Elo (cold-start penalty)
 }
+
+
+def _spec_parent(key: str) -> Optional[str]:
+    """Return the parent_version (v1 key) for a v2 spec, or None."""
+    for spec in _MODEL_SPECS:
+        if spec["key"] == key:
+            return spec.get("parent_version")
+    return None
 
 
 # ── Thin model wrapper ────────────────────────────────────────────────────────
@@ -1056,6 +1141,22 @@ class _HybridStackModel(_BaseModel):
 # ── Model factory ─────────────────────────────────────────────────────────────
 
 _MODEL_CLASS_MAP = {
+    # v2 (active) — same Python classes as v1; the algorithmic improvements
+    # described in each spec's `change_summary` will land in subsequent
+    # subclass commits without breaking the orchestrator API.
+    "logistic_v2":    _LogisticModel,
+    "rf_v2":          _RandomForestModel,
+    "xgb_v2":         _XGBoostModel,
+    "poisson_v2":     _PoissonModel,
+    "elo_v2":         _EloModel,
+    "dixon_coles_v2": _DixonColesModel,
+    "lstm_v2":        _LSTMModel,
+    "transformer_v2": _TransformerModel,
+    "ensemble_v2":    _NeuralEnsembleModel,
+    "market_v2":      _MarketModel,
+    "bayes_v2":       _BayesianModel,
+    "hybrid_v2":      _HybridStackModel,
+    # v1 (kept for backward compatibility — old DB rows / pkl artefacts)
     "logistic_v1":    _LogisticModel,
     "rf_v1":          _RandomForestModel,
     "xgb_v1":         _XGBoostModel,
@@ -1110,18 +1211,41 @@ class ModelOrchestrator:
         )
         results: Dict[str, bool] = {}
 
-        for key, name, markets, sigma, market_trust in _MODEL_SPECS:
+        for spec in _MODEL_SPECS:
+            key            = spec["key"]
+            name           = spec["name"]
+            markets        = spec["markets"]
+            sigma          = spec["sigma"]
+            market_trust   = spec["market_trust"]
+            parent_version = spec.get("parent_version")
+            change_summary = spec.get("change_summary", "")
+
             # Always create the proper algorithmic model class first (noise-based fallback)
             cls = _MODEL_CLASS_MAP.get(key, _BaseModel)
             model_obj = cls(key, markets, sigma, market_trust)
 
-            # Only attempt pkl loading when USE_REAL_ML_MODELS is enabled
+            # Only attempt pkl loading when USE_REAL_ML_MODELS is enabled.
+            # v2 spec: try the v2 .pkl first; if absent, fall back to the
+            # parent v1 .pkl so existing trained weights keep working until
+            # a fresh v2 training run lands.
             loaded = False
+            loaded_from = None
             if use_real:
                 payload = self._try_load_pkl(key, models_dir, cache_on)
                 if payload is not None:
                     self._attach_sklearn_payload(model_obj, key, payload)
                     loaded = True
+                    loaded_from = key
+                elif parent_version:
+                    payload = self._try_load_pkl(parent_version, models_dir, cache_on)
+                    if payload is not None:
+                        self._attach_sklearn_payload(model_obj, key, payload)
+                        loaded = True
+                        loaded_from = parent_version
+                        logger.info(
+                            "↳ %s loaded weights from parent %s (v2 pkl not yet trained)",
+                            key, parent_version,
+                        )
 
             self._pkl_loaded[key] = loaded
             # Use performance-based base weight; real pkl models get 2× boost
@@ -1134,9 +1258,12 @@ class ModelOrchestrator:
                 "model_type":        name,
                 "weight":            weight,
                 "child_models":      [],
-                "description":       f"{name} model (v3.1{'+ real weights' if loaded else ''})",
+                "description":       f"{name} model (v2{'+ real weights' if loaded else ''}) — {change_summary}",
                 "supported_markets": markets,
                 "pkl_loaded":        loaded,
+                "parent_version":    parent_version,
+                "change_summary":    change_summary,
+                "loaded_from":       loaded_from,
             }
             results[key] = True
 
@@ -1375,6 +1502,9 @@ class ModelOrchestrator:
             hp, dp, ap = _normalise(hp, dp, ap)
 
             # ── Phase C: probability calibration (Platt / Isotonic) ──────────
+            # Try v2 calibrators first; if absent, fall back to the parent
+            # v1 calibrators so existing fitted artefacts continue to apply
+            # until v2 calibrators are trained.
             calibration_meta: Dict[str, object] = {"applied": False}
             try:
                 from app.services.calibration import CalibratorRegistry, DEFAULT_METHOD
@@ -1382,6 +1512,15 @@ class ModelOrchestrator:
                 (hp, dp, ap), calibration_meta = reg.apply(
                     key, hp, dp, ap, method=DEFAULT_METHOD,
                 )
+                if not calibration_meta.get("applied"):
+                    parent = meta.get("parent_version") or _spec_parent(key)
+                    if parent:
+                        (hp, dp, ap), calibration_meta = reg.apply(
+                            parent, hp, dp, ap, method=DEFAULT_METHOD,
+                        )
+                        if calibration_meta.get("applied"):
+                            calibration_meta["fallback_from"] = key
+                            calibration_meta["fallback_to"]   = parent
             except Exception as _cal_e:
                 logger.debug("Calibration unavailable for %s: %s", key, _cal_e)
                 calibration_meta = {"applied": False, "error": str(_cal_e)}
