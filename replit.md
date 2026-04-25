@@ -3,7 +3,7 @@
 ## Overview
 Institutional-grade football prediction platform combining a 12-model AI ensemble, a VITCoin wallet economy, blockchain-verified staking, a model marketplace, governance DAO, and multi-tier subscriptions (Free / Pro $49/mo / Elite $199/mo).
 
-**Version: 4.6.0** — 12-model spec bumped to v2 with `parent_version` lineage; backward-compatible pkl + calibrator fallback to v1; admin `Textarea` import restored; `vitcoin_pricing_loop()` restored; planned-feature roadmap captured in `CHANGELOG_v4.6.md`.
+**Version: 4.6.0** — 12-model spec bumped to v2 with `parent_version` lineage; backward-compatible pkl + calibrator fallback to v1; **CLV signal now blended into model-weight adjuster** (40% CLV / 60% log-loss); admin `Textarea` import restored; `vitcoin_pricing_loop()` restored; planned-feature roadmap captured in `CHANGELOG_v4.6.md`.
 
 ## Architecture
 - **Backend:** Python 3.11, FastAPI, SQLAlchemy (async), Alembic, Uvicorn on port 5000
@@ -62,6 +62,22 @@ Run after switching to PostgreSQL.
 
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
+
+## Recent Changes — CLV-Blended Weight Adjuster (Apr 25 2026)
+
+The model weight loop now uses **Closing Line Value (CLV)** — the leading indicator of true betting edge — as a primary signal alongside log-loss.
+
+`app/modules/ai/weight_adjuster.py`:
+- Each settled match looks up its `CLVEntry` (populated inline by `results_settler.py` when closing odds arrive).
+- Per model: `clv_delta = clip(clv_value × (model_prob_for_bet_side − market_prob_for_bet_side) × CLV_GAIN, ±CLV_MAX_DELTA)`
+- Final delta blends 60% log-loss + 40% CLV (`CLV_WEIGHT=0.40`); when no `CLVEntry` exists the loop falls back to pure log-loss (backward compatible).
+- New `model_metadata.clv_score` column stores a rolling EMA of each model's CLV contribution; `clv_samples` counts how many settled matches had a CLV signal.
+- Performance leaderboard (`GET /api/ai-engine/performance`) now surfaces `clv_score`, `clv_samples`, `log_loss` per model.
+- **Bug fix exposed in testing:** the v2 bump created two `model_metadata` rows with the same `name` ("XGBoost", etc. — one v1, one v2). The adjuster's per-model lookup now filters on `is_active=True` and orders by id desc, eliminating the `MultipleResultsFound` crash that would have surfaced the first time a settled match flowed through.
+
+Migration adds `clv_score` (REAL/DOUBLE PRECISION) and `clv_samples` (INTEGER DEFAULT 0) to `model_metadata` on both SQLite and PostgreSQL paths in `main.py`.
+
+Verified end-to-end with a synthetic match: a model that put 62% on the side that beat the line (vs market 54%) received a positive blend; a model that put 30% on that side received a CLV penalty ~17× larger than its log-loss penalty alone.
 
 ## Recent Changes — v4.6.0 Model Spec Bump to v2 (Apr 25 2026)
 

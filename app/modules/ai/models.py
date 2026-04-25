@@ -39,6 +39,8 @@ class ModelMetadata(Base):
     accuracy_ou     = Column(Float, nullable=True)     # over/under
     brier_score     = Column(Float, nullable=True)
     log_loss        = Column(Float, nullable=True)
+    clv_score       = Column(Float, nullable=True)     # rolling EMA of CLV-weighted contribution; positive = beats market
+    clv_samples     = Column(Integer, default=0)       # how many settled matches had a CLV signal contribute
     predictions_total = Column(Integer, default=0)
     predictions_correct = Column(Integer, default=0)
 

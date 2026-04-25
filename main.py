@@ -607,6 +607,20 @@ async def lifespan(app: FastAPI):
                             await conn.execute(text(f"ALTER TABLE training_jobs ADD COLUMN {col} {ddl}"))
                 except Exception as _tj_e:
                     print(f"⚠️  training_jobs column migration skipped: {_tj_e}")
+
+                # ── model_metadata CLV columns (SQLite) ───────────────────────
+                try:
+                    mm_cols = (await conn.execute(text("PRAGMA table_info(model_metadata)"))).fetchall()
+                    mm_col_names = {row[1] for row in mm_cols}
+                    mm_additions = {
+                        "clv_score":   "REAL",
+                        "clv_samples": "INTEGER DEFAULT 0",
+                    }
+                    for col, ddl in mm_additions.items():
+                        if col not in mm_col_names:
+                            await conn.execute(text(f"ALTER TABLE model_metadata ADD COLUMN {col} {ddl}"))
+                except Exception as _mm_e:
+                    print(f"⚠️  model_metadata CLV column migration skipped: {_mm_e}")
             else:
                 await conn.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER"))
                 await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'"))
@@ -645,6 +659,15 @@ async def lifespan(app: FastAPI):
                         await conn.execute(text(f"ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS {col} {ddl}"))
                 except Exception as _tj_e:
                     print(f"⚠️  training_jobs column migration skipped: {_tj_e}")
+                # ── model_metadata CLV columns (PostgreSQL) ───────────────────
+                try:
+                    for col, ddl in [
+                        ("clv_score",   "DOUBLE PRECISION"),
+                        ("clv_samples", "INTEGER DEFAULT 0"),
+                    ]:
+                        await conn.execute(text(f"ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS {col} {ddl}"))
+                except Exception as _mm_e:
+                    print(f"⚠️  model_metadata CLV column migration skipped: {_mm_e}")
     except Exception as _e:
         print(f"⚠️  Compatibility schema update skipped: {_e}")
 

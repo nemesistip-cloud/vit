@@ -5,16 +5,26 @@ E3 — Model Weight Adjuster
 After each match settles, compare each model's predicted probability
 against the actual outcome and update its weight:
 
-    new_weight = old_weight × (1 + performance_delta × learning_rate)
+    loss_delta = compute_log_loss_delta(prob_assigned_to_actual)
+    clv_delta  = clv * (model_prob_for_bet_side - market_prob_for_bet_side)
+    final_delta = (1 - CLV_WEIGHT) * loss_delta + CLV_WEIGHT * clv_signal
+    new_weight = old_weight × (1 + final_delta × learning_rate)
+
+The CLV signal is the leading indicator: a model that consistently puts
+probability on the side that *beats the closing line* is rewarded even
+on losing bets, because positive CLV is the only proven proxy for true
+edge in betting markets. Settlement accuracy alone is high-variance and
+lagging.
 
 Rules:
-- Correct prediction (outcome matches argmax)  → +performance_delta
-- Wrong prediction                             → -performance_delta
 - Weights are clamped to [MIN_WEIGHT, MAX_WEIGHT]
+- CLV blending only fires when a CLVEntry exists for the match; otherwise
+  the loop falls back to pure log-loss-driven updates (backward compatible)
 - Changes are written to ModelMetadata and synced to the orchestrator
 
 Called by the auto-settle loop in main.py after settle_results() returns
-and also available as a standalone admin trigger.
+(which populates CLVEntry.closing_odds and CLVEntry.clv inline) and also
+available as a standalone admin trigger.
 """
 
 import logging
@@ -35,6 +45,13 @@ PERFORMANCE_DELTA = 0.10   # base delta applied each correct/wrong match
 MIN_WEIGHT     = 0.10   # floor — bad models still contribute a little
 MAX_WEIGHT     = 5.00   # ceiling — star models don't dominate completely
 ACCURACY_WINDOW = 50    # rolling window for accuracy calculation
+
+# CLV blending — the single biggest leverage in the weight loop.
+# 0.0 = pure log-loss (legacy behaviour); 1.0 = pure CLV.
+# 0.4 means CLV contributes ~40% of the weight signal once a CLVEntry exists.
+CLV_WEIGHT     = 0.40
+CLV_GAIN       = 5.00   # scale factor — CLV is typically in [-0.10, +0.15]; gain pushes it onto the same magnitude as log-loss delta
+CLV_MAX_DELTA  = 0.50   # safety clamp on the per-match CLV-driven delta
 
 
 async def adjust_weights_for_match(
@@ -67,18 +84,81 @@ async def adjust_weights_for_match(
     outcome_map = {"home": "home_prob", "draw": "draw_prob", "away": "away_prob"}
     target_key = outcome_map[actual_outcome]
 
+    # ── CLV signal lookup ─────────────────────────────────────────────────
+    # Pull any CLVEntry for this match (settler populates closing_odds + clv inline).
+    # CLV is the same for every model — what differs is each model's probability
+    # alignment with the bet_side, which is how we attribute credit/blame.
+    clv_value: Optional[float] = None
+    clv_bet_side: Optional[str] = None
+    clv_market_prob: Optional[float] = None
+    try:
+        from app.db.models import CLVEntry, Match  # local import — avoids circular deps at module load
+
+        # Resolve numeric match.id from external id when needed
+        match_pk: Optional[int] = None
+        try:
+            match_pk = int(match_id)
+        except (TypeError, ValueError):
+            mres = await db.execute(
+                select(Match.id).where(Match.external_id == str(match_id))
+            )
+            match_pk = mres.scalar_one_or_none()
+
+        if match_pk is not None:
+            cres = await db.execute(
+                select(CLVEntry)
+                .where(CLVEntry.match_id == match_pk)
+                .where(CLVEntry.clv.isnot(None))
+                .order_by(CLVEntry.timestamp.desc())
+                .limit(1)
+            )
+            clv_row = cres.scalar_one_or_none()
+            if clv_row is not None:
+                clv_value = float(clv_row.clv)
+                clv_bet_side = clv_row.bet_side
+                # Implied closing-line probability for the bet side (vig-included is fine
+                # for relative-attribution use; we're scoring "did the model agree with
+                # the side that beat the line", not absolute calibration).
+                if clv_row.closing_odds and clv_row.closing_odds > 0:
+                    clv_market_prob = 1.0 / float(clv_row.closing_odds)
+    except Exception as _clv_e:
+        logger.warning(f"[weight_adjuster] CLV lookup failed for match={match_id}: {_clv_e}")
+
+    clv_signal_active = (
+        clv_value is not None
+        and clv_bet_side in ("home", "draw", "away")
+        and clv_market_prob is not None
+    )
+
     adjustments: List[Dict] = []
 
     for model_pred in individual:
         model_name = model_pred.get("model_name", "")
 
-        # Find the registry key by name
+        # Find the active registry row by name. Since v4.6 the same display name
+        # ("XGBoost", "PoissonGoals", ...) exists for both *_v1 and *_v2 rows;
+        # bootstrap deactivates v1 once v2 is registered, so we filter on
+        # is_active=True and fall back to most-recent if ambiguity remains.
         reg_result = await db.execute(
-            select(ModelMetadata).where(ModelMetadata.name == model_name)
+            select(ModelMetadata)
+            .where(ModelMetadata.name == model_name)
+            .where(ModelMetadata.is_active.is_(True))
+            .order_by(ModelMetadata.id.desc())
+            .limit(1)
         )
         reg_row: Optional[ModelMetadata] = reg_result.scalar_one_or_none()
         if reg_row is None:
-            continue
+            # Fallback for legacy datasets where v1 was deactivated then v2
+            # never registered — pick any matching row.
+            fallback = await db.execute(
+                select(ModelMetadata)
+                .where(ModelMetadata.name == model_name)
+                .order_by(ModelMetadata.id.desc())
+                .limit(1)
+            )
+            reg_row = fallback.scalar_one_or_none()
+            if reg_row is None:
+                continue
 
         # Determine if prediction was correct (argmax matches actual)
         hp = model_pred.get("home_prob", 0.33)
@@ -98,11 +178,30 @@ async def adjust_weights_for_match(
         # Log-loss contribution (proper scoring rule)
         nll_contrib = log_loss_for_outcome(hp, dp, ap, actual_outcome)
 
-        # Weight update — magnitude scales with how confident & how right/wrong
-        # the model was, instead of a flat ±10% based on argmax alone.
-        delta = compute_log_loss_delta(prob_correct, base_delta=PERFORMANCE_DELTA)
+        # Base delta from log-loss — magnitude scales with confidence & correctness
+        loss_delta = compute_log_loss_delta(prob_correct, base_delta=PERFORMANCE_DELTA)
+
+        # ── CLV-blended delta ─────────────────────────────────────────────
+        # Reward models that put more probability than the market on the side
+        # that beat the closing line; penalise models that disagreed with a
+        # winning CLV bet. This is the leading indicator the legacy loop missed.
+        clv_delta = 0.0
+        clv_attribution = 0.0  # per-model CLV contribution stored as rolling EMA
+        if clv_signal_active:
+            side_prob_key = outcome_map[clv_bet_side]
+            model_side_prob = float(model_pred.get(side_prob_key, 0.33))
+            prob_alignment = model_side_prob - clv_market_prob  # >0 = model was sharper than market on this side
+            # raw_clv_delta lives in roughly [-CLV_GAIN, +CLV_GAIN] before clamping
+            raw_clv_delta = clv_value * prob_alignment * CLV_GAIN
+            clv_delta = max(-CLV_MAX_DELTA, min(CLV_MAX_DELTA, raw_clv_delta))
+            clv_attribution = clv_value * prob_alignment  # un-amplified for the rolling stat
+
+            final_delta = (1.0 - CLV_WEIGHT) * loss_delta + CLV_WEIGHT * clv_delta
+        else:
+            final_delta = loss_delta
+
         old_weight = reg_row.weight
-        new_weight = old_weight * (1 + delta * LEARNING_RATE)
+        new_weight = old_weight * (1 + final_delta * LEARNING_RATE)
         new_weight = round(max(MIN_WEIGHT, min(MAX_WEIGHT, new_weight)), 6)
 
         # Update accuracy counters
@@ -121,6 +220,13 @@ async def adjust_weights_for_match(
         old_nll = reg_row.log_loss or math.log(3.0)
         reg_row.log_loss = round(alpha * nll_contrib + (1 - alpha) * old_nll, 4)
 
+        # Rolling CLV score — only updated when a CLV signal was available.
+        # Positive values = model consistently beats the closing line.
+        if clv_signal_active:
+            old_clv = reg_row.clv_score if reg_row.clv_score is not None else 0.0
+            reg_row.clv_score = round(alpha * clv_attribution + (1 - alpha) * old_clv, 6)
+            reg_row.clv_samples = (reg_row.clv_samples or 0) + 1
+
         reg_row.weight = new_weight
 
         # Also push into live orchestrator immediately
@@ -132,26 +238,39 @@ async def adjust_weights_for_match(
             "model_name": model_name,
             "correct":    correct,
             "p_actual":   round(prob_correct, 4),
-            "delta":      round(delta, 6),
+            "loss_delta": round(loss_delta, 6),
+            "clv_delta":  round(clv_delta, 6) if clv_signal_active else None,
+            "delta":      round(final_delta, 6),
             "old_weight": old_weight,
             "new_weight": new_weight,
             "accuracy":   reg_row.accuracy_1x2,
             "brier":      reg_row.brier_score,
             "log_loss":   reg_row.log_loss,
+            "clv_score":  reg_row.clv_score,
         })
 
     await db.commit()
 
-    logger.info(
-        f"[weight_adjuster] match={match_id} outcome={actual_outcome} "
-        f"adjusted={len(adjustments)} models"
-    )
+    if clv_signal_active:
+        logger.info(
+            f"[weight_adjuster] match={match_id} outcome={actual_outcome} "
+            f"adjusted={len(adjustments)} models | CLV={clv_value:+.4f} bet_side={clv_bet_side} "
+            f"market_p={clv_market_prob:.3f}"
+        )
+    else:
+        logger.info(
+            f"[weight_adjuster] match={match_id} outcome={actual_outcome} "
+            f"adjusted={len(adjustments)} models | CLV unavailable (log-loss only)"
+        )
 
     return {
-        "match_id":   match_id,
-        "outcome":    actual_outcome,
-        "adjusted":   len(adjustments),
-        "models":     adjustments,
+        "match_id":      match_id,
+        "outcome":       actual_outcome,
+        "adjusted":      len(adjustments),
+        "clv_active":    clv_signal_active,
+        "clv_value":     clv_value,
+        "clv_bet_side":  clv_bet_side,
+        "models":        adjustments,
     }
 
 
@@ -218,6 +337,9 @@ async def get_model_performance_report(db: AsyncSession) -> List[Dict]:
             "weight":             r.weight,
             "accuracy_1x2":       r.accuracy_1x2,
             "brier_score":        r.brier_score,
+            "log_loss":           r.log_loss,
+            "clv_score":          r.clv_score,
+            "clv_samples":        r.clv_samples or 0,
             "predictions_total":  total,
             "predictions_correct": correct,
             "win_rate":           round(correct / total, 4) if total else None,
