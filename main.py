@@ -467,6 +467,9 @@ async def task_reset_loop():
             logger.error(f"Task reset failed: {e}")
 
         await asyncio.sleep(3600)  # Run every hour
+
+
+async def vitcoin_pricing_loop():
     """Recalculate VITCoin price every 6 hours based on revenue and supply."""
     await asyncio.sleep(30)
     while True:
