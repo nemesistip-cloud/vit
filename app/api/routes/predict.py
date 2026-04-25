@@ -519,6 +519,31 @@ async def predict(
             f"source={data_source}"
         )
 
+        # --- Task System Integration ---
+        # Trigger task progress updates for authenticated users
+        if current_user and current_user.id:
+            try:
+                from app.modules.tasks.service import TaskService
+
+                # Update "Make Your First Prediction" task
+                await TaskService.update_task_progress(
+                    db, current_user.id, 2, 1  # Task ID 2: "Make Your First Prediction"
+                )
+
+                # Update "Daily Predictions" task (if user has progress on it)
+                await TaskService.update_task_progress(
+                    db, current_user.id, 4, 1  # Task ID 4: "Daily Predictions"
+                )
+
+                # Update "Weekly Streaker" task
+                await TaskService.update_task_progress(
+                    db, current_user.id, 5, 1  # Task ID 5: "Weekly Streaker"
+                )
+
+                logger.info(f"Task progress updated for user {current_user.id} after prediction")
+            except Exception as e:
+                logger.warning(f"Task progress update failed (non-fatal): {e}")
+
         # --- CLV tracking ---
         if best_bet.get("has_edge") and best_bet.get("best_side") and best_bet.get("odds", 0) > 0:
             try:

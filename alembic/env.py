@@ -18,6 +18,7 @@ import app.modules.ai.models
 import app.data.models
 import app.modules.notifications.models
 import app.modules.marketplace.models
+import app.modules.tasks.models
 import app.modules.trust.models
 import app.modules.bridge.models
 import app.modules.developer.models

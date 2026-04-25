@@ -154,6 +154,18 @@ async def cast_vote(
             choice=body.choice,
             reason=body.reason,
         )
+
+        # --- Task System Integration ---
+        # Trigger task progress updates for governance participation
+        try:
+            from app.modules.tasks.service import TaskService
+            await TaskService.update_task_progress(
+                db, current_user.id, 12, 1  # Task ID 12: "Governance Participant"
+            )
+            logger.info(f"Task progress updated for user {current_user.id} after voting")
+        except Exception as e:
+            logger.warning(f"Task progress update failed (non-fatal): {e}")
+
         return _fmt_vote(vote)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -2004,6 +2004,435 @@ function AuditTab() {
   );
 }
 
+// ─── Module 12: Tasks Management ──────────────────────────────────────
+
+function TasksTab() {
+  const qc = useQueryClient();
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [newTask, setNewTask] = useState({
+    name: "",
+    description: "",
+    category_id: "",
+    xp_reward: 0,
+    vit_reward: 0,
+    trigger_type: "manual",
+    trigger_condition: "",
+    max_completions: null,
+    is_active: true,
+    reset_frequency: "never"
+  });
+
+  const { data: tasksData, isLoading: tasksLoading } = useQuery<{ tasks: any[]; categories: any[] }>({
+    queryKey: ["admin-tasks"],
+    queryFn: () => apiGet("/admin/tasks"),
+    refetchInterval: 30000,
+  });
+
+  const { data: completionsData } = useQuery<{ completions: any[]; total: number }>({
+    queryKey: ["admin-task-completions"],
+    queryFn: () => apiGet("/admin/tasks/completions?limit=100"),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (task: any) => apiPost("/admin/tasks", task),
+    onSuccess: () => {
+      toast.success("Task created");
+      setNewTask({
+        name: "",
+        description: "",
+        category_id: "",
+        xp_reward: 0,
+        vit_reward: 0,
+        trigger_type: "manual",
+        trigger_condition: "",
+        max_completions: null,
+        is_active: true,
+        reset_frequency: "never"
+      });
+      qc.invalidateQueries({ queryKey: ["admin-tasks"] });
+    },
+    onError: () => toast.error("Failed to create task"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => apiPut(`/admin/tasks/${id}`, body),
+    onSuccess: () => { toast.success("Task updated"); setEditingTask(null); qc.invalidateQueries({ queryKey: ["admin-tasks"] }); },
+    onError: () => toast.error("Failed to update task"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiDelete(`/admin/tasks/${id}`),
+    onSuccess: () => { toast.success("Task deleted"); qc.invalidateQueries({ queryKey: ["admin-tasks"] }); },
+    onError: () => toast.error("Failed to delete task"),
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: () => apiPost("/admin/tasks/reset-expired", {}),
+    onSuccess: () => { toast.success("Expired tasks reset"); qc.invalidateQueries({ queryKey: ["admin-task-completions"] }); },
+    onError: () => toast.error("Failed to reset tasks"),
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Task Creation */}
+      <Card className="bg-gray-900 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Plus className="w-5 h-5 text-emerald-400" /> Create New Task
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="text-gray-300">Task Name</Label>
+              <Input
+                value={newTask.name}
+                onChange={e => setNewTask(t => ({ ...t, name: e.target.value }))}
+                className="bg-gray-800 border-gray-600 text-white"
+                placeholder="e.g. Make Your First Prediction"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-gray-300">Category</Label>
+              <Select value={newTask.category_id} onValueChange={v => setNewTask(t => ({ ...t, category_id: v }))}>
+                <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                  {tasksData?.categories?.map((cat: any) => (
+                    <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-gray-300">XP Reward</Label>
+              <Input
+                type="number"
+                value={newTask.xp_reward}
+                onChange={e => setNewTask(t => ({ ...t, xp_reward: +e.target.value }))}
+                className="bg-gray-800 border-gray-600 text-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-gray-300">VIT Reward</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={newTask.vit_reward}
+                onChange={e => setNewTask(t => ({ ...t, vit_reward: +e.target.value }))}
+                className="bg-gray-800 border-gray-600 text-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-gray-300">Trigger Type</Label>
+              <Select value={newTask.trigger_type} onValueChange={v => setNewTask(t => ({ ...t, trigger_type: v }))}>
+                <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="xp_threshold">XP Threshold</SelectItem>
+                  <SelectItem value="prediction_count">Prediction Count</SelectItem>
+                  <SelectItem value="deposit_amount">Deposit Amount</SelectItem>
+                  <SelectItem value="governance_vote">Governance Vote</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-gray-300">Reset Frequency</Label>
+              <Select value={newTask.reset_frequency} onValueChange={v => setNewTask(t => ({ ...t, reset_frequency: v }))}>
+                <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                  <SelectItem value="never">Never</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-gray-300">Description</Label>
+            <Textarea
+              value={newTask.description}
+              onChange={e => setNewTask(t => ({ ...t, description: e.target.value }))}
+              className="bg-gray-800 border-gray-600 text-white"
+              placeholder="Task description and completion instructions"
+              rows={3}
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={newTask.is_active}
+                onCheckedChange={v => setNewTask(t => ({ ...t, is_active: v }))}
+              />
+              <Label className="text-gray-300">Active</Label>
+            </div>
+            <Button
+              className="bg-emerald-500 hover:bg-emerald-400 text-black"
+              disabled={createMutation.isPending || !newTask.name.trim()}
+              onClick={() => createMutation.mutate(newTask)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {createMutation.isPending ? "Creating…" : "Create Task"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Task Management */}
+      <Card className="bg-gray-900 border-gray-700">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-cyan-400" /> Task Management
+              <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
+                {tasksData?.tasks?.length ?? 0} tasks
+              </Badge>
+            </CardTitle>
+            <Button
+              variant="outline"
+              className="border-amber-500/30 text-amber-400 hover:border-amber-400"
+              onClick={() => resetMutation.mutate()}
+              disabled={resetMutation.isPending}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${resetMutation.isPending ? "animate-spin" : ""}`} />
+              Reset Expired
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {tasksLoading ? (
+            <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-700 text-gray-400">
+                    <th className="text-left p-3">Task</th>
+                    <th className="text-left p-3">Category</th>
+                    <th className="text-left p-3">Rewards</th>
+                    <th className="text-left p-3">Trigger</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Completions</th>
+                    <th className="text-left p-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasksData?.tasks?.map((task: any) => (
+                    <tr key={task.id} className="border-b border-gray-800 hover:bg-gray-800/40">
+                      <td className="p-3">
+                        <div className="text-white font-medium">{task.name}</div>
+                        <div className="text-xs text-gray-500 truncate max-w-[200px]">{task.description}</div>
+                      </td>
+                      <td className="p-3 text-gray-400 text-xs">
+                        {tasksData.categories?.find((c: any) => c.id === task.category_id)?.name}
+                      </td>
+                      <td className="p-3 text-xs">
+                        <div className="text-cyan-400">{task.xp_reward} XP</div>
+                        <div className="text-amber-400">{task.vit_reward} VIT</div>
+                      </td>
+                      <td className="p-3 text-xs text-gray-400 capitalize">
+                        {task.trigger_type.replace("_", " ")}
+                      </td>
+                      <td className="p-3">
+                        <StatusBadge status={task.is_active ? "active" : "disabled"} />
+                      </td>
+                      <td className="p-3 text-gray-400 text-xs">
+                        {task.completion_count ?? 0}
+                        {task.max_completions && ` / ${task.max_completions}`}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+                            onClick={() => setEditingTask(task)}>
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+                            onClick={() => {
+                              if (confirm("Delete this task? This cannot be undone.")) {
+                                deleteMutation.mutate(task.id);
+                              }
+                            }}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {!tasksData?.tasks?.length && (
+                    <tr><td colSpan={7} className="text-center text-gray-500 py-8">No tasks found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recent Completions */}
+      <Card className="bg-gray-900 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-emerald-400" /> Recent Completions
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+              {completionsData?.total ?? 0} total
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-700 text-gray-400">
+                  <th className="text-left p-3">User</th>
+                  <th className="text-left p-3">Task</th>
+                  <th className="text-left p-3">Rewards Earned</th>
+                  <th className="text-left p-3">Completed At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completionsData?.completions?.slice(0, 20).map((comp: any) => (
+                  <tr key={comp.id} className="border-b border-gray-800 hover:bg-gray-800/40">
+                    <td className="p-3 text-gray-300 font-mono text-xs">#{comp.user_id}</td>
+                    <td className="p-3 text-white text-sm">{comp.task_name}</td>
+                    <td className="p-3 text-xs">
+                      <div className="text-cyan-400">{comp.xp_earned} XP</div>
+                      <div className="text-amber-400">{comp.vit_earned} VIT</div>
+                    </td>
+                    <td className="p-3 text-gray-500 text-xs whitespace-nowrap">
+                      {comp.completed_at ? new Date(comp.completed_at).toLocaleString() : "-"}
+                    </td>
+                  </tr>
+                ))}
+                {!completionsData?.completions?.length && (
+                  <tr><td colSpan={4} className="text-center text-gray-500 py-8">No completions yet</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Edit Task Dialog */}
+      {editingTask && (
+        <Dialog open onOpenChange={() => setEditingTask(null)}>
+          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="w-5 h-5 text-cyan-400" /> Edit Task — {editingTask.name}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-gray-300">Task Name</Label>
+                  <Input
+                    value={editingTask.name}
+                    onChange={e => setEditingTask(t => ({ ...t, name: e.target.value }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-gray-300">Category</Label>
+                  <Select value={editingTask.category_id?.toString()} onValueChange={v => setEditingTask(t => ({ ...t, category_id: v }))}>
+                    <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                      {tasksData?.categories?.map((cat: any) => (
+                        <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-gray-300">XP Reward</Label>
+                  <Input
+                    type="number"
+                    value={editingTask.xp_reward}
+                    onChange={e => setEditingTask(t => ({ ...t, xp_reward: +e.target.value }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-gray-300">VIT Reward</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editingTask.vit_reward}
+                    onChange={e => setEditingTask(t => ({ ...t, vit_reward: +e.target.value }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-gray-300">Trigger Type</Label>
+                  <Select value={editingTask.trigger_type} onValueChange={v => setEditingTask(t => ({ ...t, trigger_type: v }))}>
+                    <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                      <SelectItem value="manual">Manual</SelectItem>
+                      <SelectItem value="xp_threshold">XP Threshold</SelectItem>
+                      <SelectItem value="prediction_count">Prediction Count</SelectItem>
+                      <SelectItem value="deposit_amount">Deposit Amount</SelectItem>
+                      <SelectItem value="governance_vote">Governance Vote</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-gray-300">Reset Frequency</Label>
+                  <Select value={editingTask.reset_frequency} onValueChange={v => setEditingTask(t => ({ ...t, reset_frequency: v }))}>
+                    <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                      <SelectItem value="never">Never</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-gray-300">Description</Label>
+                <Textarea
+                  value={editingTask.description}
+                  onChange={e => setEditingTask(t => ({ ...t, description: e.target.value }))}
+                  className="bg-gray-800 border-gray-600 text-white"
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={editingTask.is_active}
+                    onCheckedChange={v => setEditingTask(t => ({ ...t, is_active: v }))}
+                  />
+                  <Label className="text-gray-300">Active</Label>
+                </div>
+                <Button
+                  className="bg-cyan-500 hover:bg-cyan-400 text-black"
+                  disabled={updateMutation.isPending}
+                  onClick={() => updateMutation.mutate({ id: editingTask.id, body: editingTask })}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {updateMutation.isPending ? "Saving…" : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
 // ─── Root Admin Page ──────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -2049,6 +2478,7 @@ export default function AdminPage() {
               { value: "dashboard",      label: "Dashboard",      icon: BarChart2 },
               { value: "users",          label: "Users",          icon: Users },
               { value: "kyc",            label: "KYC",            icon: UserCheck },
+              { value: "tasks",          label: "Tasks",          icon: ClipboardList },
               { value: "models",         label: "Models",         icon: Cpu },
               { value: "calibration",    label: "Calibration",    icon: Activity },
               { value: "leagues",        label: "Leagues",        icon: Globe },
@@ -2069,6 +2499,7 @@ export default function AdminPage() {
           <TabsContent value="dashboard"><DashboardTab /></TabsContent>
           <TabsContent value="users"><UsersTab /></TabsContent>
           <TabsContent value="kyc"><KYCTab /></TabsContent>
+          <TabsContent value="tasks"><TasksTab /></TabsContent>
           <TabsContent value="models"><ModelsTab /></TabsContent>
           <TabsContent value="calibration"><CalibrationTab /></TabsContent>
           <TabsContent value="leagues"><LeaguesTab /></TabsContent>

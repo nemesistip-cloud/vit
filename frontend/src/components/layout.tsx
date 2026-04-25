@@ -6,7 +6,7 @@ import {
   Activity, BarChart2, BookOpen, CheckSquare, Coins, Code2,
   CreditCard, Gift, Home, Lock, LogOut, Menu, ShieldCheck,
   ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
-  TrendingUp, Layers, Bell, Settings, Sun, Moon,
+  TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { name: "Dashboard",      href: "/dashboard",    icon: Home },
   { name: "Matches",        href: "/matches",       icon: Activity },
   { name: "Predictions",    href: "/predictions",   icon: CheckSquare },
+  { name: "Tasks",          href: "/tasks",         icon: Target },
   { name: "Wallet",         href: "/wallet",        icon: Coins },
   { name: "Validators",     href: "/validators",    icon: ShieldCheck },
   { name: "Training",       href: "/training",      icon: BookOpen },

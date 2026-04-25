@@ -83,6 +83,9 @@ from app.core.cache import cache_background_purge_loop
 from app.modules.notifications.routes import router as notifications_router
 from app.modules.notifications.websocket import router as notifications_ws_router
 
+# ===== TASKS ROUTES (Module T) =====
+from app.modules.tasks.routes import router as tasks_router
+
 # ===== MARKETPLACE ROUTES (Module G) =====
 from app.modules.marketplace.routes import router as marketplace_router
 
@@ -445,7 +448,25 @@ async def live_match_tracker_loop():
         await asyncio.sleep(_LIVE_POLL_INTERVAL)
 
 
-async def vitcoin_pricing_loop():
+async def task_reset_loop():
+    """Reset expired task progress periodically."""
+    from app.db.database import AsyncSessionLocal
+    from app.modules.tasks.service import TaskService
+    import logging
+
+    logger = logging.getLogger("task-reset")
+    logger.info("Task reset loop started")
+
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                reset_count = await TaskService.reset_expired_tasks(db)
+                if reset_count > 0:
+                    logger.info(f"Reset {reset_count} expired task completions")
+        except Exception as e:
+            logger.error(f"Task reset failed: {e}")
+
+        await asyncio.sleep(3600)  # Run every hour
     """Recalculate VITCoin price every 6 hours based on revenue and supply."""
     await asyncio.sleep(30)
     while True:
@@ -1021,6 +1042,7 @@ async def lifespan(app: FastAPI):
         ("etl-pipeline", etl_pipeline_loop),
         ("odds-refresh", odds_refresh_loop),
         ("cache-purge", lambda: cache_background_purge_loop(300)),
+        ("task-reset", task_reset_loop),
     ]
     supervisor = BackgroundTaskSupervisor(
         supervised_tasks,
@@ -1246,6 +1268,9 @@ app.include_router(pipeline_router)
 # Notifications (Module K)
 app.include_router(notifications_router)
 app.include_router(notifications_ws_router)
+
+# Tasks (Module T)
+app.include_router(tasks_router)
 
 # Marketplace (Module G)
 app.include_router(marketplace_router)

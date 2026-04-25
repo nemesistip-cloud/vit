@@ -343,6 +343,18 @@ async def verify_deposit(
             reference=f"{request.reference}-CREDIT",
         )
         await db.commit()
+
+        # --- Task System Integration ---
+        # Trigger task progress updates for wallet exploration
+        try:
+            from app.modules.tasks.service import TaskService
+            await TaskService.update_task_progress(
+                db, current_user.id, 6, 1  # Task ID 6: "Wallet Explorer"
+            )
+            logger.info(f"Task progress updated for user {current_user.id} after deposit")
+        except Exception as e:
+            logger.warning(f"Task progress update failed (non-fatal): {e}")
+
         # ── Notification ────────────────────────────────────────────────
         try:
             from app.modules.notifications.service import NotificationService as _NS

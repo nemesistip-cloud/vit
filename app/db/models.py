@@ -408,6 +408,9 @@ class User(Base):
     fraud_flags = relationship("FraudFlag", foreign_keys="FraudFlag.user_id", viewonly=True)
     risk_events = relationship("RiskEvent", foreign_keys="RiskEvent.user_id", viewonly=True)
 
+    # Task module relationships (Module T)
+    task_completions = relationship("UserTaskCompletion", back_populates="user", cascade="all, delete-orphan")
+
     __table_args__ = (
         Index('idx_users_email', 'email'),
         Index('idx_users_role', 'role'),
