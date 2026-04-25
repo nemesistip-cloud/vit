@@ -63,6 +63,17 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Dashboard / Plan / Predictions Audit Fixes (Apr 25 2026)
+
+Audit of the live mobile screenshots surfaced four cross-cutting bugs that made the dashboard read inconsistently with the underlying data. All fixed front-to-back.
+
+- **F1 (P0): Admin's "ACTIVE PLAN" card showed `Free`.** `/api/subscription/my-plan` only consulted the `UserSubscription` Stripe table, ignoring `User.admin_role` and `User.subscription_tier`. Added `_plan_from_user()` helper + `_TIER_TO_PLAN` map, made `get_user_plan()` admin-aware, switched the route to `Depends(get_current_user)` so the user object is available, and now report `subscription.source = "role" | "stripe" | "none"` plus `status = "active"` for admin/elite users without a Stripe row. Admins now correctly see **Validator** plan.
+- **F2 (P0): "Accuracy 100% (17 predictions)" while the System Log clearly showed 5 LOSSES + 1 WIN.** Two independent sources of truth had drifted apart — the summary read `CLVEntry.bet_outcome` (only 1 row was populated → 1/1 = 100%) while the system log compared `Match.actual_outcome` to `Prediction.bet_side` (the real result). Introduced `_settled_predictions_for_user()` + `_wins_settled_streak()` helpers in `app/api/routes/dashboard.py` and rewired **`/summary`, `/leaderboard`, and `/achievements`** to all use the same match-outcome source the System Log uses. Response now also exposes `settled_predictions` and `wins` so the UI can show "X / Y settled" if needed.
+- **F3 (P1): Streak stuck at `0` despite 100% win rate.** The previous code read `User.current_streak` which was never updated. The new `_wins_settled_streak()` walks settled predictions newest-first, counts the leading run of wins, and persists it back to `User.current_streak` so badges, leaderboard rows, and the level card all stay consistent.
+- **F4 (P1): Community Predictions feed showed "PENDING" cards with empty Bet Side / Entry Odds / Stake / P&L.** These are predictions where the model found no edge (`bet_side IS NULL`) — useless to other users. `/history` now filters them out when `all_users=true` (the community scope) while still returning them on the user's own "My Predictions" tab so they can see every fixture they ran.
+
+Inputs that were consistent and **not** changed: VIT Balance / Wallet conversions (different stored balances, not derivations of one another), the "12 Models Active / No model data yet" card (it correctly shows the next-match prediction, not historical accuracy), and the Achievements list (now driven by the corrected win rate).
+
 ## Recent Changes — Match-Aware AI Assistant (Apr 25 2026)
 
 The AI Assistant is now embedded directly inside every match-detail page, with that fixture's prediction pre-loaded as context — users can ask things like *"Why does the model favor Arsenal here?"* or *"Is there value on Over 2.5 in this match?"* and get answers grounded in the actual numbers.

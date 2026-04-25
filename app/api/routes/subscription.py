@@ -174,8 +174,46 @@ def get_plan(plan_name: str) -> dict:
     return PLANS.get(plan_name, PLANS["free"])
 
 
-async def get_user_plan(api_key: str, db: AsyncSession) -> dict:
-    """Return the full plan definition for a given API key."""
+_TIER_TO_PLAN = {
+    "viewer": "free",
+    "free": "free",
+    "analyst": "analyst",
+    "pro": "pro",
+    "elite": "validator",
+    "validator": "validator",
+}
+
+
+def _plan_from_user(user) -> Optional[dict]:
+    """
+    Resolve a plan dict from a User object's role/tier — used to honour
+    admin elevation and DB-stored tiers that aren't backed by an active
+    UserSubscription row (eg. admins, comp'd accounts, internal users).
+    Returns None if the user has nothing special configured.
+    """
+    if not user:
+        return None
+    if getattr(user, "admin_role", None):
+        return PLANS["validator"]
+    raw_tier = (getattr(user, "subscription_tier", None) or "").lower()
+    plan_key = _TIER_TO_PLAN.get(raw_tier)
+    if plan_key and plan_key != "free":
+        return PLANS.get(plan_key)
+    return None
+
+
+async def get_user_plan(api_key: str, db: AsyncSession, user=None) -> dict:
+    """Return the full plan definition for a given API key + user.
+
+    Resolution order:
+      1. Admin role → top tier (validator) so admins are never gated.
+      2. User.subscription_tier (analyst/pro/elite) when set in the DB.
+      3. Active UserSubscription row matched by api_key_hash.
+      4. Free plan fallback.
+    """
+    role_plan = _plan_from_user(user)
+    if role_plan:
+        return role_plan
     if not api_key:
         return PLANS["free"]
     key_hash = _hash_api_key(api_key)
@@ -238,10 +276,14 @@ async def list_plans():
 
 
 @router.get("/my-plan")
-async def get_my_plan(request: Request, db: AsyncSession = Depends(get_db)):
-    """Return current user's plan details."""
+async def get_my_plan(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return current user's plan details, honouring admin/elite elevation."""
     api_key = request.headers.get("x-api-key", "")
-    plan = await get_user_plan(api_key, db)
+    plan = await get_user_plan(api_key, db, user=current_user)
 
     key_hash = _hash_api_key(api_key) if api_key else None
     sub = None
@@ -251,13 +293,20 @@ async def get_my_plan(request: Request, db: AsyncSession = Depends(get_db)):
         )
         sub = result.scalar_one_or_none()
 
+    # Admins / elite users count as "active" even without a Stripe row
+    role_plan = _plan_from_user(current_user)
+    effective_status = (
+        "active" if role_plan else (sub.status if sub else "none")
+    )
+
     return {
         "plan": plan,
         "subscription": {
-            "status": sub.status if sub else "none",
+            "status": effective_status,
             "period_end": sub.current_period_end.isoformat() if sub and sub.current_period_end else None,
             "stripe_customer_id": sub.stripe_customer_id if sub else None,
-        } if sub else None,
+            "source": "role" if role_plan else ("stripe" if sub else "none"),
+        },
         "usage": {
             "predictions_today": sub.prediction_count_today if sub else 0,
             "limit_today": plan["limits"]["predictions_per_day"],

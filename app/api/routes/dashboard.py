@@ -17,6 +17,46 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 
+async def _settled_predictions_for_user(db: AsyncSession, uid: int):
+    """
+    Return the user's settled predictions joined to their match outcome,
+    most-recent first. A prediction is "settled" when:
+      - the match has actual_outcome populated, AND
+      - the prediction has a bet_side recorded.
+    This is the source of truth used by the system-log WIN/LOSS labels;
+    accuracy / streak must agree with it.
+    """
+    rows = await db.execute(
+        select(Prediction.bet_side, Match.actual_outcome, Match.kickoff_time)
+        .join(Match, Match.id == Prediction.match_id)
+        .where(Prediction.user_id == uid)
+        .where(Prediction.bet_side.isnot(None))
+        .where(Match.actual_outcome.isnot(None))
+        .order_by(Match.kickoff_time.desc())
+    )
+    return rows.all()
+
+
+def _wins_settled_streak(rows) -> tuple[int, int, int]:
+    """Compute (wins, settled, current_win_streak) from prediction/outcome rows."""
+    settled = 0
+    wins = 0
+    streak = 0
+    streak_locked = False
+    for bet_side, outcome, _ in rows:
+        if not bet_side or not outcome:
+            continue
+        settled += 1
+        won = str(bet_side).lower() == str(outcome).lower()
+        if won:
+            wins += 1
+            if not streak_locked:
+                streak += 1
+        else:
+            streak_locked = True
+    return wins, settled, streak
+
+
 @router.get("/summary")
 async def get_dashboard_summary(
     current_user=Depends(get_current_user),
@@ -30,26 +70,21 @@ async def get_dashboard_summary(
         )
     ).scalar() or 0
 
-    u_pred_sub = select(Prediction.id).where(Prediction.user_id == uid).subquery()
-
-    settled = (
-        await db.execute(
-            select(func.count(CLVEntry.id))
-            .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
-            .where(CLVEntry.bet_outcome.in_(["win", "loss"]))
-        )
-    ).scalar() or 0
-
-    wins = (
-        await db.execute(
-            select(func.count(CLVEntry.id))
-            .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
-            .where(CLVEntry.bet_outcome == "win")
-        )
-    ).scalar() or 0
-
+    # Accuracy & streak from match outcomes (same source as System Log)
+    settled_rows = await _settled_predictions_for_user(db, uid)
+    wins, settled, streak = _wins_settled_streak(settled_rows)
     accuracy = round(wins / settled, 4) if settled > 0 else 0.0
 
+    # Persist the recomputed streak so badges/level cards stay consistent
+    try:
+        if hasattr(current_user, "current_streak") and (current_user.current_streak or 0) != streak:
+            current_user.current_streak = streak
+            await db.commit()
+    except Exception:
+        await db.rollback()
+
+    # ROI still comes from CLVEntry (it's the only place profit is tracked)
+    u_pred_sub = select(Prediction.id).where(Prediction.user_id == uid).subquery()
     roi_result = (
         await db.execute(
             select(func.sum(CLVEntry.profit))
@@ -74,11 +109,11 @@ async def get_dashboard_summary(
     except Exception:
         pass
 
-    streak = getattr(current_user, "current_streak", 0) or 0
-
     return {
         "total_predictions": total_predictions,
         "accuracy_rate": accuracy,
+        "settled_predictions": settled,
+        "wins": wins,
         "roi": float(roi_result),
         "active_matches": active,
         "wallet_balance": vitcoin_balance,
@@ -274,19 +309,8 @@ async def get_leaderboard(
 
         leaderboard = []
         for u in users:
-            u_pred_sub = select(Prediction.id).where(Prediction.user_id == u.id).subquery()
-
-            total_settled = (await db.execute(
-                select(func.count(CLVEntry.id))
-                .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
-                .where(CLVEntry.bet_outcome.in_(["win", "loss"]))
-            )).scalar() or 0
-
-            user_wins = (await db.execute(
-                select(func.count(CLVEntry.id))
-                .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
-                .where(CLVEntry.bet_outcome == "win")
-            )).scalar() or 0
+            settled_rows = await _settled_predictions_for_user(db, u.id)
+            user_wins, total_settled, streak = _wins_settled_streak(settled_rows)
 
             total_preds = (await db.execute(
                 select(func.count(Prediction.id)).where(Prediction.user_id == u.id)
@@ -295,7 +319,6 @@ async def get_leaderboard(
             stored_xp = getattr(u, "total_xp", None) or 0
             xp = stored_xp if stored_xp > 0 else (total_preds * 10 + user_wins * 20)
             win_rate = round(user_wins / total_settled, 4) if total_settled > 0 else 0.0
-            streak = getattr(u, "current_streak", 0) or 0
 
             tier = u.subscription_tier or "viewer"
             level_map = {"viewer": "Novice", "analyst": "Analyst", "pro": "Pro", "elite": "Elite"}
@@ -329,24 +352,14 @@ async def get_achievements(
     """Return achievement status for the current user based on real per-user activity."""
     try:
         uid = current_user.id
-        u_pred_sub = select(Prediction.id).where(Prediction.user_id == uid).subquery()
-
-        total_settled = (await db.execute(
-            select(func.count(CLVEntry.id))
-            .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
-            .where(CLVEntry.bet_outcome.in_(["win", "loss"]))
-        )).scalar() or 0
 
         total_all_preds = (await db.execute(
             select(func.count(Prediction.id)).where(Prediction.user_id == uid)
         )).scalar() or 0
 
-        total_wins = (await db.execute(
-            select(func.count(CLVEntry.id))
-            .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
-            .where(CLVEntry.bet_outcome == "win")
-        )).scalar() or 0
-
+        # Use the same source-of-truth as the System Log / dashboard summary
+        settled_rows = await _settled_predictions_for_user(db, uid)
+        total_wins, total_settled, _ = _wins_settled_streak(settled_rows)
         win_rate = total_wins / total_settled if total_settled > 0 else 0.0
 
         vitcoin_balance = 0.0

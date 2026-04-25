@@ -70,10 +70,16 @@ async def get_history(
     )
     if apply_user_filter:
         base_q = base_q.where(Prediction.user_id == uid)
+    else:
+        # Community feed: hide "no-edge" rows where the model didn't pick a side —
+        # they show up as blank Bet/Odds/Stake cards which look broken to users.
+        base_q = base_q.where(Prediction.bet_side.isnot(None))
 
     count_q = select(func.count()).select_from(Prediction)
     if apply_user_filter:
         count_q = count_q.where(Prediction.user_id == uid)
+    else:
+        count_q = count_q.where(Prediction.bet_side.isnot(None))
     count_result = await db.execute(count_q)
     total = count_result.scalar()
 
