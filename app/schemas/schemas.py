@@ -61,6 +61,10 @@ class PredictionResponse(BaseModel):
     top_correct_score: Optional[str] = None
     top_cs_prob: Optional[float] = None
 
+    # v4.6.2 — Per-model consensus + alternative bet ladder
+    model_consensus: Optional[Dict[str, Any]] = None
+    alternative_bets: Optional[List[Dict[str, Any]]] = None
+
     consensus_prob: float
     final_ev: float
     recommended_stake: float

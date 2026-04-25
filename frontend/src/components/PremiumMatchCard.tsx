@@ -76,7 +76,25 @@ function AIInsightPanel({ match }: { match: any }) {
     insights.push({ label: "Kelly %", value: `${(stake * 100).toFixed(1)}%` });
   }
 
-  if (insights.length === 0) {
+  const consensus = match.model_consensus as
+    | { agreed_side?: string; agreement_pct?: number; voted_models?: number;
+        total_models?: number; side_distribution?: Record<string, number>;
+        top_pick_avg_prob?: number; matches_final_pick?: boolean } | undefined;
+
+  const alternatives = (match.alternative_bets ?? []) as Array<{
+    market: string; side: string; edge: number; odds: number;
+    model_prob: number; kelly_stake: number;
+  }>;
+
+  const sideLabelFor = (s?: string) => {
+    if (!s) return "—";
+    if (s === "home") return match.home_team ?? "Home";
+    if (s === "away") return match.away_team ?? "Away";
+    if (s === "draw") return "Draw";
+    return s.replace(/_/g, " ").toUpperCase();
+  };
+
+  if (insights.length === 0 && !consensus && alternatives.length === 0) {
     return (
       <p className="text-xs font-mono text-muted-foreground text-center py-1">
         Run the ML ensemble for insights
@@ -85,13 +103,75 @@ function AIInsightPanel({ match }: { match: any }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-      {insights.map((ins) => (
-        <div key={ins.label} className="flex items-center gap-1.5 text-xs font-mono">
-          <span className="text-muted-foreground shrink-0 w-[72px]">{ins.label}</span>
-          <span className={`font-medium ${ins.accent ?? "text-foreground"}`}>{ins.value}</span>
+    <div className="space-y-3">
+      {insights.length > 0 && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+          {insights.map((ins) => (
+            <div key={ins.label} className="flex items-center gap-1.5 text-xs font-mono">
+              <span className="text-muted-foreground shrink-0 w-[72px]">{ins.label}</span>
+              <span className={`font-medium ${ins.accent ?? "text-foreground"}`}>{ins.value}</span>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
+
+      {consensus && consensus.voted_models ? (
+        <div className="border-t border-border/30 pt-2 space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] font-mono uppercase text-muted-foreground">
+            <span>Model Consensus</span>
+            <span className={consensus.matches_final_pick ? "text-primary" : "text-yellow-400"}>
+              {consensus.matches_final_pick ? "aligned" : "split"}
+            </span>
+          </div>
+          <div className="text-xs font-mono">
+            <span className="font-bold text-primary">
+              {consensus.side_distribution?.[consensus.agreed_side ?? ""] ?? 0}/{consensus.voted_models}
+            </span>{" "}
+            models picked{" "}
+            <span className="font-bold text-foreground">{sideLabelFor(consensus.agreed_side)}</span>
+            {consensus.top_pick_avg_prob != null && (
+              <> at avg <span className="text-foreground">{(consensus.top_pick_avg_prob * 100).toFixed(0)}%</span></>
+            )}
+          </div>
+          <div className="flex h-1.5 rounded overflow-hidden bg-muted/40">
+            {(["home", "draw", "away"] as const).map((s) => {
+              const n = consensus.side_distribution?.[s] ?? 0;
+              const pct = consensus.voted_models ? (n / consensus.voted_models) * 100 : 0;
+              const color = s === "home" ? "bg-primary" : s === "draw" ? "bg-yellow-400" : "bg-orange-500";
+              return pct > 0 ? <div key={s} className={color} style={{ width: `${pct}%` }} title={`${s}: ${n}`} /> : null;
+            })}
+          </div>
+          <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+            <span>Home {consensus.side_distribution?.home ?? 0}</span>
+            <span>Draw {consensus.side_distribution?.draw ?? 0}</span>
+            <span>Away {consensus.side_distribution?.away ?? 0}</span>
+            <span>{consensus.voted_models}/{consensus.total_models}</span>
+          </div>
+        </div>
+      ) : null}
+
+      {alternatives.length > 0 && (
+        <div className="border-t border-border/30 pt-2 space-y-1">
+          <div className="text-[10px] font-mono uppercase text-muted-foreground">
+            Alternative Bets
+          </div>
+          {alternatives.slice(0, 3).map((a, i) => (
+            <div
+              key={`${a.market}-${a.side}-${i}`}
+              className="flex items-center justify-between text-xs font-mono"
+            >
+              <span className="truncate flex-1 text-foreground">
+                <span className="text-muted-foreground">{a.market.replace(/_/g, " ")}</span>{" · "}
+                {sideLabelFor(a.side)}
+              </span>
+              <span className="text-muted-foreground mx-2">@ {a.odds.toFixed(2)}</span>
+              <span className={`font-bold w-14 text-right ${a.edge > 0.03 ? "text-green-400" : a.edge > 0 ? "text-yellow-400" : "text-muted-foreground"}`}>
+                {(a.edge * 100).toFixed(1)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

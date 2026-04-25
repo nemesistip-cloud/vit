@@ -63,6 +63,38 @@ Run after switching to PostgreSQL.
 ## Roadmap
 See `ROADMAP.md` for the full implementation and integration roadmap.
 
+## Recent Changes — Model Consensus + Alternative Bets (Apr 25 2026)
+Surfaces *how the 12-model ensemble actually voted* and exposes the second-, third-,
+and fourth-best bets the multi-market scorer found, so users see more than the single
+chosen edge.
+- **Schema**: alembic `009_add_consensus_alternatives.py` adds two JSON columns to
+  `predictions`: `model_consensus` and `alternative_bets`. Idempotent column-existence
+  guards.
+- **Helpers** (`app/api/routes/predict.py`):
+  - `compute_model_consensus(insights, final_pick, total_specs)` — argmax-votes each
+    non-failed model, reports `agreed_side`, `agreement_pct`, `voted_models /
+    total_models`, `side_distribution`, `top_pick_avg_prob`, `matches_final_pick`,
+    plus a per-model `model_picks` array.
+  - `build_alternative_bets(best_bet, top_n=5)` — takes the multi-market candidate
+    ladder `MarketUtils.determine_best_bet` already returns, drops the chosen pick
+    and zero-edge filler, sorts by `true_edge` desc, and emits up to 5 entries with
+    market, side, model_prob, vig-free fair price, edge, raw edge, odds, and a
+    Kelly-clamped stake fraction.
+- **Wiring**: predict route computes both right after `model_insights_payload` is
+  built, persists them on `Prediction`, and surfaces them via
+  `build_prediction_response`. Note: consensus uses the **1X2 argmax** as
+  `final_pick`, not `best_bet["best_side"]` (which can be a non-1X2 market like OU).
+- **Schema**: `PredictionResponse.model_consensus` and `.alternative_bets` typed as
+  optional dict / list-of-dicts.
+- **Frontend** (`PremiumMatchCard.tsx` AI Insights panel): renders a
+  `8/12 models picked HOME at avg 61%` line with a tri-color stacked-bar
+  distribution (home / draw / away), and a top-3 alternatives list showing
+  `market · side @ odds   X.XX% edge`. Both blocks render only when present, so
+  legacy match cards stay unchanged.
+- Verified end-to-end: orchestrator returns 23 prediction keys (including AH ladder
+  + CS dict + top score), consensus picks correct argmax winner, alternatives sort
+  by edge desc with the chosen bet excluded.
+
 ## Recent Changes — Asian Handicap + Correct Score + CLV Backfill (Apr 25 2026)
 Two-feature drop. Adds AH and CS market support to the orchestrator + persistence layer
 and an automatic backfill job that fills CLV rows the live settler missed.

@@ -73,6 +73,10 @@ class Prediction(Base):
     top_correct_score = Column(String(8), nullable=True) # e.g. "1-1"
     top_cs_prob = Column(Float, nullable=True)
 
+    # Model consensus + alternative bets (v4.6.2)
+    model_consensus = Column(JSON, nullable=True)       # {agreed_side, agreement_pct, side_distribution, …}
+    alternative_bets = Column(JSON, nullable=True)      # [{market, side, edge, odds, model_prob, kelly_stake}, …]
+
     # Metadata
     consensus_prob = Column(Float)
     final_ev = Column(Float)

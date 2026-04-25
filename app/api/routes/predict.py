@@ -73,6 +73,134 @@ def create_idempotency_key(match: MatchRequest, user_id: Optional[int] = None) -
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()[:32]
 
 
+def _argmax_side(hp: float, dp: float, ap: float) -> str:
+    """Return 'home' / 'draw' / 'away' for the highest of the three probs."""
+    return max((("home", hp), ("draw", dp), ("away", ap)), key=lambda x: x[1])[0]
+
+
+def compute_model_consensus(
+    insights: list,
+    final_pick: Optional[str] = None,
+    total_specs: Optional[int] = None,
+) -> dict:
+    """
+    Build a per-model consensus block from the orchestrator's individual results.
+
+    Each model is asked to vote with its own argmax of (home/draw/away). Failed
+    models and models with all-zero probs are excluded from voting. We report
+    the agreed side, the agreement %, the per-side vote distribution, and the
+    average winning-side probability across the agreeing models — useful for
+    "10/12 models agree on HOME at 61% avg" style UI copy.
+    """
+    voted = []
+    for p in insights or []:
+        if p.get("failed"):
+            continue
+        try:
+            hp = float(p.get("home_prob") or 0.0)
+            dp = float(p.get("draw_prob") or 0.0)
+            ap = float(p.get("away_prob") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if hp + dp + ap <= 0:
+            continue
+        voted.append({
+            "model_name": p.get("model_name") or "unknown",
+            "side":       _argmax_side(hp, dp, ap),
+            "probs":      {"home": hp, "draw": dp, "away": ap},
+        })
+
+    distribution = {"home": 0, "draw": 0, "away": 0}
+    for v in voted:
+        distribution[v["side"]] = distribution.get(v["side"], 0) + 1
+
+    if not voted:
+        return {
+            "agreed_side":         None,
+            "agreement_pct":       0.0,
+            "total_models":        int(total_specs or 0),
+            "voted_models":        0,
+            "side_distribution":   distribution,
+            "top_pick_avg_prob":   0.0,
+            "matches_final_pick":  False,
+            "model_picks": [],
+        }
+
+    agreed_side, agreed_count = max(distribution.items(), key=lambda kv: kv[1])
+    agreement_pct = agreed_count / len(voted)
+    avg_winning_prob = (
+        sum(v["probs"][agreed_side] for v in voted if v["side"] == agreed_side)
+        / max(agreed_count, 1)
+    )
+    matches_final = (
+        final_pick is not None
+        and agreed_side in {"home", "draw", "away"}
+        and final_pick == agreed_side
+    )
+
+    return {
+        "agreed_side":        agreed_side,
+        "agreement_pct":      round(agreement_pct, 4),
+        "total_models":       int(total_specs or len(voted)),
+        "voted_models":       len(voted),
+        "side_distribution":  distribution,
+        "top_pick_avg_prob":  round(avg_winning_prob, 4),
+        "matches_final_pick": matches_final,
+        "model_picks": [
+            {"model_name": v["model_name"], "side": v["side"],
+             "prob": round(v["probs"][v["side"]], 4)}
+            for v in voted
+        ],
+    }
+
+
+def build_alternative_bets(
+    best_bet: dict,
+    *,
+    top_n: int = 5,
+    min_edge: float = 0.0,
+    max_kelly: float = 0.10,
+) -> list:
+    """
+    Pull the top-N alternative bets from the multi-market candidate ladder
+    that determine_best_bet already produced.
+
+    Sorted by true_edge desc, with the chosen best bet excluded. Each entry
+    carries enough info to render directly: market, side, model_prob, vig-free
+    fair price, edge, raw edge, decimal odds, and a Kelly-clamped suggested
+    stake fraction so the UI can offer "stake at 1/2 Kelly" toggles.
+    """
+    candidates = best_bet.get("candidates") or []
+    chosen_key = (best_bet.get("best_market"), best_bet.get("best_side"))
+
+    pool = [
+        c for c in candidates
+        if (c.get("market"), c.get("side")) != chosen_key
+        and float(c.get("true_edge") or 0) >= min_edge
+        and float(c.get("odds") or 0) > 1
+    ]
+    pool.sort(key=lambda c: float(c.get("true_edge") or 0), reverse=True)
+
+    out: list = []
+    for c in pool[:max(0, top_n)]:
+        odds = float(c.get("odds") or 0)
+        prob = float(c.get("model_prob") or 0)
+        b = max(odds - 1, 1e-6)
+        kelly = (b * prob - (1 - prob)) / b
+        kelly = max(0.0, min(kelly, max_kelly))
+        out.append({
+            "market":        c.get("market"),
+            "side":          c.get("side"),
+            "model_prob":    round(prob, 4),
+            "vig_free_prob": round(float(c.get("vig_free_prob") or 0), 4),
+            "edge":          round(float(c.get("true_edge") or 0), 4),
+            "raw_edge":      round(float(c.get("raw_edge") or 0), 4),
+            "odds":          round(odds, 3),
+            "kelly_stake":   round(kelly, 4),
+        })
+    return out
+
+
 def _entropy_confidence(hp: float, dp: float, ap: float) -> float:
     """
     Map a 1x2 probability distribution to a confidence score in [0.50, 0.95].
@@ -196,6 +324,9 @@ def build_prediction_response(
         cs_probs=prediction.cs_probs,
         top_correct_score=prediction.top_correct_score,
         top_cs_prob=prediction.top_cs_prob,
+        # v4.6.2 — consensus + alternatives
+        model_consensus=prediction.model_consensus,
+        alternative_bets=prediction.alternative_bets,
         consensus_prob=prediction.consensus_prob,
         final_ev=prediction.final_ev,
         recommended_stake=prediction.recommended_stake,
@@ -513,6 +644,19 @@ async def predict(
         elif data_quality["calibration"]["uncalibrated_models"]:
             data_quality["warnings"].append("partial_calibration")
 
+        # --- v4.6.2: per-model consensus + alternative bet ladder ---
+        # Final 1X2 pick is the argmax of the ensemble probabilities, NOT
+        # best_bet["best_side"] (which may be a non-1X2 market like over_2_5).
+        final_1x2_pick = _argmax_side(home_prob, draw_prob, away_prob)
+        model_consensus = compute_model_consensus(
+            model_insights_payload,
+            final_pick=final_1x2_pick,
+            total_specs=getattr(orchestrator, "_total_model_specs", None),
+        )
+        alternative_bets = build_alternative_bets(
+            best_bet, top_n=5, min_edge=0.0,
+        )
+
         # --- Save prediction ---
         prediction = Prediction(
             request_hash=idempotency_key,
@@ -533,6 +677,9 @@ async def predict(
             cs_probs=result.get("cs_probs"),
             top_correct_score=result.get("top_correct_score"),
             top_cs_prob=result.get("top_cs_prob"),
+            # v4.6.2 — consensus + alternatives
+            model_consensus=model_consensus,
+            alternative_bets=alternative_bets,
             consensus_prob=consensus_prob,
             final_ev=best_bet.get("edge", 0),
             recommended_stake=recommended_stake,
