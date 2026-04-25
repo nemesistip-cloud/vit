@@ -11,33 +11,62 @@ import {
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
 
-const NAV_ITEMS = [
-  { name: "Dashboard",      href: "/dashboard",    icon: Home },
-  { name: "Matches",        href: "/matches",       icon: Activity },
-  { name: "Predictions",    href: "/predictions",   icon: CheckSquare },
-  { name: "Tasks",          href: "/tasks",         icon: Target },
-  { name: "Wallet",         href: "/wallet",        icon: Coins },
-  { name: "Validators",     href: "/validators",    icon: ShieldCheck },
-  { name: "Training",       href: "/training",      icon: BookOpen },
-  { name: "Analytics",      href: "/analytics",     icon: BarChart2 },
-  { name: "Marketplace",    href: "/marketplace",   icon: ShoppingBag },
-  { name: "Trust & Safety", href: "/trust",         icon: Shield },
-  { name: "Bridge",         href: "/bridge",        icon: ArrowLeftRight },
-  { name: "Developer",      href: "/developer",     icon: Code2 },
-  { name: "Governance",     href: "/governance",    icon: Vote },
-  { name: "Accumulator",    href: "/accumulator",   icon: Layers },
-  { name: "Odds Intel",     href: "/odds",          icon: TrendingUp },
-  { name: "Subscription",   href: "/subscription",  icon: CreditCard },
-  { name: "Leaderboard",    href: "/leaderboard",   icon: Trophy },
-  { name: "Referral",       href: "/referral",      icon: Gift },
-  { name: "Settings",       href: "/settings",      icon: Settings },
+type NavItem = { name: string; href: string; icon: typeof Home };
+type NavGroup = { name: string; items: NavItem[] };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    name: "Bet",
+    items: [
+      { name: "Dashboard",   href: "/dashboard",   icon: Home },
+      { name: "Matches",     href: "/matches",     icon: Activity },
+      { name: "Predictions", href: "/predictions", icon: CheckSquare },
+      { name: "Accumulator", href: "/accumulator", icon: Layers },
+      { name: "Odds Intel",  href: "/odds",        icon: TrendingUp },
+    ],
+  },
+  {
+    name: "Earn",
+    items: [
+      { name: "Wallet",      href: "/wallet",      icon: Coins },
+      { name: "Tasks",       href: "/tasks",       icon: Target },
+      { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
+      { name: "Referral",    href: "/referral",    icon: Gift },
+    ],
+  },
+  {
+    name: "Pro",
+    items: [
+      { name: "Training",    href: "/training",    icon: BookOpen },
+      { name: "Analytics",   href: "/analytics",   icon: BarChart2 },
+      { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
+      { name: "Validators",  href: "/validators",  icon: ShieldCheck },
+    ],
+  },
+  {
+    name: "Network",
+    items: [
+      { name: "Trust & Safety", href: "/trust",      icon: Shield },
+      { name: "Bridge",         href: "/bridge",     icon: ArrowLeftRight },
+      { name: "Governance",     href: "/governance", icon: Vote },
+      { name: "Developer",      href: "/developer",  icon: Code2 },
+    ],
+  },
+  {
+    name: "You",
+    items: [
+      { name: "Subscription", href: "/subscription", icon: CreditCard },
+      { name: "Settings",     href: "/settings",     icon: Settings },
+    ],
+  },
 ];
 
 const MOBILE_BOTTOM_NAV = [
-  { name: "Home",        href: "/dashboard",  icon: Home },
-  { name: "Matches",     href: "/matches",    icon: Activity },
-  { name: "Predictions", href: "/predictions",icon: CheckSquare },
-  { name: "Wallet",      href: "/wallet",     icon: Coins },
+  { name: "Home",        href: "/dashboard",   icon: Home },
+  { name: "Matches",     href: "/matches",     icon: Activity },
+  { name: "Predictions", href: "/predictions", icon: CheckSquare },
+  { name: "Tasks",       href: "/tasks",       icon: Target },
+  { name: "Wallet",      href: "/wallet",      icon: Coins },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -48,32 +77,46 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   if (!user) return <>{children}</>;
 
-  const allNav = [
-    ...NAV_ITEMS,
-    ...(user?.role === "admin" ? [{ name: "Admin Panel", href: "/admin", icon: Lock }] : []),
+  const allGroups: NavGroup[] = [
+    ...NAV_GROUPS,
+    ...(user?.role === "admin"
+      ? [{ name: "Admin", items: [{ name: "Admin Panel", href: "/admin", icon: Lock }] }]
+      : []),
   ];
 
   const NavItems = ({ onClick }: { onClick?: () => void }) => (
-    <>
-      {allNav.map((item) => {
-        const isActive = location === item.href || location.startsWith(item.href + "/");
-        return (
-          <Link key={item.name} href={item.href}>
-            <span
-              onClick={onClick}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-mono font-medium transition-all duration-150 cursor-pointer ${
-                isActive
-                  ? "bg-primary/10 text-primary border border-primary/20 shadow-sm"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground border border-transparent"
-              }`}
-            >
-              <item.icon className="w-4 h-4 flex-shrink-0" />
-              {item.name}
-            </span>
-          </Link>
-        );
-      })}
-    </>
+    <div className="space-y-4">
+      {allGroups.map((group) => (
+        <div key={group.name}>
+          <div className="px-3 mb-1.5 text-[10px] font-mono font-semibold uppercase tracking-widest text-muted-foreground/70">
+            {group.name}
+          </div>
+          <div className="space-y-0.5">
+            {group.items.map((item) => {
+              const isActive = location === item.href || location.startsWith(item.href + "/");
+              return (
+                <Link key={item.name} href={item.href}>
+                  <span
+                    onClick={onClick}
+                    className={`group relative flex items-center gap-3 px-3 py-2 rounded-md text-sm font-mono font-medium transition-all duration-150 cursor-pointer ${
+                      isActive
+                        ? "bg-primary/10 text-primary border border-primary/20 shadow-sm"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground hover:translate-x-0.5 border border-transparent"
+                    }`}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary" />
+                    )}
+                    <item.icon className={`w-4 h-4 flex-shrink-0 transition-transform ${isActive ? "" : "group-hover:scale-110"}`} />
+                    {item.name}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 
   return (
@@ -189,19 +232,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ── Mobile Bottom Navigation ─────────────────────── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar/95 backdrop-blur-md border-t border-sidebar-border">
-        <div className="grid grid-cols-4 h-16">
+        <div className="grid grid-cols-5 h-16">
           {MOBILE_BOTTOM_NAV.map((item) => {
             const isActive = location === item.href || location.startsWith(item.href + "/");
             return (
               <Link key={item.name} href={item.href}>
-                <span className={`flex flex-col items-center justify-center h-full gap-1 transition-colors cursor-pointer ${
-                  isActive ? "text-primary" : "text-muted-foreground"
+                <span className={`relative flex flex-col items-center justify-center h-full gap-1 transition-all cursor-pointer ${
+                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}>
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-[9px] font-mono uppercase tracking-wide">{item.name}</span>
                   {isActive && (
-                    <span className="absolute bottom-0 w-8 h-0.5 bg-primary rounded-full" />
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-primary rounded-full" />
                   )}
+                  <item.icon className={`w-5 h-5 transition-transform ${isActive ? "scale-110" : ""}`} />
+                  <span className="text-[9px] font-mono uppercase tracking-wide">{item.name}</span>
                 </span>
               </Link>
             );

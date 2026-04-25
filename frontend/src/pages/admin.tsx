@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -1587,6 +1588,21 @@ function ModelsTab() {
     (m: any) => m.is_active && (m.clv_samples ?? 0) >= 50 && (m.clv_score ?? 0) < -0.005,
   ).length;
 
+  // KPI breakdown for the dashboard summary strip
+  const accountabilityKpis = (() => {
+    let healthy = 0, watch = 0, atRisk = 0, demoted = 0;
+    for (const m of perfData ?? []) {
+      const clv = m.clv_score ?? 0, clvN = m.clv_samples ?? 0;
+      const acc = m.accuracy_1x2 ?? 0, total = m.predictions_total ?? 0;
+      if (!m.is_active) { demoted++; continue; }
+      if (clvN < 30 && total < 30) continue;
+      if (clvN >= 50 && clv < -0.005) atRisk++;
+      else if (clv < 0 || acc < 0.5) watch++;
+      else healthy++;
+    }
+    return { healthy, watch, atRisk, demoted, total: (perfData ?? []).length };
+  })();
+
   const reloadMutation = useMutation({
     mutationFn: (key?: string) => apiPost("/admin/models/reload", key ? { model_key: key } : {}),
     onSuccess: (d: any) => { toast.success(d.message ?? "Models reloaded"); qc.invalidateQueries({ queryKey: ["admin-models"] }); },
@@ -1742,44 +1758,88 @@ function ModelsTab() {
       )}
 
       {activeSection === "accountability" && (
-        <Card className="bg-gray-900 border-gray-700">
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-white flex items-center gap-2">
-                <Activity className="w-5 h-5 text-purple-400" /> CLV-Blended Accountability
-              </CardTitle>
-              <Button size="sm" variant="outline"
-                className="border-purple-500/30 text-purple-400 hover:border-purple-400"
-                onClick={() => qc.invalidateQueries({ queryKey: ["admin-ai-performance"] })}>
-                <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-              </Button>
-            </div>
-            <CardDescription className="text-gray-400">
-              Per-model rolling Closing-Line Value alongside log-loss and accuracy.
-              CLV is the leading indicator of true edge — a sustained negative
-              CLV means the model is on the wrong side of sharp money.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            {atRiskCount > 0 && (
-              <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm flex items-center gap-2">
-                <span className="font-semibold">{atRiskCount}</span>
-                <span>
-                  model{atRiskCount === 1 ? "" : "s"} at risk —
-                  rolling CLV below −0.005 with ≥ 50 settled samples.
-                  Recommend demotion until investigated.
-                </span>
+        <div className="space-y-4">
+          {/* ── KPI Summary Strip ────────────────────────────── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "Total Models",       value: accountabilityKpis.total,    icon: Cpu,           tone: "neutral" as const, pulse: false },
+              { label: "Healthy",            value: accountabilityKpis.healthy,  icon: CheckCircle,   tone: "success" as const, pulse: false },
+              { label: "On Watch",           value: accountabilityKpis.watch,    icon: AlertCircle,   tone: "warning" as const, pulse: accountabilityKpis.watch > 0 },
+              { label: "At Risk · Demoted",  value: accountabilityKpis.atRisk + accountabilityKpis.demoted, icon: XCircle, tone: "destructive" as const, pulse: (accountabilityKpis.atRisk + accountabilityKpis.demoted) > 0 },
+            ].map((kpi) => {
+              const toneClass = {
+                neutral:     { ring: "border-gray-700",         text: "text-cyan-400",    bg: "bg-cyan-500/10"    },
+                success:     { ring: "border-emerald-500/30",   text: "text-emerald-400", bg: "bg-emerald-500/10" },
+                warning:     { ring: kpi.value > 0 ? "border-amber-500/40" : "border-gray-700", text: "text-amber-400", bg: "bg-amber-500/10" },
+                destructive: { ring: kpi.value > 0 ? "border-red-500/40"   : "border-gray-700", text: "text-red-400",   bg: "bg-red-500/10"   },
+              }[kpi.tone];
+              return (
+                <Card key={kpi.label} className={`bg-gray-900 ${toneClass.ring} transition-colors`}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-gray-400 font-mono truncate">{kpi.label}</div>
+                      <div className={`text-3xl font-bold mt-1 ${toneClass.text} font-mono tabular-nums`}>{kpi.value}</div>
+                    </div>
+                    <div className={`p-2.5 rounded-lg ${toneClass.bg} ${kpi.pulse ? "vit-animate-pulse-glow" : ""}`}>
+                      <kpi.icon className={`w-5 h-5 ${toneClass.text}`} />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          <Card className="bg-gray-900 border-gray-700">
+            <CardHeader>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-purple-400" /> CLV-Blended Accountability
+                </CardTitle>
+                <Button size="sm" variant="outline"
+                  className="border-purple-500/30 text-purple-400 hover:border-purple-400"
+                  onClick={() => qc.invalidateQueries({ queryKey: ["admin-ai-performance"] })}>
+                  <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+                </Button>
               </div>
-            )}
-            {perfLoading ? (
-              <div className="flex justify-center py-10">
-                <div className="w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : !perfData?.length ? (
-              <div className="text-center text-gray-500 py-8">
-                No performance data yet. Wait for matches to settle.
-              </div>
-            ) : (
+              <CardDescription className="text-gray-400">
+                Per-model rolling Closing-Line Value alongside log-loss and accuracy.
+                CLV is the leading indicator of true edge — a sustained negative
+                CLV means the model is on the wrong side of sharp money.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {atRiskCount > 0 && (
+                <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm flex items-center gap-2 vit-animate-pulse-glow">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="font-semibold">{atRiskCount}</span>
+                  <span>
+                    model{atRiskCount === 1 ? "" : "s"} at risk —
+                    rolling CLV below −0.005 with ≥ 50 settled samples.
+                    Recommend demotion until investigated.
+                  </span>
+                </div>
+              )}
+              {perfLoading ? (
+                <div className="px-4 py-3 space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 py-2">
+                      <Skeleton className="h-8 w-32 bg-gray-800" />
+                      <Skeleton className="h-6 w-20 bg-gray-800 ml-auto" />
+                      <Skeleton className="h-6 w-12 bg-gray-800" />
+                      <Skeleton className="h-6 w-16 bg-gray-800" />
+                      <Skeleton className="h-6 w-16 bg-gray-800" />
+                      <Skeleton className="h-6 w-20 bg-gray-800" />
+                      <Skeleton className="h-7 w-20 bg-gray-800" />
+                    </div>
+                  ))}
+                </div>
+              ) : !perfData?.length ? (
+                <div className="text-center text-gray-500 py-12">
+                  <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <div>No performance data yet.</div>
+                  <div className="text-xs mt-1">CLV scores appear once matches settle and predictions are evaluated.</div>
+                </div>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1814,21 +1874,36 @@ function ModelsTab() {
                         ? (streak > 0 ? `At Risk · day ${streak}/7` : "At Risk")
                         : (autoDemoted ? "Demoted (auto)" : "Demoted");
                       const statusBadge = {
-                        healthy: { label: "Healthy", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
-                        watch:   { label: streak > 0 ? `Watch · day ${streak}/7` : "Watch", cls: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
-                        risk:    { label: demotedLabel, cls: "bg-red-500/20 text-red-400 border-red-500/30" },
-                        new:     { label: "Insufficient",  cls: "bg-gray-500/20 text-gray-400 border-gray-500/30" },
+                        healthy: { label: "Healthy", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", dot: "bg-emerald-400" },
+                        watch:   { label: streak > 0 ? `Watch · day ${streak}/7` : "Watch", cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", dot: "bg-amber-400" },
+                        risk:    { label: demotedLabel, cls: "bg-red-500/20 text-red-400 border-red-500/30 vit-animate-pulse-glow", dot: "bg-red-400 animate-pulse" },
+                        new:     { label: "Insufficient",  cls: "bg-gray-500/20 text-gray-400 border-gray-500/30", dot: "bg-gray-500" },
                       }[status];
+                      const showStreakDots = m.is_active && streak > 0;
                       return (
-                        <tr key={m.key} className={`border-b border-gray-800 ${!m.is_active ? "opacity-60" : "hover:bg-gray-800/40"}`}>
+                        <tr key={m.key} className={`border-b border-gray-800 transition-colors ${!m.is_active ? "opacity-60" : "hover:bg-gray-800/40"}`}>
                           <td className="p-3">
                             <div className="text-white font-medium">{m.name}</div>
                             <div className="text-xs text-gray-500 font-mono">{m.key}</div>
                           </td>
-                          <td className="p-3 text-center">
-                            <span className={`text-xs border px-2 py-0.5 rounded ${statusBadge.cls}`}>
-                              {statusBadge.label}
-                            </span>
+                          <td className="p-3">
+                            <div className="flex flex-col items-center gap-1.5">
+                              <span className={`text-xs border px-2 py-0.5 rounded inline-flex items-center gap-1.5 ${statusBadge.cls}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot}`} />
+                                {statusBadge.label}
+                              </span>
+                              {showStreakDots && (
+                                <div className="flex gap-0.5" title={`${streak} of 7 days below CLV threshold`}>
+                                  {[0,1,2,3,4,5,6].map(i => (
+                                    <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                                      i < streak
+                                        ? (streak >= 5 ? "bg-red-500" : streak >= 3 ? "bg-amber-500" : "bg-amber-600")
+                                        : "bg-gray-700"
+                                    }`} />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 text-right text-cyan-400 font-mono text-xs">
                             {typeof m.weight === "number" ? m.weight.toFixed(3) : "—"}
@@ -1842,12 +1917,30 @@ function ModelsTab() {
                           <td className="p-3 text-right font-mono text-xs text-gray-300">
                             {typeof m.brier_score === "number" ? m.brier_score.toFixed(4) : "—"}
                           </td>
-                          <td className={`p-3 text-right font-mono text-xs ${
-                            clv > 0.001 ? "text-emerald-400"
-                            : clv < -0.001 ? "text-red-400"
-                            : "text-gray-400"
-                          }`}>
-                            {clvN > 0 ? (clv > 0 ? "+" : "") + clv.toFixed(4) : "—"}
+                          <td className="p-3">
+                            <div className="flex flex-col items-end gap-1">
+                              <span className={`font-mono text-xs ${
+                                clv > 0.001 ? "text-emerald-400"
+                                : clv < -0.001 ? "text-red-400"
+                                : "text-gray-400"
+                              }`}>
+                                {clvN > 0 ? (clv > 0 ? "+" : "") + clv.toFixed(4) : "—"}
+                              </span>
+                              {clvN > 0 && (
+                                <div className="relative w-20 h-1 bg-gray-800 rounded-full" title="CLV magnitude (range −0.02 to +0.02)">
+                                  <div className="absolute left-1/2 top-0 w-px h-full bg-gray-600" />
+                                  {clv !== 0 && (
+                                    <div
+                                      className={`absolute top-0 h-full rounded-full ${clv > 0 ? "bg-emerald-500" : "bg-red-500"}`}
+                                      style={clv > 0
+                                        ? { left: "50%", width: `${Math.min(Math.abs(clv) / 0.02, 1) * 50}%` }
+                                        : { right: "50%", width: `${Math.min(Math.abs(clv) / 0.02, 1) * 50}%` }
+                                      }
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 text-right font-mono text-xs text-gray-400">
                             {clvN}
@@ -1889,9 +1982,10 @@ function ModelsTab() {
                   Insufficient = fewer than 30 settled samples.
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {activeSection === "marketplace" && (
