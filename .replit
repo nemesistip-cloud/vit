@@ -6,10 +6,10 @@ stack = "BEST_EFFORT_FALLBACK"
 [userenv]
 
 [userenv.shared]
-APP_VERSION = "4.0.0"
+APP_VERSION = "4.6.0"
 ENVIRONMENT = "production"
 PORT = "5000"
-CORS_ALLOWED_ORIGINS = "*"
+CORS_ALLOWED_ORIGINS = "true "
 VIT_DATABASE_URL = "sqlite+aiosqlite:///./vit.db"
 AUTH_ENABLED = "true"
 USE_REAL_ML_MODELS = "true"
