@@ -16,10 +16,14 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models"
-    "/gemini-1.5-flash:generateContent"
-)
+# Model preference order — tried in sequence on 404/503
+_GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+]
+_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 _EMPTY = {
     "available": False,
@@ -119,28 +123,51 @@ Rules:
 - recommendation must start with BET, SKIP, or MONITOR
 - Be concise and specific. Reference probability numbers."""
 
+    # Merge system prompt into user prompt for broadest API compatibility
+    full_prompt = SYSTEM_PROMPT.strip() + "\n\n" + user_prompt
+
     try:
         async with httpx.AsyncClient(timeout=25) as client:
-            resp = await client.post(
-                f"{GEMINI_API_URL}?key={api_key}",
-                json={
-                    "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-                    "contents": [{"parts": [{"text": user_prompt}]}],
-                    "generationConfig": {
-                        "temperature": 0.55,
-                        "maxOutputTokens": 800,
-                        "responseMimeType": "application/json",
-                    },
-                },
-                headers={"Content-Type": "application/json"},
-            )
+            resp = None
+            used_model = None
+
+            for model in _GEMINI_MODELS:
+                url = f"{_GEMINI_BASE}/{model}:generateContent?key={api_key}"
+                try:
+                    resp = await client.post(
+                        url,
+                        json={
+                            "contents": [{"parts": [{"text": full_prompt}]}],
+                            "generationConfig": {
+                                "temperature": 0.55,
+                                "maxOutputTokens": 800,
+                                "responseMimeType": "application/json",
+                            },
+                        },
+                        headers={"Content-Type": "application/json"},
+                    )
+                    if resp.status_code == 404:
+                        logger.warning(f"Gemini model {model} returned 404, trying next")
+                        continue
+                    used_model = model
+                    break
+                except Exception as req_exc:
+                    logger.warning(f"Gemini request error ({model}): {req_exc}")
+                    continue
+
+            if resp is None:
+                return {**_EMPTY, "error": "All Gemini models returned 404 — API key may lack access or region is restricted"}
 
         if resp.status_code in (401, 403):
             return {**_EMPTY, "error": "Invalid Gemini API key — check Admin → API Keys"}
         if resp.status_code == 429:
             return {**_EMPTY, "error": "Gemini API rate limit reached — try again shortly"}
+        if resp.status_code == 404:
+            return {**_EMPTY, "error": "Gemini model not available for this API key — check key permissions"}
         if not resp.is_success:
             return {**_EMPTY, "error": f"Gemini API returned HTTP {resp.status_code}"}
+        
+        logger.info(f"Gemini insights generated via {used_model}")
 
         data = resp.json()
         raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
