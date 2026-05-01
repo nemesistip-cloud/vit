@@ -3,6 +3,34 @@
 ## Overview
 The VIT Sports Intelligence Network is an institutional-grade football prediction platform. It leverages a 12-model AI ensemble for predictions, integrates a VITCoin wallet economy, supports blockchain-verified staking, features a model marketplace, and includes a governance DAO. The platform offers multi-tier subscriptions (Free, Pro, Elite) and aims to provide advanced sports analytics and prediction capabilities.
 
+## Changelog — Security & Feature Upgrade (2026-05-01, sessions 2 & 3)
+
+### Security Hardening (Phase 1 & 2)
+- **SEC-01**: WebSocket JWT auth at handshake — backend rejects with 4001, frontend passes `?token=<jwt>`
+- **SEC-02**: CORS wildcard fix — never pairs `allow_origins=*` with `allow_credentials=True`
+- **SEC-03**: Email/reset tokens moved to DB (`email_tokens` table, hashed, with expiry)
+- **SEC-04**: JWT jti revocation blocklist — logout adds jti to `token_blocklist`; middleware checks blocklist on every request
+- **SEC-06**: HSTS header only set when `ENVIRONMENT=production`
+- **SEC-07**: Rate limiter LRU eviction prevents unbounded memory growth
+- **SEC-10**: DB-backed per-account login brute-force — 5 failures triggers 15-min `locked_until` column on User (survives restarts); `Retry-After` header returned on 429
+- **ENG-01**: requirements.txt deduplicated from 421 → 38 lines
+
+### Feature Completion (Phase 3)
+- **ENG-11**: Frontend notification bell passes `?token=<jwt>` in WebSocket URL
+- **ENG-12**: Referral commission distribution — `process_deposit_commission()` and `process_subscription_commission()` credit referrer 10% VITCoin on each confirmed deposit or subscription; wired into `/deposit/verify` and `/wallet/subscribe`
+- **ENG-06 (T009)**: Training jobs already DB-backed via `ModuleTrainingJob` — confirmed working
+- **Fixture import**: 179 fixtures from CSV imported into DB (`scripts/import_fixtures.py`); total 447 fixtures in DB
+- **2FA UI (T013)**: Settings page already had full 2FA flow; added missing backend endpoints (`GET /auth/2fa/status`, `POST /auth/2fa/setup`, `POST /auth/2fa/enable`, `POST /auth/2fa/disable`) with QR code data-URI generation; `totp_secret`/`totp_enabled` columns added to User model via Alembic migration
+
+### Payments & Revenue (Phase 4)
+- **T014**: Stripe subscription checkout (`POST /subscription/create-checkout`) and webhook (`POST /webhooks/stripe`) already implemented and mounted — confirmed working
+- **T015**: Paystack NGN deposits (`POST /wallet/deposit/initiate` + `/deposit/verify`) already implemented — confirmed working
+- **T016 (Offerwall)**: Created `app/modules/rewards/routes.py` with `/api/rewards/offers`, `/api/rewards/history`, `/api/rewards/summary` endpoints; created `frontend/src/pages/offerwall.tsx` dashboard with offer cards, earn history table, and summary stats; added "Offers" nav link to sidebar under Earn group; routed at `/earn`
+
+### Database Migrations
+- `b1a2c3d4e5f6_sec04_sec10_hardening`: adds `failed_login_count`, `locked_until`, `email_tokens`, `token_blocklist` tables
+- `c2d3e4f5a6b7_add_totp_columns`: adds `totp_secret`, `totp_enabled` to users table
+
 ## Changelog — v4.7.5 (2026-05-01)
 - **Version bump**: 4.6.0 → 4.7.5 (app/config.py single source of truth)
 - **Session expiry toast**: apiClient.ts now shows a visible toast + clears both tokens on 401 refresh failure

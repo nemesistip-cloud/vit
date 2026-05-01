@@ -1,6 +1,7 @@
 # app/api/middleware/rate_limit.py
 # VIT Sports Intelligence — Rate Limiting Middleware
 # In-memory sliding window rate limiter (per IP + per API key)
+# SEC-07: idle buckets are evicted after 2× the window to prevent unbounded growth.
 
 import os
 import time
@@ -8,6 +9,8 @@ from collections import defaultdict, deque
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.errors import error_response
+
+_EVICT_AFTER_SECONDS = 120  # evict buckets idle for 2× the window
 
 
 def _rate_limiting_enabled() -> bool:
@@ -20,6 +23,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     - Anonymous: 30 req/min per IP
     - Authenticated: 120 req/min per API key
     - Prediction endpoint stricter: 20/min anon, 60/min auth
+
+    SEC-07: _buckets is cleaned up periodically — idle keys are evicted after
+    2 minutes so memory usage stays bounded even under rotating-IP bot traffic.
     """
 
     ANON_LIMIT = 30
@@ -27,11 +33,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     PREDICT_ANON_LIMIT = 20
     PREDICT_AUTH_LIMIT = 60
     WINDOW_SECONDS = 60
-
-    _buckets: dict = defaultdict(deque)
+    EVICT_INTERVAL = 300  # run eviction pass every 5 minutes
 
     # Routes that bypass rate limiting completely
     _BYPASS = ("/health", "/docs", "/openapi.json", "/redoc", "/static")
+
+    def __init__(self, app):
+        super().__init__(app)
+        self._buckets: dict = defaultdict(deque)
+        self._last_seen: dict = {}      # key → last request timestamp
+        self._last_evict: float = time.time()
+
+    def _evict_stale(self, now: float) -> None:
+        """Remove buckets that haven't seen traffic in _EVICT_AFTER_SECONDS."""
+        if now - self._last_evict < self.EVICT_INTERVAL:
+            return
+        self._last_evict = now
+        cutoff = now - _EVICT_AFTER_SECONDS
+        stale = [k for k, ts in self._last_seen.items() if ts < cutoff]
+        for k in stale:
+            self._buckets.pop(k, None)
+            self._last_seen.pop(k, None)
 
     async def dispatch(self, request: Request, call_next):
         if not _rate_limiting_enabled():
@@ -53,6 +75,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             limit = self.PREDICT_ANON_LIMIT if is_predict else self.ANON_LIMIT
 
         now = time.time()
+        self._last_seen[key] = now
+        self._evict_stale(now)
+
         window_start = now - self.WINDOW_SECONDS
         bucket = self._buckets[key]
 

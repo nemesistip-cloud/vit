@@ -171,32 +171,61 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
+_MAX_FAILURES = 5
+_LOCKOUT_MINUTES = 15
+
+
 @router.post("/login")
 async def login(body: LoginRequest, request: Request = None, db: AsyncSession = Depends(get_db)):
-    from app.core.rate_limit import check_login_allowed, record_login_failure, clear_login_failures
-
+    # ── SEC-10: IP-level in-memory rate limit (quick, O(1)) ─────────────
+    from app.core.rate_limit import check_login_allowed, record_login_failure as _ip_fail, clear_login_failures as _ip_clear
     client_ip = request.client.host if request and request.client else None
-
     try:
-        check_login_allowed(body.email, client_ip)
-    except ValueError as e:
-        raise HTTPException(status_code=429, detail=str(e))
+        check_login_allowed(None, client_ip)  # IP-only check first — fast
+    except ValueError as exc:
+        raise HTTPException(status_code=429, headers={"Retry-After": "900"}, detail=str(exc))
 
+    # ── Load user ────────────────────────────────────────────────────────
     result = await db.execute(select(User).where(User.email == body.email.lower()))
     user = result.scalar_one_or_none()
 
+    # ── SEC-10: DB-backed per-account lockout check (survives restarts) ──
+    now = datetime.now(timezone.utc)
+    if user is not None:
+        locked = getattr(user, "locked_until", None)
+        if locked is not None and locked > now:
+            seconds_left = int((locked - now).total_seconds())
+            raise HTTPException(
+                status_code=429,
+                headers={"Retry-After": str(seconds_left)},
+                detail=f"Account temporarily locked. Try again in {seconds_left // 60 + 1} minute(s).",
+            )
+
     if not user or not verify_password(body.password, user.hashed_password):
-        record_login_failure(body.email, client_ip)
+        _ip_fail(None, client_ip)  # record IP failure (in-memory)
+        if user is not None:
+            # Increment DB failure counter
+            failures = (getattr(user, "failed_login_count", None) or 0) + 1
+            user.failed_login_count = failures
+            if failures >= _MAX_FAILURES:
+                from datetime import timedelta as _td
+                user.locked_until = now + _td(minutes=_LOCKOUT_MINUTES)
+            await db.commit()
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated")
 
-    clear_login_failures(body.email)
+    # ── Successful login — reset counters ────────────────────────────────
+    _ip_clear(None)
+    user.failed_login_count = 0
+    user.locked_until = None
 
     # ── 2FA gate: if enabled, return a short-lived pre-auth token ───────
     if getattr(user, "totp_enabled", False):
         from datetime import timedelta as _td
+        user.last_login = now
+        await db.commit()
         pre_auth = create_access_token(
             {"sub": str(user.id), "role": user.role, "type": "pre_auth"},
             expires_delta=_td(minutes=5),
@@ -204,7 +233,7 @@ async def login(body: LoginRequest, request: Request = None, db: AsyncSession = 
         return TwoFARequired(pre_auth_token=pre_auth)
 
     # ── Full login ───────────────────────────────────────────────────────
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = now
     await db.commit()
 
     access_token = create_access_token({"sub": str(user.id), "role": user.role})
@@ -284,6 +313,30 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/logout")
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """SEC-04: Invalidate the current access token by adding its jti to the blocklist."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    payload = decode_token(credentials.credentials)
+    if not payload or payload.get("type") != "access":
+        return {"message": "Logged out"}
+
+    jti = payload.get("jti")
+    if jti:
+        from app.auth.jwt_utils import revoke_token
+        from datetime import datetime, timezone
+        exp_ts = payload.get("exp")
+        expires_at = datetime.fromtimestamp(exp_ts, tz=timezone.utc) if exp_ts else None
+        await revoke_token(jti, int(payload.get("sub", 0)), "logout", db, expires_at)
+
+    return {"message": "Logged out successfully"}
+
+
 @router.get("/me")
 async def me(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
@@ -322,3 +375,147 @@ async def me(
         "last_login": user.last_login,
         "permissions": get_permissions_for_admin_role(admin_role) if admin_role else [],
     }
+
+
+# ── 2FA / TOTP endpoints ───────────────────────────────────────────────────
+
+class TotpSetupResponse(BaseModel):
+    secret: str
+    qr_code: str  # data-URI PNG
+    issuer: str = "VIT Sports Intelligence"
+
+
+class TotpVerifyRequest(BaseModel):
+    totp_code: str
+
+
+class TotpDisableRequest(BaseModel):
+    totp_code: str
+    password: str
+
+
+@router.get("/2fa/status")
+async def totp_status(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return whether 2FA is enabled for the current user."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = decode_token(credentials.credentials)
+    if not payload or payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    result = await db.execute(select(User).where(User.id == int(payload["sub"])))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"totp_enabled": bool(getattr(user, "totp_enabled", False))}
+
+
+@router.post("/2fa/setup", response_model=TotpSetupResponse)
+async def totp_setup(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a new TOTP secret and return a QR code. Does NOT enable 2FA yet."""
+    import pyotp
+    import qrcode
+    import base64
+    import io
+
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = decode_token(credentials.credentials)
+    if not payload or payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    result = await db.execute(select(User).where(User.id == int(payload["sub"])))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    secret = pyotp.random_base32()
+    user.totp_secret = secret
+    user.totp_enabled = False  # not active until verified
+    await db.commit()
+
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(name=user.email, issuer_name="VIT Sports Intelligence")
+
+    # Render QR to PNG, encode as data-URI
+    try:
+        img = qrcode.make(uri)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        qr_b64 = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        qr_b64 = ""
+
+    return TotpSetupResponse(secret=secret, qr_code=qr_b64)
+
+
+@router.post("/2fa/enable")
+async def totp_enable(
+    body: TotpVerifyRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify the TOTP code and activate 2FA on the account."""
+    import pyotp
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = decode_token(credentials.credentials)
+    if not payload or payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    result = await db.execute(select(User).where(User.id == int(payload["sub"])))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    secret = getattr(user, "totp_secret", None)
+    if not secret:
+        raise HTTPException(status_code=400, detail="Run /auth/2fa/setup first")
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(body.totp_code.strip(), valid_window=1):
+        raise HTTPException(status_code=400, detail="Invalid TOTP code")
+
+    user.totp_enabled = True
+    await db.commit()
+    await _write_audit(db, "user.2fa.enabled", user.email, "auth", str(user.id))
+    return {"message": "2FA enabled successfully"}
+
+
+@router.post("/2fa/disable")
+async def totp_disable(
+    body: TotpDisableRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """Disable 2FA — requires TOTP code + current password."""
+    import pyotp
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = decode_token(credentials.credentials)
+    if not payload or payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    result = await db.execute(select(User).where(User.id == int(payload["sub"])))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not verify_password(body.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    secret = getattr(user, "totp_secret", None)
+    if not secret or not getattr(user, "totp_enabled", False):
+        raise HTTPException(status_code=400, detail="2FA is not enabled")
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(body.totp_code.strip(), valid_window=1):
+        raise HTTPException(status_code=400, detail="Invalid TOTP code")
+
+    user.totp_enabled = False
+    user.totp_secret = None
+    await db.commit()
+    await _write_audit(db, "user.2fa.disabled", user.email, "auth", str(user.id))
+    return {"message": "2FA disabled"}

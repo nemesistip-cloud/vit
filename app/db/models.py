@@ -411,6 +411,12 @@ class User(Base):
     current_streak = Column(Integer, default=0)
     best_streak = Column(Integer, default=0)
     total_xp = Column(Integer, default=0)
+    # SEC-10: DB-backed login brute-force protection (survives restarts)
+    failed_login_count = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+    # 2FA (TOTP)
+    totp_secret = Column(String(64), nullable=True)
+    totp_enabled = Column(Boolean, default=False, nullable=False)
 
     # Wallet module relationships (back_populates wired in app/modules/wallet/models.py)
     wallet = relationship("Wallet", back_populates=None, uselist=False, viewonly=True)
@@ -476,6 +482,50 @@ class TrainingGuideStep(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     job = relationship("TrainingJob", back_populates="steps")
+
+
+class EmailToken(Base):
+    """DB-backed email verification and password-reset tokens.
+
+    SEC-03: replaces in-memory _verify_tokens / _reset_tokens dicts that were
+    lost on every restart and invisible to other workers. Tokens are stored as
+    SHA-256 hashes so a DB dump never exposes usable values.
+    """
+    __tablename__ = "email_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    purpose = Column(String(20), nullable=False)   # "verify" | "reset"
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_email_tokens_hash", "token_hash"),
+        Index("idx_email_tokens_user", "user_id"),
+    )
+
+
+class TokenBlocklist(Base):
+    """JWT revocation list — stores jti (JWT ID) of invalidated tokens.
+
+    SEC-04: issued JWTs cannot be revoked without a blocklist. On logout,
+    password-change, or account suspension the jti is added here. The auth
+    middleware checks this table before accepting a token.
+    """
+    __tablename__ = "token_blocklist"
+
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String(64), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, nullable=True)
+    reason = Column(String(50), nullable=True)   # "logout" | "password_change" | "suspended"
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_token_blocklist_jti", "jti"),
+    )
 
 
 # Indexes for performance

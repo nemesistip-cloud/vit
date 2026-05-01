@@ -1,5 +1,6 @@
 # app/api/middleware/auth.py
 # Supports both legacy API key (x-api-key header) and JWT Bearer tokens
+# SEC-04: Blocklist check on every request — revoked tokens are rejected.
 import os
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -37,12 +38,20 @@ _PROTECTED_PREFIXES = (
 )
 
 
-def _is_valid_jwt(token: str) -> bool:
-    """Quick JWT validation without DB lookup (signature check only)."""
+async def _validate_jwt(token: str) -> bool:
+    """Async JWT validation: checks signature + blocklist (SEC-04)."""
     try:
-        from app.auth.jwt_utils import decode_token
+        from app.auth.jwt_utils import decode_token, is_token_revoked
         payload = decode_token(token)
-        return payload is not None and payload.get("type") == "access"
+        if payload is None or payload.get("type") != "access":
+            return False
+        jti = payload.get("jti")
+        if jti:
+            from app.db.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                if await is_token_revoked(jti, db):
+                    return False
+        return True
     except Exception:
         return False
 
@@ -71,13 +80,13 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
-            if _is_valid_jwt(token):
+            if await _validate_jwt(token):
                 return await call_next(request)
             return error_response(
                 request=request,
                 status_code=401,
                 code="invalid_token",
-                message="Invalid or expired JWT token",
+                message="Invalid, expired, or revoked JWT token",
             )
 
         # ── Fall back to API key ────────────────────────────────────────
@@ -110,9 +119,9 @@ async def verify_api_key(request: Request):
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        if _is_valid_jwt(token):
+        if await _validate_jwt(token):
             return True
-        raise HTTPException(status_code=401, detail="Invalid or expired JWT token")
+        raise HTTPException(status_code=401, detail="Invalid, expired, or revoked JWT token")
 
     api_key = request.headers.get("x-api-key")
     if not api_key:

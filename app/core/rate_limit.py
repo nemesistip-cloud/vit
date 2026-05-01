@@ -56,9 +56,13 @@ class _AttemptStore:
 _store = _AttemptStore()
 
 
-def check_login_allowed(email: str, ip: str | None = None):
-    """Raise ValueError if either the email or IP is locked out."""
-    if _store.is_locked(email.lower()):
+def check_login_allowed(email: str | None, ip: str | None = None):
+    """Raise ValueError if either the email or IP is locked out.
+
+    Pass email=None to skip the per-email check (used when the login route
+    handles per-account locking via DB columns instead).
+    """
+    if email and _store.is_locked(email.lower()):
         raise ValueError(
             f"Too many failed login attempts. Account temporarily locked for "
             f"{LOCKOUT_SECONDS // 60} minutes."
@@ -70,11 +74,13 @@ def check_login_allowed(email: str, ip: str | None = None):
         )
 
 
-def record_login_failure(email: str, ip: str | None = None):
-    _store.record_failure(email.lower())
+def record_login_failure(email: str | None, ip: str | None = None):
+    if email:
+        _store.record_failure(email.lower())
     if ip:
         _store.record_failure(ip)
 
 
-def clear_login_failures(email: str):
-    _store.clear(email.lower())
+def clear_login_failures(email: str | None):
+    if email:
+        _store.clear(email.lower())

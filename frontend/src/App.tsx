@@ -42,6 +42,7 @@ const AssistantPage       = lazy(() => import("@/pages/assistant"));
 const ForgotPasswordPage  = lazy(() => import("@/pages/forgot-password"));
 const ResetPasswordPage   = lazy(() => import("@/pages/reset-password"));
 const VerifyEmailPage     = lazy(() => import("@/pages/verify-email"));
+const OfferwallPage       = lazy(() => import("@/pages/offerwall"));
 
 function RouteFallback() {
   return (
@@ -177,6 +178,9 @@ function Router() {
       </Route>
       <Route path="/assistant">
         <Layout><ProtectedRoute component={AssistantPage} /></Layout>
+      </Route>
+      <Route path="/earn">
+        <Layout><ProtectedRoute component={OfferwallPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />

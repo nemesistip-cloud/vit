@@ -1,5 +1,10 @@
 # app/auth/jwt_utils.py
+# SEC-04: Each token now includes a unique `jti` (JWT ID) claim.
+# Call revoke_token(jti, user_id, reason, db) on logout / password-change /
+# account suspension to add the jti to the token_blocklist table.
+# is_token_revoked(jti, db) is used by the auth middleware.
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -31,14 +36,22 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode.update({"exp": expire, "type": "access"})
+    to_encode.update({
+        "exp": expire,
+        "type": "access",
+        "jti": str(uuid.uuid4()),
+    })
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
+    to_encode.update({
+        "exp": expire,
+        "type": "refresh",
+        "jti": str(uuid.uuid4()),
+    })
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -48,3 +61,44 @@ def decode_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+async def revoke_token(
+    jti: str,
+    user_id: int,
+    reason: str,
+    db,
+    expires_at: Optional[datetime] = None,
+) -> None:
+    """Add a jti to the blocklist. Call on logout, password-change, or suspension."""
+    from app.db.models import TokenBlocklist
+    from sqlalchemy import select
+
+    existing = await db.execute(
+        select(TokenBlocklist).where(TokenBlocklist.jti == jti)
+    )
+    if existing.scalar_one_or_none():
+        return
+
+    if expires_at is None:
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    db.add(TokenBlocklist(
+        jti=jti,
+        user_id=user_id,
+        reason=reason,
+        expires_at=expires_at,
+    ))
+    await db.commit()
+
+
+async def is_token_revoked(jti: str, db) -> bool:
+    """Return True if the jti has been revoked."""
+    if not jti:
+        return False
+    from app.db.models import TokenBlocklist
+    from sqlalchemy import select
+    result = await db.execute(
+        select(TokenBlocklist).where(TokenBlocklist.jti == jti)
+    )
+    return result.scalar_one_or_none() is not None

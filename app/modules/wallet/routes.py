@@ -355,6 +355,13 @@ async def verify_deposit(
         except Exception as e:
             logger.warning(f"Task progress update failed (non-fatal): {e}")
 
+        # ── Referral commission (ENG-12) ──────────────────────────────────
+        try:
+            from app.modules.referral.routes import process_deposit_commission
+            await process_deposit_commission(db, current_user.id, verified_amount)
+        except Exception as _ref_err:
+            logger.warning(f"Referral commission processing failed (non-fatal): {_ref_err}")
+
         # ── Notification ────────────────────────────────────────────────
         try:
             from app.modules.notifications.service import NotificationService as _NS
@@ -610,6 +617,14 @@ async def subscribe(
         raise HTTPException(400, str(e))
 
     await db.commit()
+
+    # ENG-12: credit referrer with 10% of subscription value
+    try:
+        from app.modules.referral.routes import process_subscription_commission
+        await process_subscription_commission(db, current_user.id, Decimal(str(price)))
+    except Exception as _ref_err:
+        logger.warning(f"Referral subscription commission failed (non-fatal): {_ref_err}")
+
     return {
         "subscription_id": sub_result["subscription_id"],
         "plan_name": plan.name,

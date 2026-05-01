@@ -1,8 +1,8 @@
-"""Email verification and password reset — token-based, no SMTP required.
+"""Email verification and password reset — DB-backed, multi-worker safe.
 
-Tokens are stored in the DB.  In development the token is returned in the API
-response so the frontend can display a verification link.  Wire up an SMTP /
-SendGrid / Mailgun transport by replacing _send_email() when ready.
+SEC-03: Tokens are stored in the email_tokens table as SHA-256 hashes.
+In-memory dicts (_verify_tokens, _reset_tokens) are gone — tokens now survive
+restarts and work correctly across multiple Uvicorn workers.
 """
 
 import hashlib
@@ -17,7 +17,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import User, EmailToken
 from app.auth.jwt_utils import hash_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -25,23 +25,22 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _TOKEN_TTL_HOURS = 24
 _RESET_TTL_HOURS = 2
 
-# ---------------------------------------------------------------------------
-# In-memory token store (replace with DB-backed table for production scale)
-# ---------------------------------------------------------------------------
-_verify_tokens: dict[str, dict] = {}
-_reset_tokens: dict[str, dict] = {}
-
 
 def _make_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 async def _send_email(to: str, subject: str, body: str) -> None:
-    """Stub — replace with real SMTP / SendGrid / Mailgun transport."""
+    """Stub — replace with Resend / SMTP transport when ready."""
     smtp_host = os.getenv("SMTP_HOST", "")
     if smtp_host:
         try:
-            import smtplib, email.mime.text as _mime
+            import smtplib
+            import email.mime.text as _mime
             msg = _mime.MIMEText(body, "html")
             msg["Subject"] = subject
             msg["From"] = os.getenv("SMTP_FROM", "noreply@vit.network")
@@ -57,6 +56,50 @@ async def _send_email(to: str, subject: str, body: str) -> None:
     else:
         import logging
         logging.getLogger(__name__).info(f"[email stub] TO={to} SUBJECT={subject}")
+
+
+async def _store_token(
+    db: AsyncSession, user_id: int, purpose: str, token: str, ttl_hours: int
+) -> None:
+    """Persist a hashed token, removing any previous token for the same user+purpose."""
+    await db.execute(
+        delete(EmailToken).where(
+            EmailToken.user_id == user_id,
+            EmailToken.purpose == purpose,
+        )
+    )
+    record = EmailToken(
+        token_hash=_hash_token(token),
+        user_id=user_id,
+        purpose=purpose,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=ttl_hours),
+    )
+    db.add(record)
+    await db.commit()
+
+
+async def _consume_token(
+    db: AsyncSession, token: str, purpose: str
+) -> Optional[EmailToken]:
+    """Look up a token by hash. Returns the record if valid; marks it used. Returns None if not found or expired."""
+    token_hash = _hash_token(token)
+    result = await db.execute(
+        select(EmailToken).where(
+            EmailToken.token_hash == token_hash,
+            EmailToken.purpose == purpose,
+            EmailToken.used_at.is_(None),
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        return None
+    if datetime.now(timezone.utc) > record.expires_at:
+        await db.delete(record)
+        await db.commit()
+        return None
+    record.used_at = datetime.now(timezone.utc)
+    await db.commit()
+    return record
 
 
 # ---------------------------------------------------------------------------
@@ -82,11 +125,7 @@ async def send_verification(body: SendVerificationRequest, db: AsyncSession = De
         return {"message": "Email already verified.", "already_verified": True}
 
     token = _make_token()
-    _verify_tokens[token] = {
-        "user_id": user.id,
-        "email": user.email,
-        "expires_at": datetime.now(timezone.utc) + timedelta(hours=_TOKEN_TTL_HOURS),
-    }
+    await _store_token(db, user.id, "verify", token, _TOKEN_TTL_HOURS)
 
     base_url = os.getenv("FRONTEND_URL", "")
     link = f"{base_url}/verify-email?token={token}"
@@ -106,23 +145,17 @@ async def send_verification(body: SendVerificationRequest, db: AsyncSession = De
 
 @router.post("/verify-email")
 async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_db)):
-    record = _verify_tokens.get(body.token)
+    record = await _consume_token(db, body.token, "verify")
     if not record:
         raise HTTPException(400, "Invalid or expired verification token.")
 
-    if datetime.now(timezone.utc) > record["expires_at"]:
-        del _verify_tokens[body.token]
-        raise HTTPException(400, "Verification token has expired. Please request a new one.")
-
-    result = await db.execute(select(User).where(User.id == record["user_id"]))
+    result = await db.execute(select(User).where(User.id == record.user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(404, "User not found.")
 
     user.is_verified = True
     await db.commit()
-    del _verify_tokens[body.token]
-
     return {"message": "Email verified successfully!", "email": user.email}
 
 
@@ -148,11 +181,7 @@ async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depend
         return {"message": "If that email exists, a reset link has been sent."}
 
     token = _make_token()
-    _reset_tokens[token] = {
-        "user_id": user.id,
-        "email": user.email,
-        "expires_at": datetime.now(timezone.utc) + timedelta(hours=_RESET_TTL_HOURS),
-    }
+    await _store_token(db, user.id, "reset", token, _RESET_TTL_HOURS)
 
     base_url = os.getenv("FRONTEND_URL", "")
     link = f"{base_url}/reset-password?token={token}"
@@ -175,21 +204,16 @@ async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(
     if len(body.new_password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters.")
 
-    record = _reset_tokens.get(body.token)
+    record = await _consume_token(db, body.token, "reset")
     if not record:
         raise HTTPException(400, "Invalid or expired reset token.")
 
-    if datetime.now(timezone.utc) > record["expires_at"]:
-        del _reset_tokens[body.token]
-        raise HTTPException(400, "Reset token has expired. Please request a new reset link.")
-
-    result = await db.execute(select(User).where(User.id == record["user_id"]))
+    result = await db.execute(select(User).where(User.id == record.user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(404, "User not found.")
 
     user.hashed_password = hash_password(body.new_password)
     await db.commit()
-    del _reset_tokens[body.token]
 
     return {"message": "Password reset successfully. You can now log in with your new password."}

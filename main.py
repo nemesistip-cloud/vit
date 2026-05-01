@@ -22,7 +22,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.config import get_env, APP_VERSION, print_config_status
 from app.core.errors import AppError, error_response
 from app.db.database import get_db
-import app.db.models  # ensure all models registered
+import app.db.models  # ensure all models registered (incl. EmailToken, TokenBlocklist)
 import app.modules.wallet.models  # register wallet models with SQLAlchemy
 import app.modules.blockchain.models  # register blockchain models with SQLAlchemy
 import app.modules.training.models  # register training module models with SQLAlchemy
@@ -91,6 +91,7 @@ from app.modules.tasks.routes import router as tasks_router
 # ===== REWARD POSTBACK ROUTES =====
 from app.api.routes.postbacks import router as postbacks_router
 from app.api.routes.admin_rewards import router as admin_rewards_router
+from app.modules.rewards.routes import router as rewards_router
 from app.modules.marketplace.routes import router as marketplace_router
 
 # ===== TRUST ROUTES (Module I) =====
@@ -1169,12 +1170,16 @@ app = FastAPI(
 # ============================================
 
 cors_origins = get_env("CORS_ALLOWED_ORIGINS", "*")
-origins = ["*"] if cors_origins == "*" else cors_origins.split(",")
+origins = ["*"] if cors_origins.strip() == "*" else [o.strip() for o in cors_origins.split(",") if o.strip()]
+
+# SEC-02: never pair allow_credentials=True with allow_origins=["*"] — browsers
+# reject credentialed requests to wildcard origins. Use explicit origins in production.
+_allow_credentials = origins != ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1355,6 +1360,7 @@ app.include_router(tasks_router)
 # Reward Postback Routes
 app.include_router(postbacks_router)
 app.include_router(admin_rewards_router)
+app.include_router(rewards_router)
 app.include_router(admin_ai_sources_router)
 app.include_router(admin_clv_router)
 

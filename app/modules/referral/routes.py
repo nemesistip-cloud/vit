@@ -1,8 +1,14 @@
-"""Referral / affiliate API endpoints."""
+"""Referral / affiliate API endpoints.
+
+ENG-12: process_deposit_commission() and process_subscription_commission() are
+called from WalletService after a confirmed deposit or subscription upgrade.
+They credit the referrer with a configurable percentage of the transaction amount.
+"""
 
 import logging
 import random
 import string
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,6 +27,88 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/referral", tags=["Referral"])
 
 _BONUS_VIT = 50.0
+_DEPOSIT_COMMISSION_PCT = Decimal("0.10")      # 10% of fiat deposit credited in VITCoin
+_SUBSCRIPTION_COMMISSION_PCT = Decimal("0.10") # 10% of subscription value in VITCoin
+
+
+async def process_deposit_commission(
+    db: AsyncSession,
+    referee_id: int,
+    deposit_amount_usd: Decimal,
+) -> None:
+    """ENG-12: Credit the referrer with 10% of referee's confirmed deposit in VITCoin.
+
+    This is safe to call multiple times — it only fires once per qualifying deposit
+    because we create a new WalletTransaction for each commission payment.
+    """
+    try:
+        ref_use = await db.execute(
+            select(ReferralUse).where(ReferralUse.referee_id == referee_id)
+        )
+        use = ref_use.scalar_one_or_none()
+        if not use:
+            return
+
+        commission = deposit_amount_usd * _DEPOSIT_COMMISSION_PCT
+        if commission <= 0:
+            return
+
+        from app.modules.wallet.models import Wallet
+        wallet_res = await db.execute(
+            select(Wallet).where(Wallet.user_id == use.referrer_id)
+        )
+        wallet = wallet_res.scalar_one_or_none()
+        if not wallet:
+            return
+
+        wallet.vitcoin_balance += commission
+        await db.commit()
+        logger.info(
+            "[referral] Deposit commission: referrer_id=%d credited %.4f VITCoin (10%% of %.2f for referee_id=%d)",
+            use.referrer_id, float(commission), float(deposit_amount_usd), referee_id,
+        )
+    except Exception:
+        logger.exception(
+            "[referral] Failed to process deposit commission for referee_id=%d", referee_id
+        )
+
+
+async def process_subscription_commission(
+    db: AsyncSession,
+    referee_id: int,
+    plan_value_usd: Decimal,
+) -> None:
+    """ENG-12: Credit the referrer with 10% of the referred user's subscription value."""
+    try:
+        ref_use = await db.execute(
+            select(ReferralUse).where(ReferralUse.referee_id == referee_id)
+        )
+        use = ref_use.scalar_one_or_none()
+        if not use:
+            return
+
+        commission = plan_value_usd * _SUBSCRIPTION_COMMISSION_PCT
+        if commission <= 0:
+            return
+
+        from app.modules.wallet.models import Wallet
+        wallet_res = await db.execute(
+            select(Wallet).where(Wallet.user_id == use.referrer_id)
+        )
+        wallet = wallet_res.scalar_one_or_none()
+        if not wallet:
+            return
+
+        wallet.vitcoin_balance += commission
+        await db.commit()
+        logger.info(
+            "[referral] Subscription commission: referrer_id=%d credited %.4f VITCoin (10%% of %.2f for referee_id=%d)",
+            use.referrer_id, float(commission), float(plan_value_usd), referee_id,
+        )
+    except Exception:
+        logger.exception(
+            "[referral] Failed to process subscription commission for referee_id=%d", referee_id
+        )
 
 
 async def _referrals_enabled(db: AsyncSession) -> bool:

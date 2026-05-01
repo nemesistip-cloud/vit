@@ -112,7 +112,10 @@ export function NotificationBell() {
       if (destroyed) return;
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
       const host = window.location.host;
-      ws = new WebSocket(`${proto}://${host}/api/notifications/ws/${user!.id}`);
+      // SEC-01: pass JWT as ?token= query param so the server can authenticate
+      // the WebSocket handshake before accepting the connection.
+      const jwt = localStorage.getItem("vit_token") ?? "";
+      ws = new WebSocket(`${proto}://${host}/api/notifications/ws/${user!.id}?token=${encodeURIComponent(jwt)}`);
 
       ws.onopen = () => { attempt = 0; };
 
