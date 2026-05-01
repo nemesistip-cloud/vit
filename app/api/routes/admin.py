@@ -128,65 +128,131 @@ _ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
 
 # Registry of every configurable key exposed through the admin UI
 _KEY_REGISTRY = [
+    # ── Sports Data ────────────────────────────────────────────────────
     {
         "name":        "FOOTBALL_DATA_API_KEY",
         "label":       "Football-Data.org",
         "description": "Fetches scheduled fixtures and match history",
         "required":    True,
+        "group":       "Sports Data",
     },
     {
         "name":        "ODDS_API_KEY",
         "label":       "The Odds API",
         "description": "Live betting odds and market data (also readable as THE_ODDS_API_KEY)",
         "required":    True,
+        "group":       "Sports Data",
     },
-    {
-        "name":        "TELEGRAM_BOT_TOKEN",
-        "label":       "Telegram Bot Token",
-        "description": "Sends alerts and accumulators via Telegram",
-        "required":    False,
-    },
-    {
-        "name":        "TELEGRAM_CHAT_ID",
-        "label":       "Telegram Chat / Channel ID",
-        "description": "Target chat or channel for Telegram messages",
-        "required":    False,
-    },
-    {
-        "name":        "BZZOIRO_API_KEY",
-        "label":       "Bzzoiro AI Feed",
-        "description": "Free AI predictions from sports.bzzoiro.com",
-        "required":    False,
-    },
-    {
-        "name":        "SPORTBOT_API_KEY",
-        "label":       "SportBot AI Feed",
-        "description": "Free-tier AI predictions from sportbot.ai",
-        "required":    False,
-    },
+    # ── AI Providers ───────────────────────────────────────────────────
     {
         "name":        "GEMINI_API_KEY",
         "label":       "Google Gemini AI",
-        "description": "Powers AI match insights and tactical analysis shown on every prediction detail",
+        "description": "Powers AI match insights, AI Assistant chat, and tactical analysis",
         "required":    False,
+        "group":       "AI Providers",
     },
     {
         "name":        "ANTHROPIC_API_KEY",
         "label":       "Anthropic Claude",
         "description": "Claude 3 Haiku — second AI analyst for multi-AI match insights",
         "required":    False,
+        "group":       "AI Providers",
+    },
+    {
+        "name":        "OPENAI_API_KEY",
+        "label":       "OpenAI",
+        "description": "GPT-4o — third AI analyst for multi-AI match insights",
+        "required":    False,
+        "group":       "AI Providers",
     },
     {
         "name":        "XAI_API_KEY",
         "label":       "xAI Grok",
-        "description": "Grok Beta — third AI analyst for multi-AI match insights",
+        "description": "Grok Beta — fourth AI analyst for multi-AI match insights",
         "required":    False,
+        "group":       "AI Providers",
     },
+    # ── Payments ───────────────────────────────────────────────────────
+    {
+        "name":        "STRIPE_SECRET_KEY",
+        "label":       "Stripe",
+        "description": "USD subscription payments — Pro ($49/mo) and Elite ($199/mo) plans",
+        "required":    False,
+        "group":       "Payments",
+    },
+    {
+        "name":        "PAYSTACK_SECRET_KEY",
+        "label":       "Paystack",
+        "description": "NGN wallet deposits and local payment processing",
+        "required":    False,
+        "group":       "Payments",
+    },
+    # ── Infrastructure ─────────────────────────────────────────────────
+    {
+        "name":        "REDIS_URL",
+        "label":       "Redis URL",
+        "description": "Redis connection for Celery job queue and persistent rate limiting",
+        "required":    False,
+        "group":       "Infrastructure",
+    },
+    {
+        "name":        "SMTP_HOST",
+        "label":       "SMTP Host",
+        "description": "Mail server hostname for email verification and password resets",
+        "required":    False,
+        "group":       "Infrastructure",
+    },
+    {
+        "name":        "SMTP_USER",
+        "label":       "SMTP Username",
+        "description": "Mail server login username",
+        "required":    False,
+        "group":       "Infrastructure",
+    },
+    {
+        "name":        "SMTP_PASS",
+        "label":       "SMTP Password",
+        "description": "Mail server login password",
+        "required":    False,
+        "group":       "Infrastructure",
+    },
+    # ── Messaging ──────────────────────────────────────────────────────
+    {
+        "name":        "TELEGRAM_BOT_TOKEN",
+        "label":       "Telegram Bot Token",
+        "description": "Sends alerts and accumulators via Telegram",
+        "required":    False,
+        "group":       "Messaging",
+    },
+    {
+        "name":        "TELEGRAM_CHAT_ID",
+        "label":       "Telegram Chat / Channel ID",
+        "description": "Target chat or channel for Telegram messages",
+        "required":    False,
+        "group":       "Messaging",
+    },
+    # ── AI Feeds ───────────────────────────────────────────────────────
+    {
+        "name":        "BZZOIRO_API_KEY",
+        "label":       "Bzzoiro AI Feed",
+        "description": "Free AI predictions from sports.bzzoiro.com",
+        "required":    False,
+        "group":       "AI Feeds",
+    },
+    {
+        "name":        "SPORTBOT_API_KEY",
+        "label":       "SportBot AI Feed",
+        "description": "Free-tier AI predictions from sportbot.ai",
+        "required":    False,
+        "group":       "AI Feeds",
+    },
+    # ── Security ───────────────────────────────────────────────────────
     {
         "name":        "API_KEY",
         "label":       "Admin API Key",
-        "description": "Master key used to authenticate all admin endpoints",
-        "required":    True,
+        "description": "Master key used to authenticate legacy admin endpoints",
+        "required":    False,
+        "group":       "Security",
     },
 ]
 
@@ -240,12 +306,11 @@ class ApiKeyUpdate(BaseModel):
 
 
 @router.get("/api-keys")
-async def list_api_keys(api_key: Optional[str] = Query(default=None)):
+async def list_api_keys(current_user=Depends(get_current_admin)):
     """
     Return all configurable API keys with masked current values.
     Never returns plaintext secrets.
     """
-    _verify_key(api_key)
     keys = []
     for entry in _KEY_REGISTRY:
         current = os.getenv(entry["name"], "")
@@ -254,8 +319,7 @@ async def list_api_keys(api_key: Optional[str] = Query(default=None)):
             "label":       entry["label"],
             "description": entry["description"],
             "required":    entry["required"],
-            # Frontend reads `configured`; `is_set` retained for backwards
-            # compatibility with any older client.
+            "group":       entry.get("group", "Other"),
             "configured":  bool(current),
             "is_set":      bool(current),
             "masked":      _mask(current),
@@ -264,12 +328,11 @@ async def list_api_keys(api_key: Optional[str] = Query(default=None)):
 
 
 @router.post("/api-keys/update")
-async def update_api_keys(body: ApiKeyUpdate, api_key: Optional[str] = Query(default=None)):
+async def update_api_keys(body: ApiKeyUpdate, current_user=Depends(get_current_admin)):
     """
-    Update one or more API keys. Changes take effect immediately
-    (os.environ) and are persisted to .env for restart survival.
+    Update one or more API keys. Changes take effect immediately (os.environ).
+    For permanent persistence across restarts, set the key in Replit Secrets.
     """
-    _verify_key(api_key)
     allowed_names = {entry["name"] for entry in _KEY_REGISTRY}
     results: dict = {}
     errors: dict = {}
@@ -288,12 +351,11 @@ async def update_api_keys(body: ApiKeyUpdate, api_key: Optional[str] = Query(def
             continue
         try:
             persisted = _write_env(key_name, new_value)
-            results[key_name] = "updated" if persisted else "applied_in_memory"
-            if not persisted:
-                warnings[key_name] = (
-                    "Applied to running server, but could not write .env — "
-                    "value will be lost on restart."
-                )
+            results[key_name] = "updated"
+            warnings[key_name] = (
+                "Applied to running server immediately. "
+                "To make this permanent across restarts, add it to Replit Secrets."
+            )
             logger.info(
                 "API key updated: %s (persisted=%s)", key_name, persisted,
             )
@@ -321,6 +383,52 @@ async def update_api_keys(body: ApiKeyUpdate, api_key: Optional[str] = Query(def
         "errors":   errors,
         "warnings": warnings,
         "message":  ", ".join(msg_parts),
+    }
+
+
+@router.get("/config-status")
+async def get_config_status(current_user=Depends(get_current_admin)):
+    """
+    Returns real-time health status for every external service.
+    Used by the admin Config Health strip.
+    """
+    def _status(key: str, label: str, required: bool = False) -> dict:
+        val = os.getenv(key, "").strip()
+        return {
+            "key":      key,
+            "label":    label,
+            "set":      bool(val),
+            "required": required,
+            "status":   "ok" if val else ("error" if required else "warning"),
+        }
+
+    services = [
+        _status("FOOTBALL_DATA_API_KEY", "Football-Data.org",   required=True),
+        _status("ODDS_API_KEY",           "The Odds API",        required=True),
+        _status("GEMINI_API_KEY",         "Gemini AI",           required=False),
+        _status("ANTHROPIC_API_KEY",      "Claude AI",           required=False),
+        _status("OPENAI_API_KEY",         "OpenAI",              required=False),
+        _status("XAI_API_KEY",            "Grok AI",             required=False),
+        _status("STRIPE_SECRET_KEY",      "Stripe Payments",     required=False),
+        _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),
+        _status("REDIS_URL",              "Redis",               required=False),
+        _status("SMTP_HOST",              "Email / SMTP",        required=False),
+        _status("TELEGRAM_BOT_TOKEN",     "Telegram Bot",        required=False),
+    ]
+
+    errors   = [s for s in services if s["status"] == "error"]
+    warnings = [s for s in services if s["status"] == "warning"]
+    ok       = [s for s in services if s["status"] == "ok"]
+
+    return {
+        "services":      services,
+        "summary": {
+            "total":    len(services),
+            "ok":       len(ok),
+            "warnings": len(warnings),
+            "errors":   len(errors),
+            "healthy":  len(errors) == 0,
+        },
     }
 
 

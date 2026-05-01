@@ -32,7 +32,7 @@ import {
 import {
   Activity, Database, Settings, ShieldCheck, BarChart2,
   Globe, Coins, CreditCard, BookOpen, Cpu, Key, RefreshCw,
-  Trash2, Ban, Edit, Plus, CheckCircle, XCircle, AlertCircle,
+  Trash2, Ban, Edit, Plus, CheckCircle, XCircle, AlertCircle, AlertTriangle,
   TrendingUp, Server, Zap, Save, Search, Eye, EyeOff,
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
@@ -720,9 +720,17 @@ function SystemTab() {
     queryKey: ["admin-flags"],
     queryFn: () => apiGet("/admin/system/flags"),
   });
-  const { data: keysData } = useQuery<{ keys: { name: string; label: string; description: string; configured: boolean; masked: string; required: boolean }[] }>({
+  const { data: keysData } = useQuery<{ keys: { name: string; label: string; description: string; configured: boolean; masked: string; required: boolean; group: string }[] }>({
     queryKey: ["admin-keys"],
     queryFn: () => apiGet("/admin/api-keys"),
+  });
+  const { data: configStatus } = useQuery<{
+    services: { key: string; label: string; set: boolean; required: boolean; status: string }[];
+    summary: { total: number; ok: number; warnings: number; errors: number; healthy: boolean };
+  }>({
+    queryKey: ["admin-config-status"],
+    queryFn: () => apiGet("/admin/config-status"),
+    refetchInterval: 30000,
   });
 
   const flagMutation = useMutation({
@@ -764,8 +772,56 @@ function SystemTab() {
     onError: () => toast.error("Failed to update API key"),
   });
 
+  // Group keys by their group field
+  type KeyEntry = { name: string; label: string; description: string; configured: boolean; masked: string; required: boolean; group: string };
+  const keysByGroup = (keysData?.keys ?? []).reduce<Record<string, KeyEntry[]>>((acc, k) => {
+    const g = k.group ?? "Other";
+    if (!acc[g]) acc[g] = [];
+    acc[g].push(k);
+    return acc;
+  }, {});
+  const groupOrder = ["Sports Data", "AI Providers", "Payments", "Infrastructure", "Messaging", "AI Feeds", "Security", "Other"];
+  const sortedGroups = groupOrder.filter(g => keysByGroup[g]);
+
   return (
     <div className="space-y-6">
+      {/* Config Health Strip */}
+      {configStatus && (
+        <Card className={`border ${configStatus.summary.errors > 0 ? "border-red-500/40 bg-red-500/5" : configStatus.summary.warnings > 0 ? "border-amber-500/40 bg-amber-500/5" : "border-emerald-500/40 bg-emerald-500/5"}`}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-white flex items-center gap-2 text-sm">
+              {configStatus.summary.errors > 0
+                ? <XCircle className="w-4 h-4 text-red-400" />
+                : configStatus.summary.warnings > 0
+                ? <AlertTriangle className="w-4 h-4 text-amber-400" />
+                : <CheckCircle className="w-4 h-4 text-emerald-400" />}
+              Configuration Health
+              <span className="ml-auto text-xs font-normal text-gray-400">
+                {configStatus.summary.ok}/{configStatus.summary.total} services configured
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {configStatus.services.map(s => (
+                <div key={s.key} className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs border ${
+                  s.status === "ok" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300" :
+                  s.status === "error" ? "bg-red-500/10 border-red-500/20 text-red-300" :
+                  "bg-amber-500/10 border-amber-500/20 text-amber-300"
+                }`}>
+                  {s.status === "ok"
+                    ? <CheckCircle className="w-3 h-3" />
+                    : s.status === "error"
+                    ? <XCircle className="w-3 h-3" />
+                    : <AlertTriangle className="w-3 h-3" />}
+                  {s.label}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Feature Flags */}
       <Card className="bg-gray-900 border-gray-700">
         <CardHeader>
@@ -797,42 +853,52 @@ function SystemTab() {
         </CardContent>
       </Card>
 
-      {/* API Keys */}
+      {/* API Keys — Grouped */}
       <Card className="bg-gray-900 border-gray-700">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <Key className="w-5 h-5 text-amber-400" /> API Keys & Secrets
           </CardTitle>
           <CardDescription className="text-gray-400">
-            Configure external service credentials. Changes are applied immediately and saved to the environment.
+            Configure external service credentials. Changes apply immediately to the running server.
+            For permanent storage across restarts, add keys to <span className="text-amber-400 font-medium">Replit Secrets</span>.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {keysData?.keys?.map(k => (
-            <div key={k.name} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-800 hover:border-gray-700">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="text-white text-sm font-medium">{k.label}</div>
-                  {k.required && <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">Required</span>}
-                </div>
-                <div className="text-xs text-gray-500 truncate">{k.description}</div>
-              </div>
-              <div className="flex items-center gap-2 ml-3 shrink-0">
-                <span className="font-mono text-xs text-gray-400 hidden sm:block">
-                  {showKey[k.name] ? (k.masked || "Not set") : "••••••••"}
-                </span>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500 hover:text-white"
-                  onClick={() => setShowKey(s => ({ ...s, [k.name]: !s[k.name] }))}>
-                  {showKey[k.name] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                </Button>
-                {k.configured
-                  ? <CheckCircle className="w-4 h-4 text-emerald-400" />
-                  : <XCircle className="w-4 h-4 text-red-400" />}
-                <Button size="sm" variant="outline"
-                  className="h-7 px-2 border-amber-500/30 text-amber-400 hover:border-amber-400 text-xs"
-                  onClick={() => { setEditingKey(k); setNewKeyValue(""); setShowNewKey(false); }}>
-                  <Edit className="w-3 h-3 mr-1" /> Update
-                </Button>
+        <CardContent className="space-y-5">
+          {sortedGroups.map(group => (
+            <div key={group}>
+              <div className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2 px-1">{group}</div>
+              <div className="space-y-1">
+                {keysByGroup[group].map(k => (
+                  <div key={k.name} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-800 hover:border-gray-700">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="text-white text-sm font-medium">{k.label}</div>
+                        {k.required && <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">Required</span>}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">{k.description}</div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-3 shrink-0">
+                      <span className="font-mono text-xs text-gray-400 hidden sm:block">
+                        {showKey[k.name] ? (k.masked || "Not set") : (k.configured ? "••••••••" : "Not set")}
+                      </span>
+                      {k.configured && (
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500 hover:text-white"
+                          onClick={() => setShowKey(s => ({ ...s, [k.name]: !s[k.name] }))}>
+                          {showKey[k.name] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        </Button>
+                      )}
+                      {k.configured
+                        ? <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        : <XCircle className="w-4 h-4 text-gray-600" />}
+                      <Button size="sm" variant="outline"
+                        className="h-7 px-2 border-amber-500/30 text-amber-400 hover:border-amber-400 text-xs"
+                        onClick={() => { setEditingKey(k); setNewKeyValue(""); setShowNewKey(false); }}>
+                        <Edit className="w-3 h-3 mr-1" /> {k.configured ? "Update" : "Set"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -871,8 +937,9 @@ function SystemTab() {
                   Variable name: <span className="font-mono text-amber-400">{editingKey.name}</span>
                 </p>
               </div>
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3 text-xs text-amber-300">
-                This value will be applied to the running server immediately and persisted to the environment file.
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3 text-xs text-amber-300 space-y-1">
+                <div>Applied to the running server immediately.</div>
+                <div className="text-amber-400/80">For permanent storage across restarts, also add this key to <strong>Replit Secrets</strong> in the sidebar.</div>
               </div>
             </div>
             <DialogFooter className="gap-2">
