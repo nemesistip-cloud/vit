@@ -1,7 +1,16 @@
-# VIT Sports Intelligence Network
+# VIT Sports Intelligence Network — v4.7.5
 
 ## Overview
 The VIT Sports Intelligence Network is an institutional-grade football prediction platform. It leverages a 12-model AI ensemble for predictions, integrates a VITCoin wallet economy, supports blockchain-verified staking, features a model marketplace, and includes a governance DAO. The platform offers multi-tier subscriptions (Free, Pro, Elite) and aims to provide advanced sports analytics and prediction capabilities.
+
+## Changelog — v4.7.5 (2026-05-01)
+- **Version bump**: 4.6.0 → 4.7.5 (app/config.py single source of truth)
+- **Session expiry toast**: apiClient.ts now shows a visible toast + clears both tokens on 401 refresh failure
+- **Error boundary telemetry**: `componentDidCatch` posts JS crashes to `POST /admin/client-error` (fire-and-forget)
+- **Backend — client-error endpoint**: `POST /admin/client-error` logs frontend crashes server-side
+- **Backend — fixture health**: `GET /admin/fixture-health` scans matches for unsettled past fixtures, missing odds, duplicate fingerprints, and incomplete dedup keys
+- **Admin UI — Fixture Ecosystem Health card**: live scan card in SystemTab with %-health score, per-category drill-down, and sample rows
+- **Predictions UX**: replaced "Coming soon" pill with informative "Model coverage expanding" notice with amber indicator dot
 
 ## User Preferences
 I prefer iterative development with a focus on clear, modular code. Please use functional programming paradigms where appropriate and provide detailed explanations for significant architectural decisions or complex algorithms. Ask before making major changes to the project structure or core functionalities.

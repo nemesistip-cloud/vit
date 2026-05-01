@@ -32,6 +32,26 @@ export class ErrorBoundary extends React.Component<Props, State> {
       (window as any).__sentryCapture(error, errorInfo);
     }
     console.error("[ErrorBoundary]", error, errorInfo);
+    // Fire-and-forget telemetry to admin client-error endpoint
+    try {
+      const token = localStorage.getItem("vit_token") ?? "";
+      fetch("/admin/client-error", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: error.message,
+          stack: error.stack ?? "",
+          component_stack: errorInfo.componentStack ?? "",
+          url: window.location.href,
+          ts: new Date().toISOString(),
+        }),
+      }).catch(() => {});
+    } catch {
+      // telemetry must never crash the boundary
+    }
   }
 
   reset = () => {

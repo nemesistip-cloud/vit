@@ -529,8 +529,10 @@ function TicketBuilder() {
         )}
 
         {unsupported.length > 0 && (
-          <div className="text-[10px] font-mono text-muted-foreground/70 pt-1">
-            Coming soon: {unsupported.map((u) => MARKET_LABEL[u.key] ?? prettifyMarketKey(u.key)).join(", ")}.
+          <div className="text-[10px] font-mono text-muted-foreground/60 pt-1 flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400/70 shrink-0" />
+            Model coverage expanding:{" "}
+            {unsupported.map((u) => MARKET_LABEL[u.key] ?? prettifyMarketKey(u.key)).join(", ")} — available in a future release.
           </div>
         )}
       </CardContent>

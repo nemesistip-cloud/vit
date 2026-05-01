@@ -95,6 +95,8 @@ async function request<T>(
       return request<T>(path, init, false);
     }
     localStorage.removeItem("vit_token");
+    localStorage.removeItem("vit_refresh_token");
+    toast.error("Session expired. Please sign in again.", { id: "session-expired", duration: 4000 });
     window.dispatchEvent(new Event("vit:logout"));
     throw new Error("Session expired. Please sign in again.");
   }

@@ -36,7 +36,7 @@ import {
   TrendingUp, Server, Zap, Save, Search, Eye, EyeOff,
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
-  Brain,
+  Brain, HeartPulse, Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -992,7 +992,145 @@ function SystemTab() {
 
       {/* AI Feed Consensus */}
       <AIFeedConsensusCard />
+
+      {/* Fixture Ecosystem Health */}
+      <FixtureHealthCard />
     </div>
+  );
+}
+
+// ─── Fixture Ecosystem Health Card ───────────────────────────────────
+
+interface FixtureHealthCategory {
+  count: number;
+  label: string;
+  severity: "ok" | "warning" | "error";
+  sample: Record<string, unknown>[];
+}
+
+interface FixtureHealthData {
+  total_fixtures: number;
+  health_pct: number;
+  issues: number;
+  categories: Record<string, FixtureHealthCategory>;
+  checked_at: string;
+}
+
+function FixtureHealthCard() {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const { data, isLoading, refetch, isFetching } = useQuery<FixtureHealthData>({
+    queryKey: ["admin-fixture-health"],
+    queryFn: () => apiGet("/admin/fixture-health"),
+    staleTime: 60_000,
+  });
+
+  const severityColor = (s: string) =>
+    s === "error" ? "text-red-500" : s === "warning" ? "text-amber-500" : "text-emerald-500";
+  const severityBg = (s: string) =>
+    s === "error" ? "bg-red-500/10 border-red-500/20" : s === "warning" ? "bg-amber-500/10 border-amber-500/20" : "bg-emerald-500/10 border-emerald-500/20";
+
+  const healthColor =
+    !data ? "text-muted-foreground"
+    : data.health_pct >= 95 ? "text-emerald-500"
+    : data.health_pct >= 80 ? "text-amber-500"
+    : "text-red-500";
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Stethoscope className="w-4 h-4 text-primary" />
+            <CardTitle className="text-sm font-mono">Fixture Ecosystem Health</CardTitle>
+          </div>
+          <div className="flex items-center gap-3">
+            {data && (
+              <span className={`text-xl font-mono font-bold ${healthColor}`}>
+                {data.health_pct}%
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="h-7 px-2 font-mono text-xs"
+            >
+              <RefreshCw className={`w-3 h-3 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+              Scan
+            </Button>
+          </div>
+        </div>
+        <CardDescription className="font-mono text-xs">
+          Scans all {data?.total_fixtures ?? "…"} fixtures for data-quality issues
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-2">
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-10 rounded bg-muted animate-pulse" />)}
+          </div>
+        ) : !data ? (
+          <p className="text-xs font-mono text-muted-foreground">Click Scan to run health check.</p>
+        ) : data.issues === 0 ? (
+          <div className="flex items-center gap-2 py-3 text-emerald-500 font-mono text-sm">
+            <HeartPulse className="w-4 h-4" />
+            All fixtures healthy — no issues detected.
+          </div>
+        ) : (
+          Object.entries(data.categories).map(([key, cat]) => (
+            <div key={key} className={`rounded-md border p-3 ${severityBg(cat.severity)}`}>
+              <button
+                className="w-full flex items-center justify-between gap-2"
+                onClick={() => setExpanded(expanded === key ? null : key)}
+              >
+                <div className="flex items-center gap-2">
+                  {cat.severity === "ok"
+                    ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    : cat.severity === "warning"
+                    ? <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    : <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                  }
+                  <span className="text-xs font-mono font-medium">{cat.label}</span>
+                </div>
+                <span className={`text-xs font-mono font-bold shrink-0 ${severityColor(cat.severity)}`}>
+                  {cat.count} {cat.count === 1 ? "issue" : "issues"}
+                  {cat.sample.length > 0 && (
+                    <ChevronRight className={`inline w-3 h-3 ml-1 transition-transform ${expanded === key ? "rotate-90" : ""}`} />
+                  )}
+                </span>
+              </button>
+
+              {expanded === key && cat.sample.length > 0 && (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-[10px] font-mono border-separate border-spacing-y-0.5">
+                    <tbody>
+                      {cat.sample.map((row, i) => (
+                        <tr key={i} className="bg-background/60 rounded">
+                          {Object.entries(row).map(([k, v]) => (
+                            <td key={k} className="px-2 py-1 align-top first:text-muted-foreground">
+                              {String(v ?? "—")}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+
+        {data && (
+          <p className="text-[10px] font-mono text-muted-foreground/50 pt-1">
+            Last scanned: {new Date(data.checked_at).toLocaleString()}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

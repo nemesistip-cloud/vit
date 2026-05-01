@@ -3442,3 +3442,172 @@ async def create_subscription_plan(
     await db.commit()
     await db.refresh(plan)
     return {"success": True, "id": plan.id, "name": plan.name}
+
+
+# ── 14. Frontend Client-Error Telemetry ───────────────────────────────
+
+class ClientErrorPayload(BaseModel):
+    message: str
+    stack: str = ""
+    component_stack: str = ""
+    url: str = ""
+    ts: str = ""
+
+
+@router.post("/client-error", status_code=204)
+async def record_client_error(payload: ClientErrorPayload):
+    """
+    Fire-and-forget telemetry from the React ErrorBoundary.
+    Logs JS crashes server-side so they appear in application logs
+    even when the user never opens DevTools.
+    """
+    logger.warning(
+        "[CLIENT_ERROR] url=%s ts=%s msg=%s | stack=%s | component=%s",
+        payload.url,
+        payload.ts,
+        payload.message[:200],
+        payload.stack[:400],
+        payload.component_stack[:400],
+    )
+    return None
+
+
+# ── 15. Fixture Ecosystem Health Check ───────────────────────────────
+
+@router.get("/fixture-health")
+async def fixture_health(
+    current_user=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Scans the matches table for data-quality issues:
+    - Unsettled past fixtures (kickoff < now, no actual_outcome, not cancelled)
+    - Missing opening odds (no bookmaker prices attached)
+    - Duplicate fingerprints (same fixture ingested twice)
+    - Upcoming fixtures missing a fingerprint (dedup key absent)
+    Returns counts + representative sample rows for each issue category.
+    """
+    from sqlalchemy import func as _f, and_ as _and, or_ as _or
+    from app.db.models import Match as _M
+
+    now = datetime.now(timezone.utc)
+
+    # ── 1. Unsettled past fixtures ────────────────────────────────────
+    unsettled_q = await db.execute(
+        _select(_M.id, _M.home_team, _M.away_team, _M.league, _M.kickoff_time, _M.status)
+        .where(
+            _and(
+                _M.kickoff_time < now,
+                _M.actual_outcome.is_(None),
+                _M.status != "cancelled",
+            )
+        )
+        .order_by(_M.kickoff_time.desc())
+        .limit(20)
+    )
+    unsettled_rows = [
+        {
+            "id": r.id,
+            "fixture": f"{r.home_team} v {r.away_team}",
+            "league": r.league,
+            "kickoff": r.kickoff_time.isoformat() if r.kickoff_time else None,
+            "status": r.status,
+        }
+        for r in unsettled_q.fetchall()
+    ]
+
+    unsettled_count_q = await db.execute(
+        _select(_f.count()).select_from(_M).where(
+            _and(
+                _M.kickoff_time < now,
+                _M.actual_outcome.is_(None),
+                _M.status != "cancelled",
+            )
+        )
+    )
+    unsettled_count = unsettled_count_q.scalar_one()
+
+    # ── 2. Missing opening odds ───────────────────────────────────────
+    no_odds_q = await db.execute(
+        _select(_M.id, _M.home_team, _M.away_team, _M.league, _M.kickoff_time)
+        .where(_M.opening_odds_home.is_(None))
+        .order_by(_M.kickoff_time.desc())
+        .limit(20)
+    )
+    no_odds_rows = [
+        {
+            "id": r.id,
+            "fixture": f"{r.home_team} v {r.away_team}",
+            "league": r.league,
+            "kickoff": r.kickoff_time.isoformat() if r.kickoff_time else None,
+        }
+        for r in no_odds_q.fetchall()
+    ]
+
+    no_odds_count_q = await db.execute(
+        _select(_f.count()).select_from(_M).where(_M.opening_odds_home.is_(None))
+    )
+    no_odds_count = no_odds_count_q.scalar_one()
+
+    # ── 3. Duplicate fingerprints ─────────────────────────────────────
+    dup_fp_q = await db.execute(
+        _select(_M.fingerprint, _f.count(_M.id).label("cnt"))
+        .where(_M.fingerprint.isnot(None))
+        .group_by(_M.fingerprint)
+        .having(_f.count(_M.id) > 1)
+        .order_by(_f.count(_M.id).desc())
+        .limit(10)
+    )
+    dup_fp_rows = [
+        {"fingerprint": r.fingerprint, "count": r.cnt}
+        for r in dup_fp_q.fetchall()
+    ]
+    dup_count = sum(r["count"] - 1 for r in dup_fp_rows)
+
+    # ── 4. Upcoming fixtures missing fingerprint ──────────────────────
+    no_fp_count_q = await db.execute(
+        _select(_f.count()).select_from(_M).where(
+            _and(_M.fingerprint.is_(None), _M.kickoff_time >= now)
+        )
+    )
+    no_fp_count = no_fp_count_q.scalar_one()
+
+    # ── 5. Totals ─────────────────────────────────────────────────────
+    total_q = await db.execute(_select(_f.count()).select_from(_M))
+    total = total_q.scalar_one()
+
+    issues = unsettled_count + no_odds_count + dup_count + no_fp_count
+    health_pct = round(max(0.0, 1 - issues / max(total, 1)) * 100, 1)
+
+    return {
+        "total_fixtures": total,
+        "health_pct": health_pct,
+        "issues": issues,
+        "categories": {
+            "unsettled_past": {
+                "count": unsettled_count,
+                "label": "Past fixtures without a result",
+                "severity": "error" if unsettled_count > 10 else ("warning" if unsettled_count > 0 else "ok"),
+                "sample": unsettled_rows,
+            },
+            "missing_odds": {
+                "count": no_odds_count,
+                "label": "Fixtures with no opening odds",
+                "severity": "warning" if no_odds_count > 0 else "ok",
+                "sample": no_odds_rows,
+            },
+            "duplicate_fingerprints": {
+                "count": dup_count,
+                "label": "Duplicate fixture imports (extra copies)",
+                "severity": "error" if dup_count > 0 else "ok",
+                "sample": dup_fp_rows,
+            },
+            "missing_fingerprint": {
+                "count": no_fp_count,
+                "label": "Upcoming fixtures without dedup fingerprint",
+                "severity": "warning" if no_fp_count > 0 else "ok",
+                "sample": [],
+            },
+        },
+        "checked_at": now.isoformat(),
+    }
