@@ -96,16 +96,32 @@ def create_request_hash(home: str, away: str, league: str, kickoff_time: str) ->
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()[:32]
 
 COMPETITIONS = {
-    "premier_league": "PL",
-    "serie_a":        "SA",
-    "la_liga":        "PD",
-    "bundesliga":     "BL1",
-    "ligue_1":        "FL1",
-    "championship":   "ELC",
-    "eredivisie":     "DED",
-    "primeira_liga":  "PPL",
+    # ── Tier 1 — Big 5 + top European ────────────────────────────────
+    "premier_league":       "PL",
+    "serie_a":              "SA",
+    "la_liga":              "PD",
+    "bundesliga":           "BL1",
+    "ligue_1":              "FL1",
+    # ── Tier 2 — Strong domestic leagues ─────────────────────────────
+    "championship":         "ELC",
+    "eredivisie":           "DED",
+    "primeira_liga":        "PPL",
     "scottish_premiership": "SPL",
-    "belgian_pro_league": "BJL",
+    "belgian_pro_league":   "BJL",
+    "super_lig":            "TBL",    # Turkish Süper Lig
+    "brasileirao":          "BSA",    # Brazilian Série A
+    "mls":                  "MLS",    # Major League Soccer
+    "liga_mx":              "MX1",    # Liga MX
+    # ── Tier 3 — European competitions ───────────────────────────────
+    "champions_league":     "CL",
+    "europa_league":        "EL",
+    "conference_league":    "ECL",
+    # ── Tier 4 — Domestic second/third tiers ─────────────────────────
+    "league_one":           "EL1",    # England League One
+    "league_two":           "EL2",    # England League Two
+    "segunda_division":     "PD2",    # Spanish Segunda
+    "serie_b":              "SB",     # Italian Serie B
+    "bundesliga_2":         "BL2",    # German 2. Bundesliga
 }
 
 
@@ -758,9 +774,14 @@ async def add_manual_match(body: ManualMatchRequest, api_key: Optional[str] = Qu
     try:
         kickoff_dt = datetime.fromisoformat(body.kickoff_time.replace("Z", "+00:00")).replace(tzinfo=None)
     except Exception:
-        kickoff_dt = datetime.now()
+        kickoff_dt = datetime.utcnow()
 
-    request_hash = create_request_hash(body.home_team.strip(), body.away_team.strip(), body.league, kickoff_dt.isoformat())
+    from app.data.match_dedup import compute_fingerprint, find_existing_match
+
+    home = body.home_team.strip()
+    away = body.away_team.strip()
+    fp = compute_fingerprint(home, away, kickoff_dt, body.league)
+    request_hash = create_request_hash(home, away, body.league, kickoff_dt.isoformat())
 
     try:
         raw   = await orchestrator.predict(features, request_hash)
@@ -773,25 +794,53 @@ async def add_manual_match(body: ManualMatchRequest, api_key: Optional[str] = Qu
         )
 
         async with AsyncSessionLocal() as db:
-            existing_pred = await db.execute(select(Prediction).where(Prediction.request_hash == request_hash))
-            existing = existing_pred.scalar_one_or_none()
-            if existing:
+            # 1. Check for duplicate by fingerprint first (cross-source dedup)
+            existing_fp_match = await find_existing_match(db, home, away, kickoff_dt, body.league)
+            if existing_fp_match:
+                # Patch odds if missing and return existing
+                if existing_fp_match.opening_odds_home is None:
+                    existing_fp_match.opening_odds_home = body.home_odds
+                    existing_fp_match.opening_odds_draw = body.draw_odds
+                    existing_fp_match.opening_odds_away = body.away_odds
+                    await db.commit()
+                existing_pred2 = (await db.execute(
+                    select(Prediction).where(Prediction.match_id == existing_fp_match.id)
+                )).scalar_one_or_none()
                 return {
                     "status": "ok",
-                    "match_id": existing.match_id,
-                    "prediction_id": existing.id,
-                    "home_team": body.home_team,
-                    "away_team": body.away_team,
+                    "match_id": existing_fp_match.id,
+                    "prediction_id": existing_pred2.id if existing_pred2 else None,
+                    "home_team": home,
+                    "away_team": away,
+                    "predictions": preds,
+                    "best_bet": best,
+                    "message": "Duplicate fixture detected — returning existing match record",
+                }
+
+            # 2. Check for duplicate prediction by request_hash
+            existing_pred = (await db.execute(
+                select(Prediction).where(Prediction.request_hash == request_hash)
+            )).scalar_one_or_none()
+            if existing_pred:
+                return {
+                    "status": "ok",
+                    "match_id": existing_pred.match_id,
+                    "prediction_id": existing_pred.id,
+                    "home_team": home,
+                    "away_team": away,
                     "predictions": preds,
                     "best_bet": best,
                     "message": "Existing manual match prediction returned",
                 }
 
             db_match = Match(
-                home_team=body.home_team.strip(),
-                away_team=body.away_team.strip(),
+                home_team=home,
+                away_team=away,
                 league=body.league,
                 kickoff_time=kickoff_dt,
+                status="upcoming",
+                source="manual_upload",
+                fingerprint=fp,
                 opening_odds_home=body.home_odds,
                 opening_odds_draw=body.draw_odds,
                 opening_odds_away=body.away_odds,
@@ -908,93 +957,187 @@ async def upload_csv_fixtures(
     file:    UploadFile = File(...),
 ):
     """
-    Upload a CSV of fixtures and run batch predictions.
+    Upload a CSV of upcoming fixtures, persist each to the matches table, and run
+    batch predictions through the ML ensemble.
 
     Expected CSV columns (header required):
-      home_team, away_team, league, kickoff_time, home_odds, draw_odds, away_odds
+      home_team, away_team
+    Optional columns:
+      league, kickoff_time (ISO-8601), home_odds, draw_odds, away_odds
 
-    Returns a prediction for each valid row.
+    Missing odds default to 2.30/3.30/3.10 (note: flagged in warnings).
+    Missing league defaults to "premier_league" (flagged in warnings).
+    Duplicate fixtures (matched by fingerprint) are skipped — not duplicated.
+
+    Returns a prediction for each valid row including match_id.
     """
     _verify_key(api_key)
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Orchestrator not initialized")
 
-    if not file.filename.endswith(".csv"):
+    if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=422, detail="File must be a .csv")
 
-    content  = await file.read()
-    text     = content.decode("utf-8", errors="replace")
-    reader   = csv.DictReader(io.StringIO(text))
+    content = await file.read()
+    text    = content.decode("utf-8", errors="replace").lstrip("\ufeff")  # strip BOM
+    reader  = csv.DictReader(io.StringIO(text))
 
     REQUIRED = {"home_team", "away_team"}
-    if reader.fieldnames is None or not REQUIRED.issubset(set(reader.fieldnames)):
+    if reader.fieldnames is None or not REQUIRED.issubset(
+        {f.strip().lower() for f in reader.fieldnames if f}
+    ):
         raise HTTPException(
             status_code=422,
-            detail=f"CSV must contain columns: {', '.join(REQUIRED)}"
+            detail=f"CSV must contain at minimum: {', '.join(sorted(REQUIRED))}. "
+                   f"Found: {reader.fieldnames}",
         )
 
-    results = []
-    errors  = []
+    from app.data.match_dedup import compute_fingerprint, find_existing_match
 
-    for i, row in enumerate(reader):
-        home = row.get("home_team", "").strip()
-        away = row.get("away_team", "").strip()
+    results  = []
+    errors   = []
+    warnings = []
 
-        if not home or not away:
-            errors.append({"row": i + 2, "error": "Missing home_team or away_team"})
-            continue
+    DEFAULT_ODDS = (2.30, 3.30, 3.10)
+    now_utc = datetime.utcnow()
+    default_kickoff_offset = 1  # days ahead if no kickoff provided
 
-        try:
-            home_odds = float(row.get("home_odds", 2.30))
-            draw_odds = float(row.get("draw_odds", 3.30))
-            away_odds = float(row.get("away_odds", 3.10))
-        except ValueError:
-            errors.append({"row": i + 2, "error": "Invalid odds values"})
-            continue
+    async with AsyncSessionLocal() as db:
+        for i, raw_row in enumerate(reader):
+            # Normalize column names (strip whitespace, lowercase)
+            row = {k.strip().lower(): (v or "").strip() for k, v in raw_row.items() if k}
+            row_num = i + 2
 
-        league = row.get("league", "premier_league").strip()
+            home = row.get("home_team", "")
+            away = row.get("away_team", "")
+            if not home or not away:
+                errors.append({"row": row_num, "error": "Missing home_team or away_team"})
+                continue
+            if home == away:
+                errors.append({"row": row_num, "error": f"home_team and away_team are identical: '{home}'"})
+                continue
 
-        features = {
-            "home_team":   home,
-            "away_team":   away,
-            "league":      league,
-            "market_odds": {"home": home_odds, "draw": draw_odds, "away": away_odds},
-        }
+            # ── League ────────────────────────────────────────────────
+            league_raw = row.get("league", "").strip()
+            if not league_raw:
+                league = "premier_league"
+                warnings.append({"row": row_num, "warning": "No league provided — defaulted to 'premier_league'"})
+            else:
+                league = league_raw
 
-        try:
-            raw  = await orchestrator.predict(features, f"csv_{i}_{home}_{away}")
-            pred = raw.get("predictions", {})
-            best = MarketUtils.determine_best_bet(
-                pred.get("home_prob", 0.33),
-                pred.get("draw_prob", 0.33),
-                pred.get("away_prob", 0.33),
-                home_odds, draw_odds, away_odds,
-            )
-            results.append({
-                "row":        i + 2,
-                "home_team":  home,
-                "away_team":  away,
-                "league":     league,
-                "kickoff":    row.get("kickoff_time", ""),
-                "home_prob":  round(pred.get("home_prob", 0), 3),
-                "draw_prob":  round(pred.get("draw_prob", 0), 3),
-                "away_prob":  round(pred.get("away_prob", 0), 3),
-                "edge":       round(best.get("edge", 0), 4),
-                "stake":      round(best.get("kelly_stake", 0), 4),
-                "best_side":  best.get("best_side"),
-                "has_edge":   best.get("has_edge", False),
-                "home_odds":  home_odds,
-                "draw_odds":  draw_odds,
-                "away_odds":  away_odds,
-            })
-        except Exception as e:
-            errors.append({"row": i + 2, "error": str(e)})
+            # ── Kickoff time ──────────────────────────────────────────
+            kickoff_raw = row.get("kickoff_time", "") or row.get("kickoff", "")
+            if kickoff_raw:
+                try:
+                    kickoff_dt = datetime.fromisoformat(
+                        kickoff_raw.replace("Z", "+00:00")
+                    ).replace(tzinfo=None)
+                except Exception:
+                    kickoff_dt = now_utc + timedelta(days=default_kickoff_offset)
+                    warnings.append({"row": row_num, "warning": f"Invalid kickoff_time '{kickoff_raw}' — defaulted to +{default_kickoff_offset}d"})
+            else:
+                kickoff_dt = now_utc + timedelta(days=default_kickoff_offset + i // 10)
+                warnings.append({"row": row_num, "warning": "No kickoff_time provided — assigned sequential future date"})
+
+            # ── Odds ──────────────────────────────────────────────────
+            has_odds_col = any(k in row for k in ("home_odds", "draw_odds", "away_odds"))
+            try:
+                home_odds = float(row["home_odds"]) if row.get("home_odds") else DEFAULT_ODDS[0]
+                draw_odds = float(row["draw_odds"]) if row.get("draw_odds") else DEFAULT_ODDS[1]
+                away_odds = float(row["away_odds"]) if row.get("away_odds") else DEFAULT_ODDS[2]
+            except (ValueError, KeyError):
+                errors.append({"row": row_num, "error": "Invalid odds values — must be numeric"})
+                continue
+            if not has_odds_col:
+                warnings.append({"row": row_num, "warning": "No odds columns found — used market defaults"})
+
+            if not MarketUtils.validate_odds_dict({"home": home_odds, "draw": draw_odds, "away": away_odds}):
+                errors.append({"row": row_num, "error": f"Odds out of valid range (1.01–100): {home_odds}/{draw_odds}/{away_odds}"})
+                continue
+
+            # ── Fingerprint + dedup ────────────────────────────────────
+            fp = compute_fingerprint(home, away, kickoff_dt, league)
+            existing_match = await find_existing_match(db, home, away, kickoff_dt, league)
+
+            if existing_match:
+                match_id = existing_match.id
+                action = "skipped_duplicate"
+                # Patch odds if missing
+                if existing_match.opening_odds_home is None:
+                    existing_match.opening_odds_home = home_odds
+                    existing_match.opening_odds_draw = draw_odds
+                    existing_match.opening_odds_away = away_odds
+            else:
+                db_match = Match(
+                    home_team=home,
+                    away_team=away,
+                    league=league,
+                    kickoff_time=kickoff_dt,
+                    status="upcoming",
+                    source="user_csv",
+                    fingerprint=fp,
+                    opening_odds_home=home_odds,
+                    opening_odds_draw=draw_odds,
+                    opening_odds_away=away_odds,
+                )
+                db.add(db_match)
+                await db.flush()
+                match_id = db_match.id
+                action = "created"
+
+            # ── ML Prediction ──────────────────────────────────────────
+            features = {
+                "home_team":   home,
+                "away_team":   away,
+                "league":      league,
+                "market_odds": {"home": home_odds, "draw": draw_odds, "away": away_odds},
+            }
+            request_hash = create_request_hash(home, away, league, kickoff_dt.isoformat())
+            try:
+                raw_pred = await orchestrator.predict(features, request_hash)
+                pred     = raw_pred.get("predictions", {})
+                best     = MarketUtils.determine_best_bet(
+                    pred.get("home_prob", 0.33),
+                    pred.get("draw_prob", 0.33),
+                    pred.get("away_prob", 0.33),
+                    home_odds, draw_odds, away_odds,
+                )
+                results.append({
+                    "row":       row_num,
+                    "match_id":  match_id,
+                    "action":    action,
+                    "home_team": home,
+                    "away_team": away,
+                    "league":    league,
+                    "kickoff":   kickoff_dt.isoformat(),
+                    "home_prob": round(pred.get("home_prob", 0), 3),
+                    "draw_prob": round(pred.get("draw_prob", 0), 3),
+                    "away_prob": round(pred.get("away_prob", 0), 3),
+                    "edge":      round(best.get("edge", 0), 4),
+                    "stake":     round(best.get("kelly_stake", 0), 4),
+                    "best_side": best.get("best_side"),
+                    "has_edge":  best.get("has_edge", False),
+                    "home_odds": home_odds,
+                    "draw_odds": draw_odds,
+                    "away_odds": away_odds,
+                })
+            except Exception as exc:
+                errors.append({"row": row_num, "match_id": match_id, "error": f"Prediction failed: {exc}"})
+
+        await db.commit()
+
+    created  = sum(1 for r in results if r["action"] == "created")
+    skipped  = sum(1 for r in results if r["action"] == "skipped_duplicate")
 
     return {
-        "processed": len(results),
-        "errors":    len(errors),
-        "results":   results,
+        "processed":     len(results),
+        "created":       created,
+        "duplicates":    skipped,
+        "errors":        len(errors),
+        "warnings":      len(warnings),
+        "results":       results,
         "error_details": errors,
+        "warning_details": warnings,
     }
 
 

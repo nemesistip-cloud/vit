@@ -99,7 +99,7 @@ async def run_multi_ai(
         results_list = await asyncio.gather(*tasks, return_exceptions=False)
         results.update({r["source"]: r for r in results_list})
 
-    # Ingest probability outputs into AIPrediction table
+    # ── Ingest probability outputs into AIPrediction table ───────────
     for source, r in results.items():
         if r.get("available") and r.get("home_prob") is not None:
             try:
@@ -117,9 +117,46 @@ async def run_multi_ai(
             except Exception as exc:
                 logger.warning(f"Failed to ingest {source} prediction: {exc}")
 
+    # ── Persist freshly generated insights to disk (TTL-cached) ──────
+    new_insights = {
+        source: r for source, r in results.items()
+        if not r.get("from_cache") and r.get("available")
+    }
+    if new_insights:
+        try:
+            from app.services.insight_store import INSIGHTS_DIR, _path_for
+            import json as _json
+            import os as _os
+            from datetime import datetime as _dt, timezone as _tz
+
+            _os.makedirs(INSIGHTS_DIR, exist_ok=True)
+            cache_path = _path_for(match_id)
+
+            # Merge with existing file if present (to preserve other providers' cached data)
+            existing_cached: dict = {}
+            if _os.path.exists(cache_path):
+                try:
+                    with open(cache_path, encoding="utf-8") as _f:
+                        _existing = _json.load(_f)
+                    existing_cached = _existing.get("insights", {})
+                except Exception:
+                    existing_cached = {}
+
+            merged_insights = {**existing_cached, **new_insights}
+            payload = {
+                "match_id": match_id,
+                "generated_at": _dt.now(_tz.utc).isoformat(),
+                "insights": merged_insights,
+            }
+            with open(cache_path, "w", encoding="utf-8") as _f:
+                _json.dump(payload, _f, indent=2, ensure_ascii=False)
+        except Exception as exc:
+            logger.warning(f"Failed to cache insights for match {match_id}: {exc}")
+
+    cache_hits = sorted(s for s, r in results.items() if r.get("from_cache"))
     return {
         "match_id": match_id,
         "sources_requested": sources,
-        "cache_hits": sorted([source for source, result in results.items() if result.get("from_cache")]),
+        "cache_hits": cache_hits,
         "results": results,
     }

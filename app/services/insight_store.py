@@ -1,12 +1,15 @@
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional
 
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 INSIGHTS_DIR = os.path.join(ROOT_DIR, "data", "insights")
+
+# Cached insights older than this are treated as stale and regenerated
+CACHE_TTL_HOURS = 6
 
 PROVIDERS = ("gemini", "claude", "grok")
 PROVIDER_LABELS = {
@@ -96,12 +99,35 @@ def save_match_insights(match_id: int, raw: Dict[str, Any]) -> Dict[str, Any]:
     return {"match_id": match_id, "path": path, "sources": sorted(insights.keys()), "count": len(insights)}
 
 
+def _is_stale(raw: Dict[str, Any]) -> bool:
+    """Return True if the cached file is older than CACHE_TTL_HOURS."""
+    ts_str = raw.get("uploaded_at") or raw.get("generated_at") or raw.get("saved_at")
+    if not ts_str:
+        return True  # no timestamp → assume stale
+    try:
+        ts = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        age = datetime.now(timezone.utc) - ts
+        return age > timedelta(hours=CACHE_TTL_HOURS)
+    except Exception:
+        return True
+
+
 def load_match_insights(match_id: int, defaults: Optional[Dict[str, float]] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Load cached insights for match_id.
+    Returns empty dict if:
+      - File does not exist
+      - Cache is older than CACHE_TTL_HOURS (stale → dispatcher will regenerate)
+    """
     path = _path_for(match_id)
     if not os.path.exists(path):
         return {}
     with open(path, encoding="utf-8") as f:
         raw = json.load(f)
+    if _is_stale(raw):
+        return {}
     insights = _extract_insights(raw)
     return {
         source: normalize_provider_insight(source, payload, defaults=defaults)

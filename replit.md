@@ -11,6 +11,15 @@ The VIT Sports Intelligence Network is an institutional-grade football predictio
 - **Backend — fixture health**: `GET /admin/fixture-health` scans matches for unsettled past fixtures, missing odds, duplicate fingerprints, and incomplete dedup keys
 - **Admin UI — Fixture Ecosystem Health card**: live scan card in SystemTab with %-health score, per-category drill-down, and sample rows
 - **Predictions UX**: replaced "Coming soon" pill with informative "Model coverage expanding" notice with amber indicator dot
+- **Fixed /admin/matches/manual**: source="manual_upload", status="upcoming", fingerprint dedup before request_hash
+- **Fixed /admin/upload/csv CRITICAL**: endpoint now persists matches to DB (was returning predictions only); returns match_id per row
+- **Expanded COMPETITIONS**: 10 → 22 leagues (Turkish, Brazilian, MLS, Liga MX, UCL, UEL, UECL, League One/Two, Segunda, Serie B, Bundesliga 2)
+- **Fixed AIInsightComparison.tsx**: endpoint corrected from /predict/${id}/insights → /ai/multi-insights/${id}; risk_level badges, insight_tags, value_assessment, recommendation, cache indicator, resolveInsight() helper
+- **Enhanced Gemini prompt**: 4-role analyst system (Tactical, Value, Risk, Model Interpreter); recommendation field; implied probability context; system_instruction parameter
+- **insight_store TTL**: cache entries older than 6 hours are treated as stale; dispatcher persists freshly generated insights to disk with generated_at timestamp
+- **GET /training/insight-report**: per-model accuracy breakdown, weight distribution, health status heuristics, actionable recommendations
+- **Admin ModelsTab — TrainingInsightCard**: ensemble summary strip, model breakdown table, per-model accuracy/weight/status, recommendations panel
+- **Admin SystemTab — CSVUploadCard**: file picker, upload button, result table with match_id links and per-row status badges, format hint
 
 ## User Preferences
 I prefer iterative development with a focus on clear, modular code. Please use functional programming paradigms where appropriate and provide detailed explanations for significant architectural decisions or complex algorithms. Ask before making major changes to the project structure or core functionalities.

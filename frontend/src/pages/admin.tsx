@@ -36,7 +36,7 @@ import {
   TrendingUp, Server, Zap, Save, Search, Eye, EyeOff,
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
-  Brain, HeartPulse, Stethoscope,
+  Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -960,6 +960,9 @@ function SystemTab() {
       {/* Football-Data Integration */}
       <FootballDataCard />
 
+      {/* CSV Fixture Upload */}
+      <CSVUploadCard />
+
       {/* System Actions */}
       <Card className="bg-gray-900 border-gray-700">
         <CardHeader>
@@ -1245,6 +1248,158 @@ function FootballDataCard() {
     </Card>
   );
 }
+
+// ─── CSV Fixture Upload Card ──────────────────────────────────────────
+
+interface CsvUploadRow {
+  row: number;
+  home_team: string;
+  away_team: string;
+  match_id?: number;
+  status: "ok" | "duplicate" | "warning" | "error";
+  message?: string;
+}
+
+interface CsvUploadResult {
+  imported: number;
+  duplicates: number;
+  warnings: string[];
+  rows: CsvUploadRow[];
+}
+
+function CSVUploadCard() {
+  const [file, setFile]     = useState<File | null>(null);
+  const [result, setResult] = useState<CsvUploadResult | null>(null);
+
+  const uploadMutation = useMutation({
+    mutationFn: async (f: File) => {
+      const form = new FormData();
+      form.append("file", f);
+      const resp = await fetch("/admin/upload/csv", {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail ?? "Upload failed");
+      }
+      return resp.json() as Promise<CsvUploadResult>;
+    },
+    onSuccess: (d) => {
+      setResult(d);
+      toast.success(`CSV uploaded — ${d.imported} imported, ${d.duplicates} duplicates skipped`);
+      if (d.warnings?.length) {
+        d.warnings.forEach(w => toast.warning(w, { duration: 6000 }));
+      }
+    },
+    onError: (e: any) => toast.error(e?.message || "CSV upload failed"),
+  });
+
+  const statusBadge = (s: CsvUploadRow["status"]) => {
+    const map: Record<string, string> = {
+      ok:        "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+      duplicate: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+      warning:   "bg-amber-500/20 text-amber-400 border-amber-500/30",
+      error:     "bg-red-500/20 text-red-400 border-red-500/30",
+    };
+    return map[s] ?? map.warning;
+  };
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2">
+          <FileUp className="w-5 h-5 text-purple-400" /> CSV Fixture Upload
+        </CardTitle>
+        <CardDescription className="text-gray-400">
+          Upload a CSV file of fixtures to import them into the database.
+          Required columns: <span className="font-mono text-purple-300">home_team, away_team</span>.
+          Optional: <span className="font-mono text-purple-300">kickoff, league, home_odds, draw_odds, away_odds</span>.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <label className="cursor-pointer flex items-center gap-2 px-4 py-2 rounded border border-purple-500/40 text-purple-400 hover:border-purple-400 transition-colors text-sm font-mono">
+            <Upload className="w-4 h-4" />
+            {file ? file.name : "Choose CSV file…"}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); }}
+            />
+          </label>
+          <Button
+            className="bg-purple-600 hover:bg-purple-500 text-white"
+            disabled={!file || uploadMutation.isPending}
+            onClick={() => file && uploadMutation.mutate(file)}
+          >
+            {uploadMutation.isPending ? "Uploading…" : "Upload"}
+          </Button>
+          {result && (
+            <span className="text-xs font-mono text-gray-400">
+              {result.imported} new · {result.duplicates} skipped
+            </span>
+          )}
+        </div>
+
+        {/* Sample format hint */}
+        <div className="p-3 rounded bg-gray-800/60 border border-gray-700">
+          <p className="text-[10px] font-mono text-gray-500 uppercase mb-1 flex items-center gap-1">
+            <Info className="w-3 h-3" /> CSV format example
+          </p>
+          <pre className="text-[11px] font-mono text-gray-400 whitespace-pre-wrap">
+{`home_team,away_team,kickoff,league,home_odds,draw_odds,away_odds
+Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60
+Barcelona,Real Madrid,2026-05-11 20:45,la_liga,2.30,3.50,3.10`}
+          </pre>
+        </div>
+
+        {/* Results table */}
+        {result && result.rows && result.rows.length > 0 && (
+          <div className="overflow-x-auto rounded border border-gray-700">
+            <table className="w-full text-xs">
+              <thead className="border-b border-gray-700 bg-gray-800/60">
+                <tr className="text-gray-400 font-mono">
+                  <th className="text-left p-2 pl-3">#</th>
+                  <th className="text-left p-2">Match</th>
+                  <th className="text-center p-2">Match ID</th>
+                  <th className="text-center p-2">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.rows.map(r => (
+                  <tr key={r.row} className="border-b border-gray-800 hover:bg-gray-800/40">
+                    <td className="p-2 pl-3 text-gray-500">{r.row}</td>
+                    <td className="p-2 text-gray-200">{r.home_team} vs {r.away_team}</td>
+                    <td className="p-2 text-center">
+                      {r.match_id ? (
+                        <a href={`/matches/${r.match_id}`} target="_blank" rel="noreferrer"
+                          className="font-mono text-cyan-400 hover:underline">
+                          #{r.match_id}
+                        </a>
+                      ) : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="p-2 text-center">
+                      <span className={`border rounded px-1.5 py-0.5 font-mono ${statusBadge(r.status)}`}>
+                        {r.status}
+                      </span>
+                      {r.message && (
+                        <span className="ml-1.5 text-gray-500">{r.message}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 // ─── ML Calibration Card ─────────────────────────────────────────────
 
@@ -1963,6 +2118,8 @@ function ModelsTab() {
         </Card>
       )}
 
+      {activeSection === "engine" && <TrainingInsightCard />}
+
       {activeSection === "accountability" && (
         <div className="space-y-4">
           {/* ── KPI Summary Strip ────────────────────────────── */}
@@ -2319,6 +2476,164 @@ function ModelsTab() {
     </div>
   );
 }
+
+// ─── Training Insight Report Card ─────────────────────────────────────
+
+interface InsightReport {
+  ensemble_summary: {
+    avg_accuracy: number | null;
+    weighted_accuracy: number | null;
+    total_models: number;
+    trained_models: number;
+    best_model: string | null;
+    best_accuracy: number | null;
+    worst_model: string | null;
+    worst_accuracy: number | null;
+    current_production: string | null;
+  };
+  model_breakdown: {
+    key: string;
+    name: string;
+    weight: number | null;
+    accuracy: number | null;
+    trained: boolean;
+    trained_matches: number;
+    status: string;
+    markets: string[];
+  }[];
+  weight_history: { job_id: string; completed_at: string; models: Record<string, number> }[];
+  recommendations: string[];
+  report_generated_at: string;
+}
+
+const STATUS_CLS: Record<string, string> = {
+  healthy:   "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
+  watch:     "text-amber-400 border-amber-500/30 bg-amber-500/10",
+  at_risk:   "text-red-400 border-red-500/30 bg-red-500/10",
+  untrained: "text-gray-400 border-gray-500/30 bg-gray-500/10",
+  no_data:   "text-gray-500 border-gray-600/30 bg-gray-600/10",
+};
+
+function TrainingInsightCard() {
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<InsightReport>({
+    queryKey: ["training-insight-report"],
+    queryFn: () => apiGet<InsightReport>("/training/insight-report"),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const summary = data?.ensemble_summary;
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-white flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-indigo-400" /> Training Insight Report
+          </CardTitle>
+          <Button size="sm" variant="outline" className="border-indigo-500/30 text-indigo-400 hover:border-indigo-400"
+            onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Refreshing…" : "Refresh"}
+          </Button>
+        </div>
+        <CardDescription className="text-gray-400">
+          Per-model accuracy breakdown, weight distribution, and actionable improvement suggestions.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {isLoading && (
+          <div className="space-y-2">
+            {[1,2,3].map(i => <div key={i} className="h-8 rounded bg-gray-800 animate-pulse" />)}
+          </div>
+        )}
+        {isError && (
+          <div className="text-center py-6">
+            <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+            <p className="text-gray-400 text-sm">Could not load training report. Train at least one model first.</p>
+          </div>
+        )}
+
+        {data && (
+          <>
+            {/* Ensemble summary strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Avg Accuracy",   value: summary?.avg_accuracy      != null ? `${(summary.avg_accuracy * 100).toFixed(1)}%`     : "—", color: "text-cyan-400" },
+                { label: "Wtd Accuracy",   value: summary?.weighted_accuracy  != null ? `${(summary.weighted_accuracy * 100).toFixed(1)}%` : "—", color: "text-indigo-400" },
+                { label: "Models Trained", value: `${summary?.trained_models ?? 0} / ${summary?.total_models ?? 0}`,  color: "text-emerald-400" },
+                { label: "Best Model",     value: summary?.best_model ?? "—", color: "text-amber-400" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="bg-gray-800 rounded p-3 border border-gray-700">
+                  <p className="text-xs text-gray-400 font-mono uppercase mb-1">{label}</p>
+                  <p className={`text-sm font-bold font-mono truncate ${color}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Model breakdown table */}
+            {data.model_breakdown.length > 0 && (
+              <div className="overflow-x-auto rounded border border-gray-700">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-gray-700 bg-gray-800/60">
+                    <tr className="text-gray-400 font-mono text-xs">
+                      <th className="text-left p-2 pl-3">Model</th>
+                      <th className="text-right p-2">Weight</th>
+                      <th className="text-right p-2">Accuracy</th>
+                      <th className="text-right p-2">Trained on</th>
+                      <th className="text-center p-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.model_breakdown.map(m => (
+                      <tr key={m.key} className="border-b border-gray-800 hover:bg-gray-800/40 transition-colors">
+                        <td className="p-2 pl-3">
+                          <div className="text-white text-xs font-medium">{m.name}</div>
+                          <div className="text-gray-500 text-[10px] font-mono">{m.key}</div>
+                        </td>
+                        <td className="p-2 text-right text-cyan-400 font-mono text-xs">
+                          {m.weight != null ? m.weight.toFixed(3) : "—"}
+                        </td>
+                        <td className="p-2 text-right text-gray-200 font-mono text-xs">
+                          {m.accuracy != null ? `${(m.accuracy * 100).toFixed(1)}%` : "—"}
+                        </td>
+                        <td className="p-2 text-right text-gray-400 font-mono text-xs">
+                          {m.trained_matches > 0 ? m.trained_matches.toLocaleString() : (m.trained ? "yes" : "—")}
+                        </td>
+                        <td className="p-2 text-center">
+                          <span className={`text-[10px] font-mono border rounded px-1.5 py-0.5 ${STATUS_CLS[m.status] ?? STATUS_CLS.no_data}`}>
+                            {m.status.replace("_", " ")}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            {data.recommendations.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-mono text-gray-400 uppercase">Recommendations</p>
+                {data.recommendations.map((rec, i) => (
+                  <div key={i} className="flex gap-2 p-2.5 rounded bg-gray-800/60 border border-indigo-500/20 text-sm text-gray-300">
+                    <Lightbulb className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <span>{rec}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-[10px] font-mono text-gray-600 text-right">
+              Generated {new Date(data.report_generated_at).toLocaleTimeString()}
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 // ─── Module 10: KYC Verification ─────────────────────────────────────
 
