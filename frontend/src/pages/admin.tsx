@@ -1634,7 +1634,15 @@ function AIFeedConsensusCard() {
   const consensusMutation = useAiFeedConsensus();
 
   const handleConsensus = () => {
-    const odds = marketOdds ? JSON.parse(marketOdds) : {};
+    let odds: Record<string, number> = {};
+    if (marketOdds.trim()) {
+      try {
+        odds = JSON.parse(marketOdds);
+      } catch {
+        toast.error("Market Odds must be valid JSON (e.g. {\"home\": 2.1, \"draw\": 3.2, \"away\": 3.5})");
+        return;
+      }
+    }
     consensusMutation.mutate(
       {
         home_team: homeTeam,

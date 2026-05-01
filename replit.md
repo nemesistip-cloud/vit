@@ -49,6 +49,23 @@ The VIT Sports Intelligence Network is an institutional-grade football predictio
 - **Admin ModelsTab — TrainingInsightCard**: ensemble summary strip, model breakdown table, per-model accuracy/weight/status, recommendations panel
 - **Admin SystemTab — CSVUploadCard**: file picker, upload button, result table with match_id links and per-row status badges, format hint
 
+## Changelog — Prediction + KYC + UI Fixes (2026-05-01, session 4)
+
+### Prediction System Fixes
+- **bet_side fallback**: `determine_best_bet()` now always returns the 1x2 argmax side when no edge is found (was returning `None`, causing insights endpoint to hardcode "home").
+- **consensus_prob fix**: `consensus_prob` now reflects the chosen bet side's actual model probability instead of always being `max(home_prob, draw_prob, away_prob)`. For non-1x2 markets (over_2_5, btts_yes), uses `best_bet["model_prob"]`.
+- **model_prob field**: Added `model_prob` to `determine_best_bet()` return dict so both edge and no-edge paths carry this value.
+
+### KYC CloudChain (Admin-Controlled Identity Verification)
+- **Document data collection**: `POST /api/wallet/kyc/submit` now accepts `full_name`, `date_of_birth`, `document_type`, `document_number`, `nationality` in request body; stored in `User.kyc_data` JSON field.
+- **Wallet KYC form**: "Verify Now" button opens a Dialog with a full identity form (name, DOB, document type/number, nationality) instead of submitting empty data.
+- **Admin pending list fix**: `GET /api/wallet/admin/kyc/pending` now returns `kyc_requests` key (was `users`), with `user_id` field (was `id`), and includes `full_name`, `document_type`, `status`, `nationality` from `kyc_data`.
+- **Path mismatch fix**: Added alternate routes `POST /api/wallet/admin/kyc/{user_id}/approve` and `POST /api/wallet/admin/kyc/{user_id}/reject` to match frontend's expected path convention (was `approve/{user_id}` vs `{user_id}/approve`).
+- **Reject body fix**: Reject endpoints now accept `reason` in JSON request body (was query parameter) — matches frontend's `apiPost(..., { reason })` call.
+
+### UI Bug Fixes
+- **admin.tsx JSON.parse crash**: `handleConsensus()` now wraps `JSON.parse(marketOdds)` in try/catch and shows a descriptive toast instead of crashing the component.
+
 ## User Preferences
 I prefer iterative development with a focus on clear, modular code. Please use functional programming paradigms where appropriate and provide detailed explanations for significant architectural decisions or complex algorithms. Ask before making major changes to the project structure or core functionalities.
 

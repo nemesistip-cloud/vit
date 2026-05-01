@@ -559,7 +559,18 @@ async def predict(
         recommended_stake = min(best_bet.get("kelly_stake", 0), MAX_STAKE)
 
         probs         = {"home": home_prob, "draw": draw_prob, "away": away_prob}
-        consensus_prob = max(probs.values())
+        # consensus_prob should reflect the model's probability for the chosen
+        # bet side, not simply the 1x2 maximum.  When the best bet is on a
+        # non-1x2 market (e.g. over_2_5, btts_yes) we use that model_prob;
+        # for 1x2 bets we read the matching probability directly.
+        _chosen_side   = best_bet.get("best_side")
+        _chosen_market = best_bet.get("best_market")
+        if _chosen_market == "1x2" and _chosen_side in probs:
+            consensus_prob = probs[_chosen_side]
+        elif best_bet.get("model_prob") is not None:
+            consensus_prob = float(best_bet["model_prob"])
+        else:
+            consensus_prob = max(probs.values())
 
         # --- v2.1.0: Extract model metadata from orchestrator result ---
         models_used   = result.get("models_used", raw_result.get("models_count", 0))

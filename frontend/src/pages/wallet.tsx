@@ -58,13 +58,20 @@ export default function WalletPage() {
   const withdraw = useWithdraw();
   const convert = useConvertCurrency();
 
+  const [kycOpen, setKycOpen] = useState(false);
+  const [kycForm, setKycForm] = useState({
+    full_name: "", date_of_birth: "", document_type: "national_id", document_number: "", nationality: "",
+  });
+
   const submitKyc = useMutation({
-    mutationFn: () => apiPost<{ kyc_verified: boolean; message: string }>("/api/wallet/kyc/submit", {}),
+    mutationFn: (payload: typeof kycForm) =>
+      apiPost<{ kyc_verified: boolean; message: string }>("/api/wallet/kyc/submit", payload),
     onSuccess: (data) => {
-      toast.success(data.message || "KYC verified successfully");
+      toast.success(data.message || "KYC submitted — pending admin review");
+      setKycOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/wallet/me"] });
     },
-    onError: (e: any) => toast.error(e.message || "KYC submission failed"),
+    onError: (e: any) => toast.error(e?.detail || e.message || "KYC submission failed"),
   });
 
   const { data: currenciesData } = useQuery<{ currencies: any[] }>({
@@ -321,15 +328,91 @@ export default function WalletPage() {
               <div className="text-xs font-mono text-muted-foreground">Required for withdrawals above daily limits</div>
             </div>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="font-mono text-xs border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 flex-shrink-0"
-            onClick={() => submitKyc.mutate()}
-            disabled={submitKyc.isPending}
-          >
-            {submitKyc.isPending ? "Verifying..." : "Verify Now"}
-          </Button>
+          <Dialog open={kycOpen} onOpenChange={setKycOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-mono text-xs border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 flex-shrink-0"
+              >
+                Verify Now
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-card border-border max-w-md">
+              <DialogHeader>
+                <DialogTitle className="font-mono flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-yellow-400" /> Identity Verification
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-2">
+                <p className="text-xs text-muted-foreground font-mono">
+                  Your identity details are stored securely and reviewed by our compliance team. This information is never shared with third parties.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-mono text-muted-foreground mb-1 block">Full Legal Name *</label>
+                    <Input
+                      placeholder="As it appears on your ID"
+                      value={kycForm.full_name}
+                      onChange={e => setKycForm(f => ({ ...f, full_name: e.target.value }))}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-mono text-muted-foreground mb-1 block">Date of Birth *</label>
+                    <Input
+                      type="date"
+                      value={kycForm.date_of_birth}
+                      onChange={e => setKycForm(f => ({ ...f, date_of_birth: e.target.value }))}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-mono text-muted-foreground mb-1 block">Document Type *</label>
+                    <Select
+                      value={kycForm.document_type}
+                      onValueChange={v => setKycForm(f => ({ ...f, document_type: v }))}
+                    >
+                      <SelectTrigger className="font-mono text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="national_id">National ID</SelectItem>
+                        <SelectItem value="passport">International Passport</SelectItem>
+                        <SelectItem value="drivers_license">Driver's License</SelectItem>
+                        <SelectItem value="voters_card">Voter's Card</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-mono text-muted-foreground mb-1 block">Document Number *</label>
+                    <Input
+                      placeholder="ID / Passport number"
+                      value={kycForm.document_number}
+                      onChange={e => setKycForm(f => ({ ...f, document_number: e.target.value }))}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-mono text-muted-foreground mb-1 block">Nationality</label>
+                    <Input
+                      placeholder="e.g. Nigerian"
+                      value={kycForm.nationality}
+                      onChange={e => setKycForm(f => ({ ...f, nationality: e.target.value }))}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </div>
+                <Button
+                  className="w-full font-mono"
+                  disabled={submitKyc.isPending || !kycForm.full_name || !kycForm.date_of_birth || !kycForm.document_number}
+                  onClick={() => submitKyc.mutate(kycForm)}
+                >
+                  {submitKyc.isPending ? "Submitting…" : "Submit for Review"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 

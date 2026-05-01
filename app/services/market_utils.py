@@ -375,19 +375,26 @@ class MarketUtils:
                 "edge":          best["true_edge"],
                 "raw_edge":      best["raw_edge"],
                 "vig_free_prob": best["vig_free_prob"],
+                "model_prob":    best["model_prob"],
                 "odds":          best["odds"],
                 "kelly_stake":   kelly,
                 "candidates":    candidates,
             }
 
+        # No edge found — still surface the 1x2 argmax as the best_side so
+        # downstream consumers (insights, bet_side storage) always have a
+        # meaningful value instead of None.
+        _1x2 = [c for c in candidates if c.get("market") == "1x2"]
+        fallback = max(_1x2, key=lambda c: c["true_edge"]) if _1x2 else None
         return {
             "has_edge":      False,
-            "best_side":     None,
-            "best_market":   None,
+            "best_side":     fallback["side"] if fallback else None,
+            "best_market":   "1x2" if fallback else None,
             "edge":          0,
-            "raw_edge":      0,
-            "vig_free_prob": 0,
-            "odds":          0,
+            "raw_edge":      fallback["raw_edge"] if fallback else 0,
+            "vig_free_prob": fallback["vig_free_prob"] if fallback else 0,
+            "model_prob":    fallback["model_prob"] if fallback else 0,
+            "odds":          fallback["odds"] if fallback else 0,
             "kelly_stake":   0,
             "candidates":    candidates,
         }

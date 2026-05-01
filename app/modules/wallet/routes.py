@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -56,6 +56,18 @@ class WithdrawRequest(BaseModel):
 class SubscribeRequest(BaseModel):
     plan_id: str
     currency: str
+
+
+class KYCSubmitRequest(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=120)
+    date_of_birth: str = Field(..., description="YYYY-MM-DD")
+    document_type: str = Field(..., description="passport, national_id, drivers_license, voters_card")
+    document_number: str = Field(..., min_length=3, max_length=60)
+    nationality: Optional[str] = None
+
+
+class KYCRejectRequest(BaseModel):
+    reason: Optional[str] = None
 
 
 class WalletResponse(BaseModel):
@@ -384,10 +396,13 @@ async def verify_deposit(
 
 @router.post("/kyc/submit")
 async def submit_kyc(
+    body: KYCSubmitRequest,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Submit KYC for verification. Sets status to 'pending' — an admin must approve."""
+    """Submit KYC identity information for verification.
+    Stores document details in kyc_data and sets status to 'pending' —
+    an admin must approve before withdrawals are enabled."""
     import logging as _logging
     _log = _logging.getLogger(__name__)
 
@@ -403,7 +418,6 @@ async def submit_kyc(
     if wallet.kyc_verified:
         return {"kyc_verified": True, "kyc_status": "approved", "message": "KYC already verified."}
 
-    # Set KYC status to pending — admin approval required
     user_res = await db.execute(select(_User).where(_User.id == current_user.id))
     db_user = user_res.scalar_one_or_none()
     if db_user:
@@ -415,6 +429,17 @@ async def submit_kyc(
                     "kyc_status": "pending",
                     "message": "Your KYC submission is already under review. You will be notified once approved.",
                 }
+        # Store submitted identity data
+        if hasattr(db_user, "kyc_data"):
+            db_user.kyc_data = {
+                "full_name":       body.full_name,
+                "date_of_birth":   body.date_of_birth,
+                "document_type":   body.document_type,
+                "document_number": body.document_number,
+                "nationality":     body.nationality,
+                "submitted_by_ip": None,
+            }
+        if hasattr(db_user, "kyc_status"):
             db_user.kyc_status = "pending"
         if hasattr(db_user, "kyc_submitted_at"):
             db_user.kyc_submitted_at = _dt.utcnow()
@@ -787,7 +812,7 @@ async def admin_approve_kyc(
 @router.post("/admin/kyc/reject/{user_id}")
 async def admin_reject_kyc(
     user_id: int,
-    reason: Optional[str] = None,
+    body: Optional[KYCRejectRequest] = Body(default=None),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -811,6 +836,7 @@ async def admin_reject_kyc(
 
     await db.commit()
 
+    reason = body.reason if body else None
     try:
         from app.modules.notifications.service import NotificationService as _NS
         from app.modules.notifications.models import NotificationType as _NT, NotificationChannel as _NC
@@ -848,19 +874,47 @@ async def admin_list_pending_kyc(
         ).order_by(_User.kyc_submitted_at.asc())
     )
     pending_users = result.scalars().all()
+
+    kyc_requests = []
+    for u in pending_users:
+        kyc_data = getattr(u, "kyc_data", None) or {}
+        kyc_requests.append({
+            "id":            u.id,
+            "user_id":       u.id,
+            "username":      u.username,
+            "email":         u.email,
+            "status":        getattr(u, "kyc_status", "pending"),
+            "full_name":     kyc_data.get("full_name"),
+            "document_type": kyc_data.get("document_type"),
+            "nationality":   kyc_data.get("nationality"),
+            "submitted_at":  u.kyc_submitted_at.isoformat() if getattr(u, "kyc_submitted_at", None) else None,
+        })
+
     return {
-        "total": len(pending_users),
-        "users": [
-            {
-                "id": u.id,
-                "username": u.username,
-                "email": u.email,
-                "kyc_status": getattr(u, "kyc_status", "none"),
-                "submitted_at": u.kyc_submitted_at.isoformat() if getattr(u, "kyc_submitted_at", None) else None,
-            }
-            for u in pending_users
-        ],
+        "total":        len(kyc_requests),
+        "kyc_requests": kyc_requests,
     }
+
+
+@router.post("/admin/kyc/{user_id}/approve")
+async def admin_approve_kyc_by_uid(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Admin: approve KYC — path variant matching frontend convention /{user_id}/approve."""
+    return await admin_approve_kyc(user_id, db=db, current_user=current_user)
+
+
+@router.post("/admin/kyc/{user_id}/reject")
+async def admin_reject_kyc_by_uid(
+    user_id: int,
+    body: Optional[KYCRejectRequest] = Body(default=None),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Admin: reject KYC — path variant matching frontend convention /{user_id}/reject."""
+    return await admin_reject_kyc(user_id, body=body, db=db, current_user=current_user)
 
 
 @router.get("/vitcoin-price")
