@@ -17,7 +17,7 @@ def _no_key() -> dict:
     return {
         "available": False,
         "source": "claude",
-        "error": "ANTHROPIC_API_KEY not configured — add it in Admin → API Keys",
+        "error": "CLAUDE_API_KEY not configured — add it in Admin → API Keys",
         "home_prob": None, "draw_prob": None, "away_prob": None, "confidence": None,
         "summary": None, "key_factors": [], "value_assessment": None,
         "risk_level": None, "insight_tags": [],
@@ -65,7 +65,10 @@ async def generate_match_insights(
     bet_side: Optional[str] = None, edge: float = 0.0,
     entry_odds: Optional[float] = None, confidence: float = 0.5,
 ) -> dict:
-    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    api_key = (
+        os.getenv("CLAUDE_API_KEY", "").strip()
+        or os.getenv("ANTHROPIC_API_KEY", "").strip()
+    )
     if not api_key:
         return _no_key()
 

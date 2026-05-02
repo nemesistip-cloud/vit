@@ -56,12 +56,19 @@ async def assistant_chat(
 async def assistant_status(_user=Depends(verify_api_key)):
     """Report whether the assistant is available (i.e. key is configured)."""
     import os
-    configured = bool(os.getenv("GEMINI_API_KEY", "").strip())
+    gemini_key = bool(os.getenv("GEMINI_API_KEY", "").strip())
+    claude_key  = bool(
+        os.getenv("CLAUDE_API_KEY", "").strip()
+        or os.getenv("ANTHROPIC_API_KEY", "").strip()
+    )
+    configured = gemini_key or claude_key
+    provider   = "gemini-1.5-flash" if gemini_key else ("claude-3-haiku" if claude_key else None)
     return {
         "available": configured,
-        "provider": "gemini-1.5-flash",
+        "provider": provider or "puter-claude",
+        "puter_available": True,
         "message": (
             "Assistant ready." if configured
-            else "Add a GEMINI_API_KEY in Admin → API Keys to enable the assistant."
+            else "Assistant running via Puter (free Claude). Backend AI is also available after adding GEMINI_API_KEY."
         ),
     }

@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Send, AlertCircle, RotateCw, Bot, User as UserIcon } from "lucide-react";
+import { Sparkles, Send, RotateCw, Bot, User as UserIcon, Zap } from "lucide-react";
 import {
   useAssistantChat,
   useAssistantStatus,
   type AssistantTurn,
 } from "@/api-client";
 import { toast } from "sonner";
+import { isPuterAvailable, puterChat, PUTER_MODEL } from "@/lib/puter-ai";
 
 const SUGGESTED_PROMPTS = [
   "How does the trust score system work?",
@@ -19,24 +20,33 @@ const SUGGESTED_PROMPTS = [
   "How do I become a validator?",
 ];
 
+type Mode = "puter" | "backend";
+
 export default function AssistantPage() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<AssistantTurn[]>([]);
+  const [mode, setMode] = useState<Mode>(isPuterAvailable() ? "puter" : "backend");
+  const [puterPending, setPuterPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const status = useAssistantStatus();
   const chat = useAssistantChat();
+
+  const puterReady = isPuterAvailable();
+  const backendReady = status.data?.available ?? false;
+  const isReady = mode === "puter" ? puterReady : backendReady;
+  const isPending = mode === "puter" ? puterPending : chat.isPending;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, chat.isPending]);
+  }, [messages, isPending]);
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || chat.isPending) return;
+    if (!trimmed || isPending) return;
 
     const nextHistory: AssistantTurn[] = [
       ...messages,
@@ -45,30 +55,40 @@ export default function AssistantPage() {
     setMessages(nextHistory);
     setInput("");
 
-    try {
-      const result = await chat.mutateAsync({
-        message: trimmed,
-        history: messages,
-      });
-
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: result.reply },
-      ]);
-
-      if (result.error) {
-        toast.error(result.error);
+    if (mode === "puter") {
+      setPuterPending(true);
+      try {
+        const reply = await puterChat(trimmed, messages);
+        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      } catch (e: any) {
+        const msg = e?.message || "Puter AI unavailable";
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `Sorry — ${msg}. Try switching to Backend mode.` },
+        ]);
+        toast.error(msg);
+      } finally {
+        setPuterPending(false);
       }
-    } catch (e: any) {
-      const msg = e?.message || "Failed to reach the assistant";
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Sorry — I couldn't get a response (${msg}). Please try again.`,
-        },
-      ]);
-      toast.error(msg);
+    } else {
+      try {
+        const result = await chat.mutateAsync({
+          message: trimmed,
+          history: messages,
+        });
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: result.reply },
+        ]);
+        if (result.error) toast.error(result.error);
+      } catch (e: any) {
+        const msg = e?.message || "Failed to reach the assistant";
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `Sorry — I couldn't get a response (${msg}). Please try again.` },
+        ]);
+        toast.error(msg);
+      }
     }
   }
 
@@ -82,8 +102,6 @@ export default function AssistantPage() {
     setInput("");
   }
 
-  const ready = status.data?.available ?? false;
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -96,10 +114,38 @@ export default function AssistantPage() {
             Conversational copilot for the VIT Sports Intelligence Network.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {status.isLoading ? (
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Mode toggle */}
+          <div className="flex items-center rounded-md border border-border overflow-hidden text-xs font-mono">
+            <button
+              onClick={() => { setMode("puter"); reset(); }}
+              className={`px-3 py-1.5 flex items-center gap-1.5 transition-colors ${
+                mode === "puter"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              <Zap className="w-3 h-3" />
+              Claude (Free)
+            </button>
+            <button
+              onClick={() => { setMode("backend"); reset(); }}
+              className={`px-3 py-1.5 flex items-center gap-1.5 transition-colors ${
+                mode === "backend"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              <Bot className="w-3 h-3" />
+              Gemini
+            </button>
+          </div>
+
+          {/* Status badge */}
+          {status.isLoading && mode === "backend" ? (
             <Skeleton className="h-6 w-24" />
-          ) : ready ? (
+          ) : isReady ? (
             <Badge variant="outline" className="font-mono text-xs border-green-500/40 text-green-500">
               ● Ready
             </Badge>
@@ -108,6 +154,7 @@ export default function AssistantPage() {
               ● Not configured
             </Badge>
           )}
+
           {messages.length > 0 && (
             <Button variant="outline" size="sm" onClick={reset} className="font-mono">
               <RotateCw className="w-3.5 h-3.5 mr-1.5" />
@@ -117,17 +164,20 @@ export default function AssistantPage() {
         </div>
       </div>
 
-      {!ready && status.data && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardContent className="pt-6 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
-            <div className="text-sm font-mono">
-              <p className="font-medium text-amber-500">Assistant unavailable</p>
-              <p className="text-muted-foreground mt-1">{status.data.message}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Info bar */}
+      <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground px-1">
+        {mode === "puter" ? (
+          <span className="flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-primary" />
+            Powered by <span className="text-primary font-semibold">{PUTER_MODEL}</span> via Puter · Free &amp; unlimited · No API key needed
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5">
+            <Bot className="w-3.5 h-3.5 text-primary" />
+            Powered by <span className="text-primary font-semibold">{status.data?.provider ?? "Gemini"}</span> · Backend · context window: last 12 turns
+          </span>
+        )}
+      </div>
 
       <Card className="overflow-hidden">
         <CardHeader className="border-b">
@@ -135,7 +185,9 @@ export default function AssistantPage() {
             Conversation
           </CardTitle>
           <CardDescription className="font-mono text-xs">
-            Powered by {status.data?.provider ?? "Gemini"} · context window: last 12 turns
+            {mode === "puter"
+              ? `Claude ${PUTER_MODEL} via Puter — free, unlimited AI in your browser`
+              : `Backend AI · ${status.data?.provider ?? "Gemini"}`}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -143,18 +195,23 @@ export default function AssistantPage() {
             ref={scrollRef}
             className="h-[55vh] min-h-[420px] overflow-y-auto px-4 py-6 space-y-4 bg-muted/10"
           >
-            {messages.length === 0 && !chat.isPending && (
+            {messages.length === 0 && !isPending && (
               <div className="h-full flex flex-col items-center justify-center text-center px-6 space-y-6">
                 <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Bot className="w-7 h-7 text-primary" />
+                  {mode === "puter"
+                    ? <Zap className="w-7 h-7 text-primary" />
+                    : <Bot className="w-7 h-7 text-primary" />}
                 </div>
                 <div className="space-y-1.5 max-w-md">
                   <p className="font-mono font-semibold text-sm">
-                    Ask me anything about VIT Sports.
+                    {mode === "puter"
+                      ? "Free Claude AI — no API key required."
+                      : "Ask me anything about VIT Sports."}
                   </p>
                   <p className="font-mono text-xs text-muted-foreground">
-                    Models, predictions, ROI/CLV, the wallet, training, validators,
-                    governance — pick a topic or type your own question.
+                    {mode === "puter"
+                      ? `Powered by ${PUTER_MODEL} via Puter's free tier. Models, predictions, ROI/CLV, wallet, training, validators — ask anything.`
+                      : "Models, predictions, ROI/CLV, the wallet, training, validators, governance — pick a topic or type your own question."}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
@@ -162,7 +219,7 @@ export default function AssistantPage() {
                     <button
                       key={p}
                       type="button"
-                      disabled={!ready || chat.isPending}
+                      disabled={!isReady || isPending}
                       onClick={() => send(p)}
                       className="text-xs font-mono px-3 py-1.5 rounded-full border border-border bg-background hover:bg-accent hover:border-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -177,7 +234,7 @@ export default function AssistantPage() {
               <MessageBubble key={i} role={m.role} content={m.content} />
             ))}
 
-            {chat.isPending && (
+            {isPending && (
               <MessageBubble role="assistant" content="" pending />
             )}
           </div>
@@ -198,17 +255,19 @@ export default function AssistantPage() {
               }}
               rows={1}
               placeholder={
-                ready
+                isReady
                   ? "Ask about a feature, fixture, or model output…"
-                  : "Assistant is not configured yet"
+                  : mode === "puter"
+                  ? "Puter AI loading…"
+                  : "Backend AI not configured"
               }
-              disabled={!ready || chat.isPending}
+              disabled={!isReady || isPending}
               className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 max-h-32"
               style={{ minHeight: "40px" }}
             />
             <Button
               type="submit"
-              disabled={!ready || chat.isPending || !input.trim()}
+              disabled={!isReady || isPending || !input.trim()}
               className="font-mono"
             >
               <Send className="w-4 h-4 mr-1.5" />
