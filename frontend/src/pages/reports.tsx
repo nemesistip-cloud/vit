@@ -107,13 +107,13 @@ function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
   const qc = useQueryClient();
   const { data, isFetching } = useQuery<ProvidersData>({
     queryKey: ["ai-providers"],
-    queryFn: () => apiGet<ProvidersData>("/api/agents/providers"),
+    queryFn: () => apiGet<ProvidersData>("/agents/providers"),
     refetchInterval: 30_000,
     staleTime: 20_000,
   });
 
   const refreshMutation = useMutation({
-    mutationFn: () => apiPost<ProvidersData>("/api/agents/providers/refresh"),
+    mutationFn: () => apiPost<ProvidersData>("/agents/providers/refresh"),
     onSuccess: (d) => {
       qc.setQueryData(["ai-providers"], d);
       onRefresh();

@@ -157,12 +157,12 @@ function DIDRow({ identity }: { identity: DIDIdentity }) {
         <div className="border-t bg-muted/20 p-3 space-y-2">
           <p className="text-xs text-muted-foreground font-medium">DID: {identity.did}</p>
           <div className="flex flex-wrap gap-1.5">
-            {identity.credential_types.map(ct => (
+            {(identity.credential_types ?? []).map(ct => (
               <Badge key={ct} variant="secondary" className="text-xs gap-1">
                 <CheckCircle2 className="h-3 w-3 text-green-500" /> {ct}
               </Badge>
             ))}
-            {identity.credential_types.length === 0 && (
+            {(identity.credential_types?.length ?? 0) === 0 && (
               <span className="text-xs text-muted-foreground">No credentials issued yet</span>
             )}
           </div>

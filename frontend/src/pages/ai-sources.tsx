@@ -196,7 +196,8 @@ function MatchCard({
         <div className="flex flex-wrap gap-2">
           {activeModels.map((m) => {
             const slot = results[m];
-            const model = MODELS.find((x) => x.id === m)!;
+            const model = MODELS.find((x) => x.id === m);
+            if (!model) return null;
             return (
               <div key={m} className="flex items-center gap-1.5">
                 <span className={`text-xs font-medium ${model.color}`}>{model.label}</span>
@@ -204,7 +205,7 @@ function MatchCard({
               </div>
             );
           })}
-          {match.sources.length > 0 && (
+          {(match.sources?.length ?? 0) > 0 && (
             <div className="flex gap-1 flex-wrap">
               {match.sources.map((s) => (
                 <Badge
@@ -225,7 +226,8 @@ function MatchCard({
               const slot = results[m];
               if (slot?.status !== "done" || !slot.analysis) return null;
               const a = slot.analysis;
-              const model = MODELS.find((x) => x.id === m)!;
+              const model = MODELS.find((x) => x.id === m);
+              if (!model) return null;
               return (
                 <div key={m} className="bg-gray-800/60 rounded p-2 space-y-1.5">
                   <div className="flex items-center gap-2">
@@ -252,7 +254,7 @@ function MatchCard({
                   {a.reason && (
                     <p className="text-[11px] text-gray-400 italic">{a.reason}</p>
                   )}
-                  {a.key_factors.length > 0 && (
+                  {(a.key_factors?.length ?? 0) > 0 && (
                     <button
                       className="text-[10px] text-cyan-500 hover:text-cyan-400 flex items-center gap-0.5"
                       onClick={() => setExpanded((x) => !x)}
@@ -263,7 +265,7 @@ function MatchCard({
                   )}
                   {expanded && (
                     <ul className="text-[11px] text-gray-400 space-y-0.5 pl-2">
-                      {a.key_factors.map((f, i) => (
+                      {(a.key_factors ?? []).map((f, i) => (
                         <li key={i} className="flex gap-1">
                           <span className="text-cyan-500">•</span> {f}
                         </li>
@@ -283,7 +285,7 @@ function MatchCard({
           return (
             <p key={m} className="text-[11px] text-rose-400 flex items-center gap-1">
               <AlertTriangle className="w-3 h-3 shrink-0" />
-              {MODELS.find((x) => x.id === m)!.label}: {slot.error || "Analysis failed"}
+              {MODELS.find((x) => x.id === m)?.label ?? m}: {slot.error || "Analysis failed"}
             </p>
           );
         })}

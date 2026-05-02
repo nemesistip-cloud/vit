@@ -207,7 +207,7 @@ function ReviewDialog({
 
   const mutation = useMutation({
     mutationFn: (body: { status: string; resolution_note: string }) =>
-      apiPatch(`/api/trust/admin/flags/${flag!.id}/review`, body),
+      apiPatch(`/api/trust/admin/flags/${flag?.id}/review`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/trust"] });
       onClose();
@@ -428,7 +428,7 @@ export default function TrustPage() {
             My Flags
             {(flagsQ.data?.filter(f => f.status === "open").length ?? 0) > 0 && (
               <span className="ml-1.5 rounded-full bg-red-500 text-white text-xs px-1.5">
-                {flagsQ.data!.filter(f => f.status === "open").length}
+                {flagsQ.data?.filter(f => f.status === "open").length}
               </span>
             )}
           </TabsTrigger>

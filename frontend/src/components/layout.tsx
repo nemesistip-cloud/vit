@@ -90,7 +90,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const proGroup: NavGroup = {
     name: "Pro",
     items: [
-      ...NAV_GROUPS.find(g => g.name === "Pro")!.items,
+      ...(NAV_GROUPS.find(g => g.name === "Pro")?.items ?? []),
       ...(canUploadAi
         ? [{ name: "AI Sources", href: "/ai-sources", icon: Brain }]
         : []),

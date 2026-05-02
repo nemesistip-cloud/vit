@@ -2361,7 +2361,7 @@ function ModelsTab() {
           <Package className="w-4 h-4 mr-2" /> Marketplace Pending
           {(pendingData?.total ?? 0) > 0 && (
             <span className="ml-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-              {pendingData!.total}
+              {pendingData?.total}
             </span>
           )}
         </Button>
@@ -3927,7 +3927,7 @@ export function AISourcesTab() {
               <p className="text-sm text-gray-400">No AI sources uploaded yet for this match.</p>
             ) : (
               <div className="space-y-3">
-                {detailQ.data!.predictions.map(p => (
+                {(detailQ.data?.predictions ?? []).map(p => (
                   <div key={p.id} className="border border-gray-700 rounded p-3 bg-gray-900/40">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-2">

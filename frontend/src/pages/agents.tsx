@@ -254,7 +254,7 @@ function ProviderStatusBar() {
 
   const { data } = useQuery({
     queryKey: ["ai-provider-status"],
-    queryFn: () => apiGet<{ providers: Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number; failing: boolean; last_error_code: number | null }>; priority: string[] }>("/api/agents/providers"),
+    queryFn: () => apiGet<{ providers: Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number; failing: boolean; last_error_code: number | null }>; priority: string[] }>("/agents/providers"),
     refetchInterval: 15000,
     retry: false,
   });
