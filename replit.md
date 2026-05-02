@@ -144,6 +144,24 @@ The CLV-Blended Accountability dashboard (`/admin` → Accountability tab) track
 - `BOOTSTRAP_LIVE_THRESHOLD=5` — minimum predictions to treat metrics as "live"
 - Frontend shows `~` prefix and `est` label on bootstrapped metrics; Bootstrap + Reactivate buttons in accountability card header
 
+## Phase 3 — Admin Live Training Progress Panel (completed 2026-05-02)
+
+### Changes
+- **`app/api/routes/admin.py`** — Added `GET /admin/training/job/{job_id}`: an admin-JWT-authenticated endpoint that reads the in-memory `_training_jobs` dict (falls back to DB) and returns the full job state including status, events list, progress_pct, current_model, results, and summary. Sits alongside the existing `GET /admin/training/jobs` list endpoint.
+- **`frontend/src/pages/admin.tsx`** — Added `TrainingProgressPanel` component (≈180 lines) that:
+  - Polls `GET /admin/training/job/{jobId}` every 1.5 s while status is `queued` or `running`, stops polling when `completed`/`failed`
+  - Shows a live scrolling event log (timestamped, colour-coded by event type: `model_start` cyan, `model_done` emerald, `model_error` red, `done` amber, `weights_saved`/`weights_reloaded` purple)
+  - Shows a per-model results table with accuracy % (green ≥60%, amber ≥50%, red below) and elapsed time
+  - Progress bar animates from 0→100 as models complete
+  - Final summary strip shows: models trained/failed, avg accuracy, version ID, number of `.pkl` files saved
+  - Dismissable once training completes (triggers cache invalidation for model registry + insight report)
+  - Modified `trainMutation.onSuccess` to set `activeJobId` state and switch to the engine view instead of just showing a toast
+  - Added `activeJobId: string | null` state to `ModelsTab`
+  - Added `useEffect` and `useRef` to the React import
+
+### Smoke test result
+Triggered a real training run via the new endpoint — 12/12 models trained, 43 events captured, all 12 `.pkl` weight files saved to disk and reloaded into production in ~10 seconds.
+
 ## Phase 2 — VIT Quant Engine (completed 2026-05-02)
 
 ### New Module: `app/modules/quant/routes.py`

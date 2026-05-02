@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "@/lib/apiClient";
 import {
@@ -1976,9 +1976,241 @@ function UsersTab() {
 
 // ─── Module 9: Models & AI Engine ─────────────────────────────────────
 
+// ─── Live Training Progress Panel ────────────────────────────────────────────
+
+interface TrainingEvent {
+  type: string;
+  message?: string;
+  model?: string;
+  accuracy?: number;
+  elapsed_s?: number;
+  error?: string;
+  ts?: number;
+  index?: number;
+  total?: number;
+  summary?: Record<string, any>;
+  files?: Record<string, string>;
+  count?: number;
+}
+
+interface TrainingJobStatus {
+  job_id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  events: TrainingEvent[];
+  progress_pct?: number;
+  current_model?: string | null;
+  current_index?: number;
+  total_models?: number;
+  results?: Record<string, { model_name: string; accuracy?: number; status: string; elapsed_s?: number; error?: string }>;
+  summary?: { models_trained?: number; models_failed?: number; avg_accuracy?: number; version?: string; saved_pkls?: Record<string, string> };
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss: () => void }) {
+  const logRef = useRef<HTMLDivElement>(null);
+
+  const { data: job, isError } = useQuery<TrainingJobStatus>({
+    queryKey: ["admin-training-job", jobId],
+    queryFn: () => apiGet<TrainingJobStatus>(`/admin/training/job/${jobId}`),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "completed" || status === "failed" ? false : 1500;
+    },
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [job?.events?.length]);
+
+  const isDone = job?.status === "completed" || job?.status === "failed";
+  const pct = job?.progress_pct ?? (job?.current_index && job?.total_models
+    ? Math.round((job.current_index / job.total_models) * 100)
+    : 0);
+
+  const statusColor = {
+    queued:    "text-amber-400 bg-amber-500/15 border-amber-500/30",
+    running:   "text-cyan-400 bg-cyan-500/15 border-cyan-500/30",
+    completed: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30",
+    failed:    "text-red-400 bg-red-500/15 border-red-500/30",
+  }[job?.status ?? "queued"] ?? "text-gray-400";
+
+  const eventIcon = (type: string) => {
+    if (type === "model_done") return "✓";
+    if (type === "model_error") return "✗";
+    if (type === "model_start") return "▶";
+    if (type === "done") return "★";
+    if (type === "weights_saved" || type === "weights_reloaded") return "💾";
+    if (type === "error") return "!";
+    return "·";
+  };
+
+  const eventColor = (type: string) => {
+    if (type === "model_done") return "text-emerald-400";
+    if (type === "model_error" || type === "error") return "text-red-400";
+    if (type === "model_start") return "text-cyan-400";
+    if (type === "done") return "text-amber-400";
+    if (type === "weights_saved" || type === "weights_reloaded") return "text-purple-400";
+    return "text-gray-400";
+  };
+
+  return (
+    <div className="rounded-lg border border-cyan-500/30 bg-gray-900/80 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/60">
+        <div className="flex items-center gap-3">
+          <Cpu className="w-4 h-4 text-cyan-400" />
+          <span className="text-sm font-semibold text-white">Training Job</span>
+          <span className="font-mono text-xs text-gray-500">JOB_{jobId.slice(0, 8)}</span>
+          {job?.status && (
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${statusColor}`}>
+              {job.status.toUpperCase()}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {job?.status === "running" && (
+            <span className="text-xs text-gray-400">
+              Model {job.current_index ?? 0} / {job.total_models ?? "?"} — {pct}%
+            </span>
+          )}
+          {isDone && (
+            <button onClick={onDismiss} className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded hover:bg-gray-700">
+              Dismiss ×
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      {!isDone && (
+        <div className="w-full bg-gray-800 h-1">
+          <div
+            className="h-1 bg-cyan-500 transition-all duration-700"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+      {isDone && job?.status === "completed" && (
+        <div className="w-full bg-gray-800 h-1">
+          <div className="h-1 bg-emerald-500 w-full" />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-gray-700/50">
+        {/* Event log */}
+        <div className="p-3">
+          <div className="text-xs text-gray-500 uppercase tracking-widest mb-2 font-semibold">Live Log</div>
+          <div
+            ref={logRef}
+            className="h-44 overflow-y-auto font-mono text-xs space-y-0.5 pr-1 scrollbar-thin scrollbar-thumb-gray-700"
+          >
+            {isError && (
+              <div className="text-red-400">Could not connect to job — retrying…</div>
+            )}
+            {!job && !isError && (
+              <div className="text-gray-500 animate-pulse">Connecting to job…</div>
+            )}
+            {(job?.events ?? []).map((evt, i) => {
+              const label = evt.model
+                ? evt.model
+                : evt.message ?? evt.type;
+              const accStr = evt.accuracy !== undefined ? ` — ${(evt.accuracy * 100).toFixed(1)}%` : "";
+              const elStr  = evt.elapsed_s !== undefined ? ` (${evt.elapsed_s}s)` : "";
+              const ts     = evt.ts ? new Date(evt.ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+              return (
+                <div key={i} className={`flex gap-2 leading-5 ${eventColor(evt.type)}`}>
+                  <span className="shrink-0 w-[18px] text-center">{eventIcon(evt.type)}</span>
+                  <span className="text-gray-500 shrink-0">{ts}</span>
+                  <span className="truncate">{label}{accStr}{elStr}</span>
+                </div>
+              );
+            })}
+            {job?.status === "queued" && (job?.events?.length ?? 0) === 0 && (
+              <div className="text-amber-400 animate-pulse">· Waiting in queue…</div>
+            )}
+            {job?.status === "running" && job?.current_model && (
+              <div className="text-cyan-400 animate-pulse">▶ Training: {job.current_model}…</div>
+            )}
+          </div>
+        </div>
+
+        {/* Per-model results */}
+        <div className="p-3">
+          <div className="text-xs text-gray-500 uppercase tracking-widest mb-2 font-semibold">
+            Per-Model Results
+          </div>
+          <div className="h-44 overflow-y-auto space-y-1 pr-1">
+            {Object.entries(job?.results ?? {}).length === 0 && (
+              <div className="text-gray-600 text-xs font-mono">Results appear as models complete…</div>
+            )}
+            {Object.entries(job?.results ?? {}).map(([key, r]) => (
+              <div key={key} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-gray-800">
+                <span className="text-gray-300 truncate max-w-[140px]" title={r.model_name}>{r.model_name}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {r.status === "ok" && r.accuracy !== undefined && (
+                    <span className={`font-mono font-semibold ${r.accuracy >= 0.6 ? "text-emerald-400" : r.accuracy >= 0.5 ? "text-amber-400" : "text-red-400"}`}>
+                      {(r.accuracy * 100).toFixed(1)}%
+                    </span>
+                  )}
+                  {r.elapsed_s !== undefined && (
+                    <span className="text-gray-600">{r.elapsed_s}s</span>
+                  )}
+                  {r.status === "ok"
+                    ? <span className="text-emerald-500">✓</span>
+                    : <span className="text-red-400" title={r.error}>✗</span>
+                  }
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Final summary */}
+      {isDone && job?.summary && (
+        <div className="border-t border-gray-700/60 px-4 py-3 bg-gray-800/40">
+          {job.status === "completed" ? (
+            <div className="flex flex-wrap gap-4 text-xs">
+              <span className="text-gray-400">
+                Models trained: <span className="text-emerald-400 font-semibold">{job.summary.models_trained ?? "—"}</span>
+                {(job.summary.models_failed ?? 0) > 0 && (
+                  <span className="text-red-400 ml-1">({job.summary.models_failed} failed)</span>
+                )}
+              </span>
+              {job.summary.avg_accuracy !== undefined && (
+                <span className="text-gray-400">
+                  Avg accuracy: <span className={`font-semibold font-mono ${(job.summary.avg_accuracy ?? 0) >= 0.6 ? "text-emerald-400" : "text-amber-400"}`}>
+                    {((job.summary.avg_accuracy ?? 0) * 100).toFixed(1)}%
+                  </span>
+                </span>
+              )}
+              {job.summary.version && (
+                <span className="text-gray-400">
+                  Version: <span className="text-cyan-400 font-mono">{job.summary.version}</span>
+                </span>
+              )}
+              {job.summary.saved_pkls && (
+                <span className="text-gray-400">
+                  Weights saved: <span className="text-purple-400 font-semibold">{Object.keys(job.summary.saved_pkls).length} .pkl files</span>
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="text-red-400 text-xs">Training failed — check the event log for details.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ModelsTab() {
   const qc = useQueryClient();
   const [activeSection, setActiveSection] = useState<"engine" | "accountability" | "marketplace">("engine");
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const { data: modelsData, isLoading: mLoading } = useQuery<{ models: ModelInfo[] }>({
     queryKey: ["admin-models"],
@@ -2067,7 +2299,13 @@ function ModelsTab() {
       note: key ? `Admin requested retraining for ${key}` : "Admin requested full ensemble retraining",
     }),
     onSuccess: (d: any) => {
-      toast.success(`Training queued: JOB_${String(d.job_id).slice(0, 8)}`);
+      if (d?.job_id) {
+        setActiveJobId(d.job_id);
+        setActiveSection("engine");
+        toast.success(`Training started — JOB_${String(d.job_id).slice(0, 8)}`);
+      } else {
+        toast.success(d?.message ?? "Training queued");
+      }
       qc.invalidateQueries({ queryKey: ["admin-models"] });
       qc.invalidateQueries({ queryKey: ["admin-training-jobs"] });
     },
@@ -2207,6 +2445,17 @@ function ModelsTab() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {activeSection === "engine" && activeJobId && (
+        <TrainingProgressPanel
+          jobId={activeJobId}
+          onDismiss={() => {
+            setActiveJobId(null);
+            qc.invalidateQueries({ queryKey: ["admin-models"] });
+            qc.invalidateQueries({ queryKey: ["training-insight-report"] });
+          }}
+        />
       )}
 
       {activeSection === "engine" && <TrainingInsightCard />}

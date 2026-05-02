@@ -3430,6 +3430,22 @@ async def admin_marketplace_all(
 
 # ── 13. Training Job Admin ─────────────────────────────────────────────
 
+@router.get("/training/job/{job_id}")
+async def admin_get_training_job(
+    job_id: str,
+    _: _User = Depends(get_current_admin),
+):
+    """Return live status + events for a specific training job (uses JWT admin auth)."""
+    from app.api.routes.training import _training_jobs, _db_get_job
+    job = _training_jobs.get(job_id)
+    if not job:
+        job = await _db_get_job(job_id)
+    if not job:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Training job {job_id} not found")
+    return job
+
+
 @router.get("/training/jobs")
 async def admin_list_training_jobs(
     status: Optional[str] = Query(default=None),
