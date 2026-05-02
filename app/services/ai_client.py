@@ -54,7 +54,8 @@ _GROQ_MODELS = [
 
 # ── Backoff state (module-level — shared across all agents) ────────────────────
 
-_backoff_until: dict[str, float] = {}   # provider_name → unix timestamp
+_backoff_until: dict[str, float] = {}
+_provider_failures: dict[str, dict] = {}  # tracks non-rate-limit errors (401, 400, etc.)   # provider_name → unix timestamp
 _BACKOFF_SECONDS = [2, 4, 8, 16]        # escalating waits on 429
 
 # ── Dynamic provider priority (hot-reloadable) ─────────────────────────────────
@@ -86,21 +87,34 @@ def set_provider_priority(order: list[str]) -> list[str]:
 
 def reset_provider_backoff(name: str | None = None) -> dict[str, float]:
     """
-    Clear rate-limit backoff for one provider (by name) or all providers (name=None).
-    Returns the cleared entries.
+    Clear rate-limit backoff AND non-rate-limit failure tracking for one provider or all.
+    Returns the cleared backoff entries.  Env keys are re-read on every call so no
+    restart is needed after rotating an API secret in the environment.
     """
     global _backoff_until
     if name:
         cleared = {name: _backoff_until.pop(name, 0.0)}
+        _provider_failures.pop(name, None)
     else:
         cleared = dict(_backoff_until)
         _backoff_until.clear()
-    logger.info("[ai-client] backoff reset for: %s", list(cleared.keys()) or "all")
+        _provider_failures.clear()
+    logger.info("[ai-client] backoff+failures reset for: %s", list(cleared.keys()) or "all")
     return cleared
 
 
 def _provider_available(name: str) -> bool:
     return time.monotonic() >= _backoff_until.get(name, 0.0)
+
+
+def _mark_provider_failed(name: str, status_code: int) -> None:
+    """Track non-rate-limit failures (400, 401, 403) so provider_status() can expose them."""
+    import time as _time
+    _provider_failures[name] = {
+        "status_code": status_code,
+        "failed_at": _time.time(),
+    }
+    logger.warning("[ai-client] %s returned HTTP %d — marked as failing", name, status_code)
 
 
 def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
@@ -144,7 +158,10 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
                 logger.debug("[ai-client] gemini/%s responded (%d chars)", model, len(text))
                 return text
         except httpx.HTTPStatusError as e:
-            logger.warning("[ai-client] gemini/%s HTTP %d", model, e.response.status_code)
+            sc = e.response.status_code
+            logger.warning("[ai-client] gemini/%s HTTP %d", model, sc)
+            if sc in (400, 401, 403):
+                _mark_provider_failed("gemini", sc)
         except Exception as e:
             logger.warning("[ai-client] gemini/%s error: %s", model, e)
     return None
@@ -187,7 +204,10 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
                 logger.debug("[ai-client] claude/%s responded (%d chars)", model, len(text))
                 return text
         except httpx.HTTPStatusError as e:
-            logger.warning("[ai-client] claude/%s HTTP %d", model, e.response.status_code)
+            sc = e.response.status_code
+            logger.warning("[ai-client] claude/%s HTTP %d", model, sc)
+            if sc in (400, 401, 403):
+                _mark_provider_failed("claude", sc)
         except Exception as e:
             logger.warning("[ai-client] claude/%s error: %s", model, e)
     return None
@@ -225,7 +245,10 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
                 logger.debug("[ai-client] openai/%s responded (%d chars)", model, len(text))
                 return text
         except httpx.HTTPStatusError as e:
-            logger.warning("[ai-client] openai/%s HTTP %d", model, e.response.status_code)
+            sc = e.response.status_code
+            logger.warning("[ai-client] openai/%s HTTP %d", model, sc)
+            if sc in (400, 401, 403):
+                _mark_provider_failed("openai", sc)
         except Exception as e:
             logger.warning("[ai-client] openai/%s error: %s", model, e)
     return None
@@ -263,7 +286,10 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
                 logger.debug("[ai-client] grok/%s responded (%d chars)", model, len(text))
                 return text
         except httpx.HTTPStatusError as e:
-            logger.warning("[ai-client] grok/%s HTTP %d", model, e.response.status_code)
+            sc = e.response.status_code
+            logger.warning("[ai-client] grok/%s HTTP %d", model, sc)
+            if sc in (400, 401, 403):
+                _mark_provider_failed("grok", sc)
         except Exception as e:
             logger.warning("[ai-client] grok/%s error: %s", model, e)
     return None
@@ -360,10 +386,14 @@ def provider_status() -> dict[str, dict]:
     for name, has_key in keys.items():
         cooling_until = _backoff_until.get(name, 0.0)
         cooling = cooling_until > now
+        failure = _provider_failures.get(name)
+        failing = bool(failure)
         result[name] = {
             "configured": has_key,
-            "available": has_key and not cooling,
+            "available": has_key and not cooling and not failing,
             "cooling": cooling,
             "cooling_for_seconds": max(0, round(cooling_until - now, 1)) if cooling else 0,
+            "failing": failing,
+            "last_error_code": failure["status_code"] if failure else None,
         }
     return result

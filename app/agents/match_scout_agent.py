@@ -212,11 +212,20 @@ class MatchScoutAgent(BaseAgent):
                 insight_type = "match_scout"
 
             ai_result = await call_ai_with_provider(prompt, max_tokens=500)
-            if not ai_result:
-                continue
-            raw, _provider = ai_result
-
-            content, confidence, meta = _parse_ai(raw)
+            if ai_result:
+                raw, _provider = ai_result
+                content, confidence, meta = _parse_ai(raw)
+                meta = {**meta, "mode": mode, "match": f"{match.home_team} vs {match.away_team}"}
+            else:
+                # SCIE fallback: persist a failure insight so the match is never silently skipped
+                _provider = "scie"
+                content = (
+                    f"Pre-match intelligence unavailable for "
+                    f"{match.home_team} vs {match.away_team} — "
+                    f"all AI providers failed. Use provider refresh to restore connectivity."
+                )
+                confidence = 0.3
+                meta = {"mode": mode, "match": f"{match.home_team} vs {match.away_team}", "scie_fallback": True}
 
             async with AsyncSessionLocal() as db:
                 insight = AgentInsight(
@@ -225,7 +234,7 @@ class MatchScoutAgent(BaseAgent):
                     match_id=match.id,
                     ai_provider=_provider,
                     content=content,
-                    meta={**meta, "mode": mode, "match": f"{match.home_team} vs {match.away_team}"},
+                    meta=meta,
                     confidence=confidence,
                 )
                 db.add(insight)
