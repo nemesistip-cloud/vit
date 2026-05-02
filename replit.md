@@ -144,6 +144,30 @@ The CLV-Blended Accountability dashboard (`/admin` → Accountability tab) track
 - `BOOTSTRAP_LIVE_THRESHOLD=5` — minimum predictions to treat metrics as "live"
 - Frontend shows `~` prefix and `est` label on bootstrapped metrics; Bootstrap + Reactivate buttons in accountability card header
 
+## Phase 2 — VIT Quant Engine (completed 2026-05-02)
+
+### New Module: `app/modules/quant/routes.py`
+Five async endpoints under `/api/quant/`, all requiring auth:
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/quant/summary` | Headline stats: win rate, ROI, avg odds, avg EV across all settled predictions |
+| `GET /api/quant/backtest` | Replay settled predictions as flat (fixed %) and full-Kelly staking curves; returns bankroll history + max drawdown |
+| `GET /api/quant/monte-carlo` | N-trial simulation sampling from historical distribution; returns ruin %, profit %, percentile table (p5/p25/p50/p75/p95), full distribution array |
+| `GET /api/quant/ev-scanner` | EV = p×(odds-1) - (1-p) for each market; live upcoming or historical fallback; uses `closing_odds_home/draw/away` |
+| `GET /api/quant/strategy-optimizer` | Segment predictions by bet_side × confidence × odds range; returns ROI for each segment, flags best |
+
+**Schema notes:** `Prediction` uses `timestamp` (not `created_at`). `Match` uses `kickoff_time`, `closing_odds_home/draw/away` (not `match_date`, `home/draw/away_odds`).
+
+### New Frontend: `frontend/src/pages/research.tsx`
+Bloomberg-style Research Terminal at `/research` (Pro nav group). Four panels:
+- **Strategy Backtester** — configurable bankroll + flat%, dual line chart (flat=blue, kelly=green)
+- **Monte Carlo Simulator** — configurable trials/bets/staking; histogram coloured by profit/loss; percentile bar
+- **EV Scanner** — tabular signal list with side badges, edge%, EV highlight; auto-detects live vs historical mode
+- **Strategy Optimiser** — accordion list sorted by ROI; best strategy badged; expandable detail row
+
+Registered in `App.tsx` at `/research`. Added "Research" nav item with `FlaskConical` icon in layout.tsx Pro group. Uses `recharts` (already installed) and `@tanstack/react-query`.
+
 ## Phase 1 — Sealed Cracks (completed 2026-05-02)
 
 ### 1. Real Email Delivery

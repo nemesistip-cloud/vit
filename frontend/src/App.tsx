@@ -47,6 +47,7 @@ const AgentsPage          = lazy(() => import("@/pages/agents"));
 const ReportsPage         = lazy(() => import("@/pages/reports"));
 const OraclePage          = lazy(() => import("@/pages/oracle"));
 const NetworkPage         = lazy(() => import("@/pages/network"));
+const ResearchPage        = lazy(() => import("@/pages/research"));
 
 function RouteFallback() {
   return (
@@ -197,6 +198,9 @@ function Router() {
       </Route>
       <Route path="/network">
         <Layout><ProtectedRoute component={NetworkPage} /></Layout>
+      </Route>
+      <Route path="/research">
+        <Layout><ProtectedRoute component={ResearchPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />

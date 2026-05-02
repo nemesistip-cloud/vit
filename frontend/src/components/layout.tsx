@@ -7,7 +7,7 @@ import {
   CreditCard, Gift, Home, Lock, LogOut, Menu, ShieldCheck,
   ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
-  Sparkles, Brain, Zap, Radio, Network, DatabaseZap,
+  Sparkles, Brain, Zap, Radio, Network, DatabaseZap, FlaskConical,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -43,6 +43,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Training",     href: "/training",    icon: BookOpen },
       { name: "Analytics",    href: "/analytics",   icon: BarChart2 },
       { name: "Intel Reports", href: "/reports",    icon: Radio },
+      { name: "Research",     href: "/research",   icon: FlaskConical },
       { name: "Marketplace",  href: "/marketplace", icon: ShoppingBag },
       { name: "Validators",   href: "/validators",  icon: ShieldCheck },
     ],

@@ -1417,6 +1417,10 @@ app.include_router(did_router)
 # VIT Network — Node Registry and Growth Metrics
 app.include_router(network_router)
 
+# VIT Quant Engine — Phase 2
+from app.modules.quant.routes import router as quant_router
+app.include_router(quant_router)
+
 
 def _format_count(value: int) -> str:
     if value >= 1_000_000:
