@@ -144,6 +144,45 @@ The CLV-Blended Accountability dashboard (`/admin` → Accountability tab) track
 - `BOOTSTRAP_LIVE_THRESHOLD=5` — minimum predictions to treat metrics as "live"
 - Frontend shows `~` prefix and `est` label on bootstrapped metrics; Bootstrap + Reactivate buttons in accountability card header
 
+## Phase 4 — AI Autonomous Agents Control (completed 2026-05-02)
+
+### Problem fixed
+Two ML pipeline agents were silently broken:
+- **`retrain-trigger`**: `_trigger_retrain()` fell through to a Celery stub that just logged intent when Celery was unavailable — training was never actually started.
+- **`model-promoter`**: `run_cycle()` checked `info.get("status") == "complete"` (jobs produce `"completed"`) and `info.get("metrics")` (jobs produce `summary`/`results`) — promotion could never succeed.
+
+### Changes
+
+**`app/agents/ml_config.py`** (new) — Shared hot-reloadable config dict. Agents call `get()` each cycle so threshold changes take effect without restart. Keys: `accuracy_floor`, `retrain_cooldown_hours`, `min_flag_cycles`, `auto_promote_threshold`, `auto_retrain_enabled`, `auto_promote_enabled`.
+
+**`app/agents/retrain_trigger.py`** — Rewrote `_trigger_retrain()` to call `start_admin_training_request()` directly (no Celery). Stores triggered `job_id` in `_triggered_jobs` dict. Returns `triggered_jobs` in `run_cycle()` result so the frontend can surface the live progress panel. Reads thresholds from `ml_config.get()`. Respects `auto_retrain_enabled` flag.
+
+**`app/agents/model_promoter_agent.py`** — Rewrote `run_cycle()`. Finds completed jobs via `info.get("summary")` (not `"metrics"`). Uses `summary.avg_accuracy` for comparison. Directly sets `training_mod._current_production = job_id`. Reads `auto_promote_threshold` and `auto_promote_enabled` from `ml_config`. Returns `promotion_log` list with per-decision audit trail.
+
+**`app/api/routes/admin.py`** — Added 5 new admin-JWT-authenticated endpoints under `/admin/ml-control/`:
+| Endpoint | Description |
+|---|---|
+| `GET /ml-control/status` | Live status snapshot for 5 ML agents (performance-monitor, retrain-trigger, model-promoter, weight-optimizer, self-healing) |
+| `GET /ml-control/config` | Current agent threshold configuration |
+| `POST /ml-control/config` | Hot-update thresholds (body: `MLConfigBody` Pydantic model with all 6 config keys optional) |
+| `POST /ml-control/trigger/{agent_name}` | Manually dispatch any of the 5 ML agents immediately |
+| `POST /ml-control/emergency-retrain` | Fire a full-ensemble training job immediately, returns `{job_id, status}` for progress panel |
+
+**`frontend/src/pages/admin.tsx`** — Added "Agents" tab to INTELLIGENCE tab group (icon: `Bot`). Added `MLAgentsTab` component (~350 lines) featuring:
+- **Emergency Retrain button** — fires `POST /admin/ml-control/emergency-retrain` and auto-surfaces the live `TrainingProgressPanel` with the returned `job_id`
+- **Active Training Job panel** — automatically surfaces `TrainingProgressPanel` whenever `retrain-trigger` stores a `triggered_jobs` entry with a job_id
+- **Threshold Config card** — 4 numeric inputs + 2 toggles for all 6 config keys, saves via `POST /ml-control/config`, toasts "hot-reloaded on next cycle"
+- **5 ML Agent cards** — status dot, run/error/next-run strip, interpreted `last_result` for each agent (flagged models, flag counts with clickable job links, promotion log, temperature fit, self-healing issues), "Run Now" trigger button
+- **Pipeline flow diagram** — static visual showing the 5-step autonomous decision chain
+
+### Smoke test results
+All 5 new endpoints verified live:
+- `GET /admin/ml-control/status` → Returns all 5 ML agents with live status ✅
+- `GET /admin/ml-control/config` → Returns all 6 threshold values ✅
+- `POST /admin/ml-control/trigger/performance-monitor` → Dispatched ✅
+- `POST /admin/ml-control/config` → Hot-updated accuracy_floor + min_flag_cycles ✅
+- `POST /admin/ml-control/emergency-retrain` → Started JOB `45b7b25c-...`, status: queued ✅
+
 ## Phase 3 — Admin Live Training Progress Panel (completed 2026-05-02)
 
 ### Changes

@@ -35,6 +35,7 @@ import {
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
   Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info,
+  Bot, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -3981,6 +3982,498 @@ export function AISourcesTab() {
   );
 }
 
+// ─── ML Agent Control Tab ─────────────────────────────────────────────
+
+interface MLAgentSnap {
+  status: string;
+  enabled: boolean;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  run_count: number;
+  error_count: number;
+  last_error: string | null;
+  last_result: Record<string, unknown> | null;
+  interval_seconds: number;
+}
+
+interface MLControlStatus {
+  "performance-monitor": MLAgentSnap;
+  "retrain-trigger":     MLAgentSnap;
+  "model-promoter":      MLAgentSnap;
+  "weight-optimizer":    MLAgentSnap;
+  "self-healing":        MLAgentSnap;
+}
+
+interface MLAgentConfig {
+  accuracy_floor:         number;
+  retrain_cooldown_hours: number;
+  min_flag_cycles:        number;
+  auto_promote_threshold: number;
+  auto_retrain_enabled:   boolean;
+  auto_promote_enabled:   boolean;
+}
+
+function MLAgentsTab() {
+  const qc = useQueryClient();
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [cfg, setCfg]                 = useState<MLAgentConfig | null>(null);
+  const [saving, setSaving]           = useState(false);
+  const [triggering, setTriggering]   = useState<string | null>(null);
+
+  const { data: mlStatus, isLoading } = useQuery<MLControlStatus>({
+    queryKey: ["ml-control-status"],
+    queryFn:  () => apiGet<MLControlStatus>("/admin/ml-control/status"),
+    refetchInterval: 5000,
+  });
+
+  const { data: configData } = useQuery<MLAgentConfig>({
+    queryKey: ["ml-control-config"],
+    queryFn:  () => apiGet<MLAgentConfig>("/admin/ml-control/config"),
+  });
+
+  useEffect(() => {
+    if (configData && !cfg) setCfg({ ...configData });
+  }, [configData]);
+
+  useEffect(() => {
+    const jobs = mlStatus?.["retrain-trigger"]?.last_result?.triggered_jobs as Record<string, string> | undefined;
+    if (jobs) {
+      const ids = Object.values(jobs).filter(Boolean);
+      if (ids.length > 0) setActiveJobId(prev => prev ?? ids[ids.length - 1]);
+    }
+  }, [mlStatus]);
+
+  const triggerAgent = async (name: string) => {
+    setTriggering(name);
+    try {
+      await apiPost(`/admin/ml-control/trigger/${name}`);
+      toast.success(`${name} triggered`);
+      setTimeout(() => qc.invalidateQueries({ queryKey: ["ml-control-status"] }), 1500);
+    } catch (e: any) {
+      toast.error(e?.message || `Failed to trigger ${name}`);
+    }
+    setTriggering(null);
+  };
+
+  const emergencyRetrain = async () => {
+    setTriggering("emergency");
+    try {
+      const r = await apiPost<{ job_id: string }>("/admin/ml-control/emergency-retrain");
+      if (r?.job_id) {
+        setActiveJobId(r.job_id);
+        toast.success(`Emergency retrain started — JOB_${r.job_id.slice(0, 8)}`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Emergency retrain failed");
+    }
+    setTriggering(null);
+  };
+
+  const saveConfig = async () => {
+    if (!cfg) return;
+    setSaving(true);
+    try {
+      await apiPost("/admin/ml-control/config", cfg);
+      qc.invalidateQueries({ queryKey: ["ml-control-config"] });
+      toast.success("Thresholds saved — agents will use new values on next cycle");
+    } catch (e: any) {
+      toast.error(e?.message || "Save failed");
+    }
+    setSaving(false);
+  };
+
+  function relML(iso: string | null) {
+    if (!iso) return "never";
+    const d = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (d < 60)   return `${Math.round(d)}s ago`;
+    if (d < 3600) return `${Math.round(d / 60)}m ago`;
+    return `${Math.round(d / 3600)}h ago`;
+  }
+
+  const STATUS_STYLES: Record<string, string> = {
+    running:  "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    ok:       "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    error:    "bg-red-500/20 text-red-300 border-red-500/30",
+    idle:     "bg-slate-700/30 text-slate-400 border-slate-600/30",
+    disabled: "bg-slate-800/30 text-slate-500 border-slate-700/30",
+  };
+  const DOT_STYLES: Record<string, string> = {
+    running:  "bg-blue-400 animate-pulse",
+    ok:       "bg-emerald-400",
+    error:    "bg-red-400 animate-pulse",
+    idle:     "bg-slate-500",
+    disabled: "bg-slate-700",
+  };
+
+  const ML_AGENTS = [
+    { key: "performance-monitor" as const, label: "Performance Monitor", icon: <Activity className="w-3.5 h-3.5 text-violet-400" />, description: "Tracks live model accuracy & flags drift",       period: "30m" },
+    { key: "retrain-trigger"     as const, label: "Retrain Trigger",     icon: <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />,  description: "Fires training jobs on consecutive flags",    period: "12h" },
+    { key: "model-promoter"      as const, label: "Model Promoter",      icon: <Zap className="w-3.5 h-3.5 text-amber-400" />,       description: "Auto-promotes better model versions",         period: "2h"  },
+    { key: "weight-optimizer"    as const, label: "Weight Optimizer",    icon: <Brain className="w-3.5 h-3.5 text-purple-400" />,    description: "Re-tunes ensemble weights & temperature",     period: "6h"  },
+    { key: "self-healing"        as const, label: "Self-Healing",        icon: <HeartPulse className="w-3.5 h-3.5 text-rose-400" />, description: "Detects & auto-fixes platform issues",        period: "5m"  },
+  ];
+
+  function renderInsights(key: string, result: Record<string, unknown> | null) {
+    if (!result) return <p className="text-xs text-slate-500 italic">No data yet</p>;
+
+    if (key === "performance-monitor") {
+      const flagged = (result.flagged_models as string[] | undefined) ?? [];
+      const checked = (result.models_checked  as number  | undefined) ?? 0;
+      return (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">Checked:</span>
+            <span className="text-xs font-bold text-white">{checked}</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-400">Flagged:</span>
+            {flagged.length === 0
+              ? <span className="text-xs text-emerald-400 font-medium">None — all nominal</span>
+              : flagged.map(m => <span key={m} className="text-xs bg-red-500/20 text-red-300 border border-red-500/30 px-1.5 py-0.5 rounded">{m}</span>)
+            }
+          </div>
+        </div>
+      );
+    }
+
+    if (key === "retrain-trigger") {
+      const triggered   = (result.triggered    as string[]                    | undefined) ?? [];
+      const flagCounts  = (result.flag_counts  as Record<string, number>      | undefined) ?? {};
+      const recent      = (result.recent_triggers as Array<{ model: string; triggered_at: string; consecutive_flags: number; job_id?: string }> | undefined) ?? [];
+      const withFlags   = Object.entries(flagCounts).filter(([, n]) => n > 0);
+      return (
+        <div className="space-y-1.5">
+          {withFlags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {withFlags.map(([m, n]) => (
+                <span key={m} className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">{m}: {n}</span>
+              ))}
+            </div>
+          )}
+          {triggered.length > 0
+            ? <p className="text-xs text-cyan-300 font-medium">Triggered: {triggered.join(", ")}</p>
+            : <p className="text-xs text-slate-500">No retrains triggered this cycle</p>
+          }
+          {recent.slice(-2).map((e, i) => (
+            <div key={i} className="flex items-center gap-1 text-xs text-slate-400">
+              <span className="text-cyan-500">↻</span>
+              <span>{e.model}</span>
+              {e.job_id && (
+                <button onClick={() => setActiveJobId(e.job_id!)}
+                  className="text-cyan-400 hover:text-cyan-200 hover:underline underline-offset-2 text-xs">
+                  JOB_{e.job_id.slice(0, 6)}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (key === "model-promoter") {
+      const prod         = result.current_production as string | undefined;
+      const promotionLog = (result.promotion_log as Array<{ job_id: string; new_acc: number; prev_acc: number; reason: string }> | undefined) ?? [];
+      return (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">Production:</span>
+            <span className="text-xs font-mono text-amber-300">{prod ? prod.slice(0, 8) : "none"}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">Promoted: <span className="text-emerald-300 font-bold">{result.promoted as number ?? 0}</span></span>
+            <span className="text-xs text-slate-400">Skipped: <span className="text-slate-300 font-bold">{result.skipped as number ?? 0}</span></span>
+          </div>
+          {promotionLog.slice(-1).map((p, i) => (
+            <p key={i} className="text-xs text-emerald-400">
+              Promoted {p.job_id.slice(0, 6)} · +{((p.new_acc - p.prev_acc) * 100).toFixed(1)}pp
+            </p>
+          ))}
+        </div>
+      );
+    }
+
+    if (key === "weight-optimizer") {
+      const tempFit     = result.temperature_fit  as { fitted?: boolean; temperature?: number; n_samples?: number; reason?: string } | undefined;
+      const weightUpdate = result.weight_update   as { models_updated?: number; needs_review?: string[] } | undefined;
+      return (
+        <div className="space-y-1">
+          {tempFit && (
+            <div className="text-xs text-slate-400">
+              Temperature:{" "}
+              <span className="text-purple-300 font-mono">
+                {tempFit.fitted ? `${(tempFit.temperature ?? 0).toFixed(4)} (n=${tempFit.n_samples})` : (tempFit.reason ?? "not fitted")}
+              </span>
+            </div>
+          )}
+          {weightUpdate && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400">Models updated:</span>
+              <span className="text-white font-bold">{weightUpdate.models_updated ?? 0}</span>
+              {(weightUpdate.needs_review?.length ?? 0) > 0 && (
+                <span className="text-amber-300">({weightUpdate.needs_review!.length} review)</span>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (key === "self-healing") {
+      const issues  = (result.issues       as string[] | undefined) ?? [];
+      const actions = (result.actions_taken as string[] | undefined) ?? [];
+      return (
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">Issues: <span className={`font-bold ${issues.length > 0 ? "text-red-300" : "text-emerald-300"}`}>{issues.length}</span></span>
+            <span className="text-xs text-slate-400">Actions: <span className="text-white font-bold">{actions.length}</span></span>
+          </div>
+          {issues.length > 0
+            ? issues.slice(0, 2).map((iss, i) => <p key={i} className="text-xs text-red-300 leading-snug">{iss}</p>)
+            : <p className="text-xs text-emerald-400">All systems nominal</p>
+          }
+        </div>
+      );
+    }
+
+    return null;
+  }
+
+  return (
+    <div className="space-y-6">
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Bot className="w-5 h-5 text-purple-400" />
+            ML Autonomous Agent Pipeline
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            5 agents govern training decisions end-to-end — monitor decisions, tune thresholds, or intervene manually
+          </p>
+        </div>
+        <Button
+          size="sm"
+          onClick={emergencyRetrain}
+          disabled={triggering === "emergency"}
+          className="bg-red-600 hover:bg-red-500 text-white border-0 shrink-0 h-8 text-xs"
+        >
+          {triggering === "emergency"
+            ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Starting…</>
+            : <><Zap className="w-3 h-3 mr-1.5" />Emergency Retrain</>
+          }
+        </Button>
+      </div>
+
+      {/* Live training job surfaced from retrain-trigger */}
+      {activeJobId && (
+        <TrainingProgressPanel jobId={activeJobId} onDismiss={() => setActiveJobId(null)} />
+      )}
+
+      {/* Threshold Config */}
+      {cfg && (
+        <Card className="bg-slate-900/60 border-slate-700/50">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <CardTitle className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+              <Settings className="w-4 h-4 text-slate-400" />
+              Agent Decision Thresholds
+              <span className="ml-auto text-xs font-normal text-slate-500">hot-reloaded on next agent cycle</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 pb-5 space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400">Accuracy Floor</Label>
+                <Input
+                  type="number" step="0.01" min="0" max="1"
+                  value={cfg.accuracy_floor}
+                  onChange={e => setCfg(c => c ? { ...c, accuracy_floor: parseFloat(e.target.value) } : c)}
+                  className="h-8 text-xs bg-slate-800 border-slate-600 text-white"
+                />
+                <p className="text-xs text-slate-500">Below this = flagged</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400">Cooldown (hours)</Label>
+                <Input
+                  type="number" step="1" min="1"
+                  value={cfg.retrain_cooldown_hours}
+                  onChange={e => setCfg(c => c ? { ...c, retrain_cooldown_hours: parseInt(e.target.value) } : c)}
+                  className="h-8 text-xs bg-slate-800 border-slate-600 text-white"
+                />
+                <p className="text-xs text-slate-500">Min gap between retrains</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400">Min Flag Cycles</Label>
+                <Input
+                  type="number" step="1" min="1"
+                  value={cfg.min_flag_cycles}
+                  onChange={e => setCfg(c => c ? { ...c, min_flag_cycles: parseInt(e.target.value) } : c)}
+                  className="h-8 text-xs bg-slate-800 border-slate-600 text-white"
+                />
+                <p className="text-xs text-slate-500">Consecutive flags to retrain</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400">Auto-Promote Δ</Label>
+                <div className="relative">
+                  <Input
+                    type="number" step="0.1" min="0"
+                    value={parseFloat((cfg.auto_promote_threshold * 100).toFixed(2))}
+                    onChange={e => setCfg(c => c ? { ...c, auto_promote_threshold: parseFloat(e.target.value) / 100 } : c)}
+                    className="h-8 text-xs bg-slate-800 border-slate-600 text-white pr-6"
+                  />
+                  <span className="absolute right-2.5 top-2 text-xs text-slate-500">%</span>
+                </div>
+                <p className="text-xs text-slate-500">Acc. gain needed to promote</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex items-center gap-2">
+                <Switch checked={cfg.auto_retrain_enabled} onCheckedChange={v => setCfg(c => c ? { ...c, auto_retrain_enabled: v } : c)} />
+                <Label className="text-xs text-slate-300">Auto-Retrain</Label>
+                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg.auto_retrain_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-slate-700/30 text-slate-500 border-slate-600/30"}`}>
+                  {cfg.auto_retrain_enabled ? "ON" : "OFF"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={cfg.auto_promote_enabled} onCheckedChange={v => setCfg(c => c ? { ...c, auto_promote_enabled: v } : c)} />
+                <Label className="text-xs text-slate-300">Auto-Promote</Label>
+                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg.auto_promote_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-slate-700/30 text-slate-500 border-slate-600/30"}`}>
+                  {cfg.auto_promote_enabled ? "ON" : "OFF"}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                onClick={saveConfig}
+                disabled={saving}
+                className="ml-auto bg-purple-600 hover:bg-purple-500 text-white border-0 h-8 text-xs"
+              >
+                {saving
+                  ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Saving…</>
+                  : <><Save className="w-3 h-3 mr-1.5" />Save Thresholds</>
+                }
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Agent Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[0, 1, 2, 3, 4].map(i => <Card key={i} className="h-48 bg-slate-900/60 border-slate-700/50 animate-pulse" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {ML_AGENTS.map(({ key, label, icon, description, period }) => {
+            const snap      = mlStatus?.[key];
+            const statusStr = snap?.status ?? "idle";
+            const statCls   = STATUS_STYLES[statusStr] ?? STATUS_STYLES.idle;
+            const dotCls    = DOT_STYLES[statusStr]    ?? DOT_STYLES.idle;
+
+            return (
+              <Card key={key} className="bg-slate-900/60 border-slate-700/50 hover:border-slate-600/50 transition-colors">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${dotCls}`} />
+                      <span className="text-sm font-semibold text-white truncate">{label}</span>
+                    </div>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full border font-medium shrink-0 ${statCls}`}>
+                      {statusStr}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    {icon}
+                    <span className="text-xs text-slate-500">every {period}</span>
+                    <span className="text-xs text-slate-600 ml-auto">{relML(snap?.last_run_at ?? null)}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-snug">{description}</p>
+                </CardHeader>
+
+                <CardContent className="px-4 pb-4 space-y-3">
+                  {/* Stats strip */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-slate-800/50 rounded-lg p-1.5">
+                      <div className="text-sm font-bold text-white">{snap?.run_count ?? 0}</div>
+                      <div className="text-xs text-slate-500">Runs</div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg p-1.5">
+                      <div className={`text-sm font-bold ${(snap?.error_count ?? 0) > 0 ? "text-red-400" : "text-white"}`}>
+                        {snap?.error_count ?? 0}
+                      </div>
+                      <div className="text-xs text-slate-500">Errors</div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg p-1.5">
+                      <div className="text-sm font-bold text-cyan-400">
+                        {snap?.next_run_at ? (() => {
+                          const d = (new Date(snap.next_run_at).getTime() - Date.now()) / 1000;
+                          return d <= 0 ? "now" : d < 60 ? `${Math.round(d)}s` : d < 3600 ? `${Math.round(d / 60)}m` : `${Math.round(d / 3600)}h`;
+                        })() : "—"}
+                      </div>
+                      <div className="text-xs text-slate-500">Next</div>
+                    </div>
+                  </div>
+
+                  {/* Interpreted last_result */}
+                  <div className="min-h-[52px]">
+                    {renderInsights(key, snap?.last_result ?? null)}
+                  </div>
+
+                  {/* Last error */}
+                  {snap?.last_error && (
+                    <div className="bg-red-950/40 border border-red-800/30 rounded px-2.5 py-1.5">
+                      <p className="text-xs text-red-300 line-clamp-2">{snap.last_error}</p>
+                    </div>
+                  )}
+
+                  {/* Trigger button */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => triggerAgent(key)}
+                    disabled={triggering === key}
+                    className="w-full border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white text-xs h-7"
+                  >
+                    {triggering === key
+                      ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Triggering…</>
+                      : <><RefreshCw className="w-3 h-3 mr-1.5" />Run Now</>
+                    }
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pipeline flow diagram — static visual */}
+      <Card className="bg-slate-900/40 border-slate-700/40">
+        <CardContent className="px-5 py-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Autonomous Decision Flow</p>
+          <div className="flex items-center gap-1 flex-wrap text-xs">
+            {[
+              { label: "Performance Monitor",  color: "bg-violet-500/20 text-violet-300 border-violet-500/30",  note: "30m · flags drift" },
+              { label: "Retrain Trigger",       color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",        note: "12h · fires training" },
+              { label: "Model Promoter",        color: "bg-amber-500/20 text-amber-300 border-amber-500/30",     note: "2h · promotes best" },
+              { label: "Weight Optimizer",      color: "bg-purple-500/20 text-purple-300 border-purple-500/30",  note: "6h · tunes weights" },
+              { label: "Self-Healing",          color: "bg-rose-500/20 text-rose-300 border-rose-500/30",        note: "5m · watchdog" },
+            ].map((step, i) => (
+              <div key={i} className="flex items-center gap-1">
+                {i > 0 && <span className="text-slate-600">→</span>}
+                <div className={`flex flex-col items-center border rounded px-2 py-1 ${step.color}`}>
+                  <span className="font-semibold">{step.label}</span>
+                  <span className="text-xs opacity-70">{step.note}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+    </div>
+  );
+}
+
 // ─── Admin Header Health Pills ────────────────────────────────────────
 
 function AdminHealthPills() {
@@ -4050,6 +4543,7 @@ export default function AdminPage() {
         { value: "models",      label: "Models",      icon: Cpu },
         { value: "ai-sources",  label: "AI Sources",  icon: Brain },
         { value: "calibration", label: "Calibration", icon: Activity },
+        { value: "agents",      label: "Agents",      icon: Bot },
       ],
     },
     {
@@ -4196,6 +4690,7 @@ export default function AdminPage() {
           <TabsContent value="subscriptions"><SubscriptionsTab /></TabsContent>
           <TabsContent value="system"><SystemTab /></TabsContent>
           <TabsContent value="audit"><AuditTab /></TabsContent>
+          <TabsContent value="agents"><MLAgentsTab /></TabsContent>
         </Tabs>
       </div>
     </div>

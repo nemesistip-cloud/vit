@@ -3772,3 +3772,98 @@ async def fixture_health(
         },
         "checked_at": now.isoformat(),
     }
+
+
+# ── 16. ML Agent Control Center ────────────────────────────────────────
+
+_ML_AGENT_NAMES = [
+    "performance-monitor",
+    "retrain-trigger",
+    "model-promoter",
+    "weight-optimizer",
+    "self-healing",
+]
+
+
+@router.get("/ml-control/status")
+async def ml_control_status(_: _User = Depends(get_current_admin)):
+    """Enriched status snapshot for the 5 ML pipeline agents."""
+    try:
+        from app.agents.coordinator import get_coordinator
+        full = get_coordinator().status().get("agents", {})
+        return {name: full.get(name, {}) for name in _ML_AGENT_NAMES}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/ml-control/config")
+async def get_ml_control_config(_: _User = Depends(get_current_admin)):
+    """Return current ML agent threshold configuration."""
+    try:
+        from app.agents.ml_config import get as get_cfg
+        return get_cfg()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class MLConfigBody(BaseModel):
+    accuracy_floor:         Optional[float] = None
+    retrain_cooldown_hours: Optional[int]   = None
+    min_flag_cycles:        Optional[int]   = None
+    auto_promote_threshold: Optional[float] = None
+    auto_retrain_enabled:   Optional[bool]  = None
+    auto_promote_enabled:   Optional[bool]  = None
+
+
+@router.post("/ml-control/config")
+async def update_ml_control_config(
+    body: MLConfigBody,
+    _: _User = Depends(get_current_admin),
+):
+    """Update ML agent threshold configuration (hot-reloaded on next agent cycle)."""
+    try:
+        from app.agents.ml_config import update as update_cfg
+        patch = {k: v for k, v in body.dict().items() if v is not None}
+        updated = update_cfg(patch)
+        return {"updated": True, "config": updated}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/ml-control/trigger/{agent_name}")
+async def trigger_ml_agent(
+    agent_name: str,
+    _: _User = Depends(get_current_admin),
+):
+    """Manually trigger an ML pipeline agent immediately."""
+    if agent_name not in _ML_AGENT_NAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid agent. Valid: {', '.join(_ML_AGENT_NAMES)}",
+        )
+    try:
+        from app.agents.coordinator import get_coordinator
+        ok = get_coordinator().trigger(agent_name)
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found in coordinator")
+        return {"triggered": agent_name, "status": "dispatched"}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/ml-control/emergency-retrain")
+async def emergency_retrain(_: _User = Depends(get_current_admin)):
+    """
+    Immediately start a full-ensemble training job.
+    Returns the job_id so the caller can stream progress via
+    GET /admin/training/job/{job_id}.
+    """
+    try:
+        from app.api.routes.training import TrainingConfig, start_admin_training_request
+        config = TrainingConfig(note="Emergency retrain ordered by admin")
+        result = await start_admin_training_request(config, created_by="admin-emergency")
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
