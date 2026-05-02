@@ -69,6 +69,16 @@ async def ensure_schema():
                 for col, ddl in user_additions.items():
                     if col not in user_col_names:
                         await conn.exec_driver_sql(f'ALTER TABLE users ADD COLUMN {col} {ddl}')
+                # tasks table additions
+                task_cols = (await conn.exec_driver_sql('PRAGMA table_info(tasks)')).fetchall()
+                task_col_names = {row[1] for row in task_cols}
+                task_additions = {
+                    'action_url':   'TEXT',
+                    'action_label': 'TEXT',
+                }
+                for col, ddl in task_additions.items():
+                    if col not in task_col_names:
+                        await conn.exec_driver_sql(f'ALTER TABLE tasks ADD COLUMN {col} {ddl}')
             else:
                 await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER')
                 await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN')

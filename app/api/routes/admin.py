@@ -483,21 +483,23 @@ async def get_model_version_history(
 
     result = await db.execute(
         select(ModelPerformance)
-        .order_by(desc(ModelPerformance.evaluated_at))
+        .order_by(desc(ModelPerformance.created_at))
         .limit(limit)
     )
     rows = result.scalars().all()
     history = [
         {
             "model": r.model_name,
-            "version": getattr(r, "version", 1),
-            "accuracy": float(r.accuracy) if r.accuracy is not None else None,
-            "log_loss": float(r.log_loss) if r.log_loss is not None else None,
+            "model_type": r.model_type,
+            "version": r.version or 1,
+            "accuracy": float(r.accuracy_score) if r.accuracy_score is not None else None,
             "calibration_error": float(r.calibration_error) if r.calibration_error is not None else None,
-            "total_predictions": int(r.total_predictions) if r.total_predictions else 0,
-            "training_samples": int(r.training_samples) if getattr(r, "training_samples", None) else None,
-            "evaluated_at": r.evaluated_at.isoformat() if r.evaluated_at else None,
-            "is_active": getattr(r, "is_active", True),
+            "current_weight": float(r.current_weight) if r.current_weight is not None else None,
+            "certified": bool(r.certified),
+            "final_score": float(r.final_score) if r.final_score is not None else None,
+            "evaluated_at": r.last_certified_at.isoformat() if r.last_certified_at else (
+                r.created_at.isoformat() if r.created_at else None
+            ),
         }
         for r in rows
     ]
@@ -1629,7 +1631,7 @@ async def _fetch_fixtures(count: int, target_date: Optional[str] = None) -> list
         date_to   = (now + timedelta(days=7)).strftime("%Y-%m-%d")
     fixtures     = []
 
-    async with httpx.AsyncClient(timeout=20) as client:
+    async with httpx.AsyncClient(timeout=5) as client:
         for league, code in COMPETITIONS.items():
             if len(fixtures) >= count:
                 break

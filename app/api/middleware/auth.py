@@ -1,11 +1,14 @@
 # app/api/middleware/auth.py
 # Supports both legacy API key (x-api-key header) and JWT Bearer tokens
 # SEC-04: Blocklist check on every request — revoked tokens are rejected.
+import logging
 import os
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from dotenv import load_dotenv
 from app.core.errors import error_response
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -52,7 +55,8 @@ async def _validate_jwt(token: str) -> bool:
                 if await is_token_revoked(jti, db):
                     return False
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning("JWT validation error: %s", exc, exc_info=True)
         return False
 
 

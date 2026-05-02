@@ -352,7 +352,10 @@ async def get_model_contribution(
                 continue
 
             c["total_weight"] += m.get("model_weight", 1.0)
-            c["conf_sum"]     += m.get("confidence", {}).get("1x2", 0.5)
+            _conf = m.get("confidence", 0.5)
+            if isinstance(_conf, dict):
+                _conf = _conf.get("1x2", 0.5)
+            c["conf_sum"]     += float(_conf) if _conf is not None else 0.5
 
             # Accuracy where match is settled
             if actual and bet_side:

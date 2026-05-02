@@ -70,35 +70,45 @@ async def revoke_token(
     db,
     expires_at: Optional[datetime] = None,
 ) -> None:
-    """Add a jti to the blocklist. Call on logout, password-change, or suspension."""
-    from app.db.models import TokenBlocklist
-    from sqlalchemy import select
+    """Add a jti to the blocklist. Call on logout, password-change, or suspension.
 
-    existing = await db.execute(
-        select(TokenBlocklist).where(TokenBlocklist.jti == jti)
-    )
-    if existing.scalar_one_or_none():
-        return
+    Uses raw SQL to avoid ORM mapper configuration issues — User has many
+    lazy relationships that may not be registered yet at call time.
+    """
+    from sqlalchemy import text
 
     if expires_at is None:
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    db.add(TokenBlocklist(
-        jti=jti,
-        user_id=user_id,
-        reason=reason,
-        expires_at=expires_at,
-    ))
+    existing = await db.execute(
+        text("SELECT id FROM token_blocklist WHERE jti = :jti"),
+        {"jti": jti},
+    )
+    if existing.fetchone():
+        return
+
+    await db.execute(
+        text(
+            "INSERT INTO token_blocklist (jti, user_id, reason, expires_at) "
+            "VALUES (:jti, :user_id, :reason, :expires_at)"
+        ),
+        {"jti": jti, "user_id": user_id, "reason": reason, "expires_at": expires_at},
+    )
     await db.commit()
 
 
 async def is_token_revoked(jti: str, db) -> bool:
-    """Return True if the jti has been revoked."""
+    """Return True if the jti has been revoked.
+
+    Uses raw SQL to avoid ORM mapper configuration issues — User has many
+    lazy relationships (Wallet, UserTaskCompletion, etc.) that trigger full
+    mapper reconfiguration and may not all be registered at call time.
+    """
     if not jti:
         return False
-    from app.db.models import TokenBlocklist
-    from sqlalchemy import select
+    from sqlalchemy import text
     result = await db.execute(
-        select(TokenBlocklist).where(TokenBlocklist.jti == jti)
+        text("SELECT 1 FROM token_blocklist WHERE jti = :jti LIMIT 1"),
+        {"jti": jti},
     )
-    return result.scalar_one_or_none() is not None
+    return result.fetchone() is not None

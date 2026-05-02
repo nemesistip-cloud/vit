@@ -36,6 +36,7 @@ import app.modules.bridge.models         # register Module J bridge models
 import app.modules.developer.models      # register Module L developer models
 import app.modules.governance.models     # register Module M governance models
 import app.modules.referral.models       # register referral models
+import app.modules.tasks.models          # register Module T task/completion models
 
 # ===== CORE ROUTES =====
 from app.api.routes import (

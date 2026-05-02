@@ -151,7 +151,7 @@ async def export_audit_csv(
     """Admin: download audit log as CSV."""
     logs = await db.execute(
         select(AuditLog)
-        .order_by(AuditLog.created_at.desc())
+        .order_by(AuditLog.timestamp.desc())
         .limit(limit)
     )
     records = logs.scalars().all()
@@ -165,7 +165,7 @@ async def export_audit_csv(
             r.resource or "",
             r.resource_id or "",
             r.status or "",
-            r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "",
+            r.timestamp.strftime("%Y-%m-%d %H:%M:%S") if r.timestamp else "",
         ]
         for r in records
     ]

@@ -1,6 +1,7 @@
 """Task system REST API — Module T."""
 
 import logging
+from datetime import datetime
 from typing import List, Optional
 from decimal import Decimal
 
@@ -29,7 +30,7 @@ class TaskCategoryResponse(BaseModel):
     color: Optional[str]
     sort_order: int
     is_active: bool
-    created_at: str
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -48,14 +49,14 @@ class TaskResponse(BaseModel):
     max_completions: int
     vit_reward: float
     xp_reward: int
-    expires_at: Optional[str]
+    expires_at: Optional[datetime] = None
     icon: Optional[str]
     color: Optional[str]
     is_featured: bool
     requirements: dict
     action_url: Optional[str] = None
     action_label: Optional[str] = None
-    created_at: str
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -69,8 +70,8 @@ class UserTaskCompletionResponse(BaseModel):
     required_progress: int
     is_completed: bool
     completed_count: int
-    last_completed_at: Optional[str]
-    next_reset_at: Optional[str]
+    last_completed_at: Optional[datetime] = None
+    next_reset_at: Optional[datetime] = None
     total_vit_earned: float
     total_xp_earned: int
 
