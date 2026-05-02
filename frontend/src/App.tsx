@@ -44,6 +44,7 @@ const ResetPasswordPage   = lazy(() => import("@/pages/reset-password"));
 const VerifyEmailPage     = lazy(() => import("@/pages/verify-email"));
 const OfferwallPage       = lazy(() => import("@/pages/offerwall"));
 const AgentsPage          = lazy(() => import("@/pages/agents"));
+const ReportsPage         = lazy(() => import("@/pages/reports"));
 
 function RouteFallback() {
   return (
@@ -185,6 +186,9 @@ function Router() {
       </Route>
       <Route path="/agents">
         <Layout><ProtectedRoute component={AgentsPage} /></Layout>
+      </Route>
+      <Route path="/reports">
+        <Layout><ProtectedRoute component={ReportsPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />

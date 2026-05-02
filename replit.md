@@ -1,7 +1,7 @@
 # VIT Sports Intelligence Network
 
 ## Overview
-The VIT Sports Intelligence Network is an institutional-grade football prediction platform. It utilizes a 12-model AI ensemble for predictions, integrates a VITCoin wallet economy, supports blockchain-verified staking, features a model marketplace, and includes a governance DAO. The platform offers multi-tier subscriptions (Free, Pro, Elite) and aims to provide advanced sports analytics and prediction capabilities, leveraging real historical match data for training and improved weight calculation methods.
+The VIT Sports Intelligence Network is an institutional-grade football prediction platform (v4.7.5). It utilizes a 12-model AI ensemble for predictions, integrates a VITCoin wallet economy, supports blockchain-verified staking, features a model marketplace, and includes a governance DAO. The platform offers multi-tier subscriptions (Free, Pro, Elite) and provides advanced sports analytics, real-time live match tracking, and AI agent intelligence reports.
 
 ## User Preferences
 I prefer iterative development with a focus on clear, modular code. Please use functional programming paradigms where appropriate and provide detailed explanations for significant architectural decisions or complex algorithms. Ask before making major changes to the project structure or core functionalities.
@@ -10,41 +10,88 @@ I prefer iterative development with a focus on clear, modular code. Please use f
 The platform is built with a microservices-oriented approach.
 
 **Backend:**
-- **Core Technology:** Python 3.11 with FastAPI, SQLAlchemy for asynchronous ORM, and Alembic for database migrations.
-- **Server:** Uvicorn serves the application on port 5000.
-- **Database:** PostgreSQL for production, SQLite for development.
-- **AI Orchestrator:** Manages a 12-model AI ensemble, loading trained `.pkl` weights and per-model calibrators. It incorporates a CLV-blended weight adjuster for dynamic model contribution updates.
+- **Core Technology:** Python 3.11 with FastAPI, SQLAlchemy for asynchronous ORM.
+- **Server:** Uvicorn serves the application on port 8000, Vite dev server on port 5000.
+- **Database:** SQLite (dev), PostgreSQL (prod). Models in `app/db/models.py`.
+- **AI Orchestrator:** Manages a 12-model AI ensemble, loading trained `.pkl` weights and per-model calibrators. CLV-blended weight adjuster for dynamic model contribution updates.
+- **Multi-Provider AI Client:** `app/services/ai_client.py` — shared `call_ai()` with cascade: Gemini → Claude → OpenAI → xAI (grok). Rate-limit awareness and automatic fallback.
 - **Authentication:** JWT and TOTP for secure authentication, including 2FA with DB-backed token revocation and brute-force protection.
 - **Prediction System:** Dynamically determines best bet sides, consensus probabilities, and model probabilities for various markets.
-- **Settlement Pipeline:** Processes match results, updates prediction outcomes (`was_correct`, `settled_profit`), and handles CLV attribution.
-- **Notification System:** Multi-channel notification dispatch supporting email (HTML templates), Telegram DMs (per-user), and in-app WebSockets.
-- **Referral System:** Credits referrers with VITCoin on confirmed deposits or subscriptions.
-- **KYC CloudChain:** Admin-controlled identity verification with document data collection and approval/rejection workflows.
-- **Error Handling:** Backend endpoint for logging frontend client-side errors.
+- **Settlement Pipeline:** `app/services/results_settler.py` — processes match results, updates `was_correct`, `settled_profit`, CLV attribution, bankroll updates.
+- **Notification System:** Multi-channel: email (HTML templates), Telegram DMs (per-user), in-app WebSockets.
+- **IoT Stream:** `app/iot/processor.py` — `store_and_broadcast()` sends events to all connected WebSocket clients.
+
+**Autonomous Agent System (21 agents):**
+All agents inherit from `app/agents/base.py:BaseAgent` and are registered in `app/agents/coordinator.py`.
+
+| Agent | Interval | Purpose |
+|---|---|---|
+| `live-match-tracker` | 60s | IN_PLAY match detection, live score updates, IoT broadcasts |
+| `match-scout` | 10m | Pre-match (48h window, 5/cycle) + live tactical AI briefs |
+| `news-sentinel` | 20m | Injury scraping + impact analysis (3 teams/cycle) |
+| `odds-anomaly` | 15m | Odds movement detection + AI explanation |
+| `analytics-reporter` | 24h | Daily brief + Monday weekly deep-dive |
+| `ai-source-ranker` | 1h | Rank AI prediction sources by accuracy |
+| `performance-monitor` | 30m | Model accuracy tracking |
+| `weight-optimizer` | 6h | Dynamic model weight adjustment |
+| `retrain-trigger` | 6h | Trigger retraining when accuracy drops |
+| `data-pipeline` | 1h | Fetch & upsert fixtures, odds, injuries |
+| `prediction-generator` | 30m | Generate predictions for upcoming matches |
+| `accumulator-publisher` | 4h | Publish accumulator bets |
+| `settlement-checker` | 5m | Check and settle finished matches |
+| `revenue-optimizer` | 24h | Revenue analytics |
+| `governance-executor` | 1h | Execute governance proposals |
+| `self-healing` | 15m | Restart failed processes |
+| `audit-sentinel` | 1h | Security audit logging |
+| `prediction-moderator` | 1h | Flag suspicious predictions |
+
+API endpoints:
+- `GET /agents/status` — full agent status
+- `GET /agents/summary` — lightweight health summary
+- `POST /agents/trigger/{name}` — manual trigger
+- `GET /agents/providers` — AI provider status
+- `GET /agents/result/{name}` — last result for agent
+- `GET /agents/reports` — recent AgentInsight feed (filterable)
+- `GET /agents/live-scores` — current live match scores from DB
 
 **Frontend:**
-- **Core Technology:** React 18, TypeScript, Vite, TailwindCSS, and ShadCN UI.
-- **Build Output:** Located in `frontend/dist/` and served by the FastAPI application.
-- **UI/UX:** Utilizes ShadCN UI for a modern, responsive design with clear error states and accessibility features (ARIA labels, error banners).
-- **Navigation:** Comprehensive sidebar and mobile bottom navigation across key application areas (Bet, Earn, Pro, Network, You).
-- **Components:** Includes a shared `EmptyState` component for various no-data scenarios.
-- **Performance:** Implements `@tanstack/react-virtual` for list virtualization where applicable.
-- **Notifications UI:** User interface for managing notification preferences, including Telegram linking (deep-link and manual entry) and testing.
-- **Analytics:** Displays ROI, CLV, and per-model performance charts.
-- **Admin Panel:** Features for ML Calibration, Manual Settlement, Global Accumulator, Audit Log, Fixture Ecosystem Health, and CSV uploads.
-- **Predictions Page:** Enhanced "Results vs Predictions" view with WIN/LOSS/PENDING badges and detailed comparison ledger.
-- **AI Assistant:** Conversational AI assistant integrated into match-detail pages for context-aware answers.
+- **Core Technology:** React 19, TypeScript, Vite, TailwindCSS 4, ShadCN UI. Runs on port 5000.
+- **Routing:** `wouter` — all routes in `frontend/src/App.tsx`.
+- **State:** `@tanstack/react-query` for server state. `vitWS` singleton for WebSocket.
+- **Key Pages:**
+  - `/matches` — Intelligence Feed with live/upcoming/completed match cards
+  - `/reports` — Real-time AI agent intelligence dashboard (live scores, expandable reports)
+  - `/agents` — Agent system monitor
+  - `/match/:id` — Match detail with AI insight comparison (4 providers inc. Puter)
+  - `/ai-sources` — Admin AI source management (upcoming/live only, no past fixtures)
+- **Puter AI:** Browser-side free Claude via Puter.js at `frontend/src/lib/puter-ai.ts`
+- **WebSocket:** `frontend/src/lib/websocket.ts` — `vitWS.on("notification", cb)` for live events
 
-**Testing:**
-- **Unit/Integration Tests:** Utilizes Vitest and React Testing Library for comprehensive testing of frontend components and API client logic.
+## Agent Intelligence Data Flow
+1. Agent `run_cycle()` → calls `call_ai(prompt)` → stores `AgentInsight` in DB → broadcasts via `store_and_broadcast()`
+2. Frontend `reports.tsx` polls `GET /agents/reports` every 30s + listens to `vitWS` for `live_score_update`/`goal_scored`/`ai_signal` events
+3. Live score ticker auto-populates from WebSocket events without page reload
 
 ## External Dependencies
-- **Football-Data.co.uk:** Source for historical match data.
-- **Resend.com:** Preferred API for email notifications.
-- **SMTP:** Fallback protocol for email notifications.
-- **Telegram Bot API:** For sending per-user direct messages and handling webhook interactions.
-- **Gemini API:** Integrated for the conversational AI Assistant.
-- **Stripe:** Used for subscription checkout and webhook processing.
-- **Paystack:** Used for NGN deposits.
-- **Redis:** Planned for advanced rate limiting.
-- **Anthropic API:** Planned for Claude insights.
+- **Football-Data.org:** Live and finished match data (v4 API)
+- **Transfermarkt:** Injury data (scraped)
+- **Resend.com / SMTP:** Email notifications
+- **Telegram Bot API:** Per-user DMs and webhooks
+- **Gemini API:** Primary AI (free tier, `GEMINI_API_KEY`)
+- **Anthropic API:** Claude fallback (`CLAUDE_API_KEY`)
+- **OpenAI API:** Third fallback (`OPENAI_API_KEY`)
+- **xAI (Grok):** Fourth fallback (`XAI_API_KEY`)
+- **Puter.js:** Browser-side free AI (no key needed)
+- **Stripe:** Subscription checkout (`STRIPE_WEBHOOK_SECRET`)
+- **Paystack:** NGN deposits (`PAYSTACK_WEBHOOK_SECRET`)
+
+## Key Files
+- `main.py` — FastAPI app entry point, mounts all routers
+- `app/agents/coordinator.py` — Agent registry and lifecycle manager
+- `app/services/ai_client.py` — Shared multi-provider AI cascade
+- `app/services/results_settler.py` — Match settlement pipeline
+- `app/db/models.py` — All SQLAlchemy models
+- `frontend/src/App.tsx` — All frontend routes
+- `frontend/src/lib/websocket.ts` — WS singleton `vitWS`
+- `frontend/src/lib/puter-ai.ts` — Puter browser AI
+- `scripts/start_fullstack.sh` — Dev startup script

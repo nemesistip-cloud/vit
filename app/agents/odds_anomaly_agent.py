@@ -123,12 +123,14 @@ class OddsAnomalyAgent(BaseAgent):
 
         curr_odds: Dict[int, Dict] = {}
         for match, pred in pairs:
-            if pred.home_odds and pred.away_odds:
+            h = match.opening_odds_home or match.closing_odds_home
+            a = match.opening_odds_away or match.closing_odds_away
+            if h and a:
                 curr_odds[match.id] = {
                     "home_team":  match.home_team,
                     "away_team":  match.away_team,
-                    "home_odds":  pred.home_odds,
-                    "away_odds":  pred.away_odds,
+                    "home_odds":  h,
+                    "away_odds":  a,
                     "match_id":   match.id,
                 }
 

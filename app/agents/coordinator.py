@@ -61,6 +61,7 @@ class AgentCoordinator:
         from app.agents.self_healing_agent           import SelfHealingAgent
         from app.agents.audit_sentinel_agent         import AuditSentinelAgent
         from app.agents.prediction_moderator_agent   import PredictionModeratorAgent
+        from app.agents.live_match_tracker_agent     import LiveMatchTrackerAgent
 
         self._agents = {
             # ── ML performance agents ────────────────────────────────────
@@ -85,6 +86,8 @@ class AgentCoordinator:
             "self-healing":             SelfHealingAgent(),
             "audit-sentinel":           AuditSentinelAgent(),
             "prediction-moderator":     PredictionModeratorAgent(),
+            # ── Real-time tracking ───────────────────────────────────────
+            "live-match-tracker":       LiveMatchTrackerAgent(),
         }
         self._tasks: List[asyncio.Task] = []
         self._started_at = datetime.now(timezone.utc)
