@@ -144,6 +144,22 @@ The CLV-Blended Accountability dashboard (`/admin` → Accountability tab) track
 - `BOOTSTRAP_LIVE_THRESHOLD=5` — minimum predictions to treat metrics as "live"
 - Frontend shows `~` prefix and `est` label on bootstrapped metrics; Bootstrap + Reactivate buttons in accountability card header
 
+## Phase 1 — Sealed Cracks (completed 2026-05-02)
+
+### 1. Real Email Delivery
+- **`app/services/email_service.py`** — Added `send_verification_email()` and `send_password_reset_email()` with VIT-branded HTML, CTA button, and TTL info. Both try Resend first (`RESEND_API_KEY`), fall back to SMTP (`SMTP_HOST`), fall back to console log in dev.
+- **`app/auth/verification.py`** — Replaced the old `_send_email` stub with direct calls to the above. Imports `send_verification_email`, `send_password_reset_email` from `email_service`. Dev mode exposes `dev_token` + `dev_link` in the response only when neither transport is configured.
+
+### 2. Retraining Pipeline
+- **`app/tasks/retraining.py`** — Replaced the log-only stub. `run_training_subprocess()` is an `async` function that launches `scripts/train_models.py` via `asyncio.create_subprocess_exec()`, streams stdout to the logger in real-time, and returns a structured `{status, returncode, stdout_tail, started_at, finished_at}` dict. Celery task (`retrain_models_task`) wraps it synchronously when Celery is available. `_AsyncShimTask` fires it as a `loop.create_task()` when Celery is absent. `retrain_trigger` agent continues to use `.delay()` — works in both modes.
+
+### 3. Offerwall Completion Endpoint
+- **`app/modules/rewards/routes.py`** — Added `POST /api/rewards/complete/{offer_id}`. Idempotency: one-time categories (`onboarding`, `activity`, `referral`, `education`) = one claim ever; daily categories (`streak`, `survey`, `quiz`) = one claim per UTC calendar day. Uses `sha256(internal:{user_id}:{offer_id}:{window})` as the `provider_payload_hash` idempotency key. Credits VITCoin via `WalletService.deposit_vitcoin()`, creates `OfferCompletion` with `status="confirmed"`, `provider="internal"`. Returns `409` on duplicate claim.
+- **Schema fix:** `offer_completions.updated_at` was NOT NULL with no INSERT default — fixed by passing `updated_at=now` explicitly on create. `email_tokens.used_at` column was missing from DB — fixed with `ALTER TABLE email_tokens ADD COLUMN used_at DATETIME`.
+
+### 4. Leaderboard XP + Streak Settlement
+- **`app/services/results_settler.py`** — Both settlement paths (`settle_results` and `settle_completed_db_matches`) now update the user record after each prediction is settled: `+50 XP` on win, `+10 XP` on loss, `current_streak += 1` on win (reset to 0 on loss), `best_streak` updated if exceeded. All wrapped in try/except so a DB error here is non-fatal to settlement. `User` model imported at the top.
+
 ## Key Files
 - `main.py` — FastAPI app entry point, mounts all routers
 - `app/agents/coordinator.py` — Agent registry and lifecycle manager

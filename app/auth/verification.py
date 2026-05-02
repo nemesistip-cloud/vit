@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.db.models import User, EmailToken
 from app.auth.jwt_utils import hash_password
+from app.services.email_service import send_verification_email, send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -34,28 +35,10 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def _send_email(to: str, subject: str, body: str) -> None:
-    """Stub — replace with Resend / SMTP transport when ready."""
-    smtp_host = os.getenv("SMTP_HOST", "")
-    if smtp_host:
-        try:
-            import smtplib
-            import email.mime.text as _mime
-            msg = _mime.MIMEText(body, "html")
-            msg["Subject"] = subject
-            msg["From"] = os.getenv("SMTP_FROM", "noreply@vit.network")
-            msg["To"] = to
-            with smtplib.SMTP(smtp_host, int(os.getenv("SMTP_PORT", "587"))) as s:
-                if os.getenv("SMTP_USER"):
-                    s.starttls()
-                    s.login(os.getenv("SMTP_USER", ""), os.getenv("SMTP_PASS", ""))
-                s.send_message(msg)
-        except Exception as exc:
-            import logging
-            logging.getLogger(__name__).warning(f"Email send failed: {exc}")
-    else:
-        import logging
-        logging.getLogger(__name__).info(f"[email stub] TO={to} SUBJECT={subject}")
+async def _send_email_stub(to: str, subject: str, body: str) -> None:
+    """Kept for backward compatibility — new callers use email_service directly."""
+    import logging
+    logging.getLogger(__name__).info(f"[email-stub-fallback] TO={to} SUBJECT={subject}")
 
 
 async def _store_token(
@@ -127,17 +110,17 @@ async def send_verification(body: SendVerificationRequest, db: AsyncSession = De
     token = _make_token()
     await _store_token(db, user.id, "verify", token, _TOKEN_TTL_HOURS)
 
-    base_url = os.getenv("FRONTEND_URL", "")
+    base_url = os.getenv("FRONTEND_URL", "").rstrip("/")
     link = f"{base_url}/verify-email?token={token}"
-    await _send_email(
-        user.email,
-        "Verify your VIT Network email",
-        f"<p>Click the link to verify your email:</p><p><a href='{link}'>{link}</a></p>"
-        f"<p>This link expires in {_TOKEN_TTL_HOURS} hours.</p>",
+    await send_verification_email(
+        to_email=user.email,
+        username=user.username or "",
+        verification_link=link,
+        ttl_hours=_TOKEN_TTL_HOURS,
     )
 
     response: dict = {"message": "Verification email sent (check spam if not received)."}
-    if not os.getenv("SMTP_HOST"):
+    if not os.getenv("RESEND_API_KEY") and not os.getenv("SMTP_HOST"):
         response["dev_token"] = token
         response["dev_link"] = link
     return response
@@ -183,17 +166,17 @@ async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depend
     token = _make_token()
     await _store_token(db, user.id, "reset", token, _RESET_TTL_HOURS)
 
-    base_url = os.getenv("FRONTEND_URL", "")
+    base_url = os.getenv("FRONTEND_URL", "").rstrip("/")
     link = f"{base_url}/reset-password?token={token}"
-    await _send_email(
-        user.email,
-        "Reset your VIT Network password",
-        f"<p>Click the link to reset your password:</p><p><a href='{link}'>{link}</a></p>"
-        f"<p>This link expires in {_RESET_TTL_HOURS} hours. If you did not request this, ignore this email.</p>",
+    await send_password_reset_email(
+        to_email=user.email,
+        username=user.username or "",
+        reset_link=link,
+        ttl_hours=_RESET_TTL_HOURS,
     )
 
     response: dict = {"message": "Password reset link sent (check spam if not received)."}
-    if not os.getenv("SMTP_HOST"):
+    if not os.getenv("RESEND_API_KEY") and not os.getenv("SMTP_HOST"):
         response["dev_token"] = token
         response["dev_link"] = link
     return response

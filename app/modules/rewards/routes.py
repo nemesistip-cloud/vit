@@ -1,18 +1,21 @@
 """User-facing offerwall & reward history endpoints."""
 from __future__ import annotations
 
+import hashlib
 import logging
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.modules.rewards.models import OfferCompletion
+from app.modules.wallet.services import WalletService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rewards", tags=["Rewards"])
@@ -178,4 +181,131 @@ async def rewards_summary(
         "total_earned_vitcoin": float(row.total),
         "completed_offers": int(row.count),
         "available_offers": len([o for o in _OFFERS if o["status"] == "active"]),
+    }
+
+
+# ── Offer completion (user-facing, no external postback) ─────────────────────
+
+def _offer_payload_hash(user_id: int, offer_id: str, window: str) -> str:
+    """
+    Deterministic hash used as the idempotency key for internal offer completions.
+
+    `window` is a date string (YYYY-MM-DD) for daily/streak offers, or "once"
+    for one-time offers — this lets the same user re-earn daily offers on
+    different calendar days while still preventing double-claims on the same day.
+    """
+    raw = f"internal:{user_id}:{offer_id}:{window}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+_ONE_TIME_CATEGORIES = {"onboarding", "activity", "referral", "education"}
+_DAILY_CATEGORIES    = {"streak", "survey", "quiz"}
+
+
+@router.post("/complete/{offer_id}")
+async def complete_offer(
+    offer_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mark an internal offer as completed and credit VITCoin to the user's wallet.
+
+    Idempotency rules:
+    - One-time categories (onboarding, activity, referral, education):
+      one completion per user ever.
+    - Daily / repeatable categories (streak, survey, quiz):
+      one completion per calendar day (UTC).
+    """
+    offer = next((o for o in _OFFERS if o["id"] == offer_id and o["status"] == "active"), None)
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found or not active.")
+
+    category = offer["category"]
+    today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    if category in _ONE_TIME_CATEGORIES:
+        window = "once"
+    else:
+        window = today_utc
+
+    payload_hash = _offer_payload_hash(current_user.id, offer_id, window)
+
+    existing = await db.execute(
+        select(OfferCompletion).where(
+            and_(
+                OfferCompletion.user_id == current_user.id,
+                OfferCompletion.provider == "internal",
+                OfferCompletion.provider_payload_hash == payload_hash,
+            )
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Offer already completed for today."
+                if window != "once"
+                else "You have already completed this offer."
+            ),
+        )
+
+    amount = Decimal(str(offer["reward_vitcoin"]))
+
+    now = datetime.now(timezone.utc)
+    completion = OfferCompletion(
+        user_id=current_user.id,
+        provider="internal",
+        reward_type=category,
+        provider_offer_id=offer_id,
+        provider_event_id=f"{offer_id}:{current_user.id}:{window}",
+        status="pending",
+        amount=amount,
+        currency="VITCoin",
+        reward_margin=0.0,
+        provider_payload={"offer_id": offer_id, "window": window},
+        provider_payload_hash=payload_hash,
+        provider_signature=None,
+        event_metadata={"source": "user_claim", "offer_title": offer["title"]},
+        updated_at=now,
+    )
+    db.add(completion)
+    await db.flush()
+
+    try:
+        wallet = WalletService(db)
+        tx = await wallet.deposit_vitcoin(
+            user_id=current_user.id,
+            amount=amount,
+            description=f"Offer reward: {offer['title']}",
+            tx_type="reward",
+            metadata={
+                "offer_completion_id": completion.id,
+                "offer_id": offer_id,
+                "provider": "internal",
+            },
+        )
+        completion.wallet_tx_id = str(tx.id) if tx else None
+        completion.status = "confirmed"
+        logger.info(
+            "[rewards] User %d completed offer '%s' → +%s VITCoin",
+            current_user.id, offer_id, amount,
+        )
+    except Exception as exc:
+        completion.status = "failed"
+        completion.event_metadata["credit_error"] = str(exc)
+        await db.commit()
+        logger.error("[rewards] Wallet credit failed for offer '%s': %s", offer_id, exc)
+        raise HTTPException(status_code=500, detail="Wallet credit failed — please try again.")
+
+    await db.commit()
+    await db.refresh(completion)
+
+    return {
+        "offer_id": offer_id,
+        "offer_title": offer["title"],
+        "vitcoin_earned": float(amount),
+        "status": completion.status,
+        "completion_id": completion.id,
+        "message": f"Congratulations! You earned {float(amount):.1f} VITCoin.",
     }

@@ -25,7 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db, AsyncSessionLocal
-from app.db.models import Match, Prediction, CLVEntry
+from app.db.models import Match, Prediction, CLVEntry, User
 from app.services.clv_tracker import CLVTracker
 
 logger = logging.getLogger(__name__)
@@ -393,6 +393,25 @@ async def settle_results(days_back: int = 2) -> dict:
                     prediction.settled_profit = profit
                     match_profit += profit
 
+                    # ── XP + streak update ─────────────────────────────
+                    if prediction.user_id:
+                        try:
+                            u_res = await db.execute(
+                                select(User).where(User.id == prediction.user_id)
+                            )
+                            u = u_res.scalar_one_or_none()
+                            if u:
+                                xp_gain = 50 if won else 10
+                                u.total_xp = (u.total_xp or 0) + xp_gain
+                                if won:
+                                    u.current_streak = (u.current_streak or 0) + 1
+                                    if u.current_streak > (u.best_streak or 0):
+                                        u.best_streak = u.current_streak
+                                else:
+                                    u.current_streak = 0
+                        except Exception as xe:
+                            logger.warning("[settle] XP update failed (non-fatal): %s", xe)
+
                     side_odds = (
                         {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)
                         or odds
@@ -562,6 +581,25 @@ async def settle_completed_db_matches() -> dict:
                     # Stamp correctness directly on the prediction row
                     prediction.was_correct = won
                     prediction.settled_profit = profit
+
+                    # ── XP + streak update ─────────────────────────────
+                    if prediction.user_id:
+                        try:
+                            u_res = await db.execute(
+                                select(User).where(User.id == prediction.user_id)
+                            )
+                            u = u_res.scalar_one_or_none()
+                            if u:
+                                xp_gain = 50 if won else 10
+                                u.total_xp = (u.total_xp or 0) + xp_gain
+                                if won:
+                                    u.current_streak = (u.current_streak or 0) + 1
+                                    if u.current_streak > (u.best_streak or 0):
+                                        u.best_streak = u.current_streak
+                                else:
+                                    u.current_streak = 0
+                        except Exception as xe:
+                            logger.warning("[settle_db] XP update failed (non-fatal): %s", xe)
 
                     side_odds = (
                         {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)

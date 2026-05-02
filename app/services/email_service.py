@@ -229,3 +229,89 @@ async def send_test_email(to_email: str, username: str) -> bool:
             "If you received this, your email notifications are working correctly."
         ),
     )
+
+
+# ── Auth email helpers ─────────────────────────────────────────────────────────
+
+def _cta_button(label: str, url: str) -> str:
+    return (
+        f'<div style="text-align:center;margin:28px 0;">'
+        f'<a href="{url}" style="background:{_PRIMARY};color:#000;text-decoration:none;'
+        f'font-weight:700;font-size:14px;padding:14px 36px;border-radius:6px;'
+        f'display:inline-block;letter-spacing:0.5px;">{label}</a></div>'
+        f'<p style="text-align:center;font-size:11px;color:#555;margin:0;">'
+        f'Or copy this link: <span style="color:{_PRIMARY};">{url}</span></p>'
+    )
+
+
+async def send_verification_email(
+    to_email: str,
+    username: str,
+    verification_link: str,
+    ttl_hours: int = 24,
+) -> bool:
+    """Send a branded email-verification link."""
+    title = "Verify your VIT Network email"
+    body_html = f"""
+    <p style="margin:0 0 12px;color:#c0c0d8;">Hi {username or 'there'},</p>
+    <p style="color:#a0a0b8;font-size:14px;line-height:1.7;margin:0 0 8px;">
+      You're almost there! Click the button below to verify your email address
+      and unlock full access to the VIT Sports Intelligence Network.
+    </p>
+    {_cta_button("Verify Email Address", verification_link)}
+    <p style="color:#666;font-size:12px;margin:16px 0 0;">
+      This link expires in {ttl_hours} hours. If you didn't create a VIT account, you can safely ignore this email.
+    </p>
+    """
+    subject = "🔐 Verify your VIT Network email"
+    html = _html_wrapper(title, body_html)
+
+    if os.getenv("RESEND_API_KEY"):
+        if await _send_via_resend(to_email, subject, html):
+            return True
+    if os.getenv("SMTP_HOST"):
+        if await _send_via_smtp(to_email, subject, html):
+            return True
+
+    logger.info(
+        "[email-dev] Verification email NOT SENT (no transport) "
+        f"TO={to_email} LINK={verification_link}"
+    )
+    return False
+
+
+async def send_password_reset_email(
+    to_email: str,
+    username: str,
+    reset_link: str,
+    ttl_hours: int = 2,
+) -> bool:
+    """Send a branded password-reset link."""
+    title = "Reset your VIT Network password"
+    body_html = f"""
+    <p style="margin:0 0 12px;color:#c0c0d8;">Hi {username or 'there'},</p>
+    <p style="color:#a0a0b8;font-size:14px;line-height:1.7;margin:0 0 8px;">
+      We received a request to reset the password for your VIT Network account.
+      Click the button below to choose a new password.
+    </p>
+    {_cta_button("Reset My Password", reset_link)}
+    <p style="color:#666;font-size:12px;margin:16px 0 0;">
+      This link expires in {ttl_hours} hours. If you didn't request a password reset,
+      no action is needed — your account is still secure.
+    </p>
+    """
+    subject = "🔑 Reset your VIT Network password"
+    html = _html_wrapper(title, body_html)
+
+    if os.getenv("RESEND_API_KEY"):
+        if await _send_via_resend(to_email, subject, html):
+            return True
+    if os.getenv("SMTP_HOST"):
+        if await _send_via_smtp(to_email, subject, html):
+            return True
+
+    logger.info(
+        "[email-dev] Password reset email NOT SENT (no transport) "
+        f"TO={to_email} LINK={reset_link}"
+    )
+    return False
