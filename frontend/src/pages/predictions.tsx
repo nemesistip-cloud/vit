@@ -13,6 +13,7 @@ import { apiGet } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -404,9 +405,7 @@ function ResultsComparison() {
       )}
 
       {!isLoading && !isError && items.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground font-mono border border-dashed border-border rounded-lg">
-          No predictions with a selected side yet.
-        </div>
+        <EmptyState title="No predictions with a selected side yet." />
       )}
 
       {/* Table */}

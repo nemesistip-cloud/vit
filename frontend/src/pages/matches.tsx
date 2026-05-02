@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PremiumMatchCard } from "@/components/PremiumMatchCard";
+import { EmptyState } from "@/components/empty-state";
 import { Search, Zap, Clock, RefreshCw, CalendarDays, Radio, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -234,22 +235,16 @@ export default function MatchesPage() {
           </Button>
         </div>
       ) : upcoming.length === 0 && recent.length === 0 && completed.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-8 text-center space-y-4">
-          <Clock className="w-10 h-10 text-muted-foreground mx-auto" />
-          <p className="font-mono text-sm text-muted-foreground uppercase tracking-wider">No match data loaded yet.</p>
-          <p className="font-mono text-xs text-muted-foreground max-w-sm mx-auto">
-            Click "Sync Fixtures" to load upcoming matches for the next {daysFilter} days.
-          </p>
-          <Button
-            size="sm"
-            className="font-mono gap-2 mx-auto"
-            onClick={handleSync}
-            disabled={syncMutation.isPending}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-            {syncMutation.isPending ? "Loading fixtures..." : "Load Fixtures Now"}
-          </Button>
-        </div>
+        <EmptyState
+          icon={Clock}
+          title="No match data loaded yet."
+          description={`Click "Load Fixtures Now" to fetch upcoming matches for the next ${daysFilter} days.`}
+          action={{
+            label: syncMutation.isPending ? "Loading fixtures..." : "Load Fixtures Now",
+            onClick: handleSync,
+            loading: syncMutation.isPending,
+          }}
+        />
       ) : matches.length > 0 ? (
         <>
           {statusFilter !== "completed" && upcoming.length > 0 && (
@@ -277,11 +272,11 @@ export default function MatchesPage() {
           </div>
         </>
       ) : (
-        <div className="rounded-lg border border-dashed border-border p-6 text-center space-y-2">
-          <Search className="w-8 h-8 text-muted-foreground mx-auto" />
-          <p className="font-mono text-sm text-muted-foreground">No matches for the selected filters.</p>
-          <p className="font-mono text-xs text-muted-foreground/60">Try adjusting the league, status, or date range filter.</p>
-        </div>
+        <EmptyState
+          icon={Search}
+          title="No matches for the selected filters."
+          description="Try adjusting the league, status, or date range filter."
+        />
       )}
     </div>
   );

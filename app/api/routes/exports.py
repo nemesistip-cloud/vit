@@ -15,6 +15,7 @@ from app.db.models import Prediction, Match, AuditLog
 from app.api.deps import get_current_user
 from app.auth.dependencies import get_current_admin
 from app.db.models import User
+from app.modules.wallet.models import WalletTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -171,4 +172,93 @@ async def export_audit_csv(
 
     response = _csv_stream(headers, rows)
     response.headers["Content-Disposition"] = "attachment; filename=audit_log.csv"
+    return response
+
+
+@router.get("/analytics/csv")
+async def export_analytics_csv(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download personal analytics summary as CSV (predictions with outcome data)."""
+    preds = await db.execute(
+        select(Prediction, Match)
+        .join(Match, Prediction.match_id == Match.id, isouter=True)
+        .where(Prediction.user_id == current_user.id)
+        .order_by(Prediction.timestamp.desc())
+        .limit(5000)
+    )
+    rows_raw = preds.all()
+
+    headers = [
+        "Date", "Match", "League", "Kickoff",
+        "Bet Side", "Actual Outcome", "Was Correct",
+        "Entry Odds", "Edge %", "CLV", "EV",
+        "Profit/Loss", "Confidence %",
+    ]
+
+    rows = []
+    for pred, match in rows_raw:
+        match_name = f"{match.home_team} vs {match.away_team}" if match else "Unknown"
+        was_correct = ""
+        if getattr(pred, "was_correct", None) is not None:
+            was_correct = "YES" if pred.was_correct else "NO"
+        rows.append([
+            pred.timestamp.strftime("%Y-%m-%d %H:%M:%S") if pred.timestamp else "",
+            match_name,
+            match.league if match else "",
+            match.kickoff_time.strftime("%Y-%m-%d %H:%M") if match and match.kickoff_time else "",
+            pred.bet_side or "",
+            match.actual_outcome if match else "",
+            was_correct,
+            round(pred.entry_odds or 0, 2),
+            round((pred.vig_free_edge or 0) * 100, 2),
+            round(getattr(pred, "clv", None) or 0, 4),
+            round(pred.final_ev or 0, 4),
+            round(getattr(pred, "settled_profit", None) or 0, 2),
+            round((pred.confidence or 0) * 100, 1),
+        ])
+
+    response = _csv_stream(headers, rows)
+    response.headers["Content-Disposition"] = "attachment; filename=analytics.csv"
+    return response
+
+
+@router.get("/wallet/csv")
+async def export_wallet_csv(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download personal wallet transaction history as CSV."""
+    txs = await db.execute(
+        select(WalletTransaction)
+        .where(WalletTransaction.user_id == current_user.id)
+        .order_by(WalletTransaction.created_at.desc())
+        .limit(5000)
+    )
+    records = txs.scalars().all()
+
+    headers = [
+        "Date", "Type", "Currency", "Amount", "Direction",
+        "Fee Amount", "Fee Currency", "Status", "Reference", "Processed At",
+    ]
+
+    rows = [
+        [
+            r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "",
+            r.type,
+            r.currency,
+            str(r.amount),
+            r.direction,
+            str(r.fee_amount),
+            r.fee_currency or "",
+            r.status,
+            r.reference or "",
+            r.processed_at.strftime("%Y-%m-%d %H:%M:%S") if r.processed_at else "",
+        ]
+        for r in records
+    ]
+
+    response = _csv_stream(headers, rows)
+    response.headers["Content-Disposition"] = "attachment; filename=wallet-transactions.csv"
     return response

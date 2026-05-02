@@ -4,6 +4,7 @@ import { apiGet } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import { Trophy, TrendingUp, Zap, Target, Crown, Medal, Award } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -156,9 +157,11 @@ export default function LeaderboardPage() {
               })}
 
               {(data?.entries ?? []).length === 0 && (
-                <div className="py-12 text-center text-muted-foreground font-mono text-sm">
-                  No entries yet. Be the first to make predictions!
-                </div>
+                <EmptyState
+                  icon={Trophy}
+                  title="No entries yet."
+                  description="Be the first to make predictions!"
+                />
               )}
             </div>
           )}

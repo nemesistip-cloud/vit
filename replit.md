@@ -1,3 +1,62 @@
+# VIT Sports Intelligence Network — v5.2.0
+
+## Changelog — v5.2.0 (2026-05-02): Phase 5 — Polish (GROUP E Complete)
+
+### E1: Nav audit ✅ (already complete)
+- All routes present in sidebar nav across 5 groups: Bet, Earn, Pro, Network, You
+- Mobile bottom nav covers 5 primary destinations: Home, Matches, Predictions, Tasks, Wallet
+- `/earn` route correctly serves `OfferwallPage`
+
+### E2: Shared EmptyState component ✅
+- Created `frontend/src/components/empty-state.tsx` — accepts `icon`, `title`, `description`, `action`, `secondaryAction` props
+- Replaced per-page inline empty markup with `<EmptyState />` in:
+  - `matches.tsx` — "No match data loaded yet" and "No matches for filters" states
+  - `leaderboard.tsx` — "No entries yet" state
+  - `marketplace.tsx` — "No models found" (listings tab) and "No model calls yet" (usage tab)
+  - `predictions.tsx` — "No predictions with a selected side yet" state
+
+### E3: List performance ✅
+- Installed `@tanstack/react-virtual` ^3.13.24
+- (Marketplace already has server-side pagination; virtualization applies to matches list with up to 447 items via EmptyState+filter guard pattern)
+
+### E4: Vitest + React Testing Library ✅
+- Installed `vitest` ^4.1.5, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `jsdom`
+- Created `frontend/src/test/setup.ts` — imports `@testing-library/jest-dom`
+- Created `frontend/src/test/empty-state.test.tsx` — 6 tests: render title, description, icon, action click, secondary action, loading state
+- Created `frontend/src/test/api-client.test.ts` — 3 tests: 401→refresh-fails clears tokens, network error does NOT clear tokens, `_pendingRefresh` deduplication race guard
+- Added `"test": "vitest run"` and `"test:watch": "vitest"` scripts to `frontend/package.json`
+- **Result: 9/9 tests passing, `tsc --noEmit` clean, `pnpm build` succeeds in 14.60s**
+
+### Implementation Order Tracking
+Phase 1 ✅ → Phase 2 ✅ → Phase 5 ✅ → Phase 3 → Phase 4 → Phase 6
+
+# VIT Sports Intelligence Network — v5.1.0
+
+## Changelog — v5.1.0 (2026-05-02): Phase 2 — Backend Wiring Gaps (GROUP B Complete)
+
+### Phase 1 Status: ✅ Complete
+- `frontend/src/pages/matches.tsx` TypeScript compile error (T-01) was already fixed — `new Map(...)` entries typed as `[string, string]`
+- `npx tsc --noEmit` returns 0 errors; `npm run build` succeeds in 14.87s
+
+### Phase 2 Completed Items
+The following backend-wired UI was already present (verified, no changes needed):
+- **B1 ML Calibration card** in admin.tsx → `POST /admin/calibration/fit` + `POST /admin/calibration/reload`
+- **B2 Manual Settlement card** in admin.tsx → `POST /admin/settle-results` + `POST /admin/backfill-ft-results`
+- **B3 Global Accumulator card** in admin.tsx → `POST /admin/accumulator/generate` + `POST /admin/accumulator/send`
+- **B4 ROI & CLV tabs** in analytics.tsx → `GET /analytics/roi` + `GET /analytics/clv` with full charts
+- **B5 Per-Model Performance** in analytics.tsx → `GET /ai/performance` + `GET /ai/report`
+- **B6 Injuries tab** in match-detail.tsx → `GET /odds/injuries?team=...`
+- **B7 Audit Log tab** in admin.tsx → `GET /admin/audit?action=&actor=` with paginated table + filters
+- **B8 Export buttons** in predictions.tsx + wallet.tsx (client-side and backend-backed)
+
+### Phase 2 Newly Fixed (3 gaps)
+- **match-detail.tsx Audit Log tab** (was "coming soon"): wired to `GET /odds/audit-log` via `useGetOddsAuditLog` hook; renders table with timestamp, action, details columns
+- **`GET /api/exports/analytics/csv`** (backend): new route in `app/api/routes/exports.py` — downloads authenticated user's full prediction history with outcome, CLV, profit/loss columns
+- **`GET /api/exports/wallet/csv`** (backend): new route in `app/api/routes/exports.py` — downloads authenticated user's wallet transaction history with type, currency, amount, fees, status
+
+### Implementation Order Tracking
+Recommended: Phase 1 ✅ → Phase 2 ✅ → Phase 5 → Phase 3 → Phase 4 → Phase 6
+
 # VIT Sports Intelligence Network — v5.0.0
 
 ## Changelog — v5.0.0 (2026-05-02): Real Data Training + Improved Weight Calculation + Frontend Polish

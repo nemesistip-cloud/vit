@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   useGetMatch, useGetConsensusPrediction, useStakeOnPrediction, useGetWallet,
-  useGetOddsInjuries,
+  useGetOddsInjuries, useGetOddsAuditLog,
 } from "@/api-client";
 import { AIInsightComparison } from "@/components/AIInsightComparison";
 import { MatchAssistantCard } from "@/components/MatchAssistantCard";
@@ -26,6 +26,7 @@ export default function MatchDetailPage() {
   const { data: wallet } = useGetWallet();
   const stake = useStakeOnPrediction();
   const { data: injuries } = useGetOddsInjuries({ team: match?.home_team });
+  const { data: auditLog } = useGetOddsAuditLog();
 
   type StakeSide = "home" | "draw" | "away" | "over_25" | "under_25" | "btts_yes" | "btts_no";
   const [selectedSide, setSelectedSide] = useState<StakeSide | null>(null);
@@ -604,12 +605,44 @@ export default function MatchDetailPage() {
           <Card className="bg-card/50 backdrop-blur border-border">
             <CardHeader>
               <CardTitle className="font-mono uppercase">Odds Audit Log</CardTitle>
-              <CardDescription>Historical changes to odds and market data</CardDescription>
+              <CardDescription className="font-mono text-xs">
+                Historical admin actions on odds and market data
+                {auditLog?.total != null && (
+                  <span className="ml-2 text-muted-foreground/60">({auditLog.total} entries)</span>
+                )}
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Audit log feature coming soon
-              </div>
+            <CardContent className="p-0">
+              {!auditLog?.log?.length ? (
+                <div className="text-center py-8 text-muted-foreground font-mono text-sm">
+                  No audit entries found
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs font-mono">
+                    <thead>
+                      <tr className="border-b border-border/50 text-muted-foreground">
+                        <th className="text-left px-4 py-2 uppercase">Time</th>
+                        <th className="text-left px-4 py-2 uppercase">Action</th>
+                        <th className="text-left px-4 py-2 uppercase">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLog.log.map((entry: any, i: number) => (
+                        <tr key={i} className="border-b border-border/20 hover:bg-muted/10 transition-colors">
+                          <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">
+                            {entry.ts ? new Date(entry.ts).toLocaleString() : "—"}
+                          </td>
+                          <td className="px-4 py-2 text-primary font-bold uppercase">{entry.action ?? "—"}</td>
+                          <td className="px-4 py-2 text-muted-foreground truncate max-w-[260px]">
+                            {entry.details ? JSON.stringify(entry.details).slice(0, 80) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

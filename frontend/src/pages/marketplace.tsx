@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { BookOpen, FileCode2, ShoppingBag, Plus, Star, Zap, TrendingUp, BarChart2, DollarSign, Search } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -568,10 +569,11 @@ export default function MarketplacePage() {
               ))}
             </div>
           ) : listings.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p>No models found. Be the first to list one!</p>
-            </div>
+            <EmptyState
+              icon={ShoppingBag}
+              title="No models found."
+              description="Be the first to list one!"
+            />
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -606,10 +608,11 @@ export default function MarketplacePage() {
         {/* My Usage Tab */}
         <TabsContent value="my-usage">
           {!myUsage || myUsage.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Zap className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p>No model calls yet. Start by calling a model from the marketplace.</p>
-            </div>
+            <EmptyState
+              icon={Zap}
+              title="No model calls yet."
+              description="Start by calling a model from the marketplace."
+            />
           ) : (
             <div className="space-y-2">
               {myUsage.map((log) => (
