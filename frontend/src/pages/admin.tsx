@@ -172,136 +172,203 @@ function DashboardTab() {
   });
 
   const kpis = [
-    { label: "Total Users",    value: stats?.users ?? 0,         icon: Users,      color: "text-cyan-400" },
-    { label: "Total Matches",  value: stats?.matches ?? 0,        icon: BarChart2,  color: "text-purple-400" },
-    { label: "Training Jobs",  value: stats?.training_jobs ?? 0,  icon: Cpu,        color: "text-emerald-400" },
-    { label: "Active Plans",   value: stats?.active_plans ?? 0,   icon: CreditCard, color: "text-amber-400" },
+    {
+      label: "Total Users", value: stats?.users ?? 0, icon: Users,
+      gradient: "from-cyan-500/10 to-transparent", border: "border-cyan-500/20",
+      glow: "shadow-[0_0_20px_rgba(6,182,212,0.08)]", iconColor: "text-cyan-400",
+      valueCls: "text-cyan-400",
+    },
+    {
+      label: "Total Matches", value: stats?.matches ?? 0, icon: BarChart2,
+      gradient: "from-purple-500/10 to-transparent", border: "border-purple-500/20",
+      glow: "shadow-[0_0_20px_rgba(168,85,247,0.08)]", iconColor: "text-purple-400",
+      valueCls: "text-purple-300",
+    },
+    {
+      label: "Training Jobs", value: stats?.training_jobs ?? 0, icon: Cpu,
+      gradient: "from-emerald-500/10 to-transparent", border: "border-emerald-500/20",
+      glow: "shadow-[0_0_20px_rgba(52,211,153,0.08)]", iconColor: "text-emerald-400",
+      valueCls: "text-emerald-300",
+    },
+    {
+      label: "Active Plans", value: stats?.active_plans ?? 0, icon: CreditCard,
+      gradient: "from-amber-500/10 to-transparent", border: "border-amber-500/20",
+      glow: "shadow-[0_0_20px_rgba(245,158,11,0.08)]", iconColor: "text-amber-400",
+      valueCls: "text-amber-300",
+    },
   ];
 
-  if (sLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>;
+  if (sLoading) return (
+    <div className="flex justify-center py-20">
+      <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  const serviceRows = [
+    { label: "API Server",   ok: health?.api,                          optional: false, icon: Server },
+    { label: "Database",     ok: health?.database,                     optional: false, icon: Database },
+    { label: "Redis Cache",  ok: health?.redis === true,               optional: health?.redis === null, icon: Zap },
+    { label: "ML Models",    ok: (health?.models_loaded ?? 0) > 0,     optional: false, icon: Cpu, detail: health ? `${health.models_loaded} loaded` : undefined },
+    { label: "Football API", ok: health?.football_api === true,        optional: health?.football_api == null, limited: health?.football_api === "limited", icon: Globe },
+    { label: "Odds API",     ok: health?.odds_api === true,            optional: health?.odds_api == null, icon: TrendingUp },
+  ] as { label: string; ok: boolean; optional: boolean; limited?: boolean; icon: any; detail?: string }[];
 
   return (
-    <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-5">
+
+      {/* ── KPI Cards ───────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map(k => (
-          <Card key={k.label} className="bg-gray-900 border-gray-700">
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">{k.label}</span>
-                <k.icon className={`w-5 h-5 ${k.color}`} />
+          <div key={k.label} className={`relative overflow-hidden rounded-xl border ${k.border} bg-gray-900 ${k.glow} transition-all hover:scale-[1.01]`}>
+            <div className={`absolute inset-0 bg-gradient-to-br ${k.gradient}`} />
+            <div className="relative p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div className={`p-2 rounded-lg bg-gray-800/80 border border-gray-700/50`}>
+                  <k.icon className={`w-4 h-4 ${k.iconColor}`} />
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
               </div>
-              <div className="text-3xl font-bold text-white">{k.value.toLocaleString()}</div>
-            </CardContent>
-          </Card>
+              <div className={`text-2xl sm:text-3xl font-bold font-mono tabular-nums ${k.valueCls}`}>
+                {sLoading ? "—" : k.value.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">{k.label}</div>
+            </div>
+          </div>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* System Health */}
-        <Card className="bg-gray-900 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Server className="w-5 h-5 text-cyan-400" /> System Health
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {health ? (
-              <>
-                {([
-                  { label: "API Server",    ok: health.api,                            optional: false },
-                  { label: "Database",      ok: health.database,                       optional: false },
-                  { label: "Redis",         ok: health.redis === true,                 optional: health.redis === null },
-                  { label: "ML Models",     ok: (health.models_loaded ?? 0) > 0,       optional: false },
-                  { label: "Football API",  ok: health.football_api === true,          optional: health.football_api == null, limited: health.football_api === "limited" },
-                  { label: "Odds API",      ok: health.odds_api === true,              optional: health.odds_api == null },
-                ] as { label: string; ok: boolean; optional: boolean; limited?: boolean }[]).map(row => (
-                  <div key={row.label} className="flex items-center justify-between">
-                    <span className="text-gray-300 flex items-center gap-2">
-                      <HealthDot ok={row.limited ? false : row.ok} optional={row.optional} /> {row.label}
+      <div className="grid lg:grid-cols-2 gap-4">
+
+        {/* ── System Health Matrix ─────────────────────────────────── */}
+        <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-gray-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-4 rounded-full bg-cyan-400/80" />
+              <span className="text-sm font-semibold text-white">System Health</span>
+            </div>
+            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-gray-500 hover:text-cyan-400"
+              onClick={() => qc.invalidateQueries({ queryKey: ["admin-health"] })}>
+              <RefreshCw className="w-3 h-3" />
+            </Button>
+          </div>
+          <div className="p-4 space-y-2">
+            {!health ? (
+              <div className="grid grid-cols-2 gap-2">
+                {[1,2,3,4,5,6].map(i => <div key={i} className="h-9 rounded-lg bg-gray-800 animate-pulse" />)}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {serviceRows.map(row => (
+                  <div key={row.label} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
+                    row.optional && !row.ok
+                      ? "bg-gray-800/30 border-gray-700/50"
+                      : row.limited
+                        ? "bg-amber-500/5 border-amber-500/20"
+                        : row.ok
+                          ? "bg-emerald-500/5 border-emerald-500/20"
+                          : "bg-red-500/5 border-red-500/20"
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${
+                      row.optional && !row.ok ? "bg-gray-600" :
+                      row.limited ? "bg-amber-400" :
+                      row.ok ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-red-400 animate-pulse"
+                    }`} />
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-gray-300 truncate">{row.label}</div>
+                      {row.detail && <div className="text-[10px] text-gray-500">{row.detail}</div>}
+                    </div>
+                    <span className={`ml-auto text-[10px] font-medium shrink-0 ${
+                      row.optional && !row.ok ? "text-gray-600" :
+                      row.limited ? "text-amber-400" :
+                      row.ok ? "text-emerald-400" : "text-red-400"
+                    }`}>
+                      {row.optional && !row.ok ? "N/A" : row.limited ? "Limited" : row.ok ? "OK" : "DOWN"}
                     </span>
-                    {row.optional ? (
-                      <span className="text-gray-500 text-sm">Not configured</span>
-                    ) : row.limited ? (
-                      <span className="text-amber-400 text-sm">Tier limited</span>
-                    ) : (
-                      <span className={row.ok ? "text-emerald-400 text-sm" : "text-red-400 text-sm"}>
-                        {row.ok ? "Online" : "Offline"}
-                      </span>
-                    )}
                   </div>
                 ))}
-                <div className="pt-2 border-t border-gray-700 grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <div className="text-xs text-gray-500">CPU</div>
-                    <div className={`font-bold ${health.cpu_pct > 80 ? "text-red-400" : "text-white"}`}>{health.cpu_pct}%</div>
+              </div>
+            )}
+            {health && (
+              <div className="mt-3 pt-3 border-t border-gray-800 grid grid-cols-3 gap-2">
+                {[
+                  { label: "CPU", value: health.cpu_pct, warn: 80 },
+                  { label: "RAM", value: health.mem_pct, warn: 85 },
+                  { label: "Disk", value: health.disk_pct, warn: 90 },
+                ].map(m => (
+                  <div key={m.label} className="text-center">
+                    <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">{m.label}</div>
+                    <div className={`text-lg font-bold font-mono ${m.value > m.warn ? "text-red-400" : "text-white"}`}>
+                      {m.value}%
+                    </div>
+                    <div className="mt-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${m.value > m.warn ? "bg-red-400" : m.value > m.warn * 0.8 ? "bg-amber-400" : "bg-emerald-400"}`}
+                        style={{ width: `${m.value}%` }} />
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-gray-500">RAM</div>
-                    <div className={`font-bold ${health.mem_pct > 85 ? "text-red-400" : "text-white"}`}>{health.mem_pct}%</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-500">Disk</div>
-                    <div className={`font-bold ${health.disk_pct > 90 ? "text-red-400" : "text-white"}`}>{health.disk_pct}%</div>
-                  </div>
-                </div>
-              </>
-            ) : <div className="text-gray-500 text-sm">Loading...</div>}
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
-        {/* Quick Actions */}
-        <Card className="bg-gray-900 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Zap className="w-5 h-5 text-amber-400" /> Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
+        {/* ── Quick Actions ────────────────────────────────────────── */}
+        <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-gray-800 flex items-center gap-2">
+            <div className="w-1.5 h-4 rounded-full bg-amber-400/80" />
+            <span className="text-sm font-semibold text-white">Quick Actions</span>
+          </div>
+          <div className="p-4 grid grid-cols-2 gap-2">
             {[
-              { label: "Refresh Stats",   icon: RefreshCw,  action: () => qc.invalidateQueries({ queryKey: ["admin-stats"] }),  color: "border-cyan-500/30 hover:border-cyan-400 text-cyan-400",     loading: false },
-              { label: "Clear Cache",     icon: Zap,         action: () => clearCache.mutate(),    color: "border-purple-500/30 hover:border-purple-400 text-purple-400", loading: clearCache.isPending },
-              { label: "Create Backup",   icon: Database,    action: () => backup.mutate(),         color: "border-emerald-500/30 hover:border-emerald-400 text-emerald-400", loading: backup.isPending },
-              { label: "Reload Health",   icon: Activity,    action: () => qc.invalidateQueries({ queryKey: ["admin-health"] }), color: "border-amber-500/30 hover:border-amber-400 text-amber-400", loading: false },
-              { label: "Fetch Fixtures",  icon: Download,    action: () => fetchFixtures.mutate(), color: "border-rose-500/30 hover:border-rose-400 text-rose-400",       loading: fetchFixtures.isPending },
+              { label: "Refresh Stats",  icon: RefreshCw, action: () => qc.invalidateQueries({ queryKey: ["admin-stats"] }),  cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",    loading: false },
+              { label: "Clear Cache",    icon: Zap,        action: () => clearCache.mutate(),    cls: "from-purple-500/10 border-purple-500/20 text-purple-400 hover:border-purple-400/60",  loading: clearCache.isPending },
+              { label: "Create Backup",  icon: Database,   action: () => backup.mutate(),         cls: "from-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:border-emerald-400/60", loading: backup.isPending },
+              { label: "Reload Health",  icon: Activity,   action: () => qc.invalidateQueries({ queryKey: ["admin-health"] }), cls: "from-amber-500/10 border-amber-500/20 text-amber-400 hover:border-amber-400/60",  loading: false },
+              { label: "Fetch Fixtures", icon: Download,   action: () => fetchFixtures.mutate(), cls: "from-rose-500/10 border-rose-500/20 text-rose-400 hover:border-rose-400/60",         loading: fetchFixtures.isPending },
             ].map(a => (
-              <Button key={a.label} variant="outline" disabled={a.loading}
-                className={`flex flex-col h-16 gap-1 bg-transparent border ${a.color}`}
-                onClick={a.action}>
+              <button key={a.label}
+                disabled={a.loading}
+                onClick={a.action}
+                className={`flex flex-col items-center justify-center gap-1.5 h-16 rounded-lg border bg-gradient-to-br ${a.cls}
+                  transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}>
                 <a.icon className={`w-4 h-4 ${a.loading ? "animate-spin" : ""}`} />
-                <span className="text-xs">{a.loading ? "Working…" : a.label}</span>
-              </Button>
+                <span className="text-[11px] font-medium leading-tight text-center">
+                  {a.loading ? "Working…" : a.label}
+                </span>
+              </button>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Recent Activity */}
-      <Card className="bg-gray-900 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-purple-400" /> Recent Activity
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* ── Recent Activity ──────────────────────────────────────────── */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+        <div className="px-4 pt-4 pb-3 border-b border-gray-800 flex items-center gap-2">
+          <div className="w-1.5 h-4 rounded-full bg-purple-400/80" />
+          <span className="text-sm font-semibold text-white">Recent Activity</span>
           {stats?.recent_activity?.length ? (
-            <div className="space-y-2">
-              {stats.recent_activity.slice(0, 8).map((a, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <StatusBadge status={a.status} />
-                    <span className="text-sm text-gray-300 font-mono">{a.action}</span>
-                    <span className="text-xs text-gray-500">by {a.actor}</span>
-                  </div>
-                  <span className="text-xs text-gray-600">{a.timestamp ? new Date(a.timestamp).toLocaleString() : ""}</span>
-                </div>
-              ))}
-            </div>
+            <span className="ml-auto text-xs text-gray-500">{stats.recent_activity.length} events</span>
+          ) : null}
+        </div>
+        <div className="divide-y divide-gray-800/80">
+          {stats?.recent_activity?.length ? (
+            stats.recent_activity.slice(0, 8).map((a, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/30 transition-colors">
+                <StatusBadge status={a.status} />
+                <span className="text-xs text-gray-300 font-mono flex-1 truncate">{a.action}</span>
+                <span className="text-xs text-gray-600 hidden sm:block shrink-0">
+                  {a.timestamp ? new Date(a.timestamp).toLocaleTimeString() : ""}
+                </span>
+              </div>
+            ))
           ) : (
-            <p className="text-gray-500 text-sm text-center py-4">No recent activity</p>
+            <div className="text-center text-gray-600 text-sm py-10">
+              <Activity className="w-8 h-8 mx-auto mb-2 opacity-20" />
+              No recent activity
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
     </div>
   );
 }
@@ -3665,10 +3732,51 @@ export function AISourcesTab() {
   );
 }
 
+// ─── Admin Header Health Pills ────────────────────────────────────────
+
+function AdminHealthPills() {
+  const { data: health } = useQuery<SystemHealth>({
+    queryKey: ["admin-health"],
+    queryFn: () => apiGet("/admin/system/health"),
+    refetchInterval: 15000,
+  });
+
+  const pills = [
+    { label: "API",      ok: health?.api ?? null },
+    { label: "DB",       ok: health?.database ?? null },
+    { label: "Redis",    ok: health?.redis ?? null, optional: true },
+    { label: `${health?.models_loaded ?? "—"} ML`, ok: (health?.models_loaded ?? 0) > 0 || !health, optional: false },
+  ];
+
+  return (
+    <div className="hidden md:flex items-center gap-1.5">
+      {pills.map(p => (
+        <div key={p.label} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${
+          p.ok === null
+            ? "bg-gray-700/50 border-gray-600 text-gray-400"
+            : p.ok
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+              : p.optional
+                ? "bg-gray-700/50 border-gray-600 text-gray-500"
+                : "bg-red-500/10 border-red-500/30 text-red-300"
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${
+            p.ok === null ? "bg-gray-500" :
+            p.ok ? "bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" :
+            p.optional ? "bg-gray-500" : "bg-red-400 animate-pulse"
+          }`} />
+          {p.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Root Admin Page ──────────────────────────────────────────────────
 
 export default function AdminPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   if (!user) return <Redirect to="/login" />;
   if (!isAdmin) return <Redirect to="/dashboard" />;
@@ -3678,56 +3786,153 @@ export default function AdminPage() {
     auditor: "Auditor", support: "Support",
   };
 
+  const tabGroups = [
+    {
+      label: "OVERVIEW",
+      color: "text-cyan-500",
+      tabs: [
+        { value: "dashboard", label: "Dashboard", icon: BarChart2 },
+      ],
+    },
+    {
+      label: "INTELLIGENCE",
+      color: "text-purple-400",
+      tabs: [
+        { value: "models",      label: "Models",      icon: Cpu },
+        { value: "ai-sources",  label: "AI Sources",  icon: Brain },
+        { value: "calibration", label: "Calibration", icon: Activity },
+      ],
+    },
+    {
+      label: "OPERATIONS",
+      color: "text-emerald-400",
+      tabs: [
+        { value: "users",  label: "Users",  icon: Users },
+        { value: "kyc",    label: "KYC",    icon: UserCheck },
+        { value: "tasks",  label: "Tasks",  icon: ClipboardList },
+      ],
+    },
+    {
+      label: "FINANCE",
+      color: "text-amber-400",
+      tabs: [
+        { value: "markets",        label: "Markets",       icon: TrendingUp },
+        { value: "currency",       label: "Currency",      icon: Coins },
+        { value: "subscriptions",  label: "Subscriptions", icon: CreditCard },
+        { value: "leagues",        label: "Leagues",       icon: Globe },
+      ],
+    },
+    {
+      label: "SYSTEM",
+      color: "text-rose-400",
+      tabs: [
+        { value: "system", label: "System", icon: Settings },
+        { value: "audit",  label: "Audit",  icon: ShieldCheck },
+      ],
+    },
+  ];
+
+  const groupColor: Record<string, string> = {
+    OVERVIEW:     "data-[state=active]:bg-cyan-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(6,182,212,0.4)]",
+    INTELLIGENCE: "data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_12px_rgba(168,85,247,0.4)]",
+    OPERATIONS:   "data-[state=active]:bg-emerald-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(52,211,153,0.4)]",
+    FINANCE:      "data-[state=active]:bg-amber-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(245,158,11,0.4)]",
+    SYSTEM:       "data-[state=active]:bg-rose-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_12px_rgba(244,63,94,0.4)]",
+  };
+
+  const activeGroup = tabGroups.find(g => g.tabs.some(t => t.value === activeTab));
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      {/* Top bar */}
-      <div className="border-b border-gray-800 bg-gray-900/80 backdrop-blur px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Shield className="w-6 h-6 text-cyan-400" />
-          <div>
-            <div className="font-bold text-white text-lg leading-tight">Admin Control Center</div>
-            <div className="text-xs text-gray-500">VIT Sports Intelligence Network</div>
+
+      {/* ── Command Header ─────────────────────────────────────────── */}
+      <div className="relative border-b border-gray-800 bg-gray-950">
+        {/* Gradient accent line */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent" />
+
+        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+          {/* Left: branding */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-lg bg-cyan-500/20 blur-sm" />
+              <div className="relative w-9 h-9 rounded-lg border border-cyan-500/40 bg-gray-900 flex items-center justify-center">
+                <Shield className="w-5 h-5 text-cyan-400" />
+              </div>
+            </div>
+            <div>
+              <div className="font-bold text-white text-base leading-tight tracking-wide">
+                ADMIN <span className="text-cyan-400">CONTROL CENTER</span>
+              </div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Sports Intelligence Network</div>
+            </div>
+          </div>
+
+          {/* Center: health pills */}
+          <AdminHealthPills />
+
+          {/* Right: user */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="text-right hidden sm:block">
+              <div className="text-sm text-white font-medium leading-tight">{user.username}</div>
+              <div className={`text-[10px] font-semibold tracking-wide uppercase ${isSuperAdmin ? "text-amber-400" : "text-cyan-400"}`}>
+                {adminRoleLabel[user.admin_role ?? "admin"] ?? "Admin"}
+              </div>
+            </div>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border ${
+              isSuperAdmin
+                ? "bg-amber-500 text-black border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                : "bg-cyan-500/20 text-cyan-400 border-cyan-500/40"
+            }`}>
+              {user.username[0]?.toUpperCase()}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <div className="text-sm text-white font-medium">{user.username}</div>
-            <div className="text-xs text-cyan-400">{adminRoleLabel[user.admin_role ?? "admin"] ?? "Admin"}</div>
-          </div>
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
-            isSuperAdmin ? "bg-amber-500 text-black" : "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-          }`}>
-            {user.username[0]?.toUpperCase()}
-          </div>
-        </div>
+
+        {/* Active group accent */}
+        {activeGroup && (
+          <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent ${
+            activeGroup.label === "OVERVIEW"     ? "via-cyan-500/50" :
+            activeGroup.label === "INTELLIGENCE" ? "via-purple-500/50" :
+            activeGroup.label === "OPERATIONS"   ? "via-emerald-500/50" :
+            activeGroup.label === "FINANCE"      ? "via-amber-500/50" :
+            "via-rose-500/50"
+          } to-transparent`} />
+        )}
       </div>
 
-      {/* Main content */}
-      <div className="max-w-screen-xl mx-auto px-4 py-6">
-        <Tabs defaultValue="dashboard">
-          <TabsList className="bg-gray-800 border border-gray-700 flex-wrap h-auto mb-6 p-1 gap-1">
-            {[
-              { value: "dashboard",      label: "Dashboard",      icon: BarChart2 },
-              { value: "users",          label: "Users",          icon: Users },
-              { value: "kyc",            label: "KYC",            icon: UserCheck },
-              { value: "tasks",          label: "Tasks",          icon: ClipboardList },
-              { value: "models",         label: "Models",         icon: Cpu },
-              { value: "ai-sources",     label: "AI Sources",     icon: Brain },
-              { value: "calibration",    label: "Calibration",    icon: Activity },
-              { value: "leagues",        label: "Leagues",        icon: Globe },
-              { value: "markets",        label: "Markets",        icon: TrendingUp },
-              { value: "currency",       label: "Currency",       icon: Coins },
-              { value: "subscriptions",  label: "Subscriptions",  icon: CreditCard },
-              { value: "system",         label: "System",         icon: Settings },
-              { value: "audit",          label: "Audit",          icon: ShieldCheck },
-            ].map(tab => (
-              <TabsTrigger key={tab.value} value={tab.value}
-                className="data-[state=active]:bg-cyan-500 data-[state=active]:text-black flex items-center gap-1.5 text-gray-300 px-3 py-1.5">
-                <tab.icon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+      {/* ── Main Content ───────────────────────────────────────────── */}
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-5 py-5">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+
+          {/* Grouped Tab Navigation */}
+          <div className="mb-6 space-y-1.5">
+            <div className="flex flex-wrap gap-x-1 gap-y-1.5">
+              {tabGroups.map((group, gi) => (
+                <div key={group.label} className="flex items-center gap-1">
+                  {gi > 0 && <div className="w-px h-5 bg-gray-700 mx-1 hidden sm:block" />}
+                  <div className="flex items-center gap-0.5">
+                    {/* Group label — only on desktop */}
+                    <span className={`hidden lg:block text-[9px] font-bold tracking-widest uppercase px-1 ${group.color} opacity-70`}>
+                      {group.label}
+                    </span>
+                    {group.tabs.map(tab => (
+                      <TabsTrigger
+                        key={tab.value}
+                        value={tab.value}
+                        className={`${groupColor[group.label]} flex items-center gap-1.5 text-gray-400 hover:text-white
+                          px-3 py-1.5 rounded-md transition-all text-xs font-medium
+                          data-[state=inactive]:bg-transparent data-[state=inactive]:border data-[state=inactive]:border-transparent
+                          data-[state=inactive]:hover:bg-gray-800/60 data-[state=inactive]:hover:border-gray-700`}
+                      >
+                        <tab.icon className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
+                      </TabsTrigger>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <TabsContent value="dashboard"><DashboardTab /></TabsContent>
           <TabsContent value="users"><UsersTab /></TabsContent>
