@@ -26,7 +26,7 @@ def rate_limit_backoff(func):
                     continue
                 raise
             except httpx.RequestError as e:
-                logger.error(f"Request error: {e}")
+                logger.error(f"Request error ({type(e).__name__}): {e}")
                 if attempt == self.max_retries - 1:
                     raise
                 wait_time = self.base_backoff ** attempt

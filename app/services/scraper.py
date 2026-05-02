@@ -262,11 +262,16 @@ class InjuryScraper:
             return "fit"
 
     async def fetch_all_injuries(self) -> List[Dict]:
-        """Fetch injuries from multiple sources and deduplicate"""
+        """Fetch injuries from multiple sources and deduplicate.
+
+        Dead sources (premierinjuries.com, physioroom.com, fantasyfootballfix.com) have
+        been retired — they consistently return 404. Transfermarkt is used instead, which
+        works reliably without requiring authentication.
+        """
         tasks = [
-            self.fetch_injuries_premierleague(),
-            self.fetch_injuries_physioroom(),
-            self.fetch_injuries_fantasyfootballfix(),
+            self.fetch_injuries_transfermarkt("premier-league"),
+            self.fetch_injuries_transfermarkt("primera-division"),  # La Liga
+            self.fetch_injuries_transfermarkt("bundesliga"),
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)

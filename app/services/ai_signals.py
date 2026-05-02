@@ -47,16 +47,19 @@ class AISignalService:
             "ai_weighted_draw": cache.weighted_draw,
             "ai_weighted_away": cache.weighted_away,
 
-            # Per-AI signals (if needed for ensemble)
-            "ai_chatgpt_home": self._get_ai_prob(cache, "chatgpt", "home"),
-            "ai_chatgpt_draw": self._get_ai_prob(cache, "chatgpt", "draw"),
-            "ai_chatgpt_away": self._get_ai_prob(cache, "chatgpt", "away"),
+            # Per-AI signals — only wired providers (gemini, claude, grok, openai)
             "ai_gemini_home": self._get_ai_prob(cache, "gemini", "home"),
             "ai_gemini_draw": self._get_ai_prob(cache, "gemini", "draw"),
             "ai_gemini_away": self._get_ai_prob(cache, "gemini", "away"),
+            "ai_claude_home": self._get_ai_prob(cache, "claude", "home"),
+            "ai_claude_draw": self._get_ai_prob(cache, "claude", "draw"),
+            "ai_claude_away": self._get_ai_prob(cache, "claude", "away"),
             "ai_grok_home": self._get_ai_prob(cache, "grok", "home"),
-            "ai_deepseek_home": self._get_ai_prob(cache, "deepseek", "home"),
-            "ai_perplexity_home": self._get_ai_prob(cache, "perplexity", "home"),
+            "ai_grok_draw": self._get_ai_prob(cache, "grok", "draw"),
+            "ai_grok_away": self._get_ai_prob(cache, "grok", "away"),
+            "ai_openai_home": self._get_ai_prob(cache, "openai", "home"),
+            "ai_openai_draw": self._get_ai_prob(cache, "openai", "draw"),
+            "ai_openai_away": self._get_ai_prob(cache, "openai", "away"),
         }
 
     async def get_all_signals(self, match_ids: List[int]) -> Dict[int, Dict]:
