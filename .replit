@@ -21,7 +21,6 @@ ENABLE_SCRAPING = "true"
 ENABLE_ODDS = "true"
 MAX_STAKE = "0.05"
 MIN_EDGE_THRESHOLD = "0.02"
-SECRET_KEY = "5970dc283a81cbea1fba0e33ad0b1c381b8231b7f3f46c431b46a7fd01e47ff9"
 
 [workflows]
 runButton = "Project"
