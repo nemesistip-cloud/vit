@@ -74,11 +74,16 @@ async def refresh_providers(_user=Depends(_get_admin)):
     and calling this endpoint is sufficient to activate a new key.
     """
     try:
-        from app.services.ai_client import reset_provider_backoff, provider_status, get_provider_priority
+        from app.services.ai_client import (
+            reset_provider_backoff, provider_status, get_provider_priority,
+            get_provider_failures,
+        )
+        cleared_failures = get_provider_failures()  # snapshot before clear
         cleared = reset_provider_backoff()
         return {
             "refreshed": True,
             "cleared_backoffs": list(cleared.keys()),
+            "cleared_failures": {k: v["status_code"] for k, v in cleared_failures.items()},
             "providers": provider_status(),
             "priority": get_provider_priority(),
         }

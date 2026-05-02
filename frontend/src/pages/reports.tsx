@@ -20,6 +20,8 @@ interface ProviderInfo {
   available: boolean;
   cooling: boolean;
   cooling_for_seconds: number;
+  failing: boolean;
+  last_error_code: number | null;
 }
 
 interface ProvidersData {
@@ -133,6 +135,8 @@ function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
           const meta = PROVIDER_META[name] ?? { label: name, color: "text-gray-400" };
           const dot = !info?.configured
             ? "bg-gray-500/60"
+            : info.failing
+            ? "bg-red-500"
             : info.cooling
             ? "bg-amber-400 animate-pulse"
             : info.available
@@ -140,6 +144,8 @@ function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
             : "bg-red-400";
           const label = !info?.configured
             ? "no key"
+            : info.failing
+            ? `failing${info.last_error_code ? ` (${info.last_error_code})` : ""}`
             : info.cooling
             ? `cooling ${info.cooling_for_seconds}s`
             : "ready";

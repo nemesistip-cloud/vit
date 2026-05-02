@@ -85,6 +85,11 @@ def set_provider_priority(order: list[str]) -> list[str]:
     return list(_provider_priority)
 
 
+def get_provider_failures() -> dict[str, dict]:
+    """Return a copy of current non-rate-limit provider failures (401/400/403)."""
+    return dict(_provider_failures)
+
+
 def reset_provider_backoff(name: str | None = None) -> dict[str, float]:
     """
     Clear rate-limit backoff AND non-rate-limit failure tracking for one provider or all.

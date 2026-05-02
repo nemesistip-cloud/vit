@@ -254,7 +254,7 @@ function ProviderStatusBar() {
 
   const { data } = useQuery({
     queryKey: ["ai-provider-status"],
-    queryFn: () => apiGet<{ providers: Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number }>; priority: string[] }>("/api/agents/providers"),
+    queryFn: () => apiGet<{ providers: Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number; failing: boolean; last_error_code: number | null }>; priority: string[] }>("/api/agents/providers"),
     refetchInterval: 15000,
     retry: false,
   });
@@ -275,19 +275,28 @@ function ProviderStatusBar() {
             const available = info?.available ?? false;
             const cooling = info?.cooling ?? false;
             const configured = info?.configured ?? false;
+            const failing = info?.failing ?? false;
+            const errCode = info?.last_error_code ?? null;
+            const statusLabel = !configured
+              ? "no key"
+              : failing
+              ? `failing${errCode ? ` (${errCode})` : ""}`
+              : cooling
+              ? `cooling ${info?.cooling_for_seconds}s`
+              : "ready";
             return (
               <div key={name} className="flex items-center gap-2 bg-slate-800/50 rounded-lg px-2 py-1.5">
                 {available ? (
                   <Wifi className={cn("w-3 h-3", color)} />
                 ) : (
-                  <WifiOff className="w-3 h-3 text-slate-600" />
+                  <WifiOff className={cn("w-3 h-3", failing ? "text-red-500" : "text-slate-600")} />
                 )}
                 <div className="min-w-0">
-                  <div className={cn("text-xs font-medium truncate", available ? color : "text-slate-500")}>
+                  <div className={cn("text-xs font-medium truncate", available ? color : failing ? "text-red-400" : "text-slate-500")}>
                     {name}
                   </div>
-                  <div className="text-xs text-slate-600">
-                    {!configured ? "no key" : cooling ? `cooling ${info?.cooling_for_seconds}s` : "ready"}
+                  <div className={cn("text-xs", failing ? "text-red-500/70" : "text-slate-600")}>
+                    {statusLabel}
                   </div>
                 </div>
               </div>
