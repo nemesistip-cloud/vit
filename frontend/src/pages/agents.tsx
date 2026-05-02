@@ -254,7 +254,7 @@ function ProviderStatusBar() {
 
   const { data } = useQuery({
     queryKey: ["ai-provider-status"],
-    queryFn: () => apiGet<Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number }>>("/api/agents/providers"),
+    queryFn: () => apiGet<{ providers: Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number }>; priority: string[] }>("/api/agents/providers"),
     refetchInterval: 15000,
     retry: false,
   });
@@ -268,8 +268,9 @@ function ProviderStatusBar() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {keys.map(({ name, color }) => {
-            const info = data?.[name.toLowerCase().replace("/", "")] ??
-                         data?.[name.split("/")[0].toLowerCase()] ??
+            const providers = data?.providers ?? {};
+            const info = providers[name.toLowerCase().replace("/", "")] ??
+                         providers[name.split("/")[0].toLowerCase()] ??
                          null;
             const available = info?.available ?? false;
             const cooling = info?.cooling ?? false;

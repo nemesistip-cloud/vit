@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from app.api.middleware.auth import verify_api_key
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -50,10 +51,61 @@ async def trigger_agent(agent_name: str, _user=Depends(verify_api_key)):
 
 @router.get("/providers")
 async def ai_provider_status(_user=Depends(verify_api_key)):
-    """Return availability and rate-limit state of all AI providers."""
+    """Return availability, rate-limit state, and current priority order of all AI providers."""
     try:
-        from app.services.ai_client import provider_status
-        return provider_status()
+        from app.services.ai_client import provider_status, get_provider_priority
+        return {
+            "providers": provider_status(),
+            "priority": get_provider_priority(),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/providers/refresh")
+async def refresh_providers(_user=Depends(verify_api_key)):
+    """
+    Hot-reload AI provider config without restarting the server.
+
+    Clears all rate-limit backoff state so every provider is immediately
+    retried on the next agent cycle.  API keys are re-read from environment
+    variables automatically on each call, so updating a secret in Replit
+    and calling this endpoint is sufficient to activate a new key.
+    """
+    try:
+        from app.services.ai_client import reset_provider_backoff, provider_status, get_provider_priority
+        cleared = reset_provider_backoff()
+        return {
+            "refreshed": True,
+            "cleared_backoffs": list(cleared.keys()),
+            "providers": provider_status(),
+            "priority": get_provider_priority(),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class _ProviderPriorityBody(BaseModel):
+    order: list[str]
+
+
+@router.post("/providers/priority")
+async def set_provider_priority_endpoint(body: _ProviderPriorityBody, _user=Depends(verify_api_key)):
+    """
+    Update the AI provider try-order without restarting the server.
+
+    Pass a list of provider names in the desired priority order.
+    Valid names: gemini, claude, openai, grok.
+    Unknown names are ignored; missing names are appended at the end.
+    """
+    try:
+        from app.services.ai_client import set_provider_priority, provider_status
+        new_order = set_provider_priority(body.order)
+        return {
+            "updated": True,
+            "priority": new_order,
+            "providers": provider_status(),
+        }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

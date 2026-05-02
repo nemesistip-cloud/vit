@@ -8,11 +8,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity, Brain, AlertTriangle, BarChart3, RefreshCw,
   ChevronDown, ChevronUp, Radio, Target, Zap, Shield,
-  TrendingUp, Clock, Bot, Newspaper, Play,
+  TrendingUp, Clock, Bot, Newspaper, Play, Cpu, RotateCcw,
+  GripVertical,
 } from "lucide-react";
 import { vitWS } from "@/lib/websocket";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ProviderInfo {
+  configured: boolean;
+  available: boolean;
+  cooling: boolean;
+  cooling_for_seconds: number;
+}
+
+interface ProvidersData {
+  providers: Record<string, ProviderInfo>;
+  priority: string[];
+}
 
 interface AgentReport {
   id: number;
@@ -77,6 +90,82 @@ function timeAgo(iso: string | null): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// ─── Provider Status Bar ──────────────────────────────────────────────────────
+
+const PROVIDER_META: Record<string, { label: string; color: string }> = {
+  gemini: { label: "Gemini", color: "text-blue-400" },
+  claude: { label: "Claude", color: "text-violet-400" },
+  openai: { label: "OpenAI", color: "text-emerald-400" },
+  grok:   { label: "Grok",   color: "text-amber-400" },
+};
+
+function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
+  const qc = useQueryClient();
+  const { data, isFetching } = useQuery<ProvidersData>({
+    queryKey: ["ai-providers"],
+    queryFn: () => apiGet<ProvidersData>("/api/agents/providers"),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: () => apiPost<ProvidersData>("/api/agents/providers/refresh"),
+    onSuccess: (d) => {
+      qc.setQueryData(["ai-providers"], d);
+      onRefresh();
+    },
+  });
+
+  const providers = data?.providers ?? {};
+  const priority = data?.priority ?? ["gemini", "claude", "openai", "grok"];
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 bg-card/40 border border-border/50 rounded-xl flex-wrap">
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Cpu className="w-3.5 h-3.5 text-muted-foreground/60" />
+        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wide">AI Providers</span>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap flex-1">
+        {priority.map((name, i) => {
+          const info = providers[name];
+          const meta = PROVIDER_META[name] ?? { label: name, color: "text-gray-400" };
+          const dot = !info?.configured
+            ? "bg-gray-500/60"
+            : info.cooling
+            ? "bg-amber-400 animate-pulse"
+            : info.available
+            ? "bg-green-400"
+            : "bg-red-400";
+          const label = !info?.configured
+            ? "no key"
+            : info.cooling
+            ? `cooling ${info.cooling_for_seconds}s`
+            : "ready";
+          return (
+            <div key={name} className="flex items-center gap-1.5">
+              {i > 0 && <span className="text-muted-foreground/30 text-[10px]">→</span>}
+              <span className={`w-1.5 h-1.5 rounded-full ${dot} shrink-0`} />
+              <span className={`text-[10px] font-mono font-semibold ${meta.color}`}>{meta.label}</span>
+              <span className="text-[9px] font-mono text-muted-foreground/50">{label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-primary shrink-0"
+        onClick={() => refreshMutation.mutate()}
+        disabled={refreshMutation.isPending || isFetching}
+        title="Clear rate-limit cooldowns and reload provider config"
+      >
+        <RotateCcw className={`w-3 h-3 mr-1 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
+        Reset
+      </Button>
+    </div>
+  );
 }
 
 // ─── Live Scores Ticker ───────────────────────────────────────────────────────
@@ -214,14 +303,25 @@ function ReportCard({ report }: { report: AgentReport }) {
           </div>
         )}
 
-        {/* Expand toggle */}
-        <button
-          onClick={() => setExpanded(x => !x)}
-          className={`flex items-center gap-1 text-[10px] font-mono ${cfg.color} hover:opacity-80 transition-opacity`}
-        >
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          {expanded ? "Collapse" : "Expand report"}
-        </button>
+        {/* Provider + Expand row */}
+        <div className="flex items-center justify-between gap-2">
+          {report.ai_provider && (
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+              PROVIDER_META[report.ai_provider]
+                ? `${PROVIDER_META[report.ai_provider].color} border-current/20 bg-current/5`
+                : "text-muted-foreground border-border/40"
+            } opacity-70`}>
+              via {PROVIDER_META[report.ai_provider]?.label ?? report.ai_provider}
+            </span>
+          )}
+          <button
+            onClick={() => setExpanded(x => !x)}
+            className={`flex items-center gap-1 text-[10px] font-mono ${cfg.color} hover:opacity-80 transition-opacity ml-auto`}
+          >
+            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {expanded ? "Collapse" : "Expand report"}
+          </button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -371,6 +471,9 @@ export default function ReportsPage() {
           </Button>
         </div>
       </div>
+
+      {/* AI Provider Status Bar */}
+      <ProviderStatusBar onRefresh={() => qc.invalidateQueries({ queryKey: ["agent-reports"] })} />
 
       {/* Live Score Ticker */}
       <LiveScoresTicker scores={liveScores} wsGoals={wsGoals} />

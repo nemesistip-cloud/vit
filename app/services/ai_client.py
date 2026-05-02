@@ -57,6 +57,47 @@ _GROQ_MODELS = [
 _backoff_until: dict[str, float] = {}   # provider_name → unix timestamp
 _BACKOFF_SECONDS = [2, 4, 8, 16]        # escalating waits on 429
 
+# ── Dynamic provider priority (hot-reloadable) ─────────────────────────────────
+
+_DEFAULT_PRIORITY = ["gemini", "claude", "openai", "grok"]
+_provider_priority: list[str] = list(_DEFAULT_PRIORITY)
+
+
+def get_provider_priority() -> list[str]:
+    """Return current provider try-order."""
+    return list(_provider_priority)
+
+
+def set_provider_priority(order: list[str]) -> list[str]:
+    """
+    Set the provider try-order.  Unknown names are ignored; missing names
+    are appended at the end so no provider is ever silently dropped.
+    """
+    global _provider_priority
+    known = set(_DEFAULT_PRIORITY)
+    clean = [p for p in order if p in known]
+    for p in _DEFAULT_PRIORITY:
+        if p not in clean:
+            clean.append(p)
+    _provider_priority = clean
+    logger.info("[ai-client] provider priority updated: %s", clean)
+    return list(_provider_priority)
+
+
+def reset_provider_backoff(name: str | None = None) -> dict[str, float]:
+    """
+    Clear rate-limit backoff for one provider (by name) or all providers (name=None).
+    Returns the cleared entries.
+    """
+    global _backoff_until
+    if name:
+        cleared = {name: _backoff_until.pop(name, 0.0)}
+    else:
+        cleared = dict(_backoff_until)
+        _backoff_until.clear()
+    logger.info("[ai-client] backoff reset for: %s", list(cleared.keys()) or "all")
+    return cleared
+
 
 def _provider_available(name: str) -> bool:
     return time.monotonic() >= _backoff_until.get(name, 0.0)
@@ -250,15 +291,16 @@ async def call_ai(
         preferred:   Optional override to try a specific provider first
                      ("gemini" | "claude" | "openai" | "grok").
     """
-    providers = [
-        ("gemini", _try_gemini),
-        ("claude", _try_claude),
-        ("openai", _try_openai),
-        ("grok",   _try_grok),
-    ]
+    _fn_map = {
+        "gemini": _try_gemini,
+        "claude": _try_claude,
+        "openai": _try_openai,
+        "grok":   _try_grok,
+    }
+    providers = [(n, _fn_map[n]) for n in _provider_priority if n in _fn_map]
 
     # Move preferred provider to front if specified
-    if preferred:
+    if preferred and preferred in _fn_map:
         providers.sort(key=lambda p: 0 if p[0] == preferred else 1)
 
     for name, fn in providers:
