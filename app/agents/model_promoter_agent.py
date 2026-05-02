@@ -69,123 +69,115 @@ class ModelPromoterAgent(BaseAgent):
         self._promoted_jobs: set[str] = set()
 
     async def run_cycle(self) -> Dict[str, Any]:
-        from app.db.database import AsyncSessionLocal
-        from app.services.alerts import TelegramAlert, AlertPriority
-        from sqlalchemy import select, text
+        from app.agents.ml_config import get as get_ml_config
 
-        promoted = 0
-        skipped = 0
+        cfg              = get_ml_config()
+        threshold        = float(cfg.get("auto_promote_threshold", ACCURACY_IMPROVEMENT_THRESHOLD))
+        auto_enabled     = bool(cfg.get("auto_promote_enabled", True))
 
-        # Access the in-memory model versions store
         try:
-            from app.api.routes.training import _model_versions
+            import app.api.routes.training as training_mod
+            _model_versions = training_mod._model_versions
         except ImportError:
-            logger.warning("[model-promoter] cannot import _model_versions")
+            logger.warning("[model-promoter] cannot import training module")
             return {"skipped": True, "reason": "training module unavailable"}
 
         if not _model_versions:
             return {"promoted": 0, "reason": "no version history yet"}
 
-        # Find the latest completed job not yet promoted
+        if not auto_enabled:
+            return {"promoted": 0, "reason": "auto_promote_disabled", "auto_enabled": False}
+
+        # Candidates: completed jobs (have a summary) not yet evaluated
         candidates = [
             (jid, info) for jid, info in _model_versions.items()
             if jid not in self._promoted_jobs
-            and info.get("metrics")
-            and info.get("status") == "complete"
+            and info.get("summary")
         ]
 
         if not candidates:
-            return {"promoted": 0, "no_candidates": True}
+            return {
+                "promoted": 0,
+                "no_candidates": True,
+                "current_production": training_mod._current_production,
+            }
 
-        # Sort by promoted_at / created_at descending
-        candidates.sort(key=lambda x: x[1].get("promoted_at", ""), reverse=True)
+        candidates.sort(key=lambda x: x[1].get("created_at", ""), reverse=True)
 
-        # Find current active version (the one marked active or most recently promoted)
-        active_versions = [
-            (jid, info) for jid, info in _model_versions.items()
-            if info.get("is_active", False)
-        ]
+        # Get current production accuracy
+        current_job_id: Optional[str] = training_mod._current_production
+        current_acc = 0.0
+        if current_job_id and current_job_id in _model_versions:
+            current_acc = float(
+                _model_versions[current_job_id].get("summary", {}).get("avg_accuracy", 0) or 0
+            )
 
-        current_metrics: dict = {}
-        current_job_id: Optional[str] = None
+        promoted = 0
+        skipped  = 0
+        promotion_log: list = []
 
-        if active_versions:
-            current_job_id, current_info = active_versions[0]
-            current_metrics = current_info.get("metrics", {})
-
-        for job_id, job_info in candidates[:3]:  # max 3 candidates per cycle
+        for job_id, job_info in candidates[:3]:
             if job_id == current_job_id:
                 self._promoted_jobs.add(job_id)
                 continue
 
-            new_metrics = job_info.get("metrics", {})
-            samples = new_metrics.get("training_samples", 0) or new_metrics.get("samples", 0)
+            summary  = job_info.get("summary", {})
+            new_acc  = float(summary.get("avg_accuracy", 0) or 0)
 
-            if samples < MIN_TRAINING_SAMPLES and samples > 0:
-                skipped += 1
-                logger.info(
-                    "[model-promoter] skipping job=%s — only %d samples", job_id, samples
-                )
-                self._promoted_jobs.add(job_id)
-                continue
-
-            if not current_metrics:
-                # No active model — promote immediately
-                is_better, reason = True, "no current active model"
-            else:
-                is_better, reason = _metrics_better(new_metrics, current_metrics)
+            is_better = (new_acc > current_acc + threshold) or (not current_job_id)
+            reason    = (
+                f"accuracy +{(new_acc - current_acc) * 100:.1f}pp"
+                if is_better and current_job_id
+                else ("no current production version" if is_better else f"insufficient gain ({(new_acc - current_acc)*100:.1f}pp < {threshold*100:.1f}pp required)")
+            )
 
             if is_better:
-                # Mark old active as inactive
-                for _, info in active_versions:
-                    info["is_active"] = False
-                    info["was_active_until"] = datetime.now(timezone.utc).isoformat()
-
-                # Promote new version
-                job_info["is_active"] = True
+                training_mod._current_production = job_id
+                job_info["promoted"]    = True
                 job_info["promoted_at"] = datetime.now(timezone.utc).isoformat()
                 job_info["promoted_by"] = "model-promoter-agent"
 
                 self._promoted_jobs.add(job_id)
                 promoted += 1
+                promotion_log.append({
+                    "job_id":    job_id,
+                    "new_acc":   round(new_acc, 4),
+                    "prev_acc":  round(current_acc, 4),
+                    "reason":    reason,
+                    "promoted_at": job_info["promoted_at"],
+                })
 
                 logger.info(
-                    "[model-promoter] PROMOTED job=%s reason=%s new_acc=%.4f prev_acc=%.4f",
-                    job_id, reason,
-                    new_metrics.get("accuracy", 0),
-                    current_metrics.get("accuracy", 0),
+                    "[model-promoter] PROMOTED job=%s new_acc=%.4f prev_acc=%.4f reason=%s",
+                    job_id, new_acc, current_acc, reason,
                 )
 
-                # Reload model weights
                 try:
-                    from app.api.routes.training import _reload_trained_weights
-                    from app.ml.orchestrator import get_orchestrator
-                    orch = get_orchestrator()
-                    if orch:
-                        _reload_trained_weights(orch)
-                except Exception as e:
-                    logger.warning("[model-promoter] weight reload error: %s", e)
-
-                # Telegram alert
-                try:
+                    from app.services.alerts import TelegramAlert, AlertPriority
                     tg = TelegramAlert()
                     await tg.send_message(
                         f"<b>🚀 Model Auto-Promoted</b>\n"
-                        f"Job: <code>{job_id}</code>\n"
+                        f"Job: <code>{job_id[:8]}</code>\n"
                         f"Reason: {reason}\n"
-                        f"New accuracy: {new_metrics.get('accuracy', 0)*100:.1f}%\n"
-                        f"Previous: {current_metrics.get('accuracy', 0)*100:.1f}%",
+                        f"New accuracy: {new_acc*100:.1f}%\n"
+                        f"Previous: {current_acc*100:.1f}%",
                         AlertPriority.MEDIUM,
                     )
                 except Exception:
                     pass
 
-                # Update current for next candidate comparison
-                current_metrics = new_metrics
+                current_acc    = new_acc
                 current_job_id = job_id
             else:
                 self._promoted_jobs.add(job_id)
                 skipped += 1
                 logger.info("[model-promoter] skipped job=%s — %s", job_id, reason)
 
-        return {"promoted": promoted, "skipped": skipped}
+        return {
+            "promoted":           promoted,
+            "skipped":            skipped,
+            "promotion_log":      promotion_log,
+            "current_production": training_mod._current_production,
+            "threshold":          threshold,
+            "auto_enabled":       auto_enabled,
+        }
