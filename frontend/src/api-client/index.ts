@@ -308,6 +308,9 @@ export function useListPredictions(params?: { all_users?: boolean; limit?: numbe
   return useQuery<{ predictions: Prediction[]; total: number; scope?: string }>({
     queryKey: [API.predictions, params ?? {}],
     queryFn: () => apiGet<{ predictions: Prediction[]; total: number; scope?: string }>(url),
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 
