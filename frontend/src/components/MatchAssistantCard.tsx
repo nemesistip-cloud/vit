@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, FormEvent, useMemo } from "react";
-import ReactMarkdown from "react-markdown";
+import { MarkdownContent } from "@/components/MarkdownContent";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -341,9 +341,7 @@ function Bubble({
         ) : isUser ? (
           <span className="whitespace-pre-wrap break-words">{content}</span>
         ) : (
-          <div className="prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-semibold [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-xs [&_pre]:overflow-x-auto [&_p]:my-1 [&_strong]:font-bold">
-            <ReactMarkdown>{content}</ReactMarkdown>
-          </div>
+          <MarkdownContent content={content} />
         )}
       </div>
     </div>
