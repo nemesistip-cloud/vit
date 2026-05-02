@@ -1376,6 +1376,10 @@ app.include_router(notifications_ws_router)
 # Tasks (Module T)
 app.include_router(tasks_router)
 
+# Admin task management — /admin/tasks (wraps tasks module with admin-form field mapping)
+from app.api.routes.admin_tasks import router as admin_tasks_router
+app.include_router(admin_tasks_router)
+
 # Reward Postback Routes
 app.include_router(postbacks_router)
 app.include_router(admin_rewards_router)
