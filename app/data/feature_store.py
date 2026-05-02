@@ -1,6 +1,9 @@
 import json
+import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 class FeatureStore:
     """
@@ -9,7 +12,7 @@ class FeatureStore:
     """
     def __init__(self):
         self._features_cache: Dict[str, Dict[str, Any]] = {}
-        print("FeatureStore initialized (in-memory mock).")
+        logger.debug("FeatureStore initialized (in-memory).")
 
     def store_features(self, match_id: str, features: Dict[str, Any], version: str = "1.0") -> None:
         """
@@ -27,7 +30,7 @@ class FeatureStore:
             "version": version,
             "timestamp": datetime.now().isoformat()
         }
-        print(f"Stored features for match_id {match_id}, version {version}.")
+        logger.debug("Stored features for match_id %s, version %s.", match_id, version)
 
     def get_features_for_match(self, match_id: str, version: str = "1.0") -> Optional[Dict[str, Any]]:
         """
@@ -43,9 +46,9 @@ class FeatureStore:
         key = f"{match_id}_{version}"
         retrieved_data = self._features_cache.get(key)
         if retrieved_data:
-            print(f"Retrieved features for match_id {match_id}, version {version}.")
+            logger.debug("Retrieved features for match_id %s, version %s.", match_id, version)
             return retrieved_data['features']
-        print(f"Features not found for match_id {match_id}, version {version}.")
+        logger.debug("Features not found for match_id %s, version %s.", match_id, version)
         return None
 
     def get_all_features(self) -> Dict[str, Dict[str, Any]]:

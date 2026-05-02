@@ -151,7 +151,7 @@ export default function GovernancePage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Governance</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Vote on protocol changes. Voting power = VITCoin staked × trust score. Phase 11 — Module M.
+            Vote on protocol changes. Voting power = VITCoin staked × trust score.
           </p>
         </div>
         <Button onClick={() => setShowCreateForm(v => !v)}>

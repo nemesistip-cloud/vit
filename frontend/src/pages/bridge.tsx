@@ -125,7 +125,7 @@ export default function BridgePage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Cross-Chain Bridge</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Transfer VITCoin to external chains. Phase 9 — Module J.
+          Transfer VITCoin to external chains.
         </p>
       </div>
 
