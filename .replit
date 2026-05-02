@@ -7,7 +7,7 @@ stack = "BEST_EFFORT_FALLBACK"
 
 [userenv.shared]
 APP_VERSION = "4.6.0"
-ENVIRONMENT = "production"
+ENVIRONMENT = "development"
 PORT = "5000"
 CORS_ALLOWED_ORIGINS = "true "
 VIT_DATABASE_URL = "sqlite+aiosqlite:///./vit.db"
@@ -21,6 +21,8 @@ ENABLE_SCRAPING = "true"
 ENABLE_ODDS = "true"
 MAX_STAKE = "0.05"
 MIN_EDGE_THRESHOLD = "0.02"
+JWT_SECRET_KEY = "yKAZguLQ01YrkvEiz7AIFEjG-l2G20ClohLcBLbieZjoMN27HQgCoxvWhGZUEzK0"
+SECRET_KEY = "9TcVp0zmZkW9ygmdIQ7nQ-3i_7Uk3Bj7ixO0qtwS6lSS8XnsJAO77EGIBT5ocH4n"
 
 [workflows]
 runButton = "Project"
