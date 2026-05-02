@@ -97,15 +97,15 @@ async def list_matches_for_ingest(
     now = datetime.now(timezone.utc)
     res = await db.execute(
         select(Match)
-        .where(Match.status.in_(["scheduled", "upcoming", "in_progress"]))
-        .order_by(Match.match_date.asc())
+        .where(Match.status.in_(["scheduled", "upcoming", "live", "in_progress"]))
+        .order_by(Match.kickoff_time.asc())
         .limit(max(1, min(limit, 100)))
     )
     matches = res.scalars().all()
     if not matches:
         # fallback: most recent matches regardless of status
         res = await db.execute(
-            select(Match).order_by(desc(Match.match_date)).limit(limit)
+            select(Match).order_by(desc(Match.kickoff_time)).limit(limit)
         )
         matches = res.scalars().all()
 
@@ -127,7 +127,7 @@ async def list_matches_for_ingest(
                 "home_team": m.home_team,
                 "away_team": m.away_team,
                 "league": m.league,
-                "match_date": m.match_date.isoformat() if m.match_date else None,
+                "match_date": m.kickoff_time.isoformat() if m.kickoff_time else None,
                 "status": m.status,
                 "sources": sorted(set(coverage.get(m.id, []))),
             }
@@ -161,7 +161,7 @@ async def list_sources_for_match(
             "home_team": match.home_team,
             "away_team": match.away_team,
             "league": match.league,
-            "match_date": match.match_date.isoformat() if match.match_date else None,
+            "match_date": match.kickoff_time.isoformat() if match.kickoff_time else None,
             "status": match.status,
         },
         "predictions": [

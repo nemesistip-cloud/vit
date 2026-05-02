@@ -3421,25 +3421,48 @@ export function AISourcesTab() {
                   <SelectValue placeholder={matchesQ.isLoading ? "Loading…" : "Select a match"} />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-900 border-gray-700 text-white max-h-80">
-                  {matches.map(m => (
-                    <SelectItem key={m.id} value={String(m.id)}>
-                      {m.home_team} vs {m.away_team}
-                      {m.league ? ` · ${m.league}` : ""}
-                      {m.sources.length > 0 ? ` · [${m.sources.join(", ")}]` : ""}
-                    </SelectItem>
-                  ))}
+                  {matchesQ.isLoading && (
+                    <div className="px-3 py-2 text-sm text-gray-400">Loading matches…</div>
+                  )}
+                  {!matchesQ.isLoading && matches.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-gray-400">
+                      No upcoming matches found. Sync fixtures first.
+                    </div>
+                  )}
+                  {matches.map(m => {
+                    const dateStr = m.match_date
+                      ? new Date(m.match_date).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                      : "";
+                    return (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        <span className="flex flex-col">
+                          <span>
+                            {m.home_team} vs {m.away_team}
+                            {m.league ? ` · ${m.league}` : ""}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {dateStr}
+                            {m.sources.length > 0 ? ` · covered: ${m.sources.join(", ")}` : ""}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
+              {matchesQ.isError && (
+                <p className="text-xs text-rose-400 mt-1">Failed to load matches — check your connection or permissions.</p>
+              )}
             </div>
             <div>
               <Label className="text-gray-300">AI Source</Label>
               <Select value={form.source} onValueChange={v => setForm(f => ({ ...f, source: v }))}>
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                <SelectTrigger className="bg-gray-900 border-gray-700 text-white capitalize">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-900 border-gray-700 text-white">
                   {(permsQ.data?.allowed_sources ?? AI_SOURCE_OPTIONS).map(s => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                    <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
