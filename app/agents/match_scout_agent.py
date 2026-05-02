@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.agents.base import BaseAgent
-from app.services.ai_client import call_ai
+from app.services.ai_client import call_ai, call_ai_with_provider
 from app.services.vit_intelligence import get_match_context, build_scout_prompt
 
 logger = logging.getLogger(__name__)
@@ -211,9 +211,10 @@ class MatchScoutAgent(BaseAgent):
                     )
                 insight_type = "match_scout"
 
-            raw = await call_ai(prompt, max_tokens=500)
-            if not raw:
+            ai_result = await call_ai_with_provider(prompt, max_tokens=500)
+            if not ai_result:
                 continue
+            raw, _provider = ai_result
 
             content, confidence, meta = _parse_ai(raw)
 
@@ -222,7 +223,7 @@ class MatchScoutAgent(BaseAgent):
                     agent_name="match-scout",
                     insight_type=insight_type,
                     match_id=match.id,
-                    ai_provider="multi",
+                    ai_provider=_provider,
                     content=content,
                     meta={**meta, "mode": mode, "match": f"{match.home_team} vs {match.away_team}"},
                     confidence=confidence,

@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.api.middleware.auth import verify_api_key
+from app.auth.dependencies import get_current_admin as _get_admin
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -63,7 +64,7 @@ async def ai_provider_status(_user=Depends(verify_api_key)):
 
 
 @router.post("/providers/refresh")
-async def refresh_providers(_user=Depends(verify_api_key)):
+async def refresh_providers(_user=Depends(_get_admin)):
     """
     Hot-reload AI provider config without restarting the server.
 
@@ -90,7 +91,7 @@ class _ProviderPriorityBody(BaseModel):
 
 
 @router.post("/providers/priority")
-async def set_provider_priority_endpoint(body: _ProviderPriorityBody, _user=Depends(verify_api_key)):
+async def set_provider_priority_endpoint(body: _ProviderPriorityBody, _user=Depends(_get_admin)):
     """
     Update the AI provider try-order without restarting the server.
 

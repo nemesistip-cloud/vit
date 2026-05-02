@@ -28,7 +28,7 @@ from typing import Any, Dict, List
 
 
 from app.agents.base import BaseAgent
-from app.services.ai_client import call_ai
+from app.services.ai_client import call_ai, call_ai_with_provider
 
 logger = logging.getLogger(__name__)
 
@@ -202,10 +202,15 @@ class NewsSentinelAgent(BaseAgent):
 
             for team, injuries in high_impact_teams:
                 prompt = _build_news_prompt(team, injuries)
-                raw = await call_ai(prompt)
+                _ai_result = await call_ai_with_provider(prompt)
+                _provider_used = "scie"
 
                 import json as _json
                 # SCIE fallback: generate structured template brief when AI is unavailable
+                if _ai_result:
+                    raw, _provider_used = _ai_result
+                else:
+                    raw = None
                 if not raw:
                     n = len(injuries)
                     players = ", ".join(
@@ -245,7 +250,7 @@ class NewsSentinelAgent(BaseAgent):
                         insight_type="team_news",
                         match_id=None,
                         team=team,
-                        ai_provider="multi",
+                        ai_provider=_provider_used,
                         content=content,
                         meta=meta,
                         confidence=confidence,
@@ -301,9 +306,10 @@ class NewsSentinelAgent(BaseAgent):
                     continue
 
                 prompt = _build_form_news_prompt(team, form, league)
-                raw    = await call_ai(prompt)
-                if not raw:
+                _form_result = await call_ai_with_provider(prompt)
+                if not _form_result:
                     continue
+                raw, _form_provider = _form_result
 
                 try:
                     text = raw.strip()
@@ -325,7 +331,7 @@ class NewsSentinelAgent(BaseAgent):
                     insight_type="team_news",
                     match_id=None,
                     team=team,
-                    ai_provider="multi",
+                    ai_provider=_form_provider,
                     content=content,
                     meta=meta,
                     confidence=confidence,

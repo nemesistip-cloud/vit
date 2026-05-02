@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 from app.agents.base import BaseAgent
-from app.services.ai_client import call_ai
+from app.services.ai_client import call_ai, call_ai_with_provider
 
 logger = logging.getLogger(__name__)
 
@@ -240,11 +240,11 @@ class AnalyticsReporterAgent(BaseAgent):
             stats = await _gather_metrics(db, window_hours)
 
         prompt = _daily_prompt(stats, report_date, is_weekly)
-        report = await call_ai(prompt, max_tokens=700)
-
-        # SCIE fallback: generate a template-based brief if all AI providers fail
-        # This ensures the Intelligence Reports page always has content.
-        if not report:
+        ai_result = await call_ai_with_provider(prompt, max_tokens=700)
+        _provider = "scie"
+        if ai_result:
+            report, _provider = ai_result
+        else:
             report = _template_brief(stats, report_date, is_weekly)
 
         insight_type = "weekly_report" if is_weekly else "daily_brief"
@@ -252,7 +252,7 @@ class AnalyticsReporterAgent(BaseAgent):
             insight = AgentInsight(
                 agent_name="analytics-reporter",
                 insight_type=insight_type,
-                ai_provider="multi",
+                ai_provider=_provider,
                 content=report[:2000],
                 meta={
                     "stats": stats,

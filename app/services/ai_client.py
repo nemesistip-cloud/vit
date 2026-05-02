@@ -271,6 +271,38 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
+async def call_ai_with_provider(
+    prompt: str,
+    max_tokens: int = 512,
+    temperature: float = 0.2,
+    preferred: str | None = None,
+) -> tuple[str, str] | None:
+    """
+    Like call_ai() but returns (text, provider_name) on success, or None on failure.
+    Use this when you need to record which provider produced the response.
+    """
+    _fn_map = {
+        "gemini": _try_gemini,
+        "claude": _try_claude,
+        "openai": _try_openai,
+        "grok":   _try_grok,
+    }
+    providers = [(n, _fn_map[n]) for n in _provider_priority if n in _fn_map]
+    if preferred and preferred in _fn_map:
+        providers.sort(key=lambda p: 0 if p[0] == preferred else 1)
+
+    for name, fn in providers:
+        if not _provider_available(name):
+            logger.debug("[ai-client] skipping %s (cooling down)", name)
+            continue
+        result = await fn(prompt, max_tokens, temperature)
+        if result:
+            return result, name
+
+    logger.error("[ai-client] all providers failed for prompt (len=%d)", len(prompt))
+    return None
+
+
 async def call_ai(
     prompt: str,
     max_tokens: int = 512,
