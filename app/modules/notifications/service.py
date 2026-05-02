@@ -1,5 +1,9 @@
 # app/modules/notifications/service.py
-"""Notification service — queue, templates, multi-channel delivery."""
+"""Notification service — queue, templates, multi-channel delivery.
+
+v4.8.0: NotificationService.create() now dispatches across all enabled
+channels (in-app/WS, email, Telegram) based on per-user preferences.
+"""
 
 import asyncio
 import logging
@@ -15,6 +19,17 @@ from app.modules.notifications.models import (
 from app.modules.notifications.websocket import notification_ws_manager
 
 logger = logging.getLogger(__name__)
+
+# Notification types that trigger a per-type preference gate
+_TYPE_TO_PREF: dict[str, str] = {
+    NotificationType.PREDICTION_ALERT.value:    "prediction_alerts",
+    NotificationType.MATCH_RESULT.value:        "match_results",
+    NotificationType.WALLET_ACTIVITY.value:     "wallet_activity",
+    NotificationType.VALIDATOR_REWARD.value:    "validator_rewards",
+    NotificationType.SUBSCRIPTION_EXPIRY.value: "subscription_expiry",
+    NotificationType.VALIDATOR_STATUS.value:    "validator_status",
+    NotificationType.SYSTEM.value:              None,  # always deliver
+}
 
 
 # ── Templates ─────────────────────────────────────────────────────────────────
@@ -78,18 +93,21 @@ class NotificationService:
         channel: NotificationChannel = NotificationChannel.IN_APP,
     ) -> Notification:
         rendered_title, rendered_body = render_template(ntype.value, context)
+        final_title = title or rendered_title
+        final_body  = body or rendered_body
+
         notification = Notification(
             user_id=user_id,
             type=ntype,
-            title=title or rendered_title,
-            body=body or rendered_body,
+            title=final_title,
+            body=final_body,
             channel=channel,
         )
         db.add(notification)
         await db.commit()
         await db.refresh(notification)
 
-        # Push over WebSocket immediately
+        # ── In-app / WebSocket push ────────────────────────────────────────
         await notification_ws_manager.push(user_id, {
             "id":         notification.id,
             "type":       ntype.value,
@@ -99,7 +117,70 @@ class NotificationService:
             "created_at": notification.created_at.isoformat(),
         })
 
+        # ── Multi-channel dispatch (fire-and-forget, never blocks create) ──
+        asyncio.create_task(
+            NotificationService._dispatch_external(
+                db=db,
+                user_id=user_id,
+                ntype=ntype,
+                title=final_title,
+                body=final_body,
+            )
+        )
+
         return notification
+
+    @staticmethod
+    async def _dispatch_external(
+        db: AsyncSession,
+        user_id: int,
+        ntype: NotificationType,
+        title: str,
+        body: str,
+    ) -> None:
+        """Dispatch email + Telegram DM according to user preferences."""
+        try:
+            prefs = await NotificationService.get_or_create_prefs(db, user_id)
+
+            # Check per-type gate
+            pref_key = _TYPE_TO_PREF.get(ntype.value)
+            if pref_key and not getattr(prefs, pref_key, True):
+                return   # User opted out of this notification type
+
+            ntype_str = ntype.value
+
+            # ── Email ──────────────────────────────────────────────────────
+            if prefs.email_enabled:
+                try:
+                    from app.db.models import User as _User
+                    from app.services.email_service import send_notification_email
+                    u = (await db.execute(select(_User).where(_User.id == user_id))).scalar_one_or_none()
+                    if u and u.email:
+                        await send_notification_email(
+                            to_email=u.email,
+                            username=getattr(u, "username", "") or "",
+                            ntype=ntype_str,
+                            title=title,
+                            body=body,
+                        )
+                except Exception as exc:
+                    logger.warning(f"Email dispatch failed for user {user_id}: {exc}")
+
+            # ── Telegram ───────────────────────────────────────────────────
+            if prefs.telegram_enabled and getattr(prefs, "telegram_chat_id", None):
+                try:
+                    from app.services.telegram_service import send_notification_telegram
+                    await send_notification_telegram(
+                        chat_id=prefs.telegram_chat_id,
+                        ntype=ntype_str,
+                        title=title,
+                        body=body,
+                    )
+                except Exception as exc:
+                    logger.warning(f"Telegram dispatch failed for user {user_id}: {exc}")
+
+        except Exception as exc:
+            logger.warning(f"_dispatch_external failed for user {user_id}: {exc}")
 
     # ── Convenience methods ────────────────────────────────────────────────
 
@@ -158,12 +239,12 @@ class NotificationService:
         status: str,
         detail: str = "",
         *,
-        send_email: bool = True,
+        send_email: bool = True,   # kept for backwards-compat; email now handled by _dispatch_external
     ) -> Optional[Notification]:
-        """In-app + WS push for validator status changes; optional email.
+        """In-app + WS push for validator status changes.
 
-        Respects NotificationPreference.validator_status (in-app gate) and
-        email_enabled (email gate). Silent no-op if user opted out.
+        Respects NotificationPreference.validator_status gate.
+        Email + Telegram delivery is handled automatically by _dispatch_external.
         """
         prefs = await cls.get_or_create_prefs(db, user_id)
         if not prefs.validator_status:
@@ -174,24 +255,8 @@ class NotificationService:
             {"status": status, "detail": detail or ""},
         )
 
-        if send_email and prefs.email_enabled:
-            try:
-                from app.db.models import User
-                from app.auth.verification import _send_email
-                u = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
-                if u and u.email:
-                    await _send_email(
-                        u.email,
-                        f"VIT Validator status: {status}",
-                        f"<p>Hi {u.username or ''},</p>"
-                        f"<p>Your validator application status has been updated to "
-                        f"<strong>{status}</strong>.</p>"
-                        f"<p>{detail}</p>"
-                        f"<p>Visit your dashboard for full details.</p>",
-                    )
-            except Exception as exc:
-                logger.warning(f"validator email send failed for user {user_id}: {exc}")
-
+        # Email + Telegram are now handled automatically by _dispatch_external
+        # inside cls.create(), so no extra send needed here.
         return notif
 
     @classmethod
@@ -284,13 +349,16 @@ class NotificationService:
             prefs = NotificationPreference(user_id=user_id)
             db.add(prefs)
 
-        allowed = {
+        bool_fields = {
             "prediction_alerts", "match_results", "wallet_activity",
             "validator_rewards", "subscription_expiry", "validator_status",
             "email_enabled", "telegram_enabled", "in_app_enabled",
         }
+        str_nullable_fields = {"telegram_chat_id"}
         for k, v in updates.items():
-            if k in allowed and isinstance(v, bool):
+            if k in bool_fields and isinstance(v, bool):
+                setattr(prefs, k, v)
+            elif k in str_nullable_fields and (v is None or isinstance(v, str)):
                 setattr(prefs, k, v)
 
         await db.commit()

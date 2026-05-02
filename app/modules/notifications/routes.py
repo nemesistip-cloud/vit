@@ -1,10 +1,17 @@
 # app/modules/notifications/routes.py
-"""Notification REST + WebSocket API — Module K."""
+"""Notification REST + WebSocket API — Module K.
+
+v4.8.0 additions:
+  GET  /api/notifications/telegram/link-info   — generate bot deep-link code
+  POST /api/notifications/telegram/webhook     — receive Telegram updates (link + delivery)
+  POST /api/notifications/telegram/unlink      — remove telegram_chat_id
+  POST /api/notifications/test                 — send a test notification on all enabled channels
+"""
 
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +36,25 @@ class PreferencesUpdate(BaseModel):
     email_enabled:       Optional[bool] = None
     telegram_enabled:    Optional[bool] = None
     in_app_enabled:      Optional[bool] = None
+
+
+class ManualChatIdBody(BaseModel):
+    chat_id: str
+
+
+def _prefs_dict(prefs) -> dict:
+    return {
+        "prediction_alerts":   prefs.prediction_alerts,
+        "match_results":       prefs.match_results,
+        "wallet_activity":     prefs.wallet_activity,
+        "validator_rewards":   prefs.validator_rewards,
+        "subscription_expiry": prefs.subscription_expiry,
+        "email_enabled":       prefs.email_enabled,
+        "telegram_enabled":    prefs.telegram_enabled,
+        "in_app_enabled":      prefs.in_app_enabled,
+        "telegram_chat_id":    getattr(prefs, "telegram_chat_id", None),
+        "telegram_linked":     bool(getattr(prefs, "telegram_chat_id", None)),
+    }
 
 
 # ── REST endpoints ─────────────────────────────────────────────────────────────
@@ -93,16 +119,7 @@ async def get_preferences(
     current_user: User = Depends(get_current_user),
 ):
     prefs = await NotificationService.get_or_create_prefs(db, current_user.id)
-    return {
-        "prediction_alerts":   prefs.prediction_alerts,
-        "match_results":       prefs.match_results,
-        "wallet_activity":     prefs.wallet_activity,
-        "validator_rewards":   prefs.validator_rewards,
-        "subscription_expiry": prefs.subscription_expiry,
-        "email_enabled":       prefs.email_enabled,
-        "telegram_enabled":    prefs.telegram_enabled,
-        "in_app_enabled":      prefs.in_app_enabled,
-    }
+    return _prefs_dict(prefs)
 
 
 @router.patch("/preferences", summary="Update notification preferences")
@@ -113,14 +130,178 @@ async def update_preferences(
 ):
     payload = {k: v for k, v in updates.model_dump().items() if v is not None}
     prefs = await NotificationService.update_prefs(db, current_user.id, payload)
+    return _prefs_dict(prefs)
+
+
+# ── Test notification ──────────────────────────────────────────────────────────
+
+@router.post("/test", summary="Send test notification on all enabled channels")
+async def send_test_notification(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Sends a test notification via every enabled channel (in-app, email, Telegram)."""
+    from app.modules.notifications.models import NotificationType
+    from app.services.email_service import send_test_email
+    from app.services.telegram_service import send_test_telegram
+
+    prefs = await NotificationService.get_or_create_prefs(db, current_user.id)
+    results: dict[str, str] = {}
+
+    # Always create an in-app notification
+    await NotificationService.create(
+        db,
+        user_id=current_user.id,
+        ntype=NotificationType.SYSTEM,
+        context={},
+        title="Test Notification",
+        body="This is a test notification from VIT Sports Intelligence Network.",
+    )
+    results["in_app"] = "sent"
+
+    # Email
+    if prefs.email_enabled:
+        email = getattr(current_user, "email", None)
+        if email:
+            ok = await send_test_email(
+                to_email=email,
+                username=getattr(current_user, "username", "") or "",
+            )
+            results["email"] = "sent" if ok else "failed (check SMTP/Resend config)"
+        else:
+            results["email"] = "skipped (no email on account)"
+    else:
+        results["email"] = "skipped (disabled in preferences)"
+
+    # Telegram
+    chat_id = getattr(prefs, "telegram_chat_id", None)
+    if prefs.telegram_enabled and chat_id:
+        ok = await send_test_telegram(chat_id)
+        results["telegram"] = "sent" if ok else "failed (check TELEGRAM_BOT_TOKEN)"
+    elif not chat_id:
+        results["telegram"] = "skipped (not linked)"
+    else:
+        results["telegram"] = "skipped (disabled in preferences)"
+
+    return {"results": results}
+
+
+# ── Telegram deep-link flow ────────────────────────────────────────────────────
+
+@router.get("/telegram/link-info", summary="Get Telegram deep-link for account linking")
+async def telegram_link_info(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns a one-time Telegram bot deep-link (valid 10 minutes).
+    The user clicks the link, starts the bot, and the account is linked
+    automatically via the /telegram/webhook endpoint.
+    """
+    import os
+    from app.services.telegram_service import generate_link_code, get_bot_username
+
+    prefs = await NotificationService.get_or_create_prefs(db, current_user.id)
+    bot_username = get_bot_username()
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+    if not token:
+        raise HTTPException(
+            status_code=503,
+            detail="Telegram bot is not configured on this server. "
+                   "Set TELEGRAM_BOT_TOKEN in environment secrets.",
+        )
+
+    code     = generate_link_code(current_user.id)
+    link_url = f"https://t.me/{bot_username}?start={code}"
+
     return {
-        "prediction_alerts":   prefs.prediction_alerts,
-        "match_results":       prefs.match_results,
-        "wallet_activity":     prefs.wallet_activity,
-        "validator_rewards":   prefs.validator_rewards,
-        "subscription_expiry": prefs.subscription_expiry,
-        "email_enabled":       prefs.email_enabled,
-        "telegram_enabled":    prefs.telegram_enabled,
-        "in_app_enabled":      prefs.in_app_enabled,
+        "bot_username":  bot_username,
+        "link_url":      link_url,
+        "code":          code,
+        "expires_in":    600,
+        "already_linked": bool(getattr(prefs, "telegram_chat_id", None)),
     }
 
+
+@router.post("/telegram/link-manual", summary="Manually set Telegram chat_id")
+async def telegram_link_manual(
+    body: ManualChatIdBody,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Fallback: user provides their own Telegram chat_id (found via @userinfobot).
+    Sends a test DM to confirm ownership before storing.
+    """
+    from app.services.telegram_service import send_test_telegram
+
+    chat_id = body.chat_id.strip()
+    if not chat_id:
+        raise HTTPException(status_code=400, detail="chat_id is required")
+
+    # Try to send a confirmation DM first
+    ok = await send_test_telegram(chat_id)
+    if not ok:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not send a DM to that chat_id. "
+                "Make sure you have started the bot first and the ID is correct."
+            ),
+        )
+
+    prefs = await NotificationService.update_prefs(
+        db, current_user.id, {"telegram_chat_id": chat_id, "telegram_enabled": True}
+    )
+    return {
+        "success": True,
+        "message": "Telegram linked! A test message was sent to confirm.",
+        "telegram_chat_id": prefs.telegram_chat_id,
+    }
+
+
+@router.post("/telegram/unlink", summary="Unlink Telegram account")
+async def telegram_unlink(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove telegram_chat_id and disable Telegram notifications."""
+    await NotificationService.update_prefs(
+        db,
+        current_user.id,
+        {"telegram_chat_id": None, "telegram_enabled": False},
+    )
+    return {"success": True, "message": "Telegram unlinked."}
+
+
+@router.post("/telegram/webhook", summary="Telegram bot webhook (public)", include_in_schema=False)
+async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Public endpoint — register with Telegram as the bot webhook.
+    Handles /start {code} messages to complete account linking.
+
+    Register with:
+      curl -X POST "https://api.telegram.org/bot{TOKEN}/setWebhook" \
+           -d "url=https://your-domain.com/api/notifications/telegram/webhook"
+    """
+    from app.services.telegram_service import process_webhook_update
+    from app.modules.notifications.service import NotificationService
+
+    try:
+        update = await request.json()
+    except Exception:
+        return {"ok": True}
+
+    user_id = await process_webhook_update(update)
+
+    if user_id and update.get("_resolved_chat_id"):
+        chat_id = update["_resolved_chat_id"]
+        await NotificationService.update_prefs(
+            db,
+            user_id,
+            {"telegram_chat_id": chat_id, "telegram_enabled": True},
+        )
+        logger.info(f"Telegram linked: user_id={user_id} chat_id={chat_id}")
+
+    return {"ok": True}

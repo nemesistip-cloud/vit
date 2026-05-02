@@ -1,7 +1,56 @@
-# VIT Sports Intelligence Network — v4.7.5
+# VIT Sports Intelligence Network — v4.8.0
 
 ## Overview
 The VIT Sports Intelligence Network is an institutional-grade football prediction platform. It leverages a 12-model AI ensemble for predictions, integrates a VITCoin wallet economy, supports blockchain-verified staking, features a model marketplace, and includes a governance DAO. The platform offers multi-tier subscriptions (Free, Pro, Elite) and aims to provide advanced sports analytics and prediction capabilities.
+
+## Changelog — v4.8.0 (2026-05-02): Multi-Channel Notification System
+
+### Email Notifications
+- Created `app/services/email_service.py` — full HTML email delivery service
+  - Branded VIT HTML template (dark theme, cyan accent)
+  - Supports **Resend.com** API (`RESEND_API_KEY`) and **SMTP** (`SMTP_HOST/PORT/USER/PASS`)
+  - Falls back to console log in dev when neither is configured
+  - Per-notification-type icon and subject prefix
+  - `send_notification_email()`, `send_test_email()` public functions
+
+### Per-User Telegram Notifications
+- Created `app/services/telegram_service.py` — per-user Telegram DM service
+  - `send_notification_telegram(chat_id, ntype, title, body)` — DMs individual users
+  - `generate_link_code(user_id)` / `consume_link_code(code)` — 10-min HMAC link codes
+  - `process_webhook_update()` — parses Telegram updates, handles `/start <code>` linking
+  - `send_test_telegram(chat_id)` — verification DM
+- Added `telegram_chat_id VARCHAR(64)` column to `notification_preferences` via migration `d3e4f5a6b7c8`
+
+### NotificationService Multi-Channel Dispatch
+- `NotificationService.create()` now spawns `_dispatch_external()` as a background asyncio task
+- `_dispatch_external()` checks per-type preference gates, then dispatches email + Telegram DMs
+- `update_prefs()` extended to allow `telegram_chat_id` (string/None) alongside bool fields
+- Removed duplicate email send from `notify_validator_status()` (now handled by `_dispatch_external`)
+
+### New REST Endpoints
+- `GET  /api/notifications/preferences` — now returns `telegram_chat_id` + `telegram_linked`
+- `POST /api/notifications/test` — sends test notification on all enabled channels; returns per-channel results
+- `GET  /api/notifications/telegram/link-info` — generate bot deep-link code (valid 10 min)
+- `POST /api/notifications/telegram/link-manual` — manual chat_id entry with DM verification
+- `POST /api/notifications/telegram/unlink` — remove telegram_chat_id, disable telegram
+- `POST /api/notifications/telegram/webhook` — public Telegram bot webhook for `/start <code>` linking
+
+### Frontend Notification Bell Enhancements
+- Telegram linking UI in preferences panel:
+  - **Linked state**: shows chat_id, green badge, Unlink button
+  - **Unlinked state**: "Link Telegram Account" button reveals two options
+  - Option 1: Bot deep-link (click to open Telegram bot, auto-link via webhook)
+  - Option 2: Manual chat_id entry with validation DM
+- Email channel row now shows config note when enabled
+- "Send Test Notification" button in preferences panel — reports per-channel result
+- Preferences interface now includes `telegram_chat_id` and `telegram_linked` fields
+
+### Setup Notes
+- To enable email: set `RESEND_API_KEY` (preferred) **or** `SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS`
+- To enable Telegram:
+  1. Set `TELEGRAM_BOT_TOKEN` (existing) + `TELEGRAM_BOT_USERNAME` (bot's @username)
+  2. Register webhook: `POST https://api.telegram.org/bot{TOKEN}/setWebhook?url=https://your-domain.com/api/notifications/telegram/webhook`
+  3. Users link via Settings → Notifications → Telegram → Link Telegram Account
 
 ## Changelog — Security & Feature Upgrade (2026-05-01, sessions 2 & 3)
 
