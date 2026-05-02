@@ -143,7 +143,12 @@ export default function MatchDetailPage() {
             <div className="lg:col-span-2 space-y-6">
               <MatchAssistantCard match={match} consensus={consensus} />
 
-              <AIInsightComparison matchId={matchId} />
+              <AIInsightComparison
+                matchId={matchId}
+                homeTeam={match?.home_team}
+                awayTeam={match?.away_team}
+                league={match?.league ?? undefined}
+              />
 
               <Card className="bg-card/50 backdrop-blur border-border">
                 <CardHeader className="border-b border-border/50 pb-4">

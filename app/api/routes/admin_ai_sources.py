@@ -93,19 +93,28 @@ async def list_matches_for_ingest(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(require_uploader),
 ):
-    """List upcoming/recent matches with current AI source coverage."""
+    """List upcoming/live matches only (no past fixtures) with AI source coverage."""
+    from datetime import timedelta
     now = datetime.now(timezone.utc)
+    live_cutoff = now - timedelta(hours=3)   # include matches started up to 3h ago
+
     res = await db.execute(
         select(Match)
-        .where(Match.status.in_(["scheduled", "upcoming", "live", "in_progress"]))
+        .where(
+            Match.status.in_(["scheduled", "upcoming", "live", "in_progress"]),
+            Match.kickoff_time >= live_cutoff,
+        )
         .order_by(Match.kickoff_time.asc())
         .limit(max(1, min(limit, 100)))
     )
     matches = res.scalars().all()
     if not matches:
-        # fallback: most recent matches regardless of status
+        # fallback: any future fixture regardless of status label (clean — no past matches)
         res = await db.execute(
-            select(Match).order_by(desc(Match.kickoff_time)).limit(limit)
+            select(Match)
+            .where(Match.kickoff_time >= live_cutoff)
+            .order_by(Match.kickoff_time.asc())
+            .limit(limit)
         )
         matches = res.scalars().all()
 
