@@ -243,12 +243,22 @@ async def fit_temperature_from_history(db, min_samples: int = 100) -> dict:
         except (TypeError, ValueError):
             continue
 
-    if len(samples) < min_samples:
+    current_T = TemperatureScaler.load().temperature
+
+    if len(samples) == 0:
         return {
-            "fitted": False,
-            "reason": f"insufficient samples (have {len(samples)}, need {min_samples})",
-            "n_samples": len(samples),
+            "fitted":      False,
+            "reason":      "No settled predictions yet — temperature unchanged at T=1.0",
+            "n_samples":   0,
+            "temperature": current_T,
+            "low_confidence": False,
         }
+
+    if len(samples) < min_samples:
+        # Still fit — just flag the result as low-confidence.
+        low_confidence = True
+    else:
+        low_confidence = False
 
     pre_nll = sum(log_loss_for_outcome(*s) for s in samples) / len(samples)
     best_T, best_nll = TemperatureScaler.fit(samples)
@@ -257,13 +267,18 @@ async def fit_temperature_from_history(db, min_samples: int = 100) -> dict:
     scaler.save()
 
     return {
-        "fitted": True,
-        "n_samples": len(samples),
-        "temperature": best_T,
+        "fitted":           True,
+        "n_samples":        len(samples),
+        "temperature":      best_T,
         "pre_fit_log_loss": round(pre_nll, 6),
         "post_fit_log_loss": best_nll,
-        "improvement": round(pre_nll - best_nll, 6),
-        "saved_to": str(TEMPERATURE_PATH),
+        "improvement":      round(pre_nll - best_nll, 6),
+        "saved_to":         str(TEMPERATURE_PATH),
+        "low_confidence":   low_confidence,
+        "note": (
+            f"Fitted on only {len(samples)} sample(s) — treat result as provisional until ≥ {min_samples} settle."
+            if low_confidence else None
+        ),
     }
 
 

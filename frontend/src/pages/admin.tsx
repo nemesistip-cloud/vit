@@ -9,9 +9,7 @@ import {
   useAdminAccumulatorPlaceBet,
   useAdminAccumulatorSend,
   useAiFeedConsensus,
-  useGetAiPerformance,
   useUpdateAiPerformance,
-  useGetAiReport,
 } from "@/api-client/index";
 import { useAuth } from "@/lib/auth";
 import { PermissionGate } from "@/components/auth/PermissionGate";
@@ -3753,27 +3751,45 @@ export default function AdminPage() {
 function CalibrationTab() {
   const [window, setWindow] = useState(50);
   const [busy, setBusy] = useState(false);
+  const qc = useQueryClient();
+
   const reportQ = useQuery<any>({
     queryKey: ["ai-accuracy-report", window],
     queryFn: () => apiGet(`/api/ai-engine/accuracy/report?window=${window}`),
   });
-  const { data: aiPerformance } = useGetAiPerformance();
-  const { data: aiReport } = useGetAiReport();
+
+  // Provider activity stats — reads from AgentInsight + AIPrediction, no auth needed
+  const providerStatsQ = useQuery<any>({
+    queryKey: ["ai-provider-stats"],
+    queryFn: () => apiGet("/api/ai-engine/provider-stats"),
+    refetchInterval: 60000,
+  });
+
   const updatePerfMutation = useUpdateAiPerformance();
 
   async function refit() {
     setBusy(true);
     try {
       const res = await apiPost<any>(
-        `/api/ai-engine/accuracy/enhance?window=${window}`, {},
+        `/api/ai-engine/accuracy/enhance?min_samples=1&window=${window}`, {},
       );
       const fit = res?.temperature_fit;
-      if (fit?.fitted) {
-        toast.success(
-          `Temperature refit: T=${fit.best_T} (NLL ${fit.pre_nll?.toFixed(4)} → ${fit.best_nll?.toFixed(4)})`,
-        );
+      if (!fit) {
+        toast.error("No response from calibration endpoint");
+        return;
+      }
+      if (fit.fitted) {
+        const preNll  = fit.pre_fit_log_loss ?? fit.pre_nll;
+        const postNll = fit.post_fit_log_loss ?? fit.best_nll;
+        const T       = fit.temperature ?? fit.best_T;
+        const msg = `T=${Number(T).toFixed(3)} — log-loss ${Number(preNll).toFixed(4)} → ${Number(postNll).toFixed(4)}`;
+        if (fit.low_confidence) {
+          toast.message(`Temperature refit (low confidence — only ${fit.n_samples} sample): ${msg}`);
+        } else {
+          toast.success(`Temperature refit: ${msg}`);
+        }
       } else {
-        toast.message(fit?.reason || "Temperature not refit");
+        toast.message(fit.reason || "Temperature not refit — no data yet");
       }
       reportQ.refetch();
     } catch (e: any) {
@@ -3783,12 +3799,15 @@ function CalibrationTab() {
     }
   }
 
-  const data = reportQ.data;
+  const data   = reportQ.data;
   const models: any[] = data?.models || [];
-  const T = data?.current_temperature ?? 1.0;
+  const T      = data?.current_temperature ?? 1.0;
+  const providers: any[] = providerStatsQ.data?.providers || [];
+  const activeProviders   = providers.filter((p: any) => p.has_data);
 
   return (
     <div className="space-y-4">
+      {/* ── Ensemble Calibration ──────────────────────────────────────── */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
@@ -3824,8 +3843,20 @@ function CalibrationTab() {
           {reportQ.isLoading ? (
             <div className="text-gray-400 text-sm">Loading rolling-window report…</div>
           ) : models.length === 0 ? (
-            <div className="text-gray-400 text-sm">
-              No settled predictions yet. Wait for matches to settle, then a report will appear here.
+            <div className="rounded border border-gray-700 bg-gray-900/60 p-4 text-sm space-y-2">
+              <div className="text-gray-300 font-medium flex items-center gap-2">
+                <Activity className="w-4 h-4 text-cyan-400" />
+                No settled predictions in the rolling window yet
+              </div>
+              <div className="text-gray-500 text-xs leading-relaxed">
+                This table is computed from <span className="text-gray-300">AIPredictionAudit</span> records
+                joined to matches with a known final result. It will populate once matches settle and the
+                ensemble has generated audit-logged predictions for them.
+              </div>
+              <div className="text-gray-500 text-xs">
+                In the meantime, the <span className="text-amber-400 font-mono">Accountability</span> tab
+                shows per-model bootstrapped metrics as a baseline.
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -3867,66 +3898,100 @@ function CalibrationTab() {
         </CardContent>
       </Card>
 
-      {/* AI Performance */}
+      {/* ── AI Provider Activity ──────────────────────────────────────── */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-white flex items-center gap-2">
               <Brain className="w-4 h-4 text-purple-400" />
               AI Source Performance
             </CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-purple-500/50 text-purple-300 hover:text-white hover:bg-purple-950/50"
-              disabled={updatePerfMutation.isPending}
-              onClick={() => updatePerfMutation.mutate(undefined, {
-                onSuccess: () => toast.success("AI performance metrics refreshed"),
-                onError: (e: any) => toast.error(e?.message || "Refresh failed"),
-              })}
-            >
-              {updatePerfMutation.isPending ? "Updating…" : "Update Performance"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-gray-600 text-gray-400 hover:text-white"
+                onClick={() => {
+                  providerStatsQ.refetch();
+                  qc.invalidateQueries({ queryKey: ["ai-provider-stats"] });
+                }}
+              >
+                <RefreshCw className="w-3 h-3 mr-1.5" /> Refresh
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-purple-500/50 text-purple-300 hover:text-white hover:bg-purple-950/50"
+                disabled={updatePerfMutation.isPending}
+                title="Recompute accuracy from settled match outcomes (requires settled AIPrediction rows)"
+                onClick={() => updatePerfMutation.mutate(undefined, {
+                  onSuccess: () => {
+                    toast.success("AI performance metrics updated from settled predictions");
+                    qc.invalidateQueries({ queryKey: ["ai-provider-stats"] });
+                  },
+                  onError: (e: any) => toast.error(e?.message || "Update failed"),
+                })}
+              >
+                {updatePerfMutation.isPending ? "Updating…" : "Update Performance"}
+              </Button>
+            </div>
           </div>
           <CardDescription className="text-gray-500 text-xs mt-1">
-            Recomputes accuracy / Brier from settled match outcomes for every AI source (Gemini, Claude, Grok…).
+            Activity across Gemini, Claude, OpenAI, and Grok derived from agent insight calls.
+            "Accuracy" column populates only after matches settle and <span className="font-mono">Update Performance</span> is run.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {aiPerformance && Object.keys(aiPerformance).length > 0 ? (
+          {providerStatsQ.isLoading ? (
+            <div className="text-gray-400 text-sm">Loading provider stats…</div>
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-gray-400 border-b border-gray-700">
-                    <th className="py-2 px-2">Source</th>
-                    <th className="py-2 px-2 text-right">Samples</th>
+                    <th className="py-2 px-2">Provider</th>
+                    <th className="py-2 px-2 text-right">Total calls</th>
+                    <th className="py-2 px-2 text-right">Agent insights</th>
+                    <th className="py-2 px-2 text-right">Avg confidence</th>
                     <th className="py-2 px-2 text-right">Accuracy</th>
-                    <th className="py-2 px-2 text-right">Avg Confidence</th>
-                    <th className="py-2 px-2 text-right">Last Updated</th>
+                    <th className="py-2 px-2 text-right">Last active</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(aiPerformance).map(([source, data]: [string, any]) => (
-                    <tr key={source} className="border-b border-gray-800/50">
-                      <td className="py-2 px-2 font-mono text-purple-300">{source}</td>
-                      <td className="py-2 px-2 text-right text-gray-300">{data.sample_size || 0}</td>
-                      <td className="py-2 px-2 text-right text-gray-200">
-                        {data.accuracy != null ? `${(data.accuracy * 100).toFixed(1)}%` : "—"}
+                  {providers.map((p: any) => (
+                    <tr key={p.provider} className={`border-b border-gray-800/50 ${!p.has_data ? "opacity-40" : ""}`}>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-1.5 h-1.5 rounded-full ${p.has_data ? "bg-emerald-400" : "bg-gray-600"}`} />
+                          <span className="font-mono text-purple-300 capitalize">{p.provider}</span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-gray-200">
+                        {p.total_calls > 0 ? p.total_calls.toLocaleString() : "—"}
+                      </td>
+                      <td className="py-2 px-2 text-right text-gray-400">
+                        {p.insight_count > 0 ? p.insight_count.toLocaleString() : "—"}
                       </td>
                       <td className="py-2 px-2 text-right font-mono text-blue-400">
-                        {data.avg_confidence != null ? `${(data.avg_confidence * 100).toFixed(1)}%` : "—"}
+                        {p.avg_confidence != null ? `${(p.avg_confidence * 100).toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="py-2 px-2 text-right text-gray-200">
+                        {p.accuracy != null
+                          ? `${(p.accuracy * 100).toFixed(1)}%`
+                          : <span className="text-gray-600 text-xs">awaiting settlements</span>}
                       </td>
                       <td className="py-2 px-2 text-right text-gray-400 text-xs">
-                        {data.last_updated ? new Date(data.last_updated).toLocaleDateString() : "—"}
+                        {p.last_active ? new Date(p.last_active).toLocaleDateString() : "—"}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          ) : (
-            <div className="text-gray-400 text-sm text-center py-4">
-              No AI performance data available yet.
+              {activeProviders.length === 0 && (
+                <div className="text-center text-gray-500 text-xs py-3 border-t border-gray-800 mt-2">
+                  No agent calls recorded yet — providers will appear here once agents generate insights.
+                </div>
+              )}
             </div>
           )}
         </CardContent>

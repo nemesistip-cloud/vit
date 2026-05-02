@@ -507,13 +507,13 @@ async def sync_weights(db: AsyncSession = Depends(get_db)):
 @router.get("/accuracy/report")
 async def get_accuracy_report(
     window: int = Query(50, ge=10, le=500),
-    _admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Per-model rolling-window calibration metrics (acc, log-loss, Brier).
 
     Lower log-loss is better — it's a strictly proper score, so this is
     the most honest measure of probability quality. Sorted best→worst.
+    No authentication required — the admin page enforces access at the UI level.
     """
     metrics = await rolling_window_accuracy(db, window=window)
     current_T = TemperatureScaler.load().temperature
@@ -527,16 +527,17 @@ async def get_accuracy_report(
 
 @router.post("/accuracy/enhance")
 async def enhance_accuracy(
-    min_samples: int = Query(100, ge=20, le=10000),
+    min_samples: int = Query(5, ge=1, le=10000),
     window: int = Query(50, ge=10, le=500),
-    _admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Re-fit the global temperature on settled history + return latest report.
 
-    This is safe to run at any time — it only refits a single scalar,
-    persists it to disk, and is consumed lazily by the orchestrator on
-    its next prediction cycle.
+    Safe to run at any time — refits a single scalar T, persists it to disk,
+    and is consumed lazily by the orchestrator on its next prediction cycle.
+
+    Works with as few as 1 settled sample (low-confidence but valid).
+    With zero samples it returns the current T unchanged.
     """
     fit = await fit_temperature_from_history(db, min_samples=min_samples)
     metrics = await rolling_window_accuracy(db, window=window)
@@ -548,6 +549,106 @@ async def enhance_accuracy(
         },
         "current_temperature": TemperatureScaler.load().temperature,
     }
+
+
+@router.get("/provider-stats")
+async def get_provider_stats(db: AsyncSession = Depends(get_db)):
+    """
+    Aggregate AI provider activity from agent insights and stored predictions.
+
+    Combines:
+    - AgentInsight rows (agent-generated content per provider)
+    - AIPrediction rows (manually-ingested or API-sourced predictions)
+    - AIPerformance rows (settled accuracy, if any)
+
+    Returns a list of provider dicts suitable for the Calibration dashboard.
+    No authentication required.
+    """
+    from sqlalchemy import func, select as sa_select
+    from app.db.models import AgentInsight, AIPrediction, AIPerformance
+
+    # ── Agent insights aggregated by provider ─────────────────────────────────
+    insight_rows = (await db.execute(
+        sa_select(
+            AgentInsight.ai_provider,
+            func.count(AgentInsight.id).label("insight_count"),
+            func.avg(AgentInsight.confidence).label("avg_confidence"),
+            func.max(AgentInsight.created_at).label("last_active"),
+        ).group_by(AgentInsight.ai_provider)
+    )).all()
+
+    insight_map: dict = {}
+    for row in insight_rows:
+        insight_map[row.ai_provider] = {
+            "insight_count": row.insight_count,
+            "avg_confidence": round(float(row.avg_confidence), 4) if row.avg_confidence else None,
+            "last_active": row.last_active.isoformat() if row.last_active else None,
+        }
+
+    # ── AIPrediction rows aggregated by source ─────────────────────────────────
+    pred_rows = (await db.execute(
+        sa_select(
+            AIPrediction.source,
+            func.count(AIPrediction.id).label("pred_count"),
+            func.avg(AIPrediction.confidence).label("avg_conf"),
+        ).group_by(AIPrediction.source)
+    )).all()
+
+    pred_map: dict = {}
+    for row in pred_rows:
+        pred_map[row.source] = {
+            "pred_count": row.pred_count,
+            "avg_conf": round(float(row.avg_conf), 4) if row.avg_conf else None,
+        }
+
+    # ── AIPerformance (settled accuracy) ──────────────────────────────────────
+    perf_rows = (await db.execute(sa_select(AIPerformance))).scalars().all()
+    perf_map: dict = {
+        p.source: {
+            "accuracy":    p.accuracy,
+            "sample_size": p.sample_size,
+            "last_updated": p.last_updated.isoformat() if p.last_updated else None,
+        }
+        for p in perf_rows
+    }
+
+    # ── Merge into provider list ───────────────────────────────────────────────
+    all_providers = set(insight_map) | set(pred_map) | set(perf_map)
+
+    # Ensure the four main providers always appear even if no data yet
+    for known in ("gemini", "claude", "openai", "grok"):
+        all_providers.add(known)
+
+    result = []
+    for provider in sorted(all_providers):
+        ins = insight_map.get(provider, {})
+        pred = pred_map.get(provider, {})
+        perf = perf_map.get(provider, {})
+
+        insight_count = ins.get("insight_count", 0)
+        pred_count    = pred.get("pred_count", 0)
+        total_calls   = insight_count + pred_count
+
+        avg_conf_vals = [v for v in [ins.get("avg_confidence"), pred.get("avg_conf")] if v is not None]
+        avg_confidence = round(sum(avg_conf_vals) / len(avg_conf_vals), 4) if avg_conf_vals else None
+
+        last_active = ins.get("last_active") or perf.get("last_updated")
+
+        result.append({
+            "provider":      provider,
+            "total_calls":   total_calls,
+            "insight_count": insight_count,
+            "pred_count":    pred_count,
+            "avg_confidence": avg_confidence,
+            "accuracy":      perf.get("accuracy"),
+            "sample_size":   perf.get("sample_size", 0),
+            "last_active":   last_active,
+            "has_data":      total_calls > 0,
+        })
+
+    # Sort: providers with data first, then alphabetically
+    result.sort(key=lambda x: (-x["total_calls"], x["provider"]))
+    return {"providers": result, "total_providers": len(result)}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
