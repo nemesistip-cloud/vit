@@ -46,8 +46,10 @@ _OPENAI_MODELS = [
     "gpt-3.5-turbo",
 ]
 _GROQ_MODELS = [
-    "grok-2-latest",
-    "grok-beta",
+    "grok-3-mini",
+    "grok-2-1212",
+    "grok-2",
+    "grok-3",
 ]
 
 # ── Backoff state (module-level — shared across all agents) ────────────────────

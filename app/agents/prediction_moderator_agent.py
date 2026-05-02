@@ -126,24 +126,23 @@ class PredictionModeratorAgent(BaseAgent):
                 ai_issues: list = []
                 ai_assessment = ""
 
-                if api_key:
-                    prompt = _build_quality_prompt(
-                        match.home_team, match.away_team,
-                        pred.source or "unknown",
-                        home_prob, draw_prob, away_prob,
-                        confidence, reason,
-                    )
-                    raw = await call_ai(prompt)
-                    if raw:
-                        try:
-                            obj_match = re.search(r"\{[\s\S]*\}", raw.strip())
-                            if obj_match:
-                                parsed = json.loads(obj_match.group())
-                                quality_score = float(parsed.get("quality_score", 0.65))
-                                ai_issues = parsed.get("issues", [])
-                                ai_assessment = parsed.get("assessment", "")
-                        except Exception:
-                            pass
+                prompt = _build_quality_prompt(
+                    match.home_team, match.away_team,
+                    pred.source or "unknown",
+                    home_prob, draw_prob, away_prob,
+                    confidence, reason,
+                )
+                raw = await call_ai(prompt)
+                if raw:
+                    try:
+                        obj_match = re.search(r"\{[\s\S]*\}", raw.strip())
+                        if obj_match:
+                            parsed = json.loads(obj_match.group())
+                            quality_score = float(parsed.get("quality_score", 0.65))
+                            ai_issues = parsed.get("issues", [])
+                            ai_assessment = parsed.get("assessment", "")
+                    except Exception:
+                        pass
 
                 all_issues = struct_issues + ai_issues
                 final_score = quality_score - (len(struct_issues) * 0.15)

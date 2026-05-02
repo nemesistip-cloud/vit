@@ -126,6 +126,41 @@ async def agent_reports(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.post("/generate-now")
+async def generate_reports_now(_user=Depends(verify_api_key)):
+    """
+    Trigger all intelligence agents immediately and return how many were dispatched.
+
+    Useful for seeding the Intelligence Reports page on first deployment or
+    after a long idle period.  Agents run asynchronously — reports appear in
+    /agents/reports within ~30 seconds.
+    """
+    try:
+        from app.agents.coordinator import get_coordinator
+        coordinator = get_coordinator()
+        intelligence_agents = [
+            "analytics-reporter",
+            "match-scout",
+            "news-sentinel",
+            "odds-anomaly",
+        ]
+        triggered = []
+        skipped   = []
+        for name in intelligence_agents:
+            ok = coordinator.trigger(name)
+            if ok:
+                triggered.append(name)
+            else:
+                skipped.append(name)
+        return {
+            "triggered":       triggered,
+            "skipped":         skipped,
+            "message":         f"Dispatched {len(triggered)} agents — reports will appear within ~30 seconds",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.get("/live-scores")
 async def live_scores(_user=Depends(verify_api_key)):
     """Return current live match scores from the database."""

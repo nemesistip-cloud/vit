@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiGet } from "@/lib/apiClient";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { apiGet, apiPost } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity, Brain, AlertTriangle, BarChart3, RefreshCw,
   ChevronDown, ChevronUp, Radio, Target, Zap, Shield,
-  TrendingUp, Clock, Bot, Newspaper,
+  TrendingUp, Clock, Bot, Newspaper, Play,
 } from "lucide-react";
 import { vitWS } from "@/lib/websocket";
 
@@ -246,7 +246,20 @@ export default function ReportsPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshCountdown, setRefreshCountdown] = useState(30);
   const [wsGoals, setWsGoals] = useState<LiveScore[]>([]);
+  const [generateMsg, setGenerateMsg] = useState<string | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const generateMutation = useMutation({
+    mutationFn: () => apiPost<{ triggered: string[]; message: string }>("/agents/generate-now"),
+    onSuccess: (data) => {
+      setGenerateMsg(data.message);
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["agent-reports"] });
+        setGenerateMsg(null);
+      }, 8000);
+    },
+    onError: () => setGenerateMsg("Failed to trigger agents — check server logs"),
+  });
 
   const reportsQ = useQuery<ReportsData>({
     queryKey: ["agent-reports", agentFilter],
@@ -324,10 +337,20 @@ export default function ReportsPage() {
             Real-time AI agent outputs · auto-refreshes every 30s
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <span className="text-[10px] font-mono text-muted-foreground">
             {autoRefresh ? `Refresh in ${refreshCountdown}s` : "Paused"}
           </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="font-mono text-xs h-7 px-2.5 border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => generateMutation.mutate()}
+            disabled={generateMutation.isPending}
+          >
+            <Play className={`w-3 h-3 mr-1 ${generateMutation.isPending ? "animate-pulse" : ""}`} />
+            {generateMutation.isPending ? "Running…" : "Generate Now"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -400,6 +423,14 @@ export default function ReportsPage() {
         })}
       </div>
 
+      {/* Generate feedback banner */}
+      {generateMsg && (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-primary/10 border border-primary/30 rounded-xl">
+          <Zap className="w-4 h-4 text-primary shrink-0" />
+          <p className="text-xs font-mono text-primary">{generateMsg}</p>
+        </div>
+      )}
+
       {/* Reports Feed */}
       {reportsQ.isLoading ? (
         <div className="space-y-3">
@@ -409,14 +440,24 @@ export default function ReportsPage() {
         </div>
       ) : reports.length === 0 ? (
         <Card className="border-border/40">
-          <CardContent className="py-16 flex flex-col items-center gap-3 text-center">
+          <CardContent className="py-16 flex flex-col items-center gap-4 text-center">
             <Brain className="w-10 h-10 text-muted-foreground/30" />
             <p className="font-mono text-sm text-muted-foreground uppercase">No reports yet</p>
             <p className="font-mono text-[11px] text-muted-foreground/60">
               {agentFilter !== "all"
-                ? `No "${agentFilter}" reports found — try "All" or wait for next cycle`
-                : "Agents generate reports automatically — first batch appears within 2 minutes"}
+                ? `No "${agentFilter}" reports found — try "All" or generate a fresh batch`
+                : "Agents generate reports automatically — or tap below to run them now"}
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="font-mono text-xs border-primary/40 text-primary hover:bg-primary/10"
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+            >
+              <Play className={`w-3 h-3 mr-1.5 ${generateMutation.isPending ? "animate-pulse" : ""}`} />
+              {generateMutation.isPending ? "Running agents…" : "Generate Reports Now"}
+            </Button>
           </CardContent>
         </Card>
       ) : (

@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.agents.base import BaseAgent
 from app.services.ai_client import call_ai
+from app.services.vit_intelligence import get_match_context, build_scout_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,16 @@ MAX_PER_CYCLE = 5
 def _pre_match_prompt(home: str, away: str, league: str,
                       home_prob: float, draw_prob: float, away_prob: float,
                       kickoff_iso: str) -> str:
+    """Legacy fallback prompt — used only when SCIE context is unavailable."""
+    from app.services.vit_intelligence import synthetic_odds
+    odds = synthetic_odds(home_prob, draw_prob, away_prob)
     return f"""You are an elite football scout. Write a detailed pre-match intelligence brief.
 
 Match: {home} vs {away}
 League: {league.replace("_", " ").title()}
 Kickoff: {kickoff_iso[:16]} UTC
 ML Ensemble: Home {home_prob*100:.1f}% | Draw {draw_prob*100:.1f}% | Away {away_prob*100:.1f}%
+VIT Market Odds: {home} {odds['home']} | Draw {odds['draw']} | {away} {odds['away']}
 
 Return ONLY a JSON object (no markdown fences, no extra text):
 {{
@@ -43,7 +48,7 @@ Return ONLY a JSON object (no markdown fences, no extra text):
   "away_form": "3-sentence form assessment",
   "key_factors": ["factor 1", "factor 2", "factor 3", "factor 4"],
   "tactical_note": "2-sentence tactical matchup insight",
-  "value_pick": "specific bet recommendation with brief justification",
+  "value_pick": "specific bet recommendation with brief justification (reference the VIT odds)",
   "risk_level": "LOW|MEDIUM|HIGH",
   "confidence": 0.0
 }}"""
@@ -111,7 +116,9 @@ class MatchScoutAgent(BaseAgent):
             self._scouted_ids.clear()
             self._scouted_date = today
 
-        window_end = now + timedelta(hours=48)
+        # Primary window: 48h; expand to 7 days if empty (SCIE resilience)
+        window_end  = now + timedelta(hours=48)
+        window_wide = now + timedelta(days=7)
         live_cutoff = now - timedelta(hours=2, minutes=30)
 
         insights_stored = 0
@@ -119,7 +126,7 @@ class MatchScoutAgent(BaseAgent):
         live_done: List[str] = []
 
         async with AsyncSessionLocal() as db:
-            # --- PRE-MATCH: upcoming matches in next 48h ---
+            # --- PRE-MATCH: try 48h window first (SCIE: expand to 7 days if empty) ---
             rows = await db.execute(
                 select(Match, Prediction)
                 .outerjoin(Prediction, Prediction.match_id == Match.id)
@@ -132,6 +139,21 @@ class MatchScoutAgent(BaseAgent):
                 .limit(30)
             )
             upcoming = rows.all()
+
+            # SCIE resilience: expand window to 7 days if nothing in 48h
+            if not upcoming:
+                rows_wide = await db.execute(
+                    select(Match, Prediction)
+                    .outerjoin(Prediction, Prediction.match_id == Match.id)
+                    .where(
+                        Match.kickoff_time >= now,
+                        Match.kickoff_time <= window_wide,
+                        Match.status.in_(["scheduled", "upcoming"]),
+                    )
+                    .order_by(Match.kickoff_time.asc())
+                    .limit(30)
+                )
+                upcoming = rows_wide.all()
 
             # --- LIVE: matches currently in progress ---
             live_rows = await db.execute(
@@ -158,9 +180,9 @@ class MatchScoutAgent(BaseAgent):
             to_process.append((m, p, "pre"))
 
         for match, pred, mode in to_process:
-            home_prob = pred.home_prob if pred else 0.34
-            draw_prob = pred.draw_prob if pred else 0.33
-            away_prob = pred.away_prob if pred else 0.33
+            home_prob = float(pred.home_prob) if pred and pred.home_prob else 0.34
+            draw_prob = float(pred.draw_prob) if pred and pred.draw_prob else 0.33
+            away_prob = float(pred.away_prob) if pred and pred.away_prob else 0.33
 
             if mode == "live":
                 h_score = match.home_goals or 0
@@ -174,12 +196,19 @@ class MatchScoutAgent(BaseAgent):
                 )
                 insight_type = "live_update"
             else:
-                ko = match.kickoff_time.isoformat() if match.kickoff_time else "unknown"
-                prompt = _pre_match_prompt(
-                    match.home_team, match.away_team,
-                    match.league or "unknown",
-                    home_prob, draw_prob, away_prob, ko,
-                )
+                # SCIE: build enriched context from DB (form, H2H, synthetic odds)
+                try:
+                    async with AsyncSessionLocal() as ctx_db:
+                        scie_ctx = await get_match_context(match, pred, ctx_db)
+                    prompt = build_scout_prompt(scie_ctx)
+                except Exception as _scie_err:
+                    logger.debug("[match-scout] SCIE context failed, using fallback: %s", _scie_err)
+                    ko = match.kickoff_time.isoformat() if match.kickoff_time else "unknown"
+                    prompt = _pre_match_prompt(
+                        match.home_team, match.away_team,
+                        match.league or "unknown",
+                        home_prob, draw_prob, away_prob, ko,
+                    )
                 insight_type = "match_scout"
 
             raw = await call_ai(prompt, max_tokens=500)

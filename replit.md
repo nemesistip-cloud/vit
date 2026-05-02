@@ -72,15 +72,29 @@ API endpoints:
 2. Frontend `reports.tsx` polls `GET /agents/reports` every 30s + listens to `vitWS` for `live_score_update`/`goal_scored`/`ai_signal` events
 3. Live score ticker auto-populates from WebSocket events without page reload
 
+## VIT SCIE — Self-Contained Intelligence Engine
+`app/services/vit_intelligence.py` — zero external API dependency layer:
+- `synthetic_odds(home, away)` — deterministic probability model using team name hash + form proxies
+- `get_team_form(team, db)` — queries DB match history for recent W/D/L streak
+- `get_head_to_head(home, away, db)` — head-to-head stats from historical matches
+- `get_match_context(match, db)` — full pre-match context bundle (form + H2H + odds)
+- `build_scout_prompt(match, context)` — builds match-scout prompt without external odds
+- `detect_probability_drift(match, db)` — ML-based anomaly detection from DB probability deltas
+- `build_league_snapshot(league, db)` — league form table from stored match data
+
+**SCIE Template Fallbacks** — agents always produce output even when all AI providers fail:
+- `analytics_reporter_agent._template_brief()` — structured daily/weekly brief from DB metrics alone
+- `news_sentinel_agent` — generates structured JSON injury brief from Transfermarkt data (no AI needed)
+
 ## External Dependencies
 - **Football-Data.org:** Live and finished match data (v4 API)
-- **Transfermarkt:** Injury data (scraped)
+- **Transfermarkt:** Injury data (scraped — working, fetches ~68 injuries)
 - **Resend.com / SMTP:** Email notifications
 - **Telegram Bot API:** Per-user DMs and webhooks
-- **Gemini API:** Primary AI (free tier, `GEMINI_API_KEY`)
-- **Anthropic API:** Claude fallback (`CLAUDE_API_KEY`)
-- **OpenAI API:** Third fallback (`OPENAI_API_KEY`)
-- **xAI (Grok):** Fourth fallback (`XAI_API_KEY`)
+- **Gemini API:** Primary AI (free tier, `GEMINI_API_KEY`) — rate-limited on heavy load
+- **Anthropic API:** Claude fallback (`CLAUDE_API_KEY`) — check key validity if 401
+- **OpenAI API:** Third fallback (`OPENAI_API_KEY`) — rate-limited on heavy load
+- **xAI (Grok):** Fourth fallback (`XAI_API_KEY`, models: `grok-3-mini`, `grok-2-1212`, `grok-2`, `grok-3`)
 - **Puter.js:** Browser-side free AI (no key needed)
 - **Stripe:** Subscription checkout (`STRIPE_WEBHOOK_SECRET`)
 - **Paystack:** NGN deposits (`PAYSTACK_WEBHOOK_SECRET`)

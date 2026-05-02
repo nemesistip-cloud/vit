@@ -1,19 +1,19 @@
 """app/agents/fixture_gap_agent.py  — Item 8: Fixture Gap Auto-Filler
 
 Runs every 30 minutes. Detects scheduled matches that are missing
-kickoff_time, league, or both teams — then attempts to fill data gaps
-by querying the football-data.org free API and Gemini for fallback
-enrichment.
+kickoff_time, league, or both teams — then uses AI enrichment to fill the
+gaps (VIT Self-Contained Intelligence, no external API required).
 
 Gap detection rules:
   - Match has status='scheduled' but kickoff_time is NULL
   - Match has home_team or away_team as empty/placeholder strings
   - Match has no league recorded
 
-For each gap, attempts in order:
-  1. Query football-data.org by team names (free tier, 10 req/min)
-  2. If no API match: call Gemini to infer likely kickoff window + league
-  3. Patch the DB record and log as IoT event
+For each gap, uses:
+  1. AI enrichment (Gemini/Claude/Grok via call_ai) to infer league + kickoff
+  2. Patches the DB record and logs as IoT event
+
+No dependency on football-data.org or any external sports API.
 """
 
 from __future__ import annotations
@@ -25,43 +25,12 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-import httpx
-
 from app.agents.base import BaseAgent
 from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
 MAX_PER_CYCLE = 8
-FOOTBALL_API_BASE = "https://api.football-data.org/v4"
-
-
-
-async def _query_football_api(home: str, away: str, fd_key: str) -> Optional[dict]:
-    """Try to find the match via football-data.org free tier."""
-    if not fd_key:
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=15, headers={"X-Auth-Token": fd_key}) as client:
-            resp = await client.get(
-                f"{FOOTBALL_API_BASE}/matches",
-                params={"status": "SCHEDULED", "limit": 50},
-            )
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
-            for match in data.get("matches", []):
-                h = match.get("homeTeam", {}).get("name", "").lower()
-                a = match.get("awayTeam", {}).get("name", "").lower()
-                if home.lower() in h or h in home.lower():
-                    if away.lower() in a or a in away.lower():
-                        return {
-                            "kickoff": match.get("utcDate"),
-                            "league": match.get("competition", {}).get("name", ""),
-                        }
-    except Exception as e:
-        logger.debug("[fixture-gap] football-data API error: %s", e)
-    return None
 
 
 def _build_enrichment_prompt(home: str, away: str) -> str:
@@ -97,9 +66,6 @@ class FixtureGapAgent(BaseAgent):
         self._patched_ids: set[int] = set()
 
     async def run_cycle(self) -> Dict[str, Any]:
-        gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-        fd_key = os.getenv("FOOTBALL_DATA_API_KEY", "").strip()
-
         from app.db.database import AsyncSessionLocal
         from app.db.models import Match
         from app.iot.processor import store_and_broadcast
@@ -124,28 +90,10 @@ class FixtureGapAgent(BaseAgent):
             for match in gap_matches:
                 patched = False
 
-                # Try football-data.org API first
-                if match.home_team and match.away_team:
-                    api_data = await _query_football_api(
-                        match.home_team, match.away_team, fd_key
-                    )
-                    if api_data:
-                        if not match.kickoff_time and api_data.get("kickoff"):
-                            try:
-                                match.kickoff_time = datetime.fromisoformat(
-                                    api_data["kickoff"].replace("Z", "+00:00")
-                                )
-                                patched = True
-                            except Exception:
-                                pass
-                        if not match.league and api_data.get("league"):
-                            match.league = api_data["league"]
-                            patched = True
-
-                # Fallback: Gemini enrichment for league
-                if not match.league and match.home_team and match.away_team and gemini_key:
+                # VIT SCIE: AI-only enrichment (no external sports API required)
+                if not match.league and match.home_team and match.away_team:
                     prompt = _build_enrichment_prompt(match.home_team, match.away_team)
-                    raw = await _call_gemini(prompt, gemini_key)
+                    raw = await call_ai(prompt, max_tokens=200)
                     if raw:
                         try:
                             obj_match = re.search(r"\{[\s\S]*\}", raw.strip())
@@ -163,8 +111,8 @@ class FixtureGapAgent(BaseAgent):
                     filled += 1
                     self._patched_ids.add(match.id)
                     logger.info(
-                        "[fixture-gap] patched match=%d %s vs %s",
-                        match.id, match.home_team, match.away_team,
+                        "[fixture-gap] patched match=%d %s vs %s → league=%s",
+                        match.id, match.home_team, match.away_team, match.league,
                     )
                     await store_and_broadcast(
                         source="agent",
