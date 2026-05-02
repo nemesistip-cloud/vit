@@ -222,8 +222,8 @@ async def get_upcoming_matches(
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     future = now + timedelta(days=days)
-    # Include matches that started up to 3 hours ago but aren't settled yet
-    recent_cutoff = now - timedelta(hours=3)
+    # Include matches that started up to 90 minutes ago but aren't settled yet
+    recent_cutoff = now - timedelta(minutes=90)
 
     q = select(Match).where(
         and_(
@@ -270,7 +270,7 @@ async def explore_matches(
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     future = now + timedelta(days=days)
-    recent_cutoff = now - timedelta(hours=3)
+    recent_cutoff = now - timedelta(minutes=90)
 
     q = (
         select(Match, Prediction)
@@ -314,7 +314,7 @@ async def get_live_matches(db: AsyncSession = Depends(get_db)):
     q = select(Match).where(
         and_(
             Match.kickoff_time <= now,
-            Match.kickoff_time >= now - timedelta(hours=3),
+            Match.kickoff_time >= now - timedelta(minutes=90),
             Match.actual_outcome.is_(None),
             or_(Match.status == "live", Match.status == "IN_PLAY", Match.status == "LIVE"),
         )
@@ -337,8 +337,8 @@ async def get_recent_matches(
     db: AsyncSession = Depends(get_db),
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    # Show: unsettled matches (kicked off up to 3h ago → future), ordered soonest first
-    recent_cutoff = now - timedelta(hours=3)
+    # Show: unsettled matches (kicked off up to 90 minutes ago → future), ordered soonest first
+    recent_cutoff = now - timedelta(minutes=90)
 
     q = (
         select(Match, Prediction)

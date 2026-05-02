@@ -258,7 +258,7 @@ export default function ReportsPage() {
         setGenerateMsg(null);
       }, 8000);
     },
-    onError: () => setGenerateMsg("Failed to trigger agents — check server logs"),
+    onError: (err: any) => setGenerateMsg(err?.message || "Failed to trigger agents — check server logs"),
   });
 
   const reportsQ = useQuery<ReportsData>({

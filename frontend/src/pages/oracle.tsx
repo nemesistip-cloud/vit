@@ -7,7 +7,7 @@ import {
   AlertTriangle, CheckCircle2, Clock, Database, Eye, RefreshCw,
   Server, Shield, Zap, Activity, GitMerge, Hash,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiGet } from "@/lib/apiClient";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -96,19 +96,19 @@ function ResultBadge({ result }: { result: string }) {
 export default function OraclePage() {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery<OracleStats>({
     queryKey: ["oracle-stats"],
-    queryFn: () => apiRequest("GET", "/api/oracle/stats").then(r => r.json()),
+    queryFn: () => apiGet<OracleStats>("/api/oracle/stats"),
     refetchInterval: 30_000,
   });
 
   const { data: disputes } = useQuery<OracleDisputes>({
     queryKey: ["oracle-disputes"],
-    queryFn: () => apiRequest("GET", "/api/admin/oracle/disputes").then(r => r.json()),
+    queryFn: () => apiGet<OracleDisputes>("/api/admin/oracle/disputes"),
     refetchInterval: 60_000,
   });
 
   const { data: networkData } = useQuery<{ nodes: NetworkNode[] }>({
     queryKey: ["network-nodes-oracle"],
-    queryFn: () => apiRequest("GET", "/api/network/nodes?node_type=agent&limit=5").then(r => r.json()),
+    queryFn: () => apiGet<{ nodes: NetworkNode[] }>("/api/network/nodes?node_type=agent&limit=5"),
     refetchInterval: 60_000,
   });
 

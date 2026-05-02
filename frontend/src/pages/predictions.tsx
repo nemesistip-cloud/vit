@@ -165,7 +165,20 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
     );
   }
 
-  const predictions = data?.predictions ?? [];
+  const rawPredictions = data?.predictions ?? [];
+  const predictions = rawPredictions.filter((p) => {
+    if (p.actual_outcome) return true;
+    const statusNorm = String(p.status ?? "").toLowerCase();
+    if (statusNorm === "live" || statusNorm === "in_play") return true;
+    if (!p.kickoff_time) return true;
+    try {
+      const ko = new Date(p.kickoff_time).getTime();
+      if (!Number.isFinite(ko)) return true;
+      return Date.now() - ko <= 90 * 60 * 1000;
+    } catch {
+      return true;
+    }
+  });
 
   if (predictions.length === 0) {
     return (

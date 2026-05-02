@@ -135,6 +135,8 @@ async def generate_reports_now(_user=Depends(verify_api_key)):
     after a long idle period.  Agents run asynchronously — reports appear in
     /agents/reports within ~30 seconds.
     """
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
     try:
         from app.agents.coordinator import get_coordinator
         coordinator = get_coordinator()
@@ -147,17 +149,35 @@ async def generate_reports_now(_user=Depends(verify_api_key)):
         triggered = []
         skipped   = []
         for name in intelligence_agents:
-            ok = coordinator.trigger(name)
-            if ok:
-                triggered.append(name)
-            else:
+            try:
+                ok = coordinator.trigger(name)
+                if ok:
+                    triggered.append(name)
+                else:
+                    _log.warning("[generate-now] agent '%s' not found in registry", name)
+                    skipped.append(name)
+            except Exception as agent_exc:
+                _log.error("[generate-now] error triggering agent '%s': %s", name, agent_exc, exc_info=True)
                 skipped.append(name)
+
+        if not triggered:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"No agents were triggered — {len(skipped)} agent(s) not ready yet. "
+                    "The background supervisor may still be starting up. Try again in a few seconds."
+                ),
+            )
+
         return {
             "triggered":       triggered,
             "skipped":         skipped,
-            "message":         f"Dispatched {len(triggered)} agents — reports will appear within ~30 seconds",
+            "message":         f"Dispatched {len(triggered)} agent(s) — reports will appear within ~30 seconds",
         }
+    except HTTPException:
+        raise
     except Exception as exc:
+        _log.error("[generate-now] unexpected error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
 
 

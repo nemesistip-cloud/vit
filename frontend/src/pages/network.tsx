@@ -9,7 +9,7 @@ import {
   Activity, Award, CheckCircle2, Clock, Cpu, Globe,
   Key, Network, RefreshCw, Shield, TrendingUp, User, Zap,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiGet } from "@/lib/apiClient";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -177,25 +177,25 @@ function DIDRow({ identity }: { identity: DIDIdentity }) {
 export default function NetworkPage() {
   const { data: stats, isLoading: statsLoading, refetch } = useQuery<NetworkStats>({
     queryKey: ["network-stats"],
-    queryFn: () => apiRequest("GET", "/api/network/stats").then(r => r.json()),
+    queryFn: () => apiGet<NetworkStats>("/api/network/stats"),
     refetchInterval: 30_000,
   });
 
   const { data: nodesData, isLoading: nodesLoading } = useQuery<{ nodes: NetworkNode[]; count: number }>({
     queryKey: ["network-nodes"],
-    queryFn: () => apiRequest("GET", "/api/network/nodes?limit=50").then(r => r.json()),
+    queryFn: () => apiGet<{ nodes: NetworkNode[]; count: number }>("/api/network/nodes?limit=50"),
     refetchInterval: 30_000,
   });
 
   const { data: growth } = useQuery<GrowthData>({
     queryKey: ["network-growth"],
-    queryFn: () => apiRequest("GET", "/api/network/growth?hours=24").then(r => r.json()),
+    queryFn: () => apiGet<GrowthData>("/api/network/growth?hours=24"),
     refetchInterval: 60_000,
   });
 
   const { data: registry } = useQuery<DIDRegistry>({
     queryKey: ["did-registry"],
-    queryFn: () => apiRequest("GET", "/api/did/registry?limit=30").then(r => r.json()),
+    queryFn: () => apiGet<DIDRegistry>("/api/did/registry?limit=30"),
     refetchInterval: 60_000,
   });
 
