@@ -125,7 +125,7 @@ export default function AnalyticsPage() {
   });
 
   const handleExport = () => {
-    window.open('/api/exports/analytics/csv', "_blank");
+    window.open('/api/exports/analytics/csv', "_blank", "noopener,noreferrer");
   };
 
   const hasDates = dateFrom || dateTo;

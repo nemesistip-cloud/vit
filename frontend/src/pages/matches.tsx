@@ -29,9 +29,9 @@ export default function MatchesPage() {
   const queryClient = useQueryClient();
 
   const matchParams = { days: daysFilter };
-  const { data: upcomingData, isLoading: upcomingLoading, refetch } = useListMatches(matchParams);
-  const { data: recentData, isLoading: recentLoading } = useListRecentMatches();
-  const { data: completedData, isLoading: completedLoading } = useListCompletedMatches();
+  const { data: upcomingData, isLoading: upcomingLoading, isError: isErrorUpcoming, refetch } = useListMatches(matchParams);
+  const { data: recentData, isLoading: recentLoading, isError: isErrorRecent } = useListRecentMatches();
+  const { data: completedData, isLoading: completedLoading, isError: isErrorCompleted } = useListCompletedMatches();
   const { data: leaguesData } = useListLeagues();
   const syncMutation = useSyncFixtures();
 
@@ -167,18 +167,21 @@ export default function MatchesPage() {
       <div className="space-y-2">
         {/* Search — always full width */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <label htmlFor="match-search" className="sr-only">Search teams or league</label>
           <Input
+            id="match-search"
             placeholder="Search teams or league…"
             className="pl-9 font-mono bg-card/50"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search teams or league"
           />
         </div>
         {/* Filter row — three dropdowns */}
         <div className="flex gap-2">
           <Select value={leagueFilter} onValueChange={setLeagueFilter}>
-            <SelectTrigger className="flex-1 font-mono bg-card/50 text-xs min-w-0">
+            <SelectTrigger className="flex-1 font-mono bg-card/50 text-xs min-w-0" aria-label="Filter by league">
               <SelectValue placeholder="All Leagues" />
             </SelectTrigger>
             <SelectContent>
@@ -189,7 +192,7 @@ export default function MatchesPage() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 font-mono bg-card/50 text-xs min-w-0">
+            <SelectTrigger className="flex-1 font-mono bg-card/50 text-xs min-w-0" aria-label="Filter by match status">
               <SelectValue placeholder="All Matches" />
             </SelectTrigger>
             <SelectContent>
@@ -197,15 +200,15 @@ export default function MatchesPage() {
               <SelectItem value="upcoming">Upcoming</SelectItem>
               <SelectItem value="live">
                 <span className="flex items-center gap-1.5">
-                  <Radio className="w-3 h-3 text-green-400" /> Live
+                  <Radio className="w-3 h-3 text-green-400" aria-hidden="true" /> Live
                 </span>
               </SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
           <Select value={daysFilter} onValueChange={setDaysFilter}>
-            <SelectTrigger className="font-mono bg-card/50 text-xs w-[120px] flex-shrink-0">
-              <CalendarDays className="w-3 h-3 mr-1 text-muted-foreground" />
+            <SelectTrigger className="font-mono bg-card/50 text-xs w-[120px] flex-shrink-0" aria-label="Filter by time window">
+              <CalendarDays className="w-3 h-3 mr-1 text-muted-foreground" aria-hidden="true" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -222,6 +225,13 @@ export default function MatchesPage() {
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-64 rounded-xl" />
           ))}
+        </div>
+      ) : isErrorUpcoming && isErrorRecent && isErrorCompleted ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-8 text-center space-y-3">
+          <p className="font-mono text-sm text-destructive">Could not load match data. The API may be temporarily unavailable.</p>
+          <Button size="sm" variant="outline" className="font-mono text-xs gap-1.5" onClick={() => { refetch(); }}>
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
+          </Button>
         </div>
       ) : upcoming.length === 0 && recent.length === 0 && completed.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center space-y-4">

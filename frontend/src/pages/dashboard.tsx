@@ -218,31 +218,31 @@ function QuickActionsFAB() {
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  const { data: summary, isLoading: isLoadingSummary } = useQuery<any>({
+  const { data: summary, isLoading: isLoadingSummary, isError: isErrorSummary } = useQuery<any>({
     queryKey: ["dashboard-summary"],
     queryFn: () => apiGet<any>("/api/dashboard/summary"),
     refetchInterval: 30_000,
   });
 
-  const { data: price, isLoading: isLoadingPrice } = useQuery<any>({
+  const { data: price, isLoading: isLoadingPrice, isError: isErrorPrice } = useQuery<any>({
     queryKey: ["dashboard-price"],
     queryFn: () => apiGet<any>("/api/dashboard/vitcoin-price"),
     refetchInterval: 60_000,
   });
 
-  const { data: activity, isLoading: isLoadingActivity } = useQuery<any[]>({
+  const { data: activity, isLoading: isLoadingActivity, isError: isErrorActivity } = useQuery<any[]>({
     queryKey: ["dashboard-activity"],
     queryFn: () => apiGet<any[]>("/api/dashboard/recent-activity"),
     refetchInterval: 30_000,
   });
 
-  const { data: system, isLoading: isLoadingSystem } = useQuery<any>({
+  const { data: system, isLoading: isLoadingSystem, isError: isErrorSystem } = useQuery<any>({
     queryKey: ["dashboard-system"],
     queryFn: () => apiGet<any>("/system/status"),
     refetchInterval: 60_000,
   });
 
-  const { data: leaderboardData } = useQuery<any>({
+  const { data: leaderboardData, isError: isErrorLeaderboard } = useQuery<any>({
     queryKey: ["dashboard-leaderboard"],
     queryFn: () => apiGet<any>("/api/dashboard/leaderboard"),
     refetchInterval: 120_000,
@@ -298,6 +298,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {isLoadingCards ? (
           Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
+        ) : isErrorSummary ? (
+          <div className="col-span-2 lg:col-span-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs font-mono text-destructive">
+            Could not load summary data — retrying automatically.
+          </div>
         ) : (
           <>
             <Card className="border-primary/20 bg-card/50 backdrop-blur">
@@ -362,6 +366,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {isLoadingSystem ? (
           Array.from({ length: 4 }).map((_, i) => <MiniStatSkeleton key={i} />)
+        ) : isErrorSystem ? (
+          <div className="col-span-2 md:col-span-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs font-mono text-destructive">
+            System status unavailable — retrying automatically.
+          </div>
         ) : system ? (
           [
             { label: "Total Users",     value: system.users?.total ?? 0,                            icon: Users,       color: "text-foreground" },
@@ -490,6 +498,13 @@ export default function DashboardPage() {
               {isLoadingActivity ? (
                 <div className="space-y-4">
                   {Array.from({ length: 4 }).map((_, i) => <ActivityItemSkeleton key={i} />)}
+                </div>
+              ) : isErrorActivity ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+                  <div className="rounded-full border border-destructive/30 bg-destructive/10 p-2.5">
+                    <Clock className="w-4 h-4 text-destructive" />
+                  </div>
+                  <p className="text-xs font-mono text-destructive">Activity feed unavailable</p>
                 </div>
               ) : activityList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">

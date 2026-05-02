@@ -1,3 +1,35 @@
+# VIT Sports Intelligence Network — v5.0.0
+
+## Changelog — v5.0.0 (2026-05-02): Real Data Training + Improved Weight Calculation + Frontend Polish
+
+### Training Data — Real Historical Matches
+- Created `scripts/download_historical_data.py` — free CSV downloader from football-data.co.uk
+  - Downloads 10 major European leagues (PL, Championship, La Liga, Bundesliga, Serie A, Ligue 1, Eredivisie, Belgian Pro League, Primeira Liga, Süper Lig)
+  - Configurable season depth (default 5 seasons; used 3 for initial run)
+  - Parses Bet365 odds → `market_odds {home, draw, away}` + pre-computes `vig_percentage`, `vig_free_probs`, `over_25/15`, `under_25`, `btts`
+  - Deduplicates by home+away+date; `--replace-odds-only` mode patches empty odds on existing rows
+  - Expanded `data/historical_matches.json`: 1,703 → **12,475 records** (10,742 with real Bet365 odds)
+
+### ML Models — All 12 .pkl Files Trained
+- **`scripts/train_models.py`**: trained Logistic Regression, Random Forest, Gradient Boosting on 12,475 real matches
+  - logistic_v1: 53.8% accuracy | rf_v1: 52.8% | gbm_v1: 52.8%
+- **`scripts/train_remaining_models.py`**: trained Poisson, Dixon-Coles, Elo, Bayes, MarketImplied, LSTM, Transformer, Ensemble, Hybrid
+  - elo_v1: 55.3% | lstm_v1: 56.5% | transformer_v1: 56.5% | ensemble_v1: 56.4% | hybrid_v1: 56.4%
+- All 12 `.pkl` files saved to `models/` and loaded by orchestrator on startup
+
+### Weight Adjuster — Improved Scoring (app/modules/ai/weight_adjuster.py)
+- **Multi-class Brier score**: fixed from single-class `(p−1)²` → full 3-class `((hp−ht)²+(dp−dt)²+(ap−at)²)/3` — now a proper scoring rule
+- **Adaptive learning rate**: starts at `MAX_LR=0.10` and decays toward `MIN_LR=0.02` as predictions accumulate — prevents early over-fitting while allowing stable long-run updates
+- **Soft regularization**: each update gently pulls weight toward 1.0 by `REGULARIZATION=0.005` — prevents runaway weight drift without clamping
+- **Post-update ensemble normalization**: after all models update for a match, weights are rescaled so mean = 1.0 — keeps ensemble balanced over time
+- **CLV minimum sample gate**: CLV blending (`CLV_WEIGHT=0.40`) only fires after `CLV_MIN_SAMPLES=10` predictions — avoids noisy early attribution
+- **Adaptive EMA alpha**: decays from `2/(N+1)` (fast early, max 0.4) toward fixed window `2/(50+1)` — gives first samples more statistical weight
+
+### Frontend — Error States & Accessibility
+- **`frontend/src/pages/dashboard.tsx`**: added `isError` to all 5 data queries; KPI row, mini-stats row, and activity log now show explicit error banners when API calls fail
+- **`frontend/src/pages/matches.tsx`**: added `isError` to all 3 match queries; full-page error state with Retry button when all three fail; search input now has `<label>` + `aria-label`; all three filter dropdowns have `aria-label`; decorative icons marked `aria-hidden="true"`
+- **`frontend/src/pages/analytics.tsx`**: fixed `window.open` to include `"noopener,noreferrer"` (prevents tab-nabbing / referrer leak)
+
 # VIT Sports Intelligence Network — v4.9.0
 
 ## Changelog — v4.9.0 (2026-05-02): Prediction Tracking & Settlement Pipeline
