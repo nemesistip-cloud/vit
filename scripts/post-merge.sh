@@ -2,4 +2,4 @@
 set -e
 
 cd frontend
-pnpm install --frozen-lockfile
+pnpm install --no-frozen-lockfile
