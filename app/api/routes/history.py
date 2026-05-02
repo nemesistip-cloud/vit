@@ -20,6 +20,27 @@ HIGH_CONFIDENCE_EDGE_THRESHOLD = 0.02
 
 
 def _format_prediction_row(row):
+    actual = row.Match.actual_outcome
+    bet = row.Prediction.bet_side
+
+    # Derive was_correct from the prediction row first (populated on settlement),
+    # then fall back to comparing bet_side vs actual_outcome directly.
+    if row.Prediction.was_correct is not None:
+        was_correct = row.Prediction.was_correct
+    elif actual and bet:
+        was_correct = bet.lower() == actual.lower()
+    else:
+        was_correct = None  # match not settled yet
+
+    # Prefer settled_profit on the prediction row; fall back to CLVEntry profit
+    profit = row.Prediction.settled_profit
+    if profit is None and row.CLVEntry:
+        profit = row.CLVEntry.profit
+
+    home_g = row.Match.home_goals
+    away_g = row.Match.away_goals
+    ft_score = f"{home_g}-{away_g}" if (home_g is not None and away_g is not None) else None
+
     return {
         "match_id": row.Match.id,
         "home_team": row.Match.home_team,
@@ -38,11 +59,15 @@ def _format_prediction_row(row):
         "final_ev": row.Prediction.final_ev,
         "edge": row.Prediction.vig_free_edge,
         "confidence": row.Prediction.confidence,
-        "bet_side": row.Prediction.bet_side,
+        "bet_side": bet,
         "entry_odds": row.Prediction.entry_odds,
-        "actual_outcome": row.Match.actual_outcome,
+        "actual_outcome": actual,
+        "ft_score": ft_score,
+        "home_goals": home_g,
+        "away_goals": away_g,
+        "was_correct": was_correct,
         "clv": row.CLVEntry.clv if row.CLVEntry else None,
-        "profit": row.CLVEntry.profit if row.CLVEntry else None,
+        "profit": profit,
         "timestamp": row.Prediction.timestamp.isoformat()
     }
 
@@ -467,6 +492,138 @@ async def get_picks(db: AsyncSession = Depends(get_db)):
             "certified": CERTIFIED_EDGE_THRESHOLD,
             "high_confidence": HIGH_CONFIDENCE_EDGE_THRESHOLD
         }
+    }
+
+
+@router.get("/results-comparison")
+async def get_results_comparison(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    league: Optional[str] = Query(None),
+    settled_only: bool = Query(False, description="Only return settled (result-known) predictions"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Prediction vs Actual Results comparison ledger.
+
+    Returns all predictions with their actual match outcomes side-by-side,
+    highlighting gaps (predictions where result is still missing) and
+    calculating correctness, profit, and CLV for settled ones.
+
+    Useful for auditing prediction quality and identifying settlement gaps.
+    """
+    base_q = (
+        select(Match, Prediction, CLVEntry)
+        .join(Prediction, Match.id == Prediction.match_id)
+        .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
+        .where(Prediction.bet_side.isnot(None))
+    )
+
+    if league:
+        base_q = base_q.where(Match.league == league)
+
+    if settled_only:
+        base_q = base_q.where(Match.actual_outcome.isnot(None))
+
+    count_q = select(func.count()).select_from(
+        select(Prediction.id)
+        .join(Match, Match.id == Prediction.match_id)
+        .where(Prediction.bet_side.isnot(None))
+        .subquery()
+    )
+    if league:
+        count_q = select(func.count()).select_from(
+            select(Prediction.id)
+            .join(Match, Match.id == Prediction.match_id)
+            .where(Prediction.bet_side.isnot(None), Match.league == league)
+            .subquery()
+        )
+
+    total = (await db.execute(count_q)).scalar() or 0
+
+    rows = (await db.execute(
+        base_q.order_by(Match.kickoff_time.desc()).offset(offset).limit(limit)
+    )).all()
+
+    settled_count = 0
+    correct_count = 0
+    total_profit = 0.0
+    gap_count = 0
+    items = []
+
+    for row in rows:
+        actual = row.Match.actual_outcome
+        bet = row.Prediction.bet_side
+
+        if actual and bet:
+            if row.Prediction.was_correct is not None:
+                was_correct = row.Prediction.was_correct
+            else:
+                was_correct = bet.lower() == actual.lower()
+            settled_count += 1
+            if was_correct:
+                correct_count += 1
+            status = "WIN" if was_correct else "LOSS"
+        elif actual is None:
+            was_correct = None
+            status = "PENDING"
+            gap_count += 1
+        else:
+            was_correct = None
+            status = "NO_BET"
+
+        profit = row.Prediction.settled_profit
+        if profit is None and row.CLVEntry:
+            profit = row.CLVEntry.profit
+        if profit is not None:
+            total_profit += profit
+
+        home_g = row.Match.home_goals
+        away_g = row.Match.away_goals
+
+        items.append({
+            "match_id": row.Match.id,
+            "fixture": f"{row.Match.home_team} vs {row.Match.away_team}",
+            "home_team": row.Match.home_team,
+            "away_team": row.Match.away_team,
+            "league": row.Match.league,
+            "kickoff_time": row.Match.kickoff_time.isoformat(),
+            "match_status": row.Match.status,
+            "predicted_side": bet,
+            "model_probability": round(
+                (row.Prediction.home_prob if bet == "home" else
+                 row.Prediction.draw_prob if bet == "draw" else
+                 row.Prediction.away_prob) or 0, 4
+            ),
+            "entry_odds": row.Prediction.entry_odds,
+            "edge": row.Prediction.vig_free_edge,
+            "recommended_stake": row.Prediction.recommended_stake,
+            "actual_outcome": actual,
+            "ft_score": f"{home_g}-{away_g}" if (home_g is not None and away_g is not None) else None,
+            "was_correct": was_correct,
+            "result_status": status,
+            "profit": round(profit, 4) if profit is not None else None,
+            "clv": row.CLVEntry.clv if row.CLVEntry else None,
+            "timestamp": row.Prediction.timestamp.isoformat(),
+            "has_gap": actual is None,
+        })
+
+    accuracy = round(correct_count / settled_count * 100, 2) if settled_count else 0.0
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "summary": {
+            "total_returned": len(items),
+            "settled": settled_count,
+            "pending": gap_count,
+            "correct": correct_count,
+            "accuracy_pct": accuracy,
+            "total_profit": round(total_profit, 4),
+            "gaps": gap_count,
+        },
+        "predictions": items,
     }
 
 

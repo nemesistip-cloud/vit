@@ -1,14 +1,15 @@
 """Leaderboard endpoint — prediction accuracy, ROI, streak, and XP rankings.
 
-v4.5: Replaced N+1 query pattern with a single SQL aggregation.
+v4.6: Fixed win_rate and ROI to use actual match outcomes (bet_side vs actual_outcome)
+      and CLVEntry.profit / Prediction.settled_profit instead of final_ev.
 """
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, desc, case
+from sqlalchemy import select, func, desc, case, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.db.models import User, Prediction
+from app.db.models import User, Prediction, Match, CLVEntry
 
 router = APIRouter(prefix="/api/leaderboard", tags=["Leaderboard"])
 
@@ -19,17 +20,45 @@ async def get_leaderboard(
     limit: int = Query(20, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """Public leaderboard — no auth required. Uses a single aggregated SQL query."""
+    """Public leaderboard — no auth required.
 
-    settled_pred = case((Prediction.final_ev.is_not(None), 1), else_=0)
-    win_pred     = case(
-        (
-            (Prediction.final_ev.is_not(None)) & (Prediction.final_ev > 0),
-            1,
-        ),
+    Win rate = predictions where bet_side == actual_outcome / total settled predictions.
+    ROI = sum of settled_profit (from Prediction.settled_profit, fallback to CLVEntry.profit).
+    Uses a single aggregated SQL query joining Match for actual outcome comparison.
+    """
+
+    # A prediction is settled when the match has an actual_outcome and prediction has a bet_side
+    settled_cond = and_(
+        Match.actual_outcome.isnot(None),
+        Prediction.bet_side.isnot(None),
+    )
+
+    # Win = bet_side matches actual_outcome
+    win_cond = and_(
+        settled_cond,
+        Prediction.was_correct == True,  # noqa: E712
+    )
+
+    # Fallback win detection for predictions settled before was_correct column existed
+    win_cond_fallback = and_(
+        settled_cond,
+        Prediction.was_correct.is_(None),
+        Prediction.bet_side == Match.actual_outcome,
+    )
+
+    settled_pred = case((settled_cond, 1), else_=0)
+    win_pred = case(
+        (win_cond, 1),
+        (win_cond_fallback, 1),
         else_=0,
     )
-    roi_pred = func.coalesce(Prediction.final_ev, 0.0)
+
+    # ROI: prefer settled_profit on prediction row; fall back to final_ev as estimate
+    roi_pred = func.coalesce(
+        Prediction.settled_profit,
+        Prediction.final_ev,
+        0.0,
+    )
 
     agg = (
         select(
@@ -44,7 +73,8 @@ async def get_leaderboard(
             func.sum(roi_pred).label("total_roi"),
         )
         .outerjoin(Prediction, Prediction.user_id == User.id)
-        .where(User.is_active == True, User.is_banned == False)
+        .outerjoin(Match, Match.id == Prediction.match_id)
+        .where(User.is_active == True, User.is_banned == False)  # noqa: E712
         .group_by(
             User.id, User.username, User.total_xp,
             User.current_streak, User.subscription_tier,
@@ -58,12 +88,14 @@ async def get_leaderboard(
         total_settled = int(row.total_settled or 0)
         total_wins    = int(row.total_wins or 0)
         win_rate      = round(total_wins / total_settled * 100, 1) if total_settled else 0.0
-        roi           = round(float(row.total_roi or 0.0), 2)
+        roi           = round(float(row.total_roi or 0.0), 4)
 
         board.append({
             "user_id":           row.id,
             "username":          row.username,
             "total_predictions": int(row.total_predictions or 0),
+            "total_settled":     total_settled,
+            "total_wins":        total_wins,
             "win_rate":          win_rate,
             "roi":               roi,
             "xp":                int(row.xp or 0),

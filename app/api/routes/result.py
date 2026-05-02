@@ -23,12 +23,13 @@ async def update_result(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Update match result and calculate CLV.
+    Update match result and calculate CLV for ALL predictions on this match.
 
     FIXES APPLIED:
+        - Handles multiple predictions per match (multi-user support)
+        - Sets was_correct + settled_profit on each Prediction row
         - Transaction block for data consistency
         - Correct CLV calculation using bet_side
-        - Profit calculation for edge database
     """
 
     async with db.begin():
@@ -57,24 +58,32 @@ async def update_result(
 
         match.actual_outcome = actual_outcome
 
-        # Get prediction for this match
+        # Get ALL predictions for this match (multi-user support)
         pred_result = await db.execute(
             select(Prediction).where(Prediction.match_id == match_id)
         )
-        prediction = pred_result.scalar_one_or_none()
+        predictions = pred_result.scalars().all()
 
-        # Calculate profit if we have a prediction
-        profit = 0
-        if prediction and prediction.bet_side:
-            # Determine if prediction was correct
-            if prediction.bet_side == actual_outcome:
-                # Win: profit = stake * (odds - 1)
-                profit = prediction.recommended_stake * (prediction.entry_odds - 1)
-                logger.info(f"WIN: match={match_id}, profit={profit:.2f}")
+        total_profit = 0.0
+        settled_count = 0
+
+        for prediction in predictions:
+            if not prediction.bet_side:
+                continue
+
+            won = prediction.bet_side == actual_outcome
+            stake = float(prediction.recommended_stake or 0.0)
+            odds = float(prediction.entry_odds or 2.0)
+            profit = stake * (odds - 1) if won else -stake
+
+            # Stamp correctness directly on the prediction row
+            prediction.was_correct = won
+            prediction.settled_profit = profit
+
+            if won:
+                logger.info(f"WIN: match={match_id}, prediction={prediction.id}, profit={profit:.2f}")
             else:
-                # Loss: profit = -stake
-                profit = -prediction.recommended_stake
-                logger.info(f"LOSS: match={match_id}, loss={profit:.2f}")
+                logger.info(f"LOSS: match={match_id}, prediction={prediction.id}, loss={profit:.2f}")
 
             # Update CLV with closing odds for this specific prediction
             await CLVTracker.update_closing_by_prediction(
@@ -86,11 +95,16 @@ async def update_result(
                 profit
             )
 
+            total_profit += profit
+            settled_count += 1
+
     return {
         "match_id": match_id,
         "actual_outcome": actual_outcome,
         "home_goals": result.home_goals,
         "away_goals": result.away_goals,
-        "profit": profit,
+        "ft_score": f"{result.home_goals}-{result.away_goals}",
+        "predictions_settled": settled_count,
+        "total_profit": round(total_profit, 4),
         "clv_updated": True
     }

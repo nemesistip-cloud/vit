@@ -1,3 +1,30 @@
+# VIT Sports Intelligence Network — v4.9.0
+
+## Changelog — v4.9.0 (2026-05-02): Prediction Tracking & Settlement Pipeline
+
+### Database
+- Added `was_correct` (BOOLEAN) and `settled_profit` (REAL/DOUBLE PRECISION) columns to `predictions` table
+- Startup script (`scripts/start_fullstack.sh`) auto-migrates both columns on SQLite and PostgreSQL on every boot
+
+### Backend — Settlement Pipeline (multi-prediction fix)
+- **`app/api/routes/result.py`**: Settlement now loops all Prediction rows per match (`scalars().all()`), stamps `was_correct` + `settled_profit` on each; returns `predictions_settled` count
+- **`app/services/results_settler.py`** (both paths):
+  - `settle_results` (API polling): replaced `scalar_one_or_none()` with full `.scalars().all()` loop; stamps `was_correct` + `settled_profit` per prediction
+  - `settle_completed_db_matches`: same fix + stamps `was_correct`/`settled_profit` before commit
+- **`app/api/routes/predict.py`**: CLV entry now created for ALL predictions with a `bet_side` and odds > 1.0 (was previously gated on `has_edge`)
+
+### Backend — Leaderboard (actual outcomes)
+- **`app/api/routes/leaderboard.py`**: Completely rewritten — win_rate uses `Prediction.was_correct` with fallback to `bet_side == actual_outcome`; ROI uses `settled_profit` with fallback to `final_ev`; single aggregated SQL query joining Match table
+
+### Backend — New Endpoint
+- **`GET /history/results-comparison`**: Prediction vs Actual Results comparison ledger — returns every bet-side prediction with actual outcome, ft_score, WIN/LOSS verdict, profit, CLV, and gap flag; includes summary (accuracy %, total P&L, pending count)
+
+### Frontend — Predictions Page (`frontend/src/pages/predictions.tsx`)
+- Default tab changed to "Results vs Predictions" (the new comparison view)
+- New **ResultsComparison** component: summary cards (settled/correct/accuracy/P&L/gaps), per-prediction WIN/LOSS/PENDING badges, amber highlight for gap rows (no result yet)
+- **ResultBadge** helper: shows WIN (emerald), LOSS (red), or PENDING (clock) inline with ft_score
+- Live Ledger cards now show WIN/LOSS badge + ft_score alongside entry odds, CLV, and P&L
+
 # VIT Sports Intelligence Network — v4.8.0
 
 ## Overview

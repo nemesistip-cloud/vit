@@ -8,6 +8,8 @@ import {
   type TicketCandidate,
   type BuiltTicket,
 } from "@/api-client";
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,8 @@ import { Separator } from "@/components/ui/separator";
 import { format, isValid, parseISO } from "date-fns";
 import {
   Activity, Coins, RefreshCw, Ticket, Sparkles, Users, User as UserIcon,
-  Layers, AlertTriangle, Trophy, TrendingUp, Download,
+  Layers, AlertTriangle, Trophy, TrendingUp, Download, CheckCircle2,
+  XCircle, Clock, BarChart3, Target,
 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -73,7 +76,67 @@ function safeFormat(dateStr: string | null | undefined, fmt: string): string {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Predictions ledger card (extracted so we can render in both tabs)
+// Result badge helper
+// ────────────────────────────────────────────────────────────────────────
+function ResultBadge({
+  wasCorrect,
+  actualOutcome,
+  betSide,
+  ftScore,
+}: {
+  wasCorrect: boolean | null | undefined;
+  actualOutcome: string | null | undefined;
+  betSide: string | null | undefined;
+  ftScore: string | null | undefined;
+}) {
+  if (!actualOutcome) {
+    return (
+      <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground gap-1">
+        <Clock className="w-2.5 h-2.5" />
+        PENDING
+      </Badge>
+    );
+  }
+
+  const correct = wasCorrect ?? (betSide && actualOutcome
+    ? betSide.toLowerCase() === actualOutcome.toLowerCase()
+    : null);
+
+  if (correct === true) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Badge className="font-mono text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
+          <CheckCircle2 className="w-2.5 h-2.5" />
+          WIN
+        </Badge>
+        {ftScore && (
+          <span className="font-mono text-[10px] text-muted-foreground">{ftScore}</span>
+        )}
+      </div>
+    );
+  }
+  if (correct === false) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Badge className="font-mono text-[10px] bg-red-500/20 text-red-400 border-red-500/30 gap-1">
+          <XCircle className="w-2.5 h-2.5" />
+          LOSS
+        </Badge>
+        {ftScore && (
+          <span className="font-mono text-[10px] text-muted-foreground">{ftScore}</span>
+        )}
+      </div>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="font-mono text-[10px]">
+      {actualOutcome.toUpperCase()}
+    </Badge>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Predictions ledger card
 // ────────────────────────────────────────────────────────────────────────
 function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
   const { data, isLoading, isError } = useListPredictions({
@@ -139,32 +202,39 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
         <Link key={`${prediction.match_id}-${i}`} href={`/matches/${prediction.match_id}`}>
           <Card className="bg-card/50 backdrop-blur border-border hover:border-primary/50 transition-colors cursor-pointer overflow-hidden">
             <CardContent className="p-0 flex flex-col md:flex-row">
-              <div className="p-5 md:w-1/3 border-b md:border-b-0 md:border-r border-border/50 bg-muted/10 flex flex-col justify-center">
-                <div className="flex justify-between items-center mb-3">
+              {/* Left: fixture identity + result */}
+              <div className="p-5 md:w-1/3 border-b md:border-b-0 md:border-r border-border/50 bg-muted/10 flex flex-col justify-center gap-2">
+                <div className="flex justify-between items-center">
                   <Badge variant="outline" className="font-mono text-[10px] border-primary/20 text-primary">
                     {prediction.league}
                   </Badge>
-                  <Badge
-                    variant={prediction.actual_outcome ? "secondary" : "outline"}
-                    className="font-mono text-[10px] uppercase"
-                  >
-                    {prediction.actual_outcome ?? "PENDING"}
-                  </Badge>
+                  <ResultBadge
+                    wasCorrect={(prediction as any).was_correct}
+                    actualOutcome={prediction.actual_outcome}
+                    betSide={prediction.bet_side}
+                    ftScore={(prediction as any).ft_score}
+                  />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <div className="font-medium truncate">{prediction.home_team}</div>
                   <div className="font-medium truncate text-muted-foreground">{prediction.away_team}</div>
                 </div>
-                <div className="mt-3 flex items-center text-xs text-muted-foreground font-mono">
+                <div className="flex items-center text-xs text-muted-foreground font-mono">
                   <Activity className="w-3 h-3 mr-1.5" />
                   {safeFormat(prediction.kickoff_time, "MMM dd HH:mm")}
                 </div>
               </div>
 
+              {/* Right: prediction metrics */}
               <div className="p-5 flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
                 <div>
-                  <div className="text-[10px] text-muted-foreground font-mono uppercase mb-1">Bet Side</div>
+                  <div className="text-[10px] text-muted-foreground font-mono uppercase mb-1">Predicted</div>
                   <div className="font-bold capitalize">{prediction.bet_side ?? "—"}</div>
+                  {(prediction as any).actual_outcome && prediction.bet_side && (
+                    <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                      actual: <span className="capitalize">{prediction.actual_outcome}</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground font-mono uppercase mb-1">Entry Odds</div>
@@ -172,6 +242,11 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
                     <Coins className="w-3.5 h-3.5 mr-1.5 text-secondary" />
                     {prediction.entry_odds ? prediction.entry_odds.toFixed(2) : "—"}
                   </div>
+                  {(prediction as any).clv != null && (
+                    <div className={`text-[10px] font-mono mt-0.5 ${(prediction as any).clv > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      CLV: {((prediction as any).clv * 100).toFixed(1)}%
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground font-mono uppercase mb-1">Stake %</div>
@@ -182,11 +257,18 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
                       ? `${(prediction.edge * 100).toFixed(2)}%`
                       : "—"}
                   </div>
+                  <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                    edge: {prediction.edge != null ? `${(prediction.edge * 100).toFixed(2)}%` : "—"}
+                  </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-muted-foreground font-mono uppercase mb-1">P&L</div>
-                  <div className={`font-mono font-bold text-lg ${(prediction.profit ?? 0) > 0 ? "text-primary" : (prediction.profit ?? 0) < 0 ? "text-destructive" : ""}`}>
-                    {prediction.profit != null ? `${prediction.profit >= 0 ? "+" : ""}${prediction.profit.toFixed(2)}` : "—"}
+                  <div className="text-[10px] text-muted-foreground font-mono uppercase mb-1">P&amp;L</div>
+                  <div className={`font-mono font-bold text-lg ${(prediction.profit ?? 0) > 0 ? "text-emerald-400" : (prediction.profit ?? 0) < 0 ? "text-red-400" : ""}`}>
+                    {prediction.profit != null
+                      ? `${prediction.profit >= 0 ? "+" : ""}${prediction.profit.toFixed(2)}u`
+                      : prediction.actual_outcome
+                      ? "—"
+                      : <span className="text-xs text-muted-foreground">awaiting result</span>}
                   </div>
                 </div>
               </div>
@@ -194,6 +276,236 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
           </Card>
         </Link>
       ))}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Results Comparison Tab
+// ────────────────────────────────────────────────────────────────────────
+interface ComparisonItem {
+  match_id: number;
+  fixture: string;
+  home_team: string;
+  away_team: string;
+  league: string;
+  kickoff_time: string;
+  predicted_side: string | null;
+  model_probability: number;
+  entry_odds: number | null;
+  edge: number | null;
+  recommended_stake: number | null;
+  actual_outcome: string | null;
+  ft_score: string | null;
+  was_correct: boolean | null;
+  result_status: "WIN" | "LOSS" | "PENDING" | "NO_BET";
+  profit: number | null;
+  clv: number | null;
+  has_gap: boolean;
+}
+
+interface ComparisonData {
+  total: number;
+  summary: {
+    total_returned: number;
+    settled: number;
+    pending: number;
+    correct: number;
+    accuracy_pct: number;
+    total_profit: number;
+    gaps: number;
+  };
+  predictions: ComparisonItem[];
+}
+
+function ResultsComparison() {
+  const [settledOnly, setSettledOnly] = useState(false);
+
+  const { data, isLoading, isError } = useQuery<ComparisonData>({
+    queryKey: ["results-comparison", settledOnly],
+    queryFn: () => apiGet(`/history/results-comparison?limit=100&settled_only=${settledOnly}`),
+  });
+
+  const summary = data?.summary;
+  const items = data?.predictions ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* Summary cards */}
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Card className="bg-card/50 border-border">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold font-mono text-primary">{summary.settled}</div>
+              <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1">Settled</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-emerald-500/5 border-emerald-500/20">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold font-mono text-emerald-400">{summary.correct}</div>
+              <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1">Correct</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-card/50 border-border">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold font-mono">{summary.accuracy_pct.toFixed(1)}%</div>
+              <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1">Accuracy</div>
+            </CardContent>
+          </Card>
+          <Card className={`border ${summary.total_profit >= 0 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"}`}>
+            <CardContent className="p-4 text-center">
+              <div className={`text-2xl font-bold font-mono ${summary.total_profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {summary.total_profit >= 0 ? "+" : ""}{summary.total_profit.toFixed(2)}u
+              </div>
+              <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1">Total P&amp;L</div>
+            </CardContent>
+          </Card>
+          <Card className={summary.gaps > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card/50 border-border"}>
+            <CardContent className="p-4 text-center">
+              <div className={`text-2xl font-bold font-mono ${summary.gaps > 0 ? "text-amber-400" : "text-muted-foreground"}`}>
+                {summary.gaps}
+              </div>
+              <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1">
+                {summary.gaps > 0 ? "Pending Results" : "No Gaps"}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Filter */}
+      <div className="flex items-center gap-3">
+        <Button
+          size="sm"
+          variant={settledOnly ? "default" : "outline"}
+          className="font-mono text-xs"
+          onClick={() => setSettledOnly(!settledOnly)}
+        >
+          <Target className="w-3.5 h-3.5 mr-1.5" />
+          {settledOnly ? "Showing Settled Only" : "Show All"}
+        </Button>
+        {summary && summary.gaps > 0 && !settledOnly && (
+          <span className="text-xs text-amber-400 font-mono flex items-center gap-1">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            {summary.gaps} prediction{summary.gaps !== 1 ? "s" : ""} awaiting match result
+          </span>
+        )}
+      </div>
+
+      {isLoading && (
+        <div className="h-32 flex items-center justify-center text-muted-foreground font-mono text-sm">
+          Loading comparison data...
+        </div>
+      )}
+      {isError && (
+        <div className="text-center py-8 text-destructive font-mono text-sm">
+          Failed to load results comparison.
+        </div>
+      )}
+
+      {!isLoading && !isError && items.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground font-mono border border-dashed border-border rounded-lg">
+          No predictions with a selected side yet.
+        </div>
+      )}
+
+      {/* Table */}
+      {items.length > 0 && (
+        <div className="space-y-2">
+          {items.map((item, i) => (
+            <Link key={`${item.match_id}-${i}`} href={`/matches/${item.match_id}`}>
+              <Card className={`border transition-colors cursor-pointer hover:border-primary/50 ${
+                item.has_gap
+                  ? "border-amber-500/20 bg-amber-500/5"
+                  : item.result_status === "WIN"
+                  ? "border-emerald-500/20 bg-emerald-500/5"
+                  : item.result_status === "LOSS"
+                  ? "border-red-500/15 bg-red-500/5"
+                  : "border-border bg-card/50"
+              }`}>
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3">
+                    {/* Fixture */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm truncate">
+                          {item.home_team} vs {item.away_team}
+                        </span>
+                        <Badge variant="outline" className="font-mono text-[9px] border-primary/20 text-primary shrink-0">
+                          {item.league}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                        {safeFormat(item.kickoff_time, "MMM dd, yyyy HH:mm")}
+                      </div>
+                    </div>
+
+                    {/* Prediction vs Result */}
+                    <div className="flex items-center gap-4 font-mono text-sm flex-wrap">
+                      <div className="text-center">
+                        <div className="text-[9px] text-muted-foreground uppercase mb-0.5">Predicted</div>
+                        <div className="font-bold capitalize">{item.predicted_side ?? "—"}</div>
+                        <div className="text-[9px] text-muted-foreground">
+                          {item.model_probability ? `${(item.model_probability * 100).toFixed(1)}%` : ""}
+                        </div>
+                      </div>
+
+                      <div className="text-center">
+                        <div className="text-[9px] text-muted-foreground uppercase mb-0.5">Result</div>
+                        {item.actual_outcome ? (
+                          <div className="font-bold capitalize">{item.actual_outcome}</div>
+                        ) : (
+                          <div className="text-muted-foreground text-xs">TBD</div>
+                        )}
+                        {item.ft_score && (
+                          <div className="text-[9px] text-muted-foreground">{item.ft_score}</div>
+                        )}
+                      </div>
+
+                      <div className="text-center min-w-[52px]">
+                        <div className="text-[9px] text-muted-foreground uppercase mb-1">Verdict</div>
+                        {item.result_status === "WIN" && (
+                          <Badge className="text-[9px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30">WIN</Badge>
+                        )}
+                        {item.result_status === "LOSS" && (
+                          <Badge className="text-[9px] bg-red-500/20 text-red-400 border-red-500/30">LOSS</Badge>
+                        )}
+                        {item.result_status === "PENDING" && (
+                          <Badge variant="outline" className="text-[9px] text-amber-400 border-amber-400/30">PENDING</Badge>
+                        )}
+                      </div>
+
+                      <div className="text-center min-w-[60px]">
+                        <div className="text-[9px] text-muted-foreground uppercase mb-0.5">P&amp;L</div>
+                        <div className={`font-bold ${
+                          item.profit != null && item.profit > 0
+                            ? "text-emerald-400"
+                            : item.profit != null && item.profit < 0
+                            ? "text-red-400"
+                            : "text-muted-foreground"
+                        }`}>
+                          {item.profit != null
+                            ? `${item.profit >= 0 ? "+" : ""}${item.profit.toFixed(2)}u`
+                            : "—"}
+                        </div>
+                      </div>
+
+                      {item.clv != null && (
+                        <div className="text-center min-w-[48px]">
+                          <div className="text-[9px] text-muted-foreground uppercase mb-0.5">CLV</div>
+                          <div className={`font-bold ${item.clv > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                            {(item.clv * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -263,7 +575,7 @@ function TicketBuilder() {
         candidates: pool,
         legs,
         top_n: topN,
-        min_combined_edge: -1, // we want to see best tickets even when combined edge is negative
+        min_combined_edge: -1,
         same_match_allowed: false,
       },
       {
@@ -300,7 +612,6 @@ function TicketBuilder() {
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Controls */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-2">
             <Label className="text-[10px] uppercase font-mono text-muted-foreground">Market</Label>
@@ -369,7 +680,6 @@ function TicketBuilder() {
           </div>
         )}
 
-        {/* Candidates */}
         <div className="space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
@@ -465,7 +775,6 @@ function TicketBuilder() {
           </Button>
         </div>
 
-        {/* Generated tickets */}
         {tickets.length > 0 && (
           <div className="space-y-3 pt-2">
             <div className="flex items-center gap-2">
@@ -545,6 +854,7 @@ function TicketBuilder() {
 // ────────────────────────────────────────────────────────────────────────
 export default function PredictionsPage() {
   const [scope, setScope] = useState<"user" | "community">("community");
+  const [mainTab, setMainTab] = useState<"ledger" | "results" | "tickets">("results");
 
   return (
     <div className="space-y-6">
@@ -554,30 +864,47 @@ export default function PredictionsPage() {
           Active Operations
         </h1>
         <p className="text-muted-foreground font-mono text-sm">
-          Live prediction ledger across the network — and a ticket builder for high-confidence picks.
+          Prediction ledger, results comparison, and ticket builder — track every call against the actual outcome.
         </p>
       </div>
 
-      <TicketBuilder />
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as any)}>
+        <TabsList className="font-mono">
+          <TabsTrigger value="results" className="gap-2">
+            <BarChart3 className="w-3.5 h-3.5" /> Results vs Predictions
+          </TabsTrigger>
+          <TabsTrigger value="ledger" className="gap-2">
+            <Activity className="w-3.5 h-3.5" /> Live Ledger
+          </TabsTrigger>
+          <TabsTrigger value="tickets" className="gap-2">
+            <Ticket className="w-3.5 h-3.5" /> Ticket Builder
+          </TabsTrigger>
+        </TabsList>
 
-      <div>
-        <Tabs value={scope} onValueChange={(v) => setScope(v as "user" | "community")}>
-          <TabsList className="grid grid-cols-2 w-full max-w-md font-mono">
-            <TabsTrigger value="community" className="gap-2">
-              <Users className="w-3.5 h-3.5" /> Community
-            </TabsTrigger>
-            <TabsTrigger value="user" className="gap-2">
-              <UserIcon className="w-3.5 h-3.5" /> My Predictions
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="community" className="mt-4">
-            <PredictionsLedger scope="community" />
-          </TabsContent>
-          <TabsContent value="user" className="mt-4">
-            <PredictionsLedger scope="user" />
-          </TabsContent>
-        </Tabs>
-      </div>
+        <TabsContent value="results" className="mt-4">
+          <ResultsComparison />
+        </TabsContent>
+
+        <TabsContent value="ledger" className="mt-4">
+          <div className="mb-4">
+            <Tabs value={scope} onValueChange={(v) => setScope(v as "user" | "community")}>
+              <TabsList className="grid grid-cols-2 w-full max-w-md font-mono">
+                <TabsTrigger value="community" className="gap-2">
+                  <Users className="w-3.5 h-3.5" /> Community
+                </TabsTrigger>
+                <TabsTrigger value="user" className="gap-2">
+                  <UserIcon className="w-3.5 h-3.5" /> My Predictions
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          <PredictionsLedger scope={scope} />
+        </TabsContent>
+
+        <TabsContent value="tickets" className="mt-4">
+          <TicketBuilder />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

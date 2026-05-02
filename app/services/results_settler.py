@@ -363,33 +363,46 @@ async def settle_results(days_back: int = 2) -> dict:
                 db_match.actual_outcome = outcome
                 db_match.status         = "completed"
 
-                # ── Settle linked prediction ───────────────────────────
+                # ── Settle ALL linked predictions (multi-user support) ─
                 pred_res = await db.execute(
                     select(Prediction).where(Prediction.match_id == db_match.id)
                 )
-                prediction = pred_res.scalar_one_or_none()
+                predictions_for_match = pred_res.scalars().all()
 
-                profit: float = 0.0
-                won: bool = False
-                if prediction and prediction.bet_side:
+                if not predictions_for_match:
+                    no_prediction += 1
+
+                clv_home = db_match.closing_odds_home or None
+                clv_draw = db_match.closing_odds_draw or None
+                clv_away = db_match.closing_odds_away or None
+                closing_available = all(x is not None for x in [clv_home, clv_draw, clv_away])
+
+                match_profit: float = 0.0
+
+                for prediction in predictions_for_match:
+                    if not prediction.bet_side:
+                        continue
+
                     won    = prediction.bet_side == outcome
                     stake  = float(prediction.recommended_stake or 0.0)
                     odds   = float(prediction.entry_odds or 2.0)
                     profit = stake * (odds - 1) if won else -stake
+
+                    # Stamp correctness directly on the prediction row
+                    prediction.was_correct = won
+                    prediction.settled_profit = profit
+                    match_profit += profit
+
+                    side_odds = (
+                        {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)
+                        or odds
+                    )
 
                     # CLV update
                     clv_res = await db.execute(
                         select(CLVEntry).where(CLVEntry.prediction_id == prediction.id)
                     )
                     clv_entry = clv_res.scalar_one_or_none()
-                    clv_home = db_match.closing_odds_home or None
-                    clv_draw = db_match.closing_odds_draw or None
-                    clv_away = db_match.closing_odds_away or None
-                    closing_available = all(x is not None for x in [clv_home, clv_draw, clv_away])
-                    side_odds = (
-                        {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)
-                        or odds
-                    )
 
                     if clv_entry:
                         clv_entry.closing_odds = side_odds if closing_available else None
@@ -441,24 +454,23 @@ async def settle_results(days_back: int = 2) -> dict:
                                 )
                         except Exception as ne:
                             logger.warning(f"Auto-settle notification failed (non-fatal): {ne}")
-                else:
-                    no_prediction += 1
 
                 await db.commit()
                 settled += 1
                 logger.info(
                     f"[settle] Settled: {db_match.home_team} {home_g}-{away_g} "
-                    f"{db_match.away_team} ({outcome})"
+                    f"{db_match.away_team} ({outcome}), "
+                    f"{len(predictions_for_match)} prediction(s)"
                 )
                 details.append({
-                    "home_team":  db_match.home_team,
-                    "away_team":  db_match.away_team,
-                    "home_goals": home_g,
-                    "away_goals": away_g,
-                    "outcome":    outcome,
-                    "bet_side":   prediction.bet_side if prediction else None,
-                    "profit":     profit if (prediction and prediction.bet_side) else None,
-                    "clv_value":  None,
+                    "home_team":        db_match.home_team,
+                    "away_team":        db_match.away_team,
+                    "home_goals":       home_g,
+                    "away_goals":       away_g,
+                    "outcome":          outcome,
+                    "predictions_count": len(predictions_for_match),
+                    "profit":           round(match_profit, 4),
+                    "clv_value":        None,
                 })
 
             except Exception as e:
@@ -533,7 +545,7 @@ async def settle_completed_db_matches() -> dict:
                     if not prediction.bet_side:
                         continue
 
-                    # Skip if bankroll/CLV already applied
+                    # Skip if already fully settled
                     clv_res = await db.execute(
                         select(CLVEntry).where(CLVEntry.prediction_id == prediction.id)
                         .limit(1)
@@ -546,6 +558,10 @@ async def settle_completed_db_matches() -> dict:
                     stake  = float(prediction.recommended_stake or 0.0)
                     odds   = float(prediction.entry_odds or 2.0)
                     profit = stake * (odds - 1) if won else -stake
+
+                    # Stamp correctness directly on the prediction row
+                    prediction.was_correct = won
+                    prediction.settled_profit = profit
 
                     side_odds = (
                         {"home": clv_home, "draw": clv_draw, "away": clv_away}.get(prediction.bet_side)

@@ -741,7 +741,9 @@ async def predict(
                 logger.warning(f"Task progress update failed (non-fatal): {e}")
 
         # --- CLV tracking ---
-        if best_bet.get("has_edge") and best_bet.get("best_side") and best_bet.get("odds", 0) > 0:
+        # Record for ALL predictions that have a bet_side + valid odds (not just edge bets),
+        # so every prediction gets profit/CLV tracking after settlement.
+        if best_bet.get("best_side") and float(best_bet.get("odds", 0)) > 1.0:
             try:
                 await CLVTracker.record_entry(
                     db, db_match.id, prediction.id,

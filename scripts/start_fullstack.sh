@@ -48,8 +48,14 @@ async def ensure_schema():
             if conn.dialect.name == 'sqlite':
                 cols = (await conn.exec_driver_sql('PRAGMA table_info(predictions)')).fetchall()
                 col_names = {row[1] for row in cols}
-                if 'user_id' not in col_names:
-                    await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN user_id INTEGER')
+                pred_additions = {
+                    'user_id': 'INTEGER',
+                    'was_correct': 'BOOLEAN',
+                    'settled_profit': 'REAL',
+                }
+                for col, ddl in pred_additions.items():
+                    if col not in col_names:
+                        await conn.exec_driver_sql(f'ALTER TABLE predictions ADD COLUMN {col} {ddl}')
                 user_cols = (await conn.exec_driver_sql('PRAGMA table_info(users)')).fetchall()
                 user_col_names = {row[1] for row in user_cols}
                 user_additions = {
@@ -65,6 +71,8 @@ async def ensure_schema():
                         await conn.exec_driver_sql(f'ALTER TABLE users ADD COLUMN {col} {ddl}')
             else:
                 await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER')
+                await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN')
+                await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS settled_profit DOUBLE PRECISION')
                 await conn.exec_driver_sql(\"ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'\")
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE')
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON')

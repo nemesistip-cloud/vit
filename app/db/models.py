@@ -92,6 +92,10 @@ class Prediction(Base):
     normalized_edge = Column(Float)  # After removing bookmaker margin
     vig_free_edge = Column(Float)  # True edge after vig removal
 
+    # Settlement tracking (populated when match result is known)
+    was_correct = Column(Boolean, nullable=True)   # True=win, False=loss, None=pending/no-bet
+    settled_profit = Column(Float, nullable=True)  # Net profit in stake units after settlement
+
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
     # Constraints
