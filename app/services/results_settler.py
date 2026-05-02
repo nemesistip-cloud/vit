@@ -597,7 +597,9 @@ async def settle_completed_db_matches() -> dict:
                     settled += 1
 
                 logger.info(
-                    f"[settle_db] {db_match.home_team} {home_g}-{away_g} {db_match.away_team}"
+                    f"[settle_db] {db_match.home_team} "
+                    f"{db_match.home_goals}-{db_match.away_goals} "
+                    f"{db_match.away_team}"
                     f" → {outcome} ({'WIN' if won else 'LOSS'}) profit={profit:.2f}"
                 )
 

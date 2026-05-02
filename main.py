@@ -115,6 +115,8 @@ from app.api.routes.leaderboard import router as leaderboard_router
 from app.api.routes.exports import router as exports_router
 from app.api.routes.admin_ai_sources import router as admin_ai_sources_router
 from app.api.routes.admin_clv import router as admin_clv_router
+from app.api.routes.agents import router as agents_router
+from app.agents.coordinator import AgentCoordinator
 
 # ===== MIDDLEWARE =====
 from app.api.middleware.auth import APIKeyMiddleware
@@ -1143,6 +1145,15 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(start_rate_refresh_loop(), name="exchange-rate-oracle"),
     ]
 
+    # ── Autonomous performance agents ─────────────────────────────────────
+    try:
+        agent_coordinator = AgentCoordinator()
+        agent_coordinator.start(tasks)
+        app.state.agent_coordinator = agent_coordinator
+        print("✅ Autonomous agents started (performance-monitor, weight-optimizer, retrain-trigger)")
+    except Exception as _agent_err:
+        print(f"⚠️  Agent coordinator failed to start: {_agent_err}")
+
     print("✅ Background services started with supervision")
     print("🌐 API running at http://localhost:5000")
 
@@ -1386,6 +1397,7 @@ app.include_router(totp_router)
 app.include_router(referral_router)
 app.include_router(leaderboard_router)
 app.include_router(exports_router)
+app.include_router(agents_router)
 
 
 def _format_count(value: int) -> str:

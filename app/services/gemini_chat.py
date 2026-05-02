@@ -8,10 +8,13 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-GEMINI_CHAT_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models"
-    "/gemini-1.5-flash:generateContent"
-)
+_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+_GEMINI_CHAT_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+]
 
 SYSTEM_PROMPT = (
     "You are VIT Assistant, the in-app sports-betting copilot for the VIT Sports "
@@ -93,12 +96,18 @@ async def chat(
     }
 
     try:
+        resp = None
         async with httpx.AsyncClient(timeout=25) as client:
-            resp = await client.post(
-                f"{GEMINI_CHAT_URL}?key={api_key}",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
+            for model in _GEMINI_CHAT_MODELS:
+                url = f"{_GEMINI_BASE}/{model}:generateContent?key={api_key}"
+                resp = await client.post(
+                    url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                if resp.status_code not in (404, 503):
+                    break
+                logger.debug("[gemini-chat] model %s unavailable (%s), trying next", model, resp.status_code)
 
         if resp.status_code in (401, 403):
             return {
