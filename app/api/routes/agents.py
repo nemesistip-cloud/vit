@@ -161,6 +161,16 @@ async def generate_reports_now(_user=Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.get("/network")
+async def agents_network_summary(_user=Depends(verify_api_key)):
+    """Network-focused summary: node IDs, contribution scores, DID identifiers."""
+    try:
+        from app.agents.coordinator import get_coordinator
+        return get_coordinator().network_summary()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.get("/live-scores")
 async def live_scores(_user=Depends(verify_api_key)):
     """Return current live match scores from the database."""

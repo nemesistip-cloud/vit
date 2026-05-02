@@ -37,6 +37,8 @@ import app.modules.developer.models      # register Module L developer models
 import app.modules.governance.models     # register Module M governance models
 import app.modules.referral.models       # register referral models
 import app.modules.tasks.models          # register Module T task/completion models
+import app.modules.did.models            # register VIT DID identity models
+import app.modules.network.models        # register VIT Network node activity models
 
 # ===== CORE ROUTES =====
 from app.api.routes import (
@@ -116,6 +118,10 @@ from app.api.routes.exports import router as exports_router
 from app.api.routes.admin_ai_sources import router as admin_ai_sources_router
 from app.api.routes.admin_clv import router as admin_clv_router
 from app.api.routes.agents import router as agents_router
+# ===== VIT DID ROUTES =====
+from app.modules.did.routes import router as did_router
+# ===== VIT NETWORK ROUTES =====
+from app.modules.network.routes import router as network_router
 from app.iot.router import router as iot_router
 from app.agents.coordinator import AgentCoordinator
 
@@ -1404,6 +1410,12 @@ app.include_router(iot_router)
 # AI Support Agent (Item 7 — data-aware customer support)
 from app.api.routes.ai_support import router as ai_support_router
 app.include_router(ai_support_router)
+
+# VIT DID — Decentralized Identity
+app.include_router(did_router)
+
+# VIT Network — Node Registry and Growth Metrics
+app.include_router(network_router)
 
 
 def _format_count(value: int) -> str:

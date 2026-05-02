@@ -26,6 +26,70 @@ _MIN_AGREEMENT = 2
 _MAX_SOURCES = 3
 
 
+@router.get("/api/oracle/stats")
+async def oracle_stats(db: AsyncSession = Depends(get_db)):
+    """Public: oracle network statistics snapshot."""
+    total_res = await db.execute(select(func.count(OracleResult.id)))
+    total = total_res.scalar() or 0
+
+    accepted_res = await db.execute(
+        select(func.count(OracleResult.id)).where(OracleResult.is_accepted == True)
+    )
+    accepted = accepted_res.scalar() or 0
+
+    dispute_res = await db.execute(
+        select(func.count(OracleResult.id)).where(OracleResult.dispute_flag == True)
+    )
+    disputed = dispute_res.scalar() or 0
+
+    # Load recent results and build source stats in-memory
+    all_results_res = await db.execute(
+        select(OracleResult).order_by(OracleResult.submitted_at.desc()).limit(200)
+    )
+    all_results = all_results_res.scalars().all()
+
+    # Build source stats from recent results
+    source_map: dict[str, dict] = {}
+    for r in all_results:
+        if r.source not in source_map:
+            source_map[r.source] = {"source": r.source, "count": 0, "accepted": 0}
+        source_map[r.source]["count"] += 1
+        if r.is_accepted:
+            source_map[r.source]["accepted"] += 1
+
+    # Count settled matches
+    from app.modules.blockchain.models import MatchSettlement
+    settlements_res = await db.execute(select(func.count(MatchSettlement.id)))
+    settlements = settlements_res.scalar() or 0
+
+    consensus_rate = round((accepted / max(total, 1)) * 100, 1)
+
+    recent = [
+        {
+            "id": r.id,
+            "match_id": r.match_id,
+            "source": r.source,
+            "result": r.result,
+            "is_accepted": r.is_accepted,
+            "dispute_flag": r.dispute_flag,
+            "submitted_at": r.submitted_at.isoformat(),
+        }
+        for r in all_results[:20]
+    ]
+
+    return {
+        "total_submissions": total,
+        "accepted_submissions": accepted,
+        "disputed_submissions": disputed,
+        "pending_submissions": max(0, total - accepted - disputed),
+        "settlements_triggered": settlements,
+        "consensus_rate_pct": consensus_rate,
+        "sources": list(source_map.values()),
+        "recent": recent,
+        "snapshot_at": datetime.utcnow().isoformat(),
+    }
+
+
 def _require_oracle_key(x_oracle_key: str = Header(...)):
     expected = os.getenv("ORACLE_API_KEY", "")
     if not expected or x_oracle_key != expected:

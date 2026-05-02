@@ -21,8 +21,9 @@ The platform is built with a microservices-oriented approach.
 - **Notification System:** Multi-channel: email (HTML templates), Telegram DMs (per-user), in-app WebSockets.
 - **IoT Stream:** `app/iot/processor.py` — `store_and_broadcast()` sends events to all connected WebSocket clients.
 
-**Autonomous Agent System (21 agents):**
+**Autonomous Agent System (22 agents):**
 All agents inherit from `app/agents/base.py:BaseAgent` and are registered in `app/agents/coordinator.py`.
+Each agent has a `node_id` (DID: `did:vit:agent:{name}`) and logs a `NodeActivity` record after every successful cycle via `_record_network_contribution()`.
 
 | Agent | Interval | Purpose |
 |---|---|---|
@@ -31,19 +32,23 @@ All agents inherit from `app/agents/base.py:BaseAgent` and are registered in `ap
 | `news-sentinel` | 20m | Injury scraping + impact analysis (3 teams/cycle) |
 | `odds-anomaly` | 15m | Odds movement detection + AI explanation |
 | `analytics-reporter` | 24h | Daily brief + Monday weekly deep-dive |
-| `ai-source-ranker` | 1h | Rank AI prediction sources by accuracy |
 | `performance-monitor` | 30m | Model accuracy tracking |
 | `weight-optimizer` | 6h | Dynamic model weight adjustment |
-| `retrain-trigger` | 6h | Trigger retraining when accuracy drops |
-| `data-pipeline` | 1h | Fetch & upsert fixtures, odds, injuries |
-| `prediction-generator` | 30m | Generate predictions for upcoming matches |
+| `retrain-trigger` | 12h | Trigger retraining when accuracy drops |
+| `fixture-gap` | 30m | Detect fixture data gaps |
 | `accumulator-publisher` | 4h | Publish accumulator bets |
-| `settlement-checker` | 5m | Check and settle finished matches |
 | `revenue-optimizer` | 24h | Revenue analytics |
-| `governance-executor` | 1h | Execute governance proposals |
-| `self-healing` | 15m | Restart failed processes |
-| `audit-sentinel` | 1h | Security audit logging |
-| `prediction-moderator` | 1h | Flag suspicious predictions |
+| `governance-executor` | 10m | Execute governance proposals |
+| `self-healing` | 5m | Restart failed processes |
+| `audit-sentinel` | 24h | Security audit logging |
+| `prediction-moderator` | 20m | Flag suspicious predictions |
+| `kyc-screener` | 10m | KYC review processing |
+| `fraud-review` | 15m | Fraud flag resolution |
+| `withdrawal-gatekeeper` | 5m | Withdrawal risk checks |
+| `marketplace-audit` | 30m | Marketplace listing review |
+| `model-promoter` | 2h | Promote top-performing models |
+| `oracle-node` | 10m | Submits DB match results to oracle consensus layer |
+| `network-guardian` | 1h | Issues node VCs, creates NetworkSnapshots, manages DID registry |
 
 API endpoints:
 - `GET /agents/status` — full agent status
@@ -53,6 +58,34 @@ API endpoints:
 - `GET /agents/result/{name}` — last result for agent
 - `GET /agents/reports` — recent AgentInsight feed (filterable)
 - `GET /agents/live-scores` — current live match scores from DB
+
+**VIT Oracle (`app/modules/blockchain/oracle.py` + `/api/oracle/*`):**
+- Oracle consensus layer that aggregates match result submissions from agent nodes.
+- `oracle-node` agent auto-submits finalized DB results every 10 minutes.
+- `GET /api/oracle/stats` — submission counts, consensus rate, recent oracle results.
+- `GET /api/oracle/results` — paginated oracle results with source breakdown.
+
+**VIT DID — Decentralized Identity (`app/modules/did/`):**
+- W3C-compliant DID documents for every user and agent: `did:vit:{uuid5}` (users), `did:vit:agent:{name}` (agents).
+- Verifiable Credentials (VCs) issued by `did:vit:network` issuer.
+- Tables: `vit_identities`, `verifiable_credentials`.
+- `GET /api/did/registry` — admin: list all registered DIDs.
+- `GET /api/did/agent/{name}` — resolve agent DID (public).
+- `GET /api/did/user/{user_id}` — admin: resolve/create user DID.
+- `GET /api/did/credentials/{identity_id}` — list VCs for an identity.
+- `POST /api/did/credentials/issue` — admin: issue a VC.
+- `POST /api/did/user/register` — self-register caller's DID.
+- `GET /api/did/{did}` — resolve any `did:vit:` DID document (catch-all, must stay last).
+- Route ordering critical: specific routes (`/registry`, `/credentials/…`, `/user/…`, `/agent/…`) MUST precede `/{did:path}`.
+
+**VIT Network Node System (`app/modules/network/`):**
+- Every agent cycle records a `NodeActivity` row (`activity_meta` column — NOT `metadata`, reserved by SQLAlchemy).
+- `NetworkSnapshot` stores hourly network health aggregates (created by `network-guardian`).
+- Tables: `node_activities`, `network_snapshots`.
+- `GET /api/network/stats` — total nodes, active nodes, contributions, health score.
+- `GET /api/network/nodes` — per-node contribution leaderboard.
+- `GET /api/network/growth?hours=N` — hourly contribution buckets.
+- `GET /api/network/activity` — raw recent activity feed.
 
 **Frontend:**
 - **Core Technology:** React 19, TypeScript, Vite, TailwindCSS 4, ShadCN UI. Runs on port 5000.
@@ -64,13 +97,16 @@ API endpoints:
   - `/agents` — Agent system monitor
   - `/match/:id` — Match detail with AI insight comparison (4 providers inc. Puter)
   - `/ai-sources` — Admin AI source management (upcoming/live only, no past fixtures)
+  - `/oracle` — VIT Oracle node health, submission stats, recent oracle results
+  - `/network` — Node Network: DID registry, contribution leaderboard, network growth chart
 - **Puter AI:** Browser-side free Claude via Puter.js at `frontend/src/lib/puter-ai.ts`
 - **WebSocket:** `frontend/src/lib/websocket.ts` — `vitWS.on("notification", cb)` for live events
 
 ## Agent Intelligence Data Flow
 1. Agent `run_cycle()` → calls `call_ai(prompt)` → stores `AgentInsight` in DB → broadcasts via `store_and_broadcast()`
-2. Frontend `reports.tsx` polls `GET /agents/reports` every 30s + listens to `vitWS` for `live_score_update`/`goal_scored`/`ai_signal` events
-3. Live score ticker auto-populates from WebSocket events without page reload
+2. Agent `_record_network_contribution()` → POSTs `NodeActivity` to DB → reflected in `/api/network/stats`
+3. Frontend `reports.tsx` polls `GET /agents/reports` every 30s + listens to `vitWS` for `live_score_update`/`goal_scored`/`ai_signal` events
+4. Live score ticker auto-populates from WebSocket events without page reload
 
 ## VIT SCIE — Self-Contained Intelligence Engine
 `app/services/vit_intelligence.py` — zero external API dependency layer:
@@ -111,13 +147,21 @@ The CLV-Blended Accountability dashboard (`/admin` → Accountability tab) track
 ## Key Files
 - `main.py` — FastAPI app entry point, mounts all routers
 - `app/agents/coordinator.py` — Agent registry and lifecycle manager
+- `app/agents/base.py` — BaseAgent with node_id, contribution_count, _record_network_contribution()
+- `app/agents/oracle_node_agent.py` — Oracle node agent (auto-submits match results)
+- `app/agents/network_guardian_agent.py` — DID registry manager + VC issuer + NetworkSnapshot creator
+- `app/modules/did/models.py` — VITIdentity, VerifiableCredential SQLAlchemy models
+- `app/modules/did/engine.py` — DID generation, resolution, VC issuance logic
+- `app/modules/did/routes.py` — DID API routes (route order critical: specific before /{did:path})
+- `app/modules/network/models.py` — NodeActivity (activity_meta), NetworkSnapshot models
+- `app/modules/network/routes.py` — Network stats/nodes/growth API routes
 - `app/services/ai_client.py` — Shared multi-provider AI cascade
 - `app/services/results_settler.py` — Match settlement pipeline
 - `app/modules/ai/weight_adjuster.py` — EMA weight logic, bootstrap/reactivate functions, type priors
 - `app/modules/ai/routes.py` — AI engine API routes incl. /performance/bootstrap and /performance/reactivate-zero-sample
 - `app/services/clv_streak_monitor.py` — CLV auto-demotion (CLV_MIN_SAMPLES=50 guard)
-- `app/db/models.py` — All SQLAlchemy models
+- `app/db/models.py` — Core SQLAlchemy models
 - `frontend/src/App.tsx` — All frontend routes
 - `frontend/src/lib/websocket.ts` — WS singleton `vitWS`
 - `frontend/src/lib/puter-ai.ts` — Puter browser AI
-- `scripts/start_fullstack.sh` — Dev startup script
+- `scripts/start_fullstack.sh` — Dev startup script (imports all modules for create_all)

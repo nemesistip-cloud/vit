@@ -29,6 +29,7 @@ class BaseAgent(ABC):
     - status/heartbeat tracking visible to the coordinator
     - error isolation (exceptions never kill the loop)
     - manual trigger via `trigger()` (sets an asyncio.Event)
+    - node identity (did:vit:agent:{name}) for network contribution tracking
     """
 
     def __init__(
@@ -43,6 +44,9 @@ class BaseAgent(ABC):
         self.initial_delay_s    = initial_delay_seconds
         self.enabled            = enabled
 
+        # DID-based node identity
+        self.node_id: str = f"did:vit:agent:{name}"
+
         self.status: str                 = AgentStatus.IDLE
         self.last_run_at: Optional[datetime]  = None
         self.next_run_at: Optional[datetime]  = None
@@ -50,6 +54,10 @@ class BaseAgent(ABC):
         self.run_count: int              = 0
         self.error_count: int            = 0
         self.last_result: Optional[Dict] = None
+
+        # Network contribution tracking
+        self.contribution_count: int     = 0
+        self.contribution_score: float   = 0.0
 
         self._trigger_event = asyncio.Event()
 
@@ -62,6 +70,32 @@ class BaseAgent(ABC):
     async def run_cycle(self) -> Dict[str, Any]:
         """Execute one work cycle. Return a result dict."""
 
+    async def _record_network_contribution(
+        self,
+        activity_type: str = "cycle",
+        score: float = 1.0,
+        metadata: Optional[Dict] = None,
+    ) -> None:
+        """Post a NodeActivity record for network contribution tracking."""
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.network.models import NodeActivity
+            async with AsyncSessionLocal() as db:
+                record = NodeActivity(
+                    node_id=self.node_id,
+                    node_name=self.name,
+                    node_type="agent",
+                    activity_type=activity_type,
+                    contribution_score=score,
+                    activity_meta=metadata or {"cycle": self.run_count},
+                )
+                db.add(record)
+                await db.commit()
+            self.contribution_count += 1
+            self.contribution_score += score
+        except Exception as exc:
+            logger.debug("[agent:%s] network contribution record failed: %s", self.name, exc)
+
     async def loop(self) -> None:
         """Main async loop — register with supervisor."""
         if not self.enabled:
@@ -70,8 +104,8 @@ class BaseAgent(ABC):
             return
 
         logger.info(
-            "[agent:%s] starting (interval=%ss delay=%ss)",
-            self.name, self.interval_seconds, self.initial_delay_s,
+            "[agent:%s] starting (interval=%ss delay=%ss node_id=%s)",
+            self.name, self.interval_seconds, self.initial_delay_s, self.node_id,
         )
         await asyncio.sleep(self.initial_delay_s)
 
@@ -89,6 +123,14 @@ class BaseAgent(ABC):
                 logger.info(
                     "[agent:%s] cycle complete in %.2fs run=%d",
                     self.name, elapsed, self.run_count,
+                )
+                # Record contribution on successful cycle (background, non-blocking)
+                asyncio.create_task(
+                    self._record_network_contribution(
+                        activity_type="cycle",
+                        score=1.0,
+                        metadata={"cycle": self.run_count, "elapsed_s": round(elapsed, 2)},
+                    ),
                 )
             except Exception as exc:
                 self.status      = AgentStatus.ERROR
@@ -112,14 +154,17 @@ class BaseAgent(ABC):
     def snapshot(self) -> Dict[str, Any]:
         """Return a JSON-serialisable status snapshot."""
         return {
-            "name":        self.name,
-            "enabled":     self.enabled,
-            "status":      self.status,
-            "run_count":   self.run_count,
-            "error_count": self.error_count,
-            "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None,
-            "next_run_at": self.next_run_at.isoformat() if self.next_run_at else None,
-            "last_error":  self.last_error,
-            "last_result": self.last_result,
-            "interval_seconds": self.interval_seconds,
+            "name":               self.name,
+            "node_id":            self.node_id,
+            "enabled":            self.enabled,
+            "status":             self.status,
+            "run_count":          self.run_count,
+            "error_count":        self.error_count,
+            "contribution_count": self.contribution_count,
+            "contribution_score": round(self.contribution_score, 2),
+            "last_run_at":        self.last_run_at.isoformat() if self.last_run_at else None,
+            "next_run_at":        self.next_run_at.isoformat() if self.next_run_at else None,
+            "last_error":         self.last_error,
+            "last_result":        self.last_result,
+            "interval_seconds":   self.interval_seconds,
         }

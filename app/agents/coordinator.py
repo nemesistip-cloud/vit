@@ -62,6 +62,9 @@ class AgentCoordinator:
         from app.agents.audit_sentinel_agent         import AuditSentinelAgent
         from app.agents.prediction_moderator_agent   import PredictionModeratorAgent
         from app.agents.live_match_tracker_agent     import LiveMatchTrackerAgent
+        # ── VIT Oracle + Network agents ──────────────────────────────────
+        from app.agents.oracle_node_agent            import OracleNodeAgent
+        from app.agents.network_guardian_agent       import NetworkGuardianAgent
 
         self._agents = {
             # ── ML performance agents ────────────────────────────────────
@@ -88,6 +91,10 @@ class AgentCoordinator:
             "prediction-moderator":     PredictionModeratorAgent(),
             # ── Real-time tracking ───────────────────────────────────────
             "live-match-tracker":       LiveMatchTrackerAgent(),
+            # ── VIT Oracle Node ──────────────────────────────────────────
+            "oracle-node":              OracleNodeAgent(),
+            # ── VIT Network Guardian (DID + node registry) ───────────────
+            "network-guardian":         NetworkGuardianAgent(),
         }
         self._tasks: List[asyncio.Task] = []
         self._started_at = datetime.now(timezone.utc)
@@ -105,7 +112,7 @@ class AgentCoordinator:
             self._tasks.append(task)
             if task_list is not None:
                 task_list.append(task)
-            logger.info("[coordinator] agent task created: %s", name)
+            logger.info("[coordinator] agent task created: %s (node_id=%s)", name, agent.node_id)
         return self._tasks
 
     async def stop(self) -> None:
@@ -146,15 +153,48 @@ class AgentCoordinator:
         rows = []
         for name, agent in self._agents.items():
             rows.append({
-                "name":        name,
-                "status":      agent.status,
-                "run_count":   agent.run_count,
-                "error_count": agent.error_count,
-                "last_run_at": agent.last_run_at.isoformat() if agent.last_run_at else None,
-                "next_run_at": agent.next_run_at.isoformat() if agent.next_run_at else None,
-                "last_error":  agent.last_error,
+                "name":               name,
+                "node_id":            agent.node_id,
+                "status":             agent.status,
+                "run_count":          agent.run_count,
+                "error_count":        agent.error_count,
+                "contribution_count": agent.contribution_count,
+                "contribution_score": round(agent.contribution_score, 2),
+                "last_run_at":        agent.last_run_at.isoformat() if agent.last_run_at else None,
+                "next_run_at":        agent.next_run_at.isoformat() if agent.next_run_at else None,
+                "last_error":         agent.last_error,
             })
         return {
             "started_at": self._started_at.isoformat(),
             "agents":     rows,
+        }
+
+    def network_summary(self) -> Dict[str, Any]:
+        """Network-focused summary: node IDs, contribution scores, online status."""
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        nodes = []
+        for name, agent in self._agents.items():
+            last_run = agent.last_run_at
+            online = (
+                last_run is not None
+                and (now - last_run.replace(tzinfo=timezone.utc)).total_seconds() < agent.interval_seconds * 1.5
+            ) if last_run else False
+            nodes.append({
+                "node_id":            agent.node_id,
+                "name":               name,
+                "status":             agent.status,
+                "online":             online,
+                "contribution_count": agent.contribution_count,
+                "contribution_score": round(agent.contribution_score, 2),
+                "run_count":          agent.run_count,
+                "interval_seconds":   agent.interval_seconds,
+            })
+        total_score = sum(a.contribution_score for a in self._agents.values())
+        return {
+            "total_agents": len(self._agents),
+            "online_agents": sum(1 for n in nodes if n["online"]),
+            "total_contribution_score": round(total_score, 2),
+            "nodes": nodes,
+            "started_at": self._started_at.isoformat(),
         }

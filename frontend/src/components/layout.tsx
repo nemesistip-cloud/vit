@@ -7,7 +7,7 @@ import {
   CreditCard, Gift, Home, Lock, LogOut, Menu, ShieldCheck,
   ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
-  Sparkles, Brain, Zap, Radio,
+  Sparkles, Brain, Zap, Radio, Network, DatabaseZap,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -50,6 +50,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "Network",
     items: [
+      { name: "VIT Oracle",     href: "/oracle",     icon: DatabaseZap },
+      { name: "Node Network",   href: "/network",    icon: Network },
       { name: "Trust & Safety", href: "/trust",      icon: Shield },
       { name: "Bridge",         href: "/bridge",     icon: ArrowLeftRight },
       { name: "Governance",     href: "/governance", icon: Vote },
