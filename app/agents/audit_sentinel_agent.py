@@ -20,37 +20,11 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-import httpx
 
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
-
-_GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
-
-
-async def _call_gemini(prompt: str, api_key: str) -> str | None:
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.2, "maxOutputTokens": 600},
-                })
-                resp.raise_for_status()
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            return None
-        except Exception as e:
-            logger.warning("[audit-sentinel] Gemini error: %s", e)
-            return None
-    return None
 
 
 def _detect_anomalies(logs: list) -> List[str]:
@@ -113,7 +87,6 @@ class AuditSentinelAgent(BaseAgent):
         )
 
     async def run_cycle(self) -> Dict[str, Any]:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
 
         from app.db.database import AsyncSessionLocal
         from app.services.alerts import TelegramAlert, AlertPriority
@@ -171,7 +144,7 @@ class AuditSentinelAgent(BaseAgent):
         narrative = ""
         if api_key:
             prompt = _build_audit_prompt(stats, anomalies, date_str)
-            narrative = await _call_gemini(prompt, api_key) or ""
+            narrative = await call_ai(prompt) or ""
 
         # Send to Telegram
         severity = AlertPriority.HIGH if anomalies else AlertPriority.LOW

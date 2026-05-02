@@ -26,40 +26,16 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
-import httpx
 
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
-_GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
 MAX_PER_CYCLE = 20
 CERT_SCORE_THRESHOLD = 0.70
 FLAG_SCORE_THRESHOLD = 0.40
 
-
-async def _call_gemini(prompt: str, api_key: str) -> str | None:
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 300},
-                })
-                resp.raise_for_status()
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            return None
-        except Exception as e:
-            logger.warning("[prediction-moderator] Gemini error: %s", e)
-            return None
-    return None
 
 
 def _build_quality_prompt(
@@ -110,7 +86,6 @@ class PredictionModeratorAgent(BaseAgent):
         self._reviewed_ids: set[int] = set()
 
     async def run_cycle(self) -> Dict[str, Any]:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
 
         from app.db.database import AsyncSessionLocal
         from app.db.models import AIPrediction, Match
@@ -158,7 +133,7 @@ class PredictionModeratorAgent(BaseAgent):
                         home_prob, draw_prob, away_prob,
                         confidence, reason,
                     )
-                    raw = await _call_gemini(prompt, api_key)
+                    raw = await call_ai(prompt)
                     if raw:
                         try:
                             obj_match = re.search(r"\{[\s\S]*\}", raw.strip())

@@ -30,44 +30,14 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-import httpx
 
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
-_GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-]
 MAX_PER_CYCLE = 10
 
-
-async def _call_gemini(prompt: str, api_key: str) -> str | None:
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=25) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400},
-                })
-                resp.raise_for_status()
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            logger.warning("[kyc-screener] Gemini %s HTTP %d", model, e.response.status_code)
-            return None
-        except Exception as e:
-            logger.warning("[kyc-screener] Gemini error: %s", e)
-            return None
-    return None
 
 
 def _build_kyc_prompt(kyc_data: dict, user_email: str) -> str:
@@ -98,9 +68,6 @@ class KYCScreenerAgent(BaseAgent):
         )
 
     async def run_cycle(self) -> Dict[str, Any]:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        if not api_key:
-            return {"skipped": True, "reason": "GEMINI_API_KEY not set"}
 
         from app.db.database import AsyncSessionLocal
         from app.db.models import User
@@ -122,7 +89,7 @@ class KYCScreenerAgent(BaseAgent):
                 email = getattr(user, "email", "unknown")
 
                 prompt = _build_kyc_prompt(kyc_data, email)
-                raw = await _call_gemini(prompt, api_key)
+                raw = await call_ai(prompt)
 
                 verdict = "manual_review"
                 reason = "AI review inconclusive"

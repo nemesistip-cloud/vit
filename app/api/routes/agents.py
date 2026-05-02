@@ -35,12 +35,40 @@ async def trigger_agent(agent_name: str, _user=Depends(verify_api_key)):
         from app.agents.coordinator import get_coordinator
         ok = get_coordinator().trigger(agent_name)
         if not ok:
+            valid = list(get_coordinator().status()["agents"].keys())
             raise HTTPException(
                 status_code=404,
-                detail=f"Agent '{agent_name}' not found. "
-                       f"Valid names: performance-monitor, weight-optimizer, retrain-trigger",
+                detail=f"Agent '{agent_name}' not found. Valid: {', '.join(valid)}",
             )
         return {"triggered": agent_name, "status": "dispatched"}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/providers")
+async def ai_provider_status(_user=Depends(verify_api_key)):
+    """Return availability and rate-limit state of all AI providers."""
+    try:
+        from app.services.ai_client import provider_status
+        return provider_status()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/result/{agent_name}")
+async def agent_last_result(agent_name: str, _user=Depends(verify_api_key)):
+    """Return the last_result dict for a specific agent."""
+    try:
+        from app.agents.coordinator import get_coordinator
+        result = get_coordinator().get_agent_result(agent_name)
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent '{agent_name}' not found or has no result yet",
+            )
+        return {"agent": agent_name, "result": result}
     except HTTPException:
         raise
     except Exception as exc:

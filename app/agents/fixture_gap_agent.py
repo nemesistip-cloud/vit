@@ -28,36 +28,13 @@ from typing import Any, Dict, Optional
 import httpx
 
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
-_GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
 MAX_PER_CYCLE = 8
 FOOTBALL_API_BASE = "https://api.football-data.org/v4"
 
-
-async def _call_gemini(prompt: str, api_key: str) -> str | None:
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 300},
-                })
-                resp.raise_for_status()
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            return None
-        except Exception as e:
-            logger.warning("[fixture-gap] Gemini error: %s", e)
-            return None
-    return None
 
 
 async def _query_football_api(home: str, away: str, fd_key: str) -> Optional[dict]:

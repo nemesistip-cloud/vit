@@ -10,58 +10,35 @@ Auto-remediation rules:
   MISSING_FIXTURES→ trigger fixture-gap agent
   HIGH_WITHDRAWAL → alert admin via Telegram
 
-Unknown patterns → call Gemini to diagnose from health snapshot,
+Unknown patterns → call AI (via shared client) to diagnose from health snapshot,
                    post AI diagnosis to admin Telegram.
 """
 
 from __future__ import annotations
 
+import json
 import logging
-import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-import httpx
-
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
-_GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
-
-ACCURACY_FLOOR = 0.45        # below this → trigger retrain
-AGENT_ERROR_THRESHOLD = 3    # consecutive errors before trigger
-HIGH_WITHDRAWAL_COUNT = 20   # pending withdrawals that warrant alert
+ACCURACY_FLOOR = 0.45
+AGENT_ERROR_THRESHOLD = 3
+HIGH_WITHDRAWAL_COUNT = 20
 
 
-async def _call_gemini_diagnosis(snapshot: dict, api_key: str) -> str | None:
-    import json
+async def _diagnose(snapshot: dict) -> str | None:
     prompt = (
         f"You are a platform reliability engineer. Diagnose this system health snapshot "
         f"and recommend the single most impactful fix.\n\n"
         f"Health snapshot:\n{json.dumps(snapshot, indent=2, default=str)}\n\n"
         f"Reply in max 3 sentences: what's wrong and what to do."
     )
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.2, "maxOutputTokens": 250},
-                })
-                resp.raise_for_status()
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            return None
-        except Exception:
-            return None
-    return None
+    return await call_ai(prompt, max_tokens=250, temperature=0.2)
 
 
 class SelfHealingAgent(BaseAgent):
@@ -81,7 +58,6 @@ class SelfHealingAgent(BaseAgent):
         from app.modules.wallet.models import WithdrawalRequest
         from sqlalchemy import select, func
 
-        gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
         coordinator = get_coordinator()
         now = datetime.now(timezone.utc)
         actions_taken: List[str] = []
@@ -94,9 +70,7 @@ class SelfHealingAgent(BaseAgent):
             status = snap.get("status", "")
             if status == "error" and err_count >= AGENT_ERROR_THRESHOLD:
                 issues.append(f"Agent '{name}' has {err_count} consecutive errors")
-                # Trigger the agent to retry
-                triggered = coordinator.trigger(name)
-                if triggered:
+                if coordinator.trigger(name):
                     actions_taken.append(f"triggered '{name}' for retry")
                     logger.info("[self-healing] triggered failing agent: %s", name)
 
@@ -149,9 +123,12 @@ class SelfHealingAgent(BaseAgent):
         except Exception:
             pass
 
-        # ── 5. Unknown issues → Gemini diagnosis ──────────────────────────
-        unknown_issues = [i for i in issues if "agent" not in i.lower() and "fixture" not in i.lower()]
-        if unknown_issues and gemini_key:
+        # ── 5. Unknown issues → AI diagnosis ──────────────────────────────
+        unknown_issues = [
+            i for i in issues
+            if "agent" not in i.lower() and "fixture" not in i.lower()
+        ]
+        if unknown_issues:
             diag_cooldown = (
                 self._last_diagnosis_at is None
                 or (now - self._last_diagnosis_at).total_seconds() > 1800
@@ -161,11 +138,11 @@ class SelfHealingAgent(BaseAgent):
                     "timestamp": now.isoformat(),
                     "issues": unknown_issues,
                     "agent_statuses": {
-                        name: {"status": snap["status"], "error_count": snap["error_count"]}
-                        for name, snap in agent_status.get("agents", {}).items()
+                        n: {"status": s["status"], "error_count": s["error_count"]}
+                        for n, s in agent_status.get("agents", {}).items()
                     },
                 }
-                diagnosis = await _call_gemini_diagnosis(snapshot, gemini_key)
+                diagnosis = await _diagnose(snapshot)
                 if diagnosis:
                     self._last_diagnosis_at = now
                     try:

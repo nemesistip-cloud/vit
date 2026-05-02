@@ -15,42 +15,11 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
-import httpx
 
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
-
-_GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-]
-
-
-async def _call_gemini(prompt: str, api_key: str) -> str | None:
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 700},
-                })
-                resp.raise_for_status()
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            return None
-        except Exception as e:
-            logger.warning("[revenue-optimizer] Gemini error: %s", e)
-            return None
-    return None
 
 
 async def _gather_revenue_metrics(db) -> dict:
@@ -162,9 +131,6 @@ class RevenueOptimizerAgent(BaseAgent):
         )
 
     async def run_cycle(self) -> Dict[str, Any]:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        if not api_key:
-            return {"skipped": True, "reason": "GEMINI_API_KEY not set"}
 
         from app.db.database import AsyncSessionLocal
         from app.db.models import AgentInsight
@@ -177,7 +143,7 @@ class RevenueOptimizerAgent(BaseAgent):
             metrics = await _gather_revenue_metrics(db)
 
         prompt = _build_optimizer_prompt(metrics, date_str)
-        report = await _call_gemini(prompt, api_key)
+        report = await call_ai(prompt)
 
         if not report:
             return {"skipped": True, "reason": "no Gemini response"}

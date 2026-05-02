@@ -19,43 +19,14 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-import httpx
 
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
-_GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-]
 MAX_PER_CYCLE = 15
 
-
-async def _call_gemini(prompt: str, api_key: str) -> str | None:
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=25) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 350},
-                })
-                resp.raise_for_status()
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            return None
-        except Exception as e:
-            logger.warning("[fraud-review] Gemini error: %s", e)
-            return None
-    return None
 
 
 def _build_fraud_prompt(flag_rule: str, severity: str, evidence: dict, user_id: int) -> str:
@@ -88,9 +59,6 @@ class FraudReviewAgent(BaseAgent):
         )
 
     async def run_cycle(self) -> Dict[str, Any]:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        if not api_key:
-            return {"skipped": True, "reason": "GEMINI_API_KEY not set"}
 
         from app.db.database import AsyncSessionLocal
         from app.db.models import User
@@ -135,7 +103,7 @@ class FraudReviewAgent(BaseAgent):
                     evidence,
                     flag.user_id,
                 )
-                raw = await _call_gemini(prompt, api_key)
+                raw = await call_ai(prompt)
 
                 verdict = "review"
                 narrative = "AI review inconclusive"

@@ -19,18 +19,12 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-import httpx
 
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
-_GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-]
 MAX_MATCHES_PER_CYCLE = 3
 
 
@@ -54,31 +48,6 @@ Provide a JSON object (no markdown fences):
 }}"""
 
 
-async def _call_gemini(prompt: str, api_key: str) -> str | None:
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 512},
-                })
-                resp.raise_for_status()
-                data = resp.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            logger.warning("[match-scout] Gemini %s error %d", model, e.response.status_code)
-            return None
-        except Exception as e:
-            logger.warning("[match-scout] Gemini call failed: %s", e)
-            return None
-    return None
-
 
 class MatchScoutAgent(BaseAgent):
     def __init__(self) -> None:
@@ -90,9 +59,6 @@ class MatchScoutAgent(BaseAgent):
         self._scouted_ids: set[int] = set()
 
     async def run_cycle(self) -> Dict[str, Any]:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        if not api_key:
-            return {"skipped": True, "reason": "GEMINI_API_KEY not set"}
 
         from app.db.database import AsyncSessionLocal
         from app.db.models import Match, Prediction, AgentInsight
@@ -134,7 +100,7 @@ class MatchScoutAgent(BaseAgent):
                 home_prob, draw_prob, away_prob,
             )
 
-            raw = await _call_gemini(prompt, api_key)
+            raw = await call_ai(prompt)
             if not raw:
                 continue
 
