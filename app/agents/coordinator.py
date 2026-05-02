@@ -41,22 +41,50 @@ class AgentCoordinator:
         global _GLOBAL_COORDINATOR
         _GLOBAL_COORDINATOR = self
 
-        from app.agents.performance_monitor import PerformanceMonitorAgent
-        from app.agents.weight_optimizer    import WeightOptimizerAgent
-        from app.agents.retrain_trigger     import RetrainTriggerAgent
-        from app.agents.match_scout_agent   import MatchScoutAgent
-        from app.agents.news_sentinel_agent import NewsSentinelAgent
-        from app.agents.odds_anomaly_agent  import OddsAnomalyAgent
+        from app.agents.performance_monitor          import PerformanceMonitorAgent
+        from app.agents.weight_optimizer             import WeightOptimizerAgent
+        from app.agents.retrain_trigger              import RetrainTriggerAgent
+        from app.agents.match_scout_agent            import MatchScoutAgent
+        from app.agents.news_sentinel_agent          import NewsSentinelAgent
+        from app.agents.odds_anomaly_agent           import OddsAnomalyAgent
+        # ── 14 autonomous agents ─────────────────────────────────────────
+        from app.agents.kyc_screener_agent           import KYCScreenerAgent
+        from app.agents.fraud_review_agent           import FraudReviewAgent
+        from app.agents.withdrawal_gatekeeper_agent  import WithdrawalGatekeeperAgent
+        from app.agents.marketplace_audit_agent      import MarketplaceAuditAgent
+        from app.agents.model_promoter_agent         import ModelPromoterAgent
+        from app.agents.analytics_reporter_agent     import AnalyticsReporterAgent
+        from app.agents.fixture_gap_agent            import FixtureGapAgent
+        from app.agents.accumulator_publisher_agent  import AccumulatorPublisherAgent
+        from app.agents.revenue_optimizer_agent      import RevenueOptimizerAgent
+        from app.agents.governance_executor_agent    import GovernanceExecutorAgent
+        from app.agents.self_healing_agent           import SelfHealingAgent
+        from app.agents.audit_sentinel_agent         import AuditSentinelAgent
+        from app.agents.prediction_moderator_agent   import PredictionModeratorAgent
 
         self._agents = {
             # ── ML performance agents ────────────────────────────────────
-            "performance-monitor": PerformanceMonitorAgent(),
-            "weight-optimizer":    WeightOptimizerAgent(),
-            "retrain-trigger":     RetrainTriggerAgent(),
+            "performance-monitor":      PerformanceMonitorAgent(),
+            "weight-optimizer":         WeightOptimizerAgent(),
+            "retrain-trigger":          RetrainTriggerAgent(),
             # ── AI-powered intelligence agents (free keys) ───────────────
-            "match-scout":         MatchScoutAgent(),
-            "news-sentinel":       NewsSentinelAgent(),
-            "odds-anomaly":        OddsAnomalyAgent(),
+            "match-scout":              MatchScoutAgent(),
+            "news-sentinel":            NewsSentinelAgent(),
+            "odds-anomaly":             OddsAnomalyAgent(),
+            # ── Autonomous human-replacement agents (items 1-14) ─────────
+            "kyc-screener":             KYCScreenerAgent(),
+            "fraud-review":             FraudReviewAgent(),
+            "withdrawal-gatekeeper":    WithdrawalGatekeeperAgent(),
+            "marketplace-audit":        MarketplaceAuditAgent(),
+            "model-promoter":           ModelPromoterAgent(),
+            "analytics-reporter":       AnalyticsReporterAgent(),
+            "fixture-gap":              FixtureGapAgent(),
+            "accumulator-publisher":    AccumulatorPublisherAgent(),
+            "revenue-optimizer":        RevenueOptimizerAgent(),
+            "governance-executor":      GovernanceExecutorAgent(),
+            "self-healing":             SelfHealingAgent(),
+            "audit-sentinel":           AuditSentinelAgent(),
+            "prediction-moderator":     PredictionModeratorAgent(),
         }
         self._tasks: List[asyncio.Task] = []
         self._started_at = datetime.now(timezone.utc)

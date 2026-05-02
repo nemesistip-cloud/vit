@@ -1401,6 +1401,10 @@ app.include_router(exports_router)
 app.include_router(agents_router)
 app.include_router(iot_router)
 
+# AI Support Agent (Item 7 — data-aware customer support)
+from app.api.routes.ai_support import router as ai_support_router
+app.include_router(ai_support_router)
+
 
 def _format_count(value: int) -> str:
     if value >= 1_000_000:

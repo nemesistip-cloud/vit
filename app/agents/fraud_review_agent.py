@@ -1,0 +1,214 @@
+"""app/agents/fraud_review_agent.py  — Item 2: Fraud Flag Auto-Reviewer
+
+Runs every 15 minutes. Reads open FraudFlags, calls Gemini to generate
+a risk narrative and resolution recommendation, then:
+
+  LOW severity   → auto-dismiss (safe to clear without human)
+  MEDIUM severity → attaches AI narrative + leaves open for human (with AI summary in evidence)
+  HIGH severity   → Gemini narrative + marks 'actioned', triggers Telegram alert
+  CRITICAL        → Gemini narrative + auto-suspends user + Telegram alert
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+import re
+from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+import httpx
+
+from app.agents.base import BaseAgent
+
+logger = logging.getLogger(__name__)
+
+_GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+]
+MAX_PER_CYCLE = 15
+
+
+async def _call_gemini(prompt: str, api_key: str) -> str | None:
+    for model in _GEMINI_MODELS:
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent?key={api_key}"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=25) as client:
+                resp = await client.post(url, json={
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 350},
+                })
+                resp.raise_for_status()
+                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                continue
+            return None
+        except Exception as e:
+            logger.warning("[fraud-review] Gemini error: %s", e)
+            return None
+    return None
+
+
+def _build_fraud_prompt(flag_rule: str, severity: str, evidence: dict, user_id: int) -> str:
+    return (
+        f"You are a fraud analyst. Review this platform fraud flag.\n\n"
+        f"User ID: {user_id}\n"
+        f"Rule triggered: {flag_rule}\n"
+        f"Severity: {severity}\n"
+        f"Evidence: {json.dumps(evidence, indent=2)}\n\n"
+        f"Return ONLY this JSON (no markdown):\n"
+        f'{{\n'
+        f'  "verdict": "dismiss"|"review"|"action"|"suspend",\n'
+        f'  "risk_score": 0.0,\n'
+        f'  "narrative": "2-3 sentence risk assessment",\n'
+        f'  "recommended_action": "what to do"\n'
+        f'}}\n\n'
+        f"dismiss: evidence is weak/expected behaviour.\n"
+        f"review: genuine concern but needs human verification.\n"
+        f"action: clear policy violation — warn/restrict.\n"
+        f"suspend: immediate threat — suspend account."
+    )
+
+
+class FraudReviewAgent(BaseAgent):
+    def __init__(self) -> None:
+        super().__init__(
+            name="fraud-review",
+            interval_seconds=15 * 60,
+            initial_delay_seconds=45,
+        )
+
+    async def run_cycle(self) -> Dict[str, Any]:
+        api_key = os.getenv("GEMINI_API_KEY", "").strip()
+        if not api_key:
+            return {"skipped": True, "reason": "GEMINI_API_KEY not set"}
+
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import User
+        from app.modules.trust.models import FraudFlag
+        from app.services.alerts import TelegramAlert, AlertPriority
+        from sqlalchemy import select
+
+        dismissed = reviewed = actioned = suspended = 0
+        now = datetime.now(timezone.utc)
+
+        async with AsyncSessionLocal() as db:
+            res = await db.execute(
+                select(FraudFlag)
+                .where(FraudFlag.status == "open")
+                .order_by(FraudFlag.created_at.asc())
+                .limit(MAX_PER_CYCLE)
+            )
+            flags = res.scalars().all()
+
+            for flag in flags:
+                evidence: dict = {}
+                if flag.evidence_json:
+                    try:
+                        evidence = json.loads(flag.evidence_json)
+                    except Exception:
+                        evidence = {}
+
+                severity = (flag.severity or "medium").lower()
+
+                # LOW → auto-dismiss without AI call (save quota)
+                if severity == "low":
+                    flag.status = "dismissed"
+                    flag.reviewed_at = now
+                    dismissed += 1
+                    await asyncio.sleep(0.1)
+                    continue
+
+                # MEDIUM/HIGH/CRITICAL → call Gemini
+                prompt = _build_fraud_prompt(
+                    flag.rule_code or "unknown",
+                    severity,
+                    evidence,
+                    flag.user_id,
+                )
+                raw = await _call_gemini(prompt, api_key)
+
+                verdict = "review"
+                narrative = "AI review inconclusive"
+                risk_score = 0.5
+
+                if raw:
+                    try:
+                        obj_match = re.search(r"\{[\s\S]*\}", raw.strip())
+                        if obj_match:
+                            parsed = json.loads(obj_match.group())
+                            verdict = parsed.get("verdict", "review")
+                            narrative = parsed.get("narrative", "")
+                            risk_score = float(parsed.get("risk_score", 0.5))
+                    except Exception:
+                        pass
+
+                # Store AI narrative in evidence
+                evidence["_ai_narrative"] = narrative
+                evidence["_ai_verdict"] = verdict
+                evidence["_ai_risk_score"] = risk_score
+                flag.evidence_json = json.dumps(evidence)
+
+                if verdict == "dismiss":
+                    flag.status = "dismissed"
+                    flag.reviewed_at = now
+                    dismissed += 1
+
+                elif verdict in ("action", "suspend") or severity == "critical":
+                    flag.status = "actioned"
+                    flag.reviewed_at = now
+                    actioned += 1
+
+                    if verdict == "suspend" or severity == "critical":
+                        # Suspend the user
+                        user_res = await db.execute(
+                            select(User).where(User.id == flag.user_id)
+                        )
+                        user = user_res.scalar_one_or_none()
+                        if user and getattr(user, "status", None) != "suspended":
+                            user.status = "suspended"
+                            suspended += 1
+                            logger.warning(
+                                "[fraud-review] AUTO-SUSPENDED user=%d rule=%s",
+                                flag.user_id, flag.rule_code,
+                            )
+
+                        # Alert admin via Telegram
+                        try:
+                            tg = TelegramAlert()
+                            await tg.send_message(
+                                f"<b>🚨 Fraud Auto-Action</b>\n"
+                                f"User <code>{flag.user_id}</code> — Rule: <code>{flag.rule_code}</code>\n"
+                                f"Severity: {severity.upper()} | Action: {verdict.upper()}\n"
+                                f"<i>{narrative}</i>",
+                                AlertPriority.HIGH,
+                            )
+                        except Exception as te:
+                            logger.warning("[fraud-review] Telegram alert failed: %s", te)
+
+                else:
+                    # MEDIUM → leave for human but attach AI summary
+                    reviewed += 1
+
+                await asyncio.sleep(1.5)
+
+            await db.commit()
+
+        result = {
+            "flags_processed": len(flags),
+            "dismissed": dismissed,
+            "reviewed": reviewed,
+            "actioned": actioned,
+            "suspended": suspended,
+        }
+        logger.info("[fraud-review] cycle: %s", result)
+        return result
