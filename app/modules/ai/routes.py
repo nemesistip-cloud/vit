@@ -37,6 +37,8 @@ from app.modules.ai.registry import (
 from app.modules.ai.weight_adjuster import (
     run_bulk_weight_adjustment,
     get_model_performance_report,
+    bootstrap_model_priors,
+    reactivate_zero_sample_models,
 )
 from app.api.deps import get_current_admin
 from app.db.models import User
@@ -426,6 +428,50 @@ async def model_performance_leaderboard(db: AsyncSession = Depends(get_db)):
     """Model performance ranked by current weight (proxy for cumulative accuracy)."""
     report = await get_model_performance_report(db)
     return {"models": report}
+
+
+@router.post("/performance/bootstrap")
+async def bootstrap_performance_priors(
+    force: bool = Query(False, description="Overwrite existing bootstrapped values"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Seed brier_score, log_loss, and accuracy_1x2 for models that have fewer
+    than the minimum live-prediction threshold.
+
+    Priority:
+      1. Training metrics from the model's latest promoted pkl (if present)
+      2. Model-type benchmark priors (published ML baselines for 1X2 football)
+
+    Models with enough live predictions are never overwritten.
+    Set ?force=true to reset even existing bootstrapped values.
+    """
+    result = await bootstrap_model_priors(db, force=force)
+    return {
+        "message": f"Bootstrapped {result['seeded_count']} model(s).",
+        **result,
+    }
+
+
+@router.post("/performance/reactivate-zero-sample")
+async def reactivate_zero_sample(db: AsyncSession = Depends(get_db)):
+    """
+    Reactivate every demoted model that has zero settled predictions.
+
+    A model with no prediction history has no empirical basis for demotion —
+    it was likely flagged during a system cold-start before any matches
+    settled.  This clears the auto_demoted flag and resets the CLV streak
+    counter so the streak monitor does not immediately re-demote them.
+    """
+    result = await reactivate_zero_sample_models(db)
+    return {
+        "message": (
+            f"Reactivated {result['reactivated_count']} model(s) with no prediction history."
+            if result["reactivated_count"]
+            else "No zero-sample demoted models found."
+        ),
+        **result,
+    }
 
 
 @router.post("/weights/adjust")

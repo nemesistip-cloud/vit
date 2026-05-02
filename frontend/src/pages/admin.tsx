@@ -1952,6 +1952,24 @@ function ModelsTab() {
     onError: (e: any) => toast.error(e?.message || "Failed to update model status"),
   });
 
+  const bootstrapMutation = useMutation({
+    mutationFn: () => apiPost("/api/ai-engine/performance/bootstrap", {}),
+    onSuccess: (d: any) => {
+      toast.success(d?.message ?? `Bootstrapped ${d?.seeded_count ?? 0} model(s)`);
+      qc.invalidateQueries({ queryKey: ["admin-ai-performance"] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Bootstrap failed"),
+  });
+
+  const reactivateZeroMutation = useMutation({
+    mutationFn: () => apiPost("/api/ai-engine/performance/reactivate-zero-sample", {}),
+    onSuccess: (d: any) => {
+      toast.success(d?.message ?? `Reactivated ${d?.reactivated_count ?? 0} model(s)`);
+      qc.invalidateQueries({ queryKey: ["admin-ai-performance"] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Reactivation failed"),
+  });
+
   // At-risk = negative rolling CLV with enough samples to be confident in it.
   const atRiskCount = (perfData ?? []).filter(
     (m: any) => m.is_active && (m.clv_samples ?? 0) >= 50 && (m.clv_score ?? 0) < -0.005,
@@ -2166,16 +2184,36 @@ function ModelsTab() {
                 <CardTitle className="text-white flex items-center gap-2">
                   <Activity className="w-5 h-5 text-purple-400" /> CLV-Blended Accountability
                 </CardTitle>
-                <Button size="sm" variant="outline"
-                  className="border-purple-500/30 text-purple-400 hover:border-purple-400"
-                  onClick={() => qc.invalidateQueries({ queryKey: ["admin-ai-performance"] })}>
-                  <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button size="sm" variant="outline"
+                    className="border-cyan-500/30 text-cyan-400 hover:border-cyan-400"
+                    disabled={reactivateZeroMutation.isPending}
+                    title="Reactivate every demoted model that has zero settled predictions — no empirical basis for demotion"
+                    onClick={() => reactivateZeroMutation.mutate()}>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    {reactivateZeroMutation.isPending ? "Reactivating…" : "Reactivate Zero-Sample"}
+                  </Button>
+                  <Button size="sm" variant="outline"
+                    className="border-amber-500/30 text-amber-400 hover:border-amber-400"
+                    disabled={bootstrapMutation.isPending}
+                    title="Seed brier/log-loss from training pkl metrics or model-type benchmarks for models with insufficient live data"
+                    onClick={() => bootstrapMutation.mutate()}>
+                    <Zap className="w-4 h-4 mr-2" />
+                    {bootstrapMutation.isPending ? "Bootstrapping…" : "Bootstrap Priors"}
+                  </Button>
+                  <Button size="sm" variant="outline"
+                    className="border-purple-500/30 text-purple-400 hover:border-purple-400"
+                    onClick={() => qc.invalidateQueries({ queryKey: ["admin-ai-performance"] })}>
+                    <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+                  </Button>
+                </div>
               </div>
               <CardDescription className="text-gray-400">
                 Per-model rolling Closing-Line Value alongside log-loss and accuracy.
                 CLV is the leading indicator of true edge — a sustained negative
                 CLV means the model is on the wrong side of sharp money.
+                Metrics tagged <span className="text-amber-400 font-mono text-xs">~est</span> are
+                bootstrapped from training data or type benchmarks — they improve as live predictions settle.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -2279,14 +2317,44 @@ function ModelsTab() {
                           <td className="p-3 text-right text-cyan-400 font-mono text-xs">
                             {typeof m.weight === "number" ? m.weight.toFixed(3) : "—"}
                           </td>
-                          <td className="p-3 text-right text-gray-200 font-mono text-xs">
-                            {typeof m.accuracy_1x2 === "number" ? `${(m.accuracy_1x2 * 100).toFixed(1)}%` : "—"}
+                          <td className="p-3 text-right font-mono text-xs">
+                            {typeof m.accuracy_1x2 === "number" ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className={m.metric_source === "live" ? "text-gray-200" : "text-amber-300/80"}>
+                                  {m.metric_source !== "live" && <span className="text-amber-500 mr-0.5">~</span>}
+                                  {(m.accuracy_1x2 * 100).toFixed(1)}%
+                                </span>
+                                {m.metric_source === "bootstrapped" && (
+                                  <span className="text-[9px] text-amber-500/70 font-mono">est</span>
+                                )}
+                              </div>
+                            ) : "—"}
                           </td>
-                          <td className="p-3 text-right font-mono text-xs text-yellow-400">
-                            {typeof m.log_loss === "number" ? m.log_loss.toFixed(4) : "—"}
+                          <td className="p-3 text-right font-mono text-xs">
+                            {typeof m.log_loss === "number" ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className={m.metric_source === "live" ? "text-yellow-400" : "text-yellow-400/70"}>
+                                  {m.metric_source !== "live" && <span className="text-amber-500 mr-0.5">~</span>}
+                                  {m.log_loss.toFixed(4)}
+                                </span>
+                                {m.metric_source === "bootstrapped" && (
+                                  <span className="text-[9px] text-amber-500/70 font-mono">est</span>
+                                )}
+                              </div>
+                            ) : "—"}
                           </td>
-                          <td className="p-3 text-right font-mono text-xs text-gray-300">
-                            {typeof m.brier_score === "number" ? m.brier_score.toFixed(4) : "—"}
+                          <td className="p-3 text-right font-mono text-xs">
+                            {typeof m.brier_score === "number" ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className={m.metric_source === "live" ? "text-gray-300" : "text-gray-300/70"}>
+                                  {m.metric_source !== "live" && <span className="text-amber-500 mr-0.5">~</span>}
+                                  {m.brier_score.toFixed(4)}
+                                </span>
+                                {m.metric_source === "bootstrapped" && (
+                                  <span className="text-[9px] text-amber-500/70 font-mono">est</span>
+                                )}
+                              </div>
+                            ) : "—"}
                           </td>
                           <td className="p-3">
                             <div className="flex flex-col items-end gap-1">
@@ -2345,12 +2413,19 @@ function ModelsTab() {
                     })}
                   </tbody>
                 </table>
-                <div className="text-xs text-gray-500 px-4 py-3 border-t border-gray-800">
-                  CLV score is a rolling EMA of (model_prob − market_prob) × CLV per settled match.
-                  Status thresholds: Healthy = positive CLV &amp; ≥ 50% accuracy ·
-                  Watch = negative CLV or accuracy &lt; 50% ·
-                  At Risk = CLV &lt; −0.005 with ≥ 50 samples ·
-                  Insufficient = fewer than 30 settled samples.
+                <div className="text-xs text-gray-500 px-4 py-3 border-t border-gray-800 space-y-1">
+                  <div>
+                    CLV score is a rolling EMA of (model_prob − market_prob) × CLV per settled match.
+                    Status thresholds: Healthy = positive CLV &amp; ≥ 50% accuracy ·
+                    Watch = negative CLV or accuracy &lt; 50% ·
+                    At Risk = CLV &lt; −0.005 with ≥ 50 samples ·
+                    Insufficient = fewer than 30 settled samples.
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-500">~</span>
+                    <span className="text-amber-500/70 font-mono">est</span>
+                    <span>= metric bootstrapped from training pkl or model-type benchmark prior — not yet backed by live settled predictions.</span>
+                  </div>
                 </div>
               </div>
               )}

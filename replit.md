@@ -85,11 +85,23 @@ API endpoints:
 - **Stripe:** Subscription checkout (`STRIPE_WEBHOOK_SECRET`)
 - **Paystack:** NGN deposits (`PAYSTACK_WEBHOOK_SECRET`)
 
+## ML Accountability System
+The CLV-Blended Accountability dashboard (`/admin` → Accountability tab) tracks 24 models (12 base + 12 v2):
+- `GET /api/ai-engine/performance` — returns per-model metrics with `metric_source` ("live"|"bootstrapped"|null) and `training_metrics` from version_history
+- `POST /api/ai-engine/performance/bootstrap` — seeds brier/log_loss/accuracy for models with <5 live predictions using training pkl metrics (priority 1) or model-type benchmark priors (priority 2). Safe to re-run; live models skipped. `?force=true` resets existing bootstrapped values.
+- `POST /api/ai-engine/performance/reactivate-zero-sample` — reactivates demoted models with 0 settled predictions (no empirical basis for demotion)
+- EMA warm-start: model-type priors used as fallback instead of random baseline (brier=0.444/log_loss=log(3)) when no live value exists
+- `BOOTSTRAP_LIVE_THRESHOLD=5` — minimum predictions to treat metrics as "live"
+- Frontend shows `~` prefix and `est` label on bootstrapped metrics; Bootstrap + Reactivate buttons in accountability card header
+
 ## Key Files
 - `main.py` — FastAPI app entry point, mounts all routers
 - `app/agents/coordinator.py` — Agent registry and lifecycle manager
 - `app/services/ai_client.py` — Shared multi-provider AI cascade
 - `app/services/results_settler.py` — Match settlement pipeline
+- `app/modules/ai/weight_adjuster.py` — EMA weight logic, bootstrap/reactivate functions, type priors
+- `app/modules/ai/routes.py` — AI engine API routes incl. /performance/bootstrap and /performance/reactivate-zero-sample
+- `app/services/clv_streak_monitor.py` — CLV auto-demotion (CLV_MIN_SAMPLES=50 guard)
 - `app/db/models.py` — All SQLAlchemy models
 - `frontend/src/App.tsx` — All frontend routes
 - `frontend/src/lib/websocket.ts` — WS singleton `vitWS`

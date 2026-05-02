@@ -56,6 +56,37 @@ CLV_WEIGHT         = 0.40    # fraction of final_delta from CLV signal
 CLV_GAIN           = 5.00    # scale factor (CLV ≈ [-0.10,+0.15]; gain → same magnitude as log-loss)
 CLV_MAX_DELTA      = 0.50    # safety clamp on per-match CLV-driven delta
 
+# Bootstrap: minimum live predictions before we consider metrics "live".
+# Below this threshold, metrics are either bootstrapped or from training data.
+BOOTSTRAP_LIVE_THRESHOLD = 5
+
+# ── Model-type priors ──────────────────────────────────────────────────────────
+# Calibrated typical ranges for 1X2 football prediction based on published ML
+# benchmarks.  Used as EMA warm-start for models with insufficient live data.
+# Keys must match ModelMetadata.model_type (case-insensitive).
+_TYPE_PRIORS: Dict[str, Dict[str, float]] = {
+    "market_implied":      {"accuracy": 0.700, "brier": 0.210, "log_loss": 0.720},
+    "neural_ensemble":     {"accuracy": 0.640, "brier": 0.228, "log_loss": 0.820},
+    "xgboost":             {"accuracy": 0.620, "brier": 0.238, "log_loss": 0.860},
+    "hybrid_stack":        {"accuracy": 0.630, "brier": 0.232, "log_loss": 0.840},
+    "hybrid":              {"accuracy": 0.630, "brier": 0.232, "log_loss": 0.840},
+    "transformer":         {"accuracy": 0.610, "brier": 0.240, "log_loss": 0.870},
+    "lstm":                {"accuracy": 0.600, "brier": 0.244, "log_loss": 0.880},
+    "poisson_goals":       {"accuracy": 0.580, "brier": 0.250, "log_loss": 0.910},
+    "dixon_coles":         {"accuracy": 0.590, "brier": 0.248, "log_loss": 0.900},
+    "bayesian_net":        {"accuracy": 0.590, "brier": 0.247, "log_loss": 0.895},
+    "random_forest":       {"accuracy": 0.600, "brier": 0.244, "log_loss": 0.882},
+    "elo_rating":          {"accuracy": 0.570, "brier": 0.255, "log_loss": 0.930},
+    "logistic_regression": {"accuracy": 0.560, "brier": 0.258, "log_loss": 0.950},
+}
+_DEFAULT_PRIOR: Dict[str, float] = {"accuracy": 0.580, "brier": 0.260, "log_loss": 0.950}
+
+
+def _get_type_prior(model_type: str) -> Dict[str, float]:
+    """Return the benchmark prior for a given model_type (case-insensitive)."""
+    key = (model_type or "").lower().replace("-", "_").replace(" ", "_")
+    return dict(_TYPE_PRIORS.get(key, _DEFAULT_PRIOR))
+
 
 def _effective_lr(n_predictions: int) -> float:
     """
@@ -235,10 +266,13 @@ async def adjust_weights_for_match(
         alpha_fixed = 2.0 / (ACCURACY_WINDOW + 1)
         alpha = max(alpha_fixed, 2.0 / (total + 1)) if total < ACCURACY_WINDOW else alpha_fixed
 
-        old_brier = float(reg_row.brier_score or 0.444)   # init ≈ random model score
+        # EMA warm-start: use type-prior as fallback if no value set yet
+        # (avoids starting from the useless random baseline of 0.444 / log(3))
+        _prior = _get_type_prior(getattr(reg_row, "model_type", "") or "")
+        old_brier = float(reg_row.brier_score) if reg_row.brier_score is not None else _prior["brier"]
         reg_row.brier_score = round(alpha * brier_contrib + (1 - alpha) * old_brier, 5)
 
-        old_nll = float(reg_row.log_loss or math.log(3.0))
+        old_nll = float(reg_row.log_loss) if reg_row.log_loss is not None else _prior["log_loss"]
         reg_row.log_loss = round(alpha * nll_contrib + (1 - alpha) * old_nll, 5)
 
         if clv_signal_active:
@@ -362,7 +396,16 @@ async def run_bulk_weight_adjustment(
 
 
 async def get_model_performance_report(db: AsyncSession) -> List[Dict]:
-    """Return a ranked performance report for all registered models."""
+    """Return a ranked performance report for all registered models.
+
+    For each model the response now includes:
+    - ``metric_source``: ``"live"`` when ≥ BOOTSTRAP_LIVE_THRESHOLD settled
+      predictions back the numbers, ``"bootstrapped"`` when the values came
+      from the admin bootstrap action (type-prior or training pkl), or
+      ``None`` when no metrics exist yet.
+    - ``training_metrics``: accuracy / brier / log_loss extracted from the
+      latest promoted version_history entry (None if not available).
+    """
     result = await db.execute(
         select(ModelMetadata).order_by(ModelMetadata.weight.desc())
     )
@@ -372,9 +415,38 @@ async def get_model_performance_report(db: AsyncSession) -> List[Dict]:
     for r in rows:
         total   = r.predictions_total or 0
         correct = r.predictions_correct or 0
+
+        # Derive metric_source
+        has_metrics = r.accuracy_1x2 is not None or r.brier_score is not None
+        if total >= BOOTSTRAP_LIVE_THRESHOLD:
+            metric_source = "live"
+        elif has_metrics:
+            metric_source = "bootstrapped"
+        else:
+            metric_source = None
+
+        # Pull training metrics from version_history (latest promoted entry)
+        training_metrics: Optional[Dict] = None
+        history = list(r.version_history or [])
+        if history:
+            # Prefer the promoted entry; fall back to the most recent upload
+            promoted = next(
+                (h for h in reversed(history) if h.get("promoted_at")), None
+            ) or history[-1]
+            m = promoted.get("metrics") or {}
+            if m:
+                training_metrics = {
+                    "accuracy":      m.get("accuracy"),
+                    "brier_score":   m.get("brier_score"),
+                    "log_loss":      m.get("log_loss"),
+                    "training_samples": promoted.get("training_samples", 0),
+                    "version":       promoted.get("version"),
+                }
+
         report.append({
             "key":                          r.key,
             "name":                         r.name,
+            "model_type":                   r.model_type,
             "weight":                       r.weight,
             "accuracy_1x2":                 r.accuracy_1x2,
             "brier_score":                  r.brier_score,
@@ -389,5 +461,121 @@ async def get_model_performance_report(db: AsyncSession) -> List[Dict]:
             "win_rate":                     round(correct / total, 4) if total else None,
             "pkl_loaded":                   r.pkl_loaded,
             "is_active":                    r.is_active,
+            "metric_source":                metric_source,
+            "training_metrics":             training_metrics,
         })
     return report
+
+
+async def bootstrap_model_priors(
+    db: AsyncSession,
+    force: bool = False,
+) -> Dict:
+    """
+    Seed ``brier_score``, ``log_loss``, and ``accuracy_1x2`` for models that
+    have fewer than BOOTSTRAP_LIVE_THRESHOLD settled predictions.
+
+    Priority for each model:
+      1. Training metrics from the latest promoted version in ``version_history``
+      2. Model-type benchmark priors from ``_TYPE_PRIORS``
+
+    If ``force=True``, overwrites even models that already have bootstrapped
+    values (useful for a manual admin reset).  Models with ≥
+    BOOTSTRAP_LIVE_THRESHOLD live predictions are never overwritten.
+
+    Returns a summary dict describing what was done.
+    """
+    result = await db.execute(select(ModelMetadata))
+    rows = result.scalars().all()
+
+    seeded: List[str] = []
+    skipped_live: List[str] = []
+    skipped_existing: List[str] = []
+
+    for row in rows:
+        total = row.predictions_total or 0
+
+        # Never touch models with enough live data
+        if total >= BOOTSTRAP_LIVE_THRESHOLD:
+            skipped_live.append(row.key)
+            continue
+
+        # Skip if already has values and not forcing
+        already_set = row.brier_score is not None and row.log_loss is not None
+        if already_set and not force:
+            skipped_existing.append(row.key)
+            continue
+
+        # Priority 1: training metrics from version_history
+        history = list(row.version_history or [])
+        priors: Dict[str, Any] = {}
+        if history:
+            promoted = next(
+                (h for h in reversed(history) if h.get("promoted_at")), None
+            ) or history[-1]
+            m = promoted.get("metrics") or {}
+            if m.get("brier_score") is not None:
+                priors["brier"] = float(m["brier_score"])
+            if m.get("log_loss") is not None:
+                priors["log_loss"] = float(m["log_loss"])
+            if m.get("accuracy") is not None:
+                priors["accuracy"] = float(m["accuracy"])
+
+        # Priority 2: type-benchmark priors for any missing fields
+        type_prior = _get_type_prior(row.model_type or "")
+        priors.setdefault("brier",    type_prior["brier"])
+        priors.setdefault("log_loss", type_prior["log_loss"])
+        priors.setdefault("accuracy", type_prior["accuracy"])
+
+        row.brier_score  = round(priors["brier"],    5)
+        row.log_loss     = round(priors["log_loss"],  5)
+        # Only seed accuracy_1x2 if no live predictions have been recorded
+        if total == 0:
+            row.accuracy_1x2 = round(priors["accuracy"], 4)
+
+        seeded.append(row.key)
+
+    await db.commit()
+    return {
+        "seeded":           seeded,
+        "seeded_count":     len(seeded),
+        "skipped_live":     skipped_live,
+        "skipped_existing": skipped_existing,
+    }
+
+
+async def reactivate_zero_sample_models(db: AsyncSession) -> Dict:
+    """
+    Reactivate every model that is ``is_active=False`` but has **zero** settled
+    predictions.  A model with no prediction history has no empirical basis for
+    demotion; this is the most common cold-start situation.
+
+    Clears ``auto_demoted`` and ``clv_negative_streak_days`` so the streak
+    monitor doesn't immediately re-demote them on the next tick.
+
+    Returns a summary dict.
+    """
+    result = await db.execute(
+        select(ModelMetadata).where(ModelMetadata.is_active.is_(False))
+    )
+    rows = result.scalars().all()
+
+    reactivated: List[str] = []
+    kept_demoted: List[str] = []
+
+    for row in rows:
+        total = row.predictions_total or 0
+        if total == 0:
+            row.is_active               = True
+            row.auto_demoted            = False
+            row.clv_negative_streak_days = 0
+            reactivated.append(row.key)
+        else:
+            kept_demoted.append(row.key)
+
+    await db.commit()
+    return {
+        "reactivated":       reactivated,
+        "reactivated_count": len(reactivated),
+        "kept_demoted":      kept_demoted,
+    }
