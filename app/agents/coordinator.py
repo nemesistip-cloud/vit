@@ -44,11 +44,19 @@ class AgentCoordinator:
         from app.agents.performance_monitor import PerformanceMonitorAgent
         from app.agents.weight_optimizer    import WeightOptimizerAgent
         from app.agents.retrain_trigger     import RetrainTriggerAgent
+        from app.agents.match_scout_agent   import MatchScoutAgent
+        from app.agents.news_sentinel_agent import NewsSentinelAgent
+        from app.agents.odds_anomaly_agent  import OddsAnomalyAgent
 
         self._agents = {
+            # ── ML performance agents ────────────────────────────────────
             "performance-monitor": PerformanceMonitorAgent(),
             "weight-optimizer":    WeightOptimizerAgent(),
             "retrain-trigger":     RetrainTriggerAgent(),
+            # ── AI-powered intelligence agents (free keys) ───────────────
+            "match-scout":         MatchScoutAgent(),
+            "news-sentinel":       NewsSentinelAgent(),
+            "odds-anomaly":        OddsAnomalyAgent(),
         }
         self._tasks: List[asyncio.Task] = []
         self._started_at = datetime.now(timezone.utc)

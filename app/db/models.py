@@ -532,6 +532,51 @@ class TokenBlocklist(Base):
     )
 
 
+class IoTEvent(Base):
+    """Real-time IoT event ingested from any data source."""
+    __tablename__ = "iot_events"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    source      = Column(String(50),  nullable=False)   # "live_tracker"|"odds_api"|"scraper"|"external"
+    event_type  = Column(String(50),  nullable=False)   # "match_event"|"odds_change"|"injury_update"|etc
+    match_id    = Column(Integer, ForeignKey("matches.id", ondelete="SET NULL"), nullable=True)
+    payload     = Column(JSON,        nullable=False, default=dict)
+    processed   = Column(Boolean,     default=False)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    agent_response = Column(Text,     nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_iot_events_type",    "event_type"),
+        Index("idx_iot_events_match",   "match_id"),
+        Index("idx_iot_events_created", "created_at"),
+        Index("idx_iot_events_source",  "source"),
+    )
+
+
+class AgentInsight(Base):
+    """AI-generated intelligence produced by autonomous agents."""
+    __tablename__ = "agent_insights"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    agent_name   = Column(String(50),  nullable=False)   # "match-scout"|"news-sentinel"|"odds-anomaly"
+    insight_type = Column(String(50),  nullable=False)   # "match_scout"|"team_news"|"odds_anomaly"
+    match_id     = Column(Integer, ForeignKey("matches.id", ondelete="SET NULL"), nullable=True)
+    team         = Column(String(100), nullable=True)
+    ai_provider  = Column(String(20),  nullable=False)   # "gemini"|"grok"|"claude"|"openai"
+    content      = Column(Text,        nullable=False)
+    meta         = Column(JSON,        nullable=False, default=dict)
+    confidence   = Column(Float,       nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_agent_insights_agent",   "agent_name"),
+        Index("idx_agent_insights_match",   "match_id"),
+        Index("idx_agent_insights_type",    "insight_type"),
+        Index("idx_agent_insights_created", "created_at"),
+    )
+
+
 # Indexes for performance
 Index('idx_matches_kickoff', Match.kickoff_time)
 Index('idx_matches_status', Match.status)

@@ -116,6 +116,7 @@ from app.api.routes.exports import router as exports_router
 from app.api.routes.admin_ai_sources import router as admin_ai_sources_router
 from app.api.routes.admin_clv import router as admin_clv_router
 from app.api.routes.agents import router as agents_router
+from app.iot.router import router as iot_router
 from app.agents.coordinator import AgentCoordinator
 
 # ===== MIDDLEWARE =====
@@ -1150,7 +1151,7 @@ async def lifespan(app: FastAPI):
         agent_coordinator = AgentCoordinator()
         agent_coordinator.start(tasks)
         app.state.agent_coordinator = agent_coordinator
-        print("✅ Autonomous agents started (performance-monitor, weight-optimizer, retrain-trigger)")
+        print("✅ Autonomous agents started (performance-monitor, weight-optimizer, retrain-trigger, match-scout, news-sentinel, odds-anomaly)")
     except Exception as _agent_err:
         print(f"⚠️  Agent coordinator failed to start: {_agent_err}")
 
@@ -1398,6 +1399,7 @@ app.include_router(referral_router)
 app.include_router(leaderboard_router)
 app.include_router(exports_router)
 app.include_router(agents_router)
+app.include_router(iot_router)
 
 
 def _format_count(value: int) -> str:
