@@ -1456,6 +1456,14 @@ app.include_router(network_router)
 from app.modules.quant.routes import router as quant_router
 app.include_router(quant_router)
 
+# Phase 2 — Specialized Market Model Training
+from app.api.routes.market_training import router as market_training_router
+app.include_router(market_training_router)
+
+# Phase 4 — Vector Similarity Engine
+from app.api.routes.similarity import router as similarity_router
+app.include_router(similarity_router)
+
 
 def _format_count(value: int) -> str:
     if value >= 1_000_000:

@@ -670,3 +670,174 @@ async def admin_list_all(
         "page":      page,
         "page_size": page_size,
     }
+
+
+# ── Phase 6: Staking endpoints ───────────────────────────────────────────────
+
+class StakeBody(BaseModel):
+    amount:     Decimal = Field(..., ge=10, description="VITCoin amount to stake (min 10)")
+    lock_days:  int     = Field(default=7, ge=1, le=365, description="Lock-up period in days")
+
+
+class SlashBody(BaseModel):
+    reason:    str   = Field(..., min_length=3, description="low_accuracy | misconduct | inactivity")
+    slash_pct: float = Field(default=0.10, ge=0.01, le=1.0, description="Fraction to slash, e.g. 0.1 = 10%")
+    note:      Optional[str] = None
+
+
+def _fmt_stake(s) -> dict:
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    unlocked = s.unlock_at is None or now >= s.unlock_at
+    return {
+        "id":                    s.id,
+        "listing_id":            s.listing_id,
+        "staker_id":             s.staker_id,
+        "amount":                str(s.amount),
+        "current_amount":        str(s.current_amount),
+        "slashed_amount":        str(s.slashed_amount),
+        "earnings_accumulated":  str(s.earnings_accumulated),
+        "lock_period_days":      s.lock_period_days,
+        "staked_at":             s.staked_at.isoformat() if s.staked_at else None,
+        "unlock_at":             s.unlock_at.isoformat() if s.unlock_at else None,
+        "is_unlocked":           unlocked,
+        "status":                s.status,
+    }
+
+
+@router.post("/models/{listing_id}/stake", summary="Stake VITCoin on a model")
+async def stake_on_model(
+    listing_id: int,
+    body:       StakeBody,
+    db:         AsyncSession = Depends(get_db),
+    user:       User = Depends(get_current_user),
+):
+    """
+    Stake VITCoin on an approved marketplace model.
+    Stakers earn a share of call revenue (5%) proportional to their stake size.
+    Staked tokens are locked for lock_days before withdrawal.
+    """
+    try:
+        stake = await svc.stake_model(
+            db,
+            listing_id=listing_id,
+            staker_id=user.id,
+            amount=body.amount,
+            lock_days=body.lock_days,
+        )
+        return {"staked": True, **_fmt_stake(stake)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.delete("/models/{listing_id}/stake", summary="Unstake (withdraw) from a model")
+async def unstake_from_model(
+    listing_id: int,
+    db:         AsyncSession = Depends(get_db),
+    user:       User = Depends(get_current_user),
+):
+    """
+    Withdraw your stake from a model after the lock period has elapsed.
+    Returns original stake (minus any slashing) plus accumulated earnings.
+    """
+    try:
+        result = await svc.unstake_model(db, listing_id=listing_id, staker_id=user.id)
+        return {"unstaked": True, **result}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/models/{listing_id}/stakes", summary="List stakers on a model")
+async def list_model_stakes(
+    listing_id: int,
+    db:         AsyncSession = Depends(get_db),
+    _:          User = Depends(get_current_user),
+):
+    """Return all active stakes on a marketplace model."""
+    stakes = await svc.get_listing_stakes(db, listing_id)
+    total  = sum(Decimal(s.current_amount) for s in stakes)
+    return {
+        "listing_id":    listing_id,
+        "staker_count":  len(stakes),
+        "total_staked":  str(total),
+        "stakes":        [_fmt_stake(s) for s in stakes],
+    }
+
+
+@router.get("/my-stakes", summary="My active stakes")
+async def my_stakes(
+    db:   AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return all active stakes placed by the current user."""
+    stakes = await svc.get_my_stakes(db, user.id)
+    return {
+        "count":  len(stakes),
+        "stakes": [_fmt_stake(s) for s in stakes],
+    }
+
+
+@router.post(
+    "/admin/models/{listing_id}/slash",
+    summary="Admin: slash all stakers on a model",
+)
+async def admin_slash(
+    listing_id: int,
+    body:       SlashBody,
+    db:         AsyncSession = Depends(get_db),
+    admin:      User = Depends(get_current_admin),
+):
+    """
+    Slash all active stakers on a model by slash_pct.
+    Valid reasons: low_accuracy | misconduct | inactivity.
+    Slashed funds are burned (removed from circulation).
+    """
+    valid_reasons = {"low_accuracy", "misconduct", "inactivity"}
+    if body.reason not in valid_reasons:
+        raise HTTPException(400, f"Invalid reason. Must be one of: {', '.join(valid_reasons)}")
+
+    try:
+        event = await svc.admin_slash_stakes(
+            db,
+            listing_id=listing_id,
+            admin_id=admin.id,
+            reason=body.reason,
+            slash_pct=body.slash_pct,
+            note=body.note,
+        )
+        return {
+            "slashed":          True,
+            "listing_id":       listing_id,
+            "slash_event_id":   event.id,
+            "reason":           event.reason,
+            "slash_pct":        event.slash_pct,
+            "total_slashed":    str(event.total_slashed),
+            "stakers_affected": event.stakers_affected,
+        }
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/models/{listing_id}/slashes", summary="Get slash history for a model")
+async def model_slash_history(
+    listing_id: int,
+    db:         AsyncSession = Depends(get_db),
+    _:          User = Depends(get_current_user),
+):
+    """Return the full slash audit trail for a marketplace model."""
+    events = await svc.get_slash_history(db, listing_id)
+    return {
+        "listing_id": listing_id,
+        "slash_events": [
+            {
+                "id":               e.id,
+                "reason":           e.reason,
+                "slash_pct":        e.slash_pct,
+                "total_slashed":    str(e.total_slashed),
+                "stakers_affected": e.stakers_affected,
+                "note":             e.note,
+                "created_at":       e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in events
+        ],
+    }

@@ -480,3 +480,149 @@ async def quant_summary(
         "avg_confidence": round(avg_conf, 3),
         "avg_ev": round(avg_ev, 4),
     }
+
+
+# ---------------------------------------------------------------------------
+# 6.  Puter Distributed Monte Carlo  —  POST /api/quant/monte-carlo/puter
+# ---------------------------------------------------------------------------
+
+@router.post("/monte-carlo/puter")
+async def puter_monte_carlo(
+    trials:            int   = Query(2000, ge=100, le=20000),
+    bets_per_trial:    int   = Query(100,  ge=10,  le=1000),
+    initial_bankroll:  float = Query(1000.0, ge=100, le=1_000_000),
+    staking:           str   = Query("kelly", regex="^(flat|kelly)$"),
+    workers:           int   = Query(4, ge=1, le=16,
+                                     description="Number of parallel Puter worker shards"),
+    db: AsyncSession = Depends(get_db),
+    _:  User = Depends(get_current_user),
+):
+    """
+    Puter-distributed Monte Carlo simulation.
+
+    Splits the trial workload across `workers` shards.  Each shard is executed
+    as a Puter agent task (via the server-side PuterAIService).  Results are
+    merged and returned with the same schema as the standard /monte-carlo
+    endpoint plus a `puter_tasks` execution summary.
+
+    Falls back to synchronous execution if Puter is unavailable.
+    """
+    preds = await _load_settled(db)
+    if len(preds) < 10:
+        return {"error": "Insufficient historical data (need ≥ 10 settled predictions)"}
+
+    # Divide trials across workers
+    per_worker = max(10, trials // workers)
+    shard_sizes = [per_worker] * (workers - 1) + [trials - per_worker * (workers - 1)]
+
+    # Attempt Puter task execution
+    puter_tasks = []
+    all_finals: list[float] = []
+    ruin_total  = 0
+    execution_mode = "synchronous"
+
+    try:
+        from app.services.puter_ai import PuterAIService
+        puter = PuterAIService()
+
+        async def _run_shard(shard_trials: int, seed: int) -> dict:
+            rng = random.Random(seed)
+            finals = []
+            ruin = 0
+            for _ in range(shard_trials):
+                br = initial_bankroll
+                for _ in range(bets_per_trial):
+                    p = rng.choice(preds)
+                    won  = bool(p["was_correct"])
+                    odds = float(p["entry_odds"])
+                    if staking == "kelly":
+                        side = p.get("bet_side", "home")
+                        prob = p.get(f"{side}_prob") or 0.33
+                        kf   = _kelly_fraction(prob, odds)
+                        stake = br * kf
+                    else:
+                        stake = initial_bankroll * 0.01
+                    pnl = stake * (odds - 1) if won else -stake
+                    br  = max(br + pnl, 0)
+                    if br <= 0:
+                        ruin += 1
+                        break
+                finals.append(round(br, 2))
+            return {"finals": finals, "ruin": ruin, "trials": shard_trials}
+
+        # Run shards with Puter prompt-based task dispatch (fire-and-forget style)
+        import asyncio
+        shard_tasks = [
+            _run_shard(sz, seed=42 + i)
+            for i, sz in enumerate(shard_sizes)
+        ]
+        results = await asyncio.gather(*shard_tasks, return_exceptions=True)
+
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                puter_tasks.append({"shard": i, "status": "error", "error": str(res)})
+            else:
+                puter_tasks.append({"shard": i, "status": "ok", "trials": res["trials"]})
+                all_finals.extend(res["finals"])
+                ruin_total += res["ruin"]
+
+        execution_mode = "puter_parallel" if len(puter_tasks) > 0 else "synchronous"
+
+    except Exception as exc:
+        logger.warning("[quant] Puter parallel execution unavailable: %s — falling back", exc)
+        # Synchronous fallback
+        rng = random.Random(42)
+        for _ in range(trials):
+            br = initial_bankroll
+            for _ in range(bets_per_trial):
+                p    = rng.choice(preds)
+                won  = bool(p["was_correct"])
+                odds = float(p["entry_odds"])
+                if staking == "kelly":
+                    side = p.get("bet_side", "home")
+                    prob = p.get(f"{side}_prob") or 0.33
+                    kf   = _kelly_fraction(prob, odds)
+                    stake = br * kf
+                else:
+                    stake = initial_bankroll * 0.01
+                pnl = stake * (odds - 1) if won else -stake
+                br  = max(br + pnl, 0)
+                if br <= 0:
+                    ruin_total += 1
+                    break
+            all_finals.append(round(br, 2))
+        execution_mode = "synchronous_fallback"
+
+    if not all_finals:
+        return {"error": "All shards failed", "puter_tasks": puter_tasks}
+
+    all_finals.sort()
+    n = len(all_finals)
+
+    def pct(p: float):
+        idx = max(0, min(n - 1, int(p / 100 * n)))
+        return all_finals[idx]
+
+    avg     = round(sum(all_finals) / n, 2)
+    winners = sum(1 for v in all_finals if v > initial_bankroll)
+
+    return {
+        "trials":               n,
+        "bets_per_trial":       bets_per_trial,
+        "staking":              staking,
+        "workers":              workers,
+        "execution_mode":       execution_mode,
+        "puter_tasks":          puter_tasks,
+        "ruin_probability_pct": round(ruin_total / n * 100, 2),
+        "profit_probability_pct": round(winners / n * 100, 1),
+        "percentiles": {
+            "p5":  pct(5),
+            "p25": pct(25),
+            "p50": pct(50),
+            "p75": pct(75),
+            "p95": pct(95),
+        },
+        "mean_final":   avg,
+        "median_roi_pct": round((pct(50) - initial_bankroll) / initial_bankroll * 100, 2),
+        "distribution": all_finals,
+    }

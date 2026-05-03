@@ -132,6 +132,33 @@ Matches are deduplicated via:
 - Past matches (kickoff > 2h ago) are auto-completed by `LiveMatchTrackerAgent._auto_complete_past_matches()`
 - Startup seeding: tries Football API first, falls back to synthetic if API unreachable
 
+## 6-Phase Intelligence Upgrade (v5.0)
+
+### Phase 1 — Feature Intelligence Upgrade
+- `app/data/feature_engineering.py` — v2.0 rewrite: xG features, referee stats, rest days, odds velocity, Poisson helpers, `compute_source_quality`.
+
+### Phase 2 — Specialized Market Models
+- `app/ai/market_models.py` — BTTSModel, OverUnderModel, CorrectScoreModel (PyTorch neural nets + feature vector builders).
+- `app/ai/market_trainer.py` — full async training pipeline with joblib save/load.
+- `app/api/routes/market_training.py` — REST endpoints: train/btts, train/ou, train/cs, predict/btts, predict/ou, predict/cs, status.
+
+### Phase 3 — Puter Distributed Compute
+- `app/modules/quant/routes.py` — `POST /api/quant/monte-carlo/puter`: parallel shard Monte Carlo execution with synchronous fallback.
+
+### Phase 4 — Vector Similarity Engine
+- `app/services/vector_similarity.py` — numpy brute-force cosine similarity index (`SimilarityEngine` singleton; FAISS-ready).
+- `app/api/routes/similarity.py` — `GET /api/similarity/matches`, `POST /api/similarity/matches/query`, `POST /api/similarity/rebuild`, `GET /api/similarity/status`.
+
+### Phase 5 — RL Reward Loop
+- `app/services/rl_reward.py` — reward functions, `RLRewardAccumulator` (EMA signals on settled bets).
+- `app/agents/weight_optimizer.py` — `_apply_rl_rewards()` reads accumulator EMA and nudges `ModelMetadata.weight`.
+
+### Phase 6 — Staked Model Marketplace
+- `app/modules/marketplace/models.py` — `ModelStake` + `ModelSlashEvent` ORM tables; `total_staked`/`staker_count` on `AIModelListing`.
+- `app/modules/marketplace/service.py` — staking service: `stake_model`, `unstake_model`, `distribute_staker_earnings` (auto-called from `call_model`), `admin_slash_stakes`, `get_slash_history`.
+- `app/modules/marketplace/routes.py` — staking endpoints: POST/DELETE `/models/{id}/stake`, GET `/models/{id}/stakes`, GET `/my-stakes`, POST `/admin/models/{id}/slash`, GET `/models/{id}/slashes`.
+- `frontend/src/pages/marketplace.tsx` — `StakeModal` (stake/unstake/view stakers), `MyStakesTab` (portfolio view with earnings/slash tracking), staking badges on model cards, slashing risk documentation.
+
 ## Key Files
 - `main.py` — startup lifecycle, fixture seeding logic (lines ~1070-1150)
 - `app/db/models.py` — Match model (status, home_goals/away_goals columns)

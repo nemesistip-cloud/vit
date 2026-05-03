@@ -1,5 +1,8 @@
 # app/modules/marketplace/service.py
-"""AI Marketplace service — listing management, call billing, reputation, admin approval."""
+"""AI Marketplace service — listing management, call billing, reputation, admin approval.
+
+Phase 6 additions: VIT token staking on marketplace models with slashing.
+"""
 
 import hashlib
 import json
@@ -7,13 +10,17 @@ import logging
 import os
 import re
 import uuid
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.marketplace.models import AIModelListing, ModelRating, ModelUsageLog
+from app.modules.marketplace.models import (
+    AIModelListing, ModelRating, ModelUsageLog,
+    ModelStake, ModelSlashEvent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -524,6 +531,12 @@ async def call_model(
     db.add(log)
     await db.commit()
 
+    # ── Phase 6: Distribute staker revenue share ──────────────────────────────
+    try:
+        await distribute_staker_earnings(db, listing_id, price)
+    except Exception as _e:
+        logger.debug(f"Staker earnings distribution failed: {_e}")
+
     # ── Notify creator of revenue ──────────────────────────────────────────────
     try:
         await NotificationService.notify_wallet(
@@ -733,3 +746,289 @@ async def platform_stats(db: AsyncSession) -> dict:
             for t in top
         ],
     }
+
+
+# ── Phase 6: Staking (G4/G5) ──────────────────────────────────────────────────
+
+MIN_STAKE_AMOUNT   = Decimal("10.0")    # minimum stake in VITCoin
+DEFAULT_LOCK_DAYS  = 7                  # default lock period
+STAKER_REVENUE_PCT = Decimal("0.05")    # 5% of call revenue → stakers (pro-rata)
+DEFAULT_SLASH_PCT  = 0.10               # 10% default slash
+
+
+async def stake_model(
+    db: AsyncSession,
+    listing_id: int,
+    staker_id: int,
+    amount: Decimal,
+    lock_days: int = DEFAULT_LOCK_DAYS,
+) -> ModelStake:
+    """
+    Stake VITCoin on an approved marketplace model.
+    - Deducts from staker wallet.
+    - Stores stake record (locked for lock_days).
+    - Updates listing.total_staked + staker_count.
+    """
+    if amount < MIN_STAKE_AMOUNT:
+        raise ValueError(f"Minimum stake is {MIN_STAKE_AMOUNT} VIT")
+
+    listing = await get_listing(db, listing_id)
+    if not listing:
+        raise ValueError("Listing not found")
+    if listing.approval_status != "approved" or not listing.is_active:
+        raise ValueError("Can only stake on approved, active models")
+
+    # Check for existing stake
+    existing = (await db.execute(
+        select(ModelStake).where(
+            ModelStake.listing_id == listing_id,
+            ModelStake.staker_id  == staker_id,
+            ModelStake.status     == "active",
+        )
+    )).scalar_one_or_none()
+    if existing:
+        raise ValueError("You already have an active stake on this model. Unstake first to adjust.")
+
+    # Debit staker's wallet
+    from app.modules.wallet.services import WalletService
+    from app.modules.wallet.models import Currency
+    ws = WalletService(db)
+    wallet = await ws.get_or_create_wallet(staker_id)
+    if wallet.vitcoin_balance < amount:
+        raise ValueError(
+            f"Insufficient balance. Need {amount} VIT, have {wallet.vitcoin_balance} VIT."
+        )
+    await ws.debit(
+        wallet_id=wallet.id,
+        user_id=staker_id,
+        currency=Currency.VITCOIN,
+        amount=amount,
+        tx_type="marketplace_stake",
+        reference=f"stake_{listing_id}_{uuid.uuid4().hex[:8]}",
+        metadata={"listing_id": listing_id, "lock_days": lock_days},
+    )
+
+    now = datetime.now(timezone.utc)
+    stake = ModelStake(
+        listing_id=listing_id,
+        staker_id=staker_id,
+        amount=amount,
+        current_amount=amount,
+        slashed_amount=Decimal("0"),
+        earnings_accumulated=Decimal("0"),
+        lock_period_days=lock_days,
+        staked_at=now,
+        unlock_at=now + timedelta(days=lock_days),
+        status="active",
+    )
+    db.add(stake)
+
+    # Update listing aggregate
+    listing.total_staked = (listing.total_staked or Decimal("0")) + amount
+    listing.staker_count = (listing.staker_count or 0) + 1
+
+    await db.commit()
+    await db.refresh(stake)
+    logger.info(
+        "Staked %.2f VIT on listing %d by user %d (lock=%dd)",
+        amount, listing_id, staker_id, lock_days,
+    )
+    return stake
+
+
+async def unstake_model(
+    db: AsyncSession,
+    listing_id: int,
+    staker_id: int,
+) -> dict:
+    """
+    Withdraw a stake after the lock period has elapsed.
+    Returns the remaining VITCoin (original - slashed) + accumulated earnings.
+    """
+    stake = (await db.execute(
+        select(ModelStake).where(
+            ModelStake.listing_id == listing_id,
+            ModelStake.staker_id  == staker_id,
+            ModelStake.status.in_(["active", "cooling_down"]),
+        )
+    )).scalar_one_or_none()
+
+    if not stake:
+        raise ValueError("No active stake found on this model")
+
+    now = datetime.now(timezone.utc)
+    if stake.unlock_at and now < stake.unlock_at:
+        remaining = (stake.unlock_at - now)
+        raise ValueError(
+            f"Stake is still locked. Unlocks in {remaining.days}d "
+            f"{remaining.seconds // 3600}h."
+        )
+
+    payout = stake.current_amount + stake.earnings_accumulated
+    if payout <= 0:
+        raise ValueError("No payout available (stake fully slashed)")
+
+    # Credit staker
+    from app.modules.wallet.services import WalletService
+    from app.modules.wallet.models import Currency
+    ws = WalletService(db)
+    wallet = await ws.get_or_create_wallet(staker_id)
+    await ws.credit(
+        wallet_id=wallet.id,
+        user_id=staker_id,
+        currency=Currency.VITCOIN,
+        amount=payout,
+        tx_type="marketplace_unstake",
+        reference=f"unstake_{listing_id}_{uuid.uuid4().hex[:8]}",
+        metadata={
+            "listing_id":    listing_id,
+            "principal":     str(stake.current_amount),
+            "earnings":      str(stake.earnings_accumulated),
+        },
+    )
+
+    # Update listing aggregate
+    listing = await get_listing(db, listing_id)
+    if listing:
+        listing.total_staked = max(Decimal("0"), (listing.total_staked or Decimal("0")) - stake.amount)
+        listing.staker_count = max(0, (listing.staker_count or 1) - 1)
+
+    stake.status        = "withdrawn"
+    stake.withdrawn_at  = now
+
+    await db.commit()
+    logger.info(
+        "Unstaked listing %d by user %d — returned %.4f VIT",
+        listing_id, staker_id, payout,
+    )
+    return {
+        "listing_id":    listing_id,
+        "principal":     str(stake.current_amount),
+        "earnings":      str(stake.earnings_accumulated),
+        "payout":        str(payout),
+        "slashed_total": str(stake.slashed_amount),
+    }
+
+
+async def get_my_stakes(db: AsyncSession, staker_id: int) -> list[ModelStake]:
+    """Return all active/cooling stakes for a user."""
+    result = await db.execute(
+        select(ModelStake)
+        .where(
+            ModelStake.staker_id == staker_id,
+            ModelStake.status.in_(["active", "cooling_down"]),
+        )
+        .order_by(ModelStake.staked_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def get_listing_stakes(db: AsyncSession, listing_id: int) -> list[ModelStake]:
+    """Return all active stakes on a listing."""
+    result = await db.execute(
+        select(ModelStake)
+        .where(
+            ModelStake.listing_id == listing_id,
+            ModelStake.status     == "active",
+        )
+        .order_by(ModelStake.amount.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def distribute_staker_earnings(
+    db: AsyncSession,
+    listing_id: int,
+    call_revenue: Decimal,
+) -> None:
+    """
+    Distribute STAKER_REVENUE_PCT of a call's revenue to active stakers
+    proportional to their stake size.  Called from call_model().
+    """
+    pool = (call_revenue * STAKER_REVENUE_PCT).quantize(Decimal("0.00000001"))
+    if pool <= 0:
+        return
+
+    stakes = await get_listing_stakes(db, listing_id)
+    if not stakes:
+        return
+
+    total_staked = sum(s.current_amount for s in stakes)
+    if total_staked <= 0:
+        return
+
+    for s in stakes:
+        share = (pool * s.current_amount / total_staked).quantize(Decimal("0.00000001"))
+        s.earnings_accumulated = (s.earnings_accumulated or Decimal("0")) + share
+        s.last_earnings_at = datetime.now(timezone.utc)
+
+    await db.commit()
+
+
+async def admin_slash_stakes(
+    db: AsyncSession,
+    listing_id: int,
+    admin_id: int,
+    reason: str,
+    slash_pct: float = DEFAULT_SLASH_PCT,
+    note: Optional[str] = None,
+) -> ModelSlashEvent:
+    """
+    Slash all active stakers on a model by slash_pct.
+    - Reduces each stake.current_amount
+    - Slashed funds are burned (sent to protocol treasury)
+    - Creates a ModelSlashEvent audit record
+    """
+    if not (0 < slash_pct <= 1.0):
+        raise ValueError("slash_pct must be between 0 and 1.0")
+
+    stakes = await get_listing_stakes(db, listing_id)
+    if not stakes:
+        raise ValueError("No active stakes to slash on this model")
+
+    slash_decimal = Decimal(str(slash_pct))
+    total_slashed = Decimal("0")
+    stakers_hit   = 0
+
+    for s in stakes:
+        cut = (s.current_amount * slash_decimal).quantize(Decimal("0.00000001"))
+        s.current_amount  = max(Decimal("0"), s.current_amount - cut)
+        s.slashed_amount  = (s.slashed_amount or Decimal("0")) + cut
+        total_slashed    += cut
+        stakers_hit      += 1
+        if s.current_amount <= 0:
+            s.status = "withdrawn"   # fully slashed → effectively withdrawn
+
+    # Update listing total_staked
+    listing = await get_listing(db, listing_id)
+    if listing:
+        listing.total_staked = max(Decimal("0"), (listing.total_staked or Decimal("0")) - total_slashed)
+
+    # Create slash audit record
+    event = ModelSlashEvent(
+        listing_id=listing_id,
+        triggered_by=admin_id,
+        reason=reason,
+        slash_pct=slash_pct,
+        total_slashed=total_slashed,
+        stakers_affected=stakers_hit,
+        note=note,
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+
+    logger.warning(
+        "SLASH: listing=%d reason=%s pct=%.0f%% slashed=%.4f VIT stakers=%d",
+        listing_id, reason, slash_pct * 100, total_slashed, stakers_hit,
+    )
+    return event
+
+
+async def get_slash_history(db: AsyncSession, listing_id: int) -> list[ModelSlashEvent]:
+    result = await db.execute(
+        select(ModelSlashEvent)
+        .where(ModelSlashEvent.listing_id == listing_id)
+        .order_by(ModelSlashEvent.created_at.desc())
+    )
+    return list(result.scalars().all())

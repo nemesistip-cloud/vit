@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFormPost, apiGet, apiPost, apiPatch } from "@/lib/apiClient";
+import { apiFormPost, apiGet, apiPost, apiPatch, apiDelete } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { BookOpen, FileCode2, ShoppingBag, Plus, Star, Zap, TrendingUp, BarChart2, DollarSign, Search } from "lucide-react";
+import {
+  BookOpen, FileCode2, ShoppingBag, Plus, Star, Zap, TrendingUp,
+  BarChart2, DollarSign, Search, Coins, AlertTriangle, Lock,
+  Unlock, ShieldCheck, TrendingDown,
+} from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
 
@@ -36,6 +40,8 @@ interface Listing {
   rating_count: number;
   total_revenue: string;
   creator_revenue: string;
+  total_staked: string;
+  staker_count: number;
   is_active: boolean;
   is_verified: boolean;
   created_at: string;
@@ -55,6 +61,32 @@ interface Stats {
   total_volume_vitcoin: number;
   protocol_revenue_vitcoin: number;
   top_models: { id: number; name: string; usage_count: number; avg_rating: number }[];
+}
+
+interface StakeInfo {
+  id: number;
+  listing_id: number;
+  amount: string;
+  current_amount: string;
+  slashed_amount: string;
+  earnings_accumulated: string;
+  lock_period_days: number;
+  staked_at: string;
+  unlock_at: string | null;
+  is_unlocked: boolean;
+  status: string;
+}
+
+interface ListingStakes {
+  listing_id: number;
+  staker_count: number;
+  total_staked: string;
+  stakes: StakeInfo[];
+}
+
+interface MyStakes {
+  count: number;
+  stakes: StakeInfo[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -80,6 +112,169 @@ function CategoryBadge({ cat }: { cat: string }) {
     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${colors[cat] ?? "bg-muted text-muted-foreground"}`}>
       {cat}
     </span>
+  );
+}
+
+// ── Stake Modal ─────────────────────────────────────────────────────────
+
+function StakeModal({ listing }: { listing: Listing }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("50");
+  const [lockDays, setLockDays] = useState(7);
+
+  const { data: stakesData } = useQuery<ListingStakes>({
+    queryKey: ["marketplace", "stakes", listing.id],
+    queryFn: () => apiGet(`/api/marketplace/models/${listing.id}/stakes`),
+    enabled: open,
+  });
+
+  const stake = useMutation({
+    mutationFn: () =>
+      apiPost(`/api/marketplace/models/${listing.id}/stake`, {
+        amount: parseFloat(amount),
+        lock_days: lockDays,
+      }),
+    onSuccess: () => {
+      toast.success(`Staked ${amount} VIT on ${listing.name}`);
+      qc.invalidateQueries({ queryKey: ["marketplace"] });
+      qc.invalidateQueries({ queryKey: ["marketplace", "my-stakes"] });
+      setOpen(false);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Staking failed"),
+  });
+
+  const unstake = useMutation({
+    mutationFn: () => apiDelete(`/api/marketplace/models/${listing.id}/stake`),
+    onSuccess: (data: any) => {
+      toast.success(`Unstaked — received ${data.payout} VIT`);
+      qc.invalidateQueries({ queryKey: ["marketplace"] });
+      qc.invalidateQueries({ queryKey: ["marketplace", "my-stakes"] });
+      setOpen(false);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Unstake failed"),
+  });
+
+  const totalStaked = parseFloat(listing.total_staked ?? "0");
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
+          <Coins className="w-3 h-3" />
+          Stake {totalStaked > 0 ? `· ${totalStaked.toFixed(0)} VIT` : ""}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Coins className="w-4 h-4 text-amber-400" /> Stake VIT on {listing.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          {/* Current pool info */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Pool", value: `${parseFloat(listing.total_staked ?? "0").toFixed(1)} VIT` },
+              { label: "Stakers", value: listing.staker_count?.toString() ?? "0" },
+              { label: "Your Share", value: "5% of calls" },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-muted/50 rounded-lg p-2 text-center">
+                <p className="text-[10px] text-muted-foreground">{label}</p>
+                <p className="text-sm font-semibold text-foreground">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Earnings info */}
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200 space-y-1">
+            <p className="font-medium flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" /> Staker Revenue Sharing
+            </p>
+            <p className="text-muted-foreground">
+              5% of every call fee is distributed to stakers proportionally to stake size.
+              Slashing risk applies — poor model performance may trigger a partial slash.
+            </p>
+          </div>
+
+          {/* Stake input */}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Amount (VIT, min 10)</Label>
+              <Input
+                type="number"
+                min="10"
+                step="10"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="50"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Lock period</Label>
+              <Select value={String(lockDays)} onValueChange={(v) => setLockDays(parseInt(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[
+                    [7, "7 days"],
+                    [14, "14 days"],
+                    [30, "30 days"],
+                    [90, "90 days"],
+                  ].map(([days, label]) => (
+                    <SelectItem key={days} value={String(days)}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button
+            className="w-full gap-2"
+            onClick={() => stake.mutate()}
+            disabled={stake.isPending || parseFloat(amount) < 10}
+          >
+            <Lock className="w-4 h-4" />
+            {stake.isPending ? "Staking..." : `Stake ${amount} VIT for ${lockDays} days`}
+          </Button>
+
+          {/* Current stakes table */}
+          {stakesData && stakesData.stakes.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Current stakers</p>
+              {stakesData.stakes.slice(0, 5).map((s) => (
+                <div key={s.id} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1.5">
+                  <div className="flex items-center gap-2">
+                    {s.is_unlocked
+                      ? <Unlock className="w-3 h-3 text-green-400" />
+                      : <Lock className="w-3 h-3 text-amber-400" />}
+                    <span>{parseFloat(s.current_amount).toFixed(1)} VIT</span>
+                  </div>
+                  <div className="text-right text-muted-foreground">
+                    <span>+{parseFloat(s.earnings_accumulated).toFixed(2)} earned</span>
+                    {parseFloat(s.slashed_amount) > 0 && (
+                      <span className="text-red-400 ml-2">−{parseFloat(s.slashed_amount).toFixed(2)} slashed</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Unstake button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 border-muted text-muted-foreground"
+            onClick={() => unstake.mutate()}
+            disabled={unstake.isPending}
+          >
+            <Unlock className="w-3 h-3" />
+            {unstake.isPending ? "Withdrawing..." : "Withdraw my stake"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -386,6 +581,7 @@ function ListModelModal() {
 function ModelCard({ listing }: { listing: Listing }) {
   const { user } = useAuth();
   const isOwner = user?.id === listing.creator_id;
+  const totalStaked = parseFloat(listing.total_staked ?? "0");
 
   return (
     <Card className="flex flex-col hover:border-primary/40 transition-colors">
@@ -402,6 +598,11 @@ function ModelCard({ listing }: { listing: Listing }) {
               {isOwner && (
                 <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                   Your model
+                </span>
+              )}
+              {totalStaked > 0 && (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 flex items-center gap-0.5">
+                  <Coins className="w-2.5 h-2.5" /> {totalStaked.toFixed(0)} staked
                 </span>
               )}
             </div>
@@ -435,6 +636,7 @@ function ModelCard({ listing }: { listing: Listing }) {
       <CardFooter className="pt-0 gap-2 flex-wrap">
         {!isOwner && <CallModal listing={listing} />}
         {!isOwner && <RateModal listing={listing} />}
+        {!isOwner && <StakeModal listing={listing} />}
         {isOwner && (
           <span className="text-xs text-muted-foreground">
             Revenue: {parseFloat(listing.creator_revenue).toFixed(2)} VIT
@@ -442,6 +644,137 @@ function ModelCard({ listing }: { listing: Listing }) {
         )}
       </CardFooter>
     </Card>
+  );
+}
+
+// ── My Stakes Tab ─────────────────────────────────────────────────────
+
+function MyStakesTab() {
+  const qc = useQueryClient();
+
+  const { data, isLoading } = useQuery<MyStakes>({
+    queryKey: ["marketplace", "my-stakes"],
+    queryFn: () => apiGet("/api/marketplace/my-stakes"),
+  });
+
+  const unstake = useMutation({
+    mutationFn: (listing_id: number) =>
+      apiDelete(`/api/marketplace/models/${listing_id}/stake`),
+    onSuccess: (res: any) => {
+      toast.success(`Received ${res.payout} VIT`);
+      qc.invalidateQueries({ queryKey: ["marketplace", "my-stakes"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Unstake failed"),
+  });
+
+  if (isLoading) return <div className="h-32 rounded-xl bg-muted animate-pulse" />;
+
+  if (!data || data.count === 0) {
+    return (
+      <EmptyState
+        icon={Coins}
+        title="No active stakes"
+        description="Stake VITCoin on marketplace models to earn a share of their call revenue."
+      />
+    );
+  }
+
+  const totalValue = data.stakes.reduce(
+    (sum, s) => sum + parseFloat(s.current_amount) + parseFloat(s.earnings_accumulated), 0
+  );
+  const totalEarnings = data.stakes.reduce(
+    (sum, s) => sum + parseFloat(s.earnings_accumulated), 0
+  );
+  const totalSlashed = data.stakes.reduce(
+    (sum, s) => sum + parseFloat(s.slashed_amount), 0
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Summary strip */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Total Staked Value", value: `${totalValue.toFixed(2)} VIT`, icon: Coins, color: "text-amber-400" },
+          { label: "Earnings Accumulated", value: `${totalEarnings.toFixed(4)} VIT`, icon: TrendingUp, color: "text-green-400" },
+          { label: "Total Slashed", value: `${totalSlashed.toFixed(4)} VIT`, icon: TrendingDown, color: "text-red-400" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} className="p-3">
+            <div className={`flex items-center gap-1 text-xs mb-1 ${color}`}>
+              <Icon className="w-3 h-3" /> {label}
+            </div>
+            <p className="text-base font-bold text-foreground">{value}</p>
+          </Card>
+        ))}
+      </div>
+
+      {/* Stakes list */}
+      <div className="space-y-3">
+        {data.stakes.map((s) => (
+          <Card key={s.id} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">
+                    Model #{s.listing_id}
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                    s.status === "active"
+                      ? "bg-green-500/10 text-green-400"
+                      : "bg-muted text-muted-foreground"
+                  }`}>
+                    {s.status}
+                  </span>
+                  {s.is_unlocked
+                    ? <Unlock className="w-3 h-3 text-green-400" title="Unlocked — can withdraw" />
+                    : <Lock className="w-3 h-3 text-amber-400" title="Still locked" />}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
+                  <div>
+                    <span className="block text-[10px]">Staked</span>
+                    <span className="text-foreground font-medium">{parseFloat(s.amount).toFixed(2)} VIT</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px]">Current</span>
+                    <span className="text-foreground font-medium">{parseFloat(s.current_amount).toFixed(2)} VIT</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px]">Earnings</span>
+                    <span className="text-green-400 font-medium">+{parseFloat(s.earnings_accumulated).toFixed(4)} VIT</span>
+                  </div>
+                  {parseFloat(s.slashed_amount) > 0 && (
+                    <div>
+                      <span className="block text-[10px]">Slashed</span>
+                      <span className="text-red-400 font-medium">−{parseFloat(s.slashed_amount).toFixed(4)} VIT</span>
+                    </div>
+                  )}
+                </div>
+
+                {s.unlock_at && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {s.is_unlocked
+                      ? "Unlocked — ready to withdraw"
+                      : `Unlocks ${new Date(s.unlock_at).toLocaleDateString()}`}
+                  </p>
+                )}
+              </div>
+
+              {s.is_unlocked && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1 shrink-0"
+                  onClick={() => unstake.mutate(s.listing_id)}
+                  disabled={unstake.isPending}
+                >
+                  <Unlock className="w-3 h-3" /> Withdraw
+                </Button>
+              )}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -482,7 +815,7 @@ export default function MarketplacePage() {
     enabled: tab === "my-usage",
   });
 
-  const stats = statsData;
+  const stats    = statsData;
   const listings = browseData?.items ?? [];
   const totalPages = browseData?.pages ?? 1;
 
@@ -494,7 +827,7 @@ export default function MarketplacePage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ShoppingBag className="w-6 h-6 text-primary" /> AI Marketplace
           </h1>
-          <p className="text-sm text-muted-foreground">Buy and sell AI prediction models using VITCoin</p>
+          <p className="text-sm text-muted-foreground">Buy, sell, and stake on AI prediction models using VITCoin</p>
         </div>
         <ListModelModal />
       </div>
@@ -520,10 +853,13 @@ export default function MarketplacePage() {
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="browse">Browse</TabsTrigger>
           <TabsTrigger value="my-models">My Models</TabsTrigger>
           <TabsTrigger value="my-usage">My Usage</TabsTrigger>
+          <TabsTrigger value="my-stakes" className="gap-1">
+            <Coins className="w-3 h-3" /> My Stakes
+          </TabsTrigger>
           <TabsTrigger value="docs">Build & Train Guide</TabsTrigger>
           {(stats?.top_models?.length ?? 0) > 0 && <TabsTrigger value="top">Top Models</TabsTrigger>}
         </TabsList>
@@ -631,6 +967,12 @@ export default function MarketplacePage() {
           )}
         </TabsContent>
 
+        {/* My Stakes Tab */}
+        <TabsContent value="my-stakes">
+          <MyStakesTab />
+        </TabsContent>
+
+        {/* Docs Tab */}
         <TabsContent value="docs" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <Card className="lg:col-span-2">
@@ -645,6 +987,7 @@ export default function MarketplacePage() {
                   ["3", "Expose a training/prediction interface", "Python submissions should include def predict, def train, class Model, or class VITModel. Binary models should load with joblib and expose predict or train."],
                   ["4", "Set pricing", "Set the VITCoin cost per call. After approval, calls earn creator revenue while analysts can train eligible models from the training area."],
                   ["5", "Wait for review", "Admins review source and artifacts before activation. Loadable binaries can be registered automatically; Python source remains review-gated for safety."],
+                  ["6", "Attract stakers", "Once live, users can stake VITCoin on your model. You earn more signals and stakers earn 5% of your call revenue — proportional to their stake."],
                 ].map(([step, title, text]) => (
                   <div key={step} className="flex gap-3">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{step}</span>
@@ -656,29 +999,39 @@ export default function MarketplacePage() {
                 ))}
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><FileCode2 className="w-5 h-5 text-primary" /> Supported model types</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-muted-foreground">
-                <div>
-                  <p className="font-medium text-foreground">Loadable binaries</p>
-                  <p>.pkl, .joblib with predict or train methods.</p>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">Python source</p>
-                  <p>.py modules with predict/train functions or Model/VITModel classes.</p>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">Model artifacts</p>
-                  <p>ONNX, PyTorch, H5, numpy arrays, JSON/YAML configs, CSV feature maps, and Markdown/TXT docs.</p>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">Analyst earning path</p>
-                  <p>Analysts train and evaluate eligible marketplace/system models from Training, improving performance and earning through approved platform reward flows.</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><FileCode2 className="w-5 h-5 text-primary" /> Supported model types</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs text-muted-foreground">
+                  <div>
+                    <p className="font-medium text-foreground">Loadable binaries</p>
+                    <p>.pkl, .joblib with predict or train methods.</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Python source</p>
+                    <p>.py modules with predict/train functions or Model/VITModel classes.</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Model artifacts</p>
+                    <p>ONNX, PyTorch, H5, numpy arrays, JSON/YAML configs, CSV feature maps, and Markdown/TXT docs.</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-amber-500/30 bg-amber-500/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-amber-400">
+                    <AlertTriangle className="w-4 h-4" /> Slashing Risk
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-muted-foreground space-y-1">
+                  <p>Models with sustained low accuracy, misconduct, or inactivity may be slashed by admins.</p>
+                  <p>A slash reduces all stakers' balances by the slash percentage (default 10%).</p>
+                  <p>Slashed funds are burned, not redistributed.</p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </TabsContent>
 

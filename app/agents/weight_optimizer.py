@@ -7,6 +7,7 @@ Responsibilities:
     (TemperatureScaler.fit via fit_temperature_from_history)
   - Update dynamic model weights via ModelAccountability
   - Sync weights across ModelMetadata and ModelPerformance tables
+  - Integrate RL reward signals from RLRewardAccumulator (Phase 5)
   - Publish a summary of weight deltas to the coordinator registry
 """
 
@@ -19,12 +20,15 @@ from app.agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
+# RL reward weight influence cap (prevents a single model dominating quickly)
+_RL_DELTA_CAP = 0.15
+
 
 class WeightOptimizerAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
             name="weight-optimizer",
-            interval_seconds=6 * 3600,   # every 6 hours
+            interval_seconds=6 * 3600,    # every 6 hours
             initial_delay_seconds=3 * 60, # start 3 min after boot
         )
 
@@ -91,4 +95,83 @@ class WeightOptimizerAgent(BaseAgent):
                 logger.debug("[weight-optimizer] profiler sync error: %s", e)
                 results["profiler_sync"] = {"synced": False, "error": str(e)}
 
+            # ── 4. RL Reward Integration (Phase 5) ────────────────────
+            try:
+                results["rl_rewards"] = await self._apply_rl_rewards(db)
+            except Exception as e:
+                logger.warning("[weight-optimizer] RL reward integration error: %s", e)
+                results["rl_rewards"] = {"error": str(e)}
+
         return results
+
+    async def _apply_rl_rewards(self, db) -> Dict[str, Any]:
+        """
+        Read accumulated RL reward signals and nudge model weights accordingly.
+
+        The reward accumulator records post-settlement Brier / CLV rewards for
+        each model key.  We convert the EMA into a small weight delta and apply
+        it via ModelAccountability, then reset the accumulator to avoid
+        compounding the same signal on the next cycle.
+        """
+        from app.services.rl_reward import get_accumulator
+        from app.services.model_accountability import ModelAccountability
+
+        accumulator = get_accumulator()
+        snapshot    = accumulator.snapshot()
+
+        if not snapshot:
+            return {"applied": 0, "snapshot": {}}
+
+        ma       = ModelAccountability(db)
+        applied  = 0
+        deltas   = {}
+
+        for model_key, stats in snapshot.items():
+            delta = stats.get("weight_delta", 0.0)
+            if abs(delta) < 0.005:
+                # Too small to bother applying
+                continue
+
+            # Clamp to prevent large swings
+            delta = max(-_RL_DELTA_CAP, min(_RL_DELTA_CAP, delta))
+            deltas[model_key] = delta
+
+            try:
+                # Apply delta to ModelMetadata weight if model exists
+                from sqlalchemy import select, update as sql_update
+                from app.db.models import ModelMetadata  # type: ignore
+
+                row = (await db.execute(
+                    select(ModelMetadata).where(ModelMetadata.key == model_key)
+                )).scalar_one_or_none()
+
+                if row is not None:
+                    new_weight = max(0.1, min(5.0, (row.weight or 1.0) + delta))
+                    row.weight = new_weight
+                    applied += 1
+                    logger.info(
+                        "[weight-optimizer] RL delta applied: model=%s delta=%.4f new_weight=%.4f",
+                        model_key, delta, new_weight,
+                    )
+            except Exception as exc:
+                logger.debug(
+                    "[weight-optimizer] RL delta for %s skipped: %s", model_key, exc
+                )
+
+        if applied > 0:
+            try:
+                await db.commit()
+            except Exception as exc:
+                logger.warning("[weight-optimizer] RL commit failed: %s", exc)
+                await db.rollback()
+
+        logger.info(
+            "[weight-optimizer] RL rewards: %d models adjusted from %d signals",
+            applied, len(snapshot),
+        )
+
+        return {
+            "applied":    applied,
+            "deltas":     deltas,
+            "snapshot":   snapshot,
+        }

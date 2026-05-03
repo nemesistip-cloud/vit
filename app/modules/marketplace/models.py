@@ -1,5 +1,10 @@
 # app/modules/marketplace/models.py
-"""AI Marketplace database models — Module G."""
+"""AI Marketplace database models — Module G.
+
+v2.0 additions (Phase 6):
+  - ModelStake  — VIT token staking on marketplace models with slashing
+  - ModelSlashEvent — audit trail for slash decisions
+"""
 
 from datetime import datetime
 from decimal import Decimal
@@ -68,13 +73,19 @@ class AIModelListing(Base):
     is_active       : Mapped[bool]     = mapped_column(Boolean, default=False)  # False until admin-approved
     is_verified     : Mapped[bool]     = mapped_column(Boolean, default=False)  # admin-verified quality badge
 
+    # Phase 6 — Staking aggregate (denormalised for fast reads)
+    total_staked    : Mapped[Decimal]  = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
+    staker_count    : Mapped[int]      = mapped_column(Integer, default=0)
+
     created_at      : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at      : Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     creator  = relationship("User", foreign_keys=[creator_id], backref="marketplace_listings")
     approver = relationship("User", foreign_keys=[approved_by])
-    usages   = relationship("ModelUsageLog", back_populates="listing", cascade="all, delete-orphan")
-    ratings  = relationship("ModelRating",   back_populates="listing", cascade="all, delete-orphan")
+    usages   = relationship("ModelUsageLog",  back_populates="listing", cascade="all, delete-orphan")
+    ratings  = relationship("ModelRating",    back_populates="listing", cascade="all, delete-orphan")
+    stakes   = relationship("ModelStake",     back_populates="listing", cascade="all, delete-orphan")
+    slashes  = relationship("ModelSlashEvent", back_populates="listing", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_listing_creator_id",       "creator_id"),
@@ -135,4 +146,93 @@ class ModelRating(Base):
     __table_args__ = (
         UniqueConstraint("listing_id", "user_id", name="uq_rating_listing_user"),
         Index("idx_rating_listing_id", "listing_id"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Staking tables
+# ---------------------------------------------------------------------------
+
+class ModelStake(Base):
+    """
+    G4 — VIT token stake placed on a marketplace model.
+
+    Economics:
+      - Stakers earn a share of the model's call revenue (proportional to stake).
+      - If the model is slashed (poor performance / misconduct), stakers lose
+        a portion of their stake (slash_pct, defaulting to 10 %).
+      - Stake can be withdrawn after the lock_period_days has elapsed.
+
+    Status lifecycle:
+      active → cooling_down → withdrawn
+               OR
+      active → slashed      (partial) → cooling_down → withdrawn
+    """
+    __tablename__ = "marketplace_stakes"
+
+    id           : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    listing_id   : Mapped[int]      = mapped_column(Integer, ForeignKey("marketplace_listings.id", ondelete="CASCADE"), nullable=False, index=True)
+    staker_id    : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Stake amounts
+    amount       : Mapped[Decimal]  = mapped_column(Numeric(20, 8), nullable=False)        # original stake
+    current_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)        # after slashing
+    slashed_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))  # cumulative slashed
+
+    # Earnings accumulated from revenue sharing
+    earnings_accumulated: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
+
+    # Lock-up
+    lock_period_days : Mapped[int]      = mapped_column(Integer, default=7)
+    staked_at        : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    unlock_at        : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Lifecycle
+    # status: active | cooling_down | withdrawn | slashed
+    status      : Mapped[str]      = mapped_column(String(20), default="active", nullable=False, index=True)
+    withdrawn_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Revenue sharing: last time earnings were credited
+    last_earnings_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    listing = relationship("AIModelListing", back_populates="stakes")
+    staker  = relationship("User", foreign_keys=[staker_id])
+
+    __table_args__ = (
+        Index("idx_stake_listing_id",  "listing_id"),
+        Index("idx_stake_staker_id",   "staker_id"),
+        Index("idx_stake_status",      "status"),
+        UniqueConstraint("listing_id", "staker_id", name="uq_stake_listing_staker"),
+    )
+
+
+class ModelSlashEvent(Base):
+    """
+    G5 — Audit record of every slashing decision applied to a model's stakers.
+
+    Slash reasons:
+      low_accuracy    — model accuracy fell below threshold
+      misconduct      — fraudulent or misleading predictions (admin decision)
+      inactivity      — model stopped serving predictions
+    """
+    __tablename__ = "marketplace_slash_events"
+
+    id           : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    listing_id   : Mapped[int]      = mapped_column(Integer, ForeignKey("marketplace_listings.id", ondelete="CASCADE"), nullable=False, index=True)
+    triggered_by : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    reason       : Mapped[str]      = mapped_column(String(64), nullable=False)   # low_accuracy | misconduct | inactivity
+    slash_pct    : Mapped[float]    = mapped_column(Float, nullable=False)         # e.g. 0.10 = 10%
+    total_slashed: Mapped[Decimal]  = mapped_column(Numeric(20, 8), nullable=False)
+    stakers_affected: Mapped[int]   = mapped_column(Integer, default=0)
+    note         : Mapped[str]      = mapped_column(Text, nullable=True)
+
+    created_at   : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    listing      = relationship("AIModelListing", back_populates="slashes")
+    admin        = relationship("User", foreign_keys=[triggered_by])
+
+    __table_args__ = (
+        Index("idx_slash_listing_id", "listing_id"),
+        Index("idx_slash_created_at", "created_at"),
     )
