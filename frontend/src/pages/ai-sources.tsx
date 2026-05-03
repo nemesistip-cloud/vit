@@ -561,7 +561,10 @@ export default function AISourcesPage() {
   const matchesQ = useQuery({
     queryKey: ["ai-sources", "matches"],
     queryFn: () => apiGet<{ matches: AISourceMatch[] }>("/admin/ai-sources/matches?limit=50"),
-    enabled: !!permsQ.data?.can_upload,
+    // Load as soon as the permissions check finishes (success or error).
+    // The backend enforces authorization — non-admin users receive 403.
+    enabled: !permsQ.isLoading,
+    retry: 2,
   });
 
   const matches = matchesQ.data?.matches ?? [];

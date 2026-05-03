@@ -4647,9 +4647,9 @@ export default function AdminPage() {
       <div className="max-w-screen-xl mx-auto px-3 sm:px-5 py-5">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
 
-          {/* Grouped Tab Navigation */}
-          <div className="mb-6 space-y-1.5">
-            <div className="flex flex-wrap gap-x-1 gap-y-1.5">
+          {/* Grouped Tab Navigation — TabsList must wrap ALL TabsTrigger elements */}
+          <div className="mb-6">
+            <TabsList className="h-auto flex flex-wrap gap-x-1 gap-y-1.5 bg-transparent p-0 justify-start border-0 rounded-none">
               {tabGroups.map((group, gi) => (
                 <div key={group.label} className="flex items-center gap-1">
                   {gi > 0 && <div className="w-px h-5 bg-gray-700 mx-1 hidden sm:block" />}
@@ -4674,7 +4674,7 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
-            </div>
+            </TabsList>
           </div>
 
           <TabsContent value="dashboard"><DashboardTab /></TabsContent>
