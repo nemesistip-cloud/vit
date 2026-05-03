@@ -51,6 +51,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       "/auth": { target: "http://localhost:8000", bypass: htmlBypass },
+      "/agents": { target: "http://localhost:8000", bypass: htmlBypass },
       "/api": { target: "http://localhost:8000", ws: true },
       "/matches": { target: "http://localhost:8000", bypass: htmlBypass },
       "/predict": { target: "http://localhost:8000", bypass: htmlBypass },
