@@ -10,6 +10,7 @@ from app.services.clv_tracker import CLVTracker
 from app.services.edge_database import EdgeDatabase
 from app.services.market_utils import MarketUtils
 from app.api.middleware.auth import verify_api_key
+from app.services.rl_reward import process_settlement_rewards
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,15 @@ async def update_result(
             total_profit += profit
             settled_count += 1
 
+    # Phase 5: fire RL reward accumulator after the transaction commits
+    rl_summary: dict = {}
+    try:
+        rl_summary = await process_settlement_rewards(
+            db, match_id, result.home_goals, result.away_goals
+        )
+    except Exception as _rl_e:
+        logger.warning("RL reward hook failed (non-fatal): %s", _rl_e)
+
     return {
         "match_id": match_id,
         "actual_outcome": actual_outcome,
@@ -106,5 +116,6 @@ async def update_result(
         "ft_score": f"{result.home_goals}-{result.away_goals}",
         "predictions_settled": settled_count,
         "total_profit": round(total_profit, 4),
-        "clv_updated": True
+        "clv_updated": True,
+        "rl_rewards": rl_summary,
     }

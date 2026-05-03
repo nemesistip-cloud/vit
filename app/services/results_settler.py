@@ -523,6 +523,11 @@ async def settle_results(days_back: int = 2) -> dict:
                     f"{db_match.away_team} ({outcome}), "
                     f"{len(predictions_for_match)} prediction(s)"
                 )
+                try:
+                    from app.services.rl_reward import process_settlement_rewards
+                    await process_settlement_rewards(db, db_match.id, home_g, away_g)
+                except Exception as _rl_e:
+                    logger.warning("[settle] RL reward hook failed (non-fatal): %s", _rl_e)
                 details.append({
                     "home_team":        db_match.home_team,
                     "away_team":        db_match.away_team,
@@ -682,6 +687,15 @@ async def settle_completed_db_matches() -> dict:
                         f"{db_match.away_team}"
                         f" → {outcome} ({'WIN' if won else 'LOSS'}) profit={profit:.2f}"
                     )
+                    try:
+                        from app.services.rl_reward import process_settlement_rewards
+                        await process_settlement_rewards(
+                            db, db_match.id,
+                            db_match.home_goals or 0,
+                            db_match.away_goals or 0,
+                        )
+                    except Exception as _rl_e:
+                        logger.warning("[settle_db] RL reward hook failed (non-fatal): %s", _rl_e)
 
             except Exception as e:
                 errors += 1
