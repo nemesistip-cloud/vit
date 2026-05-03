@@ -45,6 +45,9 @@ async def ensure_schema():
         import app.modules.governance.models
         import app.modules.did.models
         import app.modules.network.models
+        import app.modules.tasks.models
+        import app.modules.rewards.models
+        import app.modules.referral.models
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             if conn.dialect.name == 'sqlite':
