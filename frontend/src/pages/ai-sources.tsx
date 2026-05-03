@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
@@ -6,6 +6,10 @@ import { Redirect } from "wouter";
 import {
   analyzeMatchWithPuter,
   isPuterAvailable,
+  isPuterSignedIn,
+  puterSignIn,
+  puterSignOut,
+  getPuterUser,
   MatchAnalysis,
   PuterModel,
   PUTER_CLAUDE_MODEL,
@@ -50,6 +54,10 @@ import {
   BarChart3,
   AlertTriangle,
   Lock,
+  LogIn,
+  LogOut,
+  User,
+  Settings,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -94,10 +102,94 @@ const MODELS: { id: PuterModel; label: string; model: string; color: string }[] 
   { id: "grok",   label: "Grok",   model: PUTER_GROK_MODEL,  color: "text-cyan-400"   },
 ];
 
-const DELAY_MS = 2000;
+// Delay between Puter calls — raised to 3.5s to stay within free tier limits
+const DELAY_MS = 3500;
 
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
+}
+
+// ─── Puter Account Panel ──────────────────────────────────────────────────────
+
+function PuterAccountPanel() {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!isPuterAvailable()) { setSignedIn(false); return; }
+    const ok = await isPuterSignedIn();
+    setSignedIn(ok);
+    if (ok) {
+      const user = await getPuterUser();
+      setUsername(user?.username ?? null);
+    } else {
+      setUsername(null);
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const handleSignIn = async () => {
+    setBusy(true);
+    try {
+      await puterSignIn();
+      await refresh();
+      toast.success("Signed in to Puter");
+    } catch (e: any) {
+      toast.error(e?.message || "Puter sign-in failed");
+    } finally { setBusy(false); }
+  };
+
+  const handleSwitchAccount = async () => {
+    setBusy(true);
+    try {
+      await puterSignOut();
+      await refresh();
+      toast.info("Signed out — sign in with a different account to reset rate limits");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to switch account");
+    } finally { setBusy(false); }
+  };
+
+  if (!isPuterAvailable()) return null;
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2">
+      <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+      {signedIn === null ? (
+        <span className="text-xs text-gray-500">Checking Puter…</span>
+      ) : signedIn && username ? (
+        <>
+          <span className="text-xs text-gray-300">
+            Puter: <span className="text-cyan-400 font-mono">{username}</span>
+          </span>
+          <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px]">signed in</Badge>
+          <button
+            onClick={handleSwitchAccount}
+            disabled={busy}
+            className="text-[11px] text-gray-400 hover:text-amber-400 flex items-center gap-1 ml-auto transition-colors"
+          >
+            <LogOut className="w-3 h-3" />
+            Switch account
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="text-xs text-gray-400">Not signed in to Puter</span>
+          <button
+            onClick={handleSignIn}
+            disabled={busy}
+            className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 ml-auto transition-colors"
+          >
+            <LogIn className="w-3 h-3" />
+            Sign in
+          </button>
+        </>
+      )}
+      {busy && <Loader2 className="w-3 h-3 animate-spin text-gray-400 shrink-0" />}
+    </div>
+  );
 }
 
 function fmtPct(n: number) {
@@ -638,13 +730,23 @@ export default function AISourcesPage() {
 
           updateSlot(match.id, model, { status: "done" });
         } catch (e: any) {
-          updateSlot(match.id, model, {
-            status: "failed",
-            error: e?.message || "Unknown error",
-          });
+          const errMsg: string = e?.message || "Unknown error";
+          const isRateLimit = errMsg.toLowerCase().includes("rate limit") ||
+            errMsg.includes("429") || errMsg.toLowerCase().includes("quota");
+
+          updateSlot(match.id, model, { status: "failed", error: errMsg });
+
+          if (isRateLimit) {
+            toast.warning(
+              `Rate limit hit on ${model}. Switch Puter account to continue, or wait a minute.`,
+              { duration: 8000 }
+            );
+            // Extended cooldown on rate limit
+            await sleep(15000);
+          }
         }
 
-        await sleep(DELAY_MS);
+        if (!shouldStop.current) await sleep(DELAY_MS);
       }
 
       processed++;
@@ -778,6 +880,9 @@ export default function AISourcesPage() {
               </div>
             </div>
 
+            {/* Puter account panel */}
+            <PuterAccountPanel />
+
             {/* Puter warning */}
             {!puterReady && (
               <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded p-2.5 text-xs text-amber-300">
@@ -820,7 +925,7 @@ export default function AISourcesPage() {
                   />
                 </div>
                 <p className="text-[11px] text-gray-500">
-                  Rate-limited to 1 call per {DELAY_MS / 1000}s to stay within Puter free tier.
+                  {DELAY_MS / 1000}s cooldown between calls · auto-retries on rate limit · switch Puter account if blocked.
                 </p>
               </div>
             )}
