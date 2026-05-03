@@ -1,36 +1,28 @@
-"""app/agents/fixture_gap_agent.py  — Item 8: Fixture Gap Auto-Filler
+"""app/agents/fixture_gap_agent.py — Fixture Gap Auto-Filler + Real Fixture Importer
 
-Runs every 30 minutes. Detects scheduled matches that are missing
-kickoff_time, league, or both teams — then uses AI enrichment to fill the
-gaps (VIT Self-Contained Intelligence, no external API required).
+Runs every 30 minutes. Two responsibilities:
 
-Gap detection rules:
-  - Match has status='scheduled' but kickoff_time is NULL
-  - Match has home_team or away_team as empty/placeholder strings
-  - Match has no league recorded
+1. IMPORT: Pulls real upcoming + past fixtures from TheSportsDB (free, no auth)
+   and inserts any new ones into the DB, replacing the need for synthetic data.
 
-For each gap, uses:
-  1. AI enrichment (Gemini/Claude/Grok via call_ai) to infer league + kickoff
-  2. Patches the DB record and logs as IoT event
-
-No dependency on football-data.org or any external sports API.
+2. GAP-FILL: Detects existing matches with missing kickoff_time, league, or team
+   names — then uses the AI cascade to infer and patch the gaps.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from app.agents.base import BaseAgent
 from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
-MAX_PER_CYCLE = 8
+MAX_GAP_PER_CYCLE = 8
 
 
 def _build_enrichment_prompt(home: str, away: str) -> str:
@@ -48,7 +40,6 @@ def _build_enrichment_prompt(home: str, away: str) -> str:
 
 
 def _is_gap_match(match) -> bool:
-    """Return True if this match has a data gap worth filling."""
     missing_kickoff = match.kickoff_time is None
     bad_home = not match.home_team or match.home_team.strip() in ("", "TBD", "Unknown")
     bad_away = not match.away_team or match.away_team.strip() in ("", "TBD", "Unknown")
@@ -61,9 +52,117 @@ class FixtureGapAgent(BaseAgent):
         super().__init__(
             name="fixture-gap",
             interval_seconds=30 * 60,
-            initial_delay_seconds=180,
+            initial_delay_seconds=60,
         )
         self._patched_ids: set[int] = set()
+
+    # ── Real-fixture import ────────────────────────────────────────────────────
+
+    async def _import_real_fixtures(self) -> int:
+        """Fetch real fixtures from TheSportsDB and upsert into the DB.
+
+        Returns the number of new matches inserted.
+        """
+        try:
+            from app.services.sportsdb_api import fetch_all_real_fixtures
+            from app.db.database import AsyncSessionLocal
+            from app.db.models import Match
+            from app.data.match_dedup import compute_fingerprint, find_existing_match
+            from sqlalchemy import select, delete
+
+            fixtures = await fetch_all_real_fixtures()
+            all_events = fixtures.get("past", []) + fixtures.get("upcoming", [])
+
+            if not all_events:
+                logger.info("[fixture-gap] TheSportsDB returned 0 events this cycle")
+                return 0
+
+            inserted = 0
+            async with AsyncSessionLocal() as db:
+                # Purge stale synthetic data on first import run
+                synth_count_res = await db.execute(
+                    select(Match).where(Match.source == "synthetic")
+                )
+                synth_matches = synth_count_res.scalars().all()
+                if synth_matches:
+                    synth_ids = [m.id for m in synth_matches]
+                    # Delete predictions for synthetic matches
+                    try:
+                        from app.db.models import Prediction
+                        await db.execute(
+                            delete(Prediction).where(Prediction.match_id.in_(synth_ids))
+                        )
+                    except Exception:
+                        pass
+                    # Delete agent insights (they're all based on synthetic data initially)
+                    try:
+                        from app.db.models import AgentInsight
+                        await db.execute(delete(AgentInsight))
+                    except Exception:
+                        pass
+                    await db.execute(
+                        delete(Match).where(Match.source == "synthetic")
+                    )
+                    await db.commit()
+                    logger.info("[fixture-gap] purged %d synthetic matches", len(synth_ids))
+
+                for ev in all_events:
+                    ext_id = ev.get("external_id", "")
+                    home   = ev["home_team"]
+                    away   = ev["away_team"]
+                    league = ev["league"]
+                    ko     = ev.get("kickoff_time")
+                    status = ev.get("status", "upcoming")
+
+                    # Skip duplicates by external_id
+                    if ext_id:
+                        from sqlalchemy import select as _sel
+                        existing = (await db.execute(
+                            _sel(Match).where(Match.external_id == ext_id)
+                        )).scalar_one_or_none()
+                        if existing:
+                            # Update score/status on settled matches
+                            if status == "settled" and existing.status != "settled":
+                                existing.status        = "settled"
+                                existing.home_goals    = ev.get("home_goals")
+                                existing.away_goals    = ev.get("away_goals")
+                                existing.actual_outcome = ev.get("actual_outcome")
+                                existing.updated_at    = datetime.now(timezone.utc)
+                            continue
+
+                    # Dedup by fingerprint
+                    ko_naive = ko.replace(tzinfo=None) if ko and ko.tzinfo else ko
+                    fp = compute_fingerprint(home, away, ko_naive, league)
+                    fp_existing = await find_existing_match(db, home, away, ko_naive, league)
+                    if fp_existing:
+                        continue
+
+                    new_match = Match(
+                        external_id  = ext_id or None,
+                        home_team    = home,
+                        away_team    = away,
+                        league       = league,
+                        kickoff_time = ko_naive,
+                        status       = status,
+                        source       = "sportsdb",
+                        fingerprint  = fp,
+                        home_goals   = ev.get("home_goals"),
+                        away_goals   = ev.get("away_goals"),
+                        actual_outcome = ev.get("actual_outcome"),
+                    )
+                    db.add(new_match)
+                    inserted += 1
+
+                if inserted > 0:
+                    await db.commit()
+                    logger.info("[fixture-gap] imported %d real fixtures from TheSportsDB", inserted)
+
+            return inserted
+        except Exception as exc:
+            logger.warning("[fixture-gap] real fixture import failed: %s", exc)
+            return 0
+
+    # ── Gap-fill cycle ─────────────────────────────────────────────────────────
 
     async def run_cycle(self) -> Dict[str, Any]:
         from app.db.database import AsyncSessionLocal
@@ -71,6 +170,10 @@ class FixtureGapAgent(BaseAgent):
         from app.iot.processor import store_and_broadcast
         from sqlalchemy import select
 
+        # Step 1: import real fixtures
+        imported = await self._import_real_fixtures()
+
+        # Step 2: fill gaps in existing matches
         filled = skipped = 0
 
         async with AsyncSessionLocal() as db:
@@ -85,12 +188,11 @@ class FixtureGapAgent(BaseAgent):
             gap_matches = [
                 m for m in matches
                 if _is_gap_match(m) and m.id not in self._patched_ids
-            ][:MAX_PER_CYCLE]
+            ][:MAX_GAP_PER_CYCLE]
 
             for match in gap_matches:
                 patched = False
 
-                # VIT SCIE: AI-only enrichment (no external sports API required)
                 if not match.league and match.home_team and match.away_team:
                     prompt = _build_enrichment_prompt(match.home_team, match.away_team)
                     raw = await call_ai(prompt, max_tokens=200)
@@ -132,6 +234,11 @@ class FixtureGapAgent(BaseAgent):
             if filled > 0:
                 await db.commit()
 
-        result = {"gap_matches_found": len(gap_matches), "filled": filled, "skipped": skipped}
+        result = {
+            "real_fixtures_imported": imported,
+            "gap_matches_found": len(gap_matches),
+            "filled": filled,
+            "skipped": skipped,
+        }
         logger.info("[fixture-gap] cycle: %s", result)
         return result

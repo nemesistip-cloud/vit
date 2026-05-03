@@ -4,7 +4,8 @@ Provider cascade (tried in order until one succeeds):
   1. Gemini   (GEMINI_API_KEY)   — gemini-2.0-flash → gemini-2.0-flash-lite → gemini-1.5-flash
   2. Claude   (CLAUDE_API_KEY)   — claude-3-5-haiku-20241022 → claude-3-haiku-20240307
   3. OpenAI   (OPENAI_API_KEY)   — gpt-4o-mini → gpt-3.5-turbo
-  4. xAI/Grok (XAI_API_KEY)      — grok-2-latest → grok-beta
+  4. xAI/Grok (XAI_API_KEY)      — grok-3-mini → grok-2-1212
+  5. Puter    (PUTER_API_KEY)    — GPT-4o-mini via puter.com (optional free tier)
 
 Rate-limit handling:
   - On HTTP 429: exponential backoff (2 s → 4 s → 8 s) then try next provider.
@@ -45,8 +46,6 @@ _OPENAI_MODELS = [
     "gpt-4o-mini",
     "gpt-3.5-turbo",
 ]
-# Updated 2025: grok-2 and grok-beta are deprecated and return HTTP 400.
-# Current valid xAI models: grok-3-mini (fast/cheap), grok-2-1212 (stable).
 _GROK_MODELS = [
     "grok-3-mini",
     "grok-2-1212",
@@ -55,25 +54,20 @@ _GROK_MODELS = [
 # ── Backoff state (module-level — shared across all agents) ────────────────────
 
 _backoff_until: dict[str, float] = {}
-_provider_failures: dict[str, dict] = {}  # tracks non-rate-limit errors (401, 400, etc.)   # provider_name → unix timestamp
-_BACKOFF_SECONDS = [2, 4, 8, 16]        # escalating waits on 429
+_provider_failures: dict[str, dict] = {}
+_BACKOFF_SECONDS = [2, 4, 8, 16]
 
 # ── Dynamic provider priority (hot-reloadable) ─────────────────────────────────
 
-_DEFAULT_PRIORITY = ["gemini", "claude", "openai", "grok"]
+_DEFAULT_PRIORITY = ["gemini", "claude", "openai", "grok", "puter"]
 _provider_priority: list[str] = list(_DEFAULT_PRIORITY)
 
 
 def get_provider_priority() -> list[str]:
-    """Return current provider try-order."""
     return list(_provider_priority)
 
 
 def set_provider_priority(order: list[str]) -> list[str]:
-    """
-    Set the provider try-order.  Unknown names are ignored; missing names
-    are appended at the end so no provider is ever silently dropped.
-    """
     global _provider_priority
     known = set(_DEFAULT_PRIORITY)
     clean = [p for p in order if p in known]
@@ -86,16 +80,10 @@ def set_provider_priority(order: list[str]) -> list[str]:
 
 
 def get_provider_failures() -> dict[str, dict]:
-    """Return a copy of current non-rate-limit provider failures (401/400/403)."""
     return dict(_provider_failures)
 
 
 def reset_provider_backoff(name: str | None = None) -> dict[str, float]:
-    """
-    Clear rate-limit backoff AND non-rate-limit failure tracking for one provider or all.
-    Returns the cleared backoff entries.  Env keys are re-read on every call so no
-    restart is needed after rotating an API secret in the environment.
-    """
     global _backoff_until
     if name:
         cleared = {name: _backoff_until.pop(name, 0.0)}
@@ -112,17 +100,10 @@ def _provider_available(name: str) -> bool:
     return time.monotonic() >= _backoff_until.get(name, 0.0)
 
 
-_FATAL_BACKOFF_SECONDS = 1800  # 30 min backoff on 401/403/400 (auth/invalid-key failures)
+_FATAL_BACKOFF_SECONDS = 1800
 
 
 def _mark_provider_failed(name: str, status_code: int) -> None:
-    """Track non-rate-limit failures (400, 401, 403) and apply a cooldown backoff.
-
-    Auth failures (401/403) and bad-request errors (400) mean all models on that
-    provider will fail until the API key is rotated or the issue is resolved.
-    We apply a 30-minute backoff so the cascade doesn't waste time on a dead provider
-    every single request.  The backoff can be cleared via reset_provider_backoff().
-    """
     _provider_failures[name] = {
         "status_code": status_code,
         "failed_at": time.time(),
@@ -186,7 +167,7 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
 
 async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("CLAUDE_API_KEY", "").strip()
-    if not api_key or not _provider_available("claude"):
+    if not api_key or len(api_key) < 10 or not _provider_available("claude"):
         return None
 
     url = "https://api.anthropic.com/v1/messages"
@@ -212,7 +193,7 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
                 if resp.status_code == 429:
                     _mark_rate_limited("claude", resp.headers.get("Retry-After"))
                     return None
-                if resp.status_code == 529:  # Anthropic overloaded
+                if resp.status_code == 529:
                     _mark_rate_limited("claude", "10")
                     return None
                 resp.raise_for_status()
@@ -225,7 +206,7 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
             logger.warning("[ai-client] claude/%s HTTP %d", model, sc)
             if sc in (400, 401, 403):
                 _mark_provider_failed("claude", sc)
-                break  # auth failures apply to the key, not the model — stop trying
+                break
         except Exception as e:
             logger.warning("[ai-client] claude/%s error: %s", model, e)
     return None
@@ -274,7 +255,7 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
 
 async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("XAI_API_KEY", "").strip()
-    if not api_key or not _provider_available("grok"):
+    if not api_key or len(api_key) < 10 or not _provider_available("grok"):
         return None
 
     url = "https://api.x.ai/v1/chat/completions"
@@ -308,10 +289,25 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
             logger.warning("[ai-client] grok/%s HTTP %d", model, sc)
             if sc in (400, 401, 403):
                 _mark_provider_failed("grok", sc)
-                break  # auth/bad-request failures are key-level — stop trying other models
+                break
         except Exception as e:
             logger.warning("[ai-client] grok/%s error: %s", model, e)
     return None
+
+
+async def _try_puter(prompt: str, max_tokens: int, temperature: float) -> str | None:
+    """Puter AI — free tier via puter.com REST API (requires PUTER_API_KEY)."""
+    from app.services.puter_ai import try_puter
+    if not _provider_available("puter"):
+        return None
+    try:
+        result = await try_puter(prompt, max_tokens, temperature)
+        if result:
+            logger.debug("[ai-client] puter responded (%d chars)", len(result))
+        return result
+    except Exception as e:
+        logger.warning("[ai-client] puter error: %s", e)
+        return None
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -324,13 +320,13 @@ async def call_ai_with_provider(
 ) -> tuple[str, str] | None:
     """
     Like call_ai() but returns (text, provider_name) on success, or None on failure.
-    Use this when you need to record which provider produced the response.
     """
     _fn_map = {
         "gemini": _try_gemini,
         "claude": _try_claude,
         "openai": _try_openai,
         "grok":   _try_grok,
+        "puter":  _try_puter,
     }
     providers = [(n, _fn_map[n]) for n in _provider_priority if n in _fn_map]
     if preferred and preferred in _fn_map:
@@ -357,26 +353,19 @@ async def call_ai(
     """
     Call the best available AI provider and return the text response.
 
-    Tries providers in order: Gemini → Claude → OpenAI → xAI/Grok.
+    Tries providers in priority order: Gemini → Claude → OpenAI → xAI/Grok → Puter.
     Rate-limited providers are skipped and retried next cycle.
     Returns None if all providers are unavailable or fail.
-
-    Args:
-        prompt:      The full prompt string to send.
-        max_tokens:  Maximum response tokens (default 512).
-        temperature: Sampling temperature (default 0.2 for structured tasks).
-        preferred:   Optional override to try a specific provider first
-                     ("gemini" | "claude" | "openai" | "grok").
     """
     _fn_map = {
         "gemini": _try_gemini,
         "claude": _try_claude,
         "openai": _try_openai,
         "grok":   _try_grok,
+        "puter":  _try_puter,
     }
     providers = [(n, _fn_map[n]) for n in _provider_priority if n in _fn_map]
 
-    # Move preferred provider to front if specified
     if preferred and preferred in _fn_map:
         providers.sort(key=lambda p: 0 if p[0] == preferred else 1)
 
@@ -393,13 +382,19 @@ async def call_ai(
 
 
 def provider_status() -> dict[str, dict]:
-    """Return current availability status of all providers."""
+    """Return current availability status of all providers including Puter."""
+    from app.services.puter_ai import puter_status
     now = time.monotonic()
+
+    def _key_valid(env_var: str, min_len: int = 10) -> bool:
+        v = os.getenv(env_var, "").strip()
+        return len(v) >= min_len
+
     keys = {
-        "gemini": bool(os.getenv("GEMINI_API_KEY", "").strip()),
-        "claude": bool(os.getenv("CLAUDE_API_KEY", "").strip()),
-        "openai": bool(os.getenv("OPENAI_API_KEY", "").strip()),
-        "grok":   bool(os.getenv("XAI_API_KEY", "").strip()),
+        "gemini": _key_valid("GEMINI_API_KEY"),
+        "claude": _key_valid("CLAUDE_API_KEY"),
+        "openai": _key_valid("OPENAI_API_KEY"),
+        "grok":   _key_valid("XAI_API_KEY"),
     }
     result = {}
     for name, has_key in keys.items():
@@ -415,4 +410,6 @@ def provider_status() -> dict[str, dict]:
             "failing": failing,
             "last_error_code": failure["status_code"] if failure else None,
         }
+
+    result["puter"] = puter_status()
     return result

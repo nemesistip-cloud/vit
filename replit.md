@@ -13,7 +13,7 @@ The platform is built with a microservices-oriented approach.
 - **Core Technology:** Python 3.11 with FastAPI and SQLAlchemy for asynchronous ORM.
 - **Database:** SQLite (development) with WAL mode enabled, PostgreSQL (production).
 - **AI Orchestrator:** Manages a 12-model AI ensemble with dynamic weight adjustment.
-- **Multi-Provider AI Client:** Features a cascade fallback system (Gemini → Claude → OpenAI → xAI) with rate-limit awareness.
+- **Multi-Provider AI Client:** Features a cascade fallback system (Gemini → Claude → OpenAI → xAI/Grok → Puter) with rate-limit awareness. Keys shorter than 10 chars are skipped as invalid placeholders.
 - **Authentication:** JWT and TOTP for secure 2FA authentication.
 - **Prediction System:** Dynamically determines best bet sides and consensus probabilities across various markets.
 - **Settlement Pipeline:** Processes match results, updates profit, and attributes CLV.
@@ -33,15 +33,16 @@ The platform is built with a microservices-oriented approach.
 - **Puter AI Integration:** Browser-side AI via Puter.js.
 
 ## External Dependencies
-- **Football-Data.org:** Live and finished match data. NOTE: This API is unreachable from the Replit sandbox environment (ConnectTimeout on all requests). The system falls back entirely to synthetic match data and simulated FT results.
+- **TheSportsDB (free, no auth):** Primary fixture source. Free API (key=3) fetches real upcoming and past events for 8 leagues (EPL, La Liga, Bundesliga, Serie A, Ligue 1, Champions League, Eredivisie, Primeira Liga) via `eventsnextleague`, `eventspastleague`, and `eventsday` endpoints. Returns ~58 real fixtures per full sync (16 settled + 42 upcoming).
+- **Football-Data.org:** BLOCKED — ConnectTimeout on all requests from Replit sandbox. Removed from active code; legacy references remain in results_settler.py.
 - **Transfermarkt:** Injury data (scraped).
 - **Resend.com / SMTP:** Email notifications.
 - **Telegram Bot API:** User DMs and webhooks.
 - **Gemini API:** Primary AI provider.
 - **Anthropic API (Claude):** Fallback AI provider.
 - **OpenAI API:** Fallback AI provider.
-- **xAI (Grok):** Fallback AI provider.
-- **Puter.js:** Browser-side AI.
+- **xAI (Grok):** Fallback AI provider (4th in cascade).
+- **Puter.js:** Browser-side AI (free, no key needed) — puter.js loaded in index.html, `frontend/src/lib/puter-ai.ts` provides `puterChat()` and `analyzeMatchWithPuter()`. Server-side Puter via `PUTER_API_KEY` (5th provider in cascade).
 - **Stripe:** Subscription checkout.
 - **Paystack:** NGN deposits.
 

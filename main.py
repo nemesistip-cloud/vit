@@ -1064,98 +1064,77 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  VITCoin price seeding failed: {_e}")
 
-    # SEED FIXTURES — try real Football API first; synthetic only if API unavailable
+    # SEED FIXTURES — TheSportsDB (free, no auth) → synthetic fallback only if network fails
     try:
-        import httpx as _httpx
         from datetime import datetime as _dt, timedelta as _td, timezone as _tz
         from app.db.database import AsyncSessionLocal
-        from app.db.models import Match as _Match
-        from sqlalchemy import select as _select, func as _func
+        from app.db.models import Match as _Match, Prediction as _Prediction
+        from sqlalchemy import select as _select, func as _func, delete as _delete
 
         async with AsyncSessionLocal() as _db:
+            # Purge ALL synthetic rows immediately so we never serve fake data
+            _synth_matches = (await _db.execute(_select(_Match).where(_Match.source == "synthetic"))).scalars().all()
+            if _synth_matches:
+                _synth_ids = [m.id for m in _synth_matches]
+                try:
+                    await _db.execute(_delete(_Prediction).where(_Prediction.match_id.in_(_synth_ids)))
+                except Exception:
+                    pass
+                try:
+                    from app.db.models import AgentInsight as _AI
+                    await _db.execute(_delete(_AI))
+                except Exception:
+                    pass
+                await _db.execute(_delete(_Match).where(_Match.source == "synthetic"))
+                await _db.commit()
+                print(f"🗑️  Purged {len(_synth_ids)} synthetic matches — loading real data...")
+
             _match_count = (await _db.execute(_select(_func.count()).select_from(_Match))).scalar()
             if _match_count == 0:
                 _football_key = os.getenv("FOOTBALL_DATA_API_KEY", "").strip()
                 _now = _dt.now(_tz.utc)
                 _added = 0
 
-                if _football_key:
-                    # Try real API fixtures for the next 14 days
-                    from app.data.match_dedup import compute_fingerprint, find_existing_match
-                    _leagues = {
-                        "premier_league": "PL", "la_liga": "PD", "bundesliga": "BL1",
-                        "serie_a": "SA", "ligue_1": "FL1", "eredivisie": "DED",
-                        "primeira_liga": "PPL", "championship": "ELC",
-                    }
-                    _date_from = (_now + _td(days=1)).strftime("%Y-%m-%d")
-                    _date_to   = (_now + _td(days=14)).strftime("%Y-%m-%d")
-                    try:
-                        async with _httpx.AsyncClient(timeout=8) as _hc:
-                            for _lk, _lc in _leagues.items():
-                                try:
-                                    _r = await _hc.get(
-                                        f"https://api.football-data.org/v4/competitions/{_lc}/matches",
-                                        headers={"X-Auth-Token": _football_key},
-                                        params={"status": "SCHEDULED", "dateFrom": _date_from, "dateTo": _date_to},
-                                    )
-                                    if _r.status_code == 200:
-                                        for _m in _r.json().get("matches", [])[:10]:
-                                            _ext_id = str(_m.get("id", ""))
-                                            _ks = _m.get("utcDate", "")
-                                            try:
-                                                _ko = _dt.fromisoformat(_ks.replace("Z", "+00:00")).replace(tzinfo=None)
-                                            except Exception:
-                                                continue
-                                            _ht = _m["homeTeam"]["name"]
-                                            _at = _m["awayTeam"]["name"]
-                                            _efp = await find_existing_match(_db, _ht, _at, _ko, _lk)
-                                            if _efp:
-                                                continue
-                                            _db.add(_Match(
-                                                external_id=_ext_id,
-                                                home_team=_ht,
-                                                away_team=_at,
-                                                league=_lk,
-                                                kickoff_time=_ko,
-                                                status="upcoming",
-                                                source="footballdata",
-                                                fingerprint=compute_fingerprint(_ht, _at, _ko, _lk),
-                                            ))
-                                            _added += 1
-                                except Exception:
-                                    pass
+                # Try TheSportsDB (free, no auth required)
+                try:
+                    from app.services.sportsdb_api import fetch_all_real_fixtures
+                    from app.data.match_dedup import compute_fingerprint as _cfp, find_existing_match as _fem
+                    _real = await fetch_all_real_fixtures()
+                    _all_events = _real.get("past", []) + _real.get("upcoming", [])
+                    for _ev in _all_events:
+                        _ht = _ev["home_team"]
+                        _at = _ev["away_team"]
+                        _lk = _ev["league"]
+                        _ko_raw = _ev.get("kickoff_time")
+                        _ko = _ko_raw.replace(tzinfo=None) if _ko_raw and _ko_raw.tzinfo else _ko_raw
+                        _ext = _ev.get("external_id") or None
+                        _fp  = _cfp(_ht, _at, _ko, _lk)
+                        _dup = await _fem(_db, _ht, _at, _ko, _lk)
+                        if _dup:
+                            continue
+                        _db.add(_Match(
+                            external_id    = _ext,
+                            home_team      = _ht,
+                            away_team      = _at,
+                            league         = _lk,
+                            kickoff_time   = _ko,
+                            status         = _ev.get("status", "upcoming"),
+                            source         = "sportsdb",
+                            fingerprint    = _fp,
+                            home_goals     = _ev.get("home_goals"),
+                            away_goals     = _ev.get("away_goals"),
+                            actual_outcome = _ev.get("actual_outcome"),
+                        ))
+                        _added += 1
+                    if _added > 0:
                         await _db.commit()
-                    except Exception:
-                        pass
+                except Exception as _sdb_e:
+                    print(f"⚠️  TheSportsDB seed error: {_sdb_e}")
 
-                if _added == 0:
-                    # Fallback: small set of real well-known fixtures as placeholders
-                    _tomorrow = _now + _td(days=1)
-                    _synthetic = [
-                        ("premier_league", [("Arsenal", "Manchester City", 2.20, 3.40, 3.30), ("Liverpool", "Chelsea", 1.85, 3.60, 4.20), ("Manchester United", "Tottenham", 2.10, 3.50, 3.40), ("Newcastle", "Brighton", 2.40, 3.20, 2.90)]),
-                        ("la_liga",        [("Real Madrid", "Barcelona", 2.50, 3.30, 2.70), ("Atletico Madrid", "Sevilla", 1.75, 3.50, 4.50), ("Valencia", "Villarreal", 2.30, 3.30, 3.00)]),
-                        ("bundesliga",     [("Bayern Munich", "Borussia Dortmund", 1.65, 3.80, 5.50), ("RB Leipzig", "Bayer Leverkusen", 2.60, 3.20, 2.70)]),
-                        ("serie_a",        [("Inter Milan", "AC Milan", 2.10, 3.30, 3.40), ("Juventus", "Napoli", 2.30, 3.20, 3.00)]),
-                        ("ligue_1",        [("Paris Saint-Germain", "Marseille", 1.55, 4.00, 6.50), ("Lyon", "Monaco", 2.40, 3.20, 2.80)]),
-                        ("eredivisie",     [("Ajax", "PSV Eindhoven", 2.00, 3.40, 3.60)]),
-                        ("primeira_liga",  [("Benfica", "Porto", 2.20, 3.30, 3.10)]),
-                    ]
-                    from app.data.match_dedup import compute_fingerprint as _cfp
-                    for _day_off, (_lk, _fixtures) in enumerate(_synthetic):
-                        for _fi, (_hm, _aw, _oh, _od, _oa) in enumerate(_fixtures):
-                            _ko = (_tomorrow + _td(days=_day_off * 2, hours=14 + _fi * 3)).replace(tzinfo=None)
-                            _db.add(_Match(
-                                external_id=f"syn_{_lk}_{_now.strftime('%Y%m%d')}_{_fi}",
-                                home_team=_hm, away_team=_aw, league=_lk,
-                                kickoff_time=_ko, status="upcoming", source="synthetic",
-                                fingerprint=_cfp(_hm, _aw, _ko, _lk),
-                                opening_odds_home=_oh, opening_odds_draw=_od, opening_odds_away=_oa,
-                            ))
-                            _added += 1
-                    await _db.commit()
-                    print(f"✅ Synthetic fixtures seeded: {_added} placeholder matches (API unavailable at startup)")
+                if _added > 0:
+                    print(f"✅ Fixtures seeded: {_added} real matches from TheSportsDB")
                 else:
-                    print(f"✅ Fixtures seeded: {_added} real matches from Football-Data API")
+                    print("⚠️  TheSportsDB returned 0 fixtures at startup — fixture-gap agent will retry")
             else:
                 print(f"✅ Matches: {_match_count} fixture(s) already in database")
     except Exception as _e:

@@ -101,6 +101,7 @@ const PROVIDER_META: Record<string, { label: string; color: string }> = {
   claude: { label: "Claude", color: "text-violet-400" },
   openai: { label: "OpenAI", color: "text-emerald-400" },
   grok:   { label: "Grok",   color: "text-amber-400" },
+  puter:  { label: "Puter",  color: "text-cyan-400" },
 };
 
 function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
@@ -121,7 +122,7 @@ function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
   });
 
   const providers = data?.providers ?? {};
-  const priority = data?.priority ?? ["gemini", "claude", "openai", "grok"];
+  const priority = data?.priority ?? ["gemini", "claude", "openai", "grok", "puter"];
 
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 bg-card/40 border border-border/50 rounded-xl flex-wrap">

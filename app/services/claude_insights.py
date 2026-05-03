@@ -1,23 +1,21 @@
-"""app/services/claude_insights.py — Anthropic Claude match insights"""
+"""app/services/claude_insights.py — Claude match insights via shared AI cascade.
+
+Uses call_ai() cascade (Gemini→Claude→OpenAI→Grok→Puter) instead of an
+isolated httpx client so every insight request benefits from full failover.
+"""
 
 import json
 import logging
-import os
 from typing import Optional
 
-import httpx
-
 logger = logging.getLogger(__name__)
-
-CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
-CLAUDE_MODEL   = "claude-3-haiku-20240307"
 
 
 def _no_key() -> dict:
     return {
         "available": False,
         "source": "claude",
-        "error": "CLAUDE_API_KEY not configured — add it in Admin → API Keys",
+        "error": "No AI provider available — check provider keys",
         "home_prob": None, "draw_prob": None, "away_prob": None, "confidence": None,
         "summary": None, "key_factors": [], "value_assessment": None,
         "risk_level": None, "insight_tags": [],
@@ -65,53 +63,36 @@ async def generate_match_insights(
     bet_side: Optional[str] = None, edge: float = 0.0,
     entry_odds: Optional[float] = None, confidence: float = 0.5,
 ) -> dict:
-    api_key = (
-        os.getenv("CLAUDE_API_KEY", "").strip()
-        or os.getenv("ANTHROPIC_API_KEY", "").strip()
-    )
-    if not api_key:
-        return _no_key()
+    from app.services.ai_client import call_ai_with_provider
 
     prompt = _build_prompt(
         home_team, away_team, league, home_prob, draw_prob, away_prob,
         over_25_prob, btts_prob, bet_side, edge, entry_odds, confidence
     )
 
+    result = await call_ai_with_provider(prompt, max_tokens=600, temperature=0.3, preferred="claude")
+    if result is None:
+        return _no_key()
+
+    raw, provider = result
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.post(
-                CLAUDE_API_URL,
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": CLAUDE_MODEL,
-                    "max_tokens": 600,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-            )
-
-        if resp.status_code in (401, 403):
-            return {**_no_key(), "error": "Invalid Anthropic API key"}
-        if resp.status_code == 429:
-            return {**_no_key(), "error": "Claude rate limit — try again shortly"}
-        if not resp.is_success:
-            return {**_no_key(), "error": f"Claude API returned HTTP {resp.status_code}"}
-
-        raw = resp.json()["content"][0]["text"].strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[-1]
-        if raw.endswith("```"):
-            raw = raw.rsplit("```", 1)[0]
-
-        parsed = json.loads(raw.strip())
+        text = raw.strip()
+        if text.startswith("```"):
+            parts = text.split("```")
+            text = parts[1] if len(parts) > 1 else text
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+        parsed = json.loads(text)
+        hp = float(parsed.get("home_prob", home_prob))
+        dp = float(parsed.get("draw_prob", draw_prob))
+        ap = float(parsed.get("away_prob", away_prob))
+        total = hp + dp + ap
+        if total > 0 and abs(total - 1.0) > 0.01:
+            hp /= total; dp /= total; ap /= total
         return {
-            "available": True, "source": "claude",
-            "home_prob": float(parsed.get("home_prob", home_prob)),
-            "draw_prob": float(parsed.get("draw_prob", draw_prob)),
-            "away_prob": float(parsed.get("away_prob", away_prob)),
+            "available": True, "source": provider,
+            "home_prob": round(hp, 4), "draw_prob": round(dp, 4), "away_prob": round(ap, 4),
             "confidence": float(parsed.get("confidence", 0.7)),
             "summary": parsed.get("summary", ""),
             "key_factors": parsed.get("key_factors", []),
@@ -120,16 +101,14 @@ async def generate_match_insights(
             "insight_tags": parsed.get("insight_tags", []),
             "error": None,
         }
-
     except json.JSONDecodeError:
-        raw_text = locals().get("raw", "")
         return {
-            "available": True, "source": "claude",
+            "available": True, "source": provider,
             "home_prob": home_prob, "draw_prob": draw_prob, "away_prob": away_prob,
-            "confidence": 0.7, "summary": raw_text[:400] if raw_text else "",
+            "confidence": 0.7, "summary": raw[:400],
             "key_factors": [], "value_assessment": "", "risk_level": "MEDIUM",
             "insight_tags": [], "error": None,
         }
     except Exception as exc:
-        logger.error(f"Claude insights error: {exc}")
+        logger.error("claude_insights error: %s", exc)
         return {**_no_key(), "error": str(exc)}
