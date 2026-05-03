@@ -33,16 +33,18 @@ BOOKMAKERS = {
 }
 
 SPORT_MAP = {
-    "premier_league": "soccer_epl",
-    "la_liga":        "soccer_spain_la_liga",
-    "bundesliga":     "soccer_germany_bundesliga",
-    "serie_a":        "soccer_italy_serie_a",
-    "ligue_1":        "soccer_france_ligue_one",
-    "championship":   "soccer_england_championship",
-    "eredivisie":     "soccer_netherlands_eredivisie",
-    "primeira_liga":  "soccer_portugal_primeira_liga",
+    "premier_league":       "soccer_epl",
+    "la_liga":              "soccer_spain_la_liga",
+    "bundesliga":           "soccer_germany_bundesliga",
+    "serie_a":              "soccer_italy_serie_a",
+    "ligue_1":              "soccer_france_ligue_one",
+    "championship":         "soccer_efl_champ",
+    "eredivisie":           "soccer_eredivisie",
+    "primeira_liga":        "soccer_primeira_liga",
     "scottish_premiership": "soccer_scotland_premiership",
-    "belgian_pro_league": "soccer_belgium_jupiler_pro_league",
+    "belgian_pro_league":   "soccer_jupiler_pro_league",
+    "champions_league":     "soccer_uefa_champs_league",
+    "europa_league":        "soccer_uefa_europa_league",
 }
 
 # ── Audit log (in-memory, append-only) ───────────────────────────────
@@ -71,10 +73,10 @@ def _verify_key(api_key: Optional[str] = None):
 
 
 # ── Odds API helper ───────────────────────────────────────────────────
-async def _fetch_multi_bookmaker_odds(sport: str, odds_key: str) -> tuple[List[dict], str]:
+async def _fetch_multi_bookmaker_odds(sport: str, odds_key: str) -> tuple[List[dict], str, Optional[int]]:
     """Fetch odds from multiple bookmakers via The Odds API.
 
-    Returns (events, status) where status is one of:
+    Returns (events, status, requests_remaining) where status is one of:
     "ok" | "api_error" | "invalid_key" | "rate_limited" | "timeout" | "no_key"
     """
     try:
@@ -88,27 +90,33 @@ async def _fetch_multi_bookmaker_odds(sport: str, odds_key: str) -> tuple[List[d
                     "oddsFormat": "decimal",
                 }
             )
+            remaining = None
+            try:
+                remaining = int(r.headers.get("x-requests-remaining", r.headers.get("X-Requests-Remaining", -1)))
+            except (TypeError, ValueError):
+                pass
+
             if r.status_code == 200:
-                return r.json(), "ok"
+                return r.json(), "ok", remaining
             elif r.status_code in (401, 403):
                 logger.warning(f"Odds API auth error {r.status_code} for {sport}")
                 raise HTTPException(status_code=503, detail="Odds API: invalid or expired API key")
             elif r.status_code == 422:
-                return [], "invalid_sport"
+                return [], "invalid_sport", remaining
             elif r.status_code == 429:
                 logger.warning("Odds API rate limit hit")
-                return [], "rate_limited"
+                return [], "rate_limited", remaining
             else:
                 logger.warning(f"Odds API {r.status_code} for {sport}")
-                return [], f"api_error_{r.status_code}"
+                return [], f"api_error_{r.status_code}", remaining
     except HTTPException:
         raise
     except httpx.TimeoutException:
         logger.warning("Odds API request timed out")
-        return [], "timeout"
+        return [], "timeout", None
     except Exception as e:
         logger.warning(f"Odds API fetch failed: {e}")
-        return [], "fetch_error"
+        return [], "fetch_error", None
 
 
 def _extract_h2h_odds(event: dict) -> dict:
@@ -226,7 +234,7 @@ async def compare_odds(
         raise HTTPException(status_code=503, detail="ODDS_API_KEY not configured")
 
     sport  = SPORT_MAP.get(league, "soccer_epl")
-    events, data_status = await _fetch_multi_bookmaker_odds(sport, odds_key)
+    events, data_status, requests_remaining = await _fetch_multi_bookmaker_odds(sport, odds_key)
 
     comparison = []
     for ev in events[:20]:
@@ -237,11 +245,13 @@ async def compare_odds(
     _audit("odds_compare", {"league": league, "events_found": len(comparison), "status": data_status})
 
     return {
-        "league":      league,
-        "events":      comparison,
-        "total":       len(comparison),
-        "data_status": data_status,
-        "fetched_at":  datetime.now(timezone.utc).isoformat(),
+        "league":              league,
+        "sport_key":           sport,
+        "events":              comparison,
+        "total":               len(comparison),
+        "data_status":         data_status,
+        "requests_remaining":  requests_remaining,
+        "fetched_at":          datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -262,7 +272,7 @@ async def scan_arbitrage(
         raise HTTPException(status_code=503, detail="ODDS_API_KEY not configured")
 
     sport  = SPORT_MAP.get(league, "soccer_epl")
-    events, data_status = await _fetch_multi_bookmaker_odds(sport, odds_key)
+    events, data_status, requests_remaining = await _fetch_multi_bookmaker_odds(sport, odds_key)
 
     opportunities = []
     scanned = 0
@@ -280,13 +290,15 @@ async def scan_arbitrage(
     _audit("arbitrage_scan", {"league": league, "scanned": scanned, "found": len(opportunities), "status": data_status})
 
     return {
-        "league":         league,
-        "scanned":        scanned,
-        "opportunities":  opportunities,
-        "total_found":    len(opportunities),
-        "min_profit_pct": min_profit_pct,
-        "data_status":    data_status,
-        "fetched_at":     datetime.now(timezone.utc).isoformat(),
+        "league":              league,
+        "sport_key":           sport,
+        "scanned":             scanned,
+        "opportunities":       opportunities,
+        "total_found":         len(opportunities),
+        "min_profit_pct":      min_profit_pct,
+        "data_status":         data_status,
+        "requests_remaining":  requests_remaining,
+        "fetched_at":          datetime.now(timezone.utc).isoformat(),
     }
 
 

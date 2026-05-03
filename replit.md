@@ -32,6 +32,10 @@ The platform is built with a microservices-oriented approach.
 - **Key Pages:** Includes dashboards for matches, AI agent reports, agent monitoring, match details with AI insights, AI source management, oracle health, and network statistics.
 - **Puter AI Integration:** Browser-side AI via Puter.js.
 
+## Odds System
+- **The Odds API (`ODDS_API_KEY`):** Live bookmaker odds for `/odds/compare` and `/odds/arbitrage`. Correct sport keys used across both `odds_compare.py` and `odds_api.py` (e.g. `soccer_efl_champ`, `soccer_eredivisie`, `soccer_primeira_liga`, `soccer_jupiler_pro_league`, `soccer_spain_la_liga`, etc.). Responses include `requests_remaining` from the `x-requests-remaining` header.
+- **Frontend odds page:** Auto-fetches on league selection (`enabled: !!league`), polls every 60 s (`refetchInterval: 60_000`), shows a live freshness bar with countdown, "last updated" timestamp, and API calls remaining.
+
 ## External Dependencies
 - **TheSportsDB (free, no auth):** Primary fixture source. Free API (key=3) fetches real upcoming and past events for 8 leagues (EPL, La Liga, Bundesliga, Serie A, Ligue 1, Champions League, Eredivisie, Primeira Liga) via `eventsnextleague`, `eventspastleague`, and `eventsday` endpoints. Returns ~58 real fixtures per full sync (16 settled + 42 upcoming).
 - **Football-Data.org:** BLOCKED — ConnectTimeout on all requests from Replit sandbox. Removed from active code; legacy references remain in results_settler.py.
