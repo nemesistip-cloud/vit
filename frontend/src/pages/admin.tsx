@@ -3707,13 +3707,13 @@ export function AISourcesTab() {
   const matchesQ = useQuery({
     queryKey: ["ai-sources", "matches"],
     queryFn: () => apiGet<{ matches: AISourceMatch[] }>("/admin/ai-sources/matches?limit=50"),
-    enabled: !!permsQ.data?.can_upload,
+    enabled: !permsQ.isLoading,
   });
 
   const detailQ = useQuery({
     queryKey: ["ai-sources", "match", selectedMatchId],
     queryFn: () => apiGet<{ match: AISourceMatch; predictions: AISourcePred[] }>(`/admin/ai-sources/match/${selectedMatchId}`),
-    enabled: !!selectedMatchId && !!permsQ.data?.can_upload,
+    enabled: !!selectedMatchId && !permsQ.isLoading,
   });
 
   const ingest = useMutation({
@@ -4698,13 +4698,13 @@ export default function AdminPage() {
 }
 
 function CalibrationTab() {
-  const [window, setWindow] = useState(50);
+  const [rollingWindow, setRollingWindow] = useState(50);
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
 
   const reportQ = useQuery<any>({
-    queryKey: ["ai-accuracy-report", window],
-    queryFn: () => apiGet(`/api/ai-engine/accuracy/report?window=${window}`),
+    queryKey: ["ai-accuracy-report", rollingWindow],
+    queryFn: () => apiGet(`/api/ai-engine/accuracy/report?window=${rollingWindow}`),
   });
 
   // Provider activity stats — reads from AgentInsight + AIPrediction, no auth needed
@@ -4720,7 +4720,7 @@ function CalibrationTab() {
     setBusy(true);
     try {
       const res = await apiPost<any>(
-        `/api/ai-engine/accuracy/enhance?min_samples=1&window=${window}`, {},
+        `/api/ai-engine/accuracy/enhance?min_samples=1&window=${rollingWindow}`, {},
       );
       const fit = res?.temperature_fit;
       if (!fit) {
@@ -4779,8 +4779,8 @@ function CalibrationTab() {
                 type="number"
                 min={10}
                 max={500}
-                value={window}
-                onChange={(e) => setWindow(Math.max(10, Math.min(500, Number(e.target.value) || 50)))}
+                value={rollingWindow}
+                onChange={(e) => setRollingWindow(Math.max(10, Math.min(500, Number(e.target.value) || 50)))}
                 className="w-20 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white"
               />
               <Button onClick={refit} disabled={busy} size="sm">
