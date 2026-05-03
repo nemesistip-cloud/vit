@@ -186,6 +186,9 @@ class NewsSentinelAgent(BaseAgent):
             all_injuries = []
 
         # ── Mode A: Injury Scraper ────────────────────────────────────────────
+        if not all_injuries:
+            logger.info("[news-sentinel] scraper returned no data — switching to SCIE fallback")
+
         if all_injuries:
             team_map: Dict[str, List[Dict]] = {}
             for inj in all_injuries:

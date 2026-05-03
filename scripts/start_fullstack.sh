@@ -24,7 +24,12 @@ fi
 
 echo "[startup] Starting frontend on port ${FRONTEND_PORT}..."
 cd frontend
-npm run dev -- --host 0.0.0.0 --port "${FRONTEND_PORT}" &
+# package.json dev script already sets --host 0.0.0.0 --port 5000; override port only if custom
+if [ "${FRONTEND_PORT}" != "5000" ]; then
+    VITE_PORT="${FRONTEND_PORT}" npx vite --host 0.0.0.0 --port "${FRONTEND_PORT}" &
+else
+    npm run dev &
+fi
 FRONTEND_PID=$!
 cd ..
 

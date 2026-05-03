@@ -22,7 +22,6 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -31,49 +30,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import User, Prediction, AIPrediction
+from app.services.ai_client import call_ai
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/support", tags=["ai-support"])
 
-_GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-]
-
-# In-memory rate limit: {user_id: [(timestamp), ...]}
+# In-memory rate limit: {user_id: [timestamp, ...]}
+# Note: resets on restart — acceptable for support throttling (10 q/hour per user)
 _RATE_LIMIT: dict[int, list[float]] = defaultdict(list)
 RATE_LIMIT_PER_HOUR = 10
 
 
 class SupportChatRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=500)
-
-
-async def _call_gemini(prompt: str, api_key: str) -> str | None:
-    for model in _GEMINI_MODELS:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-        try:
-            async with httpx.AsyncClient(timeout=25) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.4, "maxOutputTokens": 500},
-                })
-                resp.raise_for_status()
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                continue
-            return None
-        except Exception as e:
-            logger.warning("[ai-support] Gemini error: %s", e)
-            return None
-    return None
 
 
 async def _gather_user_context(db: AsyncSession, user: User) -> dict:
@@ -197,17 +167,17 @@ async def support_chat(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """AI-powered support chat with full user context awareness."""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise HTTPException(503, "AI support temporarily unavailable")
+    """AI-powered support chat with full user context awareness.
 
+    Uses the shared AI cascade (Gemini → Claude → OpenAI → Grok) so the
+    endpoint keeps working even when a single provider is down or rate-limited.
+    """
     if not _check_rate_limit(user.id):
         raise HTTPException(429, f"Rate limit: max {RATE_LIMIT_PER_HOUR} support questions per hour")
 
     user_ctx = await _gather_user_context(db, user)
     prompt = _build_support_prompt(body.question, user_ctx)
-    answer = await _call_gemini(prompt, api_key)
+    answer = await call_ai(prompt, max_tokens=500, temperature=0.4)
 
     if not answer:
         raise HTTPException(503, "AI support is temporarily unavailable — please try again shortly")
@@ -216,19 +186,21 @@ async def support_chat(
     return {
         "answer": answer,
         "context_fields": list(user_ctx.keys()),
-        "model": "gemini",
     }
 
 
 @router.get("/status")
 async def support_status(user: User = Depends(get_current_user)):
-    """Check AI support availability."""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    """Check AI support availability and per-user usage."""
+    from app.services.ai_client import provider_status
     now = time.time()
     calls_this_hour = len([t for t in _RATE_LIMIT.get(user.id, []) if t > now - 3600])
+    providers = provider_status()
+    ai_available = any(p["available"] for p in providers.values())
     return {
-        "available": bool(api_key),
+        "available": ai_available,
         "calls_used": calls_this_hour,
         "calls_remaining": max(0, RATE_LIMIT_PER_HOUR - calls_this_hour),
         "rate_limit_per_hour": RATE_LIMIT_PER_HOUR,
+        "providers": {k: v["available"] for k, v in providers.items()},
     }

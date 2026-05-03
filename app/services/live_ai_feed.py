@@ -63,7 +63,10 @@ class LiveAIFeedService:
             })
             logger.info("✅ Sports Skills registered")
         except ImportError:
-            logger.warning("Sports Skills not installed. Run: pip install sports-skills")
+            logger.info(
+                "Sports Skills integration not available — this source is disabled. "
+                "Only Bzzoiro and other configured sources will be used."
+            )
             self.sources.append({
                 "name": AISource.SPORTS_SKILLS,
                 "enabled": False,

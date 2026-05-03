@@ -29,9 +29,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-import httpx
-
 from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai
 from app.services.vit_intelligence import detect_probability_drift, synthetic_odds
 
 logger = logging.getLogger(__name__)
@@ -79,26 +78,8 @@ Return ONLY a JSON object (no markdown fences):
 
 
 async def _call_grok(prompt: str, api_key: str) -> str | None:
-    try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.post(
-                "https://api.x.ai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "grok-beta",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3,
-                    "max_tokens": 400,
-                },
-            )
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        logger.warning("[odds-anomaly] Grok call failed: %s", e)
-        return None
+    """Wrapper kept for backward compat — now uses the shared cascade client."""
+    return await call_ai(prompt, max_tokens=400, temperature=0.3)
 
 
 class OddsAnomalyAgent(BaseAgent):
@@ -113,7 +94,7 @@ class OddsAnomalyAgent(BaseAgent):
         self._prev_probs: Dict[int, Dict] = {}   # ML-prob snapshots (SCIE)
 
     async def run_cycle(self) -> Dict[str, Any]:
-        grok_key = os.getenv("XAI_API_KEY", "").strip()
+        grok_key = True  # always try — cascade client handles key/availability
 
         from app.db.database import AsyncSessionLocal
         from app.db.models import Match, Prediction, AgentInsight

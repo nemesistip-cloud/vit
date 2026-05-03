@@ -85,6 +85,42 @@ Matches are deduplicated via:
 - **Live tracker cycle time:** Was 80s (10 leagues × 8s timeout), now 0.01s (circuit opens after first timeout)
 - **Admin fetch fixtures timeout:** 20s → 8s (`admin.py`)
 
+## Bug Fixes Applied (v4.7.5 patch session)
+
+### AI Provider Cascade (`app/services/ai_client.py`)
+- **Grok model names updated:** Removed deprecated `grok-2` and `grok-beta` (both returned HTTP 400). Now uses `grok-3-mini` and `grok-2-1212`.
+- **30-minute backoff on auth failures:** `_mark_provider_failed()` now also sets `_backoff_until` for 30 min. Previously providers that returned 401/403/400 were marked failing but still retried on every single request, wasting time and filling logs.
+- **Early break on auth failure:** `_try_claude` and `_try_grok` now `break` immediately on 401/403/400 — no point trying remaining models with the same broken key.
+
+### Match Sync Logging (`app/api/routes/matches.py`)
+- **Empty error messages fixed:** `str(e)` on `ConnectError`/`TimeoutException` returns `""`. Changed to `[ExceptionType] repr(e)` so failed leagues now show the actual error in logs.
+
+### Sports-Skills Startup Warning (`app/services/live_ai_feed.py`)
+- **Misleading pip install message removed:** `sports-skills` doesn't exist on PyPI. Changed `WARNING` to an `INFO` message that correctly states the integration is simply disabled.
+
+### Vite Startup Flags (`scripts/start_fullstack.sh`)
+- **Duplicate `--host --port` flags eliminated:** `package.json` dev script already contains `--host 0.0.0.0 --port 5000`. The start script no longer appends them again (was causing `vite ... --port 5000 --host 0.0.0.0 --port 5000`).
+
+### Odds Anomaly Agent (`app/agents/odds_anomaly_agent.py`)
+- **Removed isolated Grok HTTP client:** Agent had its own raw `httpx` POST to `grok-beta` (deprecated model). Replaced with the shared cascade `call_ai()` so it benefits from multi-provider fallback and updated model names.
+
+### News Sentinel Agent (`app/agents/news_sentinel_agent.py`)
+- **Silent scraper fallback now logged:** Added explicit `INFO` log when scraper returns no data and the agent switches to SCIE fallback mode.
+
+### AI Support Route (`app/api/routes/ai_support.py`)
+- **Replaced Gemini-only implementation with cascade:** Was calling its own isolated Gemini HTTP client (would fail hard if Gemini was rate-limited). Now uses `call_ai()` (Gemini → Claude → OpenAI → Grok cascade).
+- **Support `/status` endpoint now reports real provider availability** instead of just whether a Gemini key is set.
+
+### Puter AI Frontend (`frontend/src/lib/puter-ai.ts`, `frontend/src/pages/ai-sources.tsx`)
+- **Multi-account support:** Added `PuterAccountPanel` component showing signed-in username with sign-in/out/switch buttons.
+- **Rate limit handling:** Inter-call delay raised 2s → 3.5s; on rate limit hit, shows toast + 15s cooldown before continuing.
+- **Retry with exponential backoff:** `withRetry()` wraps all Puter calls (max 4 attempts, 10s base delay).
+
+### Backend Rate Limiter (`app/api/middleware/rate_limit.py`)
+- **Raised limits:** Anonymous 30→60, auth 120→180, JWT 300 req/min.
+- **JWT-based keying:** Authenticated users identified by user ID from JWT payload (not just IP).
+- **Extended bypass paths:** Added `/ws`, `/webhook`, `/api/public`, `/notifications/ws`.
+
 ## Database State (as of last cleanup)
 - 20 total matches: 6 completed (with simulated FT scores), 14 upcoming
 - No duplicates, no test data, no fake seeded matches with `source=unknown`

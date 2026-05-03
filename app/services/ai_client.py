@@ -45,9 +45,10 @@ _OPENAI_MODELS = [
     "gpt-4o-mini",
     "gpt-3.5-turbo",
 ]
-_GROQ_MODELS = [
-    "grok-2",
-    "grok-beta",
+# Updated 2025: grok-2 and grok-beta are deprecated and return HTTP 400.
+# Current valid xAI models: grok-3-mini (fast/cheap), grok-2-1212 (stable).
+_GROK_MODELS = [
+    "grok-3-mini",
     "grok-2-1212",
 ]
 
@@ -111,14 +112,26 @@ def _provider_available(name: str) -> bool:
     return time.monotonic() >= _backoff_until.get(name, 0.0)
 
 
+_FATAL_BACKOFF_SECONDS = 1800  # 30 min backoff on 401/403/400 (auth/invalid-key failures)
+
+
 def _mark_provider_failed(name: str, status_code: int) -> None:
-    """Track non-rate-limit failures (400, 401, 403) so provider_status() can expose them."""
-    import time as _time
+    """Track non-rate-limit failures (400, 401, 403) and apply a cooldown backoff.
+
+    Auth failures (401/403) and bad-request errors (400) mean all models on that
+    provider will fail until the API key is rotated or the issue is resolved.
+    We apply a 30-minute backoff so the cascade doesn't waste time on a dead provider
+    every single request.  The backoff can be cleared via reset_provider_backoff().
+    """
     _provider_failures[name] = {
         "status_code": status_code,
-        "failed_at": _time.time(),
+        "failed_at": time.time(),
     }
-    logger.warning("[ai-client] %s returned HTTP %d — marked as failing", name, status_code)
+    _backoff_until[name] = time.monotonic() + _FATAL_BACKOFF_SECONDS
+    logger.warning(
+        "[ai-client] %s returned HTTP %d — marked as failing, backing off for %d min",
+        name, status_code, _FATAL_BACKOFF_SECONDS // 60,
+    )
 
 
 def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
@@ -212,6 +225,7 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
             logger.warning("[ai-client] claude/%s HTTP %d", model, sc)
             if sc in (400, 401, 403):
                 _mark_provider_failed("claude", sc)
+                break  # auth failures apply to the key, not the model — stop trying
         except Exception as e:
             logger.warning("[ai-client] claude/%s error: %s", model, e)
     return None
@@ -264,7 +278,7 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
         return None
 
     url = "https://api.x.ai/v1/chat/completions"
-    for model in _GROQ_MODELS:
+    for model in _GROK_MODELS:
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
@@ -294,6 +308,7 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
             logger.warning("[ai-client] grok/%s HTTP %d", model, sc)
             if sc in (400, 401, 403):
                 _mark_provider_failed("grok", sc)
+                break  # auth/bad-request failures are key-level — stop trying other models
         except Exception as e:
             logger.warning("[ai-client] grok/%s error: %s", model, e)
     return None

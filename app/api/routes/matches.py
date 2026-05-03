@@ -657,7 +657,9 @@ async def sync_fixtures(
                         logger.warning(f"Rate limit hit for {league}")
                         rate_limited_leagues.append(league)
                 except Exception as e:
-                    logger.error(f"Sync failed for {league}: {e}")
+                    logger.error(
+                        f"Sync failed for {league}: [{type(e).__name__}] {e!r}"
+                    )
                     # Continue with other leagues rather than aborting the whole sync
             try:
                 await db.commit()
