@@ -538,8 +538,9 @@ function StrategyPanel({ token }: { token: string }) {
 
       {isLoading && <Loader />}
       {isError && <Err msg="Strategy analysis failed" />}
+      {!isLoading && !isError && data?.error && <Err msg={data.error} />}
 
-      {!isLoading && !isError && (
+      {!isLoading && !isError && !data?.error && (
         <div className="space-y-1 max-h-80 overflow-auto">
           {strategies.map((s, i) => {
             const isOpen = expanded === s.name;

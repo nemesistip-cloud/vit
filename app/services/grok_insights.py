@@ -1,23 +1,17 @@
-"""app/services/grok_insights.py — xAI Grok match insights (OpenAI-compatible)"""
+"""app/services/grok_insights.py — xAI Grok match insights via shared AI cascade."""
 
 import json
 import logging
-import os
 from typing import Optional
 
-import httpx
-
 logger = logging.getLogger(__name__)
-
-GROK_API_URL = "https://api.x.ai/v1/chat/completions"
-GROK_MODEL   = "grok-beta"
 
 
 def _no_key() -> dict:
     return {
         "available": False,
         "source": "grok",
-        "error": "XAI_API_KEY not configured — add it in Admin → API Keys",
+        "error": "No AI provider available — check API keys in Admin → API Keys",
         "home_prob": None, "draw_prob": None, "away_prob": None, "confidence": None,
         "summary": None, "key_factors": [], "value_assessment": None,
         "risk_level": None, "insight_tags": [],
@@ -64,9 +58,7 @@ async def generate_match_insights(
     bet_side: Optional[str] = None, edge: float = 0.0,
     entry_odds: Optional[float] = None, confidence: float = 0.5,
 ) -> dict:
-    api_key = os.getenv("XAI_API_KEY", "").strip()
-    if not api_key:
-        return _no_key()
+    from app.services.ai_client import call_ai
 
     prompt = _build_prompt(
         home_team, away_team, league, home_prob, draw_prob, away_prob,
@@ -74,55 +66,43 @@ async def generate_match_insights(
     )
 
     try:
-        async with httpx.AsyncClient(timeout=25) as client:
-            resp = await client.post(
-                GROK_API_URL,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": GROK_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.6,
-                    "max_tokens": 600,
-                },
-            )
+        raw = await call_ai(prompt, max_tokens=600, temperature=0.6, preferred="grok")
+    except Exception as exc:
+        logger.error("grok_insights call_ai error: %s", exc)
+        return {**_no_key(), "error": str(exc)}
 
-        if resp.status_code in (401, 403):
-            return {**_no_key(), "error": "Invalid xAI API key"}
-        if resp.status_code == 429:
-            return {**_no_key(), "error": "Grok rate limit — try again shortly"}
-        if not resp.is_success:
-            return {**_no_key(), "error": f"Grok API returned HTTP {resp.status_code}"}
+    if raw is None:
+        return {**_no_key(), "error": "All AI providers unavailable or rate-limited"}
 
-        raw = resp.json()["choices"][0]["message"]["content"].strip()
+    raw = raw.strip()
+
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
+    try:
         parsed = json.loads(raw)
-
-        return {
-            "available": True, "source": "grok",
-            "home_prob": float(parsed.get("home_prob", home_prob)),
-            "draw_prob": float(parsed.get("draw_prob", draw_prob)),
-            "away_prob": float(parsed.get("away_prob", away_prob)),
-            "confidence": float(parsed.get("confidence", 0.7)),
-            "summary": parsed.get("summary", ""),
-            "key_factors": parsed.get("key_factors", []),
-            "value_assessment": parsed.get("value_assessment", ""),
-            "risk_level": parsed.get("risk_level", "MEDIUM"),
-            "insight_tags": parsed.get("insight_tags", []),
-            "error": None,
-        }
-
     except json.JSONDecodeError:
-        raw_text = locals().get("raw", "")
         return {
             "available": True, "source": "grok",
             "home_prob": home_prob, "draw_prob": draw_prob, "away_prob": away_prob,
-            "confidence": 0.7, "summary": raw_text[:400] if raw_text else "",
+            "confidence": 0.7, "summary": raw[:400],
             "key_factors": [], "value_assessment": "", "risk_level": "MEDIUM",
             "insight_tags": [], "error": None,
         }
-    except Exception as exc:
-        logger.error(f"Grok insights error: {exc}")
-        return {**_no_key(), "error": str(exc)}
+
+    return {
+        "available": True, "source": "grok",
+        "home_prob": float(parsed.get("home_prob", home_prob)),
+        "draw_prob": float(parsed.get("draw_prob", draw_prob)),
+        "away_prob": float(parsed.get("away_prob", away_prob)),
+        "confidence": float(parsed.get("confidence", 0.7)),
+        "summary": parsed.get("summary", ""),
+        "key_factors": parsed.get("key_factors", []),
+        "value_assessment": parsed.get("value_assessment", ""),
+        "risk_level": parsed.get("risk_level", "MEDIUM"),
+        "insight_tags": parsed.get("insight_tags", []),
+        "error": None,
+    }

@@ -288,7 +288,7 @@ async def ev_scanner(
 
     rows = (await db.execute(
         _ev_query([
-            Match.status.in_(["SCHEDULED", "TIMED"]),
+            Match.status.in_(["SCHEDULED", "TIMED", "upcoming", "scheduled", "live", "in_play"]),
             Prediction.was_correct.is_(None),
         ])
     )).fetchall()
