@@ -429,7 +429,7 @@ async def predict(
                 return build_prediction_response(existing_pred, ex_match, orchestrator, cached_dq)
 
         # --- Find or create match ---
-        # First try by external_id (fixture_id)
+        # 1. Try by external_id (fixture_id)
         db_match = None
         if match.fixture_id and match.fixture_id != "unknown":
             ext_res = await db.execute(
@@ -437,28 +437,44 @@ async def predict(
             )
             db_match = ext_res.scalar_one_or_none()
 
-        # Then try by teams + kickoff (within 1-hour window for tolerance)
-        # Use .scalars().first() instead of scalar_one_or_none() to safely handle
-        # duplicate rows without raising MultipleResultsFound.
+        # 2. Try by cross-source fingerprint (date::home::away::league)
         if db_match is None:
-            window_start = naive_kickoff.replace(second=0, microsecond=0)
+            try:
+                from app.data.match_dedup import find_existing_match
+                db_match = await find_existing_match(db, match.home_team, match.away_team, naive_kickoff, match.league)
+            except Exception:
+                pass
+
+        # 3. Fallback: fuzzy teams + 24-hour kickoff window (no league constraint to avoid
+        #    false misses when league names differ between source and DB)
+        if db_match is None:
+            from datetime import timedelta
+            window_start = naive_kickoff - timedelta(hours=24)
+            window_end   = naive_kickoff + timedelta(hours=24)
             existing_match_res = await db.execute(
                 select(Match).where(
                     Match.home_team == match.home_team,
                     Match.away_team == match.away_team,
-                    Match.league == match.league,
                     Match.kickoff_time >= window_start,
+                    Match.kickoff_time <= window_end,
                 )
             )
             db_match = existing_match_res.scalars().first()
 
         if db_match is None:
-            # Create new match record
+            # Create new match record — stamp fingerprint so future dedup works
+            try:
+                from app.data.match_dedup import compute_fingerprint as _cfp
+                _fp = _cfp(match.home_team, match.away_team, naive_kickoff, match.league)
+            except Exception:
+                _fp = None
             db_match = Match(
                 home_team=match.home_team,
                 away_team=match.away_team,
                 league=match.league,
                 kickoff_time=naive_kickoff,
+                source="predict",
+                fingerprint=_fp,
                 opening_odds_home=match.market_odds.get("home"),
                 opening_odds_draw=match.market_odds.get("draw"),
                 opening_odds_away=match.market_odds.get("away"),

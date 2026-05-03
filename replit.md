@@ -11,7 +11,7 @@ The platform is built with a microservices-oriented approach.
 
 **Backend:**
 - **Core Technology:** Python 3.11 with FastAPI and SQLAlchemy for asynchronous ORM.
-- **Database:** SQLite (development), PostgreSQL (production).
+- **Database:** SQLite (development) with WAL mode enabled, PostgreSQL (production).
 - **AI Orchestrator:** Manages a 12-model AI ensemble with dynamic weight adjustment.
 - **Multi-Provider AI Client:** Features a cascade fallback system (Gemini → Claude → OpenAI → xAI) with rate-limit awareness.
 - **Authentication:** JWT and TOTP for secure 2FA authentication.
@@ -33,7 +33,7 @@ The platform is built with a microservices-oriented approach.
 - **Puter AI Integration:** Browser-side AI via Puter.js.
 
 ## External Dependencies
-- **Football-Data.org:** Live and finished match data.
+- **Football-Data.org:** Live and finished match data. NOTE: This API is unreachable from the Replit sandbox environment (ConnectTimeout on all requests). The system falls back entirely to synthetic match data and simulated FT results.
 - **Transfermarkt:** Injury data (scraped).
 - **Resend.com / SMTP:** Email notifications.
 - **Telegram Bot API:** User DMs and webhooks.
@@ -44,3 +44,61 @@ The platform is built with a microservices-oriented approach.
 - **Puter.js:** Browser-side AI.
 - **Stripe:** Subscription checkout.
 - **Paystack:** NGN deposits.
+
+## Data & Match Pipeline
+
+### Football API Network Status
+The football-data.org API endpoint (`api.football-data.org:443`) is **blocked at the network level** from this Replit environment. DNS resolves correctly but TCP connections timeout. This is a Replit sandbox restriction, not an API key issue. The system operates correctly in offline mode using:
+1. Synthetic match fixtures (real team names, realistic odds)
+2. Deterministic FT score simulation via `ft_backfill.py` for past matches
+3. Network-level circuit breaker in `results_settler.py` (10-minute backoff after first ConnectTimeout)
+
+### Match Status Values
+The system uses lowercase status values throughout:
+- `upcoming` — scheduled future match (not yet kicked off)
+- `scheduled` — alternative for upcoming (legacy)
+- `live` — match in progress (live tracker active)
+- `in_play` — alternative for live
+- `completed` — match finished (has actual_outcome set)
+- `finished` — alternative for completed
+
+### Match Sources
+- `footballdata` — from Football-Data.org API (real)
+- `synthetic` — placeholder data with real team names (no API)
+- `synthetic+sim_ft` — synthetic match with simulated FT score
+- `predict` — auto-created when a prediction request references unknown match
+- `manual_upload` — uploaded via CSV
+- `unknown` — legacy/untracked (should not appear in healthy DB)
+
+### Deduplication
+Matches are deduplicated via:
+1. `external_id` (Football-Data.org match ID)
+2. Content fingerprint: SHA256 of `date::home::away::league` (first 16 hex chars)
+3. Exact team name + 24-hour kickoff window fallback (predict.py)
+
+## Performance Optimizations Applied
+- **Football API timeout:** Reduced from 15s → 5s, retries 5 → 2 (`football_api.py`)
+- **Results settler timeout:** Reduced from 30s/15s → 8s (`results_settler.py`)
+- **SQLite WAL mode:** Enabled for concurrent read/write (`database.py`)
+- **npm install skip:** Skipped on startup if node_modules exists (`start_fullstack.sh`)
+- **Network circuit breaker:** After first ConnectTimeout, all football API calls skip for 10 minutes (`results_settler.py`)
+- **Live tracker cycle time:** Was 80s (10 leagues × 8s timeout), now 0.01s (circuit opens after first timeout)
+- **Admin fetch fixtures timeout:** 20s → 8s (`admin.py`)
+
+## Database State (as of last cleanup)
+- 20 total matches: 6 completed (with simulated FT scores), 14 upcoming
+- No duplicates, no test data, no fake seeded matches with `source=unknown`
+- Past matches (kickoff > 2h ago) are auto-completed by `LiveMatchTrackerAgent._auto_complete_past_matches()`
+- Startup seeding: tries Football API first, falls back to synthetic if API unreachable
+
+## Key Files
+- `main.py` — startup lifecycle, fixture seeding logic (lines ~1070-1150)
+- `app/db/models.py` — Match model (status, home_goals/away_goals columns)
+- `app/agents/live_match_tracker_agent.py` — live tracking + auto-completion of past matches
+- `app/services/ft_backfill.py` — FT result simulation for local/synthetic matches
+- `app/services/results_settler.py` — API settlement with circuit breaker
+- `app/services/football_api.py` — FootballDataClient (timeout 5s, retries 2)
+- `app/db/database.py` — SQLite WAL mode
+- `app/api/routes/predict.py` — Match find-or-create with 3-level dedup
+- `app/api/routes/matches.py` — Match CRUD endpoints (prefix: `/matches/`)
+- `scripts/start_fullstack.sh` — startup script

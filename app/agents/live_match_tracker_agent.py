@@ -189,3 +189,63 @@ class LiveMatchTrackerAgent(BaseAgent):
             if stale:
                 await db.commit()
                 logger.info("[live-tracker] reset %d stale live matches", len(stale))
+
+        # Also auto-complete any past matches (kickoff + 2h) regardless of source
+        await self._auto_complete_past_matches(now)
+
+    async def _auto_complete_past_matches(self, now: datetime) -> None:
+        """Mark matches whose kickoff + 2 hours is in the past as completed.
+
+        Uses deterministic score simulation for local-only matches so the
+        frontend always shows a result. Real-source matches are left to the
+        settlement pipeline but their status is still advanced so they don't
+        show as 'upcoming' forever when the API is unavailable.
+        """
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import Match
+        from sqlalchemy import select
+        from datetime import timedelta
+
+        match_duration = timedelta(hours=2)
+        cutoff = now - match_duration
+
+        async with AsyncSessionLocal() as db:
+            rows = await db.execute(
+                select(Match).where(
+                    Match.kickoff_time <= cutoff.replace(tzinfo=None),
+                    Match.status.notin_(["completed", "finished", "ft", "FT", "FINISHED"]),
+                )
+            )
+            past = rows.scalars().all()
+            if not past:
+                return
+
+            from app.services.ft_backfill import _simulate_ft_score, _outcome, _is_real_source
+
+            completed = 0
+            for m in past:
+                try:
+                    if m.home_goals is None or m.away_goals is None:
+                        if _is_real_source(m):
+                            # Real source — advance status but don't fabricate score
+                            m.status = "completed"
+                        else:
+                            # Local/synthetic — simulate a plausible result
+                            hg, ag = _simulate_ft_score(m)
+                            m.home_goals = hg
+                            m.away_goals = ag
+                            m.actual_outcome = _outcome(hg, ag)
+                            m.status = "completed"
+                            base_src = (m.source or "unknown").split("+")[0]
+                            if "+sim_ft" not in (m.source or ""):
+                                m.source = f"{base_src}+sim_ft"
+                    else:
+                        # Already has scores — just update status
+                        m.status = "completed"
+                    completed += 1
+                except Exception as exc:
+                    logger.debug("[live-tracker] auto-complete failed for match %s: %s", m.id, exc)
+
+            if completed:
+                await db.commit()
+                logger.info("[live-tracker] auto-completed %d past matches", completed)

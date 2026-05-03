@@ -47,6 +47,11 @@ _FORBIDDEN_LEAGUES: set = set()
 _KEY_PERMANENTLY_INVALID: bool = False
 _FORBIDDEN_LEAGUES_RESET_AT: float = 0.0   # epoch seconds; reset blacklist every 12 h
 
+# Network-level circuit breaker: if the API endpoint is unreachable (ConnectTimeout),
+# skip all subsequent leagues in the same cycle rather than timing out 10 times.
+_API_UNREACHABLE: bool = False
+_API_UNREACHABLE_UNTIL: float = 0.0  # epoch seconds; auto-reset after 10 minutes
+
 # Similarity threshold for fuzzy name matching (0-1).
 # 0.72 allows "Man. United" ↔ "Manchester United FC" but rejects "Man City" ↔ "Man United"
 _NAME_SIM_THRESHOLD = 0.72
@@ -99,6 +104,7 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
     """
     import time as _time
     global _KEY_PERMANENTLY_INVALID, _FORBIDDEN_LEAGUES, _FORBIDDEN_LEAGUES_RESET_AT
+    global _API_UNREACHABLE, _API_UNREACHABLE_UNTIL
     key = os.getenv("FOOTBALL_DATA_API_KEY", "")
     if not key:
         logger.warning("FOOTBALL_DATA_API_KEY not set — cannot fetch finished matches")
@@ -107,6 +113,14 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
     if _KEY_PERMANENTLY_INVALID:
         logger.debug("Skipping finished-match fetch — API key permanently invalid")
         return []
+
+    _now_epoch = _time.time()
+    if _API_UNREACHABLE and _now_epoch < _API_UNREACHABLE_UNTIL:
+        logger.debug("Skipping finished-match fetch — API endpoint unreachable (circuit open)")
+        return []
+    if _API_UNREACHABLE and _now_epoch >= _API_UNREACHABLE_UNTIL:
+        _API_UNREACHABLE = False
+        logger.info("[settle] API circuit breaker reset — will retry")
 
     # Reset the forbidden-league blacklist every 12 hours so temporary 403s
     # (e.g., rate-limit spikes or plan changes) don't block leagues forever.
@@ -184,6 +198,15 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
                     await asyncio.sleep(12)
                 # Brief pause between requests to respect 10 req/min free-tier rate limit
                 await asyncio.sleep(7)
+            except httpx.ConnectTimeout:
+                import time as _ct
+                _API_UNREACHABLE = True
+                _API_UNREACHABLE_UNTIL = _ct.time() + 600  # backoff 10 min
+                logger.warning(
+                    "[settle] Football-Data API unreachable (ConnectTimeout on %s) — "
+                    "circuit open for 10 min, skipping remaining leagues", league
+                )
+                break
             except Exception as e:
                 logger.warning(f"Finished-match fetch failed for {league}: {e}")
 
@@ -200,12 +223,23 @@ async def fetch_live_matches() -> list:
     """
     Pull IN_PLAY matches from Football-Data.org right now.
     """
+    import time as _lt
+    global _API_UNREACHABLE, _API_UNREACHABLE_UNTIL
     key = os.getenv("FOOTBALL_DATA_API_KEY", "")
     if not key:
         return []
 
     if _KEY_PERMANENTLY_INVALID:
         return []
+
+    # Fast-fail if the API endpoint is known to be unreachable
+    _now_epoch = _lt.time()
+    if _API_UNREACHABLE and _now_epoch < _API_UNREACHABLE_UNTIL:
+        logger.debug("Skipping live-match fetch — API endpoint unreachable (circuit open)")
+        return []
+    if _API_UNREACHABLE and _now_epoch >= _API_UNREACHABLE_UNTIL:
+        _API_UNREACHABLE = False
+        logger.info("[live] API circuit breaker reset — will retry")
 
     live = []
     async with httpx.AsyncClient(timeout=8) as client:
@@ -235,6 +269,14 @@ async def fetch_live_matches() -> list:
                         })
                 elif r.status_code in (401, 403):
                     _FORBIDDEN_LEAGUES.add(league)
+            except httpx.ConnectTimeout:
+                _API_UNREACHABLE = True
+                _API_UNREACHABLE_UNTIL = _lt.time() + 600  # backoff 10 min
+                logger.warning(
+                    "[live] Football-Data API unreachable (ConnectTimeout on %s) — "
+                    "circuit open for 10 min, skipping remaining leagues", league
+                )
+                break
             except Exception as e:
                 logger.warning(f"Live-match fetch failed for {league}: {e}")
 

@@ -2049,7 +2049,7 @@ async def admin_fetch_and_store_fixtures(
     errors = 0
 
     if football_key:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=8) as client:
             async with AsyncSessionLocal() as db:
                 for league, code in COMPETITIONS.items():
                     if stored >= count:
