@@ -18,7 +18,8 @@ import { Label } from "@/components/ui/label";
 import {
   BookOpen, FileCode2, ShoppingBag, Plus, Star, Zap, TrendingUp,
   BarChart2, DollarSign, Search, Coins, AlertTriangle, Lock,
-  Unlock, ShieldCheck, TrendingDown,
+  Unlock, ShieldCheck, TrendingDown, Trophy, Target, Activity,
+  ChevronUp, Flame,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -87,6 +88,36 @@ interface ListingStakes {
 interface MyStakes {
   count: number;
   stakes: StakeInfo[];
+}
+
+interface LeaderboardItem {
+  id: number;
+  creator_id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  category: string;
+  tags: string | null;
+  model_key: string | null;
+  price_per_call: string;
+  usage_count: number;
+  avg_rating: number;
+  rating_count: number;
+  total_staked: string;
+  staker_count: number;
+  total_revenue: string;
+  is_active: boolean;
+  is_verified: boolean;
+  win_rate: number;
+  roi: number;
+  total_predictions: number;
+  est_apy: number;
+}
+
+interface LeaderboardResponse {
+  items: LeaderboardItem[];
+  total: number;
+  sort_by: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -647,6 +678,305 @@ function ModelCard({ listing }: { listing: Listing }) {
   );
 }
 
+// ── Leaderboard Tab ────────────────────────────────────────────────────
+
+const RANK_COLORS = [
+  "text-yellow-400",
+  "text-slate-300",
+  "text-amber-600",
+];
+
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  prediction: <Target className="w-3 h-3" />,
+  analytics:  <Activity className="w-3 h-3" />,
+  strategy:   <Flame className="w-3 h-3" />,
+};
+
+function RoiBadge({ roi }: { roi: number }) {
+  const positive = roi >= 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+      positive ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"
+    }`}>
+      {positive && <ChevronUp className="w-3 h-3" />}
+      {roi.toFixed(1)}%
+    </span>
+  );
+}
+
+function LeaderboardTab() {
+  const { user } = useAuth();
+  const [sortBy, setSortBy] = useState<string>("roi");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<LeaderboardResponse>({
+    queryKey: ["marketplace", "leaderboard", sortBy],
+    queryFn: () => apiGet(`/api/marketplace/leaderboard?sort_by=${sortBy}`),
+  });
+
+  const items = data?.items ?? [];
+
+  const summaryStats = {
+    totalPooled:   items.reduce((s, m) => s + parseFloat(m.total_staked), 0),
+    totalStakers:  items.reduce((s, m) => s + m.staker_count, 0),
+    avgRoi:        items.length ? items.reduce((s, m) => s + m.roi, 0) / items.length : 0,
+    topApy:        items.length ? Math.max(...items.map((m) => m.est_apy)) : 0,
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!items.length) {
+    return (
+      <EmptyState
+        icon={Trophy}
+        title="Leaderboard is loading"
+        description="System models are being initialised. Refresh in a moment."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Summary strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Total Staking Pool", value: `${summaryStats.totalPooled.toFixed(0)} VIT`, icon: Coins, color: "text-amber-400" },
+          { label: "Total Stakers",      value: summaryStats.totalStakers.toString(),          icon: BarChart2, color: "text-blue-400" },
+          { label: "Avg Model ROI",      value: `${summaryStats.avgRoi.toFixed(1)}%`,          icon: TrendingUp, color: "text-green-400" },
+          { label: "Best Est. APY",      value: summaryStats.topApy > 0 ? `${summaryStats.topApy.toFixed(1)}%` : "—", icon: Zap, color: "text-primary" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} className="p-3">
+            <div className={`flex items-center gap-1 text-xs mb-1 ${color}`}>
+              <Icon className="w-3 h-3" /> {label}
+            </div>
+            <p className="text-base font-bold text-foreground">{value}</p>
+          </Card>
+        ))}
+      </div>
+
+      {/* Sort controls */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Trophy className="w-4 h-4 text-yellow-400" /> Model Rankings
+          <span className="text-muted-foreground font-normal">({items.length} models)</span>
+        </h2>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v)}>
+          <SelectTrigger className="w-40 h-8 text-xs">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="roi">ROI %</SelectItem>
+            <SelectItem value="win_rate">Win Rate %</SelectItem>
+            <SelectItem value="total_staked">Most Staked</SelectItem>
+            <SelectItem value="usage_count">Most Used</SelectItem>
+            <SelectItem value="est_apy">Est. APY</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Column headers */}
+      <div className="hidden md:grid grid-cols-[2rem_1fr_5rem_5rem_6rem_6rem_5rem_7rem] gap-3 px-4 text-[10px] text-muted-foreground uppercase tracking-wider">
+        <span>#</span>
+        <span>Model</span>
+        <span className="text-right">Win Rate</span>
+        <span className="text-right">ROI</span>
+        <span className="text-right">Staked</span>
+        <span className="text-right">Est. APY</span>
+        <span className="text-right">Calls</span>
+        <span className="text-right">Action</span>
+      </div>
+
+      {/* Rows */}
+      <div className="space-y-2">
+        {items.map((model, idx) => {
+          const rank = idx + 1;
+          const staked = parseFloat(model.total_staked);
+          const isExpanded = expandedId === model.id;
+
+          const fakeListingForStake: Listing = {
+            id: model.id,
+            creator_id: model.creator_id,
+            name: model.name,
+            slug: model.slug,
+            description: model.description,
+            category: model.category,
+            tags: model.tags,
+            price_per_call: model.price_per_call,
+            model_key: model.model_key,
+            usage_count: model.usage_count,
+            avg_rating: model.avg_rating,
+            rating_count: model.rating_count,
+            total_revenue: model.total_revenue,
+            creator_revenue: "0",
+            total_staked: model.total_staked,
+            staker_count: model.staker_count,
+            is_active: model.is_active,
+            is_verified: model.is_verified,
+            created_at: "",
+          };
+
+          return (
+            <Card
+              key={model.id}
+              className={`transition-all cursor-pointer hover:border-primary/40 ${isExpanded ? "border-primary/60 bg-primary/5" : ""}`}
+              onClick={() => setExpandedId(isExpanded ? null : model.id)}
+            >
+              <div className="p-3 md:p-4">
+                {/* Desktop layout */}
+                <div className="hidden md:grid grid-cols-[2rem_1fr_5rem_5rem_6rem_6rem_5rem_7rem] gap-3 items-center">
+                  {/* Rank */}
+                  <span className={`text-lg font-bold ${RANK_COLORS[idx] ?? "text-muted-foreground"}`}>
+                    {rank <= 3 ? ["🥇","🥈","🥉"][idx] : `#${rank}`}
+                  </span>
+
+                  {/* Name + badges */}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground truncate">{model.name}</span>
+                      {model.is_verified && (
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" title="Verified" />
+                      )}
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${
+                        model.category === "prediction" ? "bg-blue-500/10 text-blue-400" :
+                        model.category === "analytics"  ? "bg-purple-500/10 text-purple-400" :
+                        "bg-green-500/10 text-green-400"
+                      }`}>
+                        {CATEGORY_ICONS[model.category]} {model.category}
+                      </span>
+                    </div>
+                    {model.model_key && (
+                      <span className="text-[10px] text-muted-foreground font-mono">{model.model_key}</span>
+                    )}
+                  </div>
+
+                  {/* Win Rate */}
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-foreground">{model.win_rate.toFixed(1)}%</p>
+                    <p className="text-[10px] text-muted-foreground">win rate</p>
+                  </div>
+
+                  {/* ROI */}
+                  <div className="text-right">
+                    <RoiBadge roi={model.roi} />
+                    <p className="text-[10px] text-muted-foreground mt-0.5">ROI</p>
+                  </div>
+
+                  {/* Staking pool */}
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-amber-400">{staked.toFixed(0)} VIT</p>
+                    <p className="text-[10px] text-muted-foreground">{model.staker_count} stakers</p>
+                  </div>
+
+                  {/* Est APY */}
+                  <div className="text-right">
+                    <p className={`text-sm font-semibold ${model.est_apy > 0 ? "text-green-400" : "text-muted-foreground"}`}>
+                      {model.est_apy > 0 ? `${model.est_apy.toFixed(1)}%` : "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">est APY</p>
+                  </div>
+
+                  {/* Usage */}
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-foreground">{model.usage_count.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground">calls</p>
+                  </div>
+
+                  {/* Action — stop propagation so card click doesn't fire */}
+                  <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                    {user?.id !== model.creator_id && (
+                      <StakeModal listing={fakeListingForStake} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Mobile layout */}
+                <div className="md:hidden flex items-start gap-3">
+                  <span className={`text-lg font-bold shrink-0 w-8 ${RANK_COLORS[idx] ?? "text-muted-foreground"}`}>
+                    {rank <= 3 ? ["🥇","🥈","🥉"][idx] : `#${rank}`}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground">{model.name}</span>
+                      {model.is_verified && <ShieldCheck className="w-3 h-3 text-blue-400" />}
+                    </div>
+                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                      <span className="text-foreground font-medium">{model.win_rate.toFixed(1)}% win</span>
+                      <RoiBadge roi={model.roi} />
+                      <span className="text-amber-400">{staked.toFixed(0)} VIT staked</span>
+                      {model.est_apy > 0 && <span className="text-green-400">{model.est_apy.toFixed(1)}% APY</span>}
+                    </div>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    {user?.id !== model.creator_id && (
+                      <StakeModal listing={fakeListingForStake} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div className="mt-4 pt-4 border-t border-border space-y-3" onClick={(e) => e.stopPropagation()}>
+                    {model.description && (
+                      <p className="text-sm text-muted-foreground">{model.description}</p>
+                    )}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      {[
+                        { label: "Total Predictions", value: model.total_predictions.toLocaleString() },
+                        { label: "Price per Call",    value: `${model.price_per_call} VIT` },
+                        { label: "Avg Rating",        value: `${model.avg_rating.toFixed(1)} ★` },
+                        { label: "Revenue Generated", value: `${parseFloat(model.total_revenue).toFixed(2)} VIT` },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="bg-muted/50 rounded-lg p-2">
+                          <p className="text-[10px] text-muted-foreground">{label}</p>
+                          <p className="font-semibold text-foreground">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {model.tags && (
+                      <div className="flex flex-wrap gap-1">
+                        {model.tags.split(",").map((t) => (
+                          <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                            {t.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">
+                      <p className="font-medium flex items-center gap-1 mb-1">
+                        <Coins className="w-3 h-3" /> Staking Opportunity
+                      </p>
+                      <p className="text-muted-foreground">
+                        Pool: <strong className="text-amber-400">{staked.toFixed(2)} VIT</strong> across {model.staker_count} stakers.
+                        {model.est_apy > 0
+                          ? ` Estimated APY ${model.est_apy.toFixed(1)}% based on recent call volume.`
+                          : " Be the first staker and earn 5% of all call fees."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-muted-foreground text-center pb-2">
+        Win rate and ROI figures are based on historical back-tested model performance.
+        Estimated APY = annualised staker share ÷ pool size, using last-week call volume.
+      </p>
+    </div>
+  );
+}
+
+
 // ── My Stakes Tab ─────────────────────────────────────────────────────
 
 function MyStakesTab() {
@@ -785,7 +1115,7 @@ export default function MarketplacePage() {
   const [category, setCategory] = useState("all");
   const [sortBy, setSortBy] = useState("usage_count");
   const [page, setPage] = useState(1);
-  const [tab, setTab] = useState("browse");
+  const [tab, setTab] = useState("leaderboard");
 
   const { data: statsData } = useQuery<Stats>({
     queryKey: ["marketplace", "stats"],
@@ -854,6 +1184,9 @@ export default function MarketplacePage() {
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap">
+          <TabsTrigger value="leaderboard" className="gap-1">
+            <Trophy className="w-3 h-3" /> Leaderboard
+          </TabsTrigger>
           <TabsTrigger value="browse">Browse</TabsTrigger>
           <TabsTrigger value="my-models">My Models</TabsTrigger>
           <TabsTrigger value="my-usage">My Usage</TabsTrigger>
@@ -863,6 +1196,11 @@ export default function MarketplacePage() {
           <TabsTrigger value="docs">Build & Train Guide</TabsTrigger>
           {(stats?.top_models?.length ?? 0) > 0 && <TabsTrigger value="top">Top Models</TabsTrigger>}
         </TabsList>
+
+        {/* Leaderboard Tab */}
+        <TabsContent value="leaderboard" className="space-y-4">
+          <LeaderboardTab />
+        </TabsContent>
 
         {/* Browse Tab */}
         <TabsContent value="browse" className="space-y-4">

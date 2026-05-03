@@ -100,6 +100,8 @@ def _fmt_listing(l) -> dict:
         "rating_count":    l.rating_count,
         "total_revenue":   str(l.total_revenue),
         "creator_revenue": str(l.creator_revenue),
+        "total_staked":    str(l.total_staked),
+        "staker_count":    l.staker_count,
         "approval_status": l.approval_status,
         "approval_note":   l.approval_note,
         "is_active":       l.is_active,
@@ -816,6 +818,50 @@ async def admin_slash(
         }
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@router.get("/leaderboard", summary="Model leaderboard with ROI rankings and staking opportunities")
+async def leaderboard(
+    sort_by: str = Query(
+        default="roi",
+        enum=["roi", "win_rate", "total_staked", "usage_count", "est_apy"],
+    ),
+    db: AsyncSession = Depends(get_db),
+    _:  User = Depends(get_current_user),
+):
+    """
+    Return all active approved marketplace models ranked by the chosen metric.
+    Enriches each model with win_rate, ROI, estimated APY, and staking pool data.
+    """
+    rows = await svc.get_leaderboard(db, sort_by=sort_by)
+    return {"items": rows, "total": len(rows), "sort_by": sort_by}
+
+
+@router.post(
+    "/admin/seed-system-models",
+    summary="Admin: seed all 12 system models as approved marketplace listings",
+    status_code=201,
+)
+async def seed_system_models(
+    db:    AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """
+    Idempotently create all 12 core VIT system models as approved, active,
+    verified marketplace listings owned by the admin account.
+    Safe to call multiple times — already-seeded models are skipped.
+    """
+    try:
+        seeded = await svc.seed_system_listings(db, admin_id=admin.id)
+        return {
+            "seeded":  seeded,
+            "message": (
+                f"{seeded} system model(s) added to the marketplace."
+                if seeded else "All 12 system models already present."
+            ),
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @router.get("/models/{listing_id}/slashes", summary="Get slash history for a model")

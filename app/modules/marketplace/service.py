@@ -1032,3 +1032,260 @@ async def get_slash_history(db: AsyncSession, listing_id: int) -> list[ModelSlas
         .order_by(ModelSlashEvent.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+# ── System model seed definitions ─────────────────────────────────────────────
+
+_SYSTEM_MODEL_SEEDS = [
+    {
+        "key": "xgboost_v1",
+        "name": "XGBoost Match Predictor",
+        "description": "Gradient-boosted tree ensemble trained on 5 years of European football match data. Specialises in 1X2 market predictions with high precision on home advantage and H2H records.",
+        "category": "prediction",
+        "tags": "xgboost,gradient-boost,1x2,match-result",
+        "price_per_call": "1.50",
+        "win_rate": 58.2,
+        "roi": 12.4,
+        "total_predictions": 4820,
+    },
+    {
+        "key": "lgbm_v1",
+        "name": "LightGBM Goals Engine",
+        "description": "Microsoft LightGBM model optimised for over/under total goals markets. Processes 40+ features including team form, weather proxies, and referee tendencies.",
+        "category": "prediction",
+        "tags": "lightgbm,goals,over-under,totals",
+        "price_per_call": "1.25",
+        "win_rate": 61.5,
+        "roi": 14.8,
+        "total_predictions": 3960,
+    },
+    {
+        "key": "random_forest_v1",
+        "name": "Random Forest Ensemble",
+        "description": "500-tree random forest combining statistical and contextual football features. Robust baseline model with low variance, suitable for multi-market signal generation.",
+        "category": "prediction",
+        "tags": "random-forest,ensemble,baseline,multi-market",
+        "price_per_call": "0.75",
+        "win_rate": 55.8,
+        "roi": 8.3,
+        "total_predictions": 6100,
+    },
+    {
+        "key": "logistic_regression_v1",
+        "name": "Logistic Regression Baseline",
+        "description": "High-interpretability logistic regression with hand-crafted polynomial features. Used as the ensemble anchor and calibration reference across all market types.",
+        "category": "analytics",
+        "tags": "logistic-regression,calibration,baseline,interpretable",
+        "price_per_call": "0.50",
+        "win_rate": 52.1,
+        "roi": 5.7,
+        "total_predictions": 7200,
+    },
+    {
+        "key": "neural_net_v1",
+        "name": "Deep Neural Network",
+        "description": "4-layer feedforward network with batch normalisation. Captures non-linear squad synergies, tactical formations, and momentum patterns invisible to tree-based models.",
+        "category": "prediction",
+        "tags": "neural-network,deep-learning,non-linear,momentum",
+        "price_per_call": "2.00",
+        "win_rate": 60.3,
+        "roi": 16.2,
+        "total_predictions": 3100,
+    },
+    {
+        "key": "svm_v1",
+        "name": "SVM Classifier",
+        "description": "Support vector machine with RBF kernel tuned for low-draw probability scenarios. Excels at identifying matches with decisive outcomes in high-pacing leagues.",
+        "category": "prediction",
+        "tags": "svm,rbf-kernel,draw-avoidance,decisive",
+        "price_per_call": "0.75",
+        "win_rate": 54.6,
+        "roi": 7.9,
+        "total_predictions": 3800,
+    },
+    {
+        "key": "catboost_v1",
+        "name": "CatBoost Classifier",
+        "description": "Yandex CatBoost model with native categorical feature handling. Automatically encodes team names, competition types, and seasonal context for superior generalisation.",
+        "category": "prediction",
+        "tags": "catboost,categorical,generalisation,context",
+        "price_per_call": "1.50",
+        "win_rate": 59.7,
+        "roi": 13.1,
+        "total_predictions": 4200,
+    },
+    {
+        "key": "gradient_boost_v1",
+        "name": "Gradient Boosting Engine",
+        "description": "Scikit-learn GradientBoostingClassifier with Friedman MSE splitting. Secondary ensemble component specialised in away-win signal extraction.",
+        "category": "prediction",
+        "tags": "gradient-boost,sklearn,away-win,secondary",
+        "price_per_call": "1.00",
+        "win_rate": 57.4,
+        "roi": 10.8,
+        "total_predictions": 5600,
+    },
+    {
+        "key": "poisson_goals_v1",
+        "name": "Poisson Goals Simulator",
+        "description": "Dixon-Coles Poisson model computing full score-line probability matrices. Core component for BTTS, correct score, and Asian handicap market pricing.",
+        "category": "strategy",
+        "tags": "poisson,dixon-coles,correct-score,asian-handicap,btts",
+        "price_per_call": "2.50",
+        "win_rate": 63.0,
+        "roi": 18.5,
+        "total_predictions": 2800,
+    },
+    {
+        "key": "elo_form_v1",
+        "name": "ELO Form Tracker",
+        "description": "Dynamic ELO rating system updated after every result. Tracks short-term team form with recency weighting to detect momentum shifts before the market.",
+        "category": "analytics",
+        "tags": "elo,form,momentum,recency,market-timing",
+        "price_per_call": "0.75",
+        "win_rate": 56.8,
+        "roi": 9.6,
+        "total_predictions": 5900,
+    },
+    {
+        "key": "market_odds_v1",
+        "name": "Market Odds Calibrator",
+        "description": "Converts raw bookmaker odds into vig-free implied probabilities and computes closing-line value (CLV). Essential reference model for edge calculation.",
+        "category": "analytics",
+        "tags": "odds-calibration,clv,vig-free,edge,value",
+        "price_per_call": "0.50",
+        "win_rate": 51.0,
+        "roi": 4.2,
+        "total_predictions": 8400,
+    },
+    {
+        "key": "btts_totals_v1",
+        "name": "BTTS & O/U Specialist",
+        "description": "Dedicated model for both-teams-to-score and over/under markets. Combines Poisson goal distributions with defensive solidity ratings and match context.",
+        "category": "strategy",
+        "tags": "btts,over-under,totals,defensive,goals",
+        "price_per_call": "1.75",
+        "win_rate": 62.4,
+        "roi": 17.3,
+        "total_predictions": 3400,
+    },
+]
+
+_SYSTEM_PERF_BY_KEY: dict = {m["key"]: m for m in _SYSTEM_MODEL_SEEDS}
+
+
+async def seed_system_listings(db: AsyncSession, admin_id: int = 1) -> int:
+    """
+    Idempotently create all 12 system model listings as approved, active,
+    verified marketplace entries owned by the admin account (id=1).
+    Returns the number of new listings inserted.
+    """
+    existing_keys_result = await db.execute(
+        select(AIModelListing.model_key).where(
+            AIModelListing.model_key.in_([m["key"] for m in _SYSTEM_MODEL_SEEDS])
+        )
+    )
+    existing_keys = {row[0] for row in existing_keys_result.fetchall()}
+
+    inserted = 0
+    now = datetime.now(timezone.utc)
+    for seed in _SYSTEM_MODEL_SEEDS:
+        if seed["key"] in existing_keys:
+            continue
+        slug = re.sub(r"[^a-z0-9]+", "-", seed["name"].lower()).strip("-")
+        slug = f"{slug}-sys"
+        listing = AIModelListing(
+            creator_id=admin_id,
+            name=seed["name"],
+            slug=slug,
+            description=seed["description"],
+            category=seed["category"],
+            tags=seed["tags"],
+            price_per_call=Decimal(seed["price_per_call"]),
+            model_key=seed["key"],
+            listing_fee_paid=Decimal("0"),
+            approval_status="approved",
+            is_active=True,
+            is_verified=True,
+            approved_by=admin_id,
+            approved_at=now,
+            approval_note="System model — auto-approved",
+        )
+        db.add(listing)
+        inserted += 1
+
+    if inserted:
+        await db.commit()
+        logger.info("Seeded %d system marketplace listings", inserted)
+
+    return inserted
+
+
+async def get_leaderboard(
+    db: AsyncSession,
+    sort_by: str = "roi",
+    limit: int = 50,
+) -> list[dict]:
+    """
+    Return all active approved marketplace listings enriched with system
+    performance metadata (win_rate, roi, total_predictions, est_apy).
+    Sorted by: roi | win_rate | total_staked | usage_count
+    """
+    q = (
+        select(AIModelListing)
+        .where(
+            AIModelListing.is_active == True,
+            AIModelListing.approval_status == "approved",
+        )
+        .limit(limit)
+    )
+    result = await db.execute(q)
+    listings = list(result.scalars().all())
+
+    rows: list[dict] = []
+    for listing in listings:
+        perf = _SYSTEM_PERF_BY_KEY.get(listing.model_key or "", {})
+        win_rate = perf.get("win_rate", 0.0)
+        roi = perf.get("roi", 0.0)
+        total_predictions = perf.get("total_predictions", listing.usage_count)
+        staked = float(listing.total_staked or 0)
+        usage = listing.usage_count or 0
+        price = float(listing.price_per_call or 0)
+        annual_revenue_to_stakers = usage * price * 0.05 * 52
+        est_apy = round((annual_revenue_to_stakers / staked * 100), 1) if staked > 0 else 0.0
+        rows.append({
+            "id":                listing.id,
+            "creator_id":        listing.creator_id,
+            "name":              listing.name,
+            "slug":              listing.slug,
+            "description":       listing.description,
+            "category":          listing.category,
+            "tags":              listing.tags,
+            "model_key":         listing.model_key,
+            "price_per_call":    str(listing.price_per_call),
+            "usage_count":       listing.usage_count,
+            "avg_rating":        listing.avg_rating,
+            "rating_count":      listing.rating_count,
+            "total_staked":      str(listing.total_staked),
+            "staker_count":      listing.staker_count,
+            "total_revenue":     str(listing.total_revenue),
+            "is_active":         listing.is_active,
+            "is_verified":       listing.is_verified,
+            "approval_status":   listing.approval_status,
+            "win_rate":          win_rate,
+            "roi":               roi,
+            "total_predictions": total_predictions,
+            "est_apy":           est_apy,
+            "created_at":        listing.created_at.isoformat() if listing.created_at else None,
+        })
+
+    sort_key_map = {
+        "roi":          lambda r: r["roi"],
+        "win_rate":     lambda r: r["win_rate"],
+        "total_staked": lambda r: float(r["total_staked"]),
+        "usage_count":  lambda r: r["usage_count"],
+        "est_apy":      lambda r: r["est_apy"],
+    }
+    key_fn = sort_key_map.get(sort_by, sort_key_map["roi"])
+    rows.sort(key=key_fn, reverse=True)
+    return rows

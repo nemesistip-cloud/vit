@@ -1155,6 +1155,19 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  AI Registry bootstrap failed: {_e}")
 
+    # Seed system marketplace listings (idempotent)
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.marketplace.service import seed_system_listings
+        async with AsyncSessionLocal() as _db:
+            _seeded = await seed_system_listings(_db, admin_id=1)
+            if _seeded:
+                print(f"✅ Marketplace: {_seeded} system model(s) seeded")
+            else:
+                print("✅ Marketplace: all 12 system models present")
+    except Exception as _e:
+        print(f"⚠️  Marketplace system seed failed: {_e}")
+
     alerts = get_telegram_alerts()
     if alerts and alerts.enabled:
         await alerts.send_startup_message()
