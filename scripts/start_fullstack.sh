@@ -16,7 +16,11 @@ if command -v fuser >/dev/null 2>&1; then
 fi
 
 echo "[startup] Installing frontend dependencies..."
-cd frontend && npm install --prefer-offline --silent 2>/dev/null || true && cd ..
+if [ ! -d "frontend/node_modules" ] || [ "frontend/package.json" -nt "frontend/node_modules/.package-lock.json" ]; then
+    cd frontend && npm install --prefer-offline --silent 2>/dev/null || true && cd ..
+else
+    echo "[startup] Frontend dependencies up to date, skipping install."
+fi
 
 echo "[startup] Starting frontend on port ${FRONTEND_PORT}..."
 cd frontend

@@ -121,7 +121,7 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
     finished  = []
     new_forbidden = 0
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=8) as client:
         for league, code in COMPETITIONS.items():
             if league in _FORBIDDEN_LEAGUES:
                 continue
@@ -208,7 +208,7 @@ async def fetch_live_matches() -> list:
         return []
 
     live = []
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=8) as client:
         for league, code in COMPETITIONS.items():
             if league in _FORBIDDEN_LEAGUES:
                 continue

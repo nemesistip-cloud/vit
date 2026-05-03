@@ -47,7 +47,19 @@ if _is_sqlite:
         echo=False,
         future=True,
         poolclass=NullPool,
+        connect_args={"check_same_thread": False},
     )
+
+    from sqlalchemy import event
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA cache_size=-64000")
+        cursor.execute("PRAGMA temp_store=MEMORY")
+        cursor.close()
 else:
     engine = create_async_engine(
         DATABASE_URL,

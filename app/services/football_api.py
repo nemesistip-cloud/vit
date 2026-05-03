@@ -70,9 +70,9 @@ class FootballDataClient:
     def __init__(
         self, 
         api_key: str, 
-        timeout: int = 15,
-        max_retries: int = 5,
-        base_backoff: float = 2.0,
+        timeout: int = 5,
+        max_retries: int = 2,
+        base_backoff: float = 1.0,
         enable_cache: bool = True
     ):
         self.api_key = api_key
