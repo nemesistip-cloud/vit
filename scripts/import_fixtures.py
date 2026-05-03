@@ -40,7 +40,7 @@ from app.db.models import Match
 
 # ── Timezone offset map for kickoff conversion (all times in the CSV are
 #    local-event times which we treat as UTC for simplicity) ──────────────────
-_CSV_PATH = Path(__file__).parents[1] / "attached_assets" / "all_fixtures_2may_18jun_1777678082560.csv"
+_CSV_PATH = Path(__file__).parents[1] / "attached_assets" / "all_fixtures_2may_18jun_1777829424268.csv"
 
 _MONTH_MAP = {
     "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
