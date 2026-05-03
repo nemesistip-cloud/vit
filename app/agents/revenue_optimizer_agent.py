@@ -57,7 +57,7 @@ async def _gather_revenue_metrics(db) -> dict:
     try:
         metrics["marketplace_listings_active"] = (await db.execute(
             select(func.count(AIModelListing.id))
-            .where(AIModelListing.status == "approved")
+            .where(AIModelListing.approval_status == "approved")
         )).scalar() or 0
     except Exception:
         metrics["marketplace_listings_active"] = 0

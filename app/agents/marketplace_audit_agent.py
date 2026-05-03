@@ -99,7 +99,7 @@ class MarketplaceAuditAgent(BaseAgent):
         async with AsyncSessionLocal() as db:
             res = await db.execute(
                 select(AIModelListing)
-                .where(AIModelListing.status == "pending")
+                .where(AIModelListing.approval_status == "pending")
                 .order_by(AIModelListing.created_at.asc())
                 .limit(MAX_PER_CYCLE)
             )

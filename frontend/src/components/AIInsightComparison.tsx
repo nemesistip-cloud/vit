@@ -1,18 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BrainCircuit, Zap, Sparkles, RefreshCw, TrendingUp, AlertTriangle, Bot } from "lucide-react";
+import {
+  BrainCircuit, Zap, Sparkles, RefreshCw, TrendingUp,
+  AlertTriangle, Bot, CheckCircle2, WifiOff,
+} from "lucide-react";
 import { analyzeMatchWithPuter, isPuterAvailable, MatchAnalysis } from "@/lib/puter-ai";
 
 const AI_PROVIDERS = {
-  gemini: { name: "Gemini", color: "hsl(var(--primary))",   icon: Sparkles    },
+  gemini: { name: "Gemini", color: "hsl(var(--primary))",   icon: Sparkles     },
   claude: { name: "Claude", color: "hsl(262 83% 58%)",      icon: BrainCircuit },
-  grok:   { name: "Grok",   color: "hsl(var(--secondary))", icon: Zap          },
-  puter:  { name: "Puter",  color: "hsl(173 80% 50%)",      icon: Bot          },
+  grok:   { name: "Grok",   color: "hsl(var(--secondary))", icon: Zap           },
+  puter:  { name: "Puter",  color: "hsl(173 80% 50%)",      icon: Bot           },
 } as const;
 
 type Provider = keyof typeof AI_PROVIDERS;
@@ -59,190 +62,33 @@ interface PuterInsightState {
   error?: string;
 }
 
-function InsightCard({
+// ── Shared filled insight card layout ────────────────────────────────────────
+
+function FilledInsightCard({
   provider,
   insight,
-  isLoading,
-  puterState,
-  onRunPuter,
-  canRunPuter,
+  color,
+  icon: Icon,
+  fullWidth = false,
 }: {
-  provider: Provider;
-  insight?: Insight;
-  isLoading: boolean;
-  puterState?: PuterInsightState;
-  onRunPuter?: () => void;
-  canRunPuter?: boolean;
+  provider: string;
+  insight: Insight;
+  color: string;
+  icon: React.ElementType;
+  fullWidth?: boolean;
 }) {
-  const { name, color, icon: Icon } = AI_PROVIDERS[provider];
-
-  if (isLoading && provider !== "puter") {
-    return (
-      <Card className="bg-card/40 backdrop-blur border-border">
-        <CardHeader className="pb-3">
-          <Skeleton className="h-6 w-32" />
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-4 w-4/5" />
-          <Skeleton className="h-4 w-3/4" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  /* ── Puter card special handling ── */
-  if (provider === "puter") {
-    const ps = puterState ?? { status: "idle" };
-
-    if (ps.status === "idle") {
-      return (
-        <Card className="bg-card/20 backdrop-blur flex flex-col" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
-          <CardContent className="flex flex-col items-center justify-center min-h-[200px] text-center gap-3 p-6">
-            <Bot className="w-8 h-8" style={{ color }} />
-            <p className="font-mono text-xs uppercase" style={{ color }}>Puter AI — Free</p>
-            <p className="font-mono text-[10px] text-muted-foreground">
-              Claude via Puter.js — no API key needed
-            </p>
-            {canRunPuter ? (
-              <Button
-                size="sm"
-                className="font-mono text-xs mt-1"
-                style={{ background: color, color: "#000" }}
-                onClick={onRunPuter}
-              >
-                Analyze Free
-              </Button>
-            ) : (
-              <p className="font-mono text-[10px] text-amber-500/80">
-                Puter not ready — ensure Puter.js is loaded
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      );
-    }
-
-    if (ps.status === "loading") {
-      return (
-        <Card className="bg-card/40 backdrop-blur border-border" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
-          <CardHeader className="pb-3">
-            <Skeleton className="h-6 w-32" style={{ background: `${color}20` }} />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-mono" style={{ color }}>
-              <Bot className="w-4 h-4 animate-pulse" />
-              Querying Puter Claude…
-            </div>
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-5/6" />
-            <Skeleton className="h-4 w-4/5" />
-          </CardContent>
-        </Card>
-      );
-    }
-
-    if (ps.status === "error") {
-      return (
-        <Card className="bg-card/20 backdrop-blur border-border/50">
-          <CardContent className="flex flex-col items-center justify-center min-h-[200px] text-center gap-3 p-6">
-            <Bot className="w-8 h-8 text-muted-foreground/40" />
-            <p className="font-mono text-xs text-muted-foreground uppercase">Puter — Error</p>
-            <p className="font-mono text-[10px] text-amber-500/80 max-w-[180px]">{ps.error}</p>
-            {canRunPuter && (
-              <Button size="sm" variant="outline" className="font-mono text-xs mt-1" onClick={onRunPuter}>
-                Retry
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      );
-    }
-
-    const ins = ps.insight;
-    if (!ins) return null;
-    const riskCls = RISK_COLOR[ins.risk_level?.toUpperCase() ?? "MEDIUM"] ?? RISK_COLOR.MEDIUM;
-
-    return (
-      <Card className="bg-card/50 backdrop-blur flex flex-col" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
-        <CardHeader className="pb-3 border-b shrink-0" style={{ borderColor: `${color}20` }}>
-          <CardTitle className="flex items-center justify-between font-mono text-sm gap-2 flex-wrap">
-            <span className="flex items-center gap-2">
-              <Bot className="w-4 h-4 shrink-0" style={{ color }} />
-              <span style={{ color }}>Puter</span>
-              <span className="text-[9px] font-mono text-muted-foreground/50 border border-border/40 rounded px-1">free</span>
-            </span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {ins.risk_level && (
-                <Badge variant="outline" className={`font-mono text-[10px] px-1.5 ${riskCls}`}>
-                  {ins.risk_level}
-                </Badge>
-              )}
-              {ins.confidence != null && (
-                <Badge variant="outline" className="font-mono text-[10px]" style={{ borderColor: `${color}40`, color }}>
-                  {(ins.confidence * 100).toFixed(0)}%
-                </Badge>
-              )}
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4 space-y-4 flex-1">
-          {ins.summary && (
-            <div>
-              <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1.5">Analysis</p>
-              <p className="text-sm leading-relaxed">{ins.summary}</p>
-            </div>
-          )}
-          {ins.key_factors && ins.key_factors.length > 0 && (
-            <div>
-              <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1.5">Key Factors</p>
-              <div className="space-y-1.5">
-                {ins.key_factors.map((f, i) => (
-                  <div key={i} className="flex gap-2 text-sm p-2 rounded-md bg-muted/30" style={{ borderLeft: `2px solid ${color}` }}>
-                    <TrendingUp className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color }} />
-                    <span className="text-sm leading-snug">{f}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {ins.recommendation && (
-            <div className="p-3 rounded-lg" style={{ background: `${color}08`, borderLeft: `3px solid ${color}` }}>
-              <p className="text-[10px] font-mono uppercase mb-1" style={{ color }}>Recommendation</p>
-              <p className="text-sm font-semibold">{ins.recommendation}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  /* ── Standard provider card ── */
-  if (!insight || insight.available === false) {
-    const errMsg = insight?.error;
-    return (
-      <Card className="bg-card/20 backdrop-blur border-border/50">
-        <CardContent className="flex flex-col items-center justify-center min-h-[200px] text-center gap-3 p-6">
-          <Icon className="w-8 h-8 text-muted-foreground/40" />
-          <p className="font-mono text-xs text-muted-foreground uppercase">{name} — No insight</p>
-          {errMsg && (
-            <p className="font-mono text-[10px] text-amber-500/80 max-w-[180px]">{errMsg}</p>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
   const riskCls = RISK_COLOR[insight.risk_level?.toUpperCase() ?? "MEDIUM"] ?? RISK_COLOR.MEDIUM;
 
   return (
-    <Card className="bg-card/50 backdrop-blur flex flex-col" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
+    <Card
+      className={`bg-card/50 backdrop-blur flex flex-col ${fullWidth ? "col-span-full" : ""}`}
+      style={{ borderColor: `${color}40`, borderWidth: "1px" }}
+    >
       <CardHeader className="pb-3 border-b shrink-0" style={{ borderColor: `${color}20` }}>
         <CardTitle className="flex items-center justify-between font-mono text-sm gap-2 flex-wrap">
           <span className="flex items-center gap-2">
             <Icon className="w-4 h-4 shrink-0" style={{ color }} />
-            <span style={{ color }}>{name}</span>
+            <span style={{ color }}>{provider}</span>
             {insight.from_cache && (
               <span className="text-[9px] font-mono text-muted-foreground/50 border border-border/40 rounded px-1">cached</span>
             )}
@@ -261,57 +107,43 @@ function InsightCard({
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-4 space-y-4 flex-1">
+      <CardContent className={`pt-4 space-y-4 flex-1 ${fullWidth ? "grid md:grid-cols-2 gap-6 space-y-0" : ""}`}>
         {insight.summary && (
           <div>
             <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1.5">Analysis</p>
             <p className="text-sm leading-relaxed">{insight.summary}</p>
           </div>
         )}
-
         {insight.key_factors && insight.key_factors.length > 0 && (
           <div>
             <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1.5">Key Factors</p>
             <div className="space-y-1.5">
-              {insight.key_factors.map((factor, i) => (
-                <div
-                  key={i}
-                  className="flex gap-2 text-sm p-2 rounded-md bg-muted/30"
-                  style={{ borderLeft: `2px solid ${color}` }}
-                >
+              {insight.key_factors.map((f, i) => (
+                <div key={i} className="flex gap-2 text-sm p-2 rounded-md bg-muted/30" style={{ borderLeft: `2px solid ${color}` }}>
                   <TrendingUp className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color }} />
-                  <span className="text-sm leading-snug">{factor}</span>
+                  <span className="text-sm leading-snug">{f}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
-
         {insight.value_assessment && (
           <div>
             <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1.5">Value Assessment</p>
             <p className="text-sm leading-relaxed text-muted-foreground">{insight.value_assessment}</p>
           </div>
         )}
-
         {insight.recommendation && (
-          <div
-            className="p-3 rounded-lg"
-            style={{ background: `${color}08`, borderLeft: `3px solid ${color}` }}
-          >
+          <div className="p-3 rounded-lg" style={{ background: `${color}08`, borderLeft: `3px solid ${color}` }}>
             <p className="text-[10px] font-mono uppercase mb-1" style={{ color }}>Recommendation</p>
             <p className="text-sm font-semibold">{insight.recommendation}</p>
           </div>
         )}
-
         {insight.insight_tags && insight.insight_tags.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
             {insight.insight_tags.map((tag, i) => (
-              <span
-                key={i}
-                className="text-[9px] font-mono px-1.5 py-0.5 rounded border"
-                style={{ color, borderColor: `${color}40`, background: `${color}08` }}
-              >
+              <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded border"
+                style={{ color, borderColor: `${color}40`, background: `${color}08` }}>
                 {tag}
               </span>
             ))}
@@ -322,11 +154,228 @@ function InsightCard({
   );
 }
 
+// ── Puter hero card (shown when it's the primary/only provider) ───────────────
+
+function PuterHeroCard({
+  puterState,
+  onRun,
+  canRun,
+  homeTeam,
+  awayTeam,
+}: {
+  puterState: PuterInsightState;
+  onRun: () => void;
+  canRun: boolean;
+  homeTeam?: string;
+  awayTeam?: string;
+}) {
+  const color = AI_PROVIDERS.puter.color;
+
+  if (puterState.status === "loading") {
+    return (
+      <Card className="col-span-full" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
+        <CardContent className="py-10 flex flex-col items-center gap-4">
+          <Bot className="w-8 h-8 animate-pulse" style={{ color }} />
+          <p className="font-mono text-sm" style={{ color }}>Puter AI is analyzing {homeTeam} vs {awayTeam}…</p>
+          <p className="text-xs text-muted-foreground font-mono">Free browser-side analysis via Puter.js — no API key needed</p>
+          <div className="w-full max-w-sm space-y-2">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-5/6 mx-auto" />
+            <Skeleton className="h-3 w-4/6 mx-auto" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (puterState.status === "done" && puterState.insight) {
+    return (
+      <FilledInsightCard
+        provider="Puter AI · Free"
+        insight={puterState.insight}
+        color={color}
+        icon={Bot}
+        fullWidth
+      />
+    );
+  }
+
+  if (puterState.status === "error") {
+    return (
+      <Card className="col-span-full" style={{ borderColor: `${color}30`, borderWidth: "1px" }}>
+        <CardContent className="py-8 flex flex-col items-center gap-3">
+          <Bot className="w-7 h-7 text-muted-foreground/40" />
+          <p className="font-mono text-xs text-muted-foreground uppercase">Puter AI — Analysis failed</p>
+          <p className="font-mono text-[10px] text-amber-500/80 text-center max-w-xs">{puterState.error}</p>
+          {canRun && (
+            <Button size="sm" variant="outline" className="font-mono text-xs mt-1" onClick={onRun}>
+              Retry Free Analysis
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // idle — show a prominent CTA
+  return (
+    <Card className="col-span-full" style={{ borderColor: `${color}40`, borderWidth: "1px", background: `${color}05` }}>
+      <CardContent className="py-10 flex flex-col items-center gap-4 text-center">
+        <Bot className="w-10 h-10" style={{ color }} />
+        <div>
+          <p className="font-mono text-base font-bold" style={{ color }}>Puter AI — Free Analysis</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Server AI providers are unavailable. Get a full tactical analysis powered by
+            Claude via Puter.js — completely free, runs in your browser.
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground font-mono">
+          {[
+            "No API key needed",
+            "Browser-side Claude",
+            "Tactical probabilities",
+            "Key factors",
+          ].map((t) => (
+            <span key={t} className="flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-emerald-500" /> {t}
+            </span>
+          ))}
+        </div>
+        {canRun ? (
+          <Button
+            size="lg"
+            className="font-mono gap-2 mt-2"
+            style={{ background: color, color: "#000" }}
+            onClick={onRun}
+          >
+            <Bot className="w-4 h-4" /> Analyze Free with Puter AI
+          </Button>
+        ) : (
+          <p className="font-mono text-[10px] text-amber-500/80">
+            Puter.js not ready — ensure you are on a supported browser
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Standard provider card (when server providers work) ──────────────────────
+
+function ServerInsightCard({
+  provider,
+  insight,
+  isLoading,
+}: {
+  provider: Exclude<Provider, "puter">;
+  insight?: Insight;
+  isLoading: boolean;
+}) {
+  const { name, color, icon: Icon } = AI_PROVIDERS[provider];
+
+  if (isLoading) {
+    return (
+      <Card className="bg-card/40 backdrop-blur border-border">
+        <CardHeader className="pb-3"><Skeleton className="h-6 w-32" /></CardHeader>
+        <CardContent className="space-y-3">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-4/5" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!insight || insight.available === false) {
+    return (
+      <Card className="bg-card/20 backdrop-blur border-border/40">
+        <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-2 p-6">
+          <Icon className="w-7 h-7 text-muted-foreground/20" />
+          <p className="font-mono text-[11px] text-muted-foreground/50 uppercase">{name}</p>
+          <p className="font-mono text-[10px] text-muted-foreground/40">Unavailable</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <FilledInsightCard provider={name} insight={insight} color={color} icon={Icon} />
+  );
+}
+
+// ── Inline puter card in grid (when mixed providers) ─────────────────────────
+
+function PuterGridCard({
+  puterState,
+  onRun,
+  canRun,
+}: {
+  puterState: PuterInsightState;
+  onRun: () => void;
+  canRun: boolean;
+}) {
+  const color = AI_PROVIDERS.puter.color;
+
+  if (puterState.status === "loading") {
+    return (
+      <Card className="bg-card/40 backdrop-blur" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
+        <CardHeader className="pb-3"><Skeleton className="h-6 w-32" style={{ background: `${color}20` }} /></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-mono" style={{ color }}>
+            <Bot className="w-4 h-4 animate-pulse" /> Analyzing…
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (puterState.status === "done" && puterState.insight) {
+    return <FilledInsightCard provider="Puter" insight={puterState.insight} color={color} icon={Bot} />;
+  }
+
+  if (puterState.status === "error") {
+    return (
+      <Card className="bg-card/20 backdrop-blur border-border/40">
+        <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-2 p-6">
+          <Bot className="w-7 h-7 text-muted-foreground/30" />
+          <p className="font-mono text-[10px] text-amber-500/80">{puterState.error}</p>
+          {canRun && (
+            <Button size="sm" variant="outline" className="font-mono text-xs mt-1" onClick={onRun}>Retry</Button>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-card/20 backdrop-blur flex flex-col" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
+      <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-3 p-6">
+        <Bot className="w-7 h-7" style={{ color }} />
+        <p className="font-mono text-xs font-bold" style={{ color }}>Puter AI · Free</p>
+        <p className="font-mono text-[10px] text-muted-foreground">Browser-side Claude — no key</p>
+        {canRun ? (
+          <Button size="sm" className="font-mono text-xs" style={{ background: color, color: "#000" }} onClick={onRun}>
+            Analyze Free
+          </Button>
+        ) : (
+          <p className="font-mono text-[10px] text-amber-500/80">Puter not ready</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function resolveInsight(data: InsightsData | undefined, provider: Exclude<Provider, "puter">): Insight | undefined {
   if (!data) return undefined;
   if (data.results?.[provider]) return data.results[provider];
   return (data as any)[provider];
 }
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function AIInsightComparison({
   matchId,
@@ -348,18 +397,46 @@ export function AIInsightComparison({
   });
 
   const [puterState, setPuterState] = useState<PuterInsightState>({ status: "idle" });
+  const autoTriggered = useRef(false);
+
+  const canRunPuter = isPuterAvailable() && !!homeTeam && !!awayTeam;
+
+  const serverProviders: Exclude<Provider, "puter">[] = ["gemini", "claude", "grok"];
+
+  const serverInsights = serverProviders.map((p) => resolveInsight(insights, p));
+  const serverHasAny   = serverInsights.some((ins) => ins?.available !== false && ins != null);
+  const allServerFailed = !isLoading && !isError && serverInsights.every(
+    (ins) => !ins || ins.available === false
+  );
+
+  // ── Auto-trigger Puter when all server providers are unavailable ──────────
+  useEffect(() => {
+    if (
+      allServerFailed &&
+      !autoTriggered.current &&
+      canRunPuter &&
+      puterState.status === "idle" &&
+      homeTeam &&
+      awayTeam
+    ) {
+      autoTriggered.current = true;
+      runPuter();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allServerFailed, canRunPuter]);
 
   const runPuter = async () => {
     if (!homeTeam || !awayTeam) return;
     setPuterState({ status: "loading" });
     try {
+      const priors = {
+        home: resolveInsight(insights, "gemini")?.confidence ?? 0.34,
+        draw: 0.33,
+        away: 0.33,
+      };
       const analysis: MatchAnalysis = await analyzeMatchWithPuter(
-        homeTeam,
-        awayTeam,
-        league ?? "Football",
-        insights?.results?.["gemini"]?.confidence ?? 0.34,
-        0.33,
-        0.33,
+        homeTeam, awayTeam, league ?? "Football",
+        priors.home, priors.draw, priors.away,
         "claude",
       );
       const insight: Insight = {
@@ -376,23 +453,21 @@ export function AIInsightComparison({
     }
   };
 
-  const serverProviders: Exclude<Provider, "puter">[] = ["gemini", "claude", "grok"];
-  const allProviders: Provider[] = ["gemini", "claude", "grok", "puter"];
-
-  const serverHasAny = serverProviders.some(
-    (p) => resolveInsight(insights, p)?.available !== false && resolveInsight(insights, p) != null,
-  );
-  const cacheHits    = insights?.cache_hits ?? [];
-  const isFromCache  = cacheHits.length === (insights?.sources_requested?.length ?? 0) && cacheHits.length > 0;
-  const canRunPuter  = isPuterAvailable() && !!homeTeam && !!awayTeam;
+  const cacheHits   = insights?.cache_hits ?? [];
+  const isFromCache = cacheHits.length === (insights?.sources_requested?.length ?? 0) && cacheHits.length > 0;
 
   return (
     <Card className="bg-card/50 backdrop-blur border-border">
       <CardHeader className="border-b border-border/50 pb-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <CardTitle className="font-mono uppercase flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
             Multi-AI Intelligence
+            {allServerFailed && puterState.status !== "done" && (
+              <span className="text-[10px] font-mono font-normal text-muted-foreground border border-border/40 rounded px-1.5 py-0.5 flex items-center gap-1">
+                <WifiOff className="w-3 h-3" /> server providers offline · using Puter
+              </span>
+            )}
           </CardTitle>
           <div className="flex items-center gap-2">
             {isFromCache && !isFetching && (
@@ -404,7 +479,7 @@ export function AIInsightComparison({
               variant="outline"
               size="sm"
               className="font-mono text-xs h-7 px-2.5"
-              onClick={() => refetch()}
+              onClick={() => { autoTriggered.current = false; refetch(); }}
               disabled={isFetching}
             >
               <RefreshCw className={`w-3 h-3 mr-1 ${isFetching ? "animate-spin" : ""}`} />
@@ -415,72 +490,110 @@ export function AIInsightComparison({
       </CardHeader>
 
       <CardContent className="pt-6">
+        {/* Error state */}
         {isError && !isLoading && (
-          <div className="text-center py-8 space-y-2">
+          <div className="text-center py-8 space-y-3">
             <AlertTriangle className="w-8 h-8 text-amber-500/50 mx-auto" />
-            <p className="font-mono text-xs text-muted-foreground uppercase">AI insights require a prediction first</p>
+            <p className="font-mono text-xs text-muted-foreground uppercase">
+              AI insights require a prediction first
+            </p>
             <p className="font-mono text-[10px] text-muted-foreground/60">
               Run the ML Ensemble on this match, then refresh insights
             </p>
+            {canRunPuter && (
+              <div className="pt-2">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Or get a free browser-side analysis now:
+                </p>
+                <Button
+                  size="sm"
+                  className="font-mono gap-2"
+                  style={{ background: AI_PROVIDERS.puter.color, color: "#000" }}
+                  onClick={runPuter}
+                  disabled={puterState.status === "loading"}
+                >
+                  <Bot className="w-3 h-3" />
+                  {puterState.status === "loading" ? "Analyzing…" : "Analyze Free with Puter"}
+                </Button>
+              </div>
+            )}
+            {puterState.status === "done" && puterState.insight && (
+              <div className="mt-4">
+                <FilledInsightCard
+                  provider="Puter AI · Free"
+                  insight={puterState.insight}
+                  color={AI_PROVIDERS.puter.color}
+                  icon={Bot}
+                  fullWidth
+                />
+              </div>
+            )}
           </div>
         )}
 
         {!isError && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              {allProviders.map((provider) => (
-                <InsightCard
-                  key={provider}
-                  provider={provider}
-                  insight={provider !== "puter" ? resolveInsight(insights, provider) : undefined}
-                  isLoading={isLoading}
-                  puterState={provider === "puter" ? puterState : undefined}
-                  onRunPuter={provider === "puter" ? runPuter : undefined}
-                  canRunPuter={provider === "puter" ? canRunPuter : undefined}
-                />
-              ))}
-            </div>
-
-            {(insights?.source === "ml_fallback" || insights?.source === "neural_ensemble") && !isLoading && (
-              <div className="mt-4 px-3 py-2 bg-muted/30 rounded-lg border border-border/40 text-center">
-                <p className="text-[10px] font-mono text-muted-foreground">
-                  Server insights from ML ensemble — Puter AI above runs free Claude analysis in-browser
-                </p>
+            {/* Loading skeletons */}
+            {isLoading && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                {serverProviders.map((p) => (
+                  <ServerInsightCard key={p} provider={p} isLoading />
+                ))}
+                <PuterGridCard puterState={{ status: "idle" }} onRun={runPuter} canRun={canRunPuter} />
               </div>
             )}
 
-            {(serverHasAny || puterState.status === "done") && !isLoading && (
-              <div className="mt-6 p-4 bg-muted/20 rounded-lg border border-border/50">
-                <p className="text-xs font-mono text-muted-foreground uppercase mb-3">Provider Status</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {allProviders.map((p) => {
+            {/* All server providers failed — Puter takes the full width */}
+            {!isLoading && allServerFailed && (
+              <div className="grid grid-cols-1 gap-4">
+                <PuterHeroCard
+                  puterState={puterState}
+                  onRun={runPuter}
+                  canRun={canRunPuter}
+                  homeTeam={homeTeam}
+                  awayTeam={awayTeam}
+                />
+              </div>
+            )}
+
+            {/* At least one server provider has data — normal 4-col grid */}
+            {!isLoading && serverHasAny && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                {serverProviders.map((p) => (
+                  <ServerInsightCard
+                    key={p}
+                    provider={p}
+                    insight={resolveInsight(insights, p)}
+                    isLoading={false}
+                  />
+                ))}
+                <PuterGridCard puterState={puterState} onRun={runPuter} canRun={canRunPuter} />
+              </div>
+            )}
+
+            {/* Provider status footer (only when at least one provider succeeded) */}
+            {!isLoading && (serverHasAny || puterState.status === "done") && (
+              <div className="mt-5 p-3 bg-muted/20 rounded-lg border border-border/40">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <p className="text-[10px] font-mono text-muted-foreground uppercase shrink-0">Providers</p>
+                  {(["gemini", "claude", "grok", "puter"] as Provider[]).map((p) => {
                     const { name, color, icon: Icon } = AI_PROVIDERS[p];
-                    let available = false;
-                    let cached    = false;
-                    let errMsg: string | undefined;
-                    let statusLabel = "pending";
-
+                    let active = false;
                     if (p === "puter") {
-                      available   = puterState.status === "done";
-                      statusLabel = puterState.status === "done" ? "live (free)" : puterState.status === "loading" ? "running…" : puterState.status === "error" ? "error" : "idle";
-                      errMsg      = puterState.error;
+                      active = puterState.status === "done";
                     } else {
-                      const result = resolveInsight(insights, p);
-                      available    = result?.available !== false && !!result;
-                      cached       = cacheHits.includes(p);
-                      errMsg       = result?.error ?? undefined;
-                      statusLabel  = available ? (cached ? "cached" : "live") : errMsg ? "error" : "pending";
+                      const r = resolveInsight(insights, p);
+                      active = !!r && r.available !== false;
                     }
-
                     return (
-                      <div key={p} className="flex items-center gap-2 p-2 rounded bg-background/50 border border-border/30">
-                        <Icon className="w-3 h-3 shrink-0" style={{ color: available ? color : "hsl(var(--muted-foreground))" }} />
-                        <div className="min-w-0">
-                          <p className="text-xs font-mono font-bold truncate" style={{ color: available ? color : "hsl(var(--muted-foreground))" }}>
-                            {name}
-                          </p>
-                          <p className="text-[9px] font-mono text-muted-foreground">{statusLabel}</p>
-                        </div>
+                      <div key={p} className="flex items-center gap-1.5">
+                        <Icon className="w-3 h-3" style={{ color: active ? color : "hsl(var(--muted-foreground))" }} />
+                        <span className="text-[10px] font-mono" style={{ color: active ? color : "hsl(var(--muted-foreground))" }}>
+                          {name}
+                        </span>
+                        <span className={`text-[9px] font-mono ${active ? "text-emerald-500" : "text-muted-foreground/40"}`}>
+                          {active ? "✓" : "—"}
+                        </span>
                       </div>
                     );
                   })}
