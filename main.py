@@ -124,6 +124,7 @@ from app.modules.referral.routes import router as referral_router
 from app.api.routes.leaderboard import router as leaderboard_router
 from app.api.routes.exports import router as exports_router
 from app.api.routes.admin_ai_sources import router as admin_ai_sources_router
+from app.api.routes.model_breakdown import router as model_breakdown_router
 from app.api.routes.admin_clv import router as admin_clv_router
 from app.api.routes.agents import router as agents_router
 # ===== VIT DID ROUTES =====
@@ -1343,7 +1344,7 @@ async def lifespan(app: FastAPI):
             {
                 "category_name": "Learning",
                 "title": "Explore the AI Engine",
-                "description": "Visit the AI Engine dashboard to understand how VIT's 12-model ensemble generates predictions.",
+                "description": "Visit the AI Engine dashboard to understand how VIT's 13-model ensemble generates predictions.",
                 "short_description": "Visit AI Engine",
                 "task_type": TaskType.ONE_TIME.value,
                 "required_count": 1,
@@ -1748,6 +1749,7 @@ app.include_router(postbacks_router)
 app.include_router(admin_rewards_router)
 app.include_router(rewards_router)
 app.include_router(admin_ai_sources_router, prefix="/api")
+app.include_router(model_breakdown_router)
 app.include_router(admin_clv_router)
 
 # Marketplace (Module G)

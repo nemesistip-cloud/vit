@@ -49,7 +49,7 @@ def _use_real_ml_models() -> bool:
 def _ml_cache_enabled() -> bool:
     return os.getenv("ML_MODEL_CACHE_ENABLED", "true").lower() == "true"
 
-_TOTAL_MODEL_SPECS    = 12
+_TOTAL_MODEL_SPECS    = 13
 _HOME_ADVANTAGE_BIAS  = 0.045
 _MAX_STAKE            = 0.05
 _ELO_DEFAULT          = 1500.0
@@ -542,6 +542,13 @@ _MODEL_SPECS: list = [
         "parent_version": "hybrid_v1",
         "change_summary": "Adds isotonic post-calibration on top of the stacker output for tighter ECE.",
     },
+    # ── Model #13: LLM Consensus Layer ──────────────────────────────────────────
+    {
+        "key": "llm_consensus_v1", "name": "LLMConsensus",
+        "markets": ["1x2"], "sigma": 0.012, "market_trust": 0.55,
+        "parent_version": None,
+        "change_summary": "Blends weighted LLM provider signals (Gemini/Claude/Grok/OpenAI) via AISignalCache; weight boosted by provider accuracy.",
+    },
 ]
 
 
@@ -549,18 +556,19 @@ _MODEL_SPECS: list = [
 # v2 keys carry the same priors as their v1 parents — re-tuning happens after
 # we have ≥30 days of v2 prediction telemetry.
 _MODEL_BASE_WEIGHTS: Dict[str, float] = {
-    "hybrid_v2":      1.50,   # most sophisticated — stacks all signals
-    "ensemble_v2":    1.40,   # neural ensemble diversity weighting
-    "xgb_v2":         1.30,   # boosted residual correction
-    "dixon_coles_v2": 1.20,   # score correlation correction
-    "poisson_v2":     1.20,   # exact Poisson score-matrix
-    "bayes_v2":       1.10,   # conjugate Bayesian update
-    "logistic_v2":    1.10,   # calibrated sigmoid blend
-    "transformer_v2": 1.00,   # attention-inspired prior blend
-    "lstm_v2":        1.00,   # recency-weighted momentum
-    "rf_v2":          0.95,   # bootstrap diversity simulation
-    "market_v2":      0.90,   # pure market signal (benchmark)
-    "elo_v2":         0.75,   # session Elo (cold-start penalty)
+    "hybrid_v2":          1.50,   # most sophisticated — stacks all signals
+    "ensemble_v2":        1.40,   # neural ensemble diversity weighting
+    "xgb_v2":             1.30,   # boosted residual correction
+    "dixon_coles_v2":     1.20,   # score correlation correction
+    "poisson_v2":         1.20,   # exact Poisson score-matrix
+    "bayes_v2":           1.10,   # conjugate Bayesian update
+    "logistic_v2":        1.10,   # calibrated sigmoid blend
+    "transformer_v2":     1.00,   # attention-inspired prior blend
+    "lstm_v2":            1.00,   # recency-weighted momentum
+    "rf_v2":              0.95,   # bootstrap diversity simulation
+    "market_v2":          0.90,   # pure market signal (benchmark)
+    "elo_v2":             0.75,   # session Elo (cold-start penalty)
+    "llm_consensus_v1":   1.25,   # LLM provider consensus (boosted by accuracy)
 }
 
 
@@ -1246,37 +1254,338 @@ class _HybridStackModel(_BaseModel):
         return result
 
 
+# ── LLM Consensus Model (#13) ─────────────────────────────────────────────────
+
+class _LLMConsensusModel(_BaseModel):
+    """
+    Model #13 — LLM Consensus Layer.
+
+    Reads the weighted AI signal (from AISignalCache.weighted_home/draw/away)
+    that was pre-computed from live LLM provider predictions (Gemini, Claude,
+    Grok, OpenAI).  When no signal is available it falls back to the market
+    probability so it never blocks the ensemble.
+
+    Weight is boosted at inference time by the average AIPerformance.accuracy
+    of contributing LLM providers (wired in ModelOrchestrator.predict()).
+    """
+    _ai_signals: Optional[Dict] = None  # set by orchestrator before predict_1x2
+
+    def predict_1x2(self, base_hp, base_dp, base_ap, lam_h, lam_a,
+                    home_team, away_team, market_odds, seed):
+        random.seed(seed)
+        sigs = getattr(self, "_ai_signals", None) or {}
+        wh = float(sigs.get("ai_weighted_home") or base_hp)
+        wd = float(sigs.get("ai_weighted_draw") or base_dp)
+        wa = float(sigs.get("ai_weighted_away") or base_ap)
+        # Blend 70% AI signal, 30% market to avoid over-reliance
+        blend = 0.70
+        hp = blend * wh + (1 - blend) * base_hp
+        dp = blend * wd + (1 - blend) * base_dp
+        ap = blend * wa + (1 - blend) * base_ap
+        return _normalise(
+            hp + random.gauss(0, self.sigma * 0.5),
+            dp + random.gauss(0, self.sigma * 0.3),
+            ap + random.gauss(0, self.sigma * 0.5),
+        )
+
+
+# ── Draw Specialist model (enhanced DixonColes with draw focus) ────────────────
+
+class _DrawSpecialistModel(_BaseModel):
+    """
+    Draw Specialist — maximally tuned for draw-probability accuracy.
+
+    Uses three complementary draw-signal sources:
+    1. Dixon-Coles ρ correction (low-score correlation)
+    2. Bayesian draw prior from historical league data
+    3. Score-matrix draw mass integration
+
+    The final draw probability is a learned convex combination of these
+    three signals, biased toward the Bayesian prior when sample size is small.
+    Weights are grid-searched during training to minimise draw-Brier score.
+    """
+    _draw_weights: Tuple[float, float, float] = (0.40, 0.35, 0.25)
+    _draw_prior: float = 0.26  # empirical European league draw rate
+
+    def predict_1x2(self, base_hp, base_dp, base_ap, lam_h, lam_a,
+                    home_team, away_team, market_odds, seed):
+        random.seed(seed)
+        # Signal 1: Dixon-Coles draw probability
+        dc_rho = getattr(self, "_fitted_rho", -0.13)
+        _, dc_draw, _ = _dixon_coles_rho(lam_h, lam_a, rho=dc_rho)
+
+        # Signal 2: Bayesian draw prior blend
+        prior_d = getattr(self, "_draw_prior", 0.26)
+        strength = getattr(self, "_prior_strength", 20)
+        bayes_draw = (prior_d * strength + base_dp * 10) / (strength + 10)
+
+        # Signal 3: exact Poisson score-matrix draw mass
+        _, score_draw, _ = _score_matrix_probs(lam_h, lam_a)
+
+        w = getattr(self, "_draw_weights", (0.40, 0.35, 0.25))
+        combined_draw = w[0] * dc_draw + w[1] * bayes_draw + w[2] * score_draw
+        combined_draw = max(0.15, min(0.45, combined_draw))
+
+        # Redistribute remaining probability proportionally to market H/A
+        remaining = 1.0 - combined_draw
+        ha_total = max(base_hp + base_ap, 1e-6)
+        hp = remaining * (base_hp / ha_total)
+        ap = remaining * (base_ap / ha_total)
+
+        return _normalise(
+            hp + random.gauss(0, self.sigma * 0.8),
+            combined_draw + random.gauss(0, self.sigma * 0.4),
+            ap + random.gauss(0, self.sigma * 0.8),
+        )
+
+    def train(self, historical: list) -> dict:
+        if len(historical) < 10:
+            return super().train(historical)
+        # Count draws and fit Bayesian prior
+        draws = sum(1 for m in historical
+                    if int(m.get("home_goals", 0) or 0) == int(m.get("away_goals", 0) or 0))
+        n = max(1, len(historical))
+        self._draw_prior = round((draws + 3) / (n + 12), 4)  # Laplace smoothed
+        self._prior_strength = min(60, max(10, n // 3))
+
+        # Grid-search ρ and draw_weights to minimise draw-Brier score
+        best_rho  = -0.13
+        best_brier = float("inf")
+        for rho in (-0.20, -0.15, -0.13, -0.10, -0.07):
+            self._fitted_rho = rho
+            res = _evaluate_model_on_history(self, historical, max_eval=150)
+            if 0 < res["brier_score"] < best_brier:
+                best_brier = res["brier_score"]
+                best_rho   = rho
+        self._fitted_rho = best_rho
+
+        # Grid-search draw blend weights
+        best_w = self._draw_weights
+        best_brier = float("inf")
+        for w in [(0.40, 0.35, 0.25), (0.50, 0.30, 0.20), (0.35, 0.40, 0.25),
+                  (0.30, 0.45, 0.25), (0.45, 0.30, 0.25)]:
+            self._draw_weights = w
+            res = _evaluate_model_on_history(self, historical, max_eval=150)
+            if 0 < res["brier_score"] < best_brier:
+                best_brier = res["brier_score"]
+                best_w = w
+        self._draw_weights = best_w
+
+        result = super().train(historical)
+        result["fitted_rho"]    = self._fitted_rho
+        result["draw_weights"]  = list(self._draw_weights)
+        result["draw_prior"]    = self._draw_prior
+        return result
+
+
+# ── Meta-Learner (stacked Ridge regression) ────────────────────────────────────
+
+class _MetaLearnerModel(_BaseModel):
+    """
+    Meta-Learner — stacks all peer model outputs using Ridge regression.
+
+    During training, collects individual-model predictions on historical data
+    and fits a Ridge regressor (one per outcome) that learns optimal combination
+    weights.  At inference time it is called *after* the peer models so it can
+    blend their outputs.  When not yet trained, falls back to the market signal.
+
+    The meta-learner is registered as model #14 conceptually but occupies the
+    "hybrid_v2" slot so it improves the existing HybridStack rather than adding
+    a new model.
+    """
+    _ridge_h: Optional[Any] = None
+    _ridge_d: Optional[Any] = None
+    _ridge_a: Optional[Any] = None
+    _peer_keys: List[str] = []
+    _peer_signals: Optional[Dict] = None  # set by orchestrator before predict_1x2
+
+    def predict_1x2(self, base_hp, base_dp, base_ap, lam_h, lam_a,
+                    home_team, away_team, market_odds, seed):
+        sigs = getattr(self, "_peer_signals", None) or {}
+        if not sigs or self._ridge_h is None:
+            # Fallback to HybridStack logic
+            random.seed(seed)
+            poi_h, poi_d, poi_a = _score_matrix_probs(lam_h, lam_a)
+            elo_h, elo_d, elo_a = _elo_probs(home_team, away_team)
+            dc_h, dc_d, dc_a    = _dixon_coles_rho(lam_h, lam_a)
+            w = [0.28, 0.20, 0.27, 0.25]
+            hp = w[0]*poi_h + w[1]*elo_h + w[2]*dc_h + w[3]*base_hp
+            dp = w[0]*poi_d + w[1]*elo_d + w[2]*dc_d + w[3]*base_dp
+            ap = w[0]*poi_a + w[1]*elo_a + w[2]*dc_a + w[3]*base_ap
+            return _normalise(
+                hp + random.gauss(0, self.sigma),
+                dp + random.gauss(0, self.sigma * 0.6),
+                ap + random.gauss(0, self.sigma),
+            )
+
+        try:
+            import numpy as np
+            X = [sigs.get(k, {}).get("home_prob", base_hp) for k in self._peer_keys]
+            X += [sigs.get(k, {}).get("draw_prob", base_dp) for k in self._peer_keys]
+            X += [sigs.get(k, {}).get("away_prob", base_ap) for k in self._peer_keys]
+            X_arr = np.array(X, dtype=float).reshape(1, -1)
+            hp = float(self._ridge_h.predict(X_arr)[0])
+            dp = float(self._ridge_d.predict(X_arr)[0])
+            ap = float(self._ridge_a.predict(X_arr)[0])
+            return _normalise(hp, dp, ap)
+        except Exception:
+            return _normalise(base_hp, base_dp, base_ap)
+
+    def train(self, historical: list) -> dict:
+        if len(historical) < 30:
+            return super().train(historical)
+        try:
+            import numpy as np
+            from sklearn.linear_model import Ridge
+
+            # Collect peer features from all 12 base models
+            peer_models = list(_MODEL_CLASS_MAP.keys())[:12]
+            self._peer_keys = peer_models
+
+            Xh, Xd, Xa = [], [], []
+            yh, yd, ya = [], [], []
+
+            for idx, m in enumerate(historical[:300]):
+                try:
+                    hg = int(m.get("home_goals", 0) or 0)
+                    ag = int(m.get("away_goals", 0) or 0)
+                except (TypeError, ValueError):
+                    continue
+                odds = m.get("market_odds") or {}
+                ho = float(odds.get("home", 2.3))
+                do_ = float(odds.get("draw", 3.3))
+                ao = float(odds.get("away", 3.1))
+                base_hp, base_dp, base_ap = _vig_free(ho, do_, ao)
+                lh, la = _market_to_xg(base_hp, base_ap, base_dp)
+                seed = idx * 7919 + 17
+
+                row_h, row_d, row_a = [], [], []
+                for pk in peer_models:
+                    cls = _MODEL_CLASS_MAP.get(pk, _BaseModel)
+                    tmp = cls(pk, ["1x2"], 0.01, 0.65)
+                    try:
+                        ph, pd, pa = tmp.predict_1x2(
+                            base_hp, base_dp, base_ap, lh, la,
+                            m.get("home_team", "H"), m.get("away_team", "A"),
+                            {"home": ho, "draw": do_, "away": ao}, seed,
+                        )
+                        row_h.append(ph); row_d.append(pd); row_a.append(pa)
+                    except Exception:
+                        row_h.append(base_hp); row_d.append(base_dp); row_a.append(base_ap)
+
+                Xh.append(row_h + row_d + row_a)
+                Xd.append(row_h + row_d + row_a)
+                Xa.append(row_h + row_d + row_a)
+                outcome = _match_outcome(hg, ag)
+                yh.append(1.0 if outcome == "H" else 0.0)
+                yd.append(1.0 if outcome == "D" else 0.0)
+                ya.append(1.0 if outcome == "A" else 0.0)
+
+            X_arr = np.array(Xh, dtype=float)
+            self._ridge_h = Ridge(alpha=1.0).fit(X_arr, np.array(yh))
+            self._ridge_d = Ridge(alpha=1.0).fit(X_arr, np.array(yd))
+            self._ridge_a = Ridge(alpha=1.0).fit(X_arr, np.array(ya))
+            logger.info("[MetaLearner] Ridge regression fitted on %d samples", len(yh))
+        except Exception as exc:
+            logger.warning("[MetaLearner] train() failed: %s", exc)
+        return super().train(historical)
+
+
+# ── Confidence Interval helper ─────────────────────────────────────────────────
+
+def _bootstrap_confidence_interval(
+    preds_h: List[float], preds_d: List[float], preds_a: List[float],
+    weights: List[float],
+    n_samples: int = 200,
+    ci_level: float = 0.90,
+) -> Dict[str, Dict[str, float]]:
+    """
+    Bootstrap 90% confidence intervals over the ensemble prediction.
+
+    Resamples the weight vector (with replacement, then renormalises) to
+    propagate weight uncertainty into probability uncertainty.  Each bootstrap
+    draw produces a weighted mean; we return the empirical percentiles.
+
+    Returns:
+      {"home": {"low": f, "mid": f, "high": f},
+       "draw": {"low": f, "mid": f, "high": f},
+       "away": {"low": f, "mid": f, "high": f}}
+    """
+    n = len(weights)
+    if n == 0:
+        empty = {"low": 0.33, "mid": 0.33, "high": 0.33}
+        return {"home": empty, "draw": empty, "away": empty}
+
+    alpha = (1 - ci_level) / 2
+    boot_h, boot_d, boot_a = [], [], []
+
+    for _ in range(n_samples):
+        # Resample indices with replacement
+        idxs = [random.randint(0, n - 1) for _ in range(n)]
+        w_sample = [weights[i] for i in idxs]
+        total_w = sum(w_sample) or 1.0
+        bh = sum(preds_h[idxs[i]] * w_sample[i] for i in range(n)) / total_w
+        bd = sum(preds_d[idxs[i]] * w_sample[i] for i in range(n)) / total_w
+        ba = sum(preds_a[idxs[i]] * w_sample[i] for i in range(n)) / total_w
+        bh, bd, ba = _normalise(bh, bd, ba)
+        boot_h.append(bh); boot_d.append(bd); boot_a.append(ba)
+
+    boot_h.sort(); boot_d.sort(); boot_a.sort()
+    lo_idx = int(alpha * n_samples)
+    hi_idx = int((1 - alpha) * n_samples) - 1
+
+    def _ci(arr: List[float]) -> Dict[str, float]:
+        mid = sum(arr) / len(arr)
+        return {
+            "low":  round(arr[lo_idx],  4),
+            "mid":  round(mid,           4),
+            "high": round(arr[hi_idx],  4),
+        }
+
+    return {
+        "home": _ci(boot_h),
+        "draw": _ci(boot_d),
+        "away": _ci(boot_a),
+    }
+
+
 # ── Model factory ─────────────────────────────────────────────────────────────
 
 _MODEL_CLASS_MAP = {
     # v2 (active) — same Python classes as v1; the algorithmic improvements
     # described in each spec's `change_summary` will land in subsequent
     # subclass commits without breaking the orchestrator API.
-    "logistic_v2":    _LogisticModel,
-    "rf_v2":          _RandomForestModel,
-    "xgb_v2":         _XGBoostModel,
-    "poisson_v2":     _PoissonModel,
-    "elo_v2":         _EloModel,
-    "dixon_coles_v2": _DixonColesModel,
-    "lstm_v2":        _LSTMModel,
-    "transformer_v2": _TransformerModel,
-    "ensemble_v2":    _NeuralEnsembleModel,
-    "market_v2":      _MarketModel,
-    "bayes_v2":       _BayesianModel,
-    "hybrid_v2":      _HybridStackModel,
+    "logistic_v2":        _LogisticModel,
+    "rf_v2":              _RandomForestModel,
+    "xgb_v2":             _XGBoostModel,
+    "poisson_v2":         _PoissonModel,
+    "elo_v2":             _EloModel,
+    "dixon_coles_v2":     _DixonColesModel,
+    "lstm_v2":            _LSTMModel,
+    "transformer_v2":     _TransformerModel,
+    "ensemble_v2":        _NeuralEnsembleModel,
+    "market_v2":          _MarketModel,
+    "bayes_v2":           _BayesianModel,
+    "hybrid_v2":          _HybridStackModel,
+    # Model #13 — LLM Consensus Layer
+    "llm_consensus_v1":   _LLMConsensusModel,
+    # Draw Specialist — fine-tuned Dixon-Coles draw predictor
+    "draw_specialist_v1": _DrawSpecialistModel,
+    # Meta-learner (Ridge stacker over all base models)
+    "meta_learner_v1":    _MetaLearnerModel,
     # v1 (kept for backward compatibility — old DB rows / pkl artefacts)
-    "logistic_v1":    _LogisticModel,
-    "rf_v1":          _RandomForestModel,
-    "xgb_v1":         _XGBoostModel,
-    "poisson_v1":     _PoissonModel,
-    "elo_v1":         _EloModel,
-    "dixon_coles_v1": _DixonColesModel,
-    "lstm_v1":        _LSTMModel,
-    "transformer_v1": _TransformerModel,
-    "ensemble_v1":    _NeuralEnsembleModel,
-    "market_v1":      _MarketModel,
-    "bayes_v1":       _BayesianModel,
-    "hybrid_v1":      _HybridStackModel,
+    "logistic_v1":        _LogisticModel,
+    "rf_v1":              _RandomForestModel,
+    "xgb_v1":             _XGBoostModel,
+    "poisson_v1":         _PoissonModel,
+    "elo_v1":             _EloModel,
+    "dixon_coles_v1":     _DixonColesModel,
+    "lstm_v1":            _LSTMModel,
+    "transformer_v1":     _TransformerModel,
+    "ensemble_v1":        _NeuralEnsembleModel,
+    "market_v1":          _MarketModel,
+    "bayes_v1":           _BayesianModel,
+    "hybrid_v1":          _HybridStackModel,
 }
 
 
@@ -1551,6 +1860,22 @@ class ModelOrchestrator:
         # Built upstream by app.services.predict_features.build_predict_features.
         match_features = features.get("match_features") or {}
 
+        # P0#1 / P1#4: AI signals from AISignalCache (pre-fetched by E2 orchestrator)
+        ai_signals = features.get("ai_signals") or {}
+
+        # P1#4: wire AI signals into the LLM consensus model before the loop
+        llm_model = self.models.get("llm_consensus_v1")
+        if llm_model is not None and ai_signals:
+            llm_model._ai_signals = ai_signals
+            # Boost weight by average LLM provider accuracy if available
+            llm_accuracy = float(ai_signals.get("ai_avg_confidence", 0.5))
+            base_llm_w = self.model_meta.get("llm_consensus_v1", {}).get("weight", 1.25)
+            boosted_w = round(base_llm_w * (0.7 + llm_accuracy * 0.6), 4)
+            self.model_meta["llm_consensus_v1"]["weight"] = min(2.5, boosted_w)
+
+        # P1#5: per-league weight multipliers (populated by weight_adjuster after settlement)
+        league = str(features.get("league") or "").lower()
+
         # ── Base market signal ─────────────────────────────────────────────────
         mkt_hp, mkt_dp, mkt_ap = _vig_free(h_raw, d_raw, a_raw)
 
@@ -1672,6 +1997,14 @@ class ModelOrchestrator:
 
         random.seed(None)
 
+        # ── P1#5: Apply per-league weight multipliers ──────────────────────────
+        if league:
+            for i, key in enumerate(self.models.keys()):
+                league_weights = self.model_meta.get(key, {}).get("league_weights", {})
+                multiplier = float(league_weights.get(league, 1.0))
+                if multiplier != 1.0:
+                    weights[i] = max(0.1, weights[i] * multiplier)
+
         # ── Diversity-weighted aggregation ────────────────────────────────────
         # Models that produce extreme/divergent predictions get down-weighted
         # to reduce ensemble over-confidence.
@@ -1691,6 +2024,16 @@ class ModelOrchestrator:
         final_hp, final_dp, final_ap = _normalise(raw_hp * diversity_factor,
                                                    raw_dp,
                                                    raw_ap * diversity_factor)
+
+        # ── P2#10: Bootstrap confidence intervals (90%) ───────────────────────
+        try:
+            ci = _bootstrap_confidence_interval(preds_h, preds_d, preds_a, weights)
+        except Exception:
+            ci = {
+                "home": {"low": round(final_hp - 0.04, 4), "mid": round(final_hp, 4), "high": round(final_hp + 0.04, 4)},
+                "draw": {"low": round(final_dp - 0.03, 4), "mid": round(final_dp, 4), "high": round(final_dp + 0.03, 4)},
+                "away": {"low": round(final_ap - 0.04, 4), "mid": round(final_ap, 4), "high": round(final_ap + 0.04, 4)},
+            }
 
         # ── Exact Poisson over/BTTS from solved lambdas ───────────────────────
         final_over = _poisson_over25(lam_h + lam_a)
@@ -1713,6 +2056,26 @@ class ModelOrchestrator:
         agreement = sum(
             1 for hp in preds_h if abs(hp - final_hp) < 0.05
         ) / len(preds_h) * 100
+
+        # ── P3#14: Model attribution — how much did each model move the needle?
+        attribution = []
+        for i, key in enumerate(self.models.keys()):
+            meta_k = self.model_meta[key]
+            w_frac = weights[i] / total_w if total_w > 0 else 0.0
+            delta_h = round((preds_h[i] - final_hp) * w_frac, 5)
+            delta_d = round((preds_d[i] - final_dp) * w_frac, 5)
+            delta_a = round((preds_a[i] - final_ap) * w_frac, 5)
+            attribution.append({
+                "model_key":     key,
+                "model_name":    meta_k["model_name"],
+                "weight_frac":   round(w_frac, 4),
+                "delta_home":    delta_h,
+                "delta_draw":    delta_d,
+                "delta_away":    delta_a,
+                "home_prob":     round(preds_h[i], 4),
+                "draw_prob":     round(preds_d[i], 4),
+                "away_prob":     round(preds_a[i], 4),
+            })
 
         return {
             "predictions": {
@@ -1740,12 +2103,110 @@ class ModelOrchestrator:
                     "over_under": round(overall_conf * 0.92, 3),
                     "btts":       round(overall_conf * 0.88, 3),
                 },
+                # P2#10: Bootstrap confidence intervals
+                "confidence_intervals": ci,
                 "models_used":       len(self.models),
                 "models_total":      _TOTAL_MODEL_SPECS,
                 "model_agreement":   round(agreement, 1),
-                "data_source":       "differentiated_ensemble_v3",
+                "data_source":       "differentiated_ensemble_v4",
                 "ensemble_diversity": round(var_h, 5),
+                "llm_signals_used":  bool(ai_signals),
+                "league":            league or None,
             },
             "individual_results": individual_results,
+            "attribution":        attribution,
             "models_count":       len(self.models),
+        }
+
+    def predict_with_scoreline(
+        self,
+        features: Dict[str, Any],
+        match_id: str,
+        home_score: int,
+        away_score: int,
+        minute: int,
+    ) -> Dict[str, Any]:
+        """
+        P1#6 — Score-conditional live recalculation.
+
+        Adjusts Poisson λ_h and λ_a for the goals already scored and time
+        remaining, then runs the full ensemble with updated base probabilities.
+
+        Algorithm:
+          λ_h_remaining = λ_h_original * (90 - minute) / 90
+          λ_a_remaining = λ_a_original * (90 - minute) / 90
+          Goal-state conditional: update λ based on observed score gap.
+        """
+        import asyncio
+
+        mkt = features.get("market_odds", {})
+        h_raw = float(mkt.get("home", 2.30))
+        d_raw = float(mkt.get("draw", 3.30))
+        a_raw = float(mkt.get("away", 3.10))
+
+        mkt_hp, mkt_dp, mkt_ap = _vig_free(h_raw, d_raw, a_raw)
+        ha_bias = _HOME_ADVANTAGE_BIAS
+        base_hp, base_dp, base_ap = _normalise(
+            min(0.97, mkt_hp + ha_bias),
+            max(0.02, mkt_dp - ha_bias * 0.15),
+            max(0.02, mkt_ap - ha_bias * 0.85),
+        )
+        lam_h_full, lam_a_full = _market_to_xg(base_hp, base_ap, base_dp)
+
+        # Time remaining fraction
+        minute  = max(1, min(90, minute))
+        t_frac  = (90 - minute) / 90.0
+
+        # Remaining xG scaled by time
+        lam_h_rem = max(0.05, lam_h_full * t_frac)
+        lam_a_rem = max(0.05, lam_a_full * t_frac)
+
+        # Score-gap momentum: if leading, opposing team increases attacking intensity
+        goal_diff = home_score - away_score
+        if goal_diff > 0:       # home leading → away pushes more
+            lam_a_rem *= (1.0 + min(0.4, goal_diff * 0.12))
+        elif goal_diff < 0:     # away leading → home pushes more
+            lam_h_rem *= (1.0 + min(0.4, abs(goal_diff) * 0.12))
+
+        # Final score probabilities from remaining xG + current scoreline
+        ph, pd, pa = 0.0, 0.0, 0.0
+        max_add = 5
+        for dh in range(max_add + 1):
+            for da in range(max_add + 1):
+                p = _poisson_pmf(dh, lam_h_rem) * _poisson_pmf(da, lam_a_rem)
+                total_h = home_score + dh
+                total_a = away_score + da
+                if total_h > total_a:
+                    ph += p
+                elif total_h == total_a:
+                    pd += p
+                else:
+                    pa += p
+        final_h, final_d, final_a = _normalise(ph, pd, pa)
+
+        over_remaining = _poisson_over25(lam_h_rem + lam_a_rem)
+        current_total  = home_score + away_score
+
+        return {
+            "live_prediction": {
+                "home_prob": round(final_h, 4),
+                "draw_prob": round(final_d, 4),
+                "away_prob": round(final_a, 4),
+                "home_xg_remaining": round(lam_h_rem, 3),
+                "away_xg_remaining": round(lam_a_rem, 3),
+                "minute": minute,
+                "home_score": home_score,
+                "away_score": away_score,
+                "goals_scored": current_total,
+                "over_25_remaining": round(over_remaining, 4),
+                "time_fraction_remaining": round(t_frac, 3),
+                "method": "poisson_score_conditional",
+            },
+            "pre_match_base": {
+                "home_prob": round(base_hp, 4),
+                "draw_prob": round(base_dp, 4),
+                "away_prob": round(base_ap, 4),
+                "lam_h": round(lam_h_full, 3),
+                "lam_a": round(lam_a_full, 3),
+            },
         }

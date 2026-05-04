@@ -68,7 +68,7 @@ class TelegramAlert:
 
     v2.1.0 Changes:
     - send_bet_alert now accepts full probability breakdown
-    - Model count displayed correctly (e.g. "9/12 models")
+    - Model count displayed correctly (e.g. "9/13 models")
     - Edge emoji scales with edge strength
     - Shows all 3 probabilities and all 3 odds
     - Data source badge (Ensemble vs Market)

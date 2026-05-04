@@ -18,7 +18,7 @@ from app.modules.ai.models import ModelMetadata
 
 logger = logging.getLogger(__name__)
 
-# Canonical spec for all 12 models (key → display metadata).
+# Canonical spec for all 13 models (key → display metadata).
 # spec_weight: ensemble contribution per the VIT Network design spec (sums to 1.0)
 # parent_version: the previous-generation key — used so v2 bootstrap can
 #                 deactivate the matching v1 row without deleting it.

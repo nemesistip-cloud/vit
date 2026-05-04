@@ -1,7 +1,7 @@
 # VIT Sports Intelligence Network
 
 ## Overview
-The VIT Sports Intelligence Network is an institutional-grade football prediction platform utilizing a 12-model AI ensemble. It features a VITCoin wallet economy, blockchain-verified staking, a model marketplace, and a governance DAO. The platform offers multi-tier subscriptions, advanced sports analytics, real-time live match tracking, and AI agent intelligence reports. Its core purpose is to deliver reliable sports predictions and foster a decentralized, community-driven ecosystem for sports intelligence.
+The VIT Sports Intelligence Network is an institutional-grade football prediction platform utilizing a 13-model AI ensemble. It features a VITCoin wallet economy, blockchain-verified staking, a model marketplace, and a governance DAO. The platform offers multi-tier subscriptions, advanced sports analytics, real-time live match tracking, and AI agent intelligence reports. Its core purpose is to deliver reliable sports predictions and foster a decentralized, community-driven ecosystem for sports intelligence.
 
 ## User Preferences
 I prefer iterative development with a focus on clear, modular code. Please use functional programming paradigms where appropriate and provide detailed explanations for significant architectural decisions or complex algorithms. Ask before making major changes to the project structure or core functionalities.
@@ -12,7 +12,7 @@ The platform employs a microservices-oriented architecture.
 **Backend:**
 - **Core Technology:** Python 3.11 with FastAPI and SQLAlchemy (async ORM).
 - **Database:** PostgreSQL (production), SQLite (development) with WAL mode.
-- **AI Orchestrator:** Manages a 12-model AI ensemble with dynamic weight adjustment.
+- **AI Orchestrator:** Manages a 13-model AI ensemble with dynamic weight adjustment, per-league weights, bootstrap confidence intervals, and model attribution.
 - **Multi-Provider AI Client:** Cascade fallback (Gemini → Claude → OpenAI → xAI/Grok → Puter) with rate-limit awareness.
 - **Authentication:** JWT and TOTP for 2FA.
 - **Prediction System:** Dynamically determines best bet sides and consensus probabilities.
@@ -23,7 +23,7 @@ The platform employs a microservices-oriented architecture.
 - **VIT DID:** W3C-compliant Decentralized Identities for users and agents with Verifiable Credentials.
 - **VIT Network Node System:** Tracks `NodeActivity` and aggregates `NetworkSnapshot` data.
 - **VIT SCIE (Self-Contained Intelligence Engine):** Provides zero-external-API functionalities like `synthetic_odds` and `get_team_form`.
-- **ML Accountability System:** Tracks performance for 24 models (12 base + 12 v2).
+- **ML Accountability System:** Tracks performance for 26 models (13 base + 13 v2). New APIs: `GET /api/ai-engine/predictions/{id}/breakdown`, `GET /api/ai-engine/backtest/walk-forward`, `GET /api/ai-engine/predictions/{id}/attribution`, `POST /api/ai-engine/predict/live-score`.
 - **Quant Module:** Provides financial analysis endpoints for `summary`, `backtest`, `monte-carlo` simulations, `ev-scanner`, and `strategy-optimizer`.
 - **Smart Contract Engine:** Deterministic rule-based execution engine with built-in handlers for VITToken, Staking, Prediction, Governance, and Treasury contracts.
 - **Treasury System:** Manages 8 treasury pools (e.g., validator_rewards, ecosystem_grants) for deposits, allocations, and grant proposals.

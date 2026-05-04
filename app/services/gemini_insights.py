@@ -47,7 +47,7 @@ def _build_prompt(
 1. TACTICAL: structural advantage, formation matchups
 2. VALUE: does the ML edge justify the bet?
 3. RISK: confidence level and invalidation scenarios
-4. MODEL: key signals from the 12-model ML ensemble
+4. MODEL: key signals from the 13-model ML ensemble
 
 Match: {home_team} vs {away_team} | {league_label}
 ML Ensemble: Home {home_prob*100:.1f}% | Draw {draw_prob*100:.1f}% | Away {away_prob*100:.1f}%

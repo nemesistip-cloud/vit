@@ -5,4 +5,4 @@ from app.config import APP_VERSION
 
 __version__     = APP_VERSION
 __author__      = "VIT Sports Intelligence"
-__description__ = "12-Model Ensemble for Football Prediction with CLV Tracking"
+__description__ = "13-Model Ensemble for Football Prediction with CLV Tracking"

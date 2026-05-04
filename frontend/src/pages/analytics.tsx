@@ -317,7 +317,7 @@ export default function AnalyticsPage() {
             <div className="space-y-4">
               <Card className="bg-card/50 border-muted/50">
                 <CardHeader>
-                  <CardTitle className="font-mono text-sm uppercase">12-Model Ensemble Breakdown</CardTitle>
+                  <CardTitle className="font-mono text-sm uppercase">13-Model Ensemble Breakdown</CardTitle>
                   {models?.data_source && (
                     <p className="text-xs text-muted-foreground font-mono">
                       Source: {models.data_source === "estimated" ? "estimated from prediction metadata" : "model insights"}

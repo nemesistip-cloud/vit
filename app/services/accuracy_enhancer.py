@@ -1,4 +1,4 @@
-"""Accuracy enhancement utilities for the 12-model ensemble.
+"""Accuracy enhancement utilities for the 13-model ensemble.
 
 Three improvements that measurably tighten the ensemble's calibration:
 
@@ -106,7 +106,7 @@ async def rolling_window_accuracy(db, window: int = 50) -> list[RollingMetrics]:
         .join(Match, Match.external_id == AIPredictionAudit.match_id, isouter=True)
         .where(Match.actual_outcome.isnot(None))
         .order_by(desc(AIPredictionAudit.created_at))
-        .limit(window * 50)             # pull enough to cover all 12 models × window
+        .limit(window * 50)             # pull enough to cover all 13 models × window
     )).all()
 
     bucket: dict[str, list[tuple[float, float, float, str]]] = {}

@@ -87,7 +87,7 @@ For each model above:
 - **Excellent**: accuracy ≥ 58%, Sharpe ratio ≥ 0.5
 
 ## Context
-This dataset will train the VIT 12-model ensemble for football match outcome prediction.
+This dataset will train the VIT 13-model ensemble for football match outcome prediction.
 The ensemble uses weighted aggregation where better models receive higher weights.
 Models that consistently underperform are automatically down-weighted by the accountability loop.
 Focus on calibration (well-calibrated probabilities) over raw accuracy — a model that says 60%

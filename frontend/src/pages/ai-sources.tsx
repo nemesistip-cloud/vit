@@ -60,6 +60,8 @@ import {
   Settings,
 } from "lucide-react";
 
+import { EnsembleLeaderboard } from "@/components/EnsembleLeaderboard";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AISourceMatch {
@@ -1264,6 +1266,9 @@ export default function AISourcesPage() {
 
         {/* ── AI Performance Stats ─────────────────────────────── */}
         <PerformanceStatsPanel />
+
+        {/* ── P3#15: Ensemble Model Leaderboard ───────────────── */}
+        <EnsembleLeaderboard />
 
         {/* ── Manual Upload (collapsed by default) ───────────── */}
         <ManualUploadForm matches={matches} />

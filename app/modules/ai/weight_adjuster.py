@@ -301,6 +301,57 @@ async def adjust_weights_for_match(
             "clv_score":     reg_row.clv_score,
         })
 
+    # ── P1#5: Update per-league accuracy in ModelMetadata ────────────────────
+    # Fetch the league for this match and store per-league accuracy stats
+    # in the `league_accuracy` JSON column of each updated ModelMetadata row.
+    # The orchestrator reads league_weights → multiplier at predict-time.
+    try:
+        from app.db.models import Match as MatchModel
+        try:
+            match_pk = int(match_id)
+        except (TypeError, ValueError):
+            match_pk = None
+        match_league: str = ""
+        if match_pk is not None:
+            m_res = await db.execute(
+                select(MatchModel.league).where(MatchModel.id == match_pk)
+            )
+            match_league = (m_res.scalar_one_or_none() or "").lower().strip()
+
+        if match_league:
+            for adj in adjustments:
+                model_key  = adj.get("model_key", "")
+                is_correct = bool(adj.get("correct", False))
+                for row in updated_reg_rows:
+                    if row.key != model_key:
+                        continue
+                    lg_acc = dict(row.league_accuracy or {}) if row.league_accuracy else {}
+                    entry  = lg_acc.get(match_league, {"n": 0, "correct": 0, "acc": 0.0})
+                    entry["n"]       = entry.get("n", 0) + 1
+                    entry["correct"] = entry.get("correct", 0) + (1 if is_correct else 0)
+                    n_l = max(1, entry["n"])
+                    entry["acc"]    = round(entry["correct"] / n_l, 4)
+                    lg_acc[match_league] = entry
+                    row.league_accuracy = lg_acc
+
+                    # Push per-league multiplier to live orchestrator
+                    # multiplier = league_accuracy / overall_accuracy (clamped 0.5–2.0)
+                    from app.core.dependencies import get_orchestrator
+                    orch = get_orchestrator()
+                    if orch and model_key in orch.model_meta:
+                        overall_acc = float(row.accuracy_1x2 or 0.50)
+                        league_acc  = float(entry["acc"])
+                        multiplier  = round(
+                            max(0.5, min(2.0, league_acc / max(overall_acc, 0.01))), 4
+                        )
+                        meta = orch.model_meta[model_key]
+                        lw   = dict(meta.get("league_weights") or {})
+                        lw[match_league] = multiplier
+                        meta["league_weights"] = lw
+                    break
+    except Exception as _lg_e:
+        logger.debug("[weight_adjuster] per-league update failed: %s", _lg_e)
+
     # ── Post-update ensemble normalization ───────────────────────────────────
     # Scale all updated weights so their mean = 1.0.
     # This keeps the ensemble balanced: no runaway drift regardless of streak.

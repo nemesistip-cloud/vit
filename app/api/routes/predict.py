@@ -90,7 +90,7 @@ def compute_model_consensus(
     models and models with all-zero probs are excluded from voting. We report
     the agreed side, the agreement %, the per-side vote distribution, and the
     average winning-side probability across the agreeing models — useful for
-    "10/12 models agree on HOME at 61% avg" style UI copy.
+    "10/13 models agree on HOME at 61% avg" style UI copy.
     """
     voted = []
     for p in insights or []:
@@ -950,7 +950,7 @@ async def get_match_insights(
                 f"Detected edge: {edge_val * 100:.2f}% above market implied probability",
                 f"Over 2.5 goals probability: {over25 * 100:.1f}%",
                 f"BTTS probability: {btts * 100:.1f}%",
-                "Based on 12-model differentiated statistical ensemble",
+                "Based on 13-model differentiated statistical ensemble",
             ],
             "recommendation": f"Back {side_label} — {edge_val * 100:.2f}% edge detected at {float(pred.entry_odds or 2.0):.2f}",
             "confidence": conf,

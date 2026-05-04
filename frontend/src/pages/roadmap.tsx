@@ -64,7 +64,7 @@ const PHASES: RoadmapPhase[] = [
     techStack: ["FastAPI", "PostgreSQL", "React/Vite", "Redis", "Python ML", "WebSockets"],
     architectureNote: "Full-stack AI platform running 12 autonomous prediction models. All core infrastructure is live and production-ready.",
     items: [
-      { label: "12-model AI orchestrator (Gemini · Claude · OpenAI · Grok + 8 custom)", status: "done",  icon: Brain },
+      { label: "13-model AI orchestrator (Gemini · Claude · OpenAI · Grok + 8 custom)", status: "done",  icon: Brain },
       { label: "Real-time WebSocket predictions with JWT authentication",               status: "done",  icon: Activity },
       { label: "JWT auth system with 2FA (TOTP), email verification, role-based access", status: "done", icon: Shield },
       { label: "Redis sliding-window rate limiting (per-user + global)",                status: "done",  icon: Zap },

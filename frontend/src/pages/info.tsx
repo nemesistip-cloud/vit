@@ -9,7 +9,7 @@ const content: Record<string, { title: string; subtitle: string; sections: { hea
     subtitle: "A sports intelligence platform combining ML predictions, analyst training, VITCoin incentives, and transparent marketplace economics.",
     sections: [
       { heading: "Mission", body: "VIT helps sports analysts, developers, and validators collaborate around measurable prediction intelligence instead of opaque tips or unverifiable claims." },
-      { heading: "Platform", body: "The network includes a 12-model prediction ensemble, analyst training workflows, marketplace listings, wallet rewards, governance, and safety controls." },
+      { heading: "Platform", body: "The network includes a 13-model prediction ensemble, analyst training workflows, marketplace listings, wallet rewards, governance, and safety controls." },
       { heading: "Marketplace", body: "Developers can submit model packages for review, and approved models can earn VITCoin when used or trained through supported platform flows." },
     ],
   },

@@ -312,7 +312,7 @@ async def get_model_contribution(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Breakdown of how much each of the 12 models contributed to predictions.
+    Breakdown of how much each of the 13 models contributed to predictions.
     Shows participation rate, avg confidence, and accuracy where available.
     """
     q = (
