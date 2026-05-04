@@ -917,6 +917,68 @@ async def admin_reject_kyc_by_uid(
     return await admin_reject_kyc(user_id, body=body, db=db, current_user=current_user)
 
 
+@router.get("/vitcoin-price/history")
+async def get_vitcoin_price_history(
+    days: int = Query(7, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return VITCoin price history for the last N days (for sparkline charts)."""
+    from datetime import timezone as _tz
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    result = await db.execute(
+        select(VITCoinPriceHistory)
+        .where(VITCoinPriceHistory.calculated_at >= cutoff)
+        .order_by(VITCoinPriceHistory.calculated_at.asc())
+    )
+    rows = result.scalars().all()
+    return {
+        "history": [
+            {
+                "price_usd": float(r.price_usd),
+                "calculated_at": r.calculated_at.isoformat(),
+            }
+            for r in rows
+        ],
+        "days": days,
+    }
+
+
+@router.get("/withdrawals")
+async def list_withdrawals(
+    limit: int = Query(20, ge=1, le=100),
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List the current user's withdrawal requests, newest first."""
+    result = await db.execute(
+        select(WithdrawalRequest)
+        .where(WithdrawalRequest.user_id == current_user.id)
+        .order_by(WithdrawalRequest.requested_at.desc())
+        .limit(limit)
+    )
+    withdrawals = result.scalars().all()
+    return {
+        "withdrawals": [
+            {
+                "id": str(w.id),
+                "currency": w.currency,
+                "amount": float(w.amount),
+                "fee": float(w.fee_amount),
+                "net_amount": float(w.net_amount),
+                "destination": w.destination,
+                "destination_type": w.destination_type,
+                "status": w.status,
+                "auto_approved": w.auto_approved,
+                "review_note": w.review_note,
+                "requested_at": w.requested_at.isoformat(),
+                "processed_at": w.processed_at.isoformat() if w.processed_at else None,
+            }
+            for w in withdrawals
+        ],
+        "total": len(withdrawals),
+    }
+
+
 @router.get("/vitcoin-price")
 async def get_vitcoin_price(db: AsyncSession = Depends(get_db)):
     """Get current VITCoin price."""
