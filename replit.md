@@ -77,4 +77,25 @@ The platform employs a microservices-oriented architecture.
 ### Key Technical Notes
 - SQLAlchemy boolean aggregation in PostgreSQL must use `case((col == True, 1.0), else_=0.0)` inside `func.sum()` — `func.cast(bool_expr, Float)` is rejected by asyncpg with `CannotCoerceError`.
 - `BankrollState` is auto-created with a 10,000 unit initial balance if no row exists.
+
+## Phase 4 — v5.0.0 Bug-Fix & Hardening (Blocks A–F)
+
+### Completed Components
+- **A-1 Settlement fallback:** `auto_settle_loop` unconditional; `settle_results()` falls back to `_fetch_finished_from_sportsdb()` when Football-Data.org returns empty.
+- **A-2 Wallet rates:** Spurious `else` removed from `_get_rates_to_usd()`; default rates returned only inside `except`.
+- **A-3 AI key guards:** All 4 AI providers (Gemini, Claude, OpenAI, Grok) pre-check `len(api_key) < 20` before any HTTP call, logging a debug warning on short keys.
+- **A-4 AI feed auth:** `/api/ai-feed/*` routes use `get_optional_user` per-endpoint dep (JWT compatible), replacing the API-key-only `verify_api_key` router dep.
+- **A-6 Performance monitor bootstrap guard:** Skips drift detection when fewer than 5 model metric rows exist; logs an advisory. Returns `bootstrap_mode: true` in the result.
+- **A-7 Task completion hooks:** Prediction route fires `TaskService.update_task_progress` for tasks 2 (First Prediction), 4 (Daily Predictions), 5 (Weekly Streaker) after every successful prediction.
+- **B-1 TheSportsDB fixture sync:** `backfill_historical_matches()` (startup, guarded to `< 100 rows`) + `sync_upcoming_fixtures()` (6-hour background loop) added to `sportsdb_api.py` and wired into `main.py`.
+- **C-1 Prediction rate limiting:** `check_prediction_limit()` and `record_prediction()` in `app/core/rate_limit.py`; predict route enforces `MAX_PREDICTIONS_PER_DAY` (default 20) for authenticated users, returning HTTP 429 on breach.
+- **C-5 Enhanced `/health` endpoint:** Returns `version`, `agents` (total/running/stopped), `data` (matches/settled_predictions/clv_entries), and `ai_providers` (per-provider status string).
+- **C-7 Calibration notes:** Predict route computes `calibration_note` from confidence + model agreement + edge and returns it in `PredictionResponse`.
+- **Config:** `APP_VERSION=5.0.0`; `RESEND_API_KEY`, `THESPORTSDB_API_KEY`, `MAX_PREDICTIONS_PER_DAY`, `BOOTSTRAP_MATCH_MONTHS` added to `app/config.py` and `.env.example`.
+- **Schemas:** `PredictionResponse.calibration_note` + `HealthResponse` fields (`version`, `agents`, `data`, `ai_providers`) added to `app/schemas/schemas.py`.
+
+### Key Technical Notes (v5.0.0)
+- Rate limiter is in-memory (resets on restart). For production persistence, back `_pred_counts` with Redis.
+- B-1 backfill guard uses `< 100` rows so it runs on fresh deploys but skips existing installs.
+- `sync_upcoming_fixtures` fingerprint format: `YYYY-MM-DD::home::away::league` — consistent with `sportsdb_api.py` historical sync.
 - All Phase 3 routes are registered at the bottom of `main.py` (lines 1871–1874).

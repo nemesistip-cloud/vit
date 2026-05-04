@@ -93,6 +93,9 @@ class PredictionResponse(BaseModel):
     # had to degrade. Every flag here corresponds to a logged WARNING.
     data_quality: Optional[Dict[str, Any]] = None
 
+    # v5.0.0 — calibration advisory note surfaced to the user
+    calibration_note: Optional[str] = None
+
 
 class CLVResponse(BaseModel):
     match_id: int
@@ -115,9 +118,13 @@ class EdgeResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+    version: str = "5.0.0"
     models_loaded: int
     db_connected: bool
     clv_tracking_enabled: bool
+    agents: Optional[Dict[str, Any]] = None
+    data: Optional[Dict[str, Any]] = None
+    ai_providers: Optional[Dict[str, str]] = None
 
 
 class HistoryResponse(BaseModel):

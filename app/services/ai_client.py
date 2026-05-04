@@ -130,7 +130,12 @@ def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
 
 async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key or not _provider_available("gemini"):
+    if not api_key:
+        return None
+    if len(api_key) < 20:
+        logger.debug("[ai-client] gemini: key too short — skipping (configure a real key to enable)")
+        return None
+    if not _provider_available("gemini"):
         return None
 
     base = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -167,7 +172,12 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
 
 async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("CLAUDE_API_KEY", "").strip()
-    if not api_key or len(api_key) < 10 or not _provider_available("claude"):
+    if not api_key:
+        return None
+    if len(api_key) < 20:
+        logger.debug("[ai-client] claude: key too short — skipping (configure a real key to enable)")
+        return None
+    if not _provider_available("claude"):
         return None
 
     url = "https://api.anthropic.com/v1/messages"
@@ -214,7 +224,12 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
 
 async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key or not _provider_available("openai"):
+    if not api_key:
+        return None
+    if len(api_key) < 20:
+        logger.debug("[ai-client] openai: key too short — skipping (configure a real key to enable)")
+        return None
+    if not _provider_available("openai"):
         return None
 
     url = "https://api.openai.com/v1/chat/completions"
@@ -255,7 +270,12 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
 
 async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("XAI_API_KEY", "").strip()
-    if not api_key or len(api_key) < 10 or not _provider_available("grok"):
+    if not api_key:
+        return None
+    if len(api_key) < 20:
+        logger.debug("[ai-client] grok: key too short — skipping (configure a real key to enable)")
+        return None
+    if not _provider_available("grok"):
         return None
 
     url = "https://api.x.ai/v1/chat/completions"

@@ -254,32 +254,32 @@ class BackgroundTaskSupervisor:
 async def auto_settle_loop():
     await asyncio.sleep(60)
     while True:
-        if os.getenv("FOOTBALL_DATA_API_KEY"):
-            try:
-                from app.db.database import AsyncSessionLocal
-                from app.modules.ai.weight_adjuster import adjust_weights_for_match
-                # Use days_back=7 to catch any backlog of unsettled matches
-                settlement_result = await settle_results(days_back=7)
-                if settlement_result.get("settled", 0) > 0 or settlement_result.get("errors", 0) > 0:
-                    print(f"[settlement] {settlement_result.get('message')} | errors={settlement_result.get('errors',0)}")
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.ai.weight_adjuster import adjust_weights_for_match
+            # Use days_back=7 to catch any backlog of unsettled matches.
+            # settle_results() tries Football-Data.org first; falls back to TheSportsDB automatically.
+            settlement_result = await settle_results(days_back=7)
+            if settlement_result.get("settled", 0) > 0 or settlement_result.get("errors", 0) > 0:
+                print(f"[settlement] {settlement_result.get('message')} | errors={settlement_result.get('errors',0)}")
 
-                # E3 — weight adjustment for each newly settled match
-                if isinstance(settlement_result, dict):
-                    settled_matches = settlement_result.get("details", settlement_result.get("matches", []))
-                elif isinstance(settlement_result, list):
-                    settled_matches = settlement_result
-                else:
-                    settled_matches = []
-                if settled_matches:
-                    orch = get_orchestrator()
-                    async with AsyncSessionLocal() as db:
-                        for match_info in settled_matches:
-                            mid = str(match_info.get("match_id", ""))
-                            outcome = match_info.get("outcome")
-                            if mid and outcome:
-                                await adjust_weights_for_match(db, orch, mid, outcome)
-            except Exception as e:
-                print(f"[settlement] ERROR: {e}")
+            # E3 — weight adjustment for each newly settled match
+            if isinstance(settlement_result, dict):
+                settled_matches = settlement_result.get("details", settlement_result.get("matches", []))
+            elif isinstance(settlement_result, list):
+                settled_matches = settlement_result
+            else:
+                settled_matches = []
+            if settled_matches:
+                orch = get_orchestrator()
+                async with AsyncSessionLocal() as db:
+                    for match_info in settled_matches:
+                        mid = str(match_info.get("match_id", ""))
+                        outcome = match_info.get("outcome")
+                        if mid and outcome:
+                            await adjust_weights_for_match(db, orch, mid, outcome)
+        except Exception as e:
+            print(f"[settlement] ERROR: {e}")
         await asyncio.sleep(_SETTLEMENT_INTERVAL_HOURS * 3600)
 
 
@@ -1488,13 +1488,20 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  CLV backfill failed: {_e}")
 
-    # Phase 3a — HISTORICAL MATCH BACKFILL (90 days, TheSportsDB free API)
+    # Phase 3a / B-1 — HISTORICAL MATCH BACKFILL (TheSportsDB free API)
+    # Guard: only run if matches table has < 100 rows (avoid re-running on every restart)
     try:
         from app.db.database import AsyncSessionLocal
-        from app.services.sportsdb_api import sync_and_insert_historical
+        from app.services.sportsdb_api import backfill_historical_matches
         async with AsyncSessionLocal() as _db:
-            _hist = await sync_and_insert_historical(_db, days_back=90)
-            print(f"✅ Historical backfill: {_hist['inserted']} inserted, {_hist['updated']} updated, {_hist['skipped']} skipped ({_hist['total_fetched']} fetched)")
+            from sqlalchemy import func as _bf_func, select as _bf_select
+            from app.db.models import Match as _BFMatch
+            _bf_count = (await _db.execute(_bf_select(_bf_func.count()).select_from(_BFMatch))).scalar() or 0
+            if _bf_count < 100:
+                _hist = await backfill_historical_matches(_db, months=int(get_env("BOOTSTRAP_MATCH_MONTHS", "12")))
+                print(f"✅ Historical backfill: {_hist['inserted']} inserted, {_hist['updated']} updated, {_hist['skipped']} skipped ({_hist['total_fetched']} fetched)")
+            else:
+                print(f"✅ Historical backfill: skipped — already have {_bf_count} fixtures in DB")
     except Exception as _e:
         print(f"⚠️  Historical match backfill skipped: {_e}")
 
@@ -1529,6 +1536,21 @@ async def lifespan(app: FastAPI):
     supervisor.start()
     app.state.background_supervisor = supervisor
 
+    async def sync_upcoming_loop():
+        """B-1: Refresh upcoming fixtures from TheSportsDB every 6 hours."""
+        await asyncio.sleep(300)  # initial delay — let DB settle first
+        while True:
+            try:
+                from app.db.database import AsyncSessionLocal
+                from app.services.sportsdb_api import sync_upcoming_fixtures
+                async with AsyncSessionLocal() as _db:
+                    _res = await sync_upcoming_fixtures(_db, days_ahead=14)
+                    if _res["inserted"] > 0:
+                        print(f"[fixture-sync] {_res['inserted']} new upcoming fixtures added from TheSportsDB")
+            except Exception as _se:
+                print(f"[fixture-sync] ERROR: {_se}")
+            await asyncio.sleep(6 * 3600)
+
     from app.services.exchange_rate import start_rate_refresh_loop
     tasks = [
         asyncio.create_task(auto_settle_loop(), name="auto-settle"),
@@ -1537,6 +1559,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(vitcoin_pricing_loop(), name="vitcoin-pricing"),
         asyncio.create_task(subscription_expiry_loop(), name="subscription-expiry"),
         asyncio.create_task(start_rate_refresh_loop(), name="exchange-rate-oracle"),
+        asyncio.create_task(sync_upcoming_loop(), name="fixture-sync"),
     ]
 
     # ── Autonomous performance agents ─────────────────────────────────────
@@ -2029,17 +2052,84 @@ async def health(db: AsyncSession = Depends(get_db)):
     db_ok = True
     try:
         await db.execute(text("SELECT 1"))
-    except:
+    except Exception:
         db_ok = False
 
     orch = get_orchestrator()
     models = orch.num_models_ready() if orch else 0
 
+    # C-5 — agent status snapshot
+    agents_info: dict = {}
+    try:
+        coordinator = getattr(app.state, "agent_coordinator", None)
+        supervisor = getattr(app.state, "background_supervisor", None)
+        agent_names = []
+        running_count = 0
+        if coordinator:
+            snap = coordinator.status() if hasattr(coordinator, "status") else {}
+            for name, info in snap.items():
+                agent_names.append(name)
+                if info.get("running"):
+                    running_count += 1
+        if supervisor:
+            sup_snap = supervisor.snapshot() if hasattr(supervisor, "snapshot") else {}
+            for name, info in sup_snap.items():
+                if name not in agent_names:
+                    agent_names.append(name)
+                if info.get("running"):
+                    running_count += 1
+        total = len(agent_names)
+        stopped = total - running_count
+        stopped_names = []
+        if coordinator:
+            snap = coordinator.status() if hasattr(coordinator, "status") else {}
+            for n, info in snap.items():
+                if not info.get("running"):
+                    stopped_names.append(n)
+        agents_info = {
+            "total": total,
+            "running": running_count,
+            "stopped": stopped,
+            "stopped_names": stopped_names,
+        }
+    except Exception:
+        pass
+
+    # C-5 — data snapshot
+    data_info: dict = {}
+    try:
+        from app.db.models import Match as _HMatch, Prediction as _HPred, CLVEntry as _HCLV
+        _m_count = (await db.execute(select(func.count(_HMatch.id)))).scalar() or 0
+        _p_count = (await db.execute(
+            select(func.count(_HPred.id)).where(_HPred.was_correct.is_not(None))
+        )).scalar() or 0
+        _c_count = (await db.execute(select(func.count(_HCLV.id)))).scalar() or 0
+        data_info = {
+            "matches": _m_count,
+            "settled_predictions": _p_count,
+            "clv_entries": _c_count,
+        }
+    except Exception:
+        pass
+
+    # C-5 — AI provider status
+    ai_providers: dict = {}
+    try:
+        from app.services.ai_client import provider_status as _ps
+        for name, info in _ps().items():
+            ai_providers[name] = info.get("status", "unknown")
+    except Exception:
+        pass
+
     return HealthResponse(
         status="ok" if db_ok and models > 0 else "degraded",
+        version=APP_VERSION,
         models_loaded=models,
         db_connected=db_ok,
         clv_tracking_enabled=True,
+        agents=agents_info or None,
+        data=data_info or None,
+        ai_providers=ai_providers or None,
     )
 
 

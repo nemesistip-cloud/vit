@@ -40,7 +40,7 @@ def _get_secure_secret_key() -> str:
 
 
 # ── Application version (single source of truth) ──────────────────────
-APP_VERSION: str = "4.7.5"
+APP_VERSION: str = "5.0.0"
 
 # ── Prediction / bankroll constants (override via env vars) ────────────
 MAX_STAKE: float          = float(get_env("MAX_STAKE",           "0.05"))
@@ -66,22 +66,30 @@ CLAUDE_API_KEY: str        = get_env("CLAUDE_API_KEY",        "")
 GEMINI_API_KEY: str        = get_env("GEMINI_API_KEY",        "")
 OPENAI_API_KEY: str        = get_env("OPENAI_API_KEY",        "")
 REDIS_URL: str             = get_env("REDIS_URL",             "")
+RESEND_API_KEY: str        = get_env("RESEND_API_KEY",        "")
+THESPORTSDB_API_KEY: str   = get_env("THESPORTSDB_API_KEY",   "3")
+MAX_PREDICTIONS_PER_DAY: int = int(get_env("MAX_PREDICTIONS_PER_DAY", "20"))
 
 
 def print_config_status() -> None:
     """Print a concise config status banner on startup."""
     jwt_from_env = bool(get_env("JWT_SECRET_KEY") or get_env("SECRET_KEY"))
+    football_key = FOOTBALL_DATA_API_KEY
+    settle_mode  = "Football-Data.org (live)" if football_key else "TheSportsDB (live, free)"
 
     print(f"\n{'='*55}")
     print(f"  VIT Sports Intelligence Network v{APP_VERSION}")
     print(f"{'='*55}")
     print(f"  {'✅' if jwt_from_env else '⚠️ '} JWT/Secret Key:     {'Configured (Replit Secret)' if jwt_from_env else 'EPHEMERAL DEV KEY — add JWT_SECRET_KEY'}")
     print(f"  {'✅' if get_env('DATABASE_URL') else '✅'} Database:           Configured")
-    print(f"  {'✅' if FOOTBALL_DATA_API_KEY else '❌'} Football API:       {'Configured' if FOOTBALL_DATA_API_KEY else 'Missing (live data disabled)'}")
+    print(f"  {'✅' if football_key else '❌'} Football API:       {'Configured' if football_key else 'Missing (live data disabled)'}")
     print(f"  {'✅' if THE_ODDS_API_KEY else '❌'} Odds API:           {'Configured' if THE_ODDS_API_KEY else 'Missing (odds disabled)'}")
     print(f"  {'✅' if PAYSTACK_SECRET_KEY else '❌'} Paystack:           {'Configured' if PAYSTACK_SECRET_KEY else 'Missing (NGN payments disabled)'}")
     print(f"  {'✅' if STRIPE_SECRET_KEY else '❌'} Stripe:             {'Configured' if STRIPE_SECRET_KEY else 'Missing (USD payments disabled)'}")
     print(f"  {'✅' if CLAUDE_API_KEY else '❌'} Claude AI:          {'Configured' if CLAUDE_API_KEY else 'Missing (AI insights disabled)'}")
     print(f"  {'✅' if GEMINI_API_KEY else '❌'} Gemini AI:          {'Configured' if GEMINI_API_KEY else 'Missing (AI insights disabled)'}")
+    print(f"  {'✅' if RESEND_API_KEY else '❌'} Resend Email:       {'Configured' if RESEND_API_KEY else 'Missing (email disabled)'}")
+    print(f"  ✅ TheSportsDB:       Always available (free key)")
+    print(f"  ✅ Settlement mode:   {settle_mode}")
     print(f"  {'✅' if REDIS_URL else '⚠️ '} Redis:              {'Configured' if REDIS_URL else 'Missing (in-memory rate limiting only)'}")
     print(f"{'='*55}\n")

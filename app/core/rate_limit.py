@@ -84,3 +84,51 @@ def record_login_failure(email: str | None, ip: str | None = None):
 def clear_login_failures(email: str | None):
     if email:
         _store.clear(email.lower())
+
+
+# ── Per-user prediction rate limiter ─────────────────────────────────────────
+# Tracks daily prediction counts per user_id (in-memory; resets on restart).
+# Key: user_id → {"date": "YYYY-MM-DD", "count": int}
+
+import threading
+from datetime import date as _date
+
+_pred_lock = threading.Lock()
+_pred_counts: dict[int, dict] = {}
+
+
+def _pred_today() -> str:
+    return _date.today().isoformat()
+
+
+def check_prediction_limit(user_id: int, limit: int) -> tuple[bool, int, str]:
+    """
+    Returns (allowed, current_count, resets_at_utc_iso).
+    If user_id is None, always allows (unauthenticated).
+    """
+    if user_id is None:
+        return True, 0, ""
+
+    from datetime import datetime, timezone, timedelta
+    today = _pred_today()
+    tomorrow = (_date.today() + timedelta(days=1)).isoformat() + "T00:00:00Z"
+
+    with _pred_lock:
+        rec = _pred_counts.get(user_id)
+        if rec is None or rec["date"] != today:
+            _pred_counts[user_id] = {"date": today, "count": 0}
+            rec = _pred_counts[user_id]
+        return rec["count"] < limit, rec["count"], tomorrow
+
+
+def record_prediction(user_id: int) -> int:
+    """Increment and return the new daily count for user_id."""
+    if user_id is None:
+        return 0
+    today = _pred_today()
+    with _pred_lock:
+        rec = _pred_counts.get(user_id)
+        if rec is None or rec["date"] != today:
+            _pred_counts[user_id] = {"date": today, "count": 0}
+        _pred_counts[user_id]["count"] += 1
+        return _pred_counts[user_id]["count"]

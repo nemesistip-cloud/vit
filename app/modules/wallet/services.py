@@ -88,12 +88,7 @@ class WalletService:
                 "admin → Currency to silence this warning.",
                 _e,
             )
-        else:
-            logger.warning(
-                "EXCHANGE_RATE_FALLBACK PlatformConfig 'exchange_rates_usd' is "
-                "missing or malformed — using class-level defaults"
-            )
-        return dict(self._DEFAULT_RATES_TO_USD)
+            return dict(self._DEFAULT_RATES_TO_USD)
 
     async def get_exchange_rate(self, from_currency: "Currency", to_currency: "Currency") -> Decimal:
         """Return the exchange rate: how many to_currency units you get per 1 from_currency."""

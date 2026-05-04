@@ -252,6 +252,82 @@ async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
     return all_events
 
 
+async def backfill_historical_matches(db, months: int = 12) -> Dict:
+    """
+    Fetch last N months of results from TheSportsDB for all tracked leagues.
+    Insert as Match rows with source='sportsdb'. Skip duplicates via fingerprint.
+    Set actual_outcome for completed matches.
+    Returns {inserted, updated, skipped, total_fetched}.
+    """
+    days_back = months * 30
+    return await sync_and_insert_historical(db, days_back=days_back)
+
+
+async def sync_upcoming_fixtures(db, days_ahead: int = 14) -> Dict:
+    """
+    Fetch next N days of fixtures from TheSportsDB and upsert as Match rows
+    with status='upcoming'. Returns {inserted, updated, skipped}.
+    """
+    from sqlalchemy import select
+    from app.db.models import Match
+
+    events = await fetch_upcoming_range(days=days_ahead)
+    inserted = 0
+    updated = 0
+    skipped = 0
+
+    for ev in events:
+        home = ev["home_team"]
+        away = ev["away_team"]
+        kickoff = ev.get("kickoff_time")
+        ext_id = ev.get("external_id") or None
+        league = ev.get("league", "unknown")
+
+        if not kickoff:
+            skipped += 1
+            continue
+
+        ko_naive = kickoff.replace(tzinfo=None) if kickoff and kickoff.tzinfo else kickoff
+        date_str = ko_naive.strftime("%Y-%m-%d") if ko_naive else "unknown"
+        fingerprint = f"{date_str}::{home.lower()}::{away.lower()}::{league}"
+
+        try:
+            existing = None
+            if ext_id:
+                res = await db.execute(select(Match).where(Match.external_id == ext_id))
+                existing = res.scalar_one_or_none()
+            if not existing:
+                res = await db.execute(select(Match).where(Match.fingerprint == fingerprint))
+                existing = res.scalar_one_or_none()
+
+            if existing:
+                skipped += 1
+            else:
+                match = Match(
+                    external_id=ext_id,
+                    home_team=home,
+                    away_team=away,
+                    league=league,
+                    kickoff_time=ko_naive,
+                    status="upcoming",
+                    source="sportsdb",
+                    fingerprint=fingerprint,
+                )
+                db.add(match)
+                await db.commit()
+                inserted += 1
+        except Exception as exc:
+            logger.debug("[sportsdb] sync_upcoming insert error for %s vs %s: %s", home, away, exc)
+            await db.rollback()
+            skipped += 1
+
+    logger.info(
+        "[sportsdb] sync_upcoming_fixtures done: inserted=%d updated=%d skipped=%d total=%d",
+        inserted, updated, skipped, len(events),
+    )
+    return {"inserted": inserted, "updated": updated, "skipped": skipped, "total_fetched": len(events)}
+
+
 async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
     """
     Fetch historical matches from TheSportsDB and upsert them into the DB.

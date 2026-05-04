@@ -3,19 +3,19 @@
 
 import logging
 from fastapi import APIRouter, Depends
-from app.api.middleware.auth import verify_api_key
+from app.api.deps import get_optional_user
 from app.schemas.schemas import MatchRequest
 from app.services.live_ai_feed import LiveAIFeedService, AISource
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/ai-feed", tags=["AI Feed"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(prefix="/ai-feed", tags=["AI Feed"])
 
 ai_feed_service = LiveAIFeedService()
 
 
 @router.post("/predictions")
-async def get_ai_predictions(match: MatchRequest):
+async def get_ai_predictions(match: MatchRequest, current_user=Depends(get_optional_user)):
     """Get live AI predictions from all available free sources."""
     match_data = {
         "match_id": f"{match.home_team}_vs_{match.away_team}",
@@ -36,7 +36,7 @@ async def get_ai_predictions(match: MatchRequest):
 
 
 @router.post("/consensus")
-async def get_ai_consensus(match: MatchRequest):
+async def get_ai_consensus(match: MatchRequest, current_user=Depends(get_optional_user)):
     """Get AI consensus and compare with market odds."""
     match_data = {
         "match_id": f"{match.home_team}_vs_{match.away_team}",

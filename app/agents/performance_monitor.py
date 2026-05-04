@@ -51,6 +51,13 @@ class PerformanceMonitorAgent(BaseAgent):
             # ── 1. Rolling accuracy per model ─────────────────────────
             try:
                 rolling = await rolling_window_accuracy(db, window=50)
+                if len(rolling) < 5:
+                    logger.info(
+                        "[performance-monitor] bootstrap: only %d model metric rows — "
+                        "DB needs more settled predictions before accuracy tracking is meaningful. "
+                        "Skipping drift detection for this cycle.",
+                        len(rolling),
+                    )
                 for m in rolling:
                     entry = {
                         "model_key":    m.model_key,
@@ -67,6 +74,19 @@ class PerformanceMonitorAgent(BaseAgent):
                 logger.warning("[performance-monitor] rolling_window_accuracy error: %s", e)
 
             # ── 2. Drift detection via AIProfilerService ───────────────
+            # Skip drift detection when there are not enough settled predictions
+            # to compute meaningful statistics (bootstrap period).
+            if len(metrics) < 5:
+                self.flagged_models = flagged
+                return {
+                    "model_metrics":    metrics,
+                    "drift_results":    drift_results,
+                    "flagged_models":   flagged,
+                    "drift_reweighted": drift_reweighted,
+                    "models_checked":   len(metrics),
+                    "alert_threshold":  ACCURACY_ALERT_THRESHOLD,
+                    "bootstrap_mode":   True,
+                }
             try:
                 profiler = AIProfilerService(db)
                 report   = await profiler.get_performance_report()

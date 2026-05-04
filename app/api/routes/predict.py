@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone
 
-from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD
+from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY
 from app.db.database import get_db
 from app.db.models import Match, Prediction
 from app.schemas.schemas import MatchRequest, PredictionResponse
@@ -378,6 +378,22 @@ async def predict(
 
     fixture_id = match.fixture_id if match.fixture_id else "unknown"
     user_id: Optional[int] = current_user.id if current_user else None
+
+    # C-1 — per-user daily prediction rate limit
+    if user_id is not None:
+        from app.core.rate_limit import check_prediction_limit
+        from datetime import date as _rl_date, timedelta as _rl_td
+        allowed, current_count, resets_at = check_prediction_limit(user_id, MAX_PREDICTIONS_PER_DAY)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Daily prediction limit reached",
+                    "limit": MAX_PREDICTIONS_PER_DAY,
+                    "used": current_count,
+                    "resets_at": resets_at,
+                },
+            )
     idempotency_key = create_idempotency_key(match, user_id)
     naive_kickoff = to_naive_utc(match.kickoff_time)
 
@@ -731,6 +747,22 @@ async def predict(
             f"source={data_source}"
         )
 
+        # C-1 — record the prediction against the daily limit
+        if user_id is not None:
+            from app.core.rate_limit import record_prediction as _record_pred
+            _record_pred(user_id)
+
+        # C-7 — calibration advisory note
+        calibration_note: Optional[str] = None
+        agreement_pct = float((model_consensus or {}).get("agreement_pct", 0.0))
+        edge_val = float(best_bet.get("edge", 0.0))
+        if confidence_val > 0.80 and agreement_pct < 0.60:
+            calibration_note = "High confidence but low model agreement — treat with caution"
+        elif edge_val > 0.05 and confidence_val < 0.55:
+            calibration_note = "Good edge but low confidence — consider half-kelly staking"
+        elif agreement_pct >= 0.75 and edge_val > 0.03:
+            calibration_note = "Strong consensus signal"
+
         # --- Task System Integration ---
         # Trigger task progress updates for authenticated users
         if current_user and current_user.id:
@@ -877,9 +909,11 @@ async def predict(
             except Exception as e:
                 logger.warning(f"Telegram alert failed (non-fatal): {e}")
 
-        return build_prediction_response(
+        response = build_prediction_response(
             prediction, db_match, orchestrator, data_quality, data_source=data_source
         )
+        response.calibration_note = calibration_note
+        return response
 
     except HTTPException:
         raise

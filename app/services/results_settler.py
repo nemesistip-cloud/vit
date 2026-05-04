@@ -300,6 +300,42 @@ def _determine_outcome(home_g: int, away_g: int) -> str:
     return "away"
 
 
+async def _fetch_finished_from_sportsdb(days_back: int = 7) -> list:
+    """
+    TheSportsDB fallback for fetch_finished_matches.
+    Returns the same dict shape: home_team, away_team, league, kickoff, home_goals, away_goals.
+    """
+    try:
+        from app.services.sportsdb_api import fetch_past_events, fetch_historical_range
+        today = datetime.now(timezone.utc).date()
+        cutoff_date = today - timedelta(days=days_back)
+
+        events = await fetch_historical_range(days_back=days_back)
+        finished = []
+        for ev in events:
+            if ev.get("status") != "settled":
+                continue
+            if ev.get("home_goals") is None or ev.get("away_goals") is None:
+                continue
+            ko = ev.get("kickoff_time")
+            kickoff_str = ko.isoformat() if ko else ""
+            if ko and hasattr(ko, "date") and ko.date() < cutoff_date:
+                continue
+            finished.append({
+                "home_team":  ev["home_team"],
+                "away_team":  ev["away_team"],
+                "league":     ev.get("league", "unknown"),
+                "kickoff":    kickoff_str,
+                "home_goals": int(ev["home_goals"]),
+                "away_goals": int(ev["away_goals"]),
+            })
+        logger.info("[settle] TheSportsDB fallback: %d finished events (days_back=%d)", len(finished), days_back)
+        return finished
+    except Exception as exc:
+        logger.warning("[settle] TheSportsDB fallback failed: %s", exc)
+        return []
+
+
 async def settle_results(days_back: int = 2) -> dict:
     """
     Full settlement pass:
@@ -314,14 +350,21 @@ async def settle_results(days_back: int = 2) -> dict:
     to prevent cross-fixture confusion when two teams meet more than once.
 
     Bankroll is updated after every settled prediction.
+
+    Data source priority:
+      1. Football-Data.org (if FOOTBALL_DATA_API_KEY is set and endpoint reachable)
+      2. TheSportsDB (free, always available — used as automatic fallback)
     """
     finished = await fetch_finished_matches(days_back)
+    if not finished:
+        logger.info("[settle] Football-Data.org returned 0 matches — trying TheSportsDB fallback")
+        finished = await _fetch_finished_from_sportsdb(days_back=max(days_back, 7))
     if not finished:
         return {
             "settled": 0, "already_settled": 0,
             "no_prediction": 0, "not_found": 0, "no_db_match": 0,
             "errors": 0, "details": [],
-            "message": "No finished matches returned from API — check FOOTBALL_DATA_API_KEY",
+            "message": "No finished matches available from Football-Data.org or TheSportsDB",
         }
 
     settled         = 0
