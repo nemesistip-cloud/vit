@@ -159,6 +159,30 @@ Matches are deduplicated via:
 - `app/modules/marketplace/routes.py` — staking endpoints: POST/DELETE `/models/{id}/stake`, GET `/models/{id}/stakes`, GET `/my-stakes`, POST `/admin/models/{id}/slash`, GET `/models/{id}/slashes`.
 - `frontend/src/pages/marketplace.tsx` — `StakeModal` (stake/unstake/view stakers), `MyStakesTab` (portfolio view with earnings/slash tracking), staking badges on model cards, slashing risk documentation.
 
+## v4.12.0 — Blockchain Expansion & AI Intelligence Layer
+
+### Blockchain Analytics (new in v4.12.0)
+- `app/modules/blockchain/models.py` — 3 new tables: `ValidatorSlashEvent`, `OracleDispute`, `BlockchainTransaction`. `UserStake` gains `ah_line` for AH stakes.
+- `app/modules/blockchain/auto_slash.py` — Automated slashing engine with configurable thresholds (missed rounds, accuracy drop, inactivity).
+- `app/modules/blockchain/analytics.py` — Network stats (`get_network_stats`), leaderboard (`get_validator_leaderboard`), token economics (`get_token_economics`).
+- `app/modules/blockchain/consensus.py` — Dynamic AI/validator weighting: `_dynamic_weights()` — <3 validators → AI=0.85, quality signal maps validator weight 0.15→0.65.
+- `app/modules/blockchain/settlement.py` — Asian Handicap (push/win/lose) + Correct Score (`cs_N-M`) settlement logic.
+- `app/api/routes/blockchain_analytics.py` — 8 endpoints: `/analytics/network`, `/analytics/leaderboard`, `/analytics/economics`, `/analytics/slash-history`, `/analytics/auto-slash`, `/validators/{id}/slash`, `/disputes`, `/disputes/{id}/resolve`.
+
+### AI Intelligence (new in v4.12.0)
+- `app/services/openai_advanced.py` — Injury impact analysis, accumulator builder, market regime detector, governance AI.
+- `app/services/grok_advanced.py` — Social sentiment, news momentum, team form narrative, breaking news scanner.
+- `app/api/routes/ai_intelligence.py` — 8 endpoints: `/openai/injuries`, `/openai/accumulator`, `/openai/market-regime`, `/openai/governance`, `/grok/sentiment`, `/grok/news-momentum`, `/grok/form-narrative`, `/grok/breaking-news`.
+
+### Frontend Improvements (v4.12.0)
+- **match-detail.tsx** — 4-tab staking market: 1X2, Goals (Over/Under + BTTS), Asian Handicap (with AH line input + "Use AI Line"), Correct Score (4×4 scoreline grid with CS probabilities from model).
+- **validators.tsx** — `NetworkAnalyticsPanel` component with Overview/Leaderboard/Slashings tabs, pulling from live `/api/blockchain/analytics/*` endpoints.
+- **api-client/index.ts** — 5 new hooks: `useGetNetworkAnalytics`, `useGetValidatorLeaderboard`, `useGetSlashHistory`, `useGetBlockchainEconomics`, `useGetAiIntelHealth`. `useStakeOnPrediction` extended with optional `ah_line` parameter.
+
+### Seed & Infrastructure
+- `scripts/seed_tasks.py` — Fixed: all SQLAlchemy mapper models imported upfront. Seeds 31 tasks across 10 categories.
+- `app/agents/network_guardian_agent.py` — Fixed naive/aware datetime comparison for DID `created_at` fields.
+
 ## Key Files
 - `main.py` — startup lifecycle, fixture seeding logic (lines ~1070-1150)
 - `app/db/models.py` — Match model (status, home_goals/away_goals columns)

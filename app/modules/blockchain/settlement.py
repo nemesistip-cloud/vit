@@ -37,26 +37,70 @@ from app.db.models import Match
 def _derive_market_oracle(oracle_result: str, match: "Match | None") -> dict[str, str]:
     """Build a per-market oracle result map from the 1X2 result + final score.
 
-    Returns keys: 1x2, over_under, btts.
-    Falls back gracefully when goal data is missing — only includes markets we
-    can confidently settle.
+    Returns keys: 1x2, over_under, btts, asian_handicap, correct_score.
+    Falls back gracefully when goal data is missing.
     """
     out: dict[str, str] = {"1x2": oracle_result}
     if match and match.home_goals is not None and match.away_goals is not None:
-        total = (match.home_goals or 0) + (match.away_goals or 0)
+        hg = match.home_goals or 0
+        ag = match.away_goals or 0
+        total = hg + ag
+
+        # Over/Under 2.5
         out["over_under"] = "over_25" if total > 2 else "under_25"
-        out["btts"] = (
-            "btts_yes"
-            if (match.home_goals or 0) > 0 and (match.away_goals or 0) > 0
-            else "btts_no"
-        )
+
+        # BTTS
+        out["btts"] = "btts_yes" if hg > 0 and ag > 0 else "btts_no"
+
+        # Correct Score — key format "hg-ag"
+        out["correct_score"] = f"{hg}-{ag}"
+
     return out
 
 
+def _resolve_ah_stake(stake: "UserStake", match: "Match | None") -> str:
+    """
+    Settle an Asian Handicap stake.
+
+    stake.prediction is "ah_home" or "ah_away".
+    stake.ah_line is the handicap applied to the HOME team (e.g. -0.5 means home -0.5).
+
+    Returns: "win" | "lose" | "push" | "unresolvable"
+    """
+    if not match or match.home_goals is None or match.away_goals is None:
+        return "unresolvable"
+
+    line = float(stake.ah_line) if stake.ah_line is not None else 0.0
+    hg = (match.home_goals or 0) + line  # adjusted home goals
+    ag = match.away_goals or 0
+
+    diff = hg - ag  # positive = home covers
+
+    if stake.prediction == "ah_home":
+        if diff > 0:
+            return "win"
+        elif diff < 0:
+            return "lose"
+        else:
+            return "push"
+    else:  # ah_away
+        if diff < 0:
+            return "win"
+        elif diff > 0:
+            return "lose"
+        else:
+            return "push"
+
+
 _MARKET_BY_PREDICTION = {
+    # 1X2
     "home": "1x2", "draw": "1x2", "away": "1x2",
+    # Over/Under 2.5
     "over_25": "over_under", "under_25": "over_under",
+    # BTTS
     "btts_yes": "btts", "btts_no": "btts",
+    # Asian Handicap (handled separately via _resolve_ah_stake)
+    "ah_home": "asian_handicap", "ah_away": "asian_handicap",
 }
 
 logger = logging.getLogger(__name__)
@@ -104,16 +148,41 @@ async def settle_match(match_id: str, oracle_result: str, db: AsyncSession) -> M
 
     def _market_resolvable(stake: UserStake) -> bool:
         market = _MARKET_BY_PREDICTION.get(stake.prediction, "1x2")
+        # CS stakes: prediction like "cs_1-0" — check if correct_score resolved
+        if stake.prediction.startswith("cs_"):
+            return market_oracle.get("correct_score") is not None
+        # AH stakes: resolvable only when we have goal data
+        if market == "asian_handicap":
+            return match_obj is not None and match_obj.home_goals is not None
         return market_oracle.get(market) is not None
 
     def _is_winner(stake: UserStake) -> bool:
         market = _MARKET_BY_PREDICTION.get(stake.prediction, "1x2")
+
+        # Correct Score: prediction format "cs_hg-ag"
+        if stake.prediction.startswith("cs_"):
+            score_key = stake.prediction[3:]  # strip "cs_"
+            return market_oracle.get("correct_score") == score_key
+
+        # Asian Handicap: use dedicated resolver
+        if market == "asian_handicap":
+            return _resolve_ah_stake(stake, match_obj) == "win"
+
         target = market_oracle.get(market)
         return target is not None and stake.prediction == target
 
+    def _is_ah_push(stake: UserStake) -> bool:
+        """AH stakes that land exactly on the line are refunded (push)."""
+        market = _MARKET_BY_PREDICTION.get(stake.prediction, "1x2")
+        if market == "asian_handicap":
+            return _resolve_ah_stake(stake, match_obj) == "push"
+        return False
+
+    # AH push stakes are refunded
+    push_stakes = [s for s in stakes if _is_ah_push(s)]
     # Refundable stakes (oracle data missing for that market) come out of the pool
-    refundable_stakes = [s for s in stakes if not _market_resolvable(s)]
-    settled_stakes = [s for s in stakes if _market_resolvable(s)]
+    refundable_stakes = [s for s in stakes if not _market_resolvable(s) and not _is_ah_push(s)]
+    settled_stakes = [s for s in stakes if _market_resolvable(s) and not _is_ah_push(s)]
 
     total_pool = sum(s.stake_amount for s in settled_stakes) or Decimal("0")
     platform_fee = total_pool * _PLATFORM_FEE_PCT
@@ -140,7 +209,26 @@ async def settle_match(match_id: str, oracle_result: str, db: AsyncSession) -> M
 
     for stake in stakes:
         wallet = wallets_by_user.get(stake.user_id)
-        if not _market_resolvable(stake):
+        if _is_ah_push(stake):
+            # AH push — stake lands exactly on the handicap line → full refund
+            stake.status = StakeStatus.REFUNDED.value
+            stake.payout_amount = stake.stake_amount
+            if wallet and stake.stake_amount > 0:
+                try:
+                    await ws.credit(
+                        wallet_id=wallet.id, user_id=stake.user_id,
+                        currency=Currency.VITCOIN, amount=stake.stake_amount,
+                        tx_type=TransactionType.REWARD.value,
+                        reference=f"stake-ah-push:{stake.id}",
+                        metadata={"match_id": match_id, "reason": "ah_push", "ah_line": float(stake.ah_line or 0)},
+                    )
+                except ValueError as e:
+                    logger.warning(f"AH push refund failed for stake {stake.id}: {e}")
+            settle_notifications.append((
+                stake.user_id, "Stake Refunded (AH Push)",
+                f"Your Asian Handicap stake of {float(stake.stake_amount):.2f} VIT on match {match_id} was refunded — handicap landed exactly on the line.",
+            ))
+        elif not _market_resolvable(stake):
             # Refund — oracle could not resolve this market
             stake.status = StakeStatus.REFUNDED.value
             stake.payout_amount = stake.stake_amount

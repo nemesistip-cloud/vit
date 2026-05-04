@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   useListValidators, useGetEconomy, useGetMyValidator, useApplyAsValidator,
   useAdminListValidators, useAdminApproveValidator, useAdminRejectValidator,
   useAdminSuspendValidator, useAdminReactivateValidator, useAdminSlashValidator,
-  useWithdrawValidator,
+  useWithdrawValidator, useGetNetworkAnalytics, useGetValidatorLeaderboard,
+  useGetSlashHistory,
 } from "@/api-client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ShieldCheck, Trophy, Activity, CheckCircle2, Coins, Lock, AlertTriangle, Ban, Play, Pause, Hourglass } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ShieldCheck, Trophy, Activity, CheckCircle2, Coins, Lock, AlertTriangle, Ban, Play, Pause, Hourglass, BarChart3, Flame, Database, Zap, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -156,6 +158,181 @@ function AdminValidatorPanel() {
   );
 }
 
+// ── Network Analytics Panel ─────────────────────────────────────────────
+function NetworkAnalyticsPanel({ isAdmin = false }: { isAdmin?: boolean }) {
+  const { data: net, isLoading } = useGetNetworkAnalytics();
+  const { data: lb } = useGetValidatorLeaderboard(5);
+  const { data: slashHist } = useGetSlashHistory(isAdmin ? { limit: 5 } : undefined);
+  const [tab, setTab] = useState<"overview" | "leaderboard" | "slashing">("overview");
+  const tabs = isAdmin
+    ? (["overview", "leaderboard", "slashing"] as const)
+    : (["overview", "leaderboard"] as const);
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-6 text-muted-foreground font-mono text-sm animate-pulse">
+        Fetching network telemetry…
+      </div>
+    );
+  }
+
+  const v = net?.validators ?? {};
+  const c = net?.consensus ?? {};
+  const s = net?.settlements ?? {};
+  const o = net?.oracle ?? {};
+  const sk = net?.staking ?? {};
+  const sl = net?.slashing ?? {};
+  const acc = net?.validator_accuracy ?? {};
+
+  const statCell = (label: string, val: ReactNode, sub?: string, accent?: string) => (
+    <div className="rounded-lg border border-border bg-background/40 p-3 space-y-0.5">
+      <div className="text-[9px] font-mono text-muted-foreground uppercase">{label}</div>
+      <div className={`text-base font-bold font-mono ${accent ?? ""}`}>{val}</div>
+      {sub && <div className="text-[9px] text-muted-foreground font-mono">{sub}</div>}
+    </div>
+  );
+
+  const leaderboard = Array.isArray(lb?.leaderboard) ? lb.leaderboard : [];
+  const slashes = Array.isArray(slashHist?.events) ? slashHist.events : [];
+
+  return (
+    <Card className="bg-card/50 backdrop-blur border-primary/20 shadow-[0_0_20px_rgba(0,255,255,0.05)]">
+      <CardHeader className="border-b border-border/50 pb-4">
+        <CardTitle className="font-mono uppercase flex items-center text-primary">
+          <BarChart3 className="w-5 h-5 mr-2" /> Network Analytics
+        </CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Live blockchain consensus network statistics
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-4 space-y-4">
+        <div className="flex gap-1 bg-background/50 rounded-lg p-0.5 border border-border/40">
+          {tabs.map((t) => (
+            <button key={t} type="button" onClick={() => setTab(t as any)}
+              className={`flex-1 text-[10px] font-mono uppercase py-1.5 rounded transition-all ${
+                tab === t
+                  ? "bg-primary/20 text-primary border border-primary/40"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t === "overview" ? "Overview" : t === "leaderboard" ? "Leaderboard" : "Slashings"}
+            </button>
+          ))}
+        </div>
+
+        {tab === "overview" && (
+          <div className="space-y-3">
+            <div>
+              <div className="text-[9px] font-mono text-muted-foreground uppercase mb-2 flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3" /> Validators
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {statCell("Active", v.active ?? 0, `of ${v.total ?? 0} total`, "text-emerald-400")}
+                {statCell("Staked VIT", Number(v.total_staked_vit ?? 0).toLocaleString())}
+                {statCell("Avg Trust", `${((v.avg_trust_score ?? 0) * 100).toFixed(0)}/100`)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] font-mono text-muted-foreground uppercase mb-2 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> Consensus & Oracle
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {statCell("Open", c.open ?? 0, "consensus rounds")}
+                {statCell("Settled", c.settled ?? 0, `of ${c.total ?? 0}`)}
+                {statCell("Oracle Accept", `${((o.acceptance_rate ?? 0) * 100).toFixed(0)}%`, `${o.total_reports ?? 0} reports`)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] font-mono text-muted-foreground uppercase mb-2 flex items-center gap-1">
+                <Database className="w-3 h-3" /> Settlement & Staking
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {statCell("Pool Settled", `${Number(s.total_pool_vit ?? 0).toLocaleString()} VIT`)}
+                {statCell("Burned", `${Number(s.total_burned_vit ?? 0).toLocaleString()} VIT`, undefined, "text-red-400")}
+                {statCell("Active Stakes", sk.active_stakes ?? 0)}
+              </div>
+            </div>
+            {(acc.total_settled ?? 0) > 0 && (
+              <div className="space-y-1">
+                <div className="flex justify-between font-mono text-xs">
+                  <span className="text-muted-foreground uppercase">Validator Accuracy</span>
+                  <span className="text-primary">{((acc.accuracy_rate ?? 0) * 100).toFixed(1)}%</span>
+                </div>
+                <Progress value={(acc.accuracy_rate ?? 0) * 100} className="h-1.5 bg-muted [&>div]:bg-primary" />
+                <div className="text-[9px] text-muted-foreground font-mono text-right">
+                  {acc.accurate ?? 0} accurate / {acc.total_settled ?? 0} settled predictions
+                </div>
+              </div>
+            )}
+            {(sl.total_events ?? 0) > 0 && (
+              <div className="flex items-center justify-between rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 font-mono text-xs">
+                <span className="flex items-center gap-1 text-red-400">
+                  <Flame className="w-3 h-3" /> Slash Events
+                </span>
+                <span className="text-red-400 font-bold">{sl.total_events} · {Number(sl.total_volume_vit ?? 0).toLocaleString()} VIT burned</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "leaderboard" && (
+          <div className="space-y-1">
+            {leaderboard.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground font-mono text-sm">
+                No validator data yet — apply to become the first.
+              </div>
+            ) : leaderboard.map((v: any, i: number) => (
+              <div key={v.validator_id ?? i} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-muted/10 transition-colors">
+                <div className={`w-7 h-7 rounded flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 ${
+                  i === 0 ? "bg-secondary/20 text-secondary border border-secondary/50" :
+                  i === 1 ? "bg-muted text-muted-foreground border border-border" :
+                  i === 2 ? "bg-amber-900/20 text-amber-600 border border-amber-900/50" :
+                  "text-muted-foreground"
+                }`}>#{i + 1}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono font-bold text-sm truncate">{v.username}</div>
+                  <div className="flex gap-2 text-[9px] text-muted-foreground font-mono">
+                    <span>{((v.accuracy_rate ?? 0) * 100).toFixed(1)}% ACC</span>
+                    <span>{Number(v.stake_amount ?? 0).toLocaleString()} VIT</span>
+                  </div>
+                </div>
+                <div className="text-right font-mono flex-shrink-0">
+                  <div className="text-sm font-bold text-primary">{Number(v.influence_score ?? 0).toFixed(3)}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase">influence</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "slashing" && (
+          <div className="space-y-2">
+            {slashes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground font-mono text-sm">
+                No slash events recorded.
+              </div>
+            ) : slashes.map((e: any, i: number) => (
+              <div key={e.id ?? i} className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-xs font-bold text-red-400 truncate">{e.validator_username ?? e.validator_id?.slice(0, 12)}</div>
+                  <Badge variant="outline" className="text-[9px] font-mono border-red-500/30 text-red-400">
+                    -{(Number(e.slash_pct ?? 0) * 100).toFixed(0)}% stake
+                  </Badge>
+                </div>
+                <div className="text-[9px] text-muted-foreground font-mono">{e.slash_reason}</div>
+                <div className="flex justify-between text-[9px] text-muted-foreground font-mono">
+                  <span>{Number(e.slash_amount ?? 0).toLocaleString()} VIT burned</span>
+                  <span>{e.slashed_at ? format(new Date(e.slashed_at), "yyyy-MM-dd HH:mm") : "—"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────
 export default function ValidatorsPage() {
   const { user } = useAuth();
@@ -225,6 +402,8 @@ export default function ValidatorsPage() {
       )}
 
       {isAdmin && <AdminValidatorPanel />}
+
+      <NetworkAnalyticsPanel isAdmin={isAdmin} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">

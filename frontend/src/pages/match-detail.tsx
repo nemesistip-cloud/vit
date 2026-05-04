@@ -12,9 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { BrainCircuit, ShieldCheck, ChevronLeft, Zap, Coins, TrendingUp, Target, BarChart2, Radio } from "lucide-react";
+import { BrainCircuit, ShieldCheck, ChevronLeft, Zap, Coins, TrendingUp, Target, BarChart2, Radio, Hash, Grid3x3 } from "lucide-react";
 import { format } from "date-fns";
 import { Progress } from "@/components/ui/progress";
+
+const CS_LINES = [
+  "1-0","2-0","2-1","3-0","3-1","3-2",
+  "0-1","0-2","1-2","0-3","1-3","2-3",
+  "0-0","1-1","2-2","3-3",
+] as const;
+type CSLine = typeof CS_LINES[number];
 
 export default function MatchDetailPage() {
   const params = useParams();
@@ -28,9 +35,17 @@ export default function MatchDetailPage() {
   const { data: injuries } = useGetOddsInjuries({ team: match?.home_team });
   const { data: auditLog } = useGetOddsAuditLog();
 
-  type StakeSide = "home" | "draw" | "away" | "over_25" | "under_25" | "btts_yes" | "btts_no";
+  type StakeSide = "home" | "draw" | "away" | "over_25" | "under_25" | "btts_yes" | "btts_no" | "ah_home" | "ah_away" | `cs_${string}`;
   const [selectedSide, setSelectedSide] = useState<StakeSide | null>(null);
   const [stakeAmount, setStakeAmount] = useState("10");
+  const [ahLine, setAhLine] = useState<string>("0.0");
+  const [stakeTab, setStakeTab] = useState<"1x2" | "goals" | "ah" | "cs">("1x2");
+
+  const ahLineNum = parseFloat(ahLine) || 0;
+  const matchAhLine: number | null = (match as any).ah_line ?? null;
+  const ahHomeProb: number | null = (match as any).ah_home_prob ?? null;
+  const ahAwayProb: number | null = (match as any).ah_away_prob ?? null;
+  const csProbs: Record<string, number> | null = (match as any).cs_probs ?? null;
 
   if (isLoading) {
     return (
@@ -76,9 +91,19 @@ export default function MatchDetailPage() {
       toast.error("Enter a valid stake amount");
       return;
     }
+    const isAH = selectedSide === "ah_home" || selectedSide === "ah_away";
+    if (isAH && isNaN(ahLineNum)) {
+      toast.error("Enter a valid AH line (e.g. -0.5)");
+      return;
+    }
     try {
-      await stake.mutateAsync({ matchId, prediction: selectedSide, amount });
-      toast.success(`Staked ${amount} VITCoin on ${selectedSide}`);
+      await stake.mutateAsync({
+        matchId,
+        prediction: selectedSide,
+        amount,
+        ...(isAH ? { ah_line: ahLineNum } : {}),
+      });
+      toast.success(`Staked ${amount} VITCoin on ${selectedSide.toUpperCase()}`);
       setSelectedSide(null);
     } catch (e: any) {
       toast.error(e.message || "Stake failed");
@@ -396,90 +421,212 @@ export default function MatchDetailPage() {
                 Balance: {Number(wallet?.vitcoin_balance ?? 0).toLocaleString()} VIT
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6 space-y-4">
+            <CardContent className="pt-4 space-y-4">
               {match.actual_outcome ? (
                 <div className="text-center p-4 bg-muted/30 rounded-lg border border-border font-mono text-sm text-muted-foreground">
                   MARKET_CLOSED
                 </div>
               ) : (
                 <>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">1X2 — Match Result</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {([
-                          { side: "home" as StakeSide, label: "1", sublabel: match.home_team, odds: match.odds?.home ?? 2.0 },
-                          { side: "draw" as StakeSide, label: "X", sublabel: "Draw", odds: match.odds?.draw ?? 3.3 },
-                          { side: "away" as StakeSide, label: "2", sublabel: match.away_team, odds: match.odds?.away ?? 3.5 },
-                        ]).map(({ side, label, sublabel, odds }) => (
-                          <button
-                            key={side}
+                  {/* Market selector tabs */}
+                  <div className="flex gap-1 bg-background/60 rounded-lg p-1 border border-border/50">
+                    {(["1x2", "goals", "ah", "cs"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => { setStakeTab(t); setSelectedSide(null); }}
+                        className={`flex-1 text-[10px] font-mono uppercase py-1.5 rounded transition-all ${
+                          stakeTab === t
+                            ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_8px_rgba(0,255,255,0.1)]"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {t === "1x2" ? "1X2" : t === "goals" ? "Goals" : t === "ah" ? "Asian HCP" : "Correct Score"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 1X2 panel */}
+                  {stakeTab === "1x2" && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { side: "home" as StakeSide, label: "1", sublabel: match.home_team, odds: match.odds?.home ?? 2.0, prob: homeProb },
+                        { side: "draw" as StakeSide, label: "X", sublabel: "Draw", odds: match.odds?.draw ?? 3.3, prob: drawProb },
+                        { side: "away" as StakeSide, label: "2", sublabel: match.away_team, odds: match.odds?.away ?? 3.5, prob: awayProb },
+                      ]).map(({ side, label, sublabel, odds, prob }) => (
+                        <button key={side} type="button" onClick={() => setSelectedSide(side)}
+                          className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
+                            selectedSide === side
+                              ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
+                              : "border-border bg-card/50 hover:border-primary/40"
+                          }`}
+                        >
+                          <span className="text-base font-bold text-primary">{label}</span>
+                          <span className="text-[9px] text-muted-foreground truncate w-full text-center">{sublabel}</span>
+                          <span className="text-[10px] text-foreground font-semibold">{odds.toFixed(2)}</span>
+                          <span className="text-[9px] text-muted-foreground">{(prob * 100).toFixed(0)}%</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Goals panel */}
+                  {stakeTab === "goals" && (
+                    <div className="space-y-2">
+                      {(match as any).over_25_prob != null && (
+                        <div>
+                          <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Over / Under 2.5</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {([
+                              { side: "over_25" as StakeSide, label: "Over 2.5", prob: (match as any).over_25_prob },
+                              { side: "under_25" as StakeSide, label: "Under 2.5", prob: (match as any).under_25_prob ?? (1 - ((match as any).over_25_prob ?? 0.5)) },
+                            ]).map(({ side, label, prob }) => (
+                              <button key={side} type="button" onClick={() => setSelectedSide(side)}
+                                className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
+                                  selectedSide === side
+                                    ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
+                                    : "border-border bg-card/50 hover:border-primary/40"
+                                }`}
+                              >
+                                <span className="text-sm font-bold text-foreground">{label}</span>
+                                <span className="text-[10px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(match as any).btts_prob != null && (
+                        <div>
+                          <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Both Teams to Score</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {([
+                              { side: "btts_yes" as StakeSide, label: "BTTS Yes", prob: (match as any).btts_prob },
+                              { side: "btts_no" as StakeSide, label: "BTTS No", prob: (match as any).no_btts_prob ?? (1 - ((match as any).btts_prob ?? 0.5)) },
+                            ]).map(({ side, label, prob }) => (
+                              <button key={side} type="button" onClick={() => setSelectedSide(side)}
+                                className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
+                                  selectedSide === side
+                                    ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
+                                    : "border-border bg-card/50 hover:border-primary/40"
+                                }`}
+                              >
+                                <span className="text-sm font-bold text-foreground">{label}</span>
+                                <span className="text-[10px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(match as any).over_25_prob == null && (match as any).btts_prob == null && (
+                        <div className="text-center py-4 text-muted-foreground font-mono text-xs">
+                          Goals market data not available for this fixture.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Asian Handicap panel */}
+                  {stakeTab === "ah" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] font-mono text-muted-foreground uppercase mb-1 block">
+                            AH Line (Home) {matchAhLine != null && <span className="text-primary">· AI: {matchAhLine > 0 ? "+" : ""}{matchAhLine}</span>}
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.25"
+                            value={ahLine}
+                            onChange={(e) => setAhLine(e.target.value)}
+                            className="font-mono h-9 text-sm bg-background/50 border-border"
+                            placeholder="e.g. -0.5"
+                          />
+                        </div>
+                        {matchAhLine != null && (
+                          <Button
                             type="button"
-                            onClick={() => setSelectedSide(side)}
-                            className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
+                            variant="outline"
+                            size="sm"
+                            className="font-mono text-[10px] mt-5"
+                            onClick={() => setAhLine(String(matchAhLine))}
+                          >
+                            Use AI Line
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { side: "ah_home" as StakeSide, label: `${match.home_team}`, sublabel: `AH ${ahLineNum > 0 ? "+" : ""}${ahLineNum}`, prob: ahHomeProb },
+                          { side: "ah_away" as StakeSide, label: `${match.away_team}`, sublabel: `AH ${-ahLineNum > 0 ? "+" : ""}${-ahLineNum}`, prob: ahAwayProb },
+                        ]).map(({ side, label, sublabel, prob }) => (
+                          <button key={side} type="button" onClick={() => setSelectedSide(side)}
+                            className={`flex flex-col items-center gap-1 p-3 rounded-lg border font-mono transition-all ${
                               selectedSide === side
                                 ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
                                 : "border-border bg-card/50 hover:border-primary/40"
                             }`}
                           >
-                            <span className="text-base font-bold text-primary">{label}</span>
-                            <span className="text-[9px] text-muted-foreground truncate w-full text-center">{sublabel}</span>
-                            <span className="text-[10px] text-foreground font-semibold">{odds.toFixed(2)}</span>
+                            <span className="text-xs font-bold text-foreground truncate w-full text-center">{label}</span>
+                            <span className="text-[10px] text-primary font-semibold">{sublabel}</span>
+                            {prob != null && (
+                              <span className="text-[9px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
+                            )}
                           </button>
                         ))}
                       </div>
+                      <div className="text-[9px] font-mono text-muted-foreground bg-muted/20 rounded p-2 border border-border/40">
+                        Asian Handicap: Push returns stake if margin equals the line. Positive line = underdog advantage.
+                      </div>
                     </div>
-                    {(match as any).over_25_prob != null && (
-                      <div>
-                        <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Over / Under 2.5 Goals</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {([
-                            { side: "over_25" as StakeSide, label: "Over 2.5", prob: (match as any).over_25_prob },
-                            { side: "under_25" as StakeSide, label: "Under 2.5", prob: (match as any).under_25_prob ?? (1 - ((match as any).over_25_prob ?? 0.5)) },
-                          ]).map(({ side, label, prob }) => (
-                            <button
-                              key={side}
-                              type="button"
-                              onClick={() => setSelectedSide(side)}
-                              className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
-                                selectedSide === side
-                                  ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
-                                  : "border-border bg-card/50 hover:border-primary/40"
+                  )}
+
+                  {/* Correct Score panel */}
+                  {stakeTab === "cs" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[10px] font-mono text-muted-foreground uppercase flex items-center gap-1">
+                          <Grid3x3 className="w-3 h-3" /> Select final score
+                        </p>
+                        {selectedSide?.startsWith("cs_") && (
+                          <Badge variant="outline" className="font-mono text-[9px] text-primary border-primary/40">
+                            {(selectedSide as string).replace("cs_", "").replace("-", " – ")}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {CS_LINES.map((score) => {
+                          const key = `cs_${score}` as StakeSide;
+                          const prob = csProbs?.[`cs_${score}`] ?? csProbs?.[score] ?? null;
+                          const isSelected = selectedSide === key;
+                          const [h, a] = score.split("-").map(Number);
+                          const isHome = h > a, isDraw = h === a, isAway = a > h;
+                          const accentCls = isHome
+                            ? "border-primary/50 text-primary"
+                            : isDraw
+                            ? "border-muted-foreground/40 text-muted-foreground"
+                            : "border-orange-400/50 text-orange-400";
+                          return (
+                            <button key={score} type="button" onClick={() => setSelectedSide(key)}
+                              className={`flex flex-col items-center p-2 rounded border font-mono text-xs transition-all ${
+                                isSelected
+                                  ? `bg-primary/10 border-primary shadow-[0_0_8px_rgba(0,255,255,0.12)]`
+                                  : `bg-card/40 ${accentCls} hover:bg-muted/20`
                               }`}
                             >
-                              <span className="text-sm font-bold text-foreground">{label}</span>
-                              <span className="text-[10px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
+                              <span className={`font-bold text-sm ${isSelected ? "text-primary" : ""}`}>{score}</span>
+                              {prob != null && (
+                                <span className="text-[8px] text-muted-foreground">{(prob * 100).toFixed(1)}%</span>
+                              )}
                             </button>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
-                    )}
-                    {(match as any).btts_prob != null && (
-                      <div>
-                        <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Both Teams to Score</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {([
-                            { side: "btts_yes" as StakeSide, label: "BTTS Yes", prob: (match as any).btts_prob },
-                            { side: "btts_no" as StakeSide, label: "BTTS No", prob: (match as any).no_btts_prob ?? (1 - ((match as any).btts_prob ?? 0.5)) },
-                          ]).map(({ side, label, prob }) => (
-                            <button
-                              key={side}
-                              type="button"
-                              onClick={() => setSelectedSide(side)}
-                              className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
-                                selectedSide === side
-                                  ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
-                                  : "border-border bg-card/50 hover:border-primary/40"
-                              }`}
-                            >
-                              <span className="text-sm font-bold text-foreground">{label}</span>
-                              <span className="text-[10px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
-                            </button>
-                          ))}
-                        </div>
+                      <div className="text-[9px] font-mono text-muted-foreground bg-muted/20 rounded p-2 border border-border/40">
+                        Correct Score pays out only if the exact final score matches. Higher odds, higher risk.
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="text-xs font-mono text-muted-foreground uppercase mb-1 block">Amount (VITCoin)</label>
                     <Input
@@ -490,6 +637,17 @@ export default function MatchDetailPage() {
                       min="1"
                     />
                   </div>
+                  {selectedSide && (
+                    <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 font-mono text-xs flex items-center justify-between">
+                      <span className="text-muted-foreground uppercase">Selected</span>
+                      <span className="text-primary font-bold uppercase">
+                        {(selectedSide as string).startsWith("cs_")
+                          ? `Score ${(selectedSide as string).replace("cs_", "").replace("-", " – ")}`
+                          : (selectedSide as string).replace(/_/g, " ")}
+                        {(selectedSide === "ah_home" || selectedSide === "ah_away") && ` (${ahLineNum > 0 ? "+" : ""}${ahLineNum})`}
+                      </span>
+                    </div>
+                  )}
                   <Button
                     className="w-full h-12 font-mono uppercase tracking-widest text-sm"
                     onClick={handleStake}

@@ -1477,6 +1477,14 @@ app.include_router(market_training_router)
 from app.api.routes.similarity import router as similarity_router
 app.include_router(similarity_router)
 
+# Advanced AI Intelligence (OpenAI advanced + Grok advanced)
+from app.api.routes.ai_intelligence import router as ai_intelligence_router
+app.include_router(ai_intelligence_router)
+
+# Blockchain Analytics, Auto-Slash, Oracle Disputes
+from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
+app.include_router(blockchain_analytics_router)
+
 
 def _format_count(value: int) -> str:
     if value >= 1_000_000:

@@ -89,6 +89,14 @@ export const API = {
   exportPredictionsCsv: "/api/exports/predictions/csv",
   exportWalletCsv: "/api/exports/wallet/csv",
   exportAnalyticsCsv: "/api/exports/analytics/csv",
+  // Blockchain analytics (v4.12.0)
+  blockchainNetworkAnalytics: "/api/blockchain/analytics/network",
+  blockchainLeaderboard: "/api/blockchain/analytics/leaderboard",
+  blockchainSlashHistory: "/api/blockchain/analytics/slash-history",
+  blockchainEconomics: "/api/blockchain/analytics/economics",
+  // AI Intelligence (v4.12.0)
+  aiIntelHealth: "/api/ai-intel/health",
+  aiIntelInjuries: "/api/ai-intel/openai/injuries",
 };
 
 export const getGetMeQueryKey = () => [API.me];
@@ -552,13 +560,63 @@ export function useWithdrawValidator() {
 
 export function useStakeOnPrediction() {
   const queryClient = useQueryClient();
-  return useMutation<any, Error, { matchId: string; prediction: string; amount: number }>({
-    mutationFn: ({ matchId, prediction, amount }) =>
-      apiPost<any>(API.stake(matchId), { prediction, amount }),
+  return useMutation<any, Error, { matchId: string; prediction: string; amount: number; ah_line?: number }>({
+    mutationFn: ({ matchId, prediction, amount, ah_line }) =>
+      apiPost<any>(API.stake(matchId), { prediction, amount, ...(ah_line !== undefined ? { ah_line } : {}) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getGetMyStakesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
     },
+  });
+}
+
+export function useGetNetworkAnalytics() {
+  return useQuery<any>({
+    queryKey: [API.blockchainNetworkAnalytics],
+    queryFn: () => apiGet<any>(API.blockchainNetworkAnalytics),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function useGetValidatorLeaderboard(limit = 10) {
+  return useQuery<any>({
+    queryKey: [API.blockchainLeaderboard, limit],
+    queryFn: () => apiGet<any>(`${API.blockchainLeaderboard}?limit=${limit}`),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useGetSlashHistory(params?: { limit?: number; validator_id?: string }) {
+  return useQuery<any>({
+    queryKey: [API.blockchainSlashHistory, params],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set("limit", String(params.limit));
+      if (params?.validator_id) qs.set("validator_id", params.validator_id);
+      return apiGet<any>(`${API.blockchainSlashHistory}?${qs.toString()}`);
+    },
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function useGetBlockchainEconomics() {
+  return useQuery<any>({
+    queryKey: [API.blockchainEconomics],
+    queryFn: () => apiGet<any>(API.blockchainEconomics),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useGetAiIntelHealth() {
+  return useQuery<any>({
+    queryKey: [API.aiIntelHealth],
+    queryFn: () => apiGet<any>(API.aiIntelHealth),
+    staleTime: 120_000,
+    retry: false,
   });
 }
 

@@ -221,15 +221,100 @@ class UserStake(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     match_id: Mapped[str] = mapped_column(String(100), nullable=False)
-    prediction: Mapped[str] = mapped_column(String(10), nullable=False)
+    # Extended market support: home|draw|away|over_25|under_25|btts_yes|btts_no|ah_home|ah_away|cs_NM
+    prediction: Mapped[str] = mapped_column(String(20), nullable=False)
     stake_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), default="VITCoin")
     status: Mapped[str] = mapped_column(String(20), default=StakeStatus.ACTIVE.value)
     payout_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
+    # AH line at time of stake (e.g. -0.5 = home -0.5)
+    ah_line: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         Index("idx_stake_user_id", "user_id"),
         Index("idx_stake_match_id", "match_id"),
         Index("idx_stake_status", "status"),
+    )
+
+
+class ValidatorSlashEvent(Base):
+    """Audit record for every validator slash — auto or manual."""
+    __tablename__ = "validator_slash_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    validator_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("validator_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+
+    slash_reason: Mapped[str] = mapped_column(String(200), nullable=False)
+    slash_pct: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    slash_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    stake_before: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    stake_after: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    trust_score_at_slash: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    prior_slash_count: Mapped[int] = mapped_column(Integer, default=0)
+    admin_user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    slashed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_slash_validator_id", "validator_id"),
+        Index("idx_slash_user_id", "user_id"),
+        Index("idx_slash_slashed_at", "slashed_at"),
+    )
+
+
+class OracleDispute(Base):
+    """Formal dispute record when oracle sources disagree on a match result."""
+    __tablename__ = "oracle_disputes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    match_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    source_a: Mapped[str] = mapped_column(String(100), nullable=False)
+    result_a: Mapped[str] = mapped_column(String(10), nullable=False)
+    source_b: Mapped[str] = mapped_column(String(100), nullable=False)
+    result_b: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    resolution: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    resolved_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    resolution_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    status: Mapped[str] = mapped_column(String(20), default="open")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_dispute_match_id", "match_id"),
+        Index("idx_dispute_status", "status"),
+    )
+
+
+class BlockchainTransaction(Base):
+    """Immutable event log for every blockchain-layer financial event."""
+    __tablename__ = "blockchain_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tx_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    # STAKE | STAKE_WIN | STAKE_LOSE | STAKE_REFUND | VALIDATOR_REWARD |
+    # SLASH | BURN | TREASURY_CREDIT | AI_FUND_CREDIT | ORACLE_SUBMIT
+
+    entity_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    # user | validator | oracle | system
+    entity_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    match_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
+    currency: Mapped[str] = mapped_column(String(10), default="VITCoin")
+    meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_bc_tx_type", "tx_type"),
+        Index("idx_bc_tx_entity", "entity_type", "entity_id"),
+        Index("idx_bc_tx_match", "match_id"),
+        Index("idx_bc_tx_created", "created_at"),
     )

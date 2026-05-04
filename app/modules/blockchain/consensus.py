@@ -21,11 +21,43 @@ from app.modules.blockchain.models import (
 
 logger = logging.getLogger(__name__)
 
-_AI_WEIGHT = Decimal("0.60")
-_VALIDATOR_WEIGHT = Decimal("0.40")
+_AI_WEIGHT_BASE = Decimal("0.60")
+_VALIDATOR_WEIGHT_BASE = Decimal("0.40")
 _ACCURACY_ALPHA = Decimal("0.05")
 _DECAY_RATE = Decimal("2.0")
 _ACCURACY_THRESHOLD = Decimal("0.15")
+
+# Dynamic weighting: when validators have ≥ MIN_VALIDATORS_FOR_DYNAMIC active
+# nodes with sufficient track records, their weight rises up to MAX_VALIDATOR_WEIGHT.
+_MIN_VALIDATORS_FOR_DYNAMIC = 3
+_MIN_PREDICTIONS_FOR_CLV = 10
+_MAX_VALIDATOR_WEIGHT = Decimal("0.65")
+_MIN_VALIDATOR_WEIGHT = Decimal("0.15")
+
+
+def _dynamic_weights(
+    validator_count: int,
+    avg_trust_score: Decimal,
+    avg_accuracy: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """
+    Calculate dynamic AI/validator blend weights based on validator network quality.
+
+    Rules:
+      - < MIN_VALIDATORS_FOR_DYNAMIC active validators → pure AI (AI=0.85, V=0.15)
+      - High trust + high accuracy → validators earn up to MAX_VALIDATOR_WEIGHT
+      - Weight rises linearly with trust_score * accuracy rate
+    """
+    if validator_count < _MIN_VALIDATORS_FOR_DYNAMIC:
+        return Decimal("0.85"), Decimal("0.15")
+
+    # Combined quality signal: trust * accuracy
+    quality = avg_trust_score * avg_accuracy
+    # Map quality [0, 1] → validator_weight [MIN, MAX]
+    val_weight = _MIN_VALIDATOR_WEIGHT + quality * (_MAX_VALIDATOR_WEIGHT - _MIN_VALIDATOR_WEIGHT)
+    val_weight = max(_MIN_VALIDATOR_WEIGHT, min(_MAX_VALIDATOR_WEIGHT, val_weight))
+    ai_weight = Decimal("1.0") - val_weight
+    return ai_weight, val_weight
 
 
 async def _get_ai_prediction(match_id: str) -> Optional[dict]:
@@ -102,9 +134,22 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
         consensus_draw = ai["p_draw"]
         consensus_away = ai["p_away"]
 
-    final_home = (_AI_WEIGHT * ai["p_home"]) + (_VALIDATOR_WEIGHT * consensus_home)
-    final_draw = (_AI_WEIGHT * ai["p_draw"]) + (_VALIDATOR_WEIGHT * consensus_draw)
-    final_away = (_AI_WEIGHT * ai["p_away"]) + (_VALIDATOR_WEIGHT * consensus_away)
+    # Dynamic weighting: quality of validator pool determines how much weight they get
+    if rows:
+        avg_trust = sum(vpr.trust_score for _, vpr in rows) / len(rows)
+        avg_accuracy = sum(
+            Decimal(str(vpr.accurate_predictions / max(vpr.total_predictions, 1)))
+            for _, vpr in rows
+        ) / len(rows)
+    else:
+        avg_trust = Decimal("0.5")
+        avg_accuracy = Decimal("0.5")
+
+    ai_weight, val_weight = _dynamic_weights(len(rows), avg_trust, avg_accuracy)
+
+    final_home = (ai_weight * ai["p_home"]) + (val_weight * consensus_home)
+    final_draw = (ai_weight * ai["p_draw"]) + (val_weight * consensus_draw)
+    final_away = (ai_weight * ai["p_away"]) + (val_weight * consensus_away)
 
     total_norm = final_home + final_draw + final_away
     if total_norm > 0:
@@ -155,7 +200,7 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
     logger.info(
         f"Consensus for {match_id}: H={float(final_home):.3f} "
         f"D={float(final_draw):.3f} A={float(final_away):.3f} "
-        f"(validators={len(rows)})"
+        f"(validators={len(rows)}, ai_weight={float(ai_weight):.2f}, val_weight={float(val_weight):.2f})"
     )
     return cp
 

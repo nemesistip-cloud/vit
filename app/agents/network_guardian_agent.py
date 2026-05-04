@@ -68,7 +68,10 @@ class NetworkGuardianAgent(BaseAgent):
         for agent_name in _ALL_AGENT_NAMES:
             try:
                 identity = await get_or_create_agent_identity(agent_name, db)
-                if identity.created_at >= now - timedelta(seconds=10):
+                created = identity.created_at
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                if created >= now - timedelta(seconds=10):
                     dids_created += 1
             except Exception as exc:
                 logger.warning("[network-guardian] DID creation failed for %s: %s", agent_name, exc)

@@ -79,14 +79,32 @@ async def get_consensus_prediction(
 # ── POST /predictions/{match_id}/stake ────────────────────────────────
 
 class StakeRequest(BaseModel):
-    # v4.11.0: extend stake markets beyond 1X2 to also support over/under 2.5
-    # and BTTS yes/no, mirroring the markets exposed in the frontend match-detail
-    # and PredictionFlow components.
+    # v4.12.0: extend stake markets to include Asian Handicap (ah_home / ah_away)
+    # and Correct Score (cs_N-M format like cs_1-0, cs_2-1, etc.)
+    # Pattern: 1X2 | O/U 2.5 | BTTS | AH | CS
     prediction: str = Field(
         ...,
-        pattern="^(home|draw|away|over_25|under_25|btts_yes|btts_no)$",
+        description="Market: home|draw|away|over_25|under_25|btts_yes|btts_no|ah_home|ah_away|cs_N-M",
     )
     amount: float = Field(..., gt=0)
+    # For Asian Handicap stakes — required when prediction is ah_home or ah_away
+    ah_line: float | None = Field(
+        None,
+        description="AH line applied to HOME team (e.g. -0.5 means home -0.5). Required for ah_home/ah_away.",
+    )
+
+    def validate_prediction(self) -> None:
+        import re
+        valid_fixed = {"home", "draw", "away", "over_25", "under_25", "btts_yes", "btts_no", "ah_home", "ah_away"}
+        if self.prediction in valid_fixed:
+            if self.prediction in ("ah_home", "ah_away") and self.ah_line is None:
+                raise ValueError("ah_line is required for Asian Handicap stakes")
+            return
+        if re.match(r"^cs_\d{1,2}-\d{1,2}$", self.prediction):
+            return
+        raise ValueError(
+            f"Invalid prediction '{self.prediction}'. Must be one of the supported markets or cs_N-M format."
+        )
 
 
 @router.post("/predictions/{match_id}/stake")
@@ -96,6 +114,12 @@ async def stake_on_prediction(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Validate prediction format (1X2, O/U, BTTS, AH, CS)
+    try:
+        body.validate_prediction()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
     amount = Decimal(str(body.amount))
     if amount < MIN_STAKE_VITCOIN:
         raise HTTPException(400, f"Minimum stake is {MIN_STAKE_VITCOIN} VITCoin")
@@ -151,6 +175,7 @@ async def stake_on_prediction(
         prediction=body.prediction,
         stake_amount=amount,
         currency="VITCoin",
+        ah_line=Decimal(str(body.ah_line)) if body.ah_line is not None else None,
         status=StakeStatus.ACTIVE.value,
     )
     db.add(stake)
