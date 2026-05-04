@@ -558,6 +558,29 @@ async def _apply_trust_actions(
 
 
 # ---------------------------------------------------------------------------
+# Convenience read — returns composite score without recalculating
+# ---------------------------------------------------------------------------
+
+async def get_user_trust_score(db: AsyncSession, user_id: int) -> float:
+    """
+    Return the cached composite trust score for a user (0–100).
+    Falls back to calculating if no cached record exists.
+    """
+    result = await db.execute(
+        select(UserTrustScore).where(UserTrustScore.user_id == user_id)
+    )
+    record = result.scalars().first()
+    if record:
+        return float(record.composite_score)
+    # No cached record — calculate now
+    try:
+        fresh = await calculate_trust_score(db, user_id)
+        return float(fresh.composite_score)
+    except Exception:
+        return 50.0
+
+
+# ---------------------------------------------------------------------------
 # Batch refresh
 # ---------------------------------------------------------------------------
 
