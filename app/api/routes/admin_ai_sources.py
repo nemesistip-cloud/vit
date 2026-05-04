@@ -1,6 +1,8 @@
 """Admin/Analyst AI Sources panel — upload raw Claude/Grok/etc analysis per match."""
 
+import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -10,7 +12,7 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.db.models import AIPrediction, Match, User
+from app.db.models import AIPrediction, AIPerformance, Match, User
 from app.services.ai_ingestion import AIIngestionService
 from app.auth.dependencies import get_current_user
 
@@ -21,9 +23,17 @@ router = APIRouter(prefix="/admin/ai-sources", tags=["admin-ai-sources"])
 
 ALLOWED_SOURCES = {
     "chatgpt", "gemini", "claude", "grok",
-    "deepseek", "perplexity", "mistral", "manual",
+    "deepseek", "perplexity", "mistral", "manual", "server",
 }
 ALLOWED_TIERS = {"analyst", "pro", "elite"}
+
+MATCH_ANALYSIS_SYSTEM = (
+    "You are a sharp professional football betting analyst with deep expertise in statistical "
+    "modelling, team form cycles, squad availability, tactical matchups, and market efficiency. "
+    "You provide precise, evidence-based probability estimates. "
+    "CRITICAL: You MUST respond with ONLY a raw JSON object — no markdown, no code fences, "
+    "no explanations outside the JSON."
+)
 
 
 def _can_upload(user: User) -> bool:
@@ -68,7 +78,6 @@ class AISourceIngestPayload(BaseModel):
         total = (h or 0) + (d or 0) + (v or 0)
         if total <= 0:
             raise ValueError("Probabilities must sum to a positive value")
-        # Tolerate up to 10% off — service will normalise
         if abs(total - 1.0) > 0.1:
             raise ValueError(
                 f"home + draw + away probabilities should be close to 1.0 (got {total:.3f})"
@@ -96,7 +105,7 @@ async def list_matches_for_ingest(
     """List upcoming/live matches only (no past fixtures) with AI source coverage."""
     from datetime import timedelta
     now = datetime.utcnow()
-    live_cutoff = now - timedelta(hours=3)   # include matches started up to 3h ago
+    live_cutoff = now - timedelta(hours=3)
 
     res = await db.execute(
         select(Match)
@@ -109,7 +118,6 @@ async def list_matches_for_ingest(
     )
     matches = res.scalars().all()
     if not matches:
-        # fallback: any future fixture regardless of status label (clean — no past matches)
         res = await db.execute(
             select(Match)
             .where(Match.kickoff_time >= live_cutoff)
@@ -142,6 +150,236 @@ async def list_matches_for_ingest(
             }
             for m in matches
         ]
+    }
+
+
+@router.get("/performance")
+async def get_ai_performance(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_uploader),
+):
+    """Get performance metrics for all AI sources."""
+    res = await db.execute(
+        select(AIPerformance).order_by(desc(AIPerformance.accuracy))
+    )
+    perfs = res.scalars().all()
+
+    total_res = await db.execute(select(AIPrediction))
+    all_preds = total_res.scalars().all()
+    counts: dict[str, int] = {}
+    for p in all_preds:
+        counts[p.source] = counts.get(p.source, 0) + 1
+
+    if not perfs:
+        sources_with_data = set(counts.keys())
+        return {
+            "performance": [],
+            "total_ingested": len(all_preds),
+            "source_counts": counts,
+            "message": "No performance data yet — metrics are computed after matches settle",
+        }
+
+    return {
+        "performance": [
+            {
+                "source": p.source,
+                "accuracy": round(p.accuracy or 0.0, 4),
+                "calibration_score": round(p.calibration_score or 0.0, 4),
+                "sample_size": p.sample_size or 0,
+                "total_predictions": p.total_predictions or 0,
+                "current_weight": round(p.current_weight or 1.0, 4),
+                "bias_home": round(p.bias_home_overrate or 0.0, 4),
+                "bias_draw": round(p.bias_draw_overrate or 0.0, 4),
+                "bias_away": round(p.bias_away_overrate or 0.0, 4),
+                "certified": bool(p.certified),
+                "last_updated": p.last_updated.isoformat() if p.last_updated else None,
+                "ingested_count": counts.get(p.source, 0),
+            }
+            for p in perfs
+        ],
+        "total_ingested": len(all_preds),
+        "source_counts": counts,
+    }
+
+
+@router.post("/update-performance")
+async def trigger_performance_update(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_uploader),
+):
+    """Manually trigger AI performance metric recalculation based on settled matches."""
+    service = AIIngestionService(db)
+    await service.update_performance_metrics()
+    return {"status": "ok", "message": "Performance metrics recalculated"}
+
+
+class ServerAnalysisPayload(BaseModel):
+    limit: int = Field(20, ge=1, le=50)
+    source_label: str = Field("server", description="Source label for ingested predictions")
+
+
+def _build_match_prompt(home: str, away: str, league: str) -> str:
+    return (
+        f"Analyze this football match and provide your independent probability assessment.\n\n"
+        f"Match: {home} vs {away}\n"
+        f"League: {league}\n\n"
+        f"Provide your analysis as a raw JSON object (no markdown, no code fences):\n"
+        f'{{\n'
+        f'  "home_prob": 0.00,\n'
+        f'  "draw_prob": 0.00,\n'
+        f'  "away_prob": 0.00,\n'
+        f'  "confidence": 0.00,\n'
+        f'  "reason": "one-line tactical summary (max 120 chars)"\n'
+        f'}}\n\n'
+        f"Rules:\n"
+        f"- home_prob + draw_prob + away_prob MUST equal exactly 1.0\n"
+        f"- confidence: 0.5 = uncertain, 0.65 = moderate, 0.80 = high conviction\n"
+        f"- reason: concise tactical reasoning, no filler\n"
+        f"- Return ONLY the JSON object, nothing else"
+    )
+
+
+def _parse_ai_json(raw: str, home_default=0.34, draw_default=0.33, away_default=0.33):
+    """Parse JSON from AI response, stripping code fences if present."""
+    text = raw.strip()
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if fence:
+        text = fence.group(1).strip()
+    obj = re.search(r"\{[\s\S]*\}", text)
+    if obj:
+        text = obj.group(0)
+    parsed = json.loads(text)
+    h = max(0.0, float(parsed.get("home_prob", home_default)))
+    d = max(0.0, float(parsed.get("draw_prob", draw_default)))
+    a = max(0.0, float(parsed.get("away_prob", away_default)))
+    total = h + d + a or 1.0
+    return {
+        "home_prob": round(h / total, 4),
+        "draw_prob": round(d / total, 4),
+        "away_prob": round(a / total, 4),
+        "confidence": min(1.0, max(0.3, float(parsed.get("confidence", 0.65)))),
+        "reason": str(parsed.get("reason", "Server AI analysis"))[:500],
+        "raw_content": raw,
+    }
+
+
+@router.post("/run-server")
+async def run_server_analysis(
+    payload: ServerAnalysisPayload,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_uploader),
+):
+    """
+    Run server-side AI analysis on upcoming matches using the built-in
+    Gemini → Claude → OpenAI → Grok cascade. Falls back gracefully if no
+    API keys are configured.
+    """
+    from datetime import timedelta
+    from app.services.ai_client import call_ai
+
+    now = datetime.utcnow()
+    live_cutoff = now - timedelta(hours=3)
+
+    res = await db.execute(
+        select(Match)
+        .where(
+            Match.status.in_(["scheduled", "upcoming", "live", "in_progress"]),
+            Match.kickoff_time >= live_cutoff,
+        )
+        .order_by(Match.kickoff_time.asc())
+        .limit(payload.limit)
+    )
+    matches = res.scalars().all()
+    if not matches:
+        res = await db.execute(
+            select(Match)
+            .where(Match.kickoff_time >= live_cutoff)
+            .order_by(Match.kickoff_time.asc())
+            .limit(payload.limit)
+        )
+        matches = res.scalars().all()
+
+    if not matches:
+        return {"status": "no_matches", "processed": 0, "results": []}
+
+    service = AIIngestionService(db)
+    results = []
+    source_label = payload.source_label.lower().strip() or "server"
+    if source_label not in ALLOWED_SOURCES:
+        source_label = "server"
+
+    for match in matches:
+        home = match.home_team or "Home"
+        away = match.away_team or "Away"
+        league = match.league or "Unknown League"
+        prompt = _build_match_prompt(home, away, league)
+
+        try:
+            raw = await call_ai(
+                prompt=f"{MATCH_ANALYSIS_SYSTEM}\n\n{prompt}",
+                max_tokens=300,
+                temperature=0.2,
+            )
+            if not raw:
+                results.append({
+                    "match_id": match.id,
+                    "match": f"{home} vs {away}",
+                    "status": "skipped",
+                    "error": "No AI provider available",
+                })
+                continue
+
+            analysis = _parse_ai_json(raw)
+            ok = await service.ingest_prediction(
+                match_id=match.id,
+                source=source_label,
+                home_prob=analysis["home_prob"],
+                draw_prob=analysis["draw_prob"],
+                away_prob=analysis["away_prob"],
+                confidence=analysis["confidence"],
+                reason=analysis["reason"],
+                raw_content=analysis["raw_content"],
+                submitted_by=user.id,
+            )
+            results.append({
+                "match_id": match.id,
+                "match": f"{home} vs {away}",
+                "status": "ingested" if ok else "failed",
+                "home_prob": analysis["home_prob"],
+                "draw_prob": analysis["draw_prob"],
+                "away_prob": analysis["away_prob"],
+                "confidence": analysis["confidence"],
+                "reason": analysis["reason"],
+            })
+            logger.info("[server-analysis] %s vs %s → %.0f/%.0f/%.0f conf=%.2f",
+                        home, away,
+                        analysis["home_prob"] * 100,
+                        analysis["draw_prob"] * 100,
+                        analysis["away_prob"] * 100,
+                        analysis["confidence"])
+        except (json.JSONDecodeError, ValueError, KeyError) as parse_err:
+            results.append({
+                "match_id": match.id,
+                "match": f"{home} vs {away}",
+                "status": "parse_error",
+                "error": str(parse_err)[:200],
+            })
+        except Exception as exc:
+            logger.warning("[server-analysis] match=%s error=%s", match.id, exc)
+            results.append({
+                "match_id": match.id,
+                "match": f"{home} vs {away}",
+                "status": "error",
+                "error": str(exc)[:200],
+            })
+
+    ingested = sum(1 for r in results if r.get("status") == "ingested")
+    return {
+        "status": "done",
+        "processed": len(results),
+        "ingested": ingested,
+        "skipped": len(results) - ingested,
+        "results": results,
     }
 
 

@@ -1741,7 +1741,7 @@ app.include_router(admin_tasks_router)
 app.include_router(postbacks_router)
 app.include_router(admin_rewards_router)
 app.include_router(rewards_router)
-app.include_router(admin_ai_sources_router)
+app.include_router(admin_ai_sources_router, prefix="/api")
 app.include_router(admin_clv_router)
 
 # Marketplace (Module G)

@@ -96,7 +96,7 @@ class AIIngestionService:
         result = await self.db.execute(
             select(Match, AIPrediction)
             .join(AIPrediction, Match.id == AIPrediction.match_id)
-            .where(Match.status == "completed")
+            .where(Match.status.in_(["settled", "completed", "finished"]))
             .where(AIPrediction.was_correct.is_(None))  # Not yet evaluated
         )
 

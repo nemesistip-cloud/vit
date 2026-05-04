@@ -386,9 +386,264 @@ function MatchCard({
   );
 }
 
+// ─── AI Performance Stats Panel ──────────────────────────────────────────────
+
+interface AIPerf {
+  source: string;
+  accuracy: number;
+  calibration_score: number;
+  sample_size: number;
+  total_predictions: number;
+  current_weight: number;
+  certified: boolean;
+  ingested_count: number;
+}
+
+function PerformanceStatsPanel() {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ["ai-sources", "performance"],
+    queryFn: () =>
+      apiGet<{
+        performance: AIPerf[];
+        total_ingested: number;
+        source_counts: Record<string, number>;
+        message?: string;
+      }>("/admin/ai-sources/performance"),
+    refetchInterval: 60000,
+  });
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const triggerUpdate = async () => {
+    setRefreshing(true);
+    try {
+      await apiPost("/admin/ai-sources/update-performance", {});
+      qc.invalidateQueries({ queryKey: ["ai-sources", "performance"] });
+      toast.success("Performance metrics recalculated");
+    } catch (e: any) {
+      toast.error(e?.message || "Update failed");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const data = q.data;
+  const sourceCounts = data?.source_counts ?? {};
+  const hasPerf = (data?.performance?.length ?? 0) > 0;
+
+  return (
+    <Card className="bg-gray-800/60 border-gray-700">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-white text-base">
+            <BarChart3 className="w-4 h-4 text-cyan-400" />
+            AI Source Performance
+            {(data?.total_ingested ?? 0) > 0 && (
+              <Badge className="bg-gray-700 text-gray-300 border-0 text-[10px] ml-1">
+                {data!.total_ingested} ingested
+              </Badge>
+            )}
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-gray-400 hover:text-white border border-gray-700"
+            onClick={triggerUpdate}
+            disabled={refreshing}
+          >
+            {refreshing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+            Recalc
+          </Button>
+        </div>
+        <CardDescription>
+          Accuracy tracked after matches settle. Weights auto-adjust for ensemble scoring.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {q.isLoading ? (
+          <Skeleton className="h-16 w-full bg-gray-700" />
+        ) : !hasPerf ? (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500">
+              {data?.message ?? "No performance data yet — metrics are computed after matches settle."}
+            </p>
+            {Object.keys(sourceCounts).length > 0 && (
+              <div>
+                <p className="text-xs text-gray-400 mb-1.5 font-medium">Ingested by source:</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(sourceCounts).map(([src, cnt]) => (
+                    <Badge key={src} className="bg-gray-700 text-gray-300 border-0 capitalize text-[10px]">
+                      {src}: {cnt}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {data!.performance.map((p) => (
+              <div key={p.source} className="bg-gray-900/60 rounded p-2.5 text-xs">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 capitalize text-[10px]">
+                      {p.source}
+                    </Badge>
+                    {p.certified && (
+                      <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px]">
+                        certified
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="text-gray-500 text-[10px]">{p.ingested_count} predictions</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <div className="text-gray-400">Accuracy</div>
+                    <div className={`font-bold ${p.accuracy >= 0.6 ? "text-emerald-400" : p.accuracy >= 0.45 ? "text-amber-400" : "text-rose-400"}`}>
+                      {fmtPct(p.accuracy)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">Calibration</div>
+                    <div className="text-gray-300 font-bold">{fmtPct(p.calibration_score)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">Weight</div>
+                    <div className="text-cyan-400 font-bold">{p.current_weight.toFixed(2)}×</div>
+                  </div>
+                </div>
+                {p.sample_size > 0 && (
+                  <div className="mt-1 text-[10px] text-gray-600">
+                    Based on {p.sample_size} settled match{p.sample_size !== 1 ? "es" : ""}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Server-Side Analysis Panel ───────────────────────────────────────────────
+
+interface ServerResult {
+  match_id: number;
+  match: string;
+  status: string;
+  home_prob?: number;
+  draw_prob?: number;
+  away_prob?: number;
+  confidence?: number;
+  reason?: string;
+  error?: string;
+}
+
+function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
+  const qc = useQueryClient();
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<ServerResult[] | null>(null);
+  const [summary, setSummary] = useState<{ ingested: number; skipped: number } | null>(null);
+
+  const run = async () => {
+    setRunning(true);
+    setResults(null);
+    setSummary(null);
+    try {
+      const data = await apiPost<{
+        status: string;
+        processed: number;
+        ingested: number;
+        skipped: number;
+        results: ServerResult[];
+      }>("/admin/ai-sources/run-server", { limit: Math.min(matchCount || 20, 50) });
+      setResults(data.results ?? []);
+      setSummary({ ingested: data.ingested ?? 0, skipped: data.skipped ?? 0 });
+      if ((data.ingested ?? 0) > 0) {
+        toast.success(`Server analysis complete — ${data.ingested} matches ingested`);
+        qc.invalidateQueries({ queryKey: ["ai-sources"] });
+      } else {
+        toast.warning("Server analysis ran but no providers were available");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Server analysis failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card className="bg-gray-800/60 border-gray-700">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-white text-base">
+          <Settings className="w-5 h-5 text-amber-400" />
+          Server-Side Analysis
+          <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] ml-1">
+            no Puter needed
+          </Badge>
+        </CardTitle>
+        <CardDescription>
+          Uses the server's built-in AI cascade (Gemini → Claude → OpenAI → Grok) to analyse
+          upcoming matches and ingest results automatically — works even without Puter.js.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {summary && (
+          <div className="grid grid-cols-2 gap-3 text-center">
+            <div className="bg-gray-900/60 rounded p-2">
+              <div className="text-xl font-bold text-emerald-400">{summary.ingested}</div>
+              <div className="text-xs text-gray-500">Ingested</div>
+            </div>
+            <div className="bg-gray-900/60 rounded p-2">
+              <div className="text-xl font-bold text-amber-400">{summary.skipped}</div>
+              <div className="text-xs text-gray-500">Skipped / no provider</div>
+            </div>
+          </div>
+        )}
+
+        <Button
+          onClick={run}
+          disabled={running}
+          className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+        >
+          {running ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analysing…</>
+          ) : (
+            <><Cpu className="w-4 h-4 mr-2" />Run Server Analysis{matchCount > 0 && <span className="ml-2 text-xs opacity-70">{matchCount} matches</span>}</>
+          )}
+        </Button>
+
+        {results && results.length > 0 && (
+          <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+            {results.map((r) => (
+              <div key={r.match_id} className="flex items-start gap-2 text-xs py-1 border-b border-gray-700/50 last:border-0">
+                <span className={`shrink-0 font-medium ${r.status === "ingested" ? "text-emerald-400" : r.status === "skipped" ? "text-amber-400" : "text-rose-400"}`}>
+                  {r.status === "ingested" ? "✓" : r.status === "skipped" ? "—" : "✗"}
+                </span>
+                <span className="text-gray-300 flex-1 truncate">{r.match}</span>
+                {r.status === "ingested" && r.home_prob != null && (
+                  <span className="text-gray-500 shrink-0">
+                    {fmtPct(r.home_prob)}/{fmtPct(r.draw_prob ?? 0)}/{fmtPct(r.away_prob ?? 0)}
+                  </span>
+                )}
+                {r.error && (
+                  <span className="text-rose-400 shrink-0 truncate max-w-[120px]">{r.error}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Manual Upload Form ───────────────────────────────────────────────────────
 
-const ALLOWED_SOURCES = ["claude", "grok", "chatgpt", "gemini", "deepseek", "perplexity", "mistral", "manual"];
+const ALLOWED_SOURCES = ["claude", "grok", "chatgpt", "gemini", "deepseek", "perplexity", "mistral", "manual", "server"];
 
 function ManualUploadForm({ matches }: { matches: AISourceMatch[] }) {
   const qc = useQueryClient();
@@ -1001,8 +1256,14 @@ export default function AISourcesPage() {
           </div>
         )}
 
+        {/* ── Server-Side Analysis ────────────────────────────── */}
+        <ServerAnalysisPanel matchCount={matches.length} />
+
         {/* ── Ingested Sources for focused match ─────────────── */}
         {focusMatchId && <ExistingSourcesPanel matchId={focusMatchId} />}
+
+        {/* ── AI Performance Stats ─────────────────────────────── */}
+        <PerformanceStatsPanel />
 
         {/* ── Manual Upload (collapsed by default) ───────────── */}
         <ManualUploadForm matches={matches} />
