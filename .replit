@@ -28,6 +28,7 @@ REFRESH_TOKEN_EXPIRE_DAYS = "30"
 REDIS_URL = "redis://default:rX469nWeJU4QyN2a0uqkK8XKLYuHuxKZ@redis-13133.c326.us-east-1-3.ec2.cloud.redislabs.com:13133"
 BACKEND_PORT = "8000"
 FRONTEND_PORT = "5000"
+JWT_SECRET_KEY = "lF3gtSVrVAE3OIhgOiJoLVDPO7mJ-q4WJ9e0wDHtOXZTF2_dBLY2srAsTn8Ry88s"
 
 [workflows]
 runButton = "Project"
