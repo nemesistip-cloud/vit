@@ -72,8 +72,8 @@ packages = ["cargo", "freetype", "glibcLocales", "lcms2", "libiconv", "libimageq
 
 [deployment]
 deploymentTarget = "vm"
-run = ["bash", "scripts/start_fullstack.sh"]
-build = ["bash", "-c", "cd frontend && npm install && npm run build && cd .."]
+run = ["bash", "scripts/start_production.sh"]
+build = ["bash", "-c", "cd frontend && npm install && npm run build"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
