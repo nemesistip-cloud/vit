@@ -223,6 +223,44 @@ async def platform_stats(db: AsyncSession) -> dict:
     }
 
 
+async def bill_api_call(
+    db: AsyncSession,
+    api_key_id: int,
+    user_id: int,
+    plan: str,
+) -> tuple[bool, str]:
+    """
+    G09: Deduct VITCoin for a billable API call.
+    Free plan — no charge. Other plans deduct price_per_1k / 1000 VITCoin per call.
+    Returns (allowed, reason). Returns (False, 'insufficient_balance') on 402.
+    """
+    cfg = PLAN_DEFAULTS.get(plan, PLAN_DEFAULTS["free"])
+    cost_per_call = cfg["price_per_1k"] / Decimal("1000")
+    if cost_per_call <= Decimal("0"):
+        return True, "free_plan"
+
+    try:
+        from app.modules.wallet.services import WalletService
+        service = WalletService(db)
+        wallet  = await service.get_or_create_wallet(user_id)
+
+        vitcoin_balance = getattr(wallet, "vitcoin_balance", Decimal("0")) or Decimal("0")
+        if Decimal(str(vitcoin_balance)) < cost_per_call:
+            logger.warning(
+                "API billing: user %s insufficient VITCoin (%.6f < %.6f)",
+                user_id, vitcoin_balance, cost_per_call,
+            )
+            return False, "insufficient_balance"
+
+        # Deduct from wallet
+        wallet.vitcoin_balance = Decimal(str(vitcoin_balance)) - cost_per_call
+        await db.commit()
+        return True, "billed"
+    except Exception as exc:
+        logger.error("API billing error for user %s: %s — allowing call", user_id, exc)
+        return True, "billing_error"
+
+
 async def list_plans(db: AsyncSession) -> list[APIKeyPlan]:
     result = await db.execute(
         select(APIKeyPlan).where(APIKeyPlan.is_active == True).order_by(APIKeyPlan.id)

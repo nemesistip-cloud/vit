@@ -160,6 +160,44 @@ async def earn_history(
     ]
 
 
+@router.get("/my-completions")
+async def my_completions(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Return paginated list of the user's offer completions with full details."""
+    from sqlalchemy import func as _func
+    total_result = await db.execute(
+        select(_func.count(OfferCompletion.id)).where(OfferCompletion.user_id == current_user.id)
+    )
+    total = total_result.scalar() or 0
+
+    result = await db.execute(
+        select(OfferCompletion)
+        .where(OfferCompletion.user_id == current_user.id)
+        .order_by(desc(OfferCompletion.created_at))
+        .offset(offset)
+        .limit(min(limit, 100))
+    )
+    records = result.scalars().all()
+    items = [
+        {
+            "id":           r.id,
+            "offer_id":     r.offer_id if hasattr(r, "offer_id") else None,
+            "provider":     r.provider,
+            "reward_type":  r.reward_type,
+            "status":       r.status,
+            "amount":       float(r.amount),
+            "currency":     r.currency,
+            "created_at":   r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in records
+    ]
+    return {"items": items, "total": total, "offset": offset, "limit": limit}
+
+
 @router.get("/summary")
 async def rewards_summary(
     current_user=Depends(get_current_user),

@@ -251,10 +251,17 @@ async def stripe_webhook(
 ):
     body = await request.body()
 
-    if STRIPE_WEBHOOK_SECRET:
-        if not stripe_signature or not _verify_stripe_signature(body, stripe_signature, STRIPE_WEBHOOK_SECRET):
-            logger.warning("Stripe webhook: invalid signature rejected")
-            raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+    # G03: Enforce signature verification. Return 503 if secret not configured.
+    if not STRIPE_WEBHOOK_SECRET:
+        logger.error("Stripe webhook: STRIPE_WEBHOOK_SECRET not configured — rejecting")
+        raise HTTPException(
+            status_code=503,
+            detail="Stripe webhook secret not configured. Set STRIPE_WEBHOOK_SECRET env var.",
+        )
+
+    if not stripe_signature or not _verify_stripe_signature(body, stripe_signature, STRIPE_WEBHOOK_SECRET):
+        logger.warning("Stripe webhook: invalid signature rejected")
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
 
     try:
         payload = json.loads(body)

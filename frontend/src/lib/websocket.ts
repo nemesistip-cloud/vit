@@ -41,7 +41,8 @@ class VITWebSocketService {
     if (this.ws?.readyState === WebSocket.OPEN) return;
     this.stopped = false;
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    this.url = `${proto}://${window.location.host}/api/notifications/ws/${userId}`;
+    const token = localStorage.getItem("vit_token") ?? "";
+    this.url = `${proto}://${window.location.host}/api/notifications/ws/${userId}?token=${token}`;
     this._open();
   }
 
@@ -91,8 +92,16 @@ class VITWebSocketService {
         }
       };
 
-      this.ws.onclose = () => {
-        this._emit("system", { type: "disconnected" });
+      this.ws.onclose = (ev) => {
+        this._emit("system", { type: "disconnected", code: ev.code });
+        if (ev.code === 4001) {
+          // Auth failure — token invalid or missing, redirect to login
+          this.stopped = true;
+          localStorage.removeItem("vit_token");
+          localStorage.removeItem("vit_refresh_token");
+          window.dispatchEvent(new Event("vit:logout"));
+          return;
+        }
         if (!this.stopped) this._scheduleReconnect();
       };
 

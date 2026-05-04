@@ -141,6 +141,29 @@ async def revoke_key(
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 
+@router.post("/keys/{key_id}/bill", summary="Bill one API call against a key (internal use)")
+async def bill_key_call(
+    key_id:       int,
+    db:           AsyncSession = Depends(get_db),
+    current_user: User         = Depends(get_current_user),
+):
+    """
+    G09: Deduct VITCoin for a single billable API call on the given key.
+    Returns {allowed, reason}. Returns 402 if insufficient balance.
+    """
+    key = await svc.get_key(db, key_id, current_user.id)
+    if not key or not key.is_active:
+        raise HTTPException(status_code=404, detail="API key not found or inactive")
+
+    allowed, reason = await svc.bill_api_call(db, key.id, current_user.id, key.plan)
+    if not allowed:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Insufficient VITCoin balance to make API calls on the '{key.plan}' plan.",
+        )
+    return {"allowed": True, "reason": reason, "key_id": key_id, "plan": key.plan}
+
+
 @router.get("/usage", summary="My recent API call history")
 async def my_usage(
     limit:        int = Query(default=100, ge=1, le=500),

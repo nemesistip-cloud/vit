@@ -456,40 +456,105 @@ async def calculate_trust_score(db: AsyncSession, user_id: int) -> UserTrustScor
     await db.commit()
     await db.refresh(record)
 
-    # ── v4.5: Auto-suspension for critical trust scores ───────────────────
-    # If composite drops below 30 and there are open fraud flags, auto-suspend
-    # the user and create a system notification for admin review.
-    if composite < 30 and len(open_flags) + len(new_flags) > 0:
-        try:
-            from app.db.models import User
-            user_res = await db.execute(select(User).where(User.id == user_id))
-            user = user_res.scalars().first()
-            if user and user.is_active and not getattr(user, "is_banned", False):
+    # ── G11: Graduated automated trust actions ────────────────────────────
+    # Score < 15  → freeze withdrawals (withdrawals_frozen flag)
+    # Score < 30  → suspend account if open fraud flags present
+    # Score < 50  → flag account for manual review
+    await _apply_trust_actions(db, user_id, composite, len(open_flags) + len(new_flags))
+
+    return record
+
+
+# ---------------------------------------------------------------------------
+# G11: Graduated automated trust actions
+# ---------------------------------------------------------------------------
+
+async def _apply_trust_actions(
+    db: AsyncSession,
+    user_id: int,
+    composite: float,
+    total_open_flags: int,
+) -> None:
+    """
+    Apply automated account actions based on trust score thresholds:
+      score < 15  → freeze withdrawals
+      score < 30  → suspend account (if open flags present)
+      score < 50  → flag account for admin review
+    All actions are idempotent and skip if already applied.
+    """
+    try:
+        from app.db.models import User
+        user_res = await db.execute(select(User).where(User.id == user_id))
+        user = user_res.scalars().first()
+        if not user:
+            return
+
+        notify_msgs: list[tuple[str, str]] = []
+
+        # Tier 1: freeze withdrawals at score < 15
+        if composite < 15:
+            if not getattr(user, "withdrawals_frozen", False):
+                try:
+                    user.withdrawals_frozen = True
+                    log.warning(
+                        "[trust] FROZEN withdrawals for user %s (score=%.1f)", user_id, composite
+                    )
+                    notify_msgs.append((
+                        "Withdrawals Temporarily Frozen",
+                        "Your withdrawal access has been restricted due to unusual activity. "
+                        "Please contact support to resolve this.",
+                    ))
+                except AttributeError:
+                    pass  # column not yet migrated — skip silently
+
+        # Tier 2: suspend account at score < 30 with open flags
+        if composite < 30 and total_open_flags > 0:
+            if user.is_active and not getattr(user, "is_banned", False):
                 user.is_active = False
-                await db.commit()
                 log.warning(
                     "[trust] AUTO-SUSPENDED user %s (score=%.1f, open_flags=%d)",
-                    user_id, composite, len(open_flags) + len(new_flags),
+                    user_id, composite, total_open_flags,
                 )
+                notify_msgs.append((
+                    "Account Temporarily Suspended",
+                    "Your account has been temporarily suspended due to suspicious activity. "
+                    "Please contact support to appeal.",
+                ))
+
+        # Tier 3: flag for review at score < 50
+        if composite < 50:
+            if not getattr(user, "is_flagged", False):
                 try:
-                    from app.modules.notifications.service import NotificationService
+                    user.is_flagged = True
+                    log.info(
+                        "[trust] FLAGGED user %s for review (score=%.1f)", user_id, composite
+                    )
+                    notify_msgs.append((
+                        "Account Flagged for Review",
+                        "Your account has been flagged for a routine security review. "
+                        "This usually resolves automatically as your trust score improves.",
+                    ))
+                except AttributeError:
+                    pass  # column not yet migrated — skip silently
+
+        if notify_msgs:
+            await db.commit()
+            try:
+                from app.modules.notifications.service import NotificationService
+                for title, body in notify_msgs:
                     await NotificationService.create(
                         db=db,
                         user_id=user_id,
                         type="account_suspended",
-                        title="Account Temporarily Suspended",
-                        body=(
-                            "Your account has been temporarily suspended due to suspicious activity. "
-                            "Please contact support to appeal."
-                        ),
+                        title=title,
+                        body=body,
                         channel="in_app",
                     )
-                except Exception:
-                    pass
-        except Exception as exc:
-            log.error("[trust] Auto-suspension failed for user %s: %s", user_id, exc)
+            except Exception:
+                pass
 
-    return record
+    except Exception as exc:
+        log.error("[trust] _apply_trust_actions failed for user %s: %s", user_id, exc)
 
 
 # ---------------------------------------------------------------------------

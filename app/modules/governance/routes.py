@@ -267,3 +267,36 @@ async def governance_stats(
         "total_votes":      total_votes,
         "total_voting_power_cast": float(total_power),
     }
+
+
+# ── G10: Admin close proposal (manual trigger) ────────────────────────────────
+
+@router.post("/proposals/{proposal_id}/close", summary="Admin: manually close an expired proposal")
+async def close_proposal(
+    proposal_id:  int,
+    db:           AsyncSession = Depends(get_db),
+    current_user: User         = Depends(get_current_admin),
+):
+    """
+    Force-close an active proposal whose voting period has ended.
+    Quorum is checked: if total_votes < quorum_required the proposal is rejected.
+    """
+    proposal = await svc.get_proposal(db, proposal_id)
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if proposal.status != "active":
+        raise HTTPException(status_code=400, detail=f"Proposal is not active (status: {proposal.status})")
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    ends = proposal.voting_ends_at
+    if ends and ends.tzinfo is None:
+        ends = ends.replace(tzinfo=timezone.utc)
+    if ends and now < ends:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Voting period has not ended yet (ends {ends.isoformat()})",
+        )
+
+    await svc._auto_close_if_needed(db, proposal)
+    return _fmt_proposal(proposal)

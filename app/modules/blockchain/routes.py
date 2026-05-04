@@ -763,3 +763,33 @@ async def economy_dashboard(db: AsyncSession = Depends(get_db)):
         "vitcoin_price_ngn": float(prices["ngn"]),
         "circulating_supply": float(circulating_supply),
     }
+
+
+# ── G06: Base L2 chain-status ─────────────────────────────────────────────────
+
+@router.get("/chain-status", summary="Base L2 chain connection status")
+async def chain_status(_: User = Depends(get_current_user)):
+    """
+    Returns real-time connectivity info for the Base L2 network.
+    Requires BASE_RPC_URL env var (defaults to https://mainnet.base.org).
+    """
+    from app.services.base_chain import get_chain_status
+    return await get_chain_status()
+
+
+@router.get("/chain-balance/{address}", summary="VITCoin ERC-20 balance on Base L2")
+async def chain_balance(address: str, _: User = Depends(get_current_user)):
+    """Returns ERC-20 VITCoin balance for a wallet address on Base L2."""
+    from app.services.base_chain import get_token_balance
+    balance_hex = await get_token_balance(address)
+    if balance_hex is None:
+        raise HTTPException(
+            status_code=503,
+            detail="VIT_CONTRACT_ADDRESS not deployed or BASE_RPC_URL unreachable.",
+        )
+    try:
+        balance_wei = int(balance_hex, 16)
+        balance_token = balance_wei / 10**18
+    except Exception:
+        balance_token = 0.0
+    return {"address": address, "balance": balance_token, "balance_hex": balance_hex}

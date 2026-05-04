@@ -3,6 +3,19 @@
 ## Overview
 The VIT Sports Intelligence Network is an institutional-grade football prediction platform that employs a 12-model AI ensemble for predictions. It integrates a VITCoin wallet economy, supports blockchain-verified staking, features a model marketplace, and includes a governance DAO. The platform offers multi-tier subscriptions and provides advanced sports analytics, real-time live match tracking, and AI agent intelligence reports. Its business vision is to deliver sophisticated, reliable sports predictions and foster a decentralized, community-driven ecosystem around sports intelligence.
 
+## Gap Fixes Applied (vit_master_fix_prompts)
+- **G01** WebSocket JWT: `frontend/src/lib/websocket.ts` sends `?token=<jwt>` in WS URL; close code 4001 triggers logout + redirect.
+- **G02** Redis rate limiting: `app/api/middleware/rate_limit.py` uses Lua atomic sliding window via REDIS_URL, falls back to in-memory deque.
+- **G03** Stripe webhook enforcement: `app/modules/wallet/webhooks.py` returns 503 if STRIPE_WEBHOOK_SECRET not set; 400 on bad signature.
+- **G04** Email verification tokens DB-backed: already fully implemented in `app/auth/verification.py`.
+- **G05** Paystack deposit verify: already fully implemented at `POST /api/wallet/deposit/verify`.
+- **G06** Base L2 chain status: `app/services/base_chain.py` + `GET /api/blockchain/chain-status` + `GET /api/blockchain/chain-balance/{address}`.
+- **G08** Offerwall completions: `GET /api/rewards/my-completions` paginated endpoint added to `app/modules/rewards/routes.py`.
+- **G09** Developer API billing: `bill_api_call()` in `app/modules/developer/service.py`; `POST /api/developer/keys/{id}/bill` route deducts VITCoin (free plan = no charge; paid plans deduct price_per_1k/1000).
+- **G10** Governance close + quorum: `POST /api/governance/proposals/{id}/close` admin endpoint added; quorum enforced in `_auto_close_if_needed`.
+- **G11** Trust engine graduated actions: `_apply_trust_actions()` in `app/modules/trust/engine.py` — score <15 freezes withdrawals, <30 suspends account (if flags), <50 flags for review.
+- **G13** 2FA frontend: already fully implemented in `frontend/src/pages/settings.tsx`.
+
 ## User Preferences
 I prefer iterative development with a focus on clear, modular code. Please use functional programming paradigms where appropriate and provide detailed explanations for significant architectural decisions or complex algorithms. Ask before making major changes to the project structure or core functionalities.
 
