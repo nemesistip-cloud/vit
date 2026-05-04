@@ -181,39 +181,28 @@ The `tasks` and `task_categories` tables are empty. The Tasks page (`/tasks`) an
 
 ### P0 — Fix immediately (broken user-facing features)
 
-**P0-A: Fix `/api/agents/status` 404**
-- File: `app/api/routes/agents.py` (line 11: `prefix="/agents"`)
-- File: `main.py` — check how this router is included (look for `include_router(agents_router...)`)
-- The frontend calls `/api/agents/status` via `apiGet()` which prepends `/api`. Either add `/api` to the router prefix or wrap it.
-- Also check: `GET /agents/providers` and `GET /agents/reports` — same prefix issue.
+**P0-A: Fix `/api/agents/status` 404** ✅ DONE
+- Fixed in `main.py`: `app.include_router(agents_router, prefix="/api")` — all agent routes now at `/api/agents/...`
 
 **P0-B: Add `RESEND_API_KEY` to enable email**
 - `app/services/alerts.py` and email routes use Resend for transactional email
 - Without this key, password reset, email verification, and notifications are broken
 - Add the secret via Replit Secrets panel, not in code
 
-**P0-C: Convert `claude_insights.py`, `openai_insights.py`, `gemini_insights.py` to use `call_ai` cascade**
-- Follow exact same pattern as the fixed `grok_insights.py`
-- These three files all have isolated `httpx` clients — no cross-provider fallback
-- Priority: `claude_insights.py` first (Claude key is invalid, so all Claude insight calls fail hard)
+**P0-C: Convert `claude_insights.py`, `openai_insights.py`, `gemini_insights.py` to use `call_ai` cascade** ✅ ALREADY DONE
+- All three insight files already use `call_ai_with_provider` cascade — ROADMAP was outdated
 
 ### P1 — High value (significant UX improvement)
 
-**P1-A: Seed gamification tasks**
-- Add startup seeding in `main.py` for `task_categories` and `tasks` tables
-- Minimum viable: 3 categories (Prediction, Social, Learning), 5-8 tasks each
-- The Tasks page (`/tasks`) and `onboarding.tsx` component are complete — just need data
+**P1-A: Seed gamification tasks** ✅ DONE
+- Added startup seeding in `main.py`: 3 categories (Prediction, Social, Learning), 8 tasks total
 
-**P1-B: Fix provider status endpoint**
-- `GET /api/support/status` always shows all providers as `false`
-- Update `provider_status()` in `ai_client.py` to return three states: `"no_key"`, `"cooling"`, `"ok"`
-- Update the status endpoint response to surface these three states
-- This affects the AI Sources page and admin monitoring
+**P1-B: Fix provider status endpoint** ✅ ALREADY DONE
+- `provider_status()` in `ai_client.py` already returns rich `configured/available/cooling/failing` states
 
-**P1-C: Populate `model_performances` via performance monitor agent**
-- `app/agents/performance_monitor.py` — check if it skips synthetic predictions
-- Should record accuracy metrics against the 9 settled synthetic predictions
-- This unblocks the Analytics page ROI chart, model contribution chart, and the Research terminal stats
+**P1-C: Populate `model_performances` via performance monitor agent** ✅ NO CHANGE NEEDED
+- Performance monitor already filters on `Match.actual_outcome.isnot(None)` — works correctly with real data
+- Synthetic matches purged at startup; monitor populates as real settled matches accumulate
 
 **P1-D: Fix STRIPE_SECRET_KEY**
 - Current value starts with `mk_1` — not a standard Stripe key prefix
@@ -237,15 +226,11 @@ The `tasks` and `task_categories` tables are empty. The Tasks page (`/tasks`) an
 - CLV is a key analytics metric — needs to run against settled predictions
 - The CLV tracking flag is set to `true` in health check but no entries are being written
 
-**P2-C: Marketplace seed listings**
-- `marketplace_listings` = 0 — the Marketplace page shows nothing
-- Either add an admin UI to submit listings, or seed 2-3 example model listings at startup
-- Model marketplace is a core monetization feature
+**P2-C: Marketplace seed listings** ✅ ALREADY DONE
+- `seed_system_listings()` already called at startup — 12 system model listings seeded
 
-**P2-D: Validator system bootstrap**
-- `validator_profiles` = 0 — Validators page shows empty
-- Add a startup seed that registers the admin user as a default validator
-- The validator prediction system uses the oracle consensus layer
+**P2-D: Validator system bootstrap** ✅ DONE
+- Admin user seeded as active validator at startup (stake=1000 VIT, trust_score=0.95)
 
 ### P3 — Nice to have (polish & completeness)
 

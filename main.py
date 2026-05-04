@@ -1238,6 +1238,236 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  Agent Registry bootstrap failed: {_e}")
 
+    # SEED GAMIFICATION TASKS (P1-A)
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.tasks.models import TaskCategory, Task, TaskType, TaskStatus
+        from sqlalchemy import select as _select, func as _func
+
+        _task_categories = [
+            {"name": "Prediction", "description": "Tasks related to making and reviewing football predictions", "icon": "target", "color": "blue", "sort_order": 1},
+            {"name": "Social", "description": "Community and referral tasks to grow the VIT network", "icon": "users", "color": "green", "sort_order": 2},
+            {"name": "Learning", "description": "Educational tasks to improve your sports intelligence", "icon": "book-open", "color": "purple", "sort_order": 3},
+        ]
+        _task_definitions = [
+            # Prediction tasks
+            {
+                "category_name": "Prediction",
+                "title": "Make Your First Prediction",
+                "description": "Submit your first football match prediction using the VIT AI engine.",
+                "short_description": "Submit a prediction",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 10,
+                "xp_reward": 50,
+                "icon": "zap",
+                "color": "blue",
+                "sort_order": 1,
+                "is_featured": True,
+                "action_url": "/predict",
+                "action_label": "Predict Now",
+            },
+            {
+                "category_name": "Prediction",
+                "title": "Daily Prediction Streak",
+                "description": "Make at least one prediction every day to maintain your streak and earn daily VIT rewards.",
+                "short_description": "Predict daily",
+                "task_type": TaskType.DAILY.value,
+                "required_count": 1,
+                "max_completions": 365,
+                "reset_period_days": 1,
+                "vit_reward": 5,
+                "xp_reward": 20,
+                "icon": "flame",
+                "color": "orange",
+                "sort_order": 2,
+                "is_featured": True,
+                "action_url": "/predict",
+                "action_label": "Predict Today",
+            },
+            {
+                "category_name": "Prediction",
+                "title": "Prediction Veteran",
+                "description": "Accumulate 50 total predictions across any matches to prove your dedication to sports intelligence.",
+                "short_description": "50 total predictions",
+                "task_type": TaskType.PROGRESS.value,
+                "required_count": 50,
+                "vit_reward": 100,
+                "xp_reward": 500,
+                "icon": "trophy",
+                "color": "yellow",
+                "sort_order": 3,
+                "action_url": "/predict",
+                "action_label": "Predict Now",
+            },
+            # Social tasks
+            {
+                "category_name": "Social",
+                "title": "Complete Your Profile",
+                "description": "Add your username and complete your account profile to unlock full platform features.",
+                "short_description": "Complete profile",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 15,
+                "xp_reward": 75,
+                "icon": "user-check",
+                "color": "green",
+                "sort_order": 1,
+                "is_featured": True,
+                "action_url": "/profile",
+                "action_label": "Edit Profile",
+            },
+            {
+                "category_name": "Social",
+                "title": "Refer a Friend",
+                "description": "Invite a friend to join VIT Sports Intelligence Network using your referral link.",
+                "short_description": "Refer 1 friend",
+                "task_type": TaskType.PROGRESS.value,
+                "required_count": 1,
+                "max_completions": 50,
+                "vit_reward": 25,
+                "xp_reward": 100,
+                "icon": "share-2",
+                "color": "teal",
+                "sort_order": 2,
+                "action_url": "/referral",
+                "action_label": "Get Referral Link",
+            },
+            # Learning tasks
+            {
+                "category_name": "Learning",
+                "title": "Explore the AI Engine",
+                "description": "Visit the AI Engine dashboard to understand how VIT's 12-model ensemble generates predictions.",
+                "short_description": "Visit AI Engine",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 5,
+                "xp_reward": 25,
+                "icon": "cpu",
+                "color": "purple",
+                "sort_order": 1,
+                "action_url": "/ai-engine",
+                "action_label": "Explore AI Engine",
+            },
+            {
+                "category_name": "Learning",
+                "title": "Check the Research Terminal",
+                "description": "Run a backtest or EV scan in the Research Terminal to sharpen your edge.",
+                "short_description": "Use Research Terminal",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 10,
+                "xp_reward": 50,
+                "icon": "bar-chart-2",
+                "color": "indigo",
+                "sort_order": 2,
+                "action_url": "/research",
+                "action_label": "Open Research",
+            },
+            {
+                "category_name": "Learning",
+                "title": "Weekly Learning Badge",
+                "description": "Visit the platform and review at least one AI insight report each week.",
+                "short_description": "Weekly engagement",
+                "task_type": TaskType.WEEKLY.value,
+                "required_count": 1,
+                "max_completions": 52,
+                "reset_period_days": 7,
+                "vit_reward": 8,
+                "xp_reward": 40,
+                "icon": "award",
+                "color": "pink",
+                "sort_order": 3,
+                "action_url": "/dashboard",
+                "action_label": "View Dashboard",
+            },
+        ]
+
+        async with AsyncSessionLocal() as _db:
+            _cat_count = (await _db.execute(_select(_func.count()).select_from(TaskCategory))).scalar()
+            if _cat_count == 0:
+                _admin_user = (await _db.execute(_select(__import__('app.db.models', fromlist=['User']).User).where(
+                    __import__('app.db.models', fromlist=['User']).User.role == "admin"
+                ))).scalar_one_or_none()
+                _admin_id = _admin_user.id if _admin_user else 1
+
+                _cat_map = {}
+                for _cat in _task_categories:
+                    _c = TaskCategory(
+                        name=_cat["name"],
+                        description=_cat["description"],
+                        icon=_cat["icon"],
+                        color=_cat["color"],
+                        sort_order=_cat["sort_order"],
+                        is_active=True,
+                    )
+                    _db.add(_c)
+                    await _db.flush()
+                    _cat_map[_cat["name"]] = _c.id
+
+                for _td in _task_definitions:
+                    _db.add(Task(
+                        category_id=_cat_map[_td["category_name"]],
+                        title=_td["title"],
+                        description=_td["description"],
+                        short_description=_td.get("short_description"),
+                        task_type=_td["task_type"],
+                        status=TaskStatus.ACTIVE.value,
+                        required_count=_td.get("required_count", 1),
+                        max_completions=_td.get("max_completions", 1),
+                        reset_period_days=_td.get("reset_period_days"),
+                        vit_reward=_td.get("vit_reward", 0),
+                        xp_reward=_td.get("xp_reward", 0),
+                        icon=_td.get("icon"),
+                        color=_td.get("color"),
+                        sort_order=_td.get("sort_order", 0),
+                        is_featured=_td.get("is_featured", False),
+                        action_url=_td.get("action_url"),
+                        action_label=_td.get("action_label"),
+                        created_by=_admin_id,
+                    ))
+
+                await _db.commit()
+                print(f"✅ Gamification tasks seeded: {len(_task_categories)} categories, {len(_task_definitions)} tasks")
+            else:
+                _task_count = (await _db.execute(_select(_func.count()).select_from(Task))).scalar()
+                print(f"✅ Gamification tasks: {_cat_count} categories, {_task_count} tasks present")
+    except Exception as _e:
+        print(f"⚠️  Gamification task seeding failed: {_e}")
+
+    # SEED DEFAULT VALIDATOR PROFILE FOR ADMIN (P2-D)
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.blockchain.models import ValidatorProfile, ValidatorStatus
+        from app.db.models import User as _User
+        from sqlalchemy import select as _select
+        import uuid as _uuid_mod
+        from decimal import Decimal as _Decimal
+
+        async with AsyncSessionLocal() as _db:
+            _admin = (await _db.execute(_select(_User).where(_User.role == "admin"))).scalar_one_or_none()
+            if _admin:
+                _existing_vp = (await _db.execute(
+                    _select(ValidatorProfile).where(ValidatorProfile.user_id == _admin.id)
+                )).scalar_one_or_none()
+                if not _existing_vp:
+                    _db.add(ValidatorProfile(
+                        id=str(_uuid_mod.uuid4()),
+                        user_id=_admin.id,
+                        stake_amount=_Decimal("1000.00000000"),
+                        trust_score=_Decimal("0.9500"),
+                        status=ValidatorStatus.ACTIVE.value,
+                        total_predictions=0,
+                        accurate_predictions=0,
+                        influence_score=_Decimal("100.00000000"),
+                    ))
+                    await _db.commit()
+                    print("✅ Validator profile seeded for admin")
+                else:
+                    print("✅ Validator profile: admin already registered")
+    except Exception as _e:
+        print(f"⚠️  Validator profile seeding failed: {_e}")
+
     alerts = get_telegram_alerts()
     if alerts and alerts.enabled:
         await alerts.send_startup_message()
@@ -1522,7 +1752,7 @@ app.include_router(totp_router)
 app.include_router(referral_router)
 app.include_router(leaderboard_router)
 app.include_router(exports_router)
-app.include_router(agents_router)
+app.include_router(agents_router, prefix="/api")
 app.include_router(iot_router)
 
 # AI Support Agent (Item 7 — data-aware customer support)

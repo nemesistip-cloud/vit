@@ -367,7 +367,7 @@ async def run_odds_refresh() -> Dict[str, Any]:
 
 async def _mark_stale_records():
     """Flag feature records whose kickoff has already passed."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)
+    cutoff = datetime.utcnow() - timedelta(hours=STALE_AFTER_HOURS)
     async with AsyncSessionLocal() as db:
         await db.execute(
             update(MatchFeatureStore)
