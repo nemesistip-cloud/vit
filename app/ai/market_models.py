@@ -1,225 +1,26 @@
 """
-app/ai/market_models.py — Phase 2: Specialized Market Models
+app/ai/market_models.py — Phase 2: Specialized Market Models (sklearn-based)
 
-Dedicated neural network architectures for:
-  - BTTS (Both Teams To Score)
-  - Over/Under 2.5 goals
-  - Correct Score (top-N probability matrix)
+Replaces the original PyTorch implementation with scikit-learn equivalents
+that work without a GPU or torch installation.
+
+Models:
+  - BTTSModel         — GradientBoosting binary classifier (btts yes/no)
+  - OverUnderModel    — GradientBoosting 5-class (goal bands 0-1,2,3,4-5,6+)
+  - CorrectScoreModel — GradientBoosting 26-class (exact score matrix)
 """
+from __future__ import annotations
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from typing import List, Optional
+import logging
+import os
+from typing import Any, Dict, List, Optional
 
+import numpy as np
 
-# ---------------------------------------------------------------------------
-# Shared building blocks
-# ---------------------------------------------------------------------------
-
-class _ResidualBlock(nn.Module):
-    """Simple residual block for deeper market models."""
-    def __init__(self, size: int, dropout: float = 0.2):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(size, size),
-            nn.LayerNorm(size),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(size, size),
-            nn.LayerNorm(size),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.gelu(x + self.net(x))
-
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Phase 2a — BTTS Model
-# ---------------------------------------------------------------------------
-
-class BTTSModel(nn.Module):
-    """
-    Specialised binary classifier for Both Teams To Score.
-
-    Key input features:
-      - xG attack/defence stats for both teams
-      - Form GF/GA per game
-      - H2H BTTS rate
-      - Poisson lambda estimates
-      - Referee discipline index (many cards → open game)
-      - Market BTTS odds implied probability
-
-    Output: [P(btts_no), P(btts_yes)]  (softmax)
-    """
-    MODEL_KEY = "btts_v2"
-
-    def __init__(self, input_size: int = 32, hidden_size: int = 128, dropout: float = 0.25):
-        super().__init__()
-        self.stem = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.GELU(),
-            nn.Dropout(dropout),
-        )
-        self.res1 = _ResidualBlock(hidden_size, dropout)
-        self.res2 = _ResidualBlock(hidden_size, dropout)
-        self.head = nn.Sequential(
-            nn.Linear(hidden_size, 32),
-            nn.GELU(),
-            nn.Linear(32, 2),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.stem(x)
-        h = self.res1(h)
-        h = self.res2(h)
-        return self.head(h)
-
-    def predict_proba(self, x: torch.Tensor) -> torch.Tensor:
-        """Return softmax probabilities [P(no), P(yes)]."""
-        with torch.no_grad():
-            return F.softmax(self.forward(x), dim=-1)
-
-
-# ---------------------------------------------------------------------------
-# Phase 2b — Over/Under Model
-# ---------------------------------------------------------------------------
-
-class OverUnderModel(nn.Module):
-    """
-    Specialised classifier for goal totals market.
-
-    Outputs 5-class distribution over common goal bands:
-      0: 0–1 goals   (under 2)
-      1: exactly 2   (under 2.5 but over 1.5)
-      2: exactly 3
-      3: 4–5 goals
-      4: 6+  goals
-
-    This allows computing P(over N.5) for any N by summing the tail.
-
-    Key additional features vs the main model:
-      - lambda_home / lambda_away (Poisson estimates)
-      - xG total expected
-      - poisson_over25_prob
-      - Referee fouls/penalty rate (high activity → more goals)
-    """
-    MODEL_KEY = "over_under_v2"
-
-    # Map class index → actual goals range for UI display
-    CLASS_LABELS = ["0–1", "2", "3", "4–5", "6+"]
-
-    def __init__(self, input_size: int = 36, hidden_size: int = 128, dropout: float = 0.2):
-        super().__init__()
-        self.stem = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.GELU(),
-            nn.Dropout(dropout),
-        )
-        self.res1 = _ResidualBlock(hidden_size, dropout)
-        self.res2 = _ResidualBlock(hidden_size, dropout)
-        self.res3 = _ResidualBlock(hidden_size, dropout)
-        self.head = nn.Sequential(
-            nn.Linear(hidden_size, 64),
-            nn.GELU(),
-            nn.Dropout(dropout * 0.5),
-            nn.Linear(64, 5),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.stem(x)
-        h = self.res1(h)
-        h = self.res2(h)
-        h = self.res3(h)
-        return self.head(h)
-
-    def predict_proba(self, x: torch.Tensor) -> torch.Tensor:
-        with torch.no_grad():
-            return F.softmax(self.forward(x), dim=-1)
-
-    def over_n5_prob(self, x: torch.Tensor, n: float = 2.5) -> float:
-        """Compute P(total goals > n) from the 5-class distribution."""
-        proba = self.predict_proba(x).squeeze()
-        # Band lower bounds: 0, 2, 3, 4, 6
-        band_mins = [0, 2, 3, 4, 6]
-        # P(goals > n) = sum of bands whose lower bound >= ceil(n)
-        threshold = int(n) + 1
-        total = 0.0
-        for i, lower in enumerate(band_mins):
-            if lower >= threshold:
-                total += proba[i].item()
-            elif lower < threshold and i + 1 < len(band_mins) and band_mins[i + 1] > threshold:
-                # Partial overlap — approximate 50% of the band
-                total += proba[i].item() * 0.5
-        return round(min(1.0, max(0.0, total)), 4)
-
-
-# ---------------------------------------------------------------------------
-# Phase 2c — Correct Score Model
-# ---------------------------------------------------------------------------
-
-class CorrectScoreModel(nn.Module):
-    """
-    Score probability matrix model outputting probabilities for the
-    most common exact scores (home 0–4, away 0–4 = 25 classes + 'other').
-
-    Output: 26-class softmax
-    """
-    MODEL_KEY = "correct_score_v2"
-
-    # 25 explicit scores + catch-all "other"
-    SCORE_CLASSES: List[str] = [
-        f"{h}-{a}" for h in range(5) for a in range(5)
-    ] + ["other"]
-
-    N_CLASSES = 26
-
-    def __init__(self, input_size: int = 40, hidden_size: int = 192, dropout: float = 0.25):
-        super().__init__()
-        self.stem = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.GELU(),
-            nn.Dropout(dropout),
-        )
-        self.res1 = _ResidualBlock(hidden_size, dropout)
-        self.res2 = _ResidualBlock(hidden_size, dropout)
-        self.res3 = _ResidualBlock(hidden_size, dropout)
-        self.res4 = _ResidualBlock(hidden_size, dropout)
-        self.head = nn.Sequential(
-            nn.Linear(hidden_size, 96),
-            nn.GELU(),
-            nn.Dropout(dropout * 0.5),
-            nn.Linear(96, self.N_CLASSES),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.stem(x)
-        h = self.res1(h)
-        h = self.res2(h)
-        h = self.res3(h)
-        h = self.res4(h)
-        return self.head(h)
-
-    def predict_proba(self, x: torch.Tensor) -> torch.Tensor:
-        with torch.no_grad():
-            return F.softmax(self.forward(x), dim=-1)
-
-    def top_scores(self, x: torch.Tensor, n: int = 5) -> List[dict]:
-        """Return top-N most probable exact scores with probabilities."""
-        proba = self.predict_proba(x).squeeze().tolist()
-        ranked = sorted(
-            zip(self.SCORE_CLASSES, proba),
-            key=lambda t: t[1],
-            reverse=True,
-        )
-        return [{"score": s, "probability": round(p, 4)} for s, p in ranked[:n]]
-
-
-# ---------------------------------------------------------------------------
-# Feature vector builders for each market model
+# Feature key lists (unchanged from original so existing code still imports)
 # ---------------------------------------------------------------------------
 
 _BTTS_FEATURE_KEYS = [
@@ -282,12 +83,15 @@ _CS_FEATURE_KEYS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Feature vector builder (returns numpy array — no torch dependency)
+# ---------------------------------------------------------------------------
+
 def build_feature_vector(
     feature_dict: dict,
     keys: List[str],
     default: float = 0.0,
-) -> torch.Tensor:
-    """Convert a flat feature dict into a float32 tensor using ordered keys."""
+) -> np.ndarray:
     vec = []
     for k in keys:
         v = feature_dict.get(k)
@@ -295,16 +99,167 @@ def build_feature_vector(
             vec.append(float(v) if v is not None else default)
         except (TypeError, ValueError):
             vec.append(default)
-    return torch.tensor(vec, dtype=torch.float32).unsqueeze(0)
+    return np.array(vec, dtype=np.float32).reshape(1, -1)
 
 
-def build_btts_vector(features: dict) -> torch.Tensor:
+def build_btts_vector(features: dict) -> np.ndarray:
     return build_feature_vector(features, _BTTS_FEATURE_KEYS)
 
 
-def build_ou_vector(features: dict) -> torch.Tensor:
+def build_ou_vector(features: dict) -> np.ndarray:
     return build_feature_vector(features, _OU_FEATURE_KEYS)
 
 
-def build_cs_vector(features: dict) -> torch.Tensor:
+def build_cs_vector(features: dict) -> np.ndarray:
     return build_feature_vector(features, _CS_FEATURE_KEYS)
+
+
+# ---------------------------------------------------------------------------
+# Label builders (unchanged)
+# ---------------------------------------------------------------------------
+
+def _btts_label(home_goals: int, away_goals: int) -> int:
+    return 1 if (home_goals > 0 and away_goals > 0) else 0
+
+
+def _ou_label(home_goals: int, away_goals: int) -> int:
+    total = home_goals + away_goals
+    if total <= 1:   return 0
+    elif total == 2: return 1
+    elif total == 3: return 2
+    elif total <= 5: return 3
+    else:            return 4
+
+
+def _cs_label(home_goals: int, away_goals: int) -> int:
+    if home_goals <= 4 and away_goals <= 4:
+        return home_goals * 5 + away_goals
+    return 25
+
+
+# ---------------------------------------------------------------------------
+# Base sklearn-backed model
+# ---------------------------------------------------------------------------
+
+class _SklearnMarketModel:
+    """
+    Thin wrapper around a GradientBoostingClassifier that exposes the same
+    interface that the rest of the codebase expects (predict_proba, MODEL_KEY,
+    load/save via joblib).
+    """
+    MODEL_KEY = "base_market"
+    N_CLASSES  = 2
+    CLASS_LABELS: List[str] = []
+
+    def __init__(self, **gbm_kwargs):
+        from sklearn.ensemble import GradientBoostingClassifier
+        self._clf = GradientBoostingClassifier(
+            n_estimators=gbm_kwargs.get("n_estimators", 200),
+            max_depth=gbm_kwargs.get("max_depth", 4),
+            learning_rate=gbm_kwargs.get("learning_rate", 0.05),
+            subsample=0.8,
+            min_samples_split=10,
+            random_state=42,
+        )
+        self._trained = False
+        self._feature_keys: List[str] = []
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+        self._clf.fit(X, y)
+        self._trained = True
+
+    def predict_proba(self, x: np.ndarray) -> np.ndarray:
+        if not self._trained:
+            return np.full((1, self.N_CLASSES), 1.0 / self.N_CLASSES)
+        return self._clf.predict_proba(x)
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        if not self._trained:
+            return np.array([0])
+        return self._clf.predict(x)
+
+    def is_trained(self) -> bool:
+        return self._trained
+
+
+# ---------------------------------------------------------------------------
+# BTTS Model
+# ---------------------------------------------------------------------------
+
+class BTTSModel(_SklearnMarketModel):
+    MODEL_KEY = "btts_v2"
+    N_CLASSES  = 2
+
+    def __init__(self, input_size: int = 32, **kwargs):
+        super().__init__(n_estimators=200, max_depth=4, learning_rate=0.05)
+        self._feature_keys = _BTTS_FEATURE_KEYS
+
+    def predict_proba(self, x) -> np.ndarray:
+        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x
+        return super().predict_proba(x_arr)
+
+
+# ---------------------------------------------------------------------------
+# Over/Under Model
+# ---------------------------------------------------------------------------
+
+class OverUnderModel(_SklearnMarketModel):
+    MODEL_KEY   = "over_under_v2"
+    N_CLASSES   = 5
+    CLASS_LABELS = ["0–1", "2", "3", "4–5", "6+"]
+
+    def __init__(self, input_size: int = 36, **kwargs):
+        super().__init__(n_estimators=200, max_depth=5, learning_rate=0.05)
+        self._feature_keys = _OU_FEATURE_KEYS
+
+    def predict_proba(self, x) -> np.ndarray:
+        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x
+        proba = super().predict_proba(x_arr)
+        # Pad to N_CLASSES if model was trained on fewer classes
+        if proba.shape[1] < self.N_CLASSES:
+            pad = np.zeros((proba.shape[0], self.N_CLASSES - proba.shape[1]))
+            proba = np.concatenate([proba, pad], axis=1)
+        return proba
+
+    def over_n5_prob(self, x, n: float = 2.5) -> float:
+        proba = self.predict_proba(x).squeeze()
+        band_mins = [0, 2, 3, 4, 6]
+        threshold = int(n) + 1
+        total = 0.0
+        for i, lower in enumerate(band_mins):
+            if lower >= threshold:
+                total += float(proba[i])
+            elif i + 1 < len(band_mins) and band_mins[i + 1] > threshold:
+                total += float(proba[i]) * 0.5
+        return round(min(1.0, max(0.0, total)), 4)
+
+
+# ---------------------------------------------------------------------------
+# Correct Score Model
+# ---------------------------------------------------------------------------
+
+class CorrectScoreModel(_SklearnMarketModel):
+    MODEL_KEY = "correct_score_v2"
+    N_CLASSES = 26
+    SCORE_CLASSES: List[str] = [f"{h}-{a}" for h in range(5) for a in range(5)] + ["other"]
+
+    def __init__(self, input_size: int = 40, **kwargs):
+        super().__init__(n_estimators=100, max_depth=4, learning_rate=0.10)
+        self._feature_keys = _CS_FEATURE_KEYS
+
+    def predict_proba(self, x) -> np.ndarray:
+        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x
+        proba = super().predict_proba(x_arr)
+        if proba.shape[1] < self.N_CLASSES:
+            pad = np.zeros((proba.shape[0], self.N_CLASSES - proba.shape[1]))
+            proba = np.concatenate([proba, pad], axis=1)
+        return proba
+
+    def top_scores(self, x, n: int = 5) -> List[dict]:
+        proba = self.predict_proba(x).squeeze().tolist()
+        ranked = sorted(
+            zip(self.SCORE_CLASSES, proba),
+            key=lambda t: t[1],
+            reverse=True,
+        )
+        return [{"score": s, "probability": round(p, 4)} for s, p in ranked[:n]]
