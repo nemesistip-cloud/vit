@@ -183,6 +183,66 @@ Matches are deduplicated via:
 - `scripts/seed_tasks.py` — Fixed: all SQLAlchemy mapper models imported upfront. Seeds 31 tasks across 10 categories.
 - `app/agents/network_guardian_agent.py` — Fixed naive/aware datetime comparison for DID `created_at` fields.
 
+## v5.0.0 — VIT Cloud Systems (20 VIT Systems)
+
+### Smart Contract Engine (`app/modules/smart_contracts/`)
+- `models.py` — `SmartContract`, `ContractCall`, `ContractEvent` ORM tables. Contract has `address` (SHA3-256 hash of name+version+deployer), `abi` (JSON methods list), `state` (JSON key-value), `gas_limit`, `total_calls`, `vit_locked`.
+- `executor.py` — Deterministic rule-based execution engine. Gas table per method, 5 built-in contract handlers (VITToken transfer/approve/balance, Staking stake/unstake, Prediction place/claim, Governance propose/vote, Treasury deposit/withdraw/allocate). SHA3-256 event topics.
+- `service.py` — `bootstrap_builtin_contracts()` (5 contracts: VITToken, Staking, Prediction, Governance, Treasury), `execute_call()`, `get_contract_by_address/name`.
+- `routes.py` — 9 endpoints under `/api/contracts/`: list, bootstrap, by-name, call, events, calls, pause, terminate.
+
+### Treasury System (`app/modules/treasury/`)
+- `models.py` — `TreasuryPool`, `TreasuryTransaction`, `TreasuryGrantProposal`. 8 pool types: validator_rewards, ai_infrastructure, ecosystem_grants, reserve, oracle_incentives, prediction_liquidity, bug_bounty, team_vesting.
+- `service.py` — `bootstrap_treasury_pools()`, `deposit()`, `allocate()`, `distribute_epoch_reward()`, `submit_grant_proposal()`, `get_overview()`.
+- `routes.py` — 9 endpoints under `/api/treasury/`: overview, pools, deposit, allocate, distribute-epoch, grants, grant approve/reject.
+
+### Merit Protocol (`app/modules/merit/`)
+- `models.py` — `UserMeritScore` (score, tier, streak, bonus tracking), `MeritEvent` (delta history). 7 tiers: unranked→bronze→silver→gold→platinum→diamond→sovereign with VIT bonus 0–50%.
+- `service.py` — `record_event()` (auto-tier promotion/demotion + streak tracking), `apply_daily_decay()`, `get_leaderboard()`, `get_tier_distribution()`.
+- `routes.py` — 9 endpoints under `/api/merit/`: tiers, leaderboard, distribution, user score, user history, event, decay.
+
+### AI Verification Layer (`app/modules/ai_verification/`)
+- `models.py` — `AIModelAttestation` (model registry with public keys + accuracy stats), `AIOutputAnchor` (per-prediction hash anchoring), `AIDisputeRecord` (challenge/resolution).
+- `service.py` — `bootstrap_model_registry()` (5 built-in model attestations: Gemini, Claude, OpenAI GPT-4o, Grok-3, VIT Ensemble), `anchor_output()`, `verify_output()`, `raise_dispute()`.
+- `routes.py` — 10 endpoints under `/api/ai-verify/`: stats, models, anchor, verify, disputes.
+
+### Security Layer (`app/modules/security/`)
+- `models.py` — `SybilProfile` (composite anomaly score: prediction_velocity, stake_velocity, device_fingerprints, referral_cluster, account_age), `FraudAlert`, `MultiSigOperation` (threshold signatures), `WalletFreeze`, `RateLimitLedger`.
+- `service.py` — `evaluate_sybil_risk()` (5-signal composite score → clean/low/medium/high/flagged/banned), `create_fraud_alert()`, `propose_multisig()`, `sign_multisig()`, `freeze_wallet()`, `get_dashboard()`.
+- `routes.py` — 12 endpoints under `/api/security/`: dashboard, sybil/evaluate, alerts, multisig propose/sign/execute, freeze/unfreeze, rate-limit-check.
+
+### Sub-Chain Architecture (`app/modules/subchain/`)
+- `models.py` — `SubChain` (8 chains: predictions, oracle, governance, bridge, ai_agents, reputation, treasury, identity — each with `chain_id`, `block_time_ms`, `tps_target`), `SubChainBlock`, `CrossChainMessage`.
+- `service.py` — `bootstrap_subchains()` (8 sub-chains), `produce_block()`, `send_cross_chain_message()`, `relay_message()`.
+- `routes.py` — 10 endpoints under `/api/subchains/`: list, bootstrap, by-type, produce-block, cross-chain messages.
+
+### AI Agent Registry (`app/modules/agent_registry/`)
+- `models.py` — `AIAgentRegistration` (on-chain agent record: DID, capability hash, stake, uptime, reputation), `AgentTaskRecord`, `AgentSlashEvent`.
+- `service.py` — `bootstrap_agent_registry()` (8 built-in agents: prediction-oracle, sentiment-analyzer, odds-monitor, news-scanner, form-tracker, risk-assessor, settlement-engine, verification-node), `register_agent()`, `record_task()`, `slash_agent()`.
+- `routes.py` — 12 endpoints under `/api/agents/registry/`: stats, list, bootstrap, register, get, tasks, slash.
+
+### Storage Verification (`app/modules/storage_verification/`)
+- `models.py` — `StorageContentRecord` (CID + Merkle root + blake3 hash), `StorageVerificationLog`, `StorageChallenge` (proof-of-storage challenge/response protocol).
+- `service.py` — `register_content()` (CID generation, Merkle root computation, blake3 hashing), `verify_content()`, `issue_challenge()`, `respond_to_challenge()`, `get_stats()`.
+- `routes.py` — 10 endpoints under `/api/storage/`: stats, register, verify, challenges.
+
+### Frontend Pages (v5.0.0)
+- `frontend/src/pages/smart-contracts.tsx` — Contract browser + method executor (JSON params input, gas display, event log, call history). Route: `/smart-contracts`.
+- `frontend/src/pages/treasury.tsx` — Pool balances (utilization bars), deposit form, epoch reward distributor, grant proposal form. Route: `/treasury`.
+- `frontend/src/pages/merit.tsx` — Personal score card with tier progress, leaderboard, tier system grid, event history. Route: `/merit`.
+- `frontend/src/pages/security.tsx` — Anti-Sybil evaluator (5-signal radar), multi-sig proposer, wallet freeze panel. Route: `/security`.
+
+### Bootstrap (startup)
+All 5 bootstrap calls in `main.py` lifespan:
+- `bootstrap_builtin_contracts` → 5 contracts (VITToken, Staking, Prediction, Governance, Treasury)
+- `bootstrap_treasury_pools` → 8 pools with allocation percentages
+- `bootstrap_model_registry` → 5 AI model attestations
+- `bootstrap_subchains` → 8 sub-chains (predictions, oracle, governance, bridge, ai_agents, reputation, treasury, identity)
+- `bootstrap_agent_registry` → 8 built-in agents
+
+### Schema Setup
+`scripts/start_fullstack.sh` imports all 8 new module models so `Base.metadata.create_all` creates their tables on first run.
+
 ## Key Files
 - `main.py` — startup lifecycle, fixture seeding logic (lines ~1070-1150)
 - `app/db/models.py` — Match model (status, home_goals/away_goals columns)
@@ -193,4 +253,4 @@ Matches are deduplicated via:
 - `app/db/database.py` — SQLite WAL mode
 - `app/api/routes/predict.py` — Match find-or-create with 3-level dedup
 - `app/api/routes/matches.py` — Match CRUD endpoints (prefix: `/matches/`)
-- `scripts/start_fullstack.sh` — startup script
+- `scripts/start_fullstack.sh` — startup script (imports all module models for schema creation)

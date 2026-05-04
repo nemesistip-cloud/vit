@@ -97,6 +97,45 @@ export const API = {
   // AI Intelligence (v4.12.0)
   aiIntelHealth: "/api/ai-intel/health",
   aiIntelInjuries: "/api/ai-intel/openai/injuries",
+  // Smart Contracts (v5.0.0)
+  contracts: "/api/contracts/",
+  contractBootstrap: "/api/contracts/bootstrap",
+  contractByName: (name: string) => `/api/contracts/by-name/${name}`,
+  contractCall: (address: string) => `/api/contracts/${address}/call`,
+  contractEvents: (address: string) => `/api/contracts/${address}/events`,
+  contractCalls: (address: string) => `/api/contracts/${address}/calls`,
+  // Treasury (v5.0.0)
+  treasuryOverview: "/api/treasury/overview",
+  treasuryPools: "/api/treasury/pools",
+  treasuryDeposit: "/api/treasury/deposit",
+  treasuryAllocate: "/api/treasury/allocate",
+  treasuryGrants: "/api/treasury/grants",
+  // Merit Protocol (v5.0.0)
+  meritTiers: "/api/merit/tiers",
+  meritLeaderboard: "/api/merit/leaderboard",
+  meritDistribution: "/api/merit/distribution",
+  meritUser: (userId: number) => `/api/merit/users/${userId}`,
+  meritHistory: (userId: number) => `/api/merit/users/${userId}/history`,
+  meritEvent: "/api/merit/events",
+  // Security (v5.0.0)
+  securityDashboard: "/api/security/dashboard",
+  sybilEvaluate: "/api/security/sybil/evaluate",
+  securityAlerts: "/api/security/alerts",
+  multisigPropose: "/api/security/multisig",
+  walletFreeze: "/api/security/freeze",
+  // Sub-chains (v5.0.0)
+  subchains: "/api/subchains/",
+  subchainBootstrap: "/api/subchains/bootstrap",
+  // Agent Registry (v5.0.0)
+  agentRegistryStats: "/api/agents/registry/stats",
+  agentRegistryList: "/api/agents/registry/",
+  agentRegistryBootstrap: "/api/agents/registry/bootstrap",
+  // AI Verification (v5.0.0)
+  aiVerifyStats: "/api/ai-verify/stats",
+  aiVerifyAnchor: "/api/ai-verify/anchor",
+  // Storage Verification (v5.0.0)
+  storageStats: "/api/storage/stats",
+  storageRegister: "/api/storage/content/register",
 };
 
 export const getGetMeQueryKey = () => [API.me];

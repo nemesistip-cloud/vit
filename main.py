@@ -39,6 +39,14 @@ import app.modules.referral.models       # register referral models
 import app.modules.tasks.models          # register Module T task/completion models
 import app.modules.did.models            # register VIT DID identity models
 import app.modules.network.models        # register VIT Network node activity models
+import app.modules.smart_contracts.models   # register Smart Contract Engine models
+import app.modules.treasury.models          # register Treasury System models
+import app.modules.merit.models             # register Merit Protocol models
+import app.modules.ai_verification.models  # register AI Verification Layer models
+import app.modules.security.models          # register Security Layer models
+import app.modules.subchain.models          # register Sub-Chain Architecture models
+import app.modules.agent_registry.models    # register AI Agent Registry models
+import app.modules.storage_verification.models  # register Storage Verification models
 
 # ===== CORE ROUTES =====
 from app.api.routes import (
@@ -1168,6 +1176,56 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  Marketplace system seed failed: {_e}")
 
+    # VIT Cloud — Smart Contract Engine bootstrap
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.smart_contracts.service import bootstrap_builtin_contracts
+        async with AsyncSessionLocal() as _db:
+            _n = await bootstrap_builtin_contracts(_db)
+            print(f"✅ Smart Contracts: {_n} built-in contracts deployed" if _n else "✅ Smart Contracts: all built-in contracts present")
+    except Exception as _e:
+        print(f"⚠️  Smart Contract bootstrap failed: {_e}")
+
+    # VIT Cloud — Treasury pools bootstrap
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.treasury.service import bootstrap_treasury_pools
+        async with AsyncSessionLocal() as _db:
+            _n = await bootstrap_treasury_pools(_db)
+            print(f"✅ Treasury: {_n} pools bootstrapped" if _n else "✅ Treasury: all 8 pools present")
+    except Exception as _e:
+        print(f"⚠️  Treasury bootstrap failed: {_e}")
+
+    # VIT Cloud — AI Model Attestation Registry bootstrap
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.ai_verification.service import bootstrap_model_registry
+        async with AsyncSessionLocal() as _db:
+            _n = await bootstrap_model_registry(_db)
+            print(f"✅ AI Verification: {_n} model attestations registered" if _n else "✅ AI Verification: all models registered")
+    except Exception as _e:
+        print(f"⚠️  AI Verification bootstrap failed: {_e}")
+
+    # VIT Cloud — Sub-Chain Architecture bootstrap
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.subchain.service import bootstrap_subchains
+        async with AsyncSessionLocal() as _db:
+            _n = await bootstrap_subchains(_db)
+            print(f"✅ Sub-Chains: {_n} sub-chains initialized" if _n else "✅ Sub-Chains: all 8 sub-chains active")
+    except Exception as _e:
+        print(f"⚠️  Sub-Chain bootstrap failed: {_e}")
+
+    # VIT Cloud — AI Agent Registry bootstrap
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.agent_registry.service import bootstrap_agent_registry
+        async with AsyncSessionLocal() as _db:
+            _n = await bootstrap_agent_registry(_db)
+            print(f"✅ Agent Registry: {_n} built-in agents registered" if _n else "✅ Agent Registry: all built-in agents present")
+    except Exception as _e:
+        print(f"⚠️  Agent Registry bootstrap failed: {_e}")
+
     alerts = get_telegram_alerts()
     if alerts and alerts.enabled:
         await alerts.send_startup_message()
@@ -1484,6 +1542,38 @@ app.include_router(ai_intelligence_router)
 # Blockchain Analytics, Auto-Slash, Oracle Disputes
 from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
 app.include_router(blockchain_analytics_router)
+
+# VIT Cloud System — Smart Contract Engine
+from app.modules.smart_contracts.routes import router as smart_contracts_router
+app.include_router(smart_contracts_router)
+
+# VIT Cloud System — Treasury
+from app.modules.treasury.routes import router as treasury_router
+app.include_router(treasury_router)
+
+# VIT Cloud System — Merit Protocol
+from app.modules.merit.routes import router as merit_router
+app.include_router(merit_router)
+
+# VIT Cloud System — AI Verification Layer
+from app.modules.ai_verification.routes import router as ai_verification_router
+app.include_router(ai_verification_router)
+
+# VIT Cloud System — Security Layer (anti-Sybil, multi-sig, fraud, freeze)
+from app.modules.security.routes import router as security_router
+app.include_router(security_router)
+
+# VIT Cloud System — Sub-Chain Architecture
+from app.modules.subchain.routes import router as subchain_router
+app.include_router(subchain_router)
+
+# VIT Cloud System — AI Agent Registry
+from app.modules.agent_registry.routes import router as agent_registry_router
+app.include_router(agent_registry_router)
+
+# VIT Cloud System — Decentralized Storage Verification
+from app.modules.storage_verification.routes import router as storage_router
+app.include_router(storage_router)
 
 
 def _format_count(value: int) -> str:
