@@ -8,7 +8,7 @@ import {
   ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
   Sparkles, Brain, Zap, Radio, Network, DatabaseZap, FlaskConical,
-  Map, Fingerprint, BadgeCheck,
+  Map, Fingerprint, BadgeCheck, Bot, Vault, Star, ShieldAlert, FileCode2,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -33,6 +33,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Wallet",      href: "/wallet",      icon: Coins },
       { name: "Tasks",       href: "/tasks",       icon: Target },
       { name: "Offers",      href: "/earn",        icon: Zap },
+      { name: "Merit",       href: "/merit",       icon: Star },
       { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
       { name: "Referral",    href: "/referral",    icon: Gift },
     ],
@@ -52,13 +53,16 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "Network",
     items: [
-      { name: "VIT Oracle",     href: "/oracle",     icon: DatabaseZap },
-      { name: "Node Network",   href: "/network",    icon: Network },
-      { name: "Trust & Safety", href: "/trust",      icon: Shield },
-      { name: "Bridge",         href: "/bridge",     icon: ArrowLeftRight },
-      { name: "Governance",     href: "/governance", icon: Vote },
-      { name: "Developer",      href: "/developer",  icon: Code2 },
-      { name: "Roadmap",        href: "/roadmap",    icon: Map },
+      { name: "VIT Oracle",       href: "/oracle",          icon: DatabaseZap },
+      { name: "Node Network",     href: "/network",         icon: Network },
+      { name: "Smart Contracts",  href: "/smart-contracts", icon: FileCode2 },
+      { name: "Treasury",         href: "/treasury",        icon: Vault },
+      { name: "Trust & Safety",   href: "/trust",           icon: Shield },
+      { name: "Security",         href: "/security",        icon: ShieldAlert },
+      { name: "Bridge",           href: "/bridge",          icon: ArrowLeftRight },
+      { name: "Governance",       href: "/governance",      icon: Vote },
+      { name: "Developer",        href: "/developer",       icon: Code2 },
+      { name: "Roadmap",          href: "/roadmap",         icon: Map },
     ],
   },
   {
@@ -104,7 +108,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const allGroups: NavGroup[] = [
     ...NAV_GROUPS.map(g => (g.name === "Pro" ? proGroup : g)),
     ...(isAdmin
-      ? [{ name: "Admin", items: [{ name: "Admin Panel", href: "/admin", icon: Lock }] }]
+      ? [{
+          name: "Admin",
+          items: [
+            { name: "Admin Panel", href: "/admin",  icon: Lock },
+            { name: "AI Agents",   href: "/agents", icon: Bot  },
+          ],
+        }]
       : []),
   ];
 

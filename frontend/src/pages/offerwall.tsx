@@ -1,9 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/apiClient";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiGet, apiPost } from "@/lib/apiClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Coins, Clock, CheckCircle, Trophy, Gift, TrendingUp, Zap } from "lucide-react";
+import { Coins, Clock, CheckCircle, Trophy, Gift, TrendingUp, Zap, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Offer {
   id: string;
@@ -48,12 +51,26 @@ const _DIFFICULTY_COLOUR: Record<string, string> = {
   hard: "text-red-400 border-red-400/30",
 };
 
-function OfferCard({ offer }: { offer: Offer }) {
+function OfferCard({
+  offer,
+  onClaim,
+  isClaiming,
+  isCompleted,
+}: {
+  offer: Offer;
+  onClaim: (id: string) => void;
+  isClaiming: boolean;
+  isCompleted: boolean;
+}) {
   const icon = _CATEGORY_ICONS[offer.category] ?? <Gift className="w-4 h-4" />;
   const diffColour = _DIFFICULTY_COLOUR[offer.difficulty] ?? "text-muted-foreground";
 
   return (
-    <Card className="border-border/50 hover:border-primary/40 transition-colors">
+    <Card
+      className={`border-border/50 hover:border-primary/40 transition-colors ${
+        isCompleted ? "opacity-60" : ""
+      }`}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -81,6 +98,33 @@ function OfferCard({ offer }: { offer: Offer }) {
           <Badge variant="outline" className="text-xs font-mono capitalize text-muted-foreground">
             {offer.category}
           </Badge>
+        </div>
+        <div className="pt-1">
+          {isCompleted ? (
+            <div className="flex items-center gap-1.5 text-xs font-mono text-emerald-400">
+              <CheckCircle className="w-3.5 h-3.5" />
+              Completed
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              className="h-7 text-xs font-mono w-full"
+              onClick={() => onClaim(offer.id)}
+              disabled={isClaiming}
+            >
+              {isClaiming ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                  Claiming…
+                </>
+              ) : (
+                <>
+                  <Zap className="w-3 h-3 mr-1.5" />
+                  Claim {offer.reward_vitcoin.toFixed(0)} VIT
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -114,6 +158,10 @@ function HistoryRow({ item }: { item: EarnHistoryItem }) {
 }
 
 export default function OfferwallPage() {
+  const qc = useQueryClient();
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+
   const { data: summary, isLoading: summaryLoading } = useQuery<RewardsSummary>({
     queryKey: ["rewards-summary"],
     queryFn: () => apiGet("/api/rewards/summary"),
@@ -128,6 +176,37 @@ export default function OfferwallPage() {
     queryKey: ["rewards-history"],
     queryFn: () => apiGet("/api/rewards/history"),
   });
+
+  const claimMutation = useMutation({
+    mutationFn: (offerId: string) =>
+      apiPost<{ offer_id: string; vitcoin_earned: number; message: string }>(
+        `/api/rewards/complete/${offerId}`
+      ),
+    onSuccess: (data) => {
+      toast.success(data.message ?? `Earned ${data.vitcoin_earned} VITCoin!`, {
+        icon: <Coins className="w-4 h-4 text-yellow-400" />,
+      });
+      setCompletedIds((prev) => new Set([...prev, data.offer_id]));
+      qc.invalidateQueries({ queryKey: ["rewards-summary"] });
+      qc.invalidateQueries({ queryKey: ["rewards-history"] });
+      setClaimingId(null);
+    },
+    onError: (err: any) => {
+      const msg = err?.message ?? "Failed to claim offer";
+      if (msg.includes("already completed")) {
+        toast.info("You've already claimed this offer.");
+        setCompletedIds((prev) => new Set([...prev, claimingId ?? ""]));
+      } else {
+        toast.error(msg);
+      }
+      setClaimingId(null);
+    },
+  });
+
+  const handleClaim = (offerId: string) => {
+    setClaimingId(offerId);
+    claimMutation.mutate(offerId);
+  };
 
   return (
     <div className="space-y-6 p-4 max-w-4xl mx-auto">
@@ -185,13 +264,19 @@ export default function OfferwallPage() {
         {offersLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-lg" />
+              <Skeleton key={i} className="h-40 rounded-lg" />
             ))}
           </div>
         ) : offers && offers.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {offers.map((offer) => (
-              <OfferCard key={offer.id} offer={offer} />
+              <OfferCard
+                key={offer.id}
+                offer={offer}
+                onClaim={handleClaim}
+                isClaiming={claimingId === offer.id}
+                isCompleted={completedIds.has(offer.id)}
+              />
             ))}
           </div>
         ) : (
