@@ -1,4 +1,4 @@
-modules = ["python-3.11", "nodejs-20"]
+modules = ["python-3.11", "nodejs-20", "web", "bash"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
@@ -9,8 +9,8 @@ stack = "BEST_EFFORT_FALLBACK"
 APP_VERSION = "4.6.0"
 ENVIRONMENT = "development"
 PORT = "5000"
-CORS_ALLOWED_ORIGINS = "true "
-VIT_DATABASE_URL = "sqlite+aiosqlite:///./vit.db"
+CORS_ALLOWED_ORIGINS = "*"
+VIT_DATABASE_URL = "postgresql+asyncpg://postgres:password@helium:5432/heliumdb"
 AUTH_ENABLED = "true"
 USE_REAL_ML_MODELS = "true"
 ML_MODEL_CACHE_ENABLED = "true"
@@ -27,6 +27,8 @@ RATE_LIMIT_ENABLED = "true"
 ACCESS_TOKEN_EXPIRE_MINUTES = "60"
 REFRESH_TOKEN_EXPIRE_DAYS = "30"
 REDIS_URL = "redis://default:rX469nWeJU4QyN2a0uqkK8XKLYuHuxKZ@redis-13133.c326.us-east-1-3.ec2.cloud.redislabs.com:13133"
+BACKEND_PORT = "8000"
+FRONTEND_PORT = "5000"
 
 [workflows]
 runButton = "Project"
