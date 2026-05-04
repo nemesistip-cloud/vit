@@ -52,6 +52,7 @@ const SmartContractsPage  = lazy(() => import("@/pages/smart-contracts"));
 const TreasuryPage        = lazy(() => import("@/pages/treasury"));
 const MeritPage           = lazy(() => import("@/pages/merit"));
 const SecurityLayerPage   = lazy(() => import("@/pages/security"));
+const RoadmapPage         = lazy(() => import("@/pages/roadmap"));
 
 function RouteFallback() {
   return (
@@ -217,6 +218,9 @@ function Router() {
       </Route>
       <Route path="/security">
         <Layout><ProtectedRoute component={SecurityLayerPage} /></Layout>
+      </Route>
+      <Route path="/roadmap">
+        <Layout><ProtectedRoute component={RoadmapPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />

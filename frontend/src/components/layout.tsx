@@ -8,6 +8,7 @@ import {
   ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
   Sparkles, Brain, Zap, Radio, Network, DatabaseZap, FlaskConical,
+  Map,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -57,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Bridge",         href: "/bridge",     icon: ArrowLeftRight },
       { name: "Governance",     href: "/governance", icon: Vote },
       { name: "Developer",      href: "/developer",  icon: Code2 },
+      { name: "Roadmap",        href: "/roadmap",    icon: Map },
     ],
   },
   {
