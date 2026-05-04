@@ -24,6 +24,7 @@ from app.modules.kyc.models import (
     KYCAuditEvent, KYCStatus, KYCSubmission,
 )
 from app.modules.kyc.service import verify_offline
+from app.modules.kyc.smile_identity import verify_with_smile_identity
 
 router = APIRouter(prefix="/api/kyc", tags=["KYC"])
 logger = logging.getLogger(__name__)
@@ -147,7 +148,7 @@ async def submit_kyc(
             "message": "A KYC submission is already under review. Please wait for it to complete.",
         }
 
-    # Run offline verification
+    # Build verification payload
     payload = {
         "full_name":       body.full_name,
         "date_of_birth":   body.date_of_birth,
@@ -155,7 +156,13 @@ async def submit_kyc(
         "document_number": body.document_number,
         "nationality":     body.nationality,
     }
-    result = verify_offline(payload)
+
+    # Try Smile Identity live verification first; fall back to offline engine
+    result = await verify_with_smile_identity(payload)
+    if result is None:
+        result = verify_offline(payload)
+    else:
+        logger.info("[kyc] Smile Identity verification used for user %d", current_user.id)
 
     now    = datetime.now(timezone.utc)
     status: KYCStatus = result["status"]

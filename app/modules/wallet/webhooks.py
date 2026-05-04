@@ -26,8 +26,6 @@ from app.modules.wallet.models import WalletTransaction, Wallet
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 logger = logging.getLogger(__name__)
 
-PAYSTACK_WEBHOOK_SECRET = os.getenv("PAYSTACK_WEBHOOK_SECRET", "")
-STRIPE_WEBHOOK_SECRET   = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 USDT_MIN_CONFIRMATIONS  = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
 
 
@@ -251,15 +249,18 @@ async def stripe_webhook(
 ):
     body = await request.body()
 
+    # Read at request time so dynamically configured secrets (via admin panel) work immediately.
+    stripe_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
     # G03: Enforce signature verification. Return 503 if secret not configured.
-    if not STRIPE_WEBHOOK_SECRET:
+    if not stripe_secret:
         logger.error("Stripe webhook: STRIPE_WEBHOOK_SECRET not configured — rejecting")
         raise HTTPException(
             status_code=503,
             detail="Stripe webhook secret not configured. Set STRIPE_WEBHOOK_SECRET env var.",
         )
 
-    if not stripe_signature or not _verify_stripe_signature(body, stripe_signature, STRIPE_WEBHOOK_SECRET):
+    if not stripe_signature or not _verify_stripe_signature(body, stripe_signature, stripe_secret):
         logger.warning("Stripe webhook: invalid signature rejected")
         raise HTTPException(status_code=400, detail="Invalid Stripe signature")
 
