@@ -19,7 +19,7 @@ export function WelcomeModal({ username, onClose, onStartTour }: WelcomeModalPro
   const [celebrating, setCelebrating] = useState(false);
   const { data: cfg } = usePublicConfig();
   const welcomeBonus = cfg?.platform.welcome_bonus_vit ?? 100;
-  const modelCount   = cfg?.platform.model_count       ?? 12;
+  const modelCount   = cfg?.platform.model_count       ?? 13;
 
   const handleStart = () => {
     setCelebrating(true);

@@ -119,7 +119,7 @@ export default function LandingPage() {
     queryFn: () => apiGet("/api/public/landing"),
   });
   const { data: publicCfg } = usePublicConfig();
-  const modelCount   = publicCfg?.platform.model_count       ?? 12;
+  const modelCount   = publicCfg?.platform.model_count       ?? 13;
   const welcomeBonus = publicCfg?.platform.welcome_bonus_vit ?? 100;
   const FEATURES     = buildFeatures(modelCount);
 
@@ -212,7 +212,7 @@ export default function LandingPage() {
             <StatCounter value={stats?.predictions_display ?? "0"} label="Predictions" />
             <StatCounter value={stats?.accuracy_display ?? "Live"} label="Accuracy Rate" />
             <StatCounter value={stats?.total_staked_display ?? "$0"} label="Total Staked" />
-            <StatCounter value={String(stats?.ai_models ?? 12)} label="AI Models" />
+            <StatCounter value={String(stats?.ai_models ?? 13)} label="AI Models" />
           </div>
         </div>
       </section>
@@ -286,7 +286,7 @@ export default function LandingPage() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-mono text-muted-foreground uppercase">Model Consensus</span>
                 <Badge className="text-primary border-primary/30 bg-primary/10 font-mono text-xs">
-                  {stats?.ai_models_ready ?? 0}/{stats?.ai_models ?? 12} READY
+                  {stats?.ai_models_ready ?? 0}/{stats?.ai_models ?? 13} READY
                 </Badge>
               </div>
               {consensusModels.length === 0 ? (

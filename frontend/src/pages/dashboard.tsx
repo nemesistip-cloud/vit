@@ -451,7 +451,7 @@ export default function DashboardPage() {
                   AI Ensemble Status
                 </CardTitle>
                 <Badge className="font-mono text-[10px] border-purple-500/30 bg-purple-500/10 text-purple-400">
-                  12 Models Active
+                  13 Models Active
                 </Badge>
               </div>
               <CardDescription className="font-mono text-xs mt-0.5">Live model confidence for next predicted match</CardDescription>

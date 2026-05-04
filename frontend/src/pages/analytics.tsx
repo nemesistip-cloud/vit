@@ -403,7 +403,7 @@ export default function AnalyticsPage() {
                       ))}
                     </tbody>
                   </table>
-                  {!aiPerformance || Object.keys(aiPerformance).length === 0 && (
+                  {(!aiPerformance || Object.keys(aiPerformance).length === 0) && (
                     <div className="text-center py-8 text-muted-foreground font-mono text-sm">
                       No AI performance data yet.
                     </div>

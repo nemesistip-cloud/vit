@@ -547,7 +547,7 @@ function ListModelModal() {
             <Label className="text-xs text-muted-foreground">System Model Slot *</Label>
             {modelKeys.length > 0 ? (
               <Select value={form.model_key} onValueChange={(v) => setForm({ ...form, model_key: v })}>
-                <SelectTrigger><SelectValue placeholder="Select one of the 12 system models" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select one of the 13 system models" /></SelectTrigger>
                 <SelectContent>
                   {modelKeys.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}
                 </SelectContent>
@@ -842,7 +842,7 @@ function LeaderboardTab() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm font-semibold text-foreground truncate">{model.name}</span>
                       {model.is_verified && (
-                        <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" title="Verified" />
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" aria-label="Verified" />
                       )}
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${
                         model.category === "prediction" ? "bg-blue-500/10 text-blue-400" :
@@ -1055,8 +1055,8 @@ function MyStakesTab() {
                     {s.status}
                   </span>
                   {s.is_unlocked
-                    ? <Unlock className="w-3 h-3 text-green-400" title="Unlocked — can withdraw" />
-                    : <Lock className="w-3 h-3 text-amber-400" title="Still locked" />}
+                    ? <Unlock className="w-3 h-3 text-green-400" aria-label="Unlocked — can withdraw" />
+                    : <Lock className="w-3 h-3 text-amber-400" aria-label="Still locked" />}
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
@@ -1320,7 +1320,7 @@ export default function MarketplacePage() {
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 {[
-                  ["1", "Pick a system slot", "Choose one of the 12 VIT model families, such as xgboost_v1, lgbm_v1, neural_net_v1, poisson_goals_v1, market_odds_v1, or btts_totals_v1."],
+                  ["1", "Pick a system slot", "Choose one of the 13 VIT model families, such as xgboost_v1, lgbm_v1, neural_net_v1, poisson_goals_v1, market_odds_v1, or btts_totals_v1."],
                   ["2", "Package your files", "Upload the model runtime (.pkl/.joblib) or Python source (.py), plus configs, encoders, features, docs, and small data artifacts needed for review."],
                   ["3", "Expose a training/prediction interface", "Python submissions should include def predict, def train, class Model, or class VITModel. Binary models should load with joblib and expose predict or train."],
                   ["4", "Set pricing", "Set the VITCoin cost per call. After approval, calls earn creator revenue while analysts can train eligible models from the training area."],

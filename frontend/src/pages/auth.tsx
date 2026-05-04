@@ -36,7 +36,7 @@ export default function AuthPage() {
   const search = useSearch();
   const { data: publicCfg } = usePublicConfig();
   const FEATURE_ITEMS = [
-    { icon: Brain,  text: `${publicCfg?.platform.model_count ?? 12}-Model AI Ensemble` },
+    { icon: Brain,  text: `${publicCfg?.platform.model_count ?? 13}-Model AI Ensemble` },
     { icon: Coins,  text: `${publicCfg?.platform.welcome_bonus_vit ?? 100} VIT Welcome Bonus` },
     { icon: Shield, text: "Blockchain Verified Results" },
   ];

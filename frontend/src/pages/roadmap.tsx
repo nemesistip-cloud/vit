@@ -62,7 +62,7 @@ const PHASES: RoadmapPhase[] = [
     bgColor: "bg-emerald-500/5",
     glowColor: "shadow-emerald-500/10",
     techStack: ["FastAPI", "PostgreSQL", "React/Vite", "Redis", "Python ML", "WebSockets"],
-    architectureNote: "Full-stack AI platform running 12 autonomous prediction models. All core infrastructure is live and production-ready.",
+    architectureNote: "Full-stack AI platform running 13 autonomous prediction models. All core infrastructure is live and production-ready.",
     items: [
       { label: "13-model AI orchestrator (Gemini · Claude · OpenAI · Grok + 8 custom)", status: "done",  icon: Brain },
       { label: "Real-time WebSocket predictions with JWT authentication",               status: "done",  icon: Activity },
