@@ -11,9 +11,29 @@ from app.services.alerts import TelegramAlert
 from services.ml_service.models.model_orchestrator import ModelOrchestrator
 
 
+def _is_production() -> bool:
+    """True when running in a Replit deployment (published app)."""
+    return bool(os.getenv("REPLIT_DEPLOYMENT")) or os.getenv("ENVIRONMENT", "").lower() == "production"
+
+
 @lru_cache(maxsize=1)
 def get_orchestrator() -> Optional[ModelOrchestrator]:
-    """Lazy-load ModelOrchestrator singleton"""
+    """Lazy-load ModelOrchestrator singleton.
+
+    ML models are only loaded in production (published) to keep the dev
+    environment fast and resource-light.  Set REPLIT_DEPLOYMENT=1 or
+    ENVIRONMENT=production to force model loading locally.
+    """
+    if not _is_production():
+        print("ℹ️  Model loading deferred — models load only after publishing (set ENVIRONMENT=production to override)")
+        try:
+            orch = ModelOrchestrator()
+            print("✅ Orchestrator skeleton ready (no models loaded in dev)")
+            return orch
+        except Exception as e:
+            print(f"❌ Orchestrator init failed: {e}")
+            return None
+
     try:
         orch = ModelOrchestrator()
         orch.load_all_models()

@@ -3841,7 +3841,7 @@ async def fixture_health(
     from sqlalchemy import func as _f, and_ as _and, or_ as _or
     from app.db.models import Match as _M
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
 
     # ── 1. Unsettled past fixtures ────────────────────────────────────
     unsettled_q = await db.execute(

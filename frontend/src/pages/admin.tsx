@@ -3162,19 +3162,19 @@ function KYCTab() {
 
   const { data, isLoading } = useQuery<{ kyc_requests: KYCEntry[]; total: number }>({
     queryKey: ["admin-kyc-pending"],
-    queryFn: () => apiGet("/wallet/admin/kyc/pending"),
+    queryFn: () => apiGet("/api/wallet/admin/kyc/pending"),
     refetchInterval: 20000,
   });
 
   const approveMutation = useMutation({
-    mutationFn: (user_id: number) => apiPost(`/wallet/admin/kyc/${user_id}/approve`, {}),
+    mutationFn: (user_id: number) => apiPost(`/api/wallet/admin/kyc/${user_id}/approve`, {}),
     onSuccess: () => { toast.success("KYC approved"); qc.invalidateQueries({ queryKey: ["admin-kyc-pending"] }); },
     onError: () => toast.error("Approval failed"),
   });
 
   const rejectMutation = useMutation({
     mutationFn: ({ user_id, reason }: { user_id: number; reason?: string }) =>
-      apiPost(`/wallet/admin/kyc/${user_id}/reject`, { reason: reason ?? "Rejected by admin" }),
+      apiPost(`/api/wallet/admin/kyc/${user_id}/reject`, { reason: reason ?? "Rejected by admin" }),
     onSuccess: () => { toast.success("KYC rejected"); qc.invalidateQueries({ queryKey: ["admin-kyc-pending"] }); },
     onError: () => toast.error("Rejection failed"),
   });
@@ -3822,23 +3822,23 @@ export function AISourcesTab() {
 
   const permsQ = useQuery({
     queryKey: ["ai-sources", "perms"],
-    queryFn: () => apiGet<{ can_upload: boolean; role: string; tier: string; allowed_sources: string[] }>("/admin/ai-sources/permissions"),
+    queryFn: () => apiGet<{ can_upload: boolean; role: string; tier: string; allowed_sources: string[] }>("/api/admin/ai-sources/permissions"),
   });
 
   const matchesQ = useQuery({
     queryKey: ["ai-sources", "matches"],
-    queryFn: () => apiGet<{ matches: AISourceMatch[] }>("/admin/ai-sources/matches?limit=50"),
+    queryFn: () => apiGet<{ matches: AISourceMatch[] }>("/api/admin/ai-sources/matches?limit=50"),
     enabled: !permsQ.isLoading,
   });
 
   const detailQ = useQuery({
     queryKey: ["ai-sources", "match", selectedMatchId],
-    queryFn: () => apiGet<{ match: AISourceMatch; predictions: AISourcePred[] }>(`/admin/ai-sources/match/${selectedMatchId}`),
+    queryFn: () => apiGet<{ match: AISourceMatch; predictions: AISourcePred[] }>(`/api/admin/ai-sources/match/${selectedMatchId}`),
     enabled: !!selectedMatchId && !permsQ.isLoading,
   });
 
   const ingest = useMutation({
-    mutationFn: (body: any) => apiPost("/admin/ai-sources/ingest", body),
+    mutationFn: (body: any) => apiPost("/api/admin/ai-sources/ingest", body),
     onSuccess: () => {
       toast.success("AI source uploaded");
       setForm(f => ({ ...f, reason: "", raw_content: "" }));
@@ -3848,7 +3848,7 @@ export function AISourcesTab() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => apiDelete(`/admin/ai-sources/${id}`),
+    mutationFn: (id: number) => apiDelete(`/api/admin/ai-sources/${id}`),
     onSuccess: () => {
       toast.success("Removed");
       qc.invalidateQueries({ queryKey: ["ai-sources"] });
