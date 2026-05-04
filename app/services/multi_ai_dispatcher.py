@@ -15,10 +15,11 @@ logger = logging.getLogger(__name__)
 PROVIDERS = ["gemini", "claude", "grok", "openai"]
 
 PROVIDER_LABELS = {
-    "gemini": "Google Gemini",
-    "claude": "Anthropic Claude",
-    "grok":   "xAI Grok",
-    "openai": "OpenAI GPT",
+    "gemini":        "Google Gemini",
+    "claude":        "Anthropic Claude",
+    "grok":          "xAI Grok",
+    "openai":        "OpenAI GPT",
+    "deterministic": "VIT Statistical Engine",
 }
 
 
@@ -32,6 +33,8 @@ async def _call_provider(provider: str, kwargs: dict) -> dict:
             from app.services.grok_insights import generate_match_insights
         elif provider == "openai":
             from app.services.openai_insights import generate_match_insights
+        elif provider == "deterministic":
+            from app.services.deterministic_insights import generate_match_insights
         else:
             return {"available": False, "source": provider, "error": f"Unknown provider: {provider}"}
         result = await generate_match_insights(**kwargs)
@@ -101,6 +104,17 @@ async def run_multi_ai(
         tasks = [_call_provider(s, kwargs) for s in missing_sources]
         results_list = await asyncio.gather(*tasks, return_exceptions=False)
         results.update({r["source"]: r for r in results_list})
+
+    # ── Deterministic fallback: ensure at least one result is available ───────
+    # If every LLM provider failed or is cooling down, inject the statistical
+    # engine result so the AI panel is never completely empty.
+    llm_available = any(
+        r.get("available") for s, r in results.items() if s != "deterministic"
+    )
+    if not llm_available and "deterministic" not in results:
+        logger.info("[multi-ai] All LLM providers unavailable — using deterministic fallback")
+        det_result = await _call_provider("deterministic", kwargs)
+        results["deterministic"] = det_result
 
     # ── Ingest probability outputs into AIPrediction table ───────────
     for source, r in results.items():

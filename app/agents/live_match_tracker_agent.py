@@ -179,7 +179,7 @@ class LiveMatchTrackerAgent(BaseAgent):
             rows = await db.execute(
                 select(Match).where(
                     Match.status == "live",
-                    Match.kickoff_time <= cutoff,
+                    Match.kickoff_time <= cutoff.replace(tzinfo=None),
                     Match.actual_outcome.is_(None),
                 )
             )

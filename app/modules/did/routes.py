@@ -165,6 +165,25 @@ async def get_agent_did(agent_name: str, db: AsyncSession = Depends(get_db)):
     }
 
 
+# ── Root summary (fixes 307 redirect on GET /api/did) ───────────────────────
+
+@router.get("")
+async def did_root():
+    """Summary of available DID endpoints."""
+    return {
+        "module": "VIT DID — Decentralised Identity",
+        "endpoints": {
+            "POST /api/did/user/register":        "Self-register caller's DID",
+            "GET  /api/did/registry":             "Admin: list all registered DIDs",
+            "POST /api/did/credentials/issue":    "Admin: issue a Verifiable Credential",
+            "GET  /api/did/credentials/{id}":     "Admin: list VCs for an identity",
+            "GET  /api/did/user/{user_id}":       "Admin: resolve or create user DID",
+            "GET  /api/did/agent/{agent_name}":   "Public: resolve agent DID",
+            "GET  /api/did/{did}":                "Public: resolve any did:vit: document",
+        },
+    }
+
+
 # ── Catch-all MUST come LAST ─────────────────────────────────────────────────
 
 @router.get("/{did:path}")
