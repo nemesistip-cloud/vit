@@ -110,14 +110,16 @@ function BacktestPanel({ token }: { token: string }) {
     staleTime: 60_000,
   });
 
-  const chartData = data
-    ? data.flat.history
+  const flatHistory  = data?.flat?.history  ?? [];
+  const kellyHistory = data?.kelly?.history ?? [];
+  const chartData = flatHistory.length > 0
+    ? flatHistory
         .map((v: number, i: number) => ({
           bet: i,
           flat: v,
-          kelly: data.kelly.history[i] ?? null,
+          kelly: kellyHistory[i] ?? null,
         }))
-        .filter((_: any, i: number) => i % Math.max(1, Math.floor(data.flat.history.length / 80)) === 0)
+        .filter((_: any, i: number) => i % Math.max(1, Math.floor(flatHistory.length / 80)) === 0)
     : [];
 
   return (

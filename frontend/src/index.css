@@ -68,90 +68,120 @@
 }
 
 :root {
-  /* Using dark mode as default */
   --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  --badge-outline:  rgba(255,255,255, .05);
 
   --opaque-button-border-intensity: 9;
 
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --elevate-1: rgba(255,255,255, .03);
+  --elevate-2: rgba(255,255,255, .07);
 
-  /* Deep dark background */
-  --background: 240 10% 4%;
-  --foreground: 0 0% 98%;
-  --border: 240 10% 12%;
+  /* ── Deep space background ───── */
+  --background: 240 14% 3%;
+  --foreground: 220 15% 95%;
+  --border:     240 12% 11%;
 
-  --card: 240 10% 6%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 240 10% 12%;
+  /* ── Cards ───────────────────── */
+  --card:            240 12% 5%;
+  --card-foreground: 220 15% 95%;
+  --card-border:     240 12% 10%;
 
-  --sidebar: 240 10% 6%;
-  --sidebar-foreground: 0 0% 98%;
-  --sidebar-border: 240 10% 12%;
-  --sidebar-primary: 183 100% 50%;
-  --sidebar-primary-foreground: 240 10% 4%;
-  --sidebar-accent: 240 10% 12%;
-  --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-ring: 183 100% 50%;
+  /* ── Sidebar (deeper than bg) ── */
+  --sidebar:                   240 16% 4%;
+  --sidebar-foreground:        220 15% 88%;
+  --sidebar-border:            240 12% 9%;
+  --sidebar-primary:           183 100% 50%;
+  --sidebar-primary-foreground:240 10% 4%;
+  --sidebar-accent:            240 12% 9%;
+  --sidebar-accent-foreground: 220 15% 88%;
+  --sidebar-ring:              183 100% 50%;
 
-  --popover: 240 10% 6%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 240 10% 12%;
+  --popover:            240 12% 5%;
+  --popover-foreground: 220 15% 95%;
+  --popover-border:     240 12% 10%;
 
-  /* Neon Cyan */
-  --primary: 183 100% 50%;
+  /* ── Neon Cyan primary ───────── */
+  --primary:            183 100% 50%;
   --primary-foreground: 240 10% 4%;
-  
-  /* Gold for VITCoin */
-  --secondary: 51 100% 50%;
+
+  /* ── Gold secondary (VITCoin) ── */
+  --secondary:            51 100% 50%;
   --secondary-foreground: 240 10% 4%;
 
-  --muted: 240 10% 12%;
-  --muted-foreground: 240 5% 65%;
+  --muted:            240 12% 10%;
+  --muted-foreground: 240 6% 58%;
 
-  --accent: 240 10% 16%;
-  --accent-foreground: 0 0% 98%;
+  --accent:            240 12% 13%;
+  --accent-foreground: 220 15% 95%;
 
-  --destructive: 0 84% 60%;
+  --destructive:            0 84% 60%;
   --destructive-foreground: 0 0% 98%;
 
-  --input: 240 10% 16%;
-  --ring: 183 100% 50%;
-  
+  --input: 240 12% 13%;
+  --ring:  183 100% 50%;
+
+  /* ── Chart palette ───────────── */
   --chart-1: 183 100% 50%;
-  --chart-2: 51 100% 50%;
-  --chart-3: 280 80% 60%;
-  --chart-4: 340 70% 50%;
-  --chart-5: 140 70% 50%;
+  --chart-2:  51 100% 50%;
+  --chart-3: 280  80% 60%;
+  --chart-4: 340  70% 50%;
+  --chart-5: 140  70% 50%;
 
-  --app-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* ── Typography & radius ─────── */
+  --app-font-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
   --app-font-serif: Georgia, serif;
-  --app-font-mono: 'Space Mono', ui-monospace, SFMono-Regular, monospace;
-  --radius: 0.25rem;
+  --app-font-mono:  'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  --radius: 0.375rem;
 
-  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.5);
-  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.5);
-  --shadow-sm: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 1px 2px -1px hsl(0 0% 0% / 0.5);
-  --shadow: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 1px 2px -1px hsl(0 0% 0% / 0.5);
-  --shadow-md: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 2px 4px -1px hsl(0 0% 0% / 0.5);
-  --shadow-lg: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 4px 6px -1px hsl(0 0% 0% / 0.5);
-  --shadow-xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 8px 10px -1px hsl(0 0% 0% / 0.5);
-  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.5);
+  /* ── Shadows ─────────────────── */
+  --shadow-2xs: 0px 1px 0px 0px hsl(0 0% 0% / 0.6);
+  --shadow-xs:  0px 2px 0px 0px hsl(0 0% 0% / 0.6);
+  --shadow-sm:  0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 1px 2px -1px hsl(0 0% 0% / 0.5);
+  --shadow:     0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 1px 2px -1px hsl(0 0% 0% / 0.5);
+  --shadow-md:  0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 2px 4px -1px hsl(0 0% 0% / 0.5);
+  --shadow-lg:  0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 4px 8px -1px hsl(0 0% 0% / 0.5);
+  --shadow-xl:  0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 8px 16px -1px hsl(0 0% 0% / 0.5);
+  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.6);
+
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
+  /* ── Derived border colors ───── */
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border:  hsl(from hsl(var(--sidebar-accent))  h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --primary-border:         hsl(from hsl(var(--primary))     h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --secondary-border:       hsl(from hsl(var(--secondary))   h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --muted-border:           hsl(from hsl(var(--muted))       h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --accent-border:          hsl(from hsl(var(--accent))      h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --destructive-border:     hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
 .dark {
-  /* Inherit all variables from :root */
+  /* Inherits :root dark variables */
+}
+
+/* ── Light mode overrides ────────────────────────────────────── */
+.light {
+  --background:      220 20% 97%;
+  --foreground:      240 14% 10%;
+  --border:          220 15% 88%;
+  --card:            0 0% 100%;
+  --card-foreground: 240 14% 10%;
+  --card-border:     220 15% 90%;
+  --sidebar:          220 20% 95%;
+  --sidebar-foreground: 240 14% 15%;
+  --sidebar-border:  220 15% 88%;
+  --muted:           220 15% 92%;
+  --muted-foreground:240 6% 40%;
+  --accent:          220 15% 90%;
+  --accent-foreground: 240 14% 10%;
+  --input:           220 15% 90%;
+  --popover:         0 0% 100%;
+  --popover-foreground: 240 14% 10%;
+  --popover-border:  220 15% 88%;
+  --elevate-1: rgba(0,0,0,0.03);
+  --elevate-2: rgba(0,0,0,0.06);
+  --button-outline: rgba(0,0,0,0.08);
 }
 
 @layer base {
@@ -159,8 +189,27 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans bg-background text-foreground;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv11";
+  }
+
+  /* ── Selection highlight ─────── */
+  ::selection {
+    background: rgba(0, 245, 255, 0.15);
+    color: inherit;
+  }
+
+  /* ── Focus ring upgrade ──────── */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
@@ -173,6 +222,8 @@
     color: hsl(var(--muted-foreground));
     pointer-events: none;
   }
+
+  /* ── Elevation system ────────── */
   .toggle-elevate::before,
   .toggle-elevate-2::before {
     content: "";
@@ -220,5 +271,15 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+
+  /* ── Tabular nums for metrics ── */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Smooth page transitions ─── */
+  .page-enter {
+    animation: vit-fade-in 0.25s var(--vit-ease-out) forwards;
   }
 }
