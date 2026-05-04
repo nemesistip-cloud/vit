@@ -47,7 +47,10 @@ class FootballDataClient:
         - Circuit breaker: suspends all requests after a 401/403
     """
 
-    _key_forbidden: bool = False   # class-level circuit breaker
+    _key_forbidden: bool = False          # class-level: suspended after 401/403
+    _consecutive_timeouts: int = 0        # class-level: timeout counter
+    _timeout_circuit_open: bool = False   # class-level: skip after repeated timeouts
+    _TIMEOUT_THRESHOLD: int = 3           # open circuit after this many consecutive timeouts
 
     BASE_URL = "https://api.football-data.org/v4"
     
@@ -97,6 +100,9 @@ class FootballDataClient:
         if self.__class__._key_forbidden:
             logger.debug(f"Skipping football API request for {endpoint} — key is forbidden")
             return {}
+        if self.__class__._timeout_circuit_open:
+            logger.debug(f"Skipping football API request for {endpoint} — host unreachable")
+            return {}
 
         cache_key = self._get_cache_key(endpoint, params)
         
@@ -116,7 +122,7 @@ class FootballDataClient:
     @rate_limit_backoff
     async def _request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """Make authenticated request to football-data.org"""
-        if self.__class__._key_forbidden:
+        if self.__class__._key_forbidden or self.__class__._timeout_circuit_open:
             return {}
 
         url = f"{self.BASE_URL}{endpoint}"
@@ -126,8 +132,26 @@ class FootballDataClient:
         try:
             response = await self.client.get(url, params=params)
             response.raise_for_status()
+            # Reset timeout counter on success
+            self.__class__._consecutive_timeouts = 0
             return response.json()
         
+        except (httpx.ConnectTimeout, httpx.ConnectError, httpx.ReadTimeout) as e:
+            self.__class__._consecutive_timeouts += 1
+            if self.__class__._consecutive_timeouts >= self.__class__._TIMEOUT_THRESHOLD:
+                self.__class__._timeout_circuit_open = True
+                logger.warning(
+                    "Football Data API is unreachable after %d consecutive timeouts — "
+                    "suspending requests for this session. The host may be blocking this environment.",
+                    self.__class__._consecutive_timeouts,
+                )
+            else:
+                logger.warning(
+                    "Football Data API timeout (%s) — attempt %d/%d",
+                    type(e).__name__, self.__class__._consecutive_timeouts, self.__class__._TIMEOUT_THRESHOLD,
+                )
+            return {}
+
         except httpx.HTTPStatusError as e:
             if e.response.status_code in (401, 403):
                 self.__class__._key_forbidden = True

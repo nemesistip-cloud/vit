@@ -145,10 +145,13 @@ async def _calc_transaction_score(db: AsyncSession, user_id: int) -> float:
 async def _calc_prediction_score(db: AsyncSession, user_id: int) -> float:
     try:
         from app.modules.blockchain.models import ValidatorPrediction
-        result = await db.execute(
-            select(ValidatorPrediction).where(ValidatorPrediction.validator_id == user_id)
-        )
-        preds = result.scalars().all()
+        async with db.begin_nested():
+            result = await db.execute(
+                select(ValidatorPrediction).where(
+                    ValidatorPrediction.validator_id == str(user_id)
+                )
+            )
+            preds = result.scalars().all()
     except Exception:
         return 50.0
 
@@ -294,13 +297,14 @@ async def _detect_bet_bombing(db: AsyncSession, user_id: int) -> list[FraudFlag]
     try:
         from app.modules.marketplace.models import ModelUsageLog
         window = _utcnow() - timedelta(minutes=10)
-        result = await db.execute(
-            select(func.count(ModelUsageLog.id)).where(
-                ModelUsageLog.caller_id == user_id,
-                ModelUsageLog.called_at >= window,
+        async with db.begin_nested():
+            result = await db.execute(
+                select(func.count(ModelUsageLog.id)).where(
+                    ModelUsageLog.caller_id == user_id,
+                    ModelUsageLog.called_at >= window,
+                )
             )
-        )
-        count = result.scalar() or 0
+            count = result.scalar() or 0
         if count > 20:
             f = await _flag(
                 db, user_id,
@@ -319,10 +323,13 @@ async def _detect_bet_bombing(db: AsyncSession, user_id: int) -> list[FraudFlag]
 async def _detect_validator_clone_predictions(db: AsyncSession, user_id: int) -> list[FraudFlag]:
     try:
         from app.modules.blockchain.models import ValidatorPrediction
-        result = await db.execute(
-            select(ValidatorPrediction).where(ValidatorPrediction.validator_id == user_id)
-        )
-        preds = result.scalars().all()
+        async with db.begin_nested():
+            result = await db.execute(
+                select(ValidatorPrediction).where(
+                    ValidatorPrediction.validator_id == str(user_id)
+                )
+            )
+            preds = result.scalars().all()
         if len(preds) < 20:
             return []
 
@@ -405,7 +412,8 @@ async def calculate_trust_score(db: AsyncSession, user_id: int) -> UserTrustScor
     new_flags: list[FraudFlag] = []
     for detector in DETECTORS:
         try:
-            new_flags.extend(await detector(db, user_id))
+            async with db.begin_nested():
+                new_flags.extend(await detector(db, user_id))
         except Exception as exc:
             log.warning("Trust detector error for user %s: %s", user_id, exc)
 

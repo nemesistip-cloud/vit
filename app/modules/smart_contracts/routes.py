@@ -53,7 +53,7 @@ async def bootstrap_contracts(db: AsyncSession = Depends(get_db)):
     return {"created": count, "message": f"Bootstrapped {count} built-in contracts"}
 
 
-@router.get("/")
+@router.get("")
 async def list_all_contracts(
     include_builtin: bool = True,
     db: AsyncSession = Depends(get_db),

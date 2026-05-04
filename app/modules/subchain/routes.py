@@ -49,7 +49,7 @@ async def bootstrap(db: AsyncSession = Depends(get_db)):
     return {"created": count, "message": f"Bootstrapped {count} sub-chains"}
 
 
-@router.get("/")
+@router.get("")
 async def list_chains(db: AsyncSession = Depends(get_db)):
     chains = await get_chain_summary(db)
     return {
