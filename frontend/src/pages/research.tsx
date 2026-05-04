@@ -52,13 +52,13 @@ function Panel({
 }) {
   return (
     <div
-      className={`rounded-xl border border-border bg-card/60 backdrop-blur-sm flex flex-col ${className}`}
+      className={`rounded-xl border border-border bg-card/60 backdrop-blur-sm ${className}`}
     >
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60">
         <Icon className="w-4 h-4 text-primary" />
         <span className="font-mono text-sm font-semibold tracking-tight">{title}</span>
       </div>
-      <div className="flex-1 p-4 overflow-auto">{children}</div>
+      <div className="p-4">{children}</div>
     </div>
   );
 }
@@ -66,7 +66,7 @@ function Panel({
 // ─── Loading spinner ─────────────────────────────────────────────────────────
 function Loader() {
   return (
-    <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
+    <div className="flex items-center justify-center gap-2 text-muted-foreground py-6">
       <RefreshCw className="w-4 h-4 animate-spin" />
       <span className="font-mono text-xs">Computing…</span>
     </div>
@@ -75,7 +75,7 @@ function Loader() {
 
 function Err({ msg }: { msg: string }) {
   return (
-    <div className="flex items-center justify-center h-32 text-rose-400 font-mono text-xs">
+    <div className="flex items-center justify-center py-6 text-rose-400 font-mono text-xs text-center">
       {msg}
     </div>
   );
