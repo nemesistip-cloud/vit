@@ -128,6 +128,12 @@ from app.api.routes.admin_clv import router as admin_clv_router
 from app.api.routes.agents import router as agents_router
 # ===== VIT DID ROUTES =====
 from app.modules.did.routes import router as did_router
+# ===== SYSTEM IDENTITY ROUTES =====
+import app.modules.identity.models  # register SystemID model
+from app.modules.identity.routes import router as identity_router
+# ===== KYC ROUTES =====
+import app.modules.kyc.models  # register KYCSubmission, KYCAuditEvent models
+from app.modules.kyc.routes import router as kyc_router
 # ===== VIT NETWORK ROUTES =====
 from app.modules.network.routes import router as network_router
 from app.iot.router import router as iot_router
@@ -1774,6 +1780,12 @@ app.include_router(ai_support_router)
 
 # VIT DID — Decentralized Identity
 app.include_router(did_router)
+
+# System Identity — on-platform cryptographic IDs
+app.include_router(identity_router)
+
+# KYC — offline rule-based identity verification
+app.include_router(kyc_router)
 
 # VIT Network — Node Registry and Growth Metrics
 app.include_router(network_router)

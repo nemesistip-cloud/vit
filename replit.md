@@ -33,11 +33,13 @@ The platform employs a microservices-oriented architecture.
 - **Sub-Chain Architecture:** Manages 8 specialized sub-chains (e.g., predictions, oracle, governance) for scalability.
 - **AI Agent Registry:** Registers and tracks on-chain agents with DIDs, capabilities, stakes, and reputations.
 - **Storage Verification:** Manages `StorageContentRecord` (CID, Merkle root, Blake3 hash) and `StorageChallenge` for proof-of-storage.
+- **System Identity Module (`app/modules/identity/`):** Issues deterministic `VIT-YYYY-XXXXXX` System IDs per user (SHA-256 derived, no external APIs). Tracks tier (Basic/Standard/Verified/Elite), badge claims, and DID linkage. Endpoints: `GET /api/identity/me`, `POST /api/identity/refresh`, `GET /api/identity/{sid}`, `GET /api/identity/admin/list`.
+- **KYC Module (`app/modules/kyc/`):** Fully offline, rule-based identity verification engine. Checks: name plausibility, age (18+), document type, document number patterns per type, nationality. Produces risk score (0–100) and auto-decides approve/manual_review/reject without external API keys. Endpoints: `POST /api/kyc/submit`, `GET /api/kyc/status`, admin queue/approve/reject/audit. `KYCScreenerAgent` processes pending submissions on a 10-minute cycle using the same rule engine.
 
 **Frontend:**
 - **Core Technology:** React 19, TypeScript, Vite, TailwindCSS 4, ShadCN UI.
 - **State Management:** `@tanstack/react-query` for server state, `vitWS` singleton for WebSocket.
-- **Key Pages:** Dashboards for matches, AI agent reports, match details with AI insights, oracle health, network statistics, staking marketplace, blockchain analytics, smart contract browser, treasury management, merit leaderboard, and security panels.
+- **Key Pages:** Dashboards for matches, AI agent reports, match details with AI insights, oracle health, network statistics, staking marketplace, blockchain analytics, smart contract browser, treasury management, merit leaderboard, security panels, System Identity card (`/identity`), and KYC Verification form (`/kyc`).
 - **Puter AI Integration:** Browser-side AI via Puter.js.
 
 ## External Dependencies

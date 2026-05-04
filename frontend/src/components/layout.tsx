@@ -8,7 +8,7 @@ import {
   ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
   Sparkles, Brain, Zap, Radio, Network, DatabaseZap, FlaskConical,
-  Map,
+  Map, Fingerprint, BadgeCheck,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -64,6 +64,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "You",
     items: [
+      { name: "My Identity", href: "/identity",     icon: Fingerprint },
+      { name: "KYC Verify",  href: "/kyc",          icon: BadgeCheck },
       { name: "Subscription", href: "/subscription", icon: CreditCard },
       { name: "Settings",     href: "/settings",     icon: Settings },
     ],

@@ -53,6 +53,8 @@ const TreasuryPage        = lazy(() => import("@/pages/treasury"));
 const MeritPage           = lazy(() => import("@/pages/merit"));
 const SecurityLayerPage   = lazy(() => import("@/pages/security"));
 const RoadmapPage         = lazy(() => import("@/pages/roadmap"));
+const IdentityPage        = lazy(() => import("@/pages/identity"));
+const KYCPage             = lazy(() => import("@/pages/kyc"));
 
 function RouteFallback() {
   return (
@@ -221,6 +223,12 @@ function Router() {
       </Route>
       <Route path="/roadmap">
         <Layout><ProtectedRoute component={RoadmapPage} /></Layout>
+      </Route>
+      <Route path="/identity">
+        <Layout><ProtectedRoute component={IdentityPage} /></Layout>
+      </Route>
+      <Route path="/kyc">
+        <Layout><ProtectedRoute component={KYCPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
