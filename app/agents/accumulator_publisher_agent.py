@@ -131,23 +131,27 @@ class AccumulatorPublisherAgent(BaseAgent):
         from sqlalchemy import select
 
         now = datetime.now(timezone.utc)
+        now_naive = now.replace(tzinfo=None)
 
         # Rate limiting
         if self._last_published_at:
-            elapsed = (now - self._last_published_at).total_seconds()
+            last = self._last_published_at
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            elapsed = (now - last).total_seconds()
             if elapsed < PUBLISH_COOLDOWN_HOURS * 3600:
                 remaining = int((PUBLISH_COOLDOWN_HOURS * 3600 - elapsed) / 60)
                 return {"skipped": True, "reason": f"cooldown {remaining}min remaining"}
 
         # Load predictions with edge data for today's matches
-        window_end = now + timedelta(hours=24)
+        window_end = now_naive + timedelta(hours=24)
 
         async with AsyncSessionLocal() as db:
             res = await db.execute(
                 select(Match, Prediction)
                 .join(Prediction, Prediction.match_id == Match.id)
                 .where(
-                    Match.kickoff_time >= now,
+                    Match.kickoff_time >= now_naive,
                     Match.kickoff_time <= window_end,
                     Match.status == "scheduled",
                     Prediction.home_prob.isnot(None),

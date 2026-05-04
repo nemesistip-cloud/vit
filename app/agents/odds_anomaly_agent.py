@@ -102,7 +102,8 @@ class OddsAnomalyAgent(BaseAgent):
         from sqlalchemy import select
 
         now    = datetime.now(timezone.utc)
-        window = now + timedelta(hours=48)
+        now_naive = now.replace(tzinfo=None)
+        window = now_naive + timedelta(hours=48)
 
         anomalies_detected: List[Dict] = []
         explained = 0
@@ -113,7 +114,7 @@ class OddsAnomalyAgent(BaseAgent):
                 select(Match, Prediction)
                 .join(Prediction, Prediction.match_id == Match.id)
                 .where(
-                    Match.kickoff_time >= now,
+                    Match.kickoff_time >= now_naive,
                     Match.kickoff_time <= window,
                     Match.status == "scheduled",
                 )

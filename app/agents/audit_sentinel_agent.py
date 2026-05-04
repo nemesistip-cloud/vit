@@ -142,9 +142,11 @@ class AuditSentinelAgent(BaseAgent):
 
         # Generate narrative
         narrative = ""
-        if api_key:
+        try:
             prompt = _build_audit_prompt(stats, anomalies, date_str)
             narrative = await call_ai(prompt) or ""
+        except Exception as _ai_err:
+            logger.debug("[audit-sentinel] AI narrative skipped: %s", _ai_err)
 
         # Send to Telegram
         severity = AlertPriority.HIGH if anomalies else AlertPriority.LOW

@@ -18,6 +18,7 @@ from app.db.models import Match, Prediction, CLVEntry, User
 from app.api.middleware.auth import verify_api_key
 from app.api.deps import get_optional_user
 from app.services.statistical_significance import StatisticalSignificance
+from app.services.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -588,6 +589,10 @@ async def get_my_analytics(
 @router.get("/summary")
 async def get_summary(db: AsyncSession = Depends(get_db)):
     """Single endpoint returning all key metrics for the analytics dashboard."""
+    _cached = await cache.get("analytics:summary")
+    if _cached is not None:
+        return _cached
+
     total_q  = await db.execute(select(func.count()).select_from(Prediction))
     total    = total_q.scalar() or 0
 
@@ -620,7 +625,7 @@ async def get_summary(db: AsyncSession = Depends(get_db)):
     except Exception:
         pass
 
-    return {
+    result = {
         "total_predictions": total,
         "total":             total,
         "settled":           settled,
@@ -630,6 +635,8 @@ async def get_summary(db: AsyncSession = Depends(get_db)):
         "bankroll":          bankroll_data,
         "version":           VERSION,
     }
+    await cache.set("analytics:summary", result, ttl=30)
+    return result
 
 
 # ── 8. System Metrics ─────────────────────────────────────────────────

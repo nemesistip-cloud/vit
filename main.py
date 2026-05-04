@@ -1468,6 +1468,19 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  Validator profile seeding failed: {_e}")
 
+    # CLV BACKFILL — rebuild any missing CLV rows for already-settled predictions (P2-B)
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.services.clv_backfill import backfill_missing_clv
+        async with AsyncSessionLocal() as _db:
+            _clv = await backfill_missing_clv(_db, limit=500)
+            if _clv["created"] or _clv["updated"]:
+                print(f"✅ CLV backfill: {_clv['created']} created, {_clv['updated']} updated, {_clv['missing_closing_odds']} missing odds")
+            else:
+                print(f"✅ CLV: {_clv['skipped']} rows already populated (no backfill needed)")
+    except Exception as _e:
+        print(f"⚠️  CLV backfill failed: {_e}")
+
     alerts = get_telegram_alerts()
     if alerts and alerts.enabled:
         await alerts.send_startup_message()

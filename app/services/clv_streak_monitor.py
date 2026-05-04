@@ -68,7 +68,8 @@ async def check_clv_streaks(db: AsyncSession) -> Dict:
           "reset": [keys...],
         }
     """
-    now = datetime.utcnow()
+    from datetime import timezone as _tz
+    now = datetime.now(_tz.utc)
     cutoff = now - timedelta(hours=CLV_CHECK_MIN_HOURS)
 
     rows = (await db.execute(

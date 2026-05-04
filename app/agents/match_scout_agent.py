@@ -109,6 +109,7 @@ class MatchScoutAgent(BaseAgent):
         from sqlalchemy import select
 
         now = datetime.now(timezone.utc)
+        now_naive = now.replace(tzinfo=None)
         today = now.strftime("%Y-%m-%d")
 
         # Reset scouted cache daily for re-analysis
@@ -117,9 +118,9 @@ class MatchScoutAgent(BaseAgent):
             self._scouted_date = today
 
         # Primary window: 48h; expand to 7 days if empty (SCIE resilience)
-        window_end  = now + timedelta(hours=48)
-        window_wide = now + timedelta(days=7)
-        live_cutoff = now - timedelta(hours=2, minutes=30)
+        window_end  = now_naive + timedelta(hours=48)
+        window_wide = now_naive + timedelta(days=7)
+        live_cutoff = now_naive - timedelta(hours=2, minutes=30)
 
         insights_stored = 0
         pre_match_done: List[str] = []
@@ -131,7 +132,7 @@ class MatchScoutAgent(BaseAgent):
                 select(Match, Prediction)
                 .outerjoin(Prediction, Prediction.match_id == Match.id)
                 .where(
-                    Match.kickoff_time >= now,
+                    Match.kickoff_time >= now_naive,
                     Match.kickoff_time <= window_end,
                     Match.status.in_(["scheduled", "upcoming"]),
                 )
@@ -146,7 +147,7 @@ class MatchScoutAgent(BaseAgent):
                     select(Match, Prediction)
                     .outerjoin(Prediction, Prediction.match_id == Match.id)
                     .where(
-                        Match.kickoff_time >= now,
+                        Match.kickoff_time >= now_naive,
                         Match.kickoff_time <= window_wide,
                         Match.status.in_(["scheduled", "upcoming"]),
                     )

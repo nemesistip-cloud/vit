@@ -9,6 +9,7 @@ import os
 from app.db.database import get_db, AsyncSessionLocal
 from app.db.models import Match, Prediction
 from app.modules.wallet.models import PlatformConfig
+from app.services.cache import cache
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
@@ -220,6 +221,11 @@ async def get_upcoming_matches(
     limit: int = Query(100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
+    _cache_key = f"matches:upcoming:{league or 'all'}:{days}:{limit}"
+    _cached = await cache.get(_cache_key)
+    if _cached is not None:
+        return _cached
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     future = now + timedelta(days=days)
     # Include matches that started up to 90 minutes ago but aren't settled yet
@@ -252,11 +258,13 @@ async def get_upcoming_matches(
             if p.match_id not in preds_map:
                 preds_map[p.match_id] = p
 
-    return {
+    result = {
         "count": len(matches),
         "enabled_markets": markets,
         "matches": [_fmt_match(m, preds_map.get(m.id), markets) for m in matches],
     }
+    await cache.set(_cache_key, result, ttl=15)
+    return result
 
 
 @router.get("/explore")

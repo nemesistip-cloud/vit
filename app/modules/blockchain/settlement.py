@@ -142,7 +142,12 @@ async def settle_match(match_id: str, oracle_result: str, db: AsyncSession) -> M
     stakes = stakes_result.scalars().all()
 
     # Pull match for goal-derived oracle results (OU 2.5, BTTS).
-    match_row = await db.execute(select(Match).where(Match.id == match_id))
+    # match_id is stored as String in oracle tables but Match.id is Integer.
+    try:
+        _match_pk = int(match_id)
+    except (ValueError, TypeError):
+        _match_pk = None
+    match_row = await db.execute(select(Match).where(Match.id == _match_pk))
     match_obj = match_row.scalar_one_or_none()
     market_oracle = _derive_market_oracle(oracle_result, match_obj)
 

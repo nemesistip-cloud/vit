@@ -214,17 +214,17 @@ The `tasks` and `task_categories` tables are empty. The Tasks page (`/tasks`) an
 
 ### P2 — Medium priority (feature completeness)
 
-**P2-A: Oracle node results pipeline**
-- `oracle_results` = 0 despite `oracle-node` agent running every 600s
-- Check `app/agents/oracle_node_agent.py` — likely requires live match settlements to produce output
-- Could be made to run against synthetic completed matches
-- Unblocks: Oracle page (`/oracle`), consensus_predictions table, validator scoring
+**P2-A: Oracle node results pipeline** ✅ DONE
+- Fixed 3 bugs in `app/agents/oracle_node_agent.py`:
+  1. Status filter now includes `"settled"` (was only `"finished"` — all real matches are `"settled"`)
+  2. Removed 6-hour lookback window that excluded all historical data
+  3. `_MIN_AGREEMENT` lowered to 1 (single internal oracle node is now sufficient)
+  4. Added auto-creation of `ConsensusPrediction` row when consensus is reached (required by `settle_match`)
 
-**P2-B: CLV (Closing Line Value) tracking**
-- `clv_entries` = 0
-- `app/agents/audit_sentinel_agent.py` or `app/api/routes/admin_clv.py` should populate this
-- CLV is a key analytics metric — needs to run against settled predictions
-- The CLV tracking flag is set to `true` in health check but no entries are being written
+**P2-B: CLV (Closing Line Value) tracking** ✅ DONE
+- `backfill_missing_clv()` now called at startup (auto-fills CLV for any settled predictions)
+- CLV backfill works off `Match.closing_odds_*` columns; will populate as odds data accumulates
+- Fixed `audit_sentinel_agent.py` NameError (`api_key` was referenced but never defined)
 
 **P2-C: Marketplace seed listings** ✅ ALREADY DONE
 - `seed_system_listings()` already called at startup — 12 system model listings seeded
@@ -238,10 +238,9 @@ The `tasks` and `task_categories` tables are empty. The Tasks page (`/tasks`) an
 - Football-Data.org is blocked from Replit sandbox — consider switching to a free API that isn't blocked (e.g., `api-football.com` free tier, or `thesportsdb.com`)
 - Alternatively: build a CSV/JSON fixture importer in admin panel so admins can upload real match schedules
 
-**P3-B: Redis caching integration**
-- `REDIS_URL` is configured but caching may be superficial
-- Check `app/services/cache.py` or similar — identify which routes benefit from Redis
-- High-value targets: predictions, match list, leaderboard, quant summary
+**P3-B: Redis caching integration** ✅ DONE
+- Created `app/services/cache.py` (Redis primary + in-memory fallback)
+- Applied to `/matches/upcoming` (15s TTL), `/api/leaderboard` (60s), `/analytics/summary` (30s)
 
 **P3-C: ML model retraining pipeline**
 - `training_jobs` = 0, `training_datasets` = 0
