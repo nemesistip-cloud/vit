@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WagmiProvider } from "wagmi";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -8,6 +9,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { wagmiConfig } from "@/lib/web3";
 
 // Eager — first-paint surfaces (landing + auth) and the tiny info page used for legal routes.
 import LandingPage from "@/pages/landing";
@@ -246,29 +248,31 @@ function Router() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <AuthProvider>
-              <ErrorBoundary>
-                <Router />
-              </ErrorBoundary>
-              <Toaster
-                position="bottom-right"
-                toastOptions={{
-                  classNames: {
-                    toast: "font-mono text-xs",
-                    title: "font-mono text-sm",
-                    description: "font-mono text-xs",
-                  },
-                }}
-              />
-            </AuthProvider>
-          </WouterRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <AuthProvider>
+                <ErrorBoundary>
+                  <Router />
+                </ErrorBoundary>
+                <Toaster
+                  position="bottom-right"
+                  toastOptions={{
+                    classNames: {
+                      toast: "font-mono text-xs",
+                      title: "font-mono text-sm",
+                      description: "font-mono text-xs",
+                    },
+                  }}
+                />
+              </AuthProvider>
+            </WouterRouter>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </WagmiProvider>
   );
 }
 

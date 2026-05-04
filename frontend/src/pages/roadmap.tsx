@@ -103,7 +103,7 @@ const PHASES: RoadmapPhase[] = [
     architectureNote: "Deploy VITCoin on Base L2 for ecosystem adoption. Base gives low fees, Ethereum tooling compatibility, and a proven developer ecosystem — the pragmatic bootstrap chain before the sovereign Cosmos app-chain.",
     items: [
       { label: "Deploy VITCoin ERC-20 contract on Base L2",                   status: "planned",      icon: Coins,       detail: "BASE_RPC_URL + VIT_CONTRACT_ADDRESS already wired in secrets manager" },
-      { label: "MetaMask / WalletConnect wallet connection in frontend",       status: "planned",      icon: Link2 },
+      { label: "MetaMask / WalletConnect wallet connection in frontend",       status: "in-progress",  icon: Link2, detail: "wagmi v2 + viem — injected (MetaMask) + Coinbase Wallet connectors live; WalletPanel on bridge & smart-contracts pages" },
       { label: "On-chain prediction settlement: AI hash → Base transaction",   status: "planned",      icon: CheckCircle2 },
       { label: "Staking contract: lock VIT · earn yield · validator bonding",  status: "planned",      icon: Target },
       { label: "Governance token distribution to early stakers",               status: "planned",      icon: Vote },

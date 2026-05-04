@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAccount, useChainId } from "wagmi";
+import { base } from "wagmi/chains";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { API } from "@/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +13,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   FileCode2, Zap, Activity, Clock, Flame, ChevronRight,
-  Play, Eye, TrendingUp, Shield, Layers, RefreshCw
+  Play, Eye, TrendingUp, Shield, Layers, RefreshCw,
+  Wifi, WifiOff, Link2, AlertTriangle
 } from "lucide-react";
+import { WalletConnectButton } from "@/components/wallet-connect-button";
 
 interface Contract {
   address: string;
@@ -62,6 +66,8 @@ const CALL_STATUS_COLORS: Record<string, string> = {
 
 export default function SmartContractsPage() {
   const { toast } = useToast();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
   const qc = useQueryClient();
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [callMethod, setCallMethod] = useState("");
@@ -127,9 +133,11 @@ export default function SmartContractsPage() {
   const totalGas = contracts.reduce((s, c) => s + c.total_gas_used, 0);
   const totalLocked = contracts.reduce((s, c) => s + c.vit_locked, 0);
 
+  const isBaseChain = chainId === base.id;
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <FileCode2 className="w-6 h-6 text-violet-400" />
@@ -139,15 +147,61 @@ export default function SmartContractsPage() {
             VIT rule-based deterministic contract execution — 5 built-in contracts
           </p>
         </div>
-        <Button
-          onClick={() => bootstrapMutation.mutate()}
-          disabled={bootstrapMutation.isPending}
-          variant="outline"
-          className="border-violet-500/30 text-violet-300"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${bootstrapMutation.isPending ? "animate-spin" : ""}`} />
-          Bootstrap
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <WalletConnectButton />
+          <Button
+            onClick={() => bootstrapMutation.mutate()}
+            disabled={bootstrapMutation.isPending}
+            variant="outline"
+            className="border-violet-500/30 text-violet-300"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${bootstrapMutation.isPending ? "animate-spin" : ""}`} />
+            Bootstrap
+          </Button>
+        </div>
+      </div>
+
+      {/* Chain connection status bar */}
+      <div className={`rounded-xl border p-3 flex items-center gap-3 flex-wrap ${
+        isConnected && isBaseChain
+          ? "border-emerald-500/20 bg-emerald-500/5"
+          : isConnected
+          ? "border-amber-500/20 bg-amber-500/5"
+          : "border-border bg-muted/20"
+      }`}>
+        {isConnected ? (
+          isBaseChain ? (
+            <Wifi className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          )
+        ) : (
+          <WifiOff className="w-4 h-4 text-muted-foreground shrink-0" />
+        )}
+
+        <div className="flex-1 min-w-0">
+          {isConnected ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-semibold ${isBaseChain ? "text-emerald-400" : "text-amber-400"}`}>
+                {isBaseChain ? "Connected to Base Mainnet" : "Wrong Network — switch to Base"}
+              </span>
+              {address && (
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {address.slice(0, 8)}…{address.slice(-6)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Connect a wallet to interact with VITCoin on Base L2 — read-only mode active
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Link2 className="w-3 h-3 text-muted-foreground" />
+          <span className="text-[10px] font-mono text-muted-foreground">Base L2 · Chain 8453</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

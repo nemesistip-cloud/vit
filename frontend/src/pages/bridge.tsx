@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAccount } from "wagmi";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeftRight, Clock, CheckCircle2, XCircle, Loader2, TrendingUp } from "lucide-react";
+import { ArrowLeftRight, Clock, CheckCircle2, XCircle, Loader2, TrendingUp, Wallet, ExternalLink } from "lucide-react";
+import { WalletPanel, WalletConnectButton } from "@/components/wallet-connect-button";
 
 interface BridgePool {
   id: number;
@@ -66,6 +68,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function BridgePage() {
   const qc = useQueryClient();
+  const { address, isConnected } = useAccount();
   const [selectedPool, setSelectedPool] = useState<string>("");
   const [amountIn, setAmountIn] = useState("");
   const [destAddress, setDestAddress] = useState("");
@@ -120,14 +123,25 @@ export default function BridgePage() {
     });
   };
 
+  // Auto-fill destination address from connected wallet
+  const handleAutoFill = () => {
+    if (address) setDestAddress(address);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Cross-Chain Bridge</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Transfer VITCoin to external chains.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Cross-Chain Bridge</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Transfer VITCoin between VIT Platform and Base L2.
+          </p>
+        </div>
+        <WalletConnectButton />
       </div>
+
+      {/* Wallet panel */}
+      <WalletPanel />
 
       {/* Stats */}
       {stats && (
@@ -215,9 +229,20 @@ export default function BridgePage() {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                Destination Address ({pool?.chain_to ?? "target chain"})
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Destination Address ({pool?.chain_to ?? "target chain"})
+                </label>
+                {isConnected && address && (
+                  <button
+                    onClick={handleAutoFill}
+                    className="text-[10px] font-mono text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+                  >
+                    <Wallet className="w-3 h-3" />
+                    Use my wallet
+                  </button>
+                )}
+              </div>
               <Input
                 value={destAddress}
                 onChange={e => setDestAddress(e.target.value)}
