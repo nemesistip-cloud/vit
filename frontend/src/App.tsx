@@ -55,6 +55,7 @@ const SecurityLayerPage   = lazy(() => import("@/pages/security"));
 const RoadmapPage         = lazy(() => import("@/pages/roadmap"));
 const IdentityPage        = lazy(() => import("@/pages/identity"));
 const KYCPage             = lazy(() => import("@/pages/kyc"));
+const IDLookupPage        = lazy(() => import("@/pages/id-lookup"));
 
 function RouteFallback() {
   return (
@@ -230,6 +231,8 @@ function Router() {
       <Route path="/kyc">
         <Layout><ProtectedRoute component={KYCPage} /></Layout>
       </Route>
+      <Route path="/id/:sid" component={IDLookupPage} />
+      <Route path="/id" component={IDLookupPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/verify-email" component={VerifyEmailPage} />
