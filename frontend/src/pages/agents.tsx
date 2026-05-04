@@ -254,7 +254,7 @@ function ProviderStatusBar() {
 
   const { data } = useQuery({
     queryKey: ["ai-provider-status"],
-    queryFn: () => apiGet<{ providers: Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number; failing: boolean; last_error_code: number | null }>; priority: string[] }>("/agents/providers"),
+    queryFn: () => apiGet<{ providers: Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number; failing: boolean; last_error_code: number | null }>; priority: string[] }>("/api/agents/providers"),
     refetchInterval: 15000,
     retry: false,
   });
@@ -326,7 +326,7 @@ export default function AgentsPage() {
 
   const { data, isLoading, isError, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["agents-status"],
-    queryFn: () => apiGet<CoordinatorStatus>("/agents/status"),
+    queryFn: () => apiGet<CoordinatorStatus>("/api/agents/status"),
     refetchInterval: autoRefresh ? 10000 : false,
     staleTime: 5000,
   });
@@ -345,7 +345,7 @@ export default function AgentsPage() {
   }, [autoRefresh, dataUpdatedAt]);
 
   const triggerMutation = useMutation({
-    mutationFn: (name: string) => apiPost(`/agents/trigger/${name}`),
+    mutationFn: (name: string) => apiPost(`/api/agents/trigger/${name}`),
     onSuccess: (_, name) => {
       toast.success(`Agent "${name}" triggered`);
       setTriggeringAgent(null);

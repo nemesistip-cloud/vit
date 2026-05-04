@@ -411,7 +411,7 @@ function PerformanceStatsPanel() {
         total_ingested: number;
         source_counts: Record<string, number>;
         message?: string;
-      }>("/admin/ai-sources/performance"),
+      }>("/api/admin/ai-sources/performance"),
     refetchInterval: 60000,
   });
 
@@ -420,7 +420,7 @@ function PerformanceStatsPanel() {
   const triggerUpdate = async () => {
     setRefreshing(true);
     try {
-      await apiPost("/admin/ai-sources/update-performance", {});
+      await apiPost("/api/admin/ai-sources/update-performance", {});
       qc.invalidateQueries({ queryKey: ["ai-sources", "performance"] });
       toast.success("Performance metrics recalculated");
     } catch (e: any) {
@@ -561,7 +561,7 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
         ingested: number;
         skipped: number;
         results: ServerResult[];
-      }>("/admin/ai-sources/run-server", { limit: Math.min(matchCount || 20, 50) });
+      }>("/api/admin/ai-sources/run-server", { limit: Math.min(matchCount || 20, 50) });
       setResults(data.results ?? []);
       setSummary({ ingested: data.ingested ?? 0, skipped: data.skipped ?? 0 });
       if ((data.ingested ?? 0) > 0) {
@@ -673,7 +673,7 @@ function ManualUploadForm({ matches }: { matches: AISourceMatch[] }) {
     }
     setSubmitting(true);
     try {
-      await apiPost("/admin/ai-sources/ingest", {
+      await apiPost("/api/admin/ai-sources/ingest", {
         match_id: selectedMatchId,
         source: form.source,
         home_prob: h,
@@ -806,7 +806,7 @@ function ExistingSourcesPanel({ matchId }: { matchId: number | null }) {
     queryKey: ["ai-sources", "match", matchId],
     queryFn: () =>
       apiGet<{ match: AISourceMatch; predictions: AISourcePred[] }>(
-        `/admin/ai-sources/match/${matchId}`
+        `/api/admin/ai-sources/match/${matchId}`
       ),
     enabled: !!matchId,
   });
@@ -816,7 +816,7 @@ function ExistingSourcesPanel({ matchId }: { matchId: number | null }) {
   const remove = async (id: number) => {
     setDeleting(id);
     try {
-      await apiDelete(`/admin/ai-sources/${id}`);
+      await apiDelete(`/api/admin/ai-sources/${id}`);
       toast.success("Removed");
       qc.invalidateQueries({ queryKey: ["ai-sources"] });
     } catch (e: any) {
@@ -904,12 +904,12 @@ export default function AISourcesPage() {
   const permsQ = useQuery({
     queryKey: ["ai-sources", "perms"],
     queryFn: () =>
-      apiGet<{ can_upload: boolean; role: string; tier: string }>("/admin/ai-sources/permissions"),
+      apiGet<{ can_upload: boolean; role: string; tier: string }>("/api/admin/ai-sources/permissions"),
   });
 
   const matchesQ = useQuery({
     queryKey: ["ai-sources", "matches"],
-    queryFn: () => apiGet<{ matches: AISourceMatch[] }>("/admin/ai-sources/matches?limit=50"),
+    queryFn: () => apiGet<{ matches: AISourceMatch[] }>("/api/admin/ai-sources/matches?limit=50"),
     // Load as soon as the permissions check finishes (success or error).
     // The backend enforces authorization — non-admin users receive 403.
     enabled: !permsQ.isLoading,
@@ -974,7 +974,7 @@ export default function AISourcesPage() {
 
           updateSlot(match.id, model, { status: "ingesting", analysis });
 
-          await apiPost("/admin/ai-sources/ingest", {
+          await apiPost("/api/admin/ai-sources/ingest", {
             match_id: match.id,
             source: model,
             home_prob: analysis.home_prob,

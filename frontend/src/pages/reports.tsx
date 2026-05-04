@@ -108,13 +108,13 @@ function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
   const qc = useQueryClient();
   const { data, isFetching } = useQuery<ProvidersData>({
     queryKey: ["ai-providers"],
-    queryFn: () => apiGet<ProvidersData>("/agents/providers"),
+    queryFn: () => apiGet<ProvidersData>("/api/agents/providers"),
     refetchInterval: 30_000,
     staleTime: 20_000,
   });
 
   const refreshMutation = useMutation({
-    mutationFn: () => apiPost<ProvidersData>("/agents/providers/refresh"),
+    mutationFn: () => apiPost<ProvidersData>("/api/agents/providers/refresh"),
     onSuccess: (d) => {
       qc.setQueryData(["ai-providers"], d);
       onRefresh();
@@ -357,7 +357,7 @@ export default function ReportsPage() {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const generateMutation = useMutation({
-    mutationFn: () => apiPost<{ triggered: string[]; message: string }>("/agents/generate-now"),
+    mutationFn: () => apiPost<{ triggered: string[]; message: string }>("/api/agents/generate-now"),
     onSuccess: (data) => {
       setGenerateMsg(data.message);
       setTimeout(() => {
@@ -371,7 +371,7 @@ export default function ReportsPage() {
   const reportsQ = useQuery<ReportsData>({
     queryKey: ["agent-reports", agentFilter],
     queryFn: () => apiGet<ReportsData>(
-      `/agents/reports?limit=60${agentFilter !== "all" ? `&agent=${agentFilter}` : ""}`
+      `/api/agents/reports?limit=60${agentFilter !== "all" ? `&agent=${agentFilter}` : ""}`
     ),
     refetchInterval: autoRefresh ? 30_000 : false,
     staleTime: 15_000,
@@ -379,7 +379,7 @@ export default function ReportsPage() {
 
   const liveQ = useQuery<LiveData>({
     queryKey: ["live-scores"],
-    queryFn: () => apiGet<LiveData>("/agents/live-scores"),
+    queryFn: () => apiGet<LiveData>("/api/agents/live-scores"),
     refetchInterval: 30_000,
     staleTime: 20_000,
   });

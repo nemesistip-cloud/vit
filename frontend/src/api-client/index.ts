@@ -96,7 +96,7 @@ export const API = {
   blockchainEconomics: "/api/blockchain/analytics/economics",
   // AI Intelligence (v4.12.0)
   aiIntelHealth: "/api/ai-intel/health",
-  aiIntelInjuries: "/api/ai-intel/openai/injuries",
+  aiIntelInjuries: "/api/ai-intel/injuries",
   // Smart Contracts (v5.0.0)
   contracts: "/api/contracts/",
   contractBootstrap: "/api/contracts/bootstrap",
