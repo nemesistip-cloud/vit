@@ -185,19 +185,39 @@ class DataLoader:
                 odds = odds_by_names.get(fixture_key) or odds_by_names.get((fixture_key[1], fixture_key[0]))
 
             if odds:
-                fixture["odds"] = {
-                    "home": odds.home_odds,
-                    "draw": odds.draw_odds,
-                    "away": odds.away_odds,
-                    "over_25": odds.over_25_odds,
-                    "under_25": odds.under_25_odds,
-                    "btts_yes": odds.btts_yes_odds,
-                    "btts_no": odds.btts_no_odds,
-                    "bookmaker": odds.bookmaker,
+                odds_dict: dict = {
+                    # 1X2
+                    "home":           odds.home_odds,
+                    "draw":           odds.draw_odds,
+                    "away":           odds.away_odds,
+                    # Over / Under
+                    "over_15":        odds.over_15_odds,
+                    "under_15":       odds.under_15_odds,
+                    "over_25":        odds.over_25_odds,
+                    "under_25":       odds.under_25_odds,
+                    "over_35":        odds.over_35_odds,
+                    "under_35":       odds.under_35_odds,
+                    "over_45":        odds.over_45_odds,
+                    "under_45":       odds.under_45_odds,
+                    # Asian Handicap
+                    "ah_line":        odds.ah_line,
+                    "ah_home_odds":   odds.ah_home_odds,
+                    "ah_away_odds":   odds.ah_away_odds,
+                    "ah_lines":       odds.ah_lines or [],
+                    # Derived: Double Chance
+                    "dc_1x":          odds.dc_1x_odds,
+                    "dc_x2":          odds.dc_x2_odds,
+                    "dc_12":          odds.dc_12_odds,
+                    # Derived: Draw No Bet
+                    "dnb_home":       odds.dnb_home_odds,
+                    "dnb_away":       odds.dnb_away_odds,
+                    # Meta
+                    "bookmaker":      odds.bookmaker,
                     "vig_free_probs": odds.vig_free_probabilities(),
-                    "overround": odds.overround(),
-                    "timestamp": odds.timestamp.isoformat() if odds.timestamp else None
+                    "overround":      odds.overround(),
+                    "timestamp":      odds.timestamp.isoformat() if odds.timestamp else None,
                 }
+                fixture["odds"] = {k: v for k, v in odds_dict.items() if v is not None}
 
         return context
 

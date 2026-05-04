@@ -326,16 +326,40 @@ async def run_odds_refresh() -> Dict[str, Any]:
                     if record is None:
                         continue
 
-                    odds_snapshot = {
-                        "home": odds.home_odds,
-                        "draw": odds.draw_odds,
-                        "away": odds.away_odds,
-                        "over_25": odds.over_25_odds,
-                        "btts_yes": odds.btts_yes_odds,
-                        "bookmaker": odds.bookmaker,
-                        "overround": odds.overround(),
-                        "vig_free_probs": odds.vig_free_probabilities(),
+                    # Full multi-market snapshot — all available fields
+                    odds_snapshot: dict = {
+                        # 1X2
+                        "home":             odds.home_odds,
+                        "draw":             odds.draw_odds,
+                        "away":             odds.away_odds,
+                        # Over / Under (multiple lines)
+                        "over_15":          odds.over_15_odds,
+                        "under_15":         odds.under_15_odds,
+                        "over_25":          odds.over_25_odds,
+                        "under_25":         odds.under_25_odds,
+                        "over_35":          odds.over_35_odds,
+                        "under_35":         odds.under_35_odds,
+                        "over_45":          odds.over_45_odds,
+                        "under_45":         odds.under_45_odds,
+                        # Asian Handicap
+                        "ah_line":          odds.ah_line,
+                        "ah_home_odds":     odds.ah_home_odds,
+                        "ah_away_odds":     odds.ah_away_odds,
+                        "ah_lines":         odds.ah_lines or [],
+                        # Derived: Double Chance
+                        "dc_1x":            odds.dc_1x_odds,
+                        "dc_x2":            odds.dc_x2_odds,
+                        "dc_12":            odds.dc_12_odds,
+                        # Derived: Draw No Bet
+                        "dnb_home":         odds.dnb_home_odds,
+                        "dnb_away":         odds.dnb_away_odds,
+                        # Meta
+                        "bookmaker":        odds.bookmaker,
+                        "overround":        odds.overround(),
+                        "vig_free_probs":   odds.vig_free_probabilities(),
                     }
+                    # Strip None values to keep JSON lean
+                    odds_snapshot = {k: v for k, v in odds_snapshot.items() if v is not None}
 
                     # Patch market features in the existing feature dict
                     from app.data.feature_engineering import _market_features
