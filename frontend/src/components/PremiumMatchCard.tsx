@@ -4,9 +4,36 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format } from "date-fns";
-import { Activity, BrainCircuit, TrendingUp, Zap, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import { Activity, BrainCircuit, TrendingUp, Zap, Brain, ChevronDown, ChevronUp, Database, Globe, Upload, FileSpreadsheet } from "lucide-react";
 import type { Match } from "@/api-client/schemas";
 import { PredictionFlow } from "@/components/PredictionFlow";
+
+// ── Source label badge ────────────────────────────────────────────────
+
+const SOURCE_META: Record<string, { label: string; cls: string; title: string }> = {
+  user_csv:       { label: "CSV",    cls: "border-purple-500/40 text-purple-400",   title: "Imported via CSV upload" },
+  manual_upload:  { label: "Manual", cls: "border-yellow-500/40 text-yellow-400",   title: "Added manually by admin" },
+  footballdata:   { label: "API",    cls: "border-primary/40 text-primary",          title: "Synced from Football-Data API" },
+  api_football:   { label: "API",    cls: "border-primary/40 text-primary",          title: "Synced from API-Football" },
+  odds_api:       { label: "API",    cls: "border-cyan-500/40 text-cyan-400",        title: "Synced from Odds API" },
+  sportmonks:     { label: "API",    cls: "border-primary/40 text-primary",          title: "Synced from Sportmonks API" },
+  seed:           { label: "Seed",   cls: "border-muted/40 text-muted-foreground",   title: "Seeded fixture" },
+  synthetic:      { label: "Synth",  cls: "border-orange-500/40 text-orange-400",   title: "Synthetically generated fixture" },
+  unknown:        { label: "?",      cls: "border-muted/30 text-muted-foreground/50", title: "Unknown source" },
+};
+
+function SourceBadge({ source }: { source?: string }) {
+  if (!source || source === "unknown") return null;
+  const meta = SOURCE_META[source] ?? SOURCE_META.unknown;
+  return (
+    <span
+      className={`inline-flex items-center border rounded px-1 py-0 text-[9px] font-mono leading-[14px] ${meta.cls}`}
+      title={meta.title}
+    >
+      {meta.label}
+    </span>
+  );
+}
 
 function ConfidenceMeter({ confidence, risk }: { confidence: number; risk: number }) {
   const riskLevel = risk > 0.7 ? "HIGH" : risk > 0.4 ? "MED" : "LOW";
@@ -276,9 +303,10 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
 
             {/* Footer */}
             <div className="px-4 pb-3 flex justify-between items-center text-xs font-mono text-muted-foreground border-t border-border/30 pt-2">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1.5">
                 <Activity className="w-3 h-3" />
                 {format(new Date(match.kickoff_time), "MMM dd HH:mm")}
+                <SourceBadge source={(match as any).source} />
               </span>
               {match.edge != null && (
                 <span className={`flex items-center gap-1 font-bold ${match.edge > 0 ? "text-primary" : "text-destructive"}`}>

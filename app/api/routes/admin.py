@@ -1073,15 +1073,57 @@ async def upload_csv_fixtures(
     text    = content.decode("utf-8", errors="replace").lstrip("\ufeff")  # strip BOM
     reader  = csv.DictReader(io.StringIO(text))
 
+    # ── Column alias map — handles both the standard format and the
+    #    shorthand format (#,date,time,home,away,league,H,D,A) ──────────
+    COL_ALIASES = {
+        "home":       "home_team",
+        "away":       "away_team",
+        "h":          "home_odds",
+        "d":          "draw_odds",
+        "a":          "away_odds",
+        "kickoff":    "kickoff_time",
+        "date_time":  "kickoff_time",
+        "#":          "_row_num",      # ignored, just skip
+    }
+
+    raw_fields = [f.strip().lower() for f in (reader.fieldnames or []) if f]
+    normalised_fields = [COL_ALIASES.get(f, f) for f in raw_fields]
+    has_date_time_cols = "date" in raw_fields and "time" in raw_fields
+
+    # After alias expansion, check required columns
     REQUIRED = {"home_team", "away_team"}
-    if reader.fieldnames is None or not REQUIRED.issubset(
-        {f.strip().lower() for f in reader.fieldnames if f}
-    ):
+    if not REQUIRED.issubset(set(normalised_fields)):
         raise HTTPException(
             status_code=422,
-            detail=f"CSV must contain at minimum: {', '.join(sorted(REQUIRED))}. "
-                   f"Found: {reader.fieldnames}",
+            detail=f"CSV must contain at minimum: home_team, away_team (or 'home', 'away'). "
+                   f"Found columns: {reader.fieldnames}",
         )
+
+    def _parse_shorthand_date(date_str: str, time_str: str) -> Optional[datetime]:
+        """Parse 'D Mon' + 'HH:MM' into a datetime, assuming current or next year."""
+        import calendar
+        date_str = date_str.strip()
+        time_str = time_str.strip()
+        MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
+        MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_name) if m})
+        try:
+            parts = date_str.split()
+            if len(parts) == 2:
+                day  = int(parts[0])
+                mon  = MONTHS.get(parts[1].lower()[:3])
+                if not mon:
+                    return None
+                t_parts = time_str.split(":")
+                hour, minute = int(t_parts[0]), int(t_parts[1]) if len(t_parts) > 1 else 0
+                year = datetime.utcnow().year
+                dt = datetime(year, mon, day, hour, minute)
+                # If that date is already >30 days in the past, try next year
+                if (dt - datetime.utcnow()).days < -30:
+                    dt = datetime(year + 1, mon, day, hour, minute)
+                return dt
+        except Exception:
+            return None
+        return None
 
     from app.data.match_dedup import compute_fingerprint, find_existing_match
 
@@ -1095,8 +1137,21 @@ async def upload_csv_fixtures(
 
     async with AsyncSessionLocal() as db:
         for i, raw_row in enumerate(reader):
-            # Normalize column names (strip whitespace, lowercase)
-            row = {k.strip().lower(): (v or "").strip() for k, v in raw_row.items() if k}
+            # Normalize column names (strip whitespace, lowercase) then apply aliases
+            raw_map = {k.strip().lower(): (v or "").strip() for k, v in raw_row.items() if k}
+            row: dict = {}
+            for k, v in raw_map.items():
+                alias = COL_ALIASES.get(k, k)
+                if alias != "_row_num":  # skip # column
+                    row[alias] = v
+            # Combine date + time columns into kickoff_time if present
+            if has_date_time_cols and not row.get("kickoff_time"):
+                d_str = raw_map.get("date", "")
+                t_str = raw_map.get("time", "")
+                if d_str and t_str:
+                    parsed_dt = _parse_shorthand_date(d_str, t_str)
+                    if parsed_dt:
+                        row["kickoff_time"] = parsed_dt.isoformat()
             row_num = i + 2
 
             home = row.get("home_team", "")
@@ -1220,14 +1275,60 @@ async def upload_csv_fixtures(
     created  = sum(1 for r in results if r["action"] == "created")
     skipped  = sum(1 for r in results if r["action"] == "skipped_duplicate")
 
+    # Build a normalised "rows" list compatible with both the admin UI and
+    # any caller that expects {status, message} on each row
+    def _row_status(r: dict) -> str:
+        if r["action"] == "created":
+            return "ok"
+        if r["action"] == "skipped_duplicate":
+            return "duplicate"
+        return "warning"
+
+    rows = [
+        {
+            "row":       r["row"],
+            "home_team": r["home_team"],
+            "away_team": r["away_team"],
+            "league":    r.get("league"),
+            "kickoff":   r.get("kickoff"),
+            "match_id":  r.get("match_id"),
+            "action":    r["action"],
+            "status":    _row_status(r),
+            "home_prob": r.get("home_prob"),
+            "draw_prob": r.get("draw_prob"),
+            "away_prob": r.get("away_prob"),
+            "best_side": r.get("best_side"),
+            "edge":      r.get("edge"),
+            "home_odds": r.get("home_odds"),
+            "draw_odds": r.get("draw_odds"),
+            "away_odds": r.get("away_odds"),
+        }
+        for r in results
+    ]
+    # Append errors as rows too so the UI can render them in context
+    for e in errors:
+        rows.append({
+            "row":      e.get("row"),
+            "home_team": e.get("home_team", "—"),
+            "away_team": e.get("away_team", "—"),
+            "status":   "error",
+            "message":  e.get("error"),
+        })
+
+    warning_strings = [w.get("warning", str(w)) for w in warnings]
+
     return {
-        "processed":     len(results),
-        "created":       created,
-        "duplicates":    skipped,
-        "errors":        len(errors),
-        "warnings":      len(warnings),
-        "results":       results,
-        "error_details": errors,
+        # Primary fields (used by admin UI)
+        "imported":        created,
+        "duplicates":      skipped,
+        "warnings":        warning_strings,
+        "rows":            rows,
+        # Extended fields for callers who want more detail
+        "processed":       len(results),
+        "created":         created,
+        "errors":          len(errors),
+        "results":         results,
+        "error_details":   errors,
         "warning_details": warnings,
     }
 

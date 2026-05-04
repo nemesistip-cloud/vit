@@ -183,6 +183,7 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         "league_key": m.league or "unknown",
         "kickoff_time": m.kickoff_time.isoformat() if m.kickoff_time else None,
         "status": m.status or "upcoming",
+        "source": m.source or "unknown",
         "odds": {
             "home": float(odds_home) if odds_home else None,
             "draw": float(odds_draw) if odds_draw else None,

@@ -1345,9 +1345,20 @@ interface CsvUploadRow {
   row: number;
   home_team: string;
   away_team: string;
+  league?: string;
+  kickoff?: string;
   match_id?: number;
+  action?: string;
   status: "ok" | "duplicate" | "warning" | "error";
   message?: string;
+  home_prob?: number;
+  draw_prob?: number;
+  away_prob?: number;
+  best_side?: string;
+  edge?: number;
+  home_odds?: number;
+  draw_odds?: number;
+  away_odds?: number;
 }
 
 interface CsvUploadResult {
@@ -1355,11 +1366,13 @@ interface CsvUploadResult {
   duplicates: number;
   warnings: string[];
   rows: CsvUploadRow[];
+  errors?: number;
 }
 
 function CSVUploadCard() {
-  const [file, setFile]     = useState<File | null>(null);
-  const [result, setResult] = useState<CsvUploadResult | null>(null);
+  const [file, setFile]         = useState<File | null>(null);
+  const [result, setResult]     = useState<CsvUploadResult | null>(null);
+  const [showFormat, setShowFormat] = useState(false);
 
   const uploadMutation = useMutation({
     mutationFn: async (f: File) => {
@@ -1378,23 +1391,31 @@ function CSVUploadCard() {
     },
     onSuccess: (d) => {
       setResult(d);
-      toast.success(`CSV uploaded — ${d.imported} imported, ${d.duplicates} duplicates skipped`);
+      const n = d.imported ?? (d as any).created ?? 0;
+      const sk = d.duplicates ?? 0;
+      toast.success(`CSV uploaded — ${n} imported, ${sk} duplicates skipped`);
       if (d.warnings?.length) {
-        d.warnings.forEach(w => toast.warning(w, { duration: 6000 }));
+        // Show first 3 warnings as toasts; rest are visible in the table
+        d.warnings.slice(0, 3).forEach(w => toast.warning(w, { duration: 6000 }));
       }
     },
     onError: (e: any) => toast.error(e?.message || "CSV upload failed"),
   });
 
-  const statusBadge = (s: CsvUploadRow["status"]) => {
-    const map: Record<string, string> = {
-      ok:        "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-      duplicate: "bg-gray-500/20 text-gray-400 border-gray-500/30",
-      warning:   "bg-amber-500/20 text-amber-400 border-amber-500/30",
-      error:     "bg-red-500/20 text-red-400 border-red-500/30",
-    };
-    return map[s] ?? map.warning;
+  const STATUS_BADGE: Record<string, string> = {
+    ok:        "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+    duplicate: "bg-gray-500/10 text-gray-400 border-gray-500/30",
+    warning:   "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    error:     "bg-red-500/10 text-red-400 border-red-500/30",
   };
+
+  const SIDE_LABEL: Record<string, string> = { home: "H", draw: "D", away: "A" };
+
+  const imported  = result ? (result.imported ?? (result as any).created ?? 0) : 0;
+  const skipped   = result?.duplicates ?? 0;
+  const errCount  = result?.errors ?? 0;
+  const warnCount = result?.warnings?.length ?? 0;
+  const rows      = result?.rows ?? (result as any)?.results ?? [];
 
   return (
     <Card className="bg-gray-900 border-gray-700">
@@ -1403,12 +1424,13 @@ function CSVUploadCard() {
           <FileUp className="w-5 h-5 text-purple-400" /> CSV Fixture Upload
         </CardTitle>
         <CardDescription className="text-gray-400">
-          Upload a CSV file of fixtures to import them into the database.
-          Required columns: <span className="font-mono text-purple-300">home_team, away_team</span>.
-          Optional: <span className="font-mono text-purple-300">kickoff, league, home_odds, draw_odds, away_odds</span>.
+          Bulk-import fixtures from a CSV file — runs ML predictions immediately on import.
+          Supports both standard format and shorthand <span className="font-mono text-purple-300">#,date,time,home,away,league,H,D,A</span>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+
+        {/* Upload controls */}
         <div className="flex flex-wrap gap-3 items-center">
           <label className="cursor-pointer flex items-center gap-2 px-4 py-2 rounded border border-purple-500/40 text-purple-400 hover:border-purple-400 transition-colors text-sm font-mono">
             <Upload className="w-4 h-4" />
@@ -1425,59 +1447,134 @@ function CSVUploadCard() {
             disabled={!file || uploadMutation.isPending}
             onClick={() => file && uploadMutation.mutate(file)}
           >
-            {uploadMutation.isPending ? "Uploading…" : "Upload"}
+            {uploadMutation.isPending ? "Uploading…" : "Upload & Predict"}
           </Button>
-          {result && (
-            <span className="text-xs font-mono text-gray-400">
-              {result.imported} new · {result.duplicates} skipped
-            </span>
-          )}
+          <button
+            className="text-xs font-mono text-gray-500 hover:text-gray-300 underline underline-offset-2"
+            onClick={() => setShowFormat(f => !f)}
+          >
+            {showFormat ? "Hide format guide" : "Show format guide"}
+          </button>
         </div>
 
-        {/* Sample format hint */}
-        <div className="p-3 rounded bg-gray-800/60 border border-gray-700">
-          <p className="text-[10px] font-mono text-gray-500 uppercase mb-1 flex items-center gap-1">
-            <Info className="w-3 h-3" /> CSV format example
-          </p>
-          <pre className="text-[11px] font-mono text-gray-400 whitespace-pre-wrap">
-{`home_team,away_team,kickoff,league,home_odds,draw_odds,away_odds
-Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60
-Barcelona,Real Madrid,2026-05-11 20:45,la_liga,2.30,3.50,3.10`}
-          </pre>
-        </div>
+        {/* Summary strip */}
+        {result && (
+          <div className="flex gap-4 text-xs font-mono flex-wrap">
+            <span className="text-emerald-400 font-bold">{imported} imported</span>
+            <span className="text-gray-400">{skipped} duplicates</span>
+            {warnCount > 0 && <span className="text-amber-400">{warnCount} warnings</span>}
+            {errCount > 0  && <span className="text-red-400">{errCount} errors</span>}
+          </div>
+        )}
+
+        {/* Format guide */}
+        {showFormat && (
+          <div className="p-3 rounded bg-gray-800/60 border border-gray-700 space-y-3">
+            <p className="text-[10px] font-mono text-gray-500 uppercase flex items-center gap-1">
+              <Info className="w-3 h-3" /> Accepted CSV formats
+            </p>
+            <div>
+              <p className="text-[10px] font-mono text-gray-500 mb-1">Standard format</p>
+              <pre className="text-[11px] font-mono text-gray-400 whitespace-pre-wrap">{`home_team,away_team,kickoff_time,league,home_odds,draw_odds,away_odds
+Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-gray-500 mb-1">Shorthand format (e.g. bookmaker export)</p>
+              <pre className="text-[11px] font-mono text-gray-400 whitespace-pre-wrap">{`#,date,time,home,away,league,H,D,A
+1,10 May,15:00,Arsenal,Chelsea,England - Premier League,2.10,3.40,3.60`}</pre>
+            </div>
+            <p className="text-[10px] font-mono text-gray-500">
+              Columns <span className="text-purple-300">home_odds / H</span>, <span className="text-purple-300">draw_odds / D</span>, <span className="text-purple-300">away_odds / A</span>, <span className="text-purple-300">kickoff_time</span> and <span className="text-purple-300">league</span> are optional — defaults are applied if missing.
+            </p>
+          </div>
+        )}
+
+        {/* Warnings list */}
+        {result && result.warnings && result.warnings.length > 0 && (
+          <div className="rounded border border-amber-500/20 bg-amber-500/5 p-2 space-y-0.5 max-h-28 overflow-y-auto">
+            {result.warnings.map((w, i) => (
+              <p key={i} className="text-[10px] font-mono text-amber-400">{w}</p>
+            ))}
+          </div>
+        )}
 
         {/* Results table */}
-        {result && result.rows && result.rows.length > 0 && (
+        {rows.length > 0 && (
           <div className="overflow-x-auto rounded border border-gray-700">
             <table className="w-full text-xs">
-              <thead className="border-b border-gray-700 bg-gray-800/60">
-                <tr className="text-gray-400 font-mono">
+              <thead className="border-b border-gray-700 bg-gray-800/60 sticky top-0">
+                <tr className="text-gray-400 font-mono uppercase text-[10px]">
                   <th className="text-left p-2 pl-3">#</th>
                   <th className="text-left p-2">Match</th>
-                  <th className="text-center p-2">Match ID</th>
-                  <th className="text-center p-2">Result</th>
+                  <th className="text-left p-2 hidden sm:table-cell">League</th>
+                  <th className="text-center p-2 hidden md:table-cell">Kickoff</th>
+                  <th className="text-center p-2">ID</th>
+                  <th className="text-center p-2">Status</th>
+                  <th className="text-center p-2 hidden lg:table-cell">H / D / A probs</th>
+                  <th className="text-center p-2 hidden lg:table-cell">Best Bet</th>
+                  <th className="text-center p-2 hidden lg:table-cell">Edge</th>
                 </tr>
               </thead>
               <tbody>
-                {result.rows.map(r => (
-                  <tr key={r.row} className="border-b border-gray-800 hover:bg-gray-800/40">
-                    <td className="p-2 pl-3 text-gray-500">{r.row}</td>
-                    <td className="p-2 text-gray-200">{r.home_team} vs {r.away_team}</td>
+                {rows.map((r: CsvUploadRow, idx: number) => (
+                  <tr key={idx} className="border-b border-gray-800 hover:bg-gray-800/40">
+                    <td className="p-2 pl-3 text-gray-500 font-mono">{r.row ?? idx + 1}</td>
+                    <td className="p-2 text-gray-200 font-mono whitespace-nowrap">
+                      {r.home_team} <span className="text-gray-500">vs</span> {r.away_team}
+                    </td>
+                    <td className="p-2 text-gray-400 hidden sm:table-cell text-[10px] max-w-[140px] truncate" title={r.league}>
+                      {r.league || "—"}
+                    </td>
+                    <td className="p-2 text-center text-gray-500 hidden md:table-cell font-mono text-[10px] whitespace-nowrap">
+                      {r.kickoff ? (() => { try { return new Date(r.kickoff).toLocaleString(undefined, {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); } catch { return r.kickoff.slice(0,16); } })() : "—"}
+                    </td>
                     <td className="p-2 text-center">
                       {r.match_id ? (
                         <a href={`/matches/${r.match_id}`} target="_blank" rel="noreferrer"
-                          className="font-mono text-cyan-400 hover:underline">
-                          #{r.match_id}
-                        </a>
+                          className="font-mono text-cyan-400 hover:underline">#{r.match_id}</a>
                       ) : <span className="text-gray-600">—</span>}
                     </td>
-                    <td className="p-2 text-center">
-                      <span className={`border rounded px-1.5 py-0.5 font-mono ${statusBadge(r.status)}`}>
+                    <td className="p-2 text-center whitespace-nowrap">
+                      <span className={`border rounded px-1.5 py-0.5 font-mono text-[10px] ${STATUS_BADGE[r.status] ?? STATUS_BADGE.warning}`}>
                         {r.status}
                       </span>
                       {r.message && (
-                        <span className="ml-1.5 text-gray-500">{r.message}</span>
+                        <span className="ml-1.5 text-[10px] text-gray-500 max-w-[120px] truncate inline-block align-bottom" title={r.message}>{r.message}</span>
                       )}
+                    </td>
+                    <td className="p-2 text-center hidden lg:table-cell font-mono text-[10px] whitespace-nowrap">
+                      {r.home_prob != null ? (
+                        <span>
+                          <span className="text-primary">{(r.home_prob * 100).toFixed(0)}%</span>
+                          <span className="text-gray-600"> / </span>
+                          <span className="text-gray-300">{(r.draw_prob! * 100).toFixed(0)}%</span>
+                          <span className="text-gray-600"> / </span>
+                          <span className="text-primary">{(r.away_prob! * 100).toFixed(0)}%</span>
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="p-2 text-center hidden lg:table-cell">
+                      {r.best_side ? (
+                        <span className={`border rounded px-1.5 py-0.5 font-mono text-[10px] ${
+                          r.best_side === "home" ? "border-primary/40 text-primary" :
+                          r.best_side === "away" ? "border-orange-400/40 text-orange-400" :
+                          "border-yellow-400/40 text-yellow-400"
+                        }`}>
+                          {SIDE_LABEL[r.best_side] ?? r.best_side}
+                          {r.home_odds && r.draw_odds && r.away_odds ? (
+                            <span className="text-gray-500 ml-1">
+                              @{r.best_side === "home" ? r.home_odds : r.best_side === "draw" ? r.draw_odds : r.away_odds}
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="p-2 text-center hidden lg:table-cell font-mono text-[10px]">
+                      {r.edge != null ? (
+                        <span className={r.edge > 0 ? "text-emerald-400" : "text-red-400"}>
+                          {r.edge > 0 ? "+" : ""}{(r.edge * 100).toFixed(2)}%
+                        </span>
+                      ) : "—"}
                     </td>
                   </tr>
                 ))}
