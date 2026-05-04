@@ -2,4 +2,4 @@
 set -e
 
 cd frontend
-pnpm install --no-frozen-lockfile
+npm install --no-package-lock 2>/dev/null || npm install
