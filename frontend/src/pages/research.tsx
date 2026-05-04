@@ -607,7 +607,8 @@ function StrategyPanel({ token }: { token: string }) {
 // MAIN PAGE
 // ════════════════════════════════════════════════════════════════════════════
 export default function ResearchPage() {
-  const { token } = useAuth() as any;
+  const { user } = useAuth();
+  const token = localStorage.getItem("vit_token") ?? "";
 
   const { data: summary } = useQuery({
     queryKey: ["quant-summary"],
@@ -616,7 +617,7 @@ export default function ResearchPage() {
     enabled: !!token,
   });
 
-  if (!token) return null;
+  if (!user) return null;
 
   return (
     <div className="space-y-6">
