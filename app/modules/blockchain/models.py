@@ -234,7 +234,7 @@ class UserStake(Base):
     __table_args__ = (
         Index("idx_stake_user_id", "user_id"),
         Index("idx_stake_match_id", "match_id"),
-        Index("idx_stake_status", "status"),
+        Index("idx_bc_stake_status", "status"),
     )
 
 

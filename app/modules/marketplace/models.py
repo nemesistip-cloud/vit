@@ -201,7 +201,7 @@ class ModelStake(Base):
     __table_args__ = (
         Index("idx_stake_listing_id",  "listing_id"),
         Index("idx_stake_staker_id",   "staker_id"),
-        Index("idx_stake_status",      "status"),
+        Index("idx_mkt_stake_status",      "status"),
         UniqueConstraint("listing_id", "staker_id", name="uq_stake_listing_staker"),
     )
 
