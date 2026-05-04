@@ -594,8 +594,11 @@ async def lifespan(app: FastAPI):
 
     try:
         from app.db.database import engine
+        from app.modules.wallet.models import PlatformSecret
         from app.modules.referral.models import ReferralCode, ReferralUse
         async with engine.begin() as conn:
+            # Ensure encrypted secrets table exists before loading secrets
+            await conn.run_sync(PlatformSecret.__table__.create, checkfirst=True)
             await conn.run_sync(ReferralCode.__table__.create, checkfirst=True)
             await conn.run_sync(ReferralUse.__table__.create, checkfirst=True)
             dialect = conn.dialect.name
@@ -744,6 +747,15 @@ async def lifespan(app: FastAPI):
         print(f"⚠️  Compatibility schema update skipped: {_e}")
 
     print("✅ Database migrations applied")
+
+    # ── Load DB-stored secrets into os.environ ─────────────────────────────
+    try:
+        from app.services.secrets_manager import load_db_secrets_to_env
+        _n = await load_db_secrets_to_env()
+        if _n:
+            print(f"🔐 Loaded {_n} encrypted secret(s) from database into environment")
+    except Exception as _se:
+        print(f"⚠️  DB secrets load skipped: {_se}")
 
     # ── Reconcile abandoned training jobs ─────────────────────────────────
     try:

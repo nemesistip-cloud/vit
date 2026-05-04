@@ -262,6 +262,51 @@ _KEY_REGISTRY = [
         "required":    False,
         "group":       "AI Feeds",
     },
+    # ── Payments (Webhooks) ─────────────────────────────────────────────
+    {
+        "name":        "STRIPE_WEBHOOK_SECRET",
+        "label":       "Stripe Webhook Secret",
+        "description": "Validates Stripe webhook signatures (whsec_…) — required to process subscription events",
+        "required":    False,
+        "group":       "Payments",
+    },
+    {
+        "name":        "PAYSTACK_WEBHOOK_SECRET",
+        "label":       "Paystack Webhook Secret",
+        "description": "Validates Paystack webhook HMAC signatures — required to process NGN deposit events",
+        "required":    False,
+        "group":       "Payments",
+    },
+    # ── KYC / Identity ─────────────────────────────────────────────────
+    {
+        "name":        "SMILE_IDENTITY_API_KEY",
+        "label":       "Smile Identity API Key",
+        "description": "Enables KYC identity verification for user onboarding",
+        "required":    False,
+        "group":       "KYC / Identity",
+    },
+    {
+        "name":        "SMILE_IDENTITY_PARTNER_ID",
+        "label":       "Smile Identity Partner ID",
+        "description": "Your Smile Identity partner / merchant ID (numeric string)",
+        "required":    False,
+        "group":       "KYC / Identity",
+    },
+    # ── Blockchain ─────────────────────────────────────────────────────
+    {
+        "name":        "BASE_RPC_URL",
+        "label":       "Base L2 RPC URL",
+        "description": "JSON-RPC endpoint for the Base L2 network (e.g. https://mainnet.base.org)",
+        "required":    False,
+        "group":       "Blockchain",
+    },
+    {
+        "name":        "VIT_CONTRACT_ADDRESS",
+        "label":       "VITCoin Contract Address",
+        "description": "Deployed ERC-20 contract address for VITCoin on Base L2 (0x…)",
+        "required":    False,
+        "group":       "Blockchain",
+    },
     # ── Security ───────────────────────────────────────────────────────
     {
         "name":        "API_KEY",
@@ -324,21 +369,36 @@ class ApiKeyUpdate(BaseModel):
 @router.get("/api-keys")
 async def list_api_keys(current_user=Depends(get_current_admin)):
     """
-    Return all configurable API keys with masked current values.
+    Return all configurable API keys with masked current values and source info.
+    source values: "replit_secret" | "database" | "unset"
     Never returns plaintext secrets.
     """
+    from app.services.secrets_manager import get_db_secret_keys
+    db_keys = await get_db_secret_keys()
+
     keys = []
     for entry in _KEY_REGISTRY:
         current = os.getenv(entry["name"], "")
+        in_db = entry["name"] in db_keys
+        in_env = bool(current)
+
+        if in_db:
+            source = "database"
+        elif in_env:
+            source = "replit_secret"
+        else:
+            source = "unset"
+
         keys.append({
             "name":        entry["name"],
             "label":       entry["label"],
             "description": entry["description"],
             "required":    entry["required"],
             "group":       entry.get("group", "Other"),
-            "configured":  bool(current),
-            "is_set":      bool(current),
-            "masked":      _mask(current),
+            "configured":  in_env or in_db,
+            "is_set":      in_env or in_db,
+            "masked":      _mask(current) if in_env else ("••••••••" if in_db else ""),
+            "source":      source,
         })
     return {"keys": keys, "total": len(keys)}
 
@@ -346,13 +406,19 @@ async def list_api_keys(current_user=Depends(get_current_admin)):
 @router.post("/api-keys/update")
 async def update_api_keys(body: ApiKeyUpdate, current_user=Depends(get_current_admin)):
     """
-    Update one or more API keys. Changes take effect immediately (os.environ).
-    For permanent persistence across restarts, set the key in Replit Secrets.
+    Update one or more API keys.
+
+    Changes take effect immediately (os.environ) AND are persisted encrypted
+    in the database so they survive server restarts — no need to also add
+    them to Replit Secrets (though Replit Secrets always take priority).
     """
+    from app.services.secrets_manager import save_secret_to_db
+
     allowed_names = {entry["name"] for entry in _KEY_REGISTRY}
     results: dict = {}
     errors: dict = {}
-    warnings: dict = {}
+
+    actor_id = getattr(current_user, "id", None)
 
     for key_name, new_value in body.updates.items():
         if key_name not in allowed_names:
@@ -366,40 +432,58 @@ async def update_api_keys(body: ApiKeyUpdate, current_user=Depends(get_current_a
             errors[key_name] = "Value cannot be empty"
             continue
         try:
-            persisted = _write_env(key_name, new_value)
+            # 1. Apply immediately to the running process
+            os.environ[key_name] = new_value
+            # 2. Persist encrypted in DB (survives restarts)
+            await save_secret_to_db(key_name, new_value, updated_by=actor_id)
+            # 3. Best-effort .env write for local dev
+            _write_env(key_name, new_value)
             results[key_name] = "updated"
-            warnings[key_name] = (
-                "Applied to running server immediately. "
-                "To make this permanent across restarts, add it to Replit Secrets."
-            )
-            logger.info(
-                "API key updated: %s (persisted=%s)", key_name, persisted,
-            )
-            # When the football-data key changes, reset the in-memory
-            # invalidation flags so the new key gets a fresh chance.
+            logger.info("API key updated and persisted to DB: %s", key_name)
+
+            # Reset football-data invalidation state when that key changes
             if key_name == "FOOTBALL_DATA_API_KEY":
                 try:
                     import app.services.results_settler as _rs
                     _rs._KEY_PERMANENTLY_INVALID = False
                     _rs._FORBIDDEN_LEAGUES = set()
                     _rs._FORBIDDEN_LEAGUES_RESET_AT = 0.0
-                    logger.info("Reset football-data settler invalidation state after key update")
+                    logger.info("Reset football-data settler invalidation state")
                 except Exception as _re:
-                    logger.debug(f"Could not reset settler state: {_re}")
-        except Exception as e:
-            errors[key_name] = str(e)
+                    logger.debug("Could not reset settler state: %s", _re)
+        except Exception as exc:
+            errors[key_name] = str(exc)
 
-    msg_parts = [f"{len(results)} key(s) updated successfully"]
-    if warnings:
-        msg_parts.append(f"{len(warnings)} not persisted to .env")
+    msg_parts = [f"{len(results)} key(s) saved to database"]
     if errors:
         msg_parts.append(f"{len(errors)} error(s)")
     return {
         "updated":  results,
         "errors":   errors,
-        "warnings": warnings,
+        "warnings": {},
         "message":  ", ".join(msg_parts),
     }
+
+
+@router.delete("/api-keys/{key_name}")
+async def delete_api_key(key_name: str, current_user=Depends(get_current_admin)):
+    """
+    Remove a key from the encrypted DB store.
+    The key will still work if it exists as a Replit Secret;
+    otherwise it becomes unset after next restart.
+    """
+    from app.services.secrets_manager import delete_secret_from_db
+
+    allowed_names = {entry["name"] for entry in _KEY_REGISTRY}
+    if key_name not in allowed_names:
+        raise HTTPException(status_code=404, detail="Not a recognised key name")
+
+    removed = await delete_secret_from_db(key_name)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Key not found in database")
+
+    logger.info("DB secret removed: %s by user %s", key_name, getattr(current_user, "id", "?"))
+    return {"removed": key_name, "message": f"{key_name} removed from database"}
 
 
 @router.get("/config-status")
@@ -419,14 +503,19 @@ async def get_config_status(current_user=Depends(get_current_admin)):
         }
 
     services = [
-        _status("FOOTBALL_DATA_API_KEY", "Football-Data.org",   required=True),
+        _status("FOOTBALL_DATA_API_KEY",  "Football-Data.org",   required=True),
         _status("ODDS_API_KEY",           "The Odds API",        required=True),
         _status("GEMINI_API_KEY",         "Gemini AI",           required=False),
         _status("ANTHROPIC_API_KEY",      "Claude AI",           required=False),
         _status("OPENAI_API_KEY",         "OpenAI",              required=False),
         _status("XAI_API_KEY",            "Grok AI",             required=False),
         _status("STRIPE_SECRET_KEY",      "Stripe Payments",     required=False),
+        _status("STRIPE_WEBHOOK_SECRET",  "Stripe Webhooks",     required=False),
         _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),
+        _status("PAYSTACK_WEBHOOK_SECRET","Paystack Webhooks",   required=False),
+        _status("SMILE_IDENTITY_API_KEY", "Smile KYC",           required=False),
+        _status("BASE_RPC_URL",           "Base L2 RPC",         required=False),
+        _status("VIT_CONTRACT_ADDRESS",   "VITCoin Contract",    required=False),
         _status("REDIS_URL",              "Redis",               required=False),
         _status("SMTP_HOST",              "Email / SMTP",        required=False),
         _status("TELEGRAM_BOT_TOKEN",     "Telegram Bot",        required=False),

@@ -248,6 +248,23 @@ class PlatformConfig(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class PlatformSecret(Base):
+    """
+    Encrypted API keys / secrets set via the admin panel.
+    Values are Fernet-encrypted using a key derived from JWT_SECRET_KEY.
+    On startup, these are loaded into os.environ so the rest of the app
+    can read them with os.getenv() — identical to Replit Secrets.
+    """
+    __tablename__ = "platform_secrets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    encrypted_value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class VITCoinPriceHistory(Base):
     """Historical VITCoin prices."""
     __tablename__ = "vitcoin_price_history"

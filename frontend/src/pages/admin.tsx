@@ -786,7 +786,7 @@ function SystemTab() {
     queryKey: ["admin-flags"],
     queryFn: () => apiGet("/admin/system/flags"),
   });
-  const { data: keysData } = useQuery<{ keys: { name: string; label: string; description: string; configured: boolean; masked: string; required: boolean; group: string }[] }>({
+  const { data: keysData } = useQuery<{ keys: { name: string; label: string; description: string; configured: boolean; masked: string; required: boolean; group: string; source: "replit_secret" | "database" | "unset" }[] }>({
     queryKey: ["admin-keys"],
     queryFn: () => apiGet("/admin/api-keys"),
   });
@@ -821,32 +821,38 @@ function SystemTab() {
       ),
     onSuccess: (resp, vars) => {
       const errMsg = resp?.errors?.[vars.name];
-      const warnMsg = resp?.warnings?.[vars.name];
       if (errMsg) {
         toast.error(`Update failed: ${errMsg}`);
         return;
       }
-      if (warnMsg) {
-        toast.warning(warnMsg);
-      } else {
-        toast.success("API key updated and saved to environment");
-      }
+      toast.success("Key saved — active now and persisted to database");
       qc.invalidateQueries({ queryKey: ["admin-keys"] });
+      qc.invalidateQueries({ queryKey: ["admin-config-status"] });
       setEditingKey(null);
       setNewKeyValue("");
     },
     onError: () => toast.error("Failed to update API key"),
   });
 
+  const deleteKeyMutation = useMutation({
+    mutationFn: (name: string) => apiDelete(`/admin/api-keys/${name}`),
+    onSuccess: (_d, name) => {
+      toast.success(`${name} removed from database`);
+      qc.invalidateQueries({ queryKey: ["admin-keys"] });
+      qc.invalidateQueries({ queryKey: ["admin-config-status"] });
+    },
+    onError: () => toast.error("Failed to remove key from database"),
+  });
+
   // Group keys by their group field
-  type KeyEntry = { name: string; label: string; description: string; configured: boolean; masked: string; required: boolean; group: string };
+  type KeyEntry = { name: string; label: string; description: string; configured: boolean; masked: string; required: boolean; group: string; source: "replit_secret" | "database" | "unset" };
   const keysByGroup = (keysData?.keys ?? []).reduce<Record<string, KeyEntry[]>>((acc, k) => {
     const g = k.group ?? "Other";
     if (!acc[g]) acc[g] = [];
     acc[g].push(k);
     return acc;
   }, {});
-  const groupOrder = ["Sports Data", "AI Providers", "Payments", "Infrastructure", "Messaging", "AI Feeds", "Security", "Other"];
+  const groupOrder = ["Sports Data", "AI Providers", "Payments", "KYC / Identity", "Blockchain", "Infrastructure", "Messaging", "AI Feeds", "Security", "Other"];
   const sortedGroups = groupOrder.filter(g => keysByGroup[g]);
 
   return (
@@ -926,8 +932,8 @@ function SystemTab() {
             <Key className="w-5 h-5 text-amber-400" /> API Keys & Secrets
           </CardTitle>
           <CardDescription className="text-gray-400">
-            Configure external service credentials. Changes apply immediately to the running server.
-            For permanent storage across restarts, add keys to <span className="text-amber-400 font-medium">Replit Secrets</span>.
+            Set keys here to persist them encrypted in the database — they survive restarts automatically.
+            Keys already in <span className="text-cyan-400 font-medium">Replit Secrets</span> always take priority and are shown with a cyan badge.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -938,11 +944,21 @@ function SystemTab() {
                 {keysByGroup[group].map(k => (
                   <div key={k.name} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-800 hover:border-gray-700">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <div className="text-white text-sm font-medium">{k.label}</div>
                         {k.required && <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">Required</span>}
+                        {k.source === "replit_secret" && (
+                          <span className="text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <Shield className="w-2.5 h-2.5" /> Replit Secret
+                          </span>
+                        )}
+                        {k.source === "database" && (
+                          <span className="text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <Database className="w-2.5 h-2.5" /> Database
+                          </span>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-500 truncate">{k.description}</div>
+                      <div className="text-xs text-gray-500 truncate mt-0.5">{k.description}</div>
                     </div>
                     <div className="flex items-center gap-2 ml-3 shrink-0">
                       <span className="font-mono text-xs text-gray-400 hidden sm:block">
@@ -957,6 +973,14 @@ function SystemTab() {
                       {k.configured
                         ? <CheckCircle className="w-4 h-4 text-emerald-400" />
                         : <XCircle className="w-4 h-4 text-gray-600" />}
+                      {k.source === "database" && (
+                        <Button size="sm" variant="ghost"
+                          className="h-7 w-7 p-0 text-gray-500 hover:text-red-400"
+                          title="Remove from database"
+                          onClick={() => deleteKeyMutation.mutate(k.name)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline"
                         className="h-7 px-2 border-amber-500/30 text-amber-400 hover:border-amber-400 text-xs"
                         onClick={() => { setEditingKey(k); setNewKeyValue(""); setShowNewKey(false); }}>
@@ -1003,9 +1027,9 @@ function SystemTab() {
                   Variable name: <span className="font-mono text-amber-400">{editingKey.name}</span>
                 </p>
               </div>
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3 text-xs text-amber-300 space-y-1">
-                <div>Applied to the running server immediately.</div>
-                <div className="text-amber-400/80">For permanent storage across restarts, also add this key to <strong>Replit Secrets</strong> in the sidebar.</div>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded p-3 text-xs text-emerald-300 space-y-1">
+                <div className="flex items-center gap-1.5 font-medium"><Database className="w-3 h-3" /> Saved to database — survives restarts</div>
+                <div className="text-emerald-400/80">The key is encrypted with AES-256 and loaded automatically on every server start. No need to also add it to Replit Secrets (though Replit Secrets always take priority if both exist).</div>
               </div>
             </div>
             <DialogFooter className="gap-2">
