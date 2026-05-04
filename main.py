@@ -1488,6 +1488,29 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  CLV backfill failed: {_e}")
 
+    # Phase 3a — HISTORICAL MATCH BACKFILL (90 days, TheSportsDB free API)
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.services.sportsdb_api import sync_and_insert_historical
+        async with AsyncSessionLocal() as _db:
+            _hist = await sync_and_insert_historical(_db, days_back=90)
+            print(f"✅ Historical backfill: {_hist['inserted']} inserted, {_hist['updated']} updated, {_hist['skipped']} skipped ({_hist['total_fetched']} fetched)")
+    except Exception as _e:
+        print(f"⚠️  Historical match backfill skipped: {_e}")
+
+    # Phase 3a-2 — SEED PREDICTIONS FOR HISTORICAL MATCHES
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.services.prediction_seeder import seed_predictions_for_historical
+        async with AsyncSessionLocal() as _db:
+            _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=300)
+            if _seed.get("seeded", 0) > 0:
+                print(f"✅ Prediction seeder: {_seed['seeded']} predictions seeded across {_seed['matches_checked']} historical matches")
+            else:
+                print(f"✅ Prediction seeder: {_seed.get('skipped', 0)} matches already have predictions (no seeding needed)")
+    except Exception as _e:
+        print(f"⚠️  Prediction seeder skipped: {_e}")
+
     alerts = get_telegram_alerts()
     if alerts and alerts.enabled:
         await alerts.send_startup_message()
@@ -1843,6 +1866,12 @@ app.include_router(agent_registry_router)
 # VIT Cloud System — Decentralized Storage Verification
 from app.modules.storage_verification.routes import router as storage_router
 app.include_router(storage_router)
+
+# Phase 3 — Model Performance Dashboard + Bankroll Management
+from app.api.routes.model_performance import router as model_perf_router
+from app.api.routes.bankroll import router as bankroll_router
+app.include_router(model_perf_router)
+app.include_router(bankroll_router)
 
 
 def _format_count(value: int) -> str:

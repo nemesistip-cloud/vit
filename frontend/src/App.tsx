@@ -58,6 +58,8 @@ const RoadmapPage         = lazy(() => import("@/pages/roadmap"));
 const IdentityPage        = lazy(() => import("@/pages/identity"));
 const KYCPage             = lazy(() => import("@/pages/kyc"));
 const IDLookupPage        = lazy(() => import("@/pages/id-lookup"));
+const ModelPerformancePage = lazy(() => import("@/pages/model-performance"));
+const BankrollPage        = lazy(() => import("@/pages/bankroll"));
 
 function RouteFallback() {
   return (
@@ -235,6 +237,12 @@ function Router() {
       </Route>
       <Route path="/id/:sid" component={IDLookupPage} />
       <Route path="/id" component={IDLookupPage} />
+      <Route path="/model-performance">
+        <Layout><ProtectedRoute component={ModelPerformancePage} /></Layout>
+      </Route>
+      <Route path="/bankroll">
+        <Layout><ProtectedRoute component={BankrollPage} /></Layout>
+      </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/verify-email" component={VerifyEmailPage} />

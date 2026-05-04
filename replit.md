@@ -55,3 +55,26 @@ The platform employs a microservices-oriented architecture.
 - **Puter.js:** Browser-side AI (client-side) and server-side Puter (fallback AI provider).
 - **Stripe:** Subscription checkout.
 - **Paystack:** NGN deposits.
+
+## Phase 3 — Historical Data, Model Performance Dashboard, Bankroll Management
+
+### Completed Components
+- **Historical Backfill (`app/services/sportsdb_api.py`):** `fetch_historical_range()` and `sync_and_insert_historical()` pull up to 90 days of past fixtures from TheSportsDB on startup.
+- **Prediction Seeder (`app/services/prediction_seeder.py`):** Seeds ensemble predictions for recent unseeded matches with realistic odds and recommended stakes.
+- **Model Performance API (`app/api/routes/model_performance.py`):**
+  - `GET /api/models/performance?days=N` — per-model metrics (accuracy, weight, Brier, CLV, Sharpe) + global win-rate and P&L over N days.
+  - `GET /api/models/performance/summary` — aggregate stats (active count, avg accuracy, best/worst model).
+  - `POST /api/models/performance/sync` — triggers the performance-monitor agent cycle immediately.
+- **Bankroll Management API (`app/api/routes/bankroll.py`):**
+  - `GET /api/bankroll/state` — current balance, drawdown %, all-time and 30d stats, Kelly stake recommendation.
+  - `GET /api/bankroll/history?days=N` — daily P&L chart data with cumulative P&L series.
+  - `POST /api/bankroll/set-limit` — set max daily loss and max stake %.
+  - `POST /api/bankroll/kelly` — Kelly criterion calculator for given win probability and decimal odds.
+- **Frontend Pages:**
+  - `/model-performance` — live model dashboard with per-model accuracy table, global stats cards, and Sharpe/trend indicators.
+  - `/bankroll` — bankroll state card, Kelly calculator, daily P&L chart, 30-day history table.
+
+### Key Technical Notes
+- SQLAlchemy boolean aggregation in PostgreSQL must use `case((col == True, 1.0), else_=0.0)` inside `func.sum()` — `func.cast(bool_expr, Float)` is rejected by asyncpg with `CannotCoerceError`.
+- `BankrollState` is auto-created with a 10,000 unit initial balance if no row exists.
+- All Phase 3 routes are registered at the bottom of `main.py` (lines 1871–1874).

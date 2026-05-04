@@ -214,3 +214,124 @@ async def fetch_all_real_fixtures() -> Dict[str, List[Dict]]:
             upcoming.append(ev)
 
     return {"past": past, "upcoming": upcoming}
+
+
+async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
+    """
+    Fetch real historical match results for the past N days (day by day).
+    Returns only settled matches with actual_outcome set.
+    Used for: ML training data, CLV backfill, model accuracy tracking.
+    """
+    today = datetime.now(timezone.utc).date()
+    # Build date list (chunked to avoid hammering the API)
+    dates = [today - timedelta(days=i) for i in range(1, days_back + 1)]
+
+    # Fetch in chunks of 7 days concurrently to be polite to the free API
+    chunk_size = 7
+    all_events: List[Dict] = []
+    seen: set = set()
+
+    for chunk_start in range(0, len(dates), chunk_size):
+        chunk = dates[chunk_start: chunk_start + chunk_size]
+        tasks = [fetch_events_by_date(d) for d in chunk]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for day_evs in results:
+            if not isinstance(day_evs, list):
+                continue
+            for ev in day_evs:
+                if ev.get("status") != "settled" or not ev.get("actual_outcome"):
+                    continue
+                key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ev.get('kickoff_time', '')}"
+                if key not in seen:
+                    seen.add(key)
+                    all_events.append(ev)
+        # Small pause between chunks
+        await asyncio.sleep(0.3)
+
+    logger.info("[sportsdb] fetch_historical_range(%dd): %d settled events", days_back, len(all_events))
+    return all_events
+
+
+async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
+    """
+    Fetch historical matches from TheSportsDB and upsert them into the DB.
+    Returns stats: {inserted, updated, skipped, total_fetched}
+    """
+    from sqlalchemy import select
+    from app.db.database import Base
+
+    # Import Match model lazily to avoid circular imports
+    from app.db.models import Match
+
+    events = await fetch_historical_range(days_back=days_back)
+
+    inserted = 0
+    updated = 0
+    skipped = 0
+
+    for ev in events:
+        ext_id = ev.get("external_id") or ""
+        home = ev["home_team"]
+        away = ev["away_team"]
+        kickoff = ev.get("kickoff_time")
+
+        # Skip if no kickoff
+        if not kickoff:
+            skipped += 1
+            continue
+
+        # Dedup fingerprint
+        date_str = kickoff.strftime("%Y-%m-%d") if kickoff else "unknown"
+        fingerprint = f"{date_str}::{home.lower()}::{away.lower()}::{ev.get('league', '')}"
+
+        try:
+            # Try external_id match first, then fingerprint
+            existing = None
+            if ext_id:
+                res = await db.execute(select(Match).where(Match.external_id == ext_id))
+                existing = res.scalar_one_or_none()
+            if not existing:
+                res = await db.execute(select(Match).where(Match.fingerprint == fingerprint))
+                existing = res.scalar_one_or_none()
+
+            if existing:
+                # Update outcome if now settled
+                changed = False
+                if ev.get("actual_outcome") and not existing.actual_outcome:
+                    existing.actual_outcome = ev["actual_outcome"]
+                    existing.home_goals = ev.get("home_goals")
+                    existing.away_goals = ev.get("away_goals")
+                    existing.status = "settled"
+                    changed = True
+                if changed:
+                    await db.commit()
+                    updated += 1
+                else:
+                    skipped += 1
+            else:
+                match = Match(
+                    external_id=ext_id or None,
+                    home_team=home,
+                    away_team=away,
+                    league=ev.get("league", "unknown"),
+                    kickoff_time=kickoff,
+                    status=ev.get("status", "settled"),
+                    home_goals=ev.get("home_goals"),
+                    away_goals=ev.get("away_goals"),
+                    actual_outcome=ev.get("actual_outcome"),
+                    source="sportsdb",
+                    fingerprint=fingerprint,
+                )
+                db.add(match)
+                await db.commit()
+                inserted += 1
+        except Exception as exc:
+            logger.debug("[sportsdb] insert error for %s vs %s: %s", home, away, exc)
+            await db.rollback()
+            skipped += 1
+
+    logger.info(
+        "[sportsdb] historical sync done: inserted=%d updated=%d skipped=%d total=%d",
+        inserted, updated, skipped, len(events),
+    )
+    return {"inserted": inserted, "updated": updated, "skipped": skipped, "total_fetched": len(events)}
