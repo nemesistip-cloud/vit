@@ -542,13 +542,18 @@ interface ServerResult {
   confidence?: number;
   reason?: string;
   error?: string;
+  method?: "ai_cascade" | "ml_ensemble";
 }
 
 function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
   const qc = useQueryClient();
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<ServerResult[] | null>(null);
-  const [summary, setSummary] = useState<{ ingested: number; skipped: number } | null>(null);
+  const [summary, setSummary] = useState<{
+    ingested: number;
+    skipped: number;
+    mlFallback: number;
+  } | null>(null);
 
   const run = async () => {
     setRunning(true);
@@ -560,15 +565,25 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
         processed: number;
         ingested: number;
         skipped: number;
+        ml_fallback_used: number;
         results: ServerResult[];
       }>("/api/admin/ai-sources/run-server", { limit: Math.min(matchCount || 20, 50) });
       setResults(data.results ?? []);
-      setSummary({ ingested: data.ingested ?? 0, skipped: data.skipped ?? 0 });
+      setSummary({
+        ingested: data.ingested ?? 0,
+        skipped: data.skipped ?? 0,
+        mlFallback: data.ml_fallback_used ?? 0,
+      });
       if ((data.ingested ?? 0) > 0) {
-        toast.success(`Server analysis complete — ${data.ingested} matches ingested`);
+        const ml = data.ml_fallback_used ?? 0;
+        const ai = (data.ingested ?? 0) - ml;
+        const parts = [];
+        if (ai > 0) parts.push(`${ai} via AI cascade`);
+        if (ml > 0) parts.push(`${ml} via ML ensemble`);
+        toast.success(`Analysis complete — ${data.ingested} ingested (${parts.join(", ")})`);
         qc.invalidateQueries({ queryKey: ["ai-sources"] });
       } else {
-        toast.warning("Server analysis ran but no providers were available");
+        toast.warning("Server analysis ran but no predictions could be generated");
       }
     } catch (e: any) {
       toast.error(e?.message || "Server analysis failed");
@@ -588,20 +603,26 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
           </Badge>
         </CardTitle>
         <CardDescription>
-          Uses the server's built-in AI cascade (Gemini → Claude → OpenAI → Grok) to analyse
-          upcoming matches and ingest results automatically — works even without Puter.js.
+          Uses the AI cascade (Gemini → Claude → OpenAI → Grok) first, then automatically
+          falls back to the 13-model ML ensemble when AI providers are unavailable.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {summary && (
-          <div className="grid grid-cols-2 gap-3 text-center">
+          <div className={`grid gap-3 text-center ${summary.mlFallback > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
             <div className="bg-gray-900/60 rounded p-2">
               <div className="text-xl font-bold text-emerald-400">{summary.ingested}</div>
               <div className="text-xs text-gray-500">Ingested</div>
             </div>
+            {summary.mlFallback > 0 && (
+              <div className="bg-blue-900/30 border border-blue-500/20 rounded p-2">
+                <div className="text-xl font-bold text-blue-400">{summary.mlFallback}</div>
+                <div className="text-xs text-gray-500">ML Ensemble</div>
+              </div>
+            )}
             <div className="bg-gray-900/60 rounded p-2">
               <div className="text-xl font-bold text-amber-400">{summary.skipped}</div>
-              <div className="text-xs text-gray-500">Skipped / no provider</div>
+              <div className="text-xs text-gray-500">Skipped</div>
             </div>
           </div>
         )}
@@ -609,7 +630,7 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
         <Button
           onClick={run}
           disabled={running}
-          className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+          className="bg-amber-500 hover:bg-amber-600 text-black font-semibold w-full"
         >
           {running ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analysing…</>
@@ -626,8 +647,17 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
                   {r.status === "ingested" ? "✓" : r.status === "skipped" ? "—" : "✗"}
                 </span>
                 <span className="text-gray-300 flex-1 truncate">{r.match}</span>
+                {r.status === "ingested" && r.method && (
+                  <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border font-mono ${
+                    r.method === "ml_ensemble"
+                      ? "text-blue-400 bg-blue-500/10 border-blue-500/30"
+                      : "text-purple-400 bg-purple-500/10 border-purple-500/30"
+                  }`}>
+                    {r.method === "ml_ensemble" ? "ML" : "AI"}
+                  </span>
+                )}
                 {r.status === "ingested" && r.home_prob != null && (
-                  <span className="text-gray-500 shrink-0">
+                  <span className="text-gray-500 shrink-0 font-mono">
                     {fmtPct(r.home_prob)}/{fmtPct(r.draw_prob ?? 0)}/{fmtPct(r.away_prob ?? 0)}
                   </span>
                 )}

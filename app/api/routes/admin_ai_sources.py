@@ -263,6 +263,77 @@ def _parse_ai_json(raw: str, home_default=0.34, draw_default=0.33, away_default=
     }
 
 
+async def _ml_ensemble_fallback(
+    db: AsyncSession,
+    match_id: int,
+    home: str,
+    away: str,
+    league: str,
+) -> Optional[dict]:
+    """
+    Use the platform's 13-model ML ensemble to generate predictions when
+    all external AI providers are unavailable.  Returns an analysis dict
+    (home_prob, draw_prob, away_prob, confidence, reason, raw_content)
+    or None if the orchestrator is not ready.
+    """
+    try:
+        from app.core.dependencies import get_orchestrator
+        from app.services.predict_features import build_predict_features
+        from app.modules.ai.orchestrator import generate_ai_prediction
+
+        orch = get_orchestrator()
+        if orch is None or orch.num_models_ready() == 0:
+            return None
+
+        features = await build_predict_features(db, home, away, league)
+        features["home_team"] = home
+        features["away_team"] = away
+        features["league"]    = league
+
+        result = await generate_ai_prediction(
+            features=features,
+            match_id=str(match_id),
+            orchestrator=orch,
+            db=db,
+            triggered_by="server-analysis-ml-fallback",
+        )
+
+        preds = result.get("predictions", {})
+        hp = float(preds.get("home_prob", 0.34))
+        dp = float(preds.get("draw_prob", 0.33))
+        ap = float(preds.get("away_prob", 0.33))
+
+        # Normalise
+        total = hp + dp + ap or 1.0
+        hp, dp, ap = round(hp / total, 4), round(dp / total, 4), round(ap / total, 4)
+
+        # Derive confidence from model_agreement or entropy
+        agreement = preds.get("model_agreement")
+        conf_1x2  = (preds.get("confidence") or {}).get("1x2") if isinstance(preds.get("confidence"), dict) else preds.get("confidence")
+        confidence = float(conf_1x2 or agreement or 0.62)
+        confidence = min(0.95, max(0.40, confidence))
+
+        n_models   = result.get("models_used", orch.num_models_ready())
+        completeness = features.get("feature_completeness")
+        comp_str   = f" | completeness={completeness:.0%}" if completeness is not None else ""
+        reason     = (
+            f"13-model ML ensemble ({n_models} active){comp_str} — "
+            f"AI cascade unavailable, predictions from statistical models"
+        )
+
+        return {
+            "home_prob":   hp,
+            "draw_prob":   dp,
+            "away_prob":   ap,
+            "confidence":  round(confidence, 4),
+            "reason":      reason[:500],
+            "raw_content": json.dumps({"source": "ml_ensemble", "predictions": preds}),
+        }
+    except Exception as exc:
+        logger.warning("[server-analysis] ML fallback failed for match=%s: %s", match_id, exc)
+        return None
+
+
 @router.post("/run-server")
 async def run_server_analysis(
     payload: ServerAnalysisPayload,
@@ -270,9 +341,12 @@ async def run_server_analysis(
     user: User = Depends(require_uploader),
 ):
     """
-    Run server-side AI analysis on upcoming matches using the built-in
-    Gemini → Claude → OpenAI → Grok cascade. Falls back gracefully if no
-    API keys are configured.
+    Run server-side AI analysis on upcoming matches using:
+      1. Built-in AI cascade  (Gemini → Claude → OpenAI → Grok)
+      2. 13-model ML ensemble fallback when all AI providers are unavailable
+
+    Always produces predictions — never returns "No AI provider available"
+    when the ML ensemble is loaded and ready.
     """
     from datetime import timedelta
     from app.services.ai_client import call_ai
@@ -315,21 +389,34 @@ async def run_server_analysis(
         prompt = _build_match_prompt(home, away, league)
 
         try:
+            # ── Step 1: try the external AI cascade ──────────────────────────
             raw = await call_ai(
                 prompt=f"{MATCH_ANALYSIS_SYSTEM}\n\n{prompt}",
                 max_tokens=300,
                 temperature=0.2,
             )
-            if not raw:
+
+            if raw:
+                analysis = _parse_ai_json(raw)
+                method = "ai_cascade"
+            else:
+                # ── Step 2: ML ensemble fallback ─────────────────────────────
+                logger.info(
+                    "[server-analysis] AI cascade unavailable for %s vs %s — trying ML ensemble",
+                    home, away,
+                )
+                analysis = await _ml_ensemble_fallback(db, match.id, home, away, league)
+                method = "ml_ensemble"
+
+            if not analysis:
                 results.append({
                     "match_id": match.id,
                     "match": f"{home} vs {away}",
                     "status": "skipped",
-                    "error": "No AI provider available",
+                    "error": "No AI provider or ML ensemble available",
                 })
                 continue
 
-            analysis = _parse_ai_json(raw)
             ok = await service.ingest_prediction(
                 match_id=match.id,
                 source=source_label,
@@ -350,13 +437,16 @@ async def run_server_analysis(
                 "away_prob": analysis["away_prob"],
                 "confidence": analysis["confidence"],
                 "reason": analysis["reason"],
+                "method": method,
             })
-            logger.info("[server-analysis] %s vs %s → %.0f/%.0f/%.0f conf=%.2f",
-                        home, away,
-                        analysis["home_prob"] * 100,
-                        analysis["draw_prob"] * 100,
-                        analysis["away_prob"] * 100,
-                        analysis["confidence"])
+            logger.info(
+                "[server-analysis] %s vs %s [%s] → %.0f/%.0f/%.0f conf=%.2f",
+                home, away, method,
+                analysis["home_prob"] * 100,
+                analysis["draw_prob"] * 100,
+                analysis["away_prob"] * 100,
+                analysis["confidence"],
+            )
         except (json.JSONDecodeError, ValueError, KeyError) as parse_err:
             results.append({
                 "match_id": match.id,
@@ -374,11 +464,13 @@ async def run_server_analysis(
             })
 
     ingested = sum(1 for r in results if r.get("status") == "ingested")
+    ml_used  = sum(1 for r in results if r.get("method") == "ml_ensemble")
     return {
         "status": "done",
         "processed": len(results),
         "ingested": ingested,
         "skipped": len(results) - ingested,
+        "ml_fallback_used": ml_used,
         "results": results,
     }
 
