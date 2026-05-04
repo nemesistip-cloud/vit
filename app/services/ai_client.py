@@ -30,7 +30,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ── Model lists ────────────────────────────────────────────────────────────────
+# ── Model lists ──────────────────────────────────────────────────────────────
 
 _GEMINI_MODELS = [
     "gemini-2.0-flash",
@@ -310,7 +310,7 @@ async def _try_puter(prompt: str, max_tokens: int, temperature: float) -> str | 
         return None
 
 
-# ── Public API ─────────────────────────────────────────────────────────────────
+# ── Public API ──────────────────────────────────────────────────────────────
 
 async def call_ai_with_provider(
     prompt: str,
@@ -382,7 +382,14 @@ async def call_ai(
 
 
 def provider_status() -> dict[str, dict]:
-    """Return current availability status of all providers including Puter."""
+    """Return granular availability status of all providers.
+    
+    Status levels:
+      - 🟢 available: configured, not cooling, not failing
+      - 🟡 cooling: rate-limited or recovering from error
+      - 🔴 failing: fatal auth error (401/403) — backed off for 30 min
+      - ⚫ not_configured: API key missing or too short
+    """
     from app.services.puter_ai import puter_status
     now = time.monotonic()
 
@@ -401,14 +408,26 @@ def provider_status() -> dict[str, dict]:
         cooling_until = _backoff_until.get(name, 0.0)
         cooling = cooling_until > now
         failure = _provider_failures.get(name)
-        failing = bool(failure)
+        
+        # Determine status
+        if not has_key:
+            status = "not_configured"
+        elif failure:
+            status = "failing"
+        elif cooling:
+            status = "cooling"
+        else:
+            status = "available"
+        
         result[name] = {
+            "status": status,
             "configured": has_key,
-            "available": has_key and not cooling and not failing,
+            "available": has_key and not cooling and not failure,
             "cooling": cooling,
             "cooling_for_seconds": max(0, round(cooling_until - now, 1)) if cooling else 0,
-            "failing": failing,
+            "failing": bool(failure),
             "last_error_code": failure["status_code"] if failure else None,
+            "last_error_time": failure["failed_at"] if failure else None,
         }
 
     result["puter"] = puter_status()
