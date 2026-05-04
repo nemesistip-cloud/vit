@@ -42,10 +42,6 @@ export default function MatchDetailPage() {
   const [stakeTab, setStakeTab] = useState<"1x2" | "goals" | "ah" | "cs">("1x2");
 
   const ahLineNum = parseFloat(ahLine) || 0;
-  const matchAhLine: number | null = (match as any).ah_line ?? null;
-  const ahHomeProb: number | null = (match as any).ah_home_prob ?? null;
-  const ahAwayProb: number | null = (match as any).ah_away_prob ?? null;
-  const csProbs: Record<string, number> | null = (match as any).cs_probs ?? null;
 
   if (isLoading) {
     return (
@@ -71,6 +67,11 @@ export default function MatchDetailPage() {
       </div>
     );
   }
+
+  const matchAhLine: number | null = (match as any).ah_line ?? null;
+  const ahHomeProb: number | null = (match as any).ah_home_prob ?? null;
+  const ahAwayProb: number | null = (match as any).ah_away_prob ?? null;
+  const csProbs: Record<string, number> | null = (match as any).cs_probs ?? null;
 
   const homeProb = match.home_prob ?? 0;
   const drawProb = match.draw_prob ?? 0;

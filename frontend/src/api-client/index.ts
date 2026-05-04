@@ -98,7 +98,7 @@ export const API = {
   aiIntelHealth: "/api/ai-intel/health",
   aiIntelInjuries: "/api/ai-intel/injuries",
   // Smart Contracts (v5.0.0)
-  contracts: "/api/contracts/",
+  contracts: "/api/contracts",
   contractBootstrap: "/api/contracts/bootstrap",
   contractByName: (name: string) => `/api/contracts/by-name/${name}`,
   contractCall: (address: string) => `/api/contracts/${address}/call`,
