@@ -96,3 +96,85 @@ async def ai_feed_health():
             "status": "ready" if source["enabled"] else "disabled",
         }
     return health_status
+
+
+@router.get("/matches")
+async def get_ai_feed_matches(
+    limit: int = 10,
+    current_user=Depends(get_optional_user),
+):
+    """Return upcoming matches available for AI feed analysis."""
+    from app.db.database import AsyncSessionLocal
+    from sqlalchemy import select, text
+    from app.db.models import Match
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    lookahead = now + timedelta(days=7)
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Match)
+            .where(Match.actual_outcome.is_(None))
+            .where(Match.kickoff_time >= now - timedelta(hours=6))
+            .where(Match.kickoff_time <= lookahead)
+            .order_by(Match.kickoff_time.asc())
+            .limit(limit)
+        )
+        matches = result.scalars().all()
+
+    return {
+        "matches": [
+            {
+                "id": m.id,
+                "home_team": m.home_team,
+                "away_team": m.away_team,
+                "league": m.league,
+                "kickoff_time": m.kickoff_time.isoformat() if m.kickoff_time else None,
+            }
+            for m in matches
+        ],
+        "total": len(matches),
+    }
+
+
+@router.get("/recent")
+async def get_ai_feed_recent(
+    limit: int = 20,
+    current_user=Depends(get_optional_user),
+):
+    """Return recent AI feed predictions across all sources."""
+    from app.db.database import AsyncSessionLocal
+    from sqlalchemy import select
+    from app.db.models import Match, Prediction
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    lookback = now - timedelta(days=3)
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Match, Prediction)
+            .join(Prediction, Match.id == Prediction.match_id)
+            .where(Prediction.user_id.is_(None))
+            .order_by(Prediction.timestamp.desc() if hasattr(Prediction, "timestamp") else Match.kickoff_time.desc())
+            .limit(limit)
+        )
+        rows = result.all()
+
+    return {
+        "predictions": [
+            {
+                "match": f"{m.home_team} vs {m.away_team}",
+                "league": m.league,
+                "home_prob": round(float(p.home_prob or 0), 3) if p.home_prob else None,
+                "draw_prob": round(float(p.draw_prob or 0), 3) if p.draw_prob else None,
+                "away_prob": round(float(p.away_prob or 0), 3) if p.away_prob else None,
+                "confidence": round(float(p.confidence or 0), 3) if p.confidence else None,
+                "bet_side": p.bet_side,
+                "source": "scie",
+            }
+            for m, p in rows
+        ],
+        "total": len(rows),
+    }

@@ -601,7 +601,11 @@ Index('idx_ai_signal_cache_match', AISignalCache.match_id)
 from app.modules.wallet.models import Wallet as _Wallet, WalletTransaction as _WTx  # noqa: F401, E402
 from app.modules.notifications.models import Notification as _Notif, NotificationPreference as _NotifPref  # noqa: F401, E402
 from app.modules.trust.models import UserTrustScore as _UTS, FraudFlag as _FF, RiskEvent as _RE  # noqa: F401, E402
-# NOTE: app.modules.tasks.models is intentionally NOT imported here because
-# app/modules/tasks/__init__.py → TaskService → app.core.dependencies creates a
-# circular import during early startup. UserTaskCompletion is registered later
-# (main.py line 100) before the first HTTP request arrives.
+# app.modules.tasks.models is imported lazily here to resolve the
+# UserTaskCompletion string relationship without triggering a circular import.
+# The tasks __init__.py is NOT imported — only the models file, which has no
+# dependency on app.core.dependencies.
+try:
+    from app.modules.tasks.models import UserTaskCompletion as _UTC  # noqa: F401, E402
+except Exception:
+    pass

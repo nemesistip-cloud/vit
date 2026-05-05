@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Clock, Trophy, Zap, Target, Star, ArrowRight, ExternalLink } from "lucide-react";
+import { CheckCircle, Clock, Trophy, Zap, Target, Star, ArrowRight, ExternalLink, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 interface TaskActionRowProps {
@@ -151,34 +152,40 @@ interface TaskStats {
 export default function TasksPage() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
 
-  // Fetch task categories
+  // Fetch task categories (public)
   const { data: categories = [] } = useQuery({
     queryKey: ["task-categories"],
     queryFn: () => apiGet<TaskCategory[]>("/api/tasks/categories"),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch available tasks
+  // Fetch available tasks (public)
   const { data: tasks = [] } = useQuery({
     queryKey: ["tasks", selectedCategory],
     queryFn: () =>
       apiGet<Task[]>(`/api/tasks${selectedCategory ? `?category_id=${selectedCategory}` : ""}`),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch user progress
+  // Fetch user progress — only when authenticated
   const { data: userProgress = [] } = useQuery({
     queryKey: ["user-task-progress"],
     queryFn: () => apiGet<UserTaskCompletion[]>("/api/tasks/user/progress"),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 30 * 1000,
+    enabled: isLoggedIn,
+    retry: false,
   });
 
-  // Fetch user stats
+  // Fetch user stats — only when authenticated
   const { data: userStats } = useQuery({
     queryKey: ["user-task-stats"],
     queryFn: () => apiGet<TaskStats>("/api/tasks/user/stats"),
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
+    enabled: isLoggedIn,
+    retry: false,
   });
 
   // Update task progress mutation
@@ -453,8 +460,8 @@ export default function TasksPage() {
               const canUpdate = canUpdateProgress(task);
 
               return (
-                <Card key={task.id} className="ring-2 ring-primary">
-                  <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground px-2 py-1 rounded-full text-xs font-medium">
+                <Card key={task.id} className="relative ring-2 ring-primary">
+                  <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground px-2 py-1 rounded-full text-xs font-medium z-10">
                     Featured
                   </div>
 

@@ -80,9 +80,17 @@ _ALWAYS_OPEN = (
 # Only enforce auth on these API route prefixes
 _PROTECTED_PREFIXES = (
     "/analytics", "/history", "/predict", "/result",
-    "/training", "/ai", "/odds", "/ai-feed", "/admin",
+    "/training", "/ai", "/odds", "/admin",
     "/audit", "/subscription/my-plan", "/subscription/upgrade",
     "/subscription/admin",
+)
+
+# Public sub-paths within otherwise-protected prefixes
+_PUBLIC_SUBPATHS = (
+    "/ai-feed/health",
+    "/ai-feed/sources",
+    "/ai-feed/matches",
+    "/ai-feed/recent",
 )
 
 
@@ -120,6 +128,10 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         if any(path.startswith(p) for p in _ALWAYS_OPEN):
+            return await call_next(request)
+
+        # Explicitly public sub-paths (even if prefix is protected)
+        if any(path == p or path.startswith(p) for p in _PUBLIC_SUBPATHS):
             return await call_next(request)
 
         # Pass static frontend assets through

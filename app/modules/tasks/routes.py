@@ -131,7 +131,7 @@ class TaskStatsResponse(BaseModel):
     total_xp_earned: int
 
 
-# ── Public endpoints ───────────────────────────────────────────────────────────
+# ── Public / collection endpoints (must be defined BEFORE /{task_id}) ──────────
 
 @router.get("/categories", response_model=List[TaskCategoryResponse])
 async def get_task_categories(db: AsyncSession = Depends(get_db)):
@@ -168,16 +168,7 @@ async def get_suggested_tasks(
     return tasks
 
 
-@router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    """Get a specific task."""
-    task = await TaskService.get_task_by_id(db, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task
-
-
-# ── User endpoints ─────────────────────────────────────────────────────────────
+# ── User endpoints (must be BEFORE /{task_id} to avoid path param collision) ───
 
 @router.get("/user/progress", response_model=List[UserTaskCompletionResponse])
 async def get_user_task_progress(
@@ -206,34 +197,7 @@ async def get_user_task_stats(
     return stats
 
 
-@router.post("/{task_id}/progress")
-async def update_task_progress(
-    task_id: int,
-    progress_increment: int = Query(1, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Update progress on a task (typically called by backend systems)."""
-    try:
-        completion = await TaskService.update_task_progress(
-            db=db,
-            user_id=current_user.id,
-            task_id=task_id,
-            progress_increment=progress_increment
-        )
-        return {
-            "completion_id": completion.id,
-            "current_progress": completion.current_progress,
-            "required_progress": completion.required_progress,
-            "is_completed": completion.is_completed,
-            "vit_earned": float(completion.total_vit_earned),
-            "xp_earned": completion.total_xp_earned
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-# ── Admin endpoints ────────────────────────────────────────────────────────────
+# ── Admin collection endpoints (before /{task_id}) ────────────────────────────
 
 @router.post("/categories", response_model=TaskCategoryResponse)
 async def create_task_category(
@@ -266,7 +230,6 @@ async def create_task(
     if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    # Validate category exists
     category = await TaskService.get_category_by_id(db, request.category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Task category not found")
@@ -292,6 +255,57 @@ async def create_task(
     return task
 
 
+@router.post("/reset-expired")
+async def reset_expired_tasks(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Reset expired task progress (admin only)."""
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    reset_count = await TaskService.reset_expired_tasks(db)
+    return {"reset_count": reset_count}
+
+
+# ── Single-item endpoints (/{task_id} MUST come after all literal paths) ───────
+
+@router.get("/{task_id}", response_model=TaskResponse)
+async def get_task(task_id: int, db: AsyncSession = Depends(get_db)):
+    """Get a specific task by ID."""
+    task = await TaskService.get_task_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
+@router.post("/{task_id}/progress")
+async def update_task_progress(
+    task_id: int,
+    progress_increment: int = Query(1, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update progress on a task (typically called by backend systems)."""
+    try:
+        completion = await TaskService.update_task_progress(
+            db=db,
+            user_id=current_user.id,
+            task_id=task_id,
+            progress_increment=progress_increment
+        )
+        return {
+            "completion_id": completion.id,
+            "current_progress": completion.current_progress,
+            "required_progress": completion.required_progress,
+            "is_completed": completion.is_completed,
+            "vit_earned": float(completion.total_vit_earned),
+            "xp_earned": completion.total_xp_earned
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.patch("/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: int,
@@ -310,7 +324,6 @@ async def update_task(
             raise HTTPException(status_code=404, detail="Task not found")
         return task
 
-    # If no updates, return current task
     task = await TaskService.get_task_by_id(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -335,16 +348,3 @@ async def delete_task(
         raise HTTPException(status_code=404, detail="Task not found")
 
     return {"success": True}
-
-
-@router.post("/reset-expired")
-async def reset_expired_tasks(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Reset expired task progress (admin only)."""
-    if current_user.role not in ["admin", "super_admin"]:
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    reset_count = await TaskService.reset_expired_tasks(db)
-    return {"reset_count": reset_count}
