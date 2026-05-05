@@ -79,6 +79,7 @@ export default defineConfig({
       "/pipeline": { target: "http://localhost:8000", bypass: htmlBypass },
       "/oracle": { target: "http://localhost:8000", bypass: htmlBypass },
       "/webhook": { target: "http://localhost:8000", bypass: htmlBypass },
+      "/config": { target: "http://localhost:8000", bypass: htmlBypass },
       "/ws": { target: "ws://localhost:8000", ws: true },
     },
   },

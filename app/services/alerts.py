@@ -25,6 +25,9 @@ class AlertPriority(Enum):
     WARNING  = "⚠️"
     CRITICAL = "🚨"
     BET      = "🎯"
+    LOW      = "ℹ️"
+    MEDIUM   = "⚠️"
+    HIGH     = "🚨"
 
 
 @dataclass
@@ -74,11 +77,12 @@ class TelegramAlert:
     - Data source badge (Ensemble vs Market)
     """
 
-    def __init__(self, bot_token: str, chat_id: str, enabled: bool = True):
-        self.bot_token = bot_token
-        self.chat_id = chat_id
-        self.enabled = enabled
-        self.base_url = f"https://api.telegram.org/bot{bot_token}"
+    def __init__(self, bot_token: str = None, chat_id: str = None, enabled: bool = True):
+        import os
+        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN", "")
+        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID", "")
+        self.enabled = enabled and bool(self.bot_token and self.chat_id)
+        self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
         self._last_message_time = None
 
     # ------------------------------------------------------------------

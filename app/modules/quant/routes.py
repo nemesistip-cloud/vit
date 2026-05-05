@@ -172,7 +172,7 @@ async def monte_carlo(
     trials: int = Query(500, ge=50, le=5000),
     bets_per_trial: int = Query(100, ge=10, le=1000),
     initial_bankroll: float = Query(1000.0, ge=100, le=1_000_000),
-    staking: str = Query("kelly", regex="^(flat|kelly)$"),
+    staking: str = Query("kelly", pattern="^(flat|kelly)$"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -491,7 +491,7 @@ async def puter_monte_carlo(
     trials:            int   = Query(2000, ge=100, le=20000),
     bets_per_trial:    int   = Query(100,  ge=10,  le=1000),
     initial_bankroll:  float = Query(1000.0, ge=100, le=1_000_000),
-    staking:           str   = Query("kelly", regex="^(flat|kelly)$"),
+    staking:           str   = Query("kelly", pattern="^(flat|kelly)$"),
     workers:           int   = Query(4, ge=1, le=16,
                                      description="Number of parallel Puter worker shards"),
     db: AsyncSession = Depends(get_db),

@@ -593,3 +593,15 @@ Index('idx_teams_name', Team.name)
 Index('idx_ai_predictions_match', AIPrediction.match_id)
 Index('idx_ai_predictions_source', AIPrediction.source)
 Index('idx_ai_signal_cache_match', AISignalCache.match_id)
+
+# Import cross-module models so SQLAlchemy can resolve string-based relationship
+# references on User and other core models. Each imported module uses the same Base
+# from app.db.database and does NOT import from app.db.models or from
+# app.core.dependencies, so there is no circular dependency risk.
+from app.modules.wallet.models import Wallet as _Wallet, WalletTransaction as _WTx  # noqa: F401, E402
+from app.modules.notifications.models import Notification as _Notif, NotificationPreference as _NotifPref  # noqa: F401, E402
+from app.modules.trust.models import UserTrustScore as _UTS, FraudFlag as _FF, RiskEvent as _RE  # noqa: F401, E402
+# NOTE: app.modules.tasks.models is intentionally NOT imported here because
+# app/modules/tasks/__init__.py → TaskService → app.core.dependencies creates a
+# circular import during early startup. UserTaskCompletion is registered later
+# (main.py line 100) before the first HTTP request arrives.
