@@ -1,0 +1,34 @@
+{
+  "match_id": 25,
+  "generated_at": "2026-05-04T21:41:14.568532+00:00",
+  "insights": {
+    "deterministic": {
+      "available": true,
+      "source": "deterministic",
+      "label": "VIT Statistical Engine",
+      "home_prob": 0.4514,
+      "draw_prob": 0.2359,
+      "away_prob": 0.3127,
+      "confidence": 0.4193,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 45.1% probability in Slovan Ljubljana vs Jesenice (Slovenian 2 Snl). The home side carries a 45.1% win probability versus 31.3% for the visitors, with a draw at 23.6%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (45.1% for Home Win)",
+        "Market edge is positive at 4.10% vs vig-free fair price",
+        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "Ensemble entropy at 97% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 4.10% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 4.10% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    }
+  }
+}
