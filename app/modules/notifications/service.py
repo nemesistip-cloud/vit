@@ -1,0 +1,396 @@
+# app/modules/notifications/service.py
+"""Notification service — queue, templates, multi-channel delivery.
+
+v4.8.0: NotificationService.create() now dispatches across all enabled
+channels (in-app/WS, email, Telegram) based on per-user preferences.
+"""
+
+import asyncio
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
+
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.notifications.models import (
+    Notification, NotificationChannel, NotificationPreference, NotificationType
+)
+from app.modules.notifications.websocket import notification_ws_manager
+
+logger = logging.getLogger(__name__)
+
+# Notification types that trigger a per-type preference gate
+_TYPE_TO_PREF: dict[str, str] = {
+    NotificationType.PREDICTION_ALERT.value:    "prediction_alerts",
+    NotificationType.MATCH_RESULT.value:        "match_results",
+    NotificationType.WALLET_ACTIVITY.value:     "wallet_activity",
+    NotificationType.VALIDATOR_REWARD.value:    "validator_rewards",
+    NotificationType.SUBSCRIPTION_EXPIRY.value: "subscription_expiry",
+    NotificationType.VALIDATOR_STATUS.value:    "validator_status",
+    NotificationType.SYSTEM.value:              None,  # always deliver
+}
+
+
+# ── Templates ─────────────────────────────────────────────────────────────────
+
+TEMPLATES: dict[str, tuple[str, str]] = {
+    NotificationType.PREDICTION_ALERT.value: (
+        "🎯 New Prediction Alert",
+        "A new prediction is available for {match}. Confidence: {confidence}%.",
+    ),
+    NotificationType.MATCH_RESULT.value: (
+        "⚽ Match Result",
+        "{home_team} vs {away_team} ended {score}. Your prediction was {outcome}.",
+    ),
+    NotificationType.WALLET_ACTIVITY.value: (
+        "💰 Wallet Activity",
+        "{action}: {amount} {currency} — Balance updated.",
+    ),
+    NotificationType.VALIDATOR_REWARD.value: (
+        "🏆 Validator Reward",
+        "You earned {amount} VITCoin for your validator prediction on match #{match_id}.",
+    ),
+    NotificationType.SUBSCRIPTION_EXPIRY.value: (
+        "⚠️ Subscription Expiring",
+        "Your {plan} subscription expires in {days} day(s). Renew to keep access.",
+    ),
+    NotificationType.VALIDATOR_STATUS.value: (
+        "🛡️ Validator Status Update",
+        "Your validator application is now {status}. {detail}",
+    ),
+    NotificationType.SYSTEM.value: (
+        "🔔 System Notice",
+        "{message}",
+    ),
+}
+
+
+def render_template(ntype: str, context: dict) -> tuple[str, str]:
+    title, body_tpl = TEMPLATES.get(ntype, ("🔔 Notification", "{message}"))
+    try:
+        body = body_tpl.format(**context)
+    except KeyError:
+        body = body_tpl
+    return title, body
+
+
+# ── Service ────────────────────────────────────────────────────────────────────
+
+class NotificationService:
+
+    # ── Core create ────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def create(
+        db: AsyncSession,
+        user_id: int,
+        ntype: NotificationType,
+        context: dict,
+        *,
+        title: Optional[str] = None,
+        body: Optional[str] = None,
+        channel: NotificationChannel = NotificationChannel.IN_APP,
+    ) -> Notification:
+        rendered_title, rendered_body = render_template(ntype.value, context)
+        final_title = title or rendered_title
+        final_body  = body or rendered_body
+
+        notification = Notification(
+            user_id=user_id,
+            type=ntype,
+            title=final_title,
+            body=final_body,
+            channel=channel,
+        )
+        db.add(notification)
+        await db.commit()
+        await db.refresh(notification)
+
+        # ── In-app / WebSocket push ────────────────────────────────────────
+        await notification_ws_manager.push(user_id, {
+            "id":         notification.id,
+            "type":       ntype.value,
+            "title":      notification.title,
+            "body":       notification.body,
+            "is_read":    False,
+            "created_at": notification.created_at.isoformat(),
+        })
+
+        # ── Multi-channel dispatch (fire-and-forget, never blocks create) ──
+        asyncio.create_task(
+            NotificationService._dispatch_external(
+                db=db,
+                user_id=user_id,
+                ntype=ntype,
+                title=final_title,
+                body=final_body,
+            )
+        )
+
+        return notification
+
+    @staticmethod
+    async def _dispatch_external(
+        db: AsyncSession,
+        user_id: int,
+        ntype: NotificationType,
+        title: str,
+        body: str,
+    ) -> None:
+        """Dispatch email + Telegram DM according to user preferences."""
+        try:
+            prefs = await NotificationService.get_or_create_prefs(db, user_id)
+
+            # Check per-type gate
+            pref_key = _TYPE_TO_PREF.get(ntype.value)
+            if pref_key and not getattr(prefs, pref_key, True):
+                return   # User opted out of this notification type
+
+            ntype_str = ntype.value
+
+            # ── Email ──────────────────────────────────────────────────────
+            if prefs.email_enabled:
+                try:
+                    from app.db.models import User as _User
+                    from app.services.email_service import send_notification_email
+                    u = (await db.execute(select(_User).where(_User.id == user_id))).scalar_one_or_none()
+                    if u and u.email:
+                        await send_notification_email(
+                            to_email=u.email,
+                            username=getattr(u, "username", "") or "",
+                            ntype=ntype_str,
+                            title=title,
+                            body=body,
+                        )
+                except Exception as exc:
+                    logger.warning(f"Email dispatch failed for user {user_id}: {exc}")
+
+            # ── Telegram ───────────────────────────────────────────────────
+            if prefs.telegram_enabled and getattr(prefs, "telegram_chat_id", None):
+                try:
+                    from app.services.telegram_service import send_notification_telegram
+                    await send_notification_telegram(
+                        chat_id=prefs.telegram_chat_id,
+                        ntype=ntype_str,
+                        title=title,
+                        body=body,
+                    )
+                except Exception as exc:
+                    logger.warning(f"Telegram dispatch failed for user {user_id}: {exc}")
+
+        except Exception as exc:
+            logger.warning(f"_dispatch_external failed for user {user_id}: {exc}")
+
+    # ── Convenience methods ────────────────────────────────────────────────
+
+    @classmethod
+    async def notify_prediction(
+        cls, db: AsyncSession, user_id: int, match: str, confidence: float
+    ) -> Notification:
+        return await cls.create(
+            db, user_id, NotificationType.PREDICTION_ALERT,
+            {"match": match, "confidence": round(confidence, 1)},
+        )
+
+    @classmethod
+    async def notify_match_result(
+        cls, db: AsyncSession, user_id: int,
+        home_team: str, away_team: str, score: str, outcome: str
+    ) -> Notification:
+        return await cls.create(
+            db, user_id, NotificationType.MATCH_RESULT,
+            {"home_team": home_team, "away_team": away_team, "score": score, "outcome": outcome},
+        )
+
+    @classmethod
+    async def notify_wallet(
+        cls, db: AsyncSession, user_id: int,
+        action: str, amount: str, currency: str
+    ) -> Notification:
+        return await cls.create(
+            db, user_id, NotificationType.WALLET_ACTIVITY,
+            {"action": action, "amount": amount, "currency": currency},
+        )
+
+    @classmethod
+    async def notify_validator_reward(
+        cls, db: AsyncSession, user_id: int, amount: str, match_id: int
+    ) -> Notification:
+        return await cls.create(
+            db, user_id, NotificationType.VALIDATOR_REWARD,
+            {"amount": amount, "match_id": match_id},
+        )
+
+    @classmethod
+    async def notify_subscription_expiry(
+        cls, db: AsyncSession, user_id: int, plan: str, days: int
+    ) -> Notification:
+        return await cls.create(
+            db, user_id, NotificationType.SUBSCRIPTION_EXPIRY,
+            {"plan": plan, "days": days},
+        )
+
+    @classmethod
+    async def notify_validator_status(
+        cls,
+        db: AsyncSession,
+        user_id: int,
+        status: str,
+        detail: str = "",
+        *,
+        send_email: bool = True,   # kept for backwards-compat; email now handled by _dispatch_external
+    ) -> Optional[Notification]:
+        """In-app + WS push for validator status changes.
+
+        Respects NotificationPreference.validator_status gate.
+        Email + Telegram delivery is handled automatically by _dispatch_external.
+        """
+        prefs = await cls.get_or_create_prefs(db, user_id)
+        if not prefs.validator_status:
+            return None
+
+        notif = await cls.create(
+            db, user_id, NotificationType.VALIDATOR_STATUS,
+            {"status": status, "detail": detail or ""},
+        )
+
+        # Email + Telegram are now handled automatically by _dispatch_external
+        # inside cls.create(), so no extra send needed here.
+        return notif
+
+    @classmethod
+    async def notify_system(
+        cls, db: AsyncSession, user_id: int, message: str
+    ) -> Notification:
+        return await cls.create(
+            db, user_id, NotificationType.SYSTEM,
+            {"message": message},
+        )
+
+    # ── Queries ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def get_for_user(
+        db: AsyncSession, user_id: int, *, limit: int = 50, unread_only: bool = False
+    ) -> list[Notification]:
+        q = select(Notification).where(Notification.user_id == user_id)
+        if unread_only:
+            q = q.where(Notification.is_read == False)
+        q = q.order_by(Notification.created_at.desc()).limit(limit)
+        result = await db.execute(q)
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def unread_count(db: AsyncSession, user_id: int) -> int:
+        result = await db.execute(
+            select(func.count()).where(
+                Notification.user_id == user_id,
+                Notification.is_read == False,
+            )
+        )
+        return result.scalar() or 0
+
+    @staticmethod
+    async def mark_read(db: AsyncSession, user_id: int, notification_id: int) -> bool:
+        result = await db.execute(
+            select(Notification).where(
+                Notification.id == notification_id,
+                Notification.user_id == user_id,
+            )
+        )
+        notif = result.scalar_one_or_none()
+        if not notif:
+            return False
+        notif.is_read = True
+        await db.commit()
+        return True
+
+    @staticmethod
+    async def mark_all_read(db: AsyncSession, user_id: int) -> int:
+        result = await db.execute(
+            select(Notification).where(
+                Notification.user_id == user_id,
+                Notification.is_read == False,
+            )
+        )
+        notifs = list(result.scalars().all())
+        for n in notifs:
+            n.is_read = True
+        await db.commit()
+        return len(notifs)
+
+    # ── Preferences ───────────────────────────────────────────────────────
+
+    @staticmethod
+    async def get_or_create_prefs(
+        db: AsyncSession, user_id: int
+    ) -> NotificationPreference:
+        result = await db.execute(
+            select(NotificationPreference).where(NotificationPreference.user_id == user_id)
+        )
+        prefs = result.scalar_one_or_none()
+        if not prefs:
+            prefs = NotificationPreference(user_id=user_id)
+            db.add(prefs)
+            await db.commit()
+            await db.refresh(prefs)
+        return prefs
+
+    @staticmethod
+    async def update_prefs(
+        db: AsyncSession, user_id: int, updates: dict
+    ) -> NotificationPreference:
+        result = await db.execute(
+            select(NotificationPreference).where(NotificationPreference.user_id == user_id)
+        )
+        prefs = result.scalar_one_or_none()
+        if not prefs:
+            prefs = NotificationPreference(user_id=user_id)
+            db.add(prefs)
+
+        bool_fields = {
+            "prediction_alerts", "match_results", "wallet_activity",
+            "validator_rewards", "subscription_expiry", "validator_status",
+            "email_enabled", "telegram_enabled", "in_app_enabled",
+        }
+        str_nullable_fields = {"telegram_chat_id"}
+        for k, v in updates.items():
+            if k in bool_fields and isinstance(v, bool):
+                setattr(prefs, k, v)
+            elif k in str_nullable_fields and (v is None or isinstance(v, str)):
+                setattr(prefs, k, v)
+
+        await db.commit()
+        await db.refresh(prefs)
+        return prefs
+
+    # ── Background: subscription expiry checker ────────────────────────────
+
+    @staticmethod
+    async def check_subscription_expiry(db: AsyncSession) -> None:
+        """Warn users whose subscription expires within 3 days."""
+        try:
+            from app.db.models import UserSubscription
+            now = datetime.utcnow()
+            soon = now + timedelta(days=3)
+            result = await db.execute(
+                select(UserSubscription).where(
+                    UserSubscription.is_active == True,
+                    UserSubscription.end_date <= soon,
+                    UserSubscription.end_date > now,
+                )
+            )
+            subs = list(result.scalars().all())
+            for sub in subs:
+                days_left = max(0, (sub.end_date - now).days)
+                await NotificationService.notify_subscription_expiry(
+                    db,
+                    user_id=sub.user_id,
+                    plan=getattr(sub, "plan_name", "Premium"),
+                    days=days_left,
+                )
+            if subs:
+                logger.info(f"Subscription expiry: sent {len(subs)} warning(s)")
+        except Exception as e:
+            logger.warning(f"Subscription expiry check skipped: {e}")

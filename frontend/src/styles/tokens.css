@@ -1,0 +1,411 @@
+/* ============================================================
+   VIT Sports Intelligence Network — Design Tokens v2
+   Institutional-Grade Design System
+   ============================================================ */
+
+:root {
+  /* ── Brand Colors ─────────────────────────────────────────── */
+  --vit-brand-cyan:         #00f5ff;
+  --vit-brand-cyan-dim:     #00c8d4;
+  --vit-brand-cyan-muted:   rgba(0, 245, 255, 0.12);
+  --vit-brand-cyan-glow:    rgba(0, 245, 255, 0.35);
+  --vit-brand-cyan-border:  rgba(0, 245, 255, 0.25);
+
+  --vit-brand-gold:         #ffd700;
+  --vit-brand-gold-dim:     #d4a800;
+  --vit-brand-gold-muted:   rgba(255, 215, 0, 0.12);
+  --vit-brand-gold-glow:    rgba(255, 215, 0, 0.30);
+  --vit-brand-gold-border:  rgba(255, 215, 0, 0.25);
+
+  --vit-brand-purple:       #a855f7;
+  --vit-brand-purple-dim:   #8b3cf7;
+  --vit-brand-purple-muted: rgba(168, 85, 247, 0.12);
+  --vit-brand-purple-border:rgba(168, 85, 247, 0.25);
+
+  --vit-brand-green:        #22c55e;
+  --vit-brand-green-muted:  rgba(34, 197, 94, 0.12);
+  --vit-brand-green-border: rgba(34, 197, 94, 0.25);
+
+  --vit-brand-red:          #ef4444;
+  --vit-brand-red-muted:    rgba(239, 68, 68, 0.12);
+
+  --vit-brand-orange:       #f97316;
+  --vit-brand-orange-muted: rgba(249, 115, 22, 0.12);
+
+  /* ── Deep Space Grays ─────────────────────────────────────── */
+  --vit-gray-950:  #03030a;
+  --vit-gray-900:  #080812;
+  --vit-gray-850:  #0d0d1a;
+  --vit-gray-800:  #121224;
+  --vit-gray-750:  #18182e;
+  --vit-gray-700:  #1e1e38;
+  --vit-gray-600:  #2a2a4a;
+  --vit-gray-500:  #3a3a60;
+  --vit-gray-400:  #5a5a90;
+  --vit-gray-300:  #8080b0;
+  --vit-gray-200:  #b0b0d0;
+  --vit-gray-100:  #d8d8ec;
+  --vit-gray-50:   #ededf8;
+
+  /* ── Typography Scale (Perfect Fourth — 1.333 ratio) ─────── */
+  --vit-text-2xs:  0.563rem;
+  --vit-text-xs:   0.75rem;
+  --vit-text-sm:   1rem;
+  --vit-text-md:   1.333rem;
+  --vit-text-lg:   1.777rem;
+  --vit-text-xl:   2.369rem;
+  --vit-text-2xl:  3.157rem;
+  --vit-text-3xl:  4.209rem;
+
+  --vit-font-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
+  --vit-font-mono:  'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  --vit-font-serif: Georgia, serif;
+
+  /* ── Spacing (4px base grid) ──────────────────────────────── */
+  --vit-space-1:   0.25rem;
+  --vit-space-2:   0.5rem;
+  --vit-space-3:   0.75rem;
+  --vit-space-4:   1rem;
+  --vit-space-5:   1.25rem;
+  --vit-space-6:   1.5rem;
+  --vit-space-8:   2rem;
+  --vit-space-10:  2.5rem;
+  --vit-space-12:  3rem;
+  --vit-space-16:  4rem;
+  --vit-space-20:  5rem;
+  --vit-space-24:  6rem;
+  --vit-space-32:  8rem;
+
+  /* ── Border Radius ────────────────────────────────────────── */
+  --vit-radius-sm:   0.25rem;
+  --vit-radius-md:   0.5rem;
+  --vit-radius-lg:   0.75rem;
+  --vit-radius-xl:   1rem;
+  --vit-radius-2xl:  1.5rem;
+  --vit-radius-full: 9999px;
+
+  /* ── Shadows ──────────────────────────────────────────────── */
+  --vit-shadow-sm:  0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+  --vit-shadow-md:  0 4px 16px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
+  --vit-shadow-lg:  0 10px 40px rgba(0,0,0,0.7), 0 4px 8px rgba(0,0,0,0.5);
+  --vit-shadow-xl:  0 20px 60px rgba(0,0,0,0.8), 0 8px 16px rgba(0,0,0,0.6);
+
+  --vit-shadow-cyan-glow:   0 0 20px rgba(0,245,255,0.28), 0 0 60px rgba(0,245,255,0.10);
+  --vit-shadow-cyan-soft:   0 0 12px rgba(0,245,255,0.18), 0 0 30px rgba(0,245,255,0.07);
+  --vit-shadow-gold-glow:   0 0 20px rgba(255,215,0,0.22), 0 0 60px rgba(255,215,0,0.08);
+  --vit-shadow-gold-soft:   0 0 12px rgba(255,215,0,0.15), 0 0 30px rgba(255,215,0,0.05);
+  --vit-shadow-purple-glow: 0 0 20px rgba(168,85,247,0.22), 0 0 60px rgba(168,85,247,0.08);
+  --vit-shadow-green-glow:  0 0 15px rgba(34,197,94,0.22), 0 0 40px rgba(34,197,94,0.08);
+  --vit-shadow-red-glow:    0 0 15px rgba(239,68,68,0.22);
+
+  /* ── Animation Durations ──────────────────────────────────── */
+  --vit-duration-fast:    150ms;
+  --vit-duration-normal:  250ms;
+  --vit-duration-slow:    350ms;
+  --vit-duration-slower:  500ms;
+  --vit-duration-slowest: 800ms;
+
+  --vit-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --vit-ease-in:     cubic-bezier(0.4, 0, 1, 1);
+  --vit-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --vit-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --vit-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* ── Z-Index Scale ────────────────────────────────────────── */
+  --vit-z-base:     0;
+  --vit-z-raised:   10;
+  --vit-z-dropdown: 100;
+  --vit-z-sticky:   200;
+  --vit-z-overlay:  300;
+  --vit-z-modal:    400;
+  --vit-z-toast:    500;
+  --vit-z-top:      999;
+
+  /* ── Glassmorphism ────────────────────────────────────────── */
+  --vit-glass-bg:         rgba(8, 8, 18, 0.65);
+  --vit-glass-border:     rgba(255, 255, 255, 0.06);
+  --vit-glass-blur:       16px;
+  --vit-glass-premium-bg: rgba(5, 5, 15, 0.80);
+
+  /* ── Gradients ────────────────────────────────────────────── */
+  --vit-gradient-brand:    linear-gradient(135deg, var(--vit-brand-cyan) 0%, var(--vit-brand-purple) 100%);
+  --vit-gradient-brand-r:  linear-gradient(135deg, var(--vit-brand-purple) 0%, var(--vit-brand-cyan) 100%);
+  --vit-gradient-gold:     linear-gradient(135deg, var(--vit-brand-gold) 0%, var(--vit-brand-orange) 100%);
+  --vit-gradient-dark:     linear-gradient(180deg, var(--vit-gray-900) 0%, var(--vit-gray-950) 100%);
+  --vit-gradient-surface:  linear-gradient(180deg, var(--vit-gray-800) 0%, var(--vit-gray-850) 100%);
+  --vit-gradient-cyber:    linear-gradient(135deg, rgba(0,245,255,0.08) 0%, rgba(168,85,247,0.08) 100%);
+  --vit-gradient-sidebar:  linear-gradient(180deg, #09091a 0%, #060612 100%);
+}
+
+/* ── Utility Classes ──────────────────────────────────────────── */
+
+.vit-glass {
+  background: var(--vit-glass-bg);
+  border: 1px solid var(--vit-glass-border);
+  backdrop-filter: blur(var(--vit-glass-blur));
+  -webkit-backdrop-filter: blur(var(--vit-glass-blur));
+}
+
+.vit-glass-premium {
+  background: var(--vit-glass-premium-bg);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.vit-glow-cyan   { box-shadow: var(--vit-shadow-cyan-glow); }
+.vit-glow-cyan-s { box-shadow: var(--vit-shadow-cyan-soft); }
+.vit-glow-gold   { box-shadow: var(--vit-shadow-gold-glow); }
+.vit-glow-gold-s { box-shadow: var(--vit-shadow-gold-soft); }
+.vit-glow-purple { box-shadow: var(--vit-shadow-purple-glow); }
+.vit-glow-green  { box-shadow: var(--vit-shadow-green-glow); }
+
+/* ── Gradient Text ───────────────────────────────────────────── */
+.vit-gradient-text {
+  background: var(--vit-gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.vit-gradient-text-gold {
+  background: var(--vit-gradient-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.vit-gradient-text-cyber {
+  background: linear-gradient(90deg, var(--vit-brand-cyan), var(--vit-brand-purple), var(--vit-brand-cyan));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: vit-gradient-shift 4s linear infinite;
+}
+
+/* ── Gradient Border (via background-clip) ───────────────────── */
+.vit-border-gradient {
+  position: relative;
+  border-radius: var(--vit-radius-lg);
+}
+.vit-border-gradient::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--vit-gradient-brand);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.vit-border-gradient-gold::before {
+  background: var(--vit-gradient-gold);
+}
+
+/* ── Animated border glow ────────────────────────────────────── */
+.vit-border-glow {
+  box-shadow: 0 0 0 1px var(--vit-brand-cyan-border), var(--vit-shadow-cyan-soft);
+  transition: box-shadow 0.3s ease;
+}
+.vit-border-glow:hover {
+  box-shadow: 0 0 0 1px rgba(0,245,255,0.4), var(--vit-shadow-cyan-glow);
+}
+
+/* ── Card variants ───────────────────────────────────────────── */
+.vit-card {
+  background: rgba(12, 12, 24, 0.8);
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(12px);
+  border-radius: var(--vit-radius-lg);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.vit-card:hover {
+  border-color: rgba(0,245,255,0.15);
+  box-shadow: 0 0 24px rgba(0,245,255,0.06);
+}
+
+.vit-card-gold {
+  background: linear-gradient(135deg, rgba(255,215,0,0.04) 0%, rgba(12,12,24,0.9) 60%);
+  border: 1px solid rgba(255,215,0,0.15);
+}
+
+.vit-card-cyan {
+  background: linear-gradient(135deg, rgba(0,245,255,0.05) 0%, rgba(12,12,24,0.9) 60%);
+  border: 1px solid rgba(0,245,255,0.15);
+}
+
+.vit-card-purple {
+  background: linear-gradient(135deg, rgba(168,85,247,0.05) 0%, rgba(12,12,24,0.9) 60%);
+  border: 1px solid rgba(168,85,247,0.15);
+}
+
+/* ── Status indicators ───────────────────────────────────────── */
+.vit-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34,197,94,0.4);
+  animation: vit-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes vit-scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes vit-pulse-glow {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1; }
+}
+
+@keyframes vit-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes vit-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes vit-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vit-slide-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vit-slide-in-left {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes vit-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes vit-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes vit-celebrate {
+  0%   { transform: scale(1); }
+  25%  { transform: scale(1.08); }
+  50%  { transform: scale(0.97); }
+  75%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+@keyframes vit-ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes vit-gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes vit-border-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes vit-ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+@keyframes vit-count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Animation utility classes ───────────────────────────────── */
+.vit-animate-slide-up      { animation: vit-slide-up      var(--vit-duration-slow)  var(--vit-ease-out)    forwards; }
+.vit-animate-slide-down    { animation: vit-slide-down    var(--vit-duration-slow)  var(--vit-ease-out)    forwards; }
+.vit-animate-slide-left    { animation: vit-slide-in-left var(--vit-duration-slow)  var(--vit-ease-out)    forwards; }
+.vit-animate-fade-in       { animation: vit-fade-in       var(--vit-duration-normal) var(--vit-ease-out)   forwards; }
+.vit-animate-scale-in      { animation: vit-scale-in      var(--vit-duration-slow)  var(--vit-ease-spring) forwards; }
+.vit-animate-float         { animation: vit-float         3s ease-in-out infinite; }
+.vit-animate-pulse-glow    { animation: vit-pulse-glow    2s ease-in-out infinite; }
+.vit-animate-celebrate     { animation: vit-celebrate     0.6s var(--vit-ease-bounce); }
+
+/* ── Shimmer loading skeleton ─────────────────────────────────── */
+.vit-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--vit-gray-800) 25%,
+    var(--vit-gray-700) 50%,
+    var(--vit-gray-800) 75%
+  );
+  background-size: 200% 100%;
+  animation: vit-shimmer 1.5s infinite;
+}
+
+/* ── Ticker tape ──────────────────────────────────────────────── */
+.vit-ticker-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.vit-ticker-content {
+  display: inline-flex;
+  animation: vit-ticker 35s linear infinite;
+}
+.vit-ticker-content:hover {
+  animation-play-state: paused;
+}
+
+/* ── Custom scrollbar ─────────────────────────────────────────── */
+.vit-scrollbar::-webkit-scrollbar       { width: 4px; height: 4px; }
+.vit-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.vit-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+.vit-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,245,255,0.2); }
+
+/* Apply globally */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,245,255,0.2); }
+
+/* ── Number/metric highlight ──────────────────────────────────── */
+.vit-metric {
+  font-family: var(--vit-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ── Separator with label ─────────────────────────────────────── */
+.vit-section-label {
+  font-family: var(--vit-font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.vit-section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent);
+}

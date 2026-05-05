@@ -1,0 +1,282 @@
+"""app/agents/analytics_reporter_agent.py — v2: Daily Analytics Intelligence
+
+Runs every 24 hours.  Every day: concise daily brief.  Every Monday: full
+weekly deep-dive.  Both stored as AgentInsight and dispatched to Telegram.
+
+Metrics collected:
+  - Active users, new subscriptions, predictions, AI sources (24h + 7d)
+  - Prediction accuracy rate (settled predictions)
+  - Average ML confidence and edge
+  - Pending withdrawal backlog
+  - Agent health summary
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict
+
+from app.agents.base import BaseAgent
+from app.services.ai_client import call_ai, call_ai_with_provider
+
+logger = logging.getLogger(__name__)
+
+
+async def _gather_metrics(db_session, window_hours: int = 24) -> dict:
+    from sqlalchemy import select, func, case
+    from app.db.models import Match, Prediction, User, AIPrediction, AgentInsight
+    from app.modules.wallet.models import WalletTransaction, WalletUserSubscription, WithdrawalRequest
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=window_hours)
+    week_ago = now - timedelta(days=7)
+    stats: Dict[str, Any] = {"window_hours": window_hours}
+
+    async def safe(coro, default=0):
+        try:
+            return await coro or default
+        except Exception:
+            return default
+
+    # Active users
+    stats["active_users"] = await safe(
+        db_session.scalar(
+            select(func.count(func.distinct(WalletTransaction.user_id)))
+            .where(WalletTransaction.created_at >= cutoff)
+        )
+    )
+
+    # Total users
+    stats["total_users"] = await safe(
+        db_session.scalar(select(func.count(User.id)))
+    )
+
+    # New subscriptions
+    stats["new_subscriptions"] = await safe(
+        db_session.scalar(
+            select(func.count(WalletUserSubscription.id))
+            .where(WalletUserSubscription.created_at >= cutoff)
+        )
+    )
+
+    # Predictions generated
+    stats["predictions"] = await safe(
+        db_session.scalar(
+            select(func.count(Prediction.id))
+            .where(Prediction.timestamp >= cutoff)
+        )
+    )
+
+    # AI sources ingested
+    stats["ai_sources_ingested"] = await safe(
+        db_session.scalar(
+            select(func.count(AIPrediction.id))
+            .where(AIPrediction.timestamp >= cutoff)
+        )
+    )
+
+    # Settled predictions accuracy (7d window for meaningful sample)
+    try:
+        settled_rows = await db_session.execute(
+            select(
+                func.count(Prediction.id).label("total"),
+                func.sum(
+                    case((Prediction.was_correct == True, 1), else_=0)
+                ).label("correct"),
+            )
+            .where(
+                Prediction.was_correct.is_not(None),
+                Prediction.timestamp >= week_ago,
+            )
+        )
+        row = settled_rows.one()
+        total_settled = row.total or 0
+        correct = int(row.correct or 0)
+        stats["accuracy_rate"] = round(correct / total_settled, 3) if total_settled else None
+        stats["settled_predictions_7d"] = total_settled
+    except Exception:
+        stats["accuracy_rate"] = None
+        stats["settled_predictions_7d"] = 0
+
+    # Average confidence (last 24h predictions)
+    stats["avg_confidence"] = await safe(
+        db_session.scalar(
+            select(func.avg(Prediction.confidence))
+            .where(Prediction.timestamp >= cutoff)
+        )
+    )
+    if stats["avg_confidence"]:
+        stats["avg_confidence"] = round(float(stats["avg_confidence"]), 3)
+
+    # Average edge
+    stats["avg_edge"] = await safe(
+        db_session.scalar(
+            select(func.avg(Prediction.vig_free_edge))
+            .where(Prediction.timestamp >= cutoff)
+        )
+    )
+    if stats["avg_edge"]:
+        stats["avg_edge"] = round(float(stats["avg_edge"]), 4)
+
+    # Pending withdrawals
+    stats["pending_withdrawals"] = await safe(
+        db_session.scalar(
+            select(func.count(WithdrawalRequest.id))
+            .where(WithdrawalRequest.status == "pending")
+        )
+    )
+
+    # Upcoming matches
+    stats["upcoming_matches"] = await safe(
+        db_session.scalar(
+            select(func.count(Match.id))
+            .where(
+                Match.status.in_(["scheduled", "upcoming"]),
+                Match.kickoff_time >= now,
+            )
+        )
+    )
+
+    # Agent insights generated today
+    stats["agent_insights_today"] = await safe(
+        db_session.scalar(
+            select(func.count(AgentInsight.id))
+            .where(AgentInsight.created_at >= cutoff)
+        )
+    )
+
+    return stats
+
+
+def _daily_prompt(stats: dict, date_str: str, is_weekly: bool) -> str:
+    acc = f"{stats['accuracy_rate']*100:.1f}%" if stats.get("accuracy_rate") is not None else "N/A"
+    edge = f"{stats.get('avg_edge',0)*100:.2f}%" if stats.get("avg_edge") is not None else "N/A"
+    conf = f"{stats.get('avg_confidence',0)*100:.0f}%" if stats.get("avg_confidence") else "N/A"
+    report_type = "Weekly Performance Deep-Dive" if is_weekly else "Daily Intelligence Brief"
+    window = "7 days" if is_weekly else "24 hours"
+
+    return (
+        f"You are the analytics director for VIT Sports Intelligence Network.\n\n"
+        f"{report_type} — {date_str} (last {window})\n\n"
+        f"Platform Metrics:\n"
+        f"  Active users ({window}): {stats.get('active_users', 0)}\n"
+        f"  Total registered users: {stats.get('total_users', 0)}\n"
+        f"  New subscriptions: {stats.get('new_subscriptions', 0)}\n"
+        f"  Predictions generated: {stats.get('predictions', 0)}\n"
+        f"  AI sources ingested: {stats.get('ai_sources_ingested', 0)}\n"
+        f"  Prediction accuracy (7d): {acc} of {stats.get('settled_predictions_7d', 0)} settled\n"
+        f"  Average ML confidence: {conf}\n"
+        f"  Average edge: {edge}\n"
+        f"  Pending withdrawals: {stats.get('pending_withdrawals', 0)}\n"
+        f"  Upcoming fixtures loaded: {stats.get('upcoming_matches', 0)}\n"
+        f"  Agent insights generated: {stats.get('agent_insights_today', 0)}\n\n"
+        f"Write a concise {report_type.lower()} covering:\n"
+        f"1. Platform health snapshot (2 sentences)\n"
+        f"2. {'Key performance highlights' if is_weekly else 'Top metric of the day'}\n"
+        f"3. {'Trends and concerns' if is_weekly else 'One risk or anomaly to watch'}\n"
+        f"4. {'Three specific actions for next week' if is_weekly else 'One immediate action item'}\n\n"
+        f"Keep it under {'500' if is_weekly else '250'} words. Direct, data-driven, no filler."
+    )
+
+
+def _template_brief(stats: dict, date_str: str, is_weekly: bool) -> str:
+    """
+    Generate a structured analytics brief from DB metrics alone (no AI required).
+
+    Used as a SCIE fallback when all AI providers are unavailable, ensuring
+    the Intelligence Reports page always shows at least one analytics report.
+    """
+    acc = f"{stats['accuracy_rate']*100:.1f}%" if stats.get("accuracy_rate") is not None else "N/A"
+    edge = f"{stats.get('avg_edge',0)*100:.2f}%" if stats.get("avg_edge") is not None else "N/A"
+    conf = f"{stats.get('avg_confidence',0)*100:.0f}%" if stats.get("avg_confidence") else "N/A"
+    label = "Weekly Deep-Dive" if is_weekly else "Daily Brief"
+    window = "7-day" if is_weekly else "24-hour"
+
+    lines = [
+        f"VIT Sports Intelligence Network — {label} [{date_str}]",
+        "",
+        f"Platform Health ({window} window):",
+        f"  • Active users: {stats.get('active_users', 0)} | Total users: {stats.get('total_users', 0)}",
+        f"  • New subscriptions: {stats.get('new_subscriptions', 0)}",
+        f"  • Predictions generated: {stats.get('predictions', 0)}",
+        f"  • AI sources ingested: {stats.get('ai_sources_ingested', 0)}",
+        "",
+        f"Model Performance:",
+        f"  • Prediction accuracy (7d): {acc} "
+        f"over {stats.get('settled_predictions_7d', 0)} settled predictions",
+        f"  • Average ML confidence: {conf}",
+        f"  • Average edge: {edge}",
+        "",
+        f"Operations:",
+        f"  • Upcoming fixtures: {stats.get('upcoming_matches', 0)}",
+        f"  • Pending withdrawals: {stats.get('pending_withdrawals', 0)}",
+        f"  • Agent insights generated today: {stats.get('agent_insights_today', 0)}",
+        "",
+        f"[Generated by VIT SCIE — AI-free template mode]",
+    ]
+    return "\n".join(lines)
+
+
+class AnalyticsReporterAgent(BaseAgent):
+    def __init__(self) -> None:
+        super().__init__(
+            name="analytics-reporter",
+            interval_seconds=24 * 60 * 60,
+            initial_delay_seconds=20,   # fire quickly on first startup
+        )
+
+    async def run_cycle(self) -> Dict[str, Any]:
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import AgentInsight
+        from app.services.alerts import TelegramAlert, AlertPriority
+
+        now = datetime.now(timezone.utc)
+        is_weekly = now.weekday() == 0   # Monday = full weekly report
+        report_date = now.strftime("%Y-%m-%d")
+        window_hours = 168 if is_weekly else 24
+
+        async with AsyncSessionLocal() as db:
+            stats = await _gather_metrics(db, window_hours)
+
+        prompt = _daily_prompt(stats, report_date, is_weekly)
+        ai_result = await call_ai_with_provider(prompt, max_tokens=700)
+        _provider = "scie"
+        if ai_result:
+            report, _provider = ai_result
+        else:
+            report = _template_brief(stats, report_date, is_weekly)
+
+        insight_type = "weekly_report" if is_weekly else "daily_brief"
+        async with AsyncSessionLocal() as db:
+            insight = AgentInsight(
+                agent_name="analytics-reporter",
+                insight_type=insight_type,
+                ai_provider=_provider,
+                content=report[:2000],
+                meta={
+                    "stats": stats,
+                    "report_date": report_date,
+                    "is_weekly": is_weekly,
+                    "window_hours": window_hours,
+                },
+                confidence=0.85,
+            )
+            db.add(insight)
+            await db.commit()
+
+        try:
+            tg = TelegramAlert()
+            label = "📊 Weekly Deep-Dive" if is_weekly else "📈 Daily Brief"
+            header = f"<b>{label} — {report_date}</b>\n{'━'*22}\n\n"
+            await tg.send_message(header + report[:3800], AlertPriority.LOW)
+        except Exception as te:
+            logger.warning("[analytics-reporter] Telegram failed: %s", te)
+
+        logger.info("[analytics-reporter] %s generated (%d chars)", insight_type, len(report))
+        return {
+            "report_date":   report_date,
+            "report_type":   insight_type,
+            "stats":         stats,
+            "report_length": len(report),
+        }
