@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "5SWKIJVi40S5rslLpTY6y"
+uri = "file://VIT_AUDIT_REPORT.md"
+type = "text"
+title = "VIT Sports Intelligence Network — Technical Audit Report"
