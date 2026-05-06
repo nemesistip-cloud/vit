@@ -34,6 +34,7 @@ export interface PublicConfig {
     welcome_bonus_vit: number;
     model_count: number;
     version: string;
+    staker_revenue_pct: number;
   };
 }
 

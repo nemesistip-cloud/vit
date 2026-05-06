@@ -177,7 +177,7 @@ export default function AuthPage() {
               VIT<span className="text-primary">_OS</span>
             </h1>
             <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
-              Institutional-grade sports intelligence powered by 13 AI models.
+              Institutional-grade sports intelligence powered by {publicCfg?.platform.model_count ?? 13} AI models.
             </p>
             <div className="space-y-3 text-left">
               {FEATURE_ITEMS.map(({ icon: Icon, text }) => (
@@ -349,7 +349,7 @@ export default function AuthPage() {
                       <h2 className="text-lg font-bold font-mono">Create account</h2>
                       <p className="text-xs text-muted-foreground font-mono mt-0.5 flex items-center gap-1.5">
                         <Sparkles className="w-3 h-3 text-secondary" />
-                        Get 100 VIT welcome bonus on signup
+                        Get {publicCfg?.platform.welcome_bonus_vit ?? 100} VIT welcome bonus on signup
                       </p>
                     </div>
                     <Form {...registerForm}>

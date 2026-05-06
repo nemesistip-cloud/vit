@@ -604,7 +604,7 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
         </CardTitle>
         <CardDescription>
           Uses the AI cascade (Gemini → Claude → OpenAI → Grok) first, then automatically
-          falls back to the 13-model ML ensemble when AI providers are unavailable.
+          falls back to the ML ensemble when AI providers are unavailable.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

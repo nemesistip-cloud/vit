@@ -453,7 +453,7 @@ function TrainingGuide() {
           <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg space-y-2">
             <p className="font-bold text-primary uppercase text-xs">What training does</p>
             <p className="text-muted-foreground leading-relaxed text-xs">
-              The ML ensemble trains 3–5 models (Logistic Regression, Random Forest, Gradient Boosting, XGBoost, LightGBM)
+              The ML ensemble trains multiple models (Logistic Regression, Random Forest, Gradient Boosting, XGBoost, LightGBM)
               on your historical match data. Each model learns to predict Home / Draw / Away probabilities from match odds
               and Poisson-derived features. The ensemble averages their predictions for higher accuracy and stability.
             </p>

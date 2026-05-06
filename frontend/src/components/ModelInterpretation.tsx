@@ -55,7 +55,7 @@ export function ModelInterpretation({
 
   const summaryText = (() => {
     if (strength === "slim") {
-      return `The 13-model ensemble sees this as a closely-contested match. No clear favourite emerges — the probability spread between all outcomes is narrow.`;
+      return `The ${modelCount ?? 13}-model ensemble sees this as a closely-contested match. No clear favourite emerges — the probability spread between all outcomes is narrow.`;
     }
     const pct = (Math.max(homeProb, drawProb, awayProb) * 100).toFixed(0);
     return `The ensemble assigns a ${pct}% probability to a ${leaderLabel} ${leader === "draw" ? "" : "win"}, indicating a ${strength} lean backed by ${modelCount ?? 13} child models.`;

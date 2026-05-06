@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import APP_VERSION
 from app.db.database import get_db
 from app.db.models import Match
 from app.modules.wallet.models import PlatformConfig
@@ -154,15 +155,21 @@ async def _build_config(db: AsyncSession) -> Dict[str, Any]:
         })
     leagues.sort(key=lambda x: x["label"])
 
-    # Model count — pulled from the AI orchestrator if possible.
-    model_count = 12
+    # Model count — pulled from the primary ModelOrchestrator (same source as
+    # /api/public/landing), with graceful fallbacks.
+    model_count = 13
     try:
-        from app.modules.ai.orchestrator import ENSEMBLE_MODELS  # type: ignore
-        model_count = len(ENSEMBLE_MODELS)
+        from app.core.dependencies import get_orchestrator as _get_orch
+        _orch = _get_orch()
+        if _orch is not None:
+            _status = _orch.get_model_status()
+            _total = _status.get("total", 0)
+            if _total > 0:
+                model_count = _total
     except Exception:
         try:
-            from app.modules.ai.orchestrator import get_orchestrator
-            model_count = len(getattr(get_orchestrator(), "models", []) or []) or model_count
+            from app.modules.ai.orchestrator import ENSEMBLE_MODELS  # type: ignore
+            model_count = len(ENSEMBLE_MODELS)
         except Exception:
             pass
 
@@ -189,9 +196,10 @@ async def _build_config(db: AsyncSession) -> Dict[str, Any]:
             "vit_usd":        vit_usd,
         },
         "platform": {
-            "welcome_bonus_vit": welcome_bonus_vit,
-            "model_count":       model_count,
-            "version":           "4.0.0",
+            "welcome_bonus_vit":  welcome_bonus_vit,
+            "model_count":        model_count,
+            "version":            APP_VERSION,
+            "staker_revenue_pct": 5,
         },
     }
 

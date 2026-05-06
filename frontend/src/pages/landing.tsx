@@ -180,7 +180,7 @@ export default function LandingPage() {
         <div className="relative max-w-4xl mx-auto text-center">
           <Badge className="mb-6 font-mono text-xs border-primary/30 bg-primary/10 text-primary px-4 py-1.5">
             <Activity className="w-3 h-3 mr-1.5 inline animate-pulse" />
-            12 AI Models · Live Predictions · Blockchain Verified
+            {modelCount} AI Models · Live Predictions · Blockchain Verified
           </Badge>
 
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold font-mono tracking-tight leading-tight mb-6">
@@ -189,7 +189,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-base md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            A 13-model AI ensemble analyses every match with machine learning precision.
+            A {modelCount}-model AI ensemble analyses every match with machine learning precision.
             Real edge. Real transparency. Real results.
           </p>
 
@@ -257,7 +257,7 @@ export default function LandingPage() {
                 See exactly why every prediction is made
               </h2>
               <p className="text-muted-foreground mb-6 leading-relaxed">
-                Unlike black-box systems, VIT shows you the confidence score of each of its 13 models,
+                Unlike black-box systems, VIT shows you the confidence score of each of its {modelCount} models,
                 their historical accuracy, and the weighted consensus that drives the final call.
               </p>
               <ul className="space-y-3 mb-8">

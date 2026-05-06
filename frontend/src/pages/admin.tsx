@@ -4370,7 +4370,7 @@ function MLAgentsTab() {
             ML Autonomous Agent Pipeline
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            5 agents govern training decisions end-to-end — monitor decisions, tune thresholds, or intervene manually
+            {ML_AGENTS.length} agents govern training decisions end-to-end — monitor decisions, tune thresholds, or intervene manually
           </p>
         </div>
         <Button

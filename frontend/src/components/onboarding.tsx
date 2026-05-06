@@ -114,32 +114,34 @@ interface TourStep {
   color: string;
 }
 
-const TOUR_STEPS: TourStep[] = [
-  {
-    step: 1,
-    icon: Target,
-    title: "Make Your First Prediction",
-    description: "Browse live matches, tap a match card, and place your first AI-assisted prediction. Our ensemble of 13 models will show you their confidence before you commit.",
-    action: "Go to Matches",
-    color: "text-primary",
-  },
-  {
-    step: 2,
-    icon: Brain,
-    title: "View AI Ensemble Breakdown",
-    description: "After selecting a match, expand the 'AI Transparency' panel to see how each of the 13 models voted, their individual confidence, and historical accuracy.",
-    action: "View AI Details",
-    color: "text-purple-400",
-  },
-  {
-    step: 3,
-    icon: Coins,
-    title: "Check Your Wallet & Rewards",
-    description: "Your 100 VIT welcome bonus is ready. Track your balance, view transaction history, and stake VIT on predictions to earn rewards.",
-    action: "Open Wallet",
-    color: "text-secondary",
-  },
-];
+function buildTourSteps(modelCount: number, welcomeBonus: number): TourStep[] {
+  return [
+    {
+      step: 1,
+      icon: Target,
+      title: "Make Your First Prediction",
+      description: `Browse live matches, tap a match card, and place your first AI-assisted prediction. Our ensemble of ${modelCount} models will show you their confidence before you commit.`,
+      action: "Go to Matches",
+      color: "text-primary",
+    },
+    {
+      step: 2,
+      icon: Brain,
+      title: "View AI Ensemble Breakdown",
+      description: `After selecting a match, expand the 'AI Transparency' panel to see how each of the ${modelCount} models voted, their individual confidence, and historical accuracy.`,
+      action: "View AI Details",
+      color: "text-purple-400",
+    },
+    {
+      step: 3,
+      icon: Coins,
+      title: "Check Your Wallet & Rewards",
+      description: `Your ${welcomeBonus} VIT welcome bonus is ready. Track your balance, view transaction history, and stake VIT on predictions to earn rewards.`,
+      action: "Open Wallet",
+      color: "text-secondary",
+    },
+  ];
+}
 
 interface TourProps {
   onComplete: () => void;
@@ -149,6 +151,11 @@ interface TourProps {
 
 export function OnboardingTour({ onComplete, onSkip, onNavigate }: TourProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const { data: cfg } = usePublicConfig();
+  const TOUR_STEPS = buildTourSteps(
+    cfg?.platform.model_count ?? 13,
+    cfg?.platform.welcome_bonus_vit ?? 100,
+  );
   const step = TOUR_STEPS[currentStep];
   const isLast = currentStep === TOUR_STEPS.length - 1;
 

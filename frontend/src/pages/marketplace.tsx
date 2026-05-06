@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -152,6 +153,8 @@ function StakeModal({ listing }: { listing: Listing }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("50");
+  const { data: pubCfg } = usePublicConfig();
+  const stakerPct = pubCfg?.platform.staker_revenue_pct ?? 5;
   const [lockDays, setLockDays] = useState(7);
 
   const { data: stakesData } = useQuery<ListingStakes>({
@@ -209,7 +212,7 @@ function StakeModal({ listing }: { listing: Listing }) {
             {[
               { label: "Pool", value: `${parseFloat(listing.total_staked ?? "0").toFixed(1)} VIT` },
               { label: "Stakers", value: listing.staker_count?.toString() ?? "0" },
-              { label: "Your Share", value: "5% of calls" },
+              { label: "Your Share", value: `${stakerPct}% of calls` },
             ].map(({ label, value }) => (
               <div key={label} className="bg-muted/50 rounded-lg p-2 text-center">
                 <p className="text-[10px] text-muted-foreground">{label}</p>
@@ -224,7 +227,7 @@ function StakeModal({ listing }: { listing: Listing }) {
               <TrendingUp className="w-3 h-3" /> Staker Revenue Sharing
             </p>
             <p className="text-muted-foreground">
-              5% of every call fee is distributed to stakers proportionally to stake size.
+              {stakerPct}% of every call fee is distributed to stakers proportionally to stake size.
               Slashing risk applies — poor model performance may trigger a partial slash.
             </p>
           </div>
@@ -708,6 +711,8 @@ function LeaderboardTab() {
   const { user } = useAuth();
   const [sortBy, setSortBy] = useState<string>("roi");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const { data: pubCfg } = usePublicConfig();
+  const stakerPct = pubCfg?.platform.staker_revenue_pct ?? 5;
 
   const { data, isLoading } = useQuery<LeaderboardResponse>({
     queryKey: ["marketplace", "leaderboard", sortBy],
@@ -957,7 +962,7 @@ function LeaderboardTab() {
                         Pool: <strong className="text-amber-400">{staked.toFixed(2)} VIT</strong> across {model.staker_count} stakers.
                         {model.est_apy > 0
                           ? ` Estimated APY ${model.est_apy.toFixed(1)}% based on recent call volume.`
-                          : " Be the first staker and earn 5% of all call fees."}
+                          : ` Be the first staker and earn ${stakerPct}% of all call fees.`}
                       </p>
                     </div>
                   </div>
@@ -1325,7 +1330,7 @@ export default function MarketplacePage() {
                   ["3", "Expose a training/prediction interface", "Python submissions should include def predict, def train, class Model, or class VITModel. Binary models should load with joblib and expose predict or train."],
                   ["4", "Set pricing", "Set the VITCoin cost per call. After approval, calls earn creator revenue while analysts can train eligible models from the training area."],
                   ["5", "Wait for review", "Admins review source and artifacts before activation. Loadable binaries can be registered automatically; Python source remains review-gated for safety."],
-                  ["6", "Attract stakers", "Once live, users can stake VITCoin on your model. You earn more signals and stakers earn 5% of your call revenue — proportional to their stake."],
+                  ["6", "Attract stakers", "Once live, users can stake VITCoin on your model. You earn more signals and stakers earn a share of your call revenue — proportional to their stake."],
                 ].map(([step, title, text]) => (
                   <div key={step} className="flex gap-3">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{step}</span>

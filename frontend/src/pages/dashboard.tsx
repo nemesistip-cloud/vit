@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { useGetTopOpportunities, useGetModelConfidence } from "@/api-client";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -241,6 +242,7 @@ function KPICard({
 /* ── Main Page ────────────────────────────────────────── */
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { data: publicCfg } = usePublicConfig();
 
   const { data: summary, isLoading: isLoadingSummary, isError: isErrorSummary } = useQuery<any>({
     queryKey: ["dashboard-summary"],
@@ -511,7 +513,7 @@ export default function DashboardPage() {
                 </div>
                 <Badge className="font-mono text-[9px] border-purple-500/25 bg-purple-500/10 text-purple-400 gap-1">
                   <Sparkles className="w-2.5 h-2.5" />
-                  13 Models
+                  {publicCfg?.platform.model_count ?? 13} Models
                 </Badge>
               </div>
             </CardHeader>

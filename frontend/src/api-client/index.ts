@@ -124,7 +124,7 @@ export const API = {
   multisigPropose: "/api/security/multisig",
   walletFreeze: "/api/security/freeze",
   // Sub-chains (v5.0.0)
-  subchains: "/api/subchains/",
+  subchains: "/api/subchains",
   subchainBootstrap: "/api/subchains/bootstrap",
   // Agent Registry (v5.0.0)
   agentRegistryStats: "/api/agents/registry/stats",
