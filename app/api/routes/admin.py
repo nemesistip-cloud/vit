@@ -50,6 +50,9 @@ router = APIRouter(
     dependencies=[Depends(get_current_admin)],
 )
 
+# Public sub-router — no auth required (telemetry endpoints)
+public_router = APIRouter(prefix="/admin", tags=["admin"])
+
 orchestrator = get_orchestrator()
 telegram_alerts = get_telegram_alerts()
 VERSION = APP_VERSION
@@ -3805,10 +3808,11 @@ class ClientErrorPayload(BaseModel):
     ts: str = ""
 
 
-@router.post("/client-error", status_code=204)
+@public_router.post("/client-error", status_code=204)
 async def record_client_error(payload: ClientErrorPayload):
     """
     Fire-and-forget telemetry from the React ErrorBoundary.
+    No auth required — any user (or anonymous) can submit JS crash reports.
     Logs JS crashes server-side so they appear in application logs
     even when the user never opens DevTools.
     """

@@ -1,15 +1,28 @@
 #!/usr/bin/env bash
-# Production startup — FastAPI only (uvicorn on port 5000).
+# Production startup — builds frontend, then starts FastAPI via gunicorn.
 # The built frontend (frontend/dist) is served directly by FastAPI's StaticFiles mount.
 # This script is used by Replit deployment; never run Vite in production.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT="${PORT:-5000}"
-WORKERS="${WEB_CONCURRENCY:-2}"
+# Use 1 worker to avoid race conditions in startup migrations/seeding.
+# Increase via WEB_CONCURRENCY env var only after verifying DB is stable.
+WORKERS="${WEB_CONCURRENCY:-1}"
 
 # v4.10 — activate trained .pkl weights in production
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
+export ENVIRONMENT="${ENVIRONMENT:-production}"
+
+echo "[production] Building frontend..."
+cd frontend
+if [ ! -d "node_modules" ]; then
+    echo "[production] Installing frontend dependencies..."
+    npm install --prefer-offline --silent 2>/dev/null || npm install
+fi
+npm run build
+echo "[production] Frontend build complete."
+cd ..
 
 echo "[production] Running database schema setup..."
 python - <<'PYEOF'
@@ -43,18 +56,57 @@ async def ensure_schema():
         import app.modules.subchain.models
         import app.modules.agent_registry.models
         import app.modules.storage_verification.models
+        import app.modules.identity.models
+        import app.modules.kyc.models
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            # PostgreSQL-safe column additions
-            await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER')
-            await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN')
-            await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS settled_profit DOUBLE PRECISION')
-            await conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'")
-            await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE')
-            await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON')
-            await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0')
-            await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0')
-            await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0')
+            dialect = conn.dialect.name
+            if dialect == 'sqlite':
+                cols = (await conn.exec_driver_sql('PRAGMA table_info(predictions)')).fetchall()
+                col_names = {row[1] for row in cols}
+                pred_additions = {
+                    'user_id': 'INTEGER',
+                    'was_correct': 'BOOLEAN',
+                    'settled_profit': 'REAL',
+                }
+                for col, ddl in pred_additions.items():
+                    if col not in col_names:
+                        await conn.exec_driver_sql(f'ALTER TABLE predictions ADD COLUMN {col} {ddl}')
+                user_cols = (await conn.exec_driver_sql('PRAGMA table_info(users)')).fetchall()
+                user_col_names = {row[1] for row in user_cols}
+                user_additions = {
+                    'kyc_status': "VARCHAR(20) DEFAULT 'none'",
+                    'kyc_submitted_at': 'DATETIME',
+                    'kyc_data': 'JSON',
+                    'current_streak': 'INTEGER DEFAULT 0',
+                    'best_streak': 'INTEGER DEFAULT 0',
+                    'total_xp': 'INTEGER DEFAULT 0',
+                }
+                for col, ddl in user_additions.items():
+                    if col not in user_col_names:
+                        await conn.exec_driver_sql(f'ALTER TABLE users ADD COLUMN {col} {ddl}')
+                task_cols = (await conn.exec_driver_sql('PRAGMA table_info(tasks)')).fetchall()
+                task_col_names = {row[1] for row in task_cols}
+                task_additions = {
+                    'action_url':   'TEXT',
+                    'action_label': 'TEXT',
+                }
+                for col, ddl in task_additions.items():
+                    if col not in task_col_names:
+                        await conn.exec_driver_sql(f'ALTER TABLE tasks ADD COLUMN {col} {ddl}')
+            else:
+                # PostgreSQL path
+                await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER')
+                await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN')
+                await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS settled_profit DOUBLE PRECISION')
+                await conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'")
+                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE')
+                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON')
+                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0')
+                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0')
+                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0')
+                await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT')
+                await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT')
         print('[production] Database schema ready')
     except Exception as e:
         print(f'[production] DB schema warning: {e}')

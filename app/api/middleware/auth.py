@@ -91,6 +91,7 @@ _PUBLIC_SUBPATHS = (
     "/ai-feed/sources",
     "/ai-feed/matches",
     "/ai-feed/recent",
+    "/admin/client-error",   # React ErrorBoundary telemetry — no auth needed
 )
 
 
