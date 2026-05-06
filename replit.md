@@ -47,7 +47,8 @@ python3 -c "from main import app; print('OK')"  # test backend import
 - **VIT-Chain is a separate SQLite file** — `vit_chain_ledger.db` (not the main app DB); auto-mints VIT on Stripe/Paystack deposit (1 VIT per $1 USD)
 - **Health endpoint now reads `swarm.health_summary()`** — fixed miscounting bug that showed 2/6 instead of 22/22
 - **JWT + blocklist** — revoked tokens in `token_blocklist`; checked every request
-- **AI cascade** — `multi_ai_dispatcher.py` fans out to 4 LLM providers; `scie.py` is statistical fallback
+- **AI cascade (chat)** — `gemini_chat.py` now cascades Gemini→Claude→Grok on 429/error; each response carries `provider` field shown as badge in UI
+- **AI cascade (analysis)** — `multi_ai_dispatcher.py` fans out to 4 LLM providers; `scie.py` is statistical fallback
 - **Rate limiting** — Redis sliding window (when `REDIS_URL` set) with in-memory deque fallback
 - **TMA vault** — AES-256-GCM credential encryption via `VAULT_MASTER_KEY`; falls back to base64 in dev
 
@@ -62,6 +63,9 @@ python3 -c "from main import app; print('OK')"  # test backend import
 - 22 autonomous agents: all running, supervised with auto-restart
 - Governance DAO, trust engine, developer API marketplace
 - 57-page frontend covering all modules
+- Match detail: `ProbabilityTrio`, `ModelInterpretation`, `OddsRow`, `FactorCard` components wired into Analysis tab
+- MatchAssistantCard: provider attribution badge (Gemini/Claude/Grok) shown per response
+- Routes `/competitions` → `/matches` and `/social` → `/leaderboard` redirects added
 
 ## User preferences
 

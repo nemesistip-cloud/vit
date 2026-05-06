@@ -6,13 +6,15 @@ import {
 } from "@/api-client";
 import { AIInsightComparison } from "@/components/AIInsightComparison";
 import { MatchAssistantCard } from "@/components/MatchAssistantCard";
+import { ProbabilityTrio } from "@/components/ProbabilityGauge";
+import { ModelInterpretation } from "@/components/ModelInterpretation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { BrainCircuit, ShieldCheck, ChevronLeft, Zap, Coins, TrendingUp, Target, BarChart2, Radio, Hash, Grid3x3 } from "lucide-react";
+import { BrainCircuit, ShieldCheck, ChevronLeft, Zap, Coins, TrendingUp, Target, BarChart2, Radio, Hash, Grid3x3, Syringe, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { Progress } from "@/components/ui/progress";
 
@@ -183,20 +185,25 @@ export default function MatchDetailPage() {
                     Ensemble Intelligence</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6 space-y-6">
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="space-y-2">
-                  <div className="font-mono text-sm text-muted-foreground uppercase">Home Win</div>
-                  <div className="text-2xl font-bold font-mono text-primary">{(homeProb * 100).toFixed(1)}%</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="font-mono text-sm text-muted-foreground uppercase">Draw</div>
-                  <div className="text-2xl font-bold font-mono">{(drawProb * 100).toFixed(1)}%</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="font-mono text-sm text-muted-foreground uppercase">Away Win</div>
-                  <div className="text-2xl font-bold font-mono">{(awayProb * 100).toFixed(1)}%</div>
-                </div>
-              </div>
+              <ModelInterpretation
+                homeProb={homeProb}
+                drawProb={drawProb}
+                awayProb={awayProb}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                confidence={confidence}
+                edge={(match as any).edge ?? (match as any).normalized_edge}
+                betSide={match.bet_side ?? null}
+                entryOdds={match.entry_odds ?? null}
+                modelCount={modelContributions.length || 13}
+              />
+              <ProbabilityTrio
+                homeProb={homeProb}
+                drawProb={drawProb}
+                awayProb={awayProb}
+                homeLabel={match.home_team}
+                awayLabel={match.away_team}
+              />
 
               {/* Extended Market Probabilities */}
               <div>
@@ -729,36 +736,69 @@ export default function MatchDetailPage() {
 
         <TabsContent value="injuries" className="mt-6">
           <Card className="bg-card/50 backdrop-blur border-border">
-            <CardHeader>
-              <CardTitle className="font-mono uppercase">Injury Reports</CardTitle>
-              <CardDescription>Latest injury updates for participating teams</CardDescription>
+            <CardHeader className="border-b border-border/50 pb-4">
+              <CardTitle className="font-mono uppercase flex items-center gap-2">
+                <Syringe className="w-4 h-4 text-primary" />
+                Injury &amp; Team News
+              </CardTitle>
+              <CardDescription className="font-mono text-xs">
+                Player availability updates for {match.home_team} vs {match.away_team}
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               {injuries?.injuries?.length ? (
-                <div className="space-y-4">
-                  {injuries.injuries.map((injury: any) => (
-                    <div key={injury.id} className="border border-border rounded-lg p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-semibold">{injury.player_name}</h4>
-                          <p className="text-sm text-muted-foreground">{injury.team_name}</p>
-                          <p className="text-sm">{injury.injury_type} - {injury.status}</p>
+                <div className="space-y-3">
+                  {injuries.injuries.map((injury: any) => {
+                    const statusColor =
+                      injury.status === "out"      ? "bg-red-500/10 border-red-500/25 text-red-400" :
+                      injury.status === "doubtful" ? "bg-amber-500/10 border-amber-500/25 text-amber-400" :
+                      "bg-emerald-500/10 border-emerald-500/25 text-emerald-400";
+                    return (
+                      <div key={injury.id} className="flex items-start gap-3 rounded-lg border border-border bg-background/40 p-3">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="font-mono text-sm font-bold text-foreground truncate">
+                            {injury.player ?? injury.player_name ?? "Unknown Player"}
+                          </div>
+                          <div className="font-mono text-xs text-muted-foreground">
+                            {injury.team ?? injury.team_name ?? ""}
+                          </div>
+                          {injury.note && (
+                            <div className="font-mono text-[11px] text-muted-foreground/70 leading-relaxed">{injury.note}</div>
+                          )}
+                          {(injury.injury_type || injury.status) && !injury.note && (
+                            <div className="font-mono text-[11px] text-muted-foreground/70">
+                              {[injury.injury_type, injury.status].filter(Boolean).join(" — ")}
+                            </div>
+                          )}
+                          {injury.added_at && (
+                            <div className="font-mono text-[9px] text-muted-foreground/40 uppercase tracking-wide">
+                              Added {new Date(injury.added_at).toLocaleDateString()}
+                            </div>
+                          )}
                         </div>
-                        <Badge variant={injury.status === 'doubtful' ? 'destructive' : 'secondary'}>
-                          {injury.status}
+                        <Badge variant="outline" className={`font-mono text-[10px] uppercase flex-shrink-0 ${statusColor}`}>
+                          {injury.status ?? "reported"}
                         </Badge>
                       </div>
-                      {injury.expected_return && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Expected return: {injury.expected_return}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No injury reports available
+                <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
+                  <div className="w-12 h-12 rounded-full bg-muted/20 border border-border flex items-center justify-center">
+                    <AlertCircle className="w-6 h-6 text-muted-foreground/50" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-mono text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      No Injury Reports
+                    </p>
+                    <p className="font-mono text-xs text-muted-foreground/60 max-w-xs">
+                      No injuries or suspensions have been logged for this fixture. Admins can add team news via the Odds Intel panel.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" className="font-mono text-xs uppercase" onClick={() => setLocation("/odds")}>
+                    Go to Odds Intel
+                  </Button>
                 </div>
               )}
             </CardContent>

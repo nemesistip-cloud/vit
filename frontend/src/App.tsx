@@ -243,6 +243,12 @@ function Router() {
       <Route path="/bankroll">
         <Layout><ProtectedRoute component={BankrollPage} /></Layout>
       </Route>
+      <Route path="/competitions">
+        <Redirect to="/matches" />
+      </Route>
+      <Route path="/social">
+        <Redirect to="/leaderboard" />
+      </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/verify-email" component={VerifyEmailPage} />

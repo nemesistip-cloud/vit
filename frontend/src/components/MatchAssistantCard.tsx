@@ -11,6 +11,13 @@ import {
 } from "@/api-client";
 import { toast } from "sonner";
 
+const PROVIDER_LABELS: Record<string, { label: string; cls: string }> = {
+  gemini: { label: "Gemini", cls: "border-primary/30 text-primary/70" },
+  claude: { label: "Claude", cls: "border-purple-500/30 text-purple-400/80" },
+  grok:   { label: "Grok",   cls: "border-sky-500/30 text-sky-400/80" },
+  openai: { label: "GPT-4",  cls: "border-emerald-500/30 text-emerald-400/80" },
+};
+
 interface MatchAssistantCardProps {
   match: any;
   consensus?: any;
@@ -112,6 +119,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<AssistantTurn[]>([]);
+  const [providers, setProviders] = useState<Record<number, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const status = useAssistantStatus();
@@ -141,12 +149,18 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
     setInput("");
 
     try {
-      const result = await chat.mutateAsync({
+      const result: any = await chat.mutateAsync({
         message: trimmed,
         history: messages,
         context,
       });
-      setMessages((prev) => [...prev, { role: "assistant", content: result.reply }]);
+      setMessages((prev) => {
+        const next = [...prev, { role: "assistant" as const, content: result.reply }];
+        if (result.provider) {
+          setProviders((p) => ({ ...p, [next.length - 1]: result.provider }));
+        }
+        return next;
+      });
       if (result.error) toast.error(result.error);
     } catch (e: any) {
       const msg = e?.message || "Failed to reach the assistant";
@@ -165,6 +179,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
 
   function reset() {
     setMessages([]);
+    setProviders({});
     setInput("");
   }
 
@@ -243,7 +258,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
             )}
 
             {messages.map((m, i) => (
-              <Bubble key={i} role={m.role} content={m.content} />
+              <Bubble key={i} role={m.role} content={m.content} provider={providers[i]} />
             ))}
 
             {chat.isPending && <Bubble role="assistant" content="" pending />}
@@ -308,12 +323,16 @@ function Bubble({
   role,
   content,
   pending = false,
+  provider,
 }: {
   role: "user" | "assistant";
   content: string;
   pending?: boolean;
+  provider?: string;
 }) {
   const isUser = role === "user";
+  const providerMeta = provider ? PROVIDER_LABELS[provider] : null;
+
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       <div
@@ -325,23 +344,33 @@ function Bubble({
       >
         {isUser ? <UserIcon className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
       </div>
-      <div
-        className={`max-w-[80%] rounded-lg px-3 py-2 text-sm font-mono leading-relaxed ${
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-card border border-border"
-        }`}
-      >
-        {pending ? (
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />
-            <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]" />
-            <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" />
-          </span>
-        ) : isUser ? (
-          <span className="whitespace-pre-wrap break-words">{content}</span>
-        ) : (
-          <MarkdownContent content={content} />
+      <div className={`max-w-[80%] space-y-1 ${isUser ? "items-end" : "items-start"} flex flex-col`}>
+        <div
+          className={`rounded-lg px-3 py-2 text-sm font-mono leading-relaxed ${
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-card border border-border"
+          }`}
+        >
+          {pending ? (
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" />
+            </span>
+          ) : isUser ? (
+            <span className="whitespace-pre-wrap break-words">{content}</span>
+          ) : (
+            <MarkdownContent content={content} />
+          )}
+        </div>
+        {!isUser && providerMeta && !pending && (
+          <Badge
+            variant="outline"
+            className={`font-mono text-[9px] px-1.5 py-0 h-4 ${providerMeta.cls}`}
+          >
+            via {providerMeta.label}
+          </Badge>
         )}
       </div>
     </div>
