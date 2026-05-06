@@ -1,67 +1,67 @@
-# VIT Sports Intelligence Network
+# VIT Sports Intelligence Network v6.0
 
-A 13-model AI ensemble football prediction platform with a VITCoin wallet economy, blockchain staking, model marketplace, governance DAO, and 22 autonomous AI agents.
+A 13-model AI ensemble football prediction platform with a VITCoin wallet economy, VIT-Chain sovereign ledger, 22 autonomous AI agents (all running), Telegram Mini App integration, cash-out sentinel, blockchain staking, model marketplace, and governance DAO.
 
 ## Run & Operate
 
 ```bash
-bash scripts/start_fullstack.sh   # starts both frontend (5000) and backend (8000)
+bash scripts/start_fullstack.sh   # starts frontend (5000) + backend (8000)
 pip install -r requirements.txt   # install backend deps
-cd frontend && npm install        # install frontend deps
-cd frontend && npm run build      # production frontend build
+alembic upgrade head              # run DB migrations (stamp first if DB pre-exists)
 python3 -c "from main import app; print('OK')"  # test backend import
 ```
 
 **Required secrets** (set in Replit Secrets):
-- `JWT_SECRET_KEY` — required for auth
-- `SECRET_KEY` — fallback signing key
-- `ADMIN_PASSWORD` — set before first deploy
-- Optional: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `PAYSTACK_SECRET_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `RESEND_API_KEY`, `REDIS_URL`
+- `JWT_SECRET_KEY`, `SECRET_KEY`, `ADMIN_PASSWORD`
+- `GEMINI_API_KEY`, `OPENAI_API_KEY`, `CLAUDE_API_KEY`, `XAI_API_KEY`
+- `TELEGRAM_BOT_TOKEN`, `PAYSTACK_SECRET_KEY`, `STRIPE_SECRET_KEY`
+- `DATABASE_URL` (PostgreSQL in prod)
+- Optional: `REDIS_URL`, `RESEND_API_KEY`, `VAULT_MASTER_KEY` (TMA vault encryption)
 
 ## Stack
 
 - **Backend**: Python 3.11, FastAPI 0.115, SQLAlchemy 2.0 async, Alembic, Uvicorn
 - **Frontend**: React 19, TypeScript, Vite 6, TailwindCSS 4, ShadCN/Radix UI
-- **Database**: SQLite (dev) / PostgreSQL (prod) via `VIT_DATABASE_URL`
-- **Auth**: JWT (python-jose) + TOTP 2FA (pyotp) + JWT blocklist (token_blocklist table)
-- **AI**: Gemini → Claude → OpenAI → Grok → Puter cascade with 20s per-provider timeout
+- **Database**: SQLite (dev) / PostgreSQL (prod) via `DATABASE_URL`
+- **Auth**: JWT (python-jose) + TOTP 2FA + JWT blocklist (`token_blocklist` table)
+- **AI**: Gemini → Claude → OpenAI → Grok → Puter cascade, 20s per-provider timeout
 - **Payments**: Stripe (USD), Paystack (NGN), USDT, Pi Network, VITCoin
 
 ## Where things live
 
-- `main.py` — FastAPI app, 559 routes, all background tasks wired (100KB, do not read all at once)
-- `app/db/models.py` — all core ORM models (User, Match, Prediction, TokenBlocklist, etc.)
-- `app/modules/` — 25 feature modules (wallet, blockchain, governance, trust, DID, etc.)
-- `app/services/` — 50+ service files (AI providers, data pipelines, email, etc.)
-- `app/auth/` — JWT, TOTP, verification routes
-- `frontend/src/pages/` — 57 React pages, all lazy-loaded and routed in App.tsx
-- `frontend/src/` — components, hooks, lib
-- `.env.example` — full env var reference
-- `alembic/versions/` — 16 DB migrations
-- `scripts/` — startup, training, data pipeline scripts
+- `main.py` — FastAPI app, 560+ routes, lifespan wires SwarmOrchestrator + VIT-Chain
+- `vit_chain.py` — VIT-Chain sovereign ledger (hash-linked SQLite, PoW difficulty=4)
+- `app/core/swarm_orchestrator.py` — SwarmOrchestrator: all 22 agents + 30s heartbeat
+- `app/modules/betting/cash_out_sentinel.py` — momentum-based auto cash-out engine
+- `app/modules/telegram_mini_app/integration.py` — TMA initData auth + vault + metering
+- `app/db/models.py` — core ORM models
+- `app/agents/` — all 22 agent implementations
+- `app/modules/` — 25 feature modules
+- `app/services/` — 50+ service files
+- `frontend/src/pages/` — 57 React pages
+- `alembic/versions/` — 17 migrations (latest: e5f6a7b8c9d0 v6 schema fixes)
 
 ## Architecture decisions
 
-- **SQLite in dev, PostgreSQL in prod** — `VIT_DATABASE_URL` switches dialect; `aiosqlite` + `asyncpg` both installed
-- **JWT + blocklist** — revoked tokens stored in `token_blocklist` table (jti column); checked on every request via `is_token_revoked()`
-- **13 ML models** deferred in dev, activated via `USE_REAL_ML_MODELS=true` or in production; `.pkl` weights go in `models/`
-- **AI cascade** — `multi_ai_dispatcher.py` fans out to up to 4 LLM providers with 20s per-provider `asyncio.wait_for` timeout; `app/services/scie.py` is the zero-API statistical fallback
-- **Rate limiting** — Redis sliding window (when `REDIS_URL` set) with in-memory deque fallback; SEC-07 idle bucket eviction
-- **CORS** — wildcard origins never paired with `allow_credentials=True` (SEC-02)
-- **Timing-safe auth** — legacy API key comparison uses `hmac.compare_digest` (SEC-08)
-- **TOTP DDL** — columns defined in `app/db/models.py`, created at startup via `Base.metadata.create_all`; no runtime ALTER TABLE
+- **SwarmOrchestrator replaces AgentCoordinator** — `app/core/swarm_orchestrator.py` supervises all 22 agents with per-agent restart tracking; `app.state.agent_coordinator` kept as alias for legacy routes
+- **VIT-Chain is a separate SQLite file** — `vit_chain_ledger.db` (not the main app DB); auto-mints VIT on Stripe/Paystack deposit (1 VIT per $1 USD)
+- **Health endpoint now reads `swarm.health_summary()`** — fixed miscounting bug that showed 2/6 instead of 22/22
+- **JWT + blocklist** — revoked tokens in `token_blocklist`; checked every request
+- **AI cascade** — `multi_ai_dispatcher.py` fans out to 4 LLM providers; `scie.py` is statistical fallback
+- **Rate limiting** — Redis sliding window (when `REDIS_URL` set) with in-memory deque fallback
+- **TMA vault** — AES-256-GCM credential encryption via `VAULT_MASTER_KEY`; falls back to base64 in dev
 
 ## Product
 
 - Football match predictions (13-model ensemble, per-league calibration)
-- Multi-AI analysis (Gemini, Claude, OpenAI, Grok, Puter) with SCIE statistical fallback
-- VITCoin economy: wallet, deposits (Stripe/Paystack/USDT), withdrawals, subscriptions
-- Blockchain: Base L2 oracle, VIT DID (W3C), bridge, staking validators
-- Governance DAO with quorum + timelock enforcement
-- Trust engine: composite scoring, fraud detection, auto-suspension
-- 22 autonomous agents: fixture gap, KYC screening, model promoter, etc.
+- Multi-AI analysis (Gemini, Claude, OpenAI, Grok) + SCIE statistical fallback
+- VITCoin economy: wallet, deposits (Stripe/Paystack/USDT), auto-minting on deposit
+- VIT-Chain: sovereign hash-linked ledger at `/api/chain/*` — mint/transfer/verify
+- Telegram Mini App: `/api/tma/*` — initData auth, AES vault, tool credit marketplace
+- Cash-Out Sentinel: `/api/cashout/*` — 3 strategies (aggressive/balanced/conservative)
+- 22 autonomous agents: all running, supervised with auto-restart
+- Governance DAO, trust engine, developer API marketplace
 - 57-page frontend covering all modules
-- Developer API marketplace with per-call VITCoin billing
 
 ## User preferences
 
@@ -72,14 +72,15 @@ python3 -c "from main import app; print('OK')"  # test backend import
 ## Gotchas
 
 - `main.py` is ~100KB — read in sections with offset/limit
-- `torch>=2.0.0` is in requirements but heavy — install may be slow; ML models only load in production
-- `BLOCKCHAIN_ENABLED=false` by default — set to `true` + provide `BASE_RPC_URL` for chain features
-- `ADMIN_PASSWORD` blank in `.env.example` — must set before first deploy
-- `requirements.txt` had 4× duplicate entries — now cleaned to single canonical list (41 packages)
-- Background tasks (6 `asyncio.create_task` + supervisor) start in `lifespan`; check `/health` `agents` field to verify
+- `alembic stamp head` required on existing DBs before `alembic upgrade head`
+- VIT-Chain DB is `vit_chain_ledger.db` (separate from app DB; configurable via `VIT_CHAIN_DB`)
+- `VAULT_MASTER_KEY` not set → TMA vault uses base64 fallback (dev only; set for prod)
+- SwarmOrchestrator spawns 22 asyncio tasks at startup — logs show all starting in sequence
+- Background supervisor (etl-pipeline, odds-refresh, cache-purge, task-reset) is separate from SwarmOrchestrator
+- `BLOCKCHAIN_ENABLED=false` by default — set to `true` + `BASE_RPC_URL` for Base L2 chain features
 
 ## Pointers
 
-- Security audit plan: `attached_assets/vit_debug_scan_plan.jsx_1778008560901.txt`
-- Phase 3/4 implementation notes: `PHASE_3_IMPLEMENTATION.md`
+- Audit report: `VIT_AUDIT_REPORT.md`
+- Phase 3/4 notes: `PHASE_3_IMPLEMENTATION.md`
 - Roadmap: `ROADMAP.md`

@@ -140,6 +140,12 @@ from app.modules.network.routes import router as network_router
 from app.iot.router import router as iot_router
 from app.agents.coordinator import AgentCoordinator
 
+# ===== VIT v6.0 — Sovereign Chain + Swarm + TMA + CashOut =====
+from vit_chain import chain_router, get_vit_chain
+from app.core.swarm_orchestrator import SwarmOrchestrator, get_swarm
+from app.modules.telegram_mini_app.integration import tma_router
+from app.modules.betting.cash_out_sentinel import cashout_router
+
 # ===== MIDDLEWARE =====
 from app.api.middleware.auth import APIKeyMiddleware
 from app.api.middleware.logging import LoggingMiddleware
@@ -1562,19 +1568,43 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(sync_upcoming_loop(), name="fixture-sync"),
     ]
 
-    # ── Autonomous performance agents ─────────────────────────────────────
+    # ── VIT Chain Ledger (initialise + ensure genesis block) ──────────────
     try:
-        agent_coordinator = AgentCoordinator()
-        agent_coordinator.start(tasks)
-        app.state.agent_coordinator = agent_coordinator
-        print("✅ Autonomous agents started (performance-monitor, weight-optimizer, retrain-trigger, match-scout, news-sentinel, odds-anomaly)")
-    except Exception as _agent_err:
-        print(f"⚠️  Agent coordinator failed to start: {_agent_err}")
+        vit_chain = get_vit_chain()
+        _chain_stats = await vit_chain.get_chain_stats()
+        print(f"⛓️  VIT-Chain ready: {_chain_stats['blocks']} blocks, {_chain_stats['transactions']} txs")
+        app.state.vit_chain = vit_chain
+    except Exception as _chain_err:
+        print(f"⚠️  VIT-Chain init failed: {_chain_err}")
+
+    # ── Swarm Orchestrator — all 22 autonomous agents ─────────────────────
+    try:
+        swarm = SwarmOrchestrator()
+        await swarm.start_all()
+        app.state.swarm = swarm
+        # Keep legacy coordinator reference for older routes that use app.state.agent_coordinator
+        app.state.agent_coordinator = swarm
+        _hsummary = swarm.health_summary()
+        print(f"🤖 Swarm started: {_hsummary['total']} agents registered, {_hsummary['running']} alive")
+    except Exception as _swarm_err:
+        # Fallback to legacy AgentCoordinator if swarm fails
+        print(f"⚠️  SwarmOrchestrator failed ({_swarm_err}) — falling back to AgentCoordinator")
+        try:
+            agent_coordinator = AgentCoordinator()
+            agent_coordinator.start(tasks)
+            app.state.agent_coordinator = agent_coordinator
+        except Exception as _agent_err:
+            print(f"⚠️  AgentCoordinator also failed: {_agent_err}")
 
     print("✅ Background services started with supervision")
     print("🌐 API running at http://localhost:5000")
 
     yield
+
+    # ── Graceful shutdown ─────────────────────────────────────────────────
+    swarm_inst = getattr(app.state, "swarm", None)
+    if swarm_inst:
+        await swarm_inst.stop_all()
 
     await supervisor.stop()
     for task in tasks:
@@ -1896,6 +1926,11 @@ from app.api.routes.bankroll import router as bankroll_router
 app.include_router(model_perf_router)
 app.include_router(bankroll_router)
 
+# VIT v6.0 — Sovereign Chain + TMA + Cash-Out Sentinel
+app.include_router(chain_router)
+app.include_router(tma_router)
+app.include_router(cashout_router)
+
 
 def _format_count(value: int) -> str:
     if value >= 1_000_000:
@@ -2058,40 +2093,36 @@ async def health(db: AsyncSession = Depends(get_db)):
     orch = get_orchestrator()
     models = orch.num_models_ready() if orch else 0
 
-    # C-5 — agent status snapshot
+    # C-5 — agent status snapshot (SwarmOrchestrator v6.0)
     agents_info: dict = {}
     try:
+        swarm = getattr(app.state, "swarm", None)
         coordinator = getattr(app.state, "agent_coordinator", None)
-        supervisor = getattr(app.state, "background_supervisor", None)
-        agent_names = []
-        running_count = 0
-        if coordinator:
-            snap = coordinator.status() if hasattr(coordinator, "status") else {}
-            for name, info in snap.items():
-                agent_names.append(name)
-                if info.get("running"):
-                    running_count += 1
-        if supervisor:
-            sup_snap = supervisor.snapshot() if hasattr(supervisor, "snapshot") else {}
-            for name, info in sup_snap.items():
-                if name not in agent_names:
-                    agent_names.append(name)
-                if info.get("running"):
-                    running_count += 1
-        total = len(agent_names)
-        stopped = total - running_count
-        stopped_names = []
-        if coordinator:
-            snap = coordinator.status() if hasattr(coordinator, "status") else {}
-            for n, info in snap.items():
-                if not info.get("running"):
-                    stopped_names.append(n)
-        agents_info = {
-            "total": total,
-            "running": running_count,
-            "stopped": stopped,
-            "stopped_names": stopped_names,
-        }
+
+        if swarm and hasattr(swarm, "health_summary"):
+            # SwarmOrchestrator path (v6.0) — correct 22-agent count
+            agents_info = swarm.health_summary()
+        elif coordinator and hasattr(coordinator, "health_summary"):
+            agents_info = coordinator.health_summary()
+        elif coordinator and hasattr(coordinator, "status"):
+            # Legacy AgentCoordinator — status() returns {"coordinator":{}, "agents":{}}
+            snap = coordinator.status()
+            agent_snaps = snap.get("agents", snap)   # handle both old and new shapes
+            total = len(agent_snaps)
+            running_count = sum(
+                1 for info in agent_snaps.values()
+                if isinstance(info, dict) and info.get("status") in ("ok", "running", "idle")
+            )
+            stopped_names = [
+                n for n, info in agent_snaps.items()
+                if isinstance(info, dict) and info.get("status") not in ("ok", "running", "idle")
+            ]
+            agents_info = {
+                "total":         total,
+                "running":       running_count,
+                "stopped":       total - running_count,
+                "stopped_names": stopped_names,
+            }
     except Exception:
         pass
 

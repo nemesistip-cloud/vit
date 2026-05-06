@@ -30,7 +30,12 @@ USDT_MIN_CONFIRMATIONS  = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
 
 
 async def _credit_wallet_by_reference(reference: str) -> bool:
-    """Find a pending transaction by reference and credit the wallet."""
+    """Find a pending transaction by reference and credit the wallet.
+    
+    v6.0: also auto-mints VITCoin on the VIT Chain ledger proportional to deposit amount.
+    Mint rate: 1 VIT per 1 USD equivalent (or 1 per NGN 1500 for Paystack).
+    """
+    from decimal import Decimal
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(WalletTransaction).where(WalletTransaction.reference == reference)
@@ -51,6 +56,38 @@ async def _credit_wallet_by_reference(reference: str) -> bool:
         tx.processed_at = datetime.utcnow()
         await db.commit()
         logger.info(f"Webhook credited {tx.amount} {tx.currency} to wallet {tx.wallet_id} (ref={reference})")
+
+        # ── VIT Chain auto-mint: 1 VIT per $1 USD (or per ₦1500 NGN) ──────
+        try:
+            from vit_chain import get_vit_chain, VITTransaction
+            chain = get_vit_chain()
+            currency = (tx.currency or "USD").upper()
+            amount   = float(tx.amount or 0)
+            if currency == "NGN":
+                vit_amount = Decimal(str(round(amount / 1500, 4)))
+            elif currency in ("USDT", "USD"):
+                vit_amount = Decimal(str(round(amount, 4)))
+            else:
+                vit_amount = Decimal(str(round(amount * 0.01, 4)))  # generic fallback
+
+            if vit_amount > 0:
+                receiver_addr = f"user:{wallet.user_id}"
+                chain_tx = VITTransaction(
+                    sender="genesis",
+                    receiver=receiver_addr,
+                    amount=vit_amount,
+                    memo=f"Auto-mint on deposit ref={reference}",
+                    tx_type="mint",
+                    metadata={"ref": reference, "currency": currency, "fiat_amount": amount},
+                )
+                block = await chain.mint_block([chain_tx], miner="webhook-sentinel")
+                logger.info(
+                    f"[vit-chain] auto-minted {vit_amount} VIT to {receiver_addr} "
+                    f"block #{block.index} (ref={reference})"
+                )
+        except Exception as _mint_err:
+            logger.warning(f"[vit-chain] auto-mint skipped for ref={reference}: {_mint_err}")
+
         return True
 
 
