@@ -1,29 +1,30 @@
 {
   "match_id": 19,
-  "generated_at": "2026-05-06T22:02:47.804729+00:00",
+  "generated_at": "2026-05-06T23:39:19.194276+00:00",
   "insights": {
     "deterministic": {
       "available": true,
       "source": "deterministic",
       "label": "VIT Statistical Engine",
-      "home_prob": 0.4405,
-      "draw_prob": 0.2694,
-      "away_prob": 0.2901,
-      "confidence": 0.4137,
-      "summary": "The 13-model ensemble assigns Home Win a marginal 44.1% probability in Slovan Ljubljana vs Jesenice (Slovenian 2 Snl). The home side carries a 44.1% win probability versus 29.0% for the visitors, with a draw at 26.9%. Goals market signals Lean Under (37% O2.5).",
+      "home_prob": 0.4653,
+      "draw_prob": 0.2411,
+      "away_prob": 0.2937,
+      "confidence": 0.4217,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 46.5% probability in Slovan Ljubljana vs Jesenice (Slovenian 2 Snl). The home side carries a 46.5% win probability versus 29.4% for the visitors, with a draw at 24.1%. Goals market signals Lean Under (37% O2.5).",
       "key_factors": [
-        "ML ensemble conviction: marginal (44.1% for Home Win)",
-        "Market edge is positive at 2.89% vs vig-free fair price",
+        "ML ensemble conviction: marginal (46.5% for Home Win)",
+        "Market edge is positive at 5.64% vs vig-free fair price",
         "Over 2.5 Goals at 36.8% — below 50% threshold",
-        "Ensemble entropy at 98% of maximum — uncertain split"
+        "Ensemble entropy at 96% of maximum — uncertain split"
       ],
-      "value_assessment": "Marginal edge of 2.89% — proceed only with bankroll discipline.",
-      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "value_assessment": "Edge of 5.64% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 5.64% on HOME meets minimum threshold.",
       "risk_level": "MEDIUM",
       "insight_tags": [
         "conviction:marginal",
         "risk:medium",
         "goals-market",
+        "edge-bet",
         "deterministic-fallback"
       ],
       "error": null,
