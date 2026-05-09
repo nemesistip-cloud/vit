@@ -1,0 +1,34 @@
+{
+  "match_id": 9,
+  "generated_at": "2026-05-09T13:39:30.267306+00:00",
+  "insights": {
+    "deterministic": {
+      "available": true,
+      "source": "deterministic",
+      "label": "VIT Statistical Engine",
+      "home_prob": 0.4506,
+      "draw_prob": 0.2448,
+      "away_prob": 0.3046,
+      "confidence": 0.4179,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 45.1% probability in Brighton and Hove Albion vs Wolverhampton Wanderers (Premier League). The home side carries a 45.1% win probability versus 30.5% for the visitors, with a draw at 24.5%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (45.1% for Home Win)",
+        "Market edge is positive at 4.01% vs vig-free fair price",
+        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "Ensemble entropy at 97% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 4.01% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 4.01% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    }
+  }
+}
