@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_current_admin
+from app.api.deps import get_current_user, get_current_admin, get_optional_user
 from app.db.database import get_db
 from app.db.models import User
 from app.modules.marketplace import service as svc
@@ -205,7 +205,7 @@ async def browse_listings(
     page:      int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db:        AsyncSession = Depends(get_db),
-    _:         User = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     listings, total = await svc.list_listings(
         db, category=category, search=search,
@@ -225,7 +225,7 @@ async def browse_listings(
 async def get_listing(
     listing_id: int,
     db:         AsyncSession = Depends(get_db),
-    _:          User = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     listing = await svc.get_listing(db, listing_id)
     if not listing:
@@ -549,7 +549,7 @@ async def my_usage(
 @router.get("/stats", summary="Platform marketplace statistics")
 async def marketplace_stats(
     db: AsyncSession = Depends(get_db),
-    _:  User = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     return await svc.platform_stats(db)
 
@@ -827,7 +827,7 @@ async def leaderboard(
         enum=["roi", "win_rate", "total_staked", "usage_count", "est_apy"],
     ),
     db: AsyncSession = Depends(get_db),
-    _:  User = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     """
     Return all active approved marketplace models ranked by the chosen metric.
@@ -868,7 +868,7 @@ async def seed_system_models(
 async def model_slash_history(
     listing_id: int,
     db:         AsyncSession = Depends(get_db),
-    _:          User = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     """Return the full slash audit trail for a marketplace model."""
     events = await svc.get_slash_history(db, listing_id)

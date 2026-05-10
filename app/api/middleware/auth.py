@@ -91,7 +91,20 @@ _PUBLIC_SUBPATHS = (
     "/ai-feed/sources",
     "/ai-feed/matches",
     "/ai-feed/recent",
-    "/admin/client-error",   # React ErrorBoundary telemetry — no auth needed
+    "/admin/client-error",      # React ErrorBoundary telemetry — no auth needed
+    "/history/ticket/markets",  # Ticket builder market list — no personal data
+    "/history/ticket/candidates",  # Ticket candidates — no personal data
+    "/history/ticket/build",    # Ticket builder — no personal data
+    "/history/picks",           # Community best-picks feed — public
+    "/history/results-comparison",  # Public results feed
+    "/analytics/summary",       # Platform-level stats — public
+    "/analytics/accuracy",      # Platform accuracy stats — public
+    "/analytics/system",        # System analytics — public
+    "/analytics/leaderboard",   # Validator/user leaderboard — public
+    "/odds/injuries",           # Injury notes — read-only, used by match-detail page
+    "/odds/audit-log",          # Audit log — read-only, used by match-detail page
+    "/odds/markets",            # Market listings — read-only public data
+    "/odds/compare",            # Odds comparison — read-only public data
 )
 
 
@@ -198,6 +211,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 async def verify_api_key(request: Request):
     """Route-level dependency — accepts JWT, developer vit_* key, or legacy env API key."""
     if not auth_enabled():
+        return True
+
+    # Allow explicitly public sub-paths through without any credentials
+    path = request.url.path
+    if any(path == p or path.startswith(p) for p in _PUBLIC_SUBPATHS):
         return True
 
     auth_header = request.headers.get("Authorization", "")

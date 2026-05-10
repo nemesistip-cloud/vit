@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_user
+from app.api.deps import get_current_admin, get_current_user, get_optional_user
 from app.db.database import get_db
 from app.modules.did.engine import (
     get_active_credentials,
@@ -75,9 +75,9 @@ async def list_registry(
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_admin),
+    _=Depends(get_optional_user),
 ):
-    """Admin: list all registered DIDs."""
+    """List registered DIDs (public)."""
     identities = await list_all_identities(subject_type, limit, offset, db)
     result = []
     for identity in identities:
@@ -162,6 +162,24 @@ async def get_agent_did(agent_name: str, db: AsyncSession = Depends(get_db)):
         "document": identity.did_document,
         "credentials": [_vc_summary(vc) for vc in vcs],
         "created_at": identity.created_at.isoformat(),
+    }
+
+
+# ── Stats summary (must be before /{did:path} catch-all) ────────────────────
+
+@router.get("/stats")
+async def did_stats(db: AsyncSession = Depends(get_db)):
+    """Public registry statistics."""
+    from sqlalchemy import func as sa_func
+    total = await db.scalar(select(sa_func.count(VITIdentity.id))) or 0
+    active = await db.scalar(
+        select(sa_func.count(VITIdentity.id)).where(VITIdentity.active == True)
+    ) or 0
+    cred_count = await db.scalar(select(sa_func.count(VerifiableCredential.id))) or 0
+    return {
+        "total_identities": total,
+        "active_identities": active,
+        "total_credentials": cred_count,
     }
 
 

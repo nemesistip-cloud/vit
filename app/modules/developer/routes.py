@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_user
+from app.api.deps import get_current_admin, get_current_user, get_optional_user
 from app.db.database import get_db
 from app.db.models import User
 from app.modules.developer import service as svc
@@ -73,7 +73,7 @@ def _fmt_plan(p) -> dict:
 @router.get("/plans", summary="List available API plans")
 async def list_plans(
     db: AsyncSession = Depends(get_db),
-    _:  User         = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     await svc.seed_plans(db)
     plans = await svc.list_plans(db)
@@ -187,7 +187,7 @@ async def usage_summary(
 @router.get("/docs", summary="Developer documentation links")
 async def developer_docs(
     request: Request,
-    _: User = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     """Return developer reference docs.
 

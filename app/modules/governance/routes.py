@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_user
+from app.api.deps import get_current_admin, get_current_user, get_optional_user
 from app.db.database import get_db
 from app.db.models import User
 from app.modules.governance import service as svc
@@ -92,7 +92,7 @@ async def list_proposals(
     page:      int           = Query(default=1, ge=1),
     page_size: int           = Query(default=20, ge=1, le=100),
     db:        AsyncSession  = Depends(get_db),
-    _:         User          = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     proposals, total = await svc.list_proposals(db, status=status, category=category, page=page, page_size=page_size)
     return {
@@ -129,7 +129,7 @@ async def create_proposal(
 async def get_proposal(
     proposal_id: int,
     db:          AsyncSession = Depends(get_db),
-    _:           User         = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     proposal = await svc.get_proposal(db, proposal_id)
     if not proposal:
@@ -175,7 +175,7 @@ async def cast_vote(
 async def list_votes(
     proposal_id: int,
     db:          AsyncSession = Depends(get_db),
-    _:           User         = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     from sqlalchemy import select
     from app.modules.governance.models import Vote
@@ -208,7 +208,7 @@ async def execute_proposal(
 @router.get("/config", summary="List all protocol configuration parameters")
 async def list_config(
     db: AsyncSession = Depends(get_db),
-    _:  User         = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     await svc.seed_default_config(db)
     configs = await svc.list_configs(db)
@@ -245,7 +245,7 @@ async def refresh_tallies(
 @router.get("/stats", summary="Governance platform statistics")
 async def governance_stats(
     db: AsyncSession = Depends(get_db),
-    _:  User         = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     from sqlalchemy import func, select
     from app.modules.governance.models import Proposal, Vote

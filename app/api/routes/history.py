@@ -428,7 +428,8 @@ async def get_picks(db: AsyncSession = Depends(get_db)):
         edge = row.Prediction.vig_free_edge or 0
         insights = row.Prediction.model_insights or []
 
-        active_models = [m for m in insights if not m.get("failed")]
+        # Guard: model_insights may contain floats/non-dicts from legacy data
+        active_models = [m for m in insights if isinstance(m, dict) and not m.get("failed")]
         num_models = len(active_models)
 
         if num_models == 0:
@@ -454,15 +455,22 @@ async def get_picks(db: AsyncSession = Depends(get_db)):
         agreement_pct = round(model_agreement / num_models * 100, 1) if num_models > 0 else 0
 
         # Model confidence ratings per market
+        # Guard: confidence field may be a float scalar instead of a dict in older rows
+        def _conf(m: dict, key: str, default: float = 0.5) -> float:
+            c = m.get("confidence")
+            if isinstance(c, dict):
+                return c.get(key, default)
+            return default
+
         avg_1x2_confidence = (
-            sum(m.get("confidence", {}).get("1x2", 0.5) for m in active_models) / num_models
+            sum(_conf(m, "1x2") for m in active_models) / num_models
         ) if num_models > 0 else 0.5
         avg_ou_confidence = (
-            sum(m.get("confidence", {}).get("over_under", 0.5) for m in active_models if "over_under" in m.get("supported_markets", [])) /
+            sum(_conf(m, "over_under") for m in active_models if "over_under" in m.get("supported_markets", [])) /
             max(1, sum(1 for m in active_models if "over_under" in m.get("supported_markets", [])))
         )
         avg_btts_confidence = (
-            sum(m.get("confidence", {}).get("btts", 0.5) for m in active_models if "btts" in m.get("supported_markets", [])) /
+            sum(_conf(m, "btts") for m in active_models if "btts" in m.get("supported_markets", [])) /
             max(1, sum(1 for m in active_models if "btts" in m.get("supported_markets", [])))
         )
 
@@ -658,7 +666,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
             }
             for name, weight in weights.items()
         ]
-    active_models = [m for m in insights if not m.get("failed")]
+    active_models = [m for m in insights if isinstance(m, dict) and not m.get("failed")]
 
     def market_breakdown(market_key, prob_fields):
         models_for_market = [m for m in active_models if market_key in m.get("supported_markets", [])]

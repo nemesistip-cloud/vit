@@ -92,6 +92,41 @@ async def security_dashboard(db: AsyncSession = Depends(get_db)):
     return await get_security_dashboard(db)
 
 
+@router.get("/alerts")
+async def list_alerts(
+    resolved: Optional[bool] = None,
+    severity: Optional[str] = None,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+):
+    """List fraud alerts with optional filters."""
+    from sqlalchemy import select, and_
+    from app.modules.security.models import FraudAlert
+    q = select(FraudAlert).order_by(FraudAlert.created_at.desc()).limit(limit)
+    if resolved is not None:
+        q = q.where(FraudAlert.resolved == resolved)
+    if severity:
+        q = q.where(FraudAlert.severity == severity)
+    rows = (await db.execute(q)).scalars().all()
+    return {
+        "alerts": [
+            {
+                "id": a.id,
+                "user_id": a.user_id,
+                "severity": a.severity.value if hasattr(a.severity, "value") else a.severity,
+                "alert_type": a.alert_type,
+                "description": a.description,
+                "anomaly_score": float(a.anomaly_score or 0),
+                "resolved": a.resolved,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+                "resolved_at": a.resolved_at.isoformat() if a.resolved_at else None,
+            }
+            for a in rows
+        ],
+        "total": len(rows),
+    }
+
+
 @router.post("/sybil/evaluate")
 async def evaluate_sybil(req: SybilEvalRequest, db: AsyncSession = Depends(get_db)):
     profile = await evaluate_sybil_risk(

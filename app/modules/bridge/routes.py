@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_user
+from app.api.deps import get_current_admin, get_current_user, get_optional_user
 from app.db.database import get_db
 from app.db.models import User
 from app.modules.bridge import service as svc
@@ -76,7 +76,7 @@ def _fmt_tx(tx) -> dict:
 @router.get("/pools", summary="List active bridge pools")
 async def list_pools(
     db: AsyncSession = Depends(get_db),
-    _: User          = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     await svc.seed_default_pools(db)
     pools = await svc.list_pools(db)
@@ -87,7 +87,7 @@ async def list_pools(
 async def get_pool(
     pool_id: int,
     db:      AsyncSession = Depends(get_db),
-    _:       User         = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     pool = await svc.get_pool(db, pool_id)
     if not pool:
@@ -141,7 +141,7 @@ async def get_transaction(
 @router.get("/stats", summary="Bridge platform statistics")
 async def bridge_stats(
     db: AsyncSession = Depends(get_db),
-    _:  User         = Depends(get_current_user),
+    _=Depends(get_optional_user),
 ):
     return await svc.bridge_stats(db)
 
