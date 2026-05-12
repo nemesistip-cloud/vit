@@ -456,3 +456,24 @@ async def tma_store_credential(req: CredentialRequest):
 async def tma_tools():
     """List available tools and their credit costs."""
     return {"tools": _TOOL_CREDIT_COSTS}
+
+
+@tma_router.get("/status")
+async def tma_status():
+    """Return TMA integration status — always available (bot token optional for dev)."""
+    import os
+    bot_configured = bool(os.getenv("TELEGRAM_BOT_TOKEN", "").strip())
+    vault_key_set  = bool(os.getenv("VAULT_MASTER_KEY", "").strip())
+    return {
+        "available": True,
+        "bot_configured": bot_configured,
+        "vault_encrypted": vault_key_set,
+        "tools_available": len(_TOOL_CREDIT_COSTS),
+        "tool_list": list(_TOOL_CREDIT_COSTS.keys()),
+        "credit_costs": _TOOL_CREDIT_COSTS,
+        "message": (
+            "Telegram Mini App integration is active."
+            if bot_configured
+            else "TMA running in dev mode — set TELEGRAM_BOT_TOKEN for production."
+        ),
+    }

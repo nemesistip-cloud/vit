@@ -32,6 +32,7 @@ class ChatResponse(BaseModel):
     available: bool
     reply: str
     error: Optional[str] = None
+    provider: Optional[str] = None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -49,26 +50,51 @@ async def assistant_chat(
         history=history_dicts,
         context=body.context,
     )
-    return ChatResponse(**result)
+    return ChatResponse(
+        available=result.get("available", True),
+        reply=result.get("reply", ""),
+        error=result.get("error"),
+        provider=result.get("provider"),
+    )
 
 
 @router.get("/status")
 async def assistant_status(_user=Depends(verify_api_key)):
-    """Report whether the assistant is available (i.e. key is configured)."""
+    """Report whether the assistant is available.
+
+    Always returns available=True — even without API keys, Puter.js (free
+    browser-side Claude) is the fallback, so the chat UI is always functional.
+    """
     import os
     gemini_key = bool(os.getenv("GEMINI_API_KEY", "").strip())
     claude_key  = bool(
         os.getenv("CLAUDE_API_KEY", "").strip()
         or os.getenv("ANTHROPIC_API_KEY", "").strip()
     )
-    configured = gemini_key or claude_key
-    provider   = "gemini-1.5-flash" if gemini_key else ("claude-3-haiku" if claude_key else None)
+    grok_key = bool(os.getenv("XAI_API_KEY", "").strip())
+    server_configured = gemini_key or claude_key or grok_key
+
+    if gemini_key:
+        provider = "Gemini"
+        mode = "server"
+    elif claude_key:
+        provider = "Claude"
+        mode = "server"
+    elif grok_key:
+        provider = "Grok"
+        mode = "server"
+    else:
+        provider = "Puter (free browser-side Claude)"
+        mode = "puter"
+
     return {
-        "available": configured,
-        "provider": provider or "puter-claude",
+        "available": True,
+        "server_configured": server_configured,
+        "provider": provider,
+        "mode": mode,
         "puter_available": True,
         "message": (
-            "Assistant ready." if configured
-            else "Assistant running via Puter (free Claude). Backend AI is also available after adding GEMINI_API_KEY."
+            f"Assistant ready via {provider}." if server_configured
+            else "Assistant ready via Puter.js (free Claude — no API key needed). Add GEMINI_API_KEY for faster server-side responses."
         ),
     }

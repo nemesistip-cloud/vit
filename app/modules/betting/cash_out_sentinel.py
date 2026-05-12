@@ -389,3 +389,61 @@ async def cashout_status():
 @cashout_router.get("/decisions")
 async def cashout_decisions():
     return get_cash_out_sentinel().get_decisions()
+
+
+@cashout_router.get("/strategies")
+async def cashout_strategies():
+    """List available cash-out strategies with configuration parameters."""
+    return {
+        "strategies": [
+            {
+                "id": "aggressive",
+                "name": "Aggressive",
+                "description": "Cash out early to lock in profit at 15% gain threshold.",
+                "min_profit_pct": 0.15,
+                "momentum_threshold": 0.65,
+                "risk_level": "low",
+                "recommended_for": "Volatile matches, injury concerns, weather risk",
+            },
+            {
+                "id": "balanced",
+                "name": "Balanced",
+                "description": "Cash out at 25% gain — balances profit capture with upside.",
+                "min_profit_pct": 0.25,
+                "momentum_threshold": 0.72,
+                "risk_level": "medium",
+                "recommended_for": "Standard pre-match bets, moderate confidence",
+            },
+            {
+                "id": "conservative",
+                "name": "Conservative",
+                "description": "Let positions run until 40%+ gain or strong reversal signal.",
+                "min_profit_pct": 0.40,
+                "momentum_threshold": 0.80,
+                "risk_level": "high",
+                "recommended_for": "High-confidence model bets, top-league fixtures",
+            },
+        ],
+        "active_strategy": "balanced",
+        "note": "Strategies are enforced by the Cash-Out Sentinel agent (runs every 30s).",
+    }
+
+
+@cashout_router.get("/config")
+async def cashout_config():
+    """Return current cash-out sentinel configuration."""
+    sentinel = get_cash_out_sentinel()
+    s = sentinel.status()
+    return {
+        "enabled": True,
+        "scan_interval_seconds": 30,
+        "open_positions": s.get("open_positions", 0),
+        "decisions_made": s.get("decisions", 0),
+        "executed": s.get("executed", 0),
+        "supported_bookmakers": ["sportybet", "football.com", "internal"],
+        "config": {
+            "aggressive":   {"min_profit_pct": 0.15, "momentum_threshold": 0.65},
+            "balanced":     {"min_profit_pct": 0.25, "momentum_threshold": 0.72},
+            "conservative": {"min_profit_pct": 0.40, "momentum_threshold": 0.80},
+        },
+    }

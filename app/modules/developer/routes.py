@@ -248,6 +248,59 @@ async def developer_docs(
 
 # ── Platform stats (admin) ────────────────────────────────────────────────────
 
+@router.get("/endpoints", summary="List all public API endpoints")
+async def list_endpoints():
+    """Return a structured list of all public VIT API endpoints for discovery."""
+    return {
+        "version": "6.0",
+        "base_url": "/api",
+        "categories": {
+            "matches": [
+                "GET /matches/upcoming", "GET /matches/explore", "GET /matches/{id}",
+                "GET /matches/{id}/predictions",
+            ],
+            "predictions": [
+                "GET /history/picks", "GET /history/results-comparison",
+                "GET /history/ticket/markets", "GET /history/ticket/build",
+            ],
+            "analytics": [
+                "GET /analytics/summary", "GET /analytics/accuracy",
+                "GET /analytics/leaderboard/validators", "GET /analytics/leaderboard/users",
+            ],
+            "wallet": [
+                "GET /api/wallet/balance", "POST /api/wallet/deposit",
+                "GET /api/wallet/vitcoin-price", "GET /api/wallet/exchange-rates",
+            ],
+            "marketplace": [
+                "GET /api/marketplace/models", "GET /api/marketplace/stats",
+                "GET /api/marketplace/leaderboard", "POST /api/marketplace/models",
+            ],
+            "governance": [
+                "GET /api/governance/proposals", "GET /api/governance/stats",
+                "POST /api/governance/proposals",
+            ],
+            "chain": [
+                "GET /api/chain/stats", "GET /api/chain/blocks",
+                "POST /api/chain/mint", "POST /api/chain/transfer",
+            ],
+            "developer": [
+                "GET /api/developer/plans", "GET /api/developer/keys",
+                "POST /api/developer/keys", "GET /api/developer/usage",
+                "GET /api/developer/docs", "GET /api/developer/endpoints",
+            ],
+            "ai_assistant": [
+                "GET /ai/assistant/status", "POST /ai/assistant/chat",
+            ],
+            "odds": [
+                "GET /odds/injuries", "GET /odds/audit-log",
+                "GET /odds/markets", "GET /odds/compare",
+            ],
+        },
+        "authentication": "Bearer JWT or X-API-Key header (developer keys start with vit_)",
+        "rate_limits": "60 req/min unauthenticated, 200 req/min authenticated",
+    }
+
+
 @router.get("/admin/stats", summary="Admin: developer platform statistics")
 async def admin_stats(
     db: AsyncSession = Depends(get_db),

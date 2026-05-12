@@ -3,19 +3,23 @@ import { MarkdownContent } from "@/components/MarkdownContent";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Send, AlertCircle, RotateCw, Bot, User as UserIcon, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, Send, AlertCircle, RotateCw, Bot, User as UserIcon, ChevronDown, ChevronUp, BarChart2 } from "lucide-react";
 import {
   useAssistantChat,
   useAssistantStatus,
   type AssistantTurn,
 } from "@/api-client";
+import { isPuterAvailable, puterChat } from "@/lib/puter-ai";
 import { toast } from "sonner";
 
 const PROVIDER_LABELS: Record<string, { label: string; cls: string }> = {
-  gemini: { label: "Gemini", cls: "border-primary/30 text-primary/70" },
-  claude: { label: "Claude", cls: "border-purple-500/30 text-purple-400/80" },
-  grok:   { label: "Grok",   cls: "border-sky-500/30 text-sky-400/80" },
-  openai: { label: "GPT-4",  cls: "border-emerald-500/30 text-emerald-400/80" },
+  gemini:                { label: "Gemini",            cls: "border-primary/30 text-primary/70" },
+  claude:                { label: "Claude",             cls: "border-purple-500/30 text-purple-400/80" },
+  grok:                  { label: "Grok",               cls: "border-sky-500/30 text-sky-400/80" },
+  openai:                { label: "GPT-4",              cls: "border-emerald-500/30 text-emerald-400/80" },
+  puter:                 { label: "Puter AI (free)",    cls: "border-cyan-500/30 text-cyan-400/80" },
+  "puter-claude":        { label: "Claude via Puter",   cls: "border-cyan-500/30 text-cyan-400/80" },
+  "vit-statistical-engine": { label: "VIT Statistical Engine", cls: "border-amber-500/30 text-amber-400/80" },
 };
 
 interface MatchAssistantCardProps {
@@ -120,6 +124,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<AssistantTurn[]>([]);
   const [providers, setProviders] = useState<Record<number, string>>({});
+  const [isPending, setIsPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const status = useAssistantStatus();
@@ -128,6 +133,10 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
   const context = useMemo(() => buildContext(match, consensus), [match, consensus]);
   const prompts = useMemo(() => buildPrompts(match), [match]);
 
+  const puterAvailable = isPuterAvailable();
+  const serverReady = status.data?.available ?? false;
+  const ready = serverReady || puterAvailable;
+
   useEffect(() => {
     if (open) {
       scrollRef.current?.scrollTo({
@@ -135,11 +144,11 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
         behavior: "smooth",
       });
     }
-  }, [messages, chat.isPending, open]);
+  }, [messages, isPending, open]);
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || chat.isPending) return;
+    if (!trimmed || isPending) return;
 
     const nextHistory: AssistantTurn[] = [
       ...messages,
@@ -147,28 +156,52 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
     ];
     setMessages(nextHistory);
     setInput("");
+    setIsPending(true);
 
     try {
-      const result: any = await chat.mutateAsync({
-        message: trimmed,
-        history: messages,
-        context,
-      });
-      setMessages((prev) => {
-        const next = [...prev, { role: "assistant" as const, content: result.reply }];
-        if (result.provider) {
-          setProviders((p) => ({ ...p, [next.length - 1]: result.provider }));
-        }
-        return next;
-      });
-      if (result.error) toast.error(result.error);
+      if (serverReady) {
+        const result: any = await chat.mutateAsync({
+          message: trimmed,
+          history: messages,
+          context,
+        });
+        setMessages((prev) => {
+          const next = [...prev, { role: "assistant" as const, content: result.reply }];
+          const provider = result.provider || "vit-statistical-engine";
+          setProviders((p) => ({ ...p, [next.length - 1]: provider }));
+          return next;
+        });
+        if (result.error) toast.error(result.error);
+      } else if (puterAvailable) {
+        const historyForPuter = messages.map((m) => ({ role: m.role, content: m.content }));
+        const fullMessage = context
+          ? `${context}\n\n---\nUser question: ${trimmed}`
+          : trimmed;
+        const reply = await puterChat(fullMessage, historyForPuter, "claude");
+        setMessages((prev) => {
+          const next = [...prev, { role: "assistant" as const, content: reply }];
+          setProviders((p) => ({ ...p, [next.length - 1]: "puter-claude" }));
+          return next;
+        });
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              "No AI provider is available. Add GEMINI_API_KEY in Admin → API Keys, or sign in to Puter.js for free browser-side Claude.",
+          },
+        ]);
+      }
     } catch (e: any) {
       const msg = e?.message || "Failed to reach the assistant";
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Sorry — I couldn't get a response (${msg}). Please try again.` },
+        { role: "assistant", content: `Sorry — I couldn't get a response. ${msg}` },
       ]);
       toast.error(msg);
+    } finally {
+      setIsPending(false);
     }
   }
 
@@ -182,8 +215,6 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
     setProviders({});
     setInput("");
   }
-
-  const ready = status.data?.available ?? false;
 
   return (
     <Card className="border-primary/20 bg-card/80 backdrop-blur">
@@ -222,10 +253,25 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
 
       {open && (
         <CardContent className="p-0 border-t">
-          {!ready && status.data && (
+          {!serverReady && puterAvailable && (
+            <div className="px-4 py-3 flex items-start gap-2 bg-cyan-500/5 border-b border-cyan-500/20">
+              <Bot className="w-4 h-4 text-cyan-500 mt-0.5 flex-shrink-0" />
+              <div className="text-xs font-mono text-muted-foreground">
+                Using <span className="text-cyan-400">Puter AI (free Claude)</span> — no API key needed.
+                Add GEMINI_API_KEY for faster server-side responses.
+              </div>
+            </div>
+          )}
+          {!serverReady && !puterAvailable && (
             <div className="px-4 py-3 flex items-start gap-2 bg-amber-500/5 border-b border-amber-500/20">
               <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-              <div className="text-xs font-mono text-muted-foreground">{status.data.message}</div>
+              <div className="text-xs font-mono text-muted-foreground">
+                No AI provider configured. Add GEMINI_API_KEY in Admin → API Keys, or{" "}
+                <a href="https://puter.com" target="_blank" rel="noreferrer" className="underline text-amber-400 hover:text-amber-300">
+                  sign in to Puter.js
+                </a>{" "}
+                for free Claude access.
+              </div>
             </div>
           )}
 
@@ -246,7 +292,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
                     <button
                       key={p}
                       type="button"
-                      disabled={!ready || chat.isPending}
+                      disabled={isPending}
                       onClick={() => send(p)}
                       className="text-[11px] font-mono px-2.5 py-1 rounded-full border border-border bg-background hover:bg-accent hover:border-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-left"
                     >
@@ -261,7 +307,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
               <Bubble key={i} role={m.role} content={m.content} provider={providers[i]} />
             ))}
 
-            {chat.isPending && <Bubble role="assistant" content="" pending />}
+            {isPending && <Bubble role="assistant" content="" pending />}
           </div>
 
           <form
@@ -285,9 +331,9 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
               placeholder={
                 ready
                   ? `Ask about ${match?.home_team ?? "the match"}…`
-                  : "Assistant is not configured yet"
+                  : "Sign in to Puter.js or add an API key to enable the assistant"
               }
-              disabled={!ready || chat.isPending}
+              disabled={isPending}
               className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 max-h-32"
               style={{ minHeight: "38px" }}
             />
@@ -306,7 +352,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
             <Button
               type="submit"
               size="sm"
-              disabled={!ready || chat.isPending || !input.trim()}
+              disabled={isPending || !input.trim()}
               className="font-mono"
             >
               <Send className="w-3.5 h-3.5 mr-1.5" />

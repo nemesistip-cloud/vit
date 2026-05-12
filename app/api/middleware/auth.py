@@ -105,6 +105,15 @@ _PUBLIC_SUBPATHS = (
     "/odds/audit-log",          # Audit log — read-only, used by match-detail page
     "/odds/markets",            # Market listings — read-only public data
     "/odds/compare",            # Odds comparison — read-only public data
+    "/ai/assistant/status",     # Assistant availability — always public so UI can check
+    "/api/cashout/strategies",  # Cash-out strategies list — public info
+    "/api/cashout/config",      # Cash-out config — public info
+    "/api/cashout/status",      # Cash-out status — public info
+    "/api/tma/status",          # TMA integration status — public
+    "/api/tma/tools",           # TMA tools list — public
+    "/api/developer/endpoints", # API endpoint discovery — public
+    "/api/leaderboard/global",  # Global leaderboard — public
+    "/api/leaderboard",         # Leaderboard — public
 )
 
 

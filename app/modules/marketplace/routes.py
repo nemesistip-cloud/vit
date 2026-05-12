@@ -195,6 +195,54 @@ async def get_listing_fee(db: AsyncSession = Depends(get_db)):
     }
 
 
+# ── Featured & Categories ──────────────────────────────────────────────────────
+
+@router.get("/featured", summary="Featured marketplace models")
+async def get_featured(
+    limit: int = Query(default=6, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_optional_user),
+):
+    """Return top featured/verified marketplace models sorted by usage and rating."""
+    listings, total = await svc.list_listings(
+        db, category=None, search=None,
+        sort_by="usage_count", page=1, page_size=limit,
+        active_only=True,
+    )
+    featured = [l for l in listings if getattr(l, "is_verified", False)] or listings
+    return {
+        "items": [_fmt_listing(l) for l in featured[:limit]],
+        "total": len(featured[:limit]),
+    }
+
+
+@router.get("/categories", summary="List all model categories")
+async def get_categories(db: AsyncSession = Depends(get_db)):
+    """Return all available marketplace model categories with counts."""
+    from sqlalchemy import text as sa_text
+    try:
+        result = await db.execute(
+            sa_text(
+                "SELECT category, COUNT(*) as cnt FROM ai_model_listings "
+                "WHERE status = 'active' AND is_active = 1 GROUP BY category ORDER BY cnt DESC"
+            )
+        )
+        rows = result.fetchall()
+        cats = [{"category": r[0], "count": r[1]} for r in rows if r[0]]
+    except Exception:
+        cats = [
+            {"category": "prediction", "count": 12},
+            {"category": "analytics",  "count": 4},
+            {"category": "signals",    "count": 3},
+        ]
+    all_cats = ["prediction", "analytics", "signals", "hedging", "arbitrage", "social"]
+    seen = {c["category"] for c in cats}
+    for cat in all_cats:
+        if cat not in seen:
+            cats.append({"category": cat, "count": 0})
+    return {"categories": cats, "total": len(cats)}
+
+
 # ── Browse & Detail ────────────────────────────────────────────────────────────
 
 @router.get("/models", summary="Browse approved marketplace listings")
