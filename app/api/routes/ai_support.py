@@ -180,7 +180,13 @@ async def support_chat(
     answer = await call_ai(prompt, max_tokens=500, temperature=0.4)
 
     if not answer:
-        raise HTTPException(503, "AI support is temporarily unavailable — please try again shortly")
+        answer = (
+            "I'm having trouble reaching the AI providers right now. "
+            "Here's what I can tell you from your account context: "
+            f"you have {user_ctx.get('prediction_count', 0)} predictions on record "
+            f"and your current VITCoin balance is {user_ctx.get('vitcoin_balance', 0)} VIT. "
+            "For personalised advice, try again in a moment or use the AI Assistant page."
+        )
 
     logger.info("[ai-support] answered question for user=%d", user.id)
     return {

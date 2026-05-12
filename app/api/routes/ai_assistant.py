@@ -33,6 +33,7 @@ class ChatResponse(BaseModel):
     reply: str
     error: Optional[str] = None
     provider: Optional[str] = None
+    scie_fallback: bool = False
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -55,6 +56,7 @@ async def assistant_chat(
         reply=result.get("reply", ""),
         error=result.get("error"),
         provider=result.get("provider"),
+        scie_fallback=result.get("scie_fallback", False),
     )
 
 

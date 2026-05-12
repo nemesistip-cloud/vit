@@ -95,7 +95,6 @@ def _scie_fallback_reply(message: str, context: Optional[str]) -> str:
                 f"\n**Value assessment:** {insight['value_assessment']}\n\n"
                 f"Entropy across the 1X2 market is {'high — models disagree' if top_prob < 0.50 else 'moderate — lean toward ' + top_side}. "
                 f"{'BTTS elevated at ' + str(round(btts_prob*100)) + '%' if btts_prob and btts_prob >= 0.55 else ''}"
-                f"\n\n*Powered by VIT Statistical Engine — add a GEMINI_API_KEY for deeper LLM analysis.*"
             )
         elif any(k in msg_lower for k in ["value", "bet", "stake", "wager", "back", "lay"]):
             reply = (
@@ -106,7 +105,6 @@ def _scie_fallback_reply(message: str, context: Optional[str]) -> str:
                 f"- Recommended side: {bet_side or top_side} @ {entry_odds or 'N/A'}\n"
                 f"- Edge: {(edge or 0)*100:.2f}% {'(value bet)' if edge and edge > 0.03 else ''}\n\n"
                 f"{insight['value_assessment']}"
-                f"\n\n*Powered by VIT Statistical Engine — add a GEMINI_API_KEY for LLM-powered analysis.*"
             )
         elif any(k in msg_lower for k in ["over", "under", "goal", "btts", "both"]):
             if over_25_prob is not None:
@@ -117,7 +115,6 @@ def _scie_fallback_reply(message: str, context: Optional[str]) -> str:
                     f"{'BTTS Yes: **' + str(round(btts_prob*100)) + '%**' if btts_prob else ''}\n\n"
                     f"The ensemble signals {direction} based on league-specific goal rates "
                     f"and team attacking/defensive patterns."
-                    f"\n\n*Powered by VIT Statistical Engine.*"
                 )
             else:
                 reply = f"Over/Under data not available for this fixture. The home win probability is {hp*100:.1f}%."
@@ -129,14 +126,12 @@ def _scie_fallback_reply(message: str, context: Optional[str]) -> str:
             )
             for factor in insight["key_factors"]:
                 reply += f"- {factor}\n"
-            reply += f"\n*Powered by VIT Statistical Engine.*"
         else:
             reply = (
                 f"**{home_team} vs {away_team} — Statistical Summary**\n\n"
                 f"{insight['summary']}\n\n"
                 f"**Recommendation:** {insight['recommendation']}\n"
-                f"**Risk level:** {insight['risk_level']}\n\n"
-                f"*Powered by VIT Statistical Engine — no LLM API key required.*"
+                f"**Risk level:** {insight['risk_level']}"
             )
         return reply
 
@@ -148,8 +143,7 @@ def _scie_fallback_reply(message: str, context: Optional[str]) -> str:
             "or USDT. 1 VIT is auto-minted per $1 USD deposited.\n\n"
             "- View balance, transactions, and exchange rates on the Wallet page.\n"
             "- Withdrawals require KYC verification.\n"
-            "- VITCoin is used for marketplace model calls, staking, and governance votes.\n\n"
-            "*Add GEMINI_API_KEY for conversational AI responses.*"
+            "- VITCoin is used for marketplace model calls, staking, and governance votes."
         )
     if any(k in msg_lower for k in ["prediction", "model", "accuracy", "ensemble"]):
         return (
@@ -159,8 +153,7 @@ def _scie_fallback_reply(message: str, context: Optional[str]) -> str:
             "- Predictions show 1X2, Over/Under 2.5, and BTTS probabilities.\n"
             "- Confidence scores are temperature-scaled via proper scoring rules.\n"
             "- Model weights are updated every 6 hours via RL reward signals.\n"
-            "- The Statistical Engine (SCIE) provides baseline priors when AI is offline.\n\n"
-            "*Add GEMINI_API_KEY for AI-powered analysis on any match.*"
+            "- The Statistical Engine (SCIE) provides baseline priors when AI is offline."
         )
     if any(k in msg_lower for k in ["chain", "blockchain", "ledger", "stake"]):
         return (
@@ -170,17 +163,17 @@ def _scie_fallback_reply(message: str, context: Optional[str]) -> str:
             "- Validator consensus votes\n"
             "- Prediction settlement\n\n"
             "Explore at `/api/chain/stats`. Staking earns 5% revenue share from model calls."
-            "\n\n*Add GEMINI_API_KEY for AI-powered responses.*"
         )
 
     # Generic fallback
     return (
-        "I'm running in **Statistical Mode** (no LLM API key configured). "
+        "I'm running in **Statistical Mode** — all LLM providers are currently busy. "
         "I can answer questions about match probabilities, goals markets, betting value, "
         "model predictions, VITCoin, and platform features.\n\n"
-        "For richer AI responses, add `GEMINI_API_KEY`, `CLAUDE_API_KEY`, or `XAI_API_KEY` "
-        "in Admin → API Keys. Alternatively, use the **Puter AI** option for free browser-side Claude."
+        "For richer AI responses switch to **Claude** or **Grok** (free via Puter) using "
+        "the mode selector above."
     )
+
 
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 _GEMINI_CHAT_MODELS = [
@@ -385,10 +378,11 @@ async def chat(
     history: Optional[List[Dict[str, str]]] = None,
     context: Optional[str] = None,
 ) -> Dict:
-    """Send a chat turn through the cascade: Gemini → Claude → Grok → error.
+    """Send a chat turn through the cascade: Gemini → Claude → Grok → SCIE.
 
     Returns:
-        {"available": bool, "reply": str, "error": str|None, "provider": str|None}
+        {"available": bool, "reply": str, "error": str|None, "provider": str|None,
+         "scie_fallback": bool}
     """
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     claude_key = os.getenv("CLAUDE_API_KEY", "").strip()
@@ -401,10 +395,11 @@ async def chat(
             "reply": scie_reply,
             "error": None,
             "provider": "vit-statistical-engine",
+            "scie_fallback": True,
         }
 
     if not message or not message.strip():
-        return {"available": True, "reply": "Please enter a question.", "error": None, "provider": None}
+        return {"available": True, "reply": "Please enter a question.", "error": None, "provider": None, "scie_fallback": False}
 
     system_text = SYSTEM_PROMPT
     if context:
@@ -418,18 +413,21 @@ async def chat(
                 result = await _try_gemini(client, gemini_key, system_text, history, message)
                 if result:
                     logger.info("[chat-cascade] Served by Gemini")
+                    result["scie_fallback"] = False
                     return result
 
             if claude_key:
                 result = await _try_claude(client, claude_key, system_text, history, message)
                 if result:
                     logger.info("[chat-cascade] Served by Claude")
+                    result["scie_fallback"] = False
                     return result
 
             if grok_key:
                 result = await _try_grok(client, grok_key, system_text, history, message)
                 if result:
                     logger.info("[chat-cascade] Served by Grok")
+                    result["scie_fallback"] = False
                     return result
 
         scie_reply = _scie_fallback_reply(message, context)
@@ -439,6 +437,7 @@ async def chat(
             "reply": scie_reply,
             "error": None,
             "provider": "vit-statistical-engine",
+            "scie_fallback": True,
         }
 
     except Exception as exc:
@@ -449,4 +448,5 @@ async def chat(
             "reply": scie_reply,
             "error": None,
             "provider": "vit-statistical-engine",
+            "scie_fallback": True,
         }

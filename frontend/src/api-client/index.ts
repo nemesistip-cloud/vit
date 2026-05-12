@@ -895,7 +895,7 @@ export function useAiFeedConsensus() {
 export type AssistantTurn = { role: "user" | "assistant"; content: string };
 
 export function useAssistantStatus() {
-  return useQuery<{ available: boolean; provider: string; message: string }>({
+  return useQuery<{ available: boolean; server_configured: boolean; provider: string; message: string; mode: string }>({
     queryKey: [API.aiAssistantStatus],
     queryFn: () => apiGet(API.aiAssistantStatus),
     staleTime: 60_000,
@@ -904,7 +904,7 @@ export function useAssistantStatus() {
 
 export function useAssistantChat() {
   return useMutation<
-    { available: boolean; reply: string; error: string | null },
+    { available: boolean; reply: string; error: string | null; provider: string | null; scie_fallback: boolean },
     Error,
     { message: string; history?: AssistantTurn[]; context?: string }
   >({

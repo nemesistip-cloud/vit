@@ -3,7 +3,7 @@ import { MarkdownContent } from "@/components/MarkdownContent";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Send, AlertCircle, RotateCw, Bot, User as UserIcon, ChevronDown, ChevronUp, BarChart2 } from "lucide-react";
+import { Sparkles, Send, AlertCircle, RotateCw, Bot, User as UserIcon, ChevronDown, ChevronUp } from "lucide-react";
 import {
   useAssistantChat,
   useAssistantStatus,
@@ -134,7 +134,8 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
   const prompts = useMemo(() => buildPrompts(match), [match]);
 
   const puterAvailable = isPuterAvailable();
-  const serverReady = status.data?.available ?? false;
+  // Use server_configured (has actual API keys) not just available (always true)
+  const serverReady = status.data?.server_configured ?? false;
   const ready = serverReady || puterAvailable;
 
   useEffect(() => {
@@ -145,6 +146,19 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
       });
     }
   }, [messages, isPending, open]);
+
+  async function sendViaPuter(trimmed: string) {
+    const historyForPuter = messages.map((m) => ({ role: m.role, content: m.content }));
+    const fullMessage = context
+      ? `${context}\n\n---\nUser question: ${trimmed}`
+      : trimmed;
+    const reply = await puterChat(fullMessage, historyForPuter, "claude");
+    setMessages((prev) => {
+      const next = [...prev, { role: "assistant" as const, content: reply }];
+      setProviders((p) => ({ ...p, [next.length - 1]: "puter-claude" }));
+      return next;
+    });
+  }
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -165,6 +179,18 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
           history: messages,
           context,
         });
+
+        // If server returned a SCIE statistical fallback AND Puter is available,
+        // transparently retry with Puter (free Claude) for a real AI response.
+        if (result.scie_fallback && puterAvailable) {
+          try {
+            await sendViaPuter(trimmed);
+            return;
+          } catch {
+            // If Puter also fails, show the SCIE response as a fallback
+          }
+        }
+
         setMessages((prev) => {
           const next = [...prev, { role: "assistant" as const, content: result.reply }];
           const provider = result.provider || "vit-statistical-engine";
@@ -173,16 +199,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
         });
         if (result.error) toast.error(result.error);
       } else if (puterAvailable) {
-        const historyForPuter = messages.map((m) => ({ role: m.role, content: m.content }));
-        const fullMessage = context
-          ? `${context}\n\n---\nUser question: ${trimmed}`
-          : trimmed;
-        const reply = await puterChat(fullMessage, historyForPuter, "claude");
-        setMessages((prev) => {
-          const next = [...prev, { role: "assistant" as const, content: reply }];
-          setProviders((p) => ({ ...p, [next.length - 1]: "puter-claude" }));
-          return next;
-        });
+        await sendViaPuter(trimmed);
       } else {
         setMessages((prev) => [
           ...prev,
@@ -194,6 +211,13 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
         ]);
       }
     } catch (e: any) {
+      // If server fails and Puter is available, fall through to Puter
+      if (puterAvailable && !serverReady) {
+        try {
+          await sendViaPuter(trimmed);
+          return;
+        } catch {}
+      }
       const msg = e?.message || "Failed to reach the assistant";
       setMessages((prev) => [
         ...prev,
@@ -259,6 +283,14 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
               <div className="text-xs font-mono text-muted-foreground">
                 Using <span className="text-cyan-400">Puter AI (free Claude)</span> — no API key needed.
                 Add GEMINI_API_KEY for faster server-side responses.
+              </div>
+            </div>
+          )}
+          {serverReady && puterAvailable && (
+            <div className="px-4 py-3 flex items-start gap-2 bg-primary/5 border-b border-primary/10">
+              <Bot className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+              <div className="text-xs font-mono text-muted-foreground">
+                Server AI ready · <span className="text-cyan-400">Puter AI</span> on standby as fallback.
               </div>
             </div>
           )}

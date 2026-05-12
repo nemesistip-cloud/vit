@@ -46,12 +46,14 @@ export default function AssistantPage() {
   const chat   = useAssistantChat();
 
   const puter = isPuterAvailable();
-  const backendReady = status.data?.available ?? false;
+  // Use server_configured (has actual LLM API keys) — not just available (always true)
+  const backendReady = status.data?.server_configured ?? false;
   const isReady   = mode === "gemini" ? backendReady : puter;
   const isPending = mode === "gemini" ? chat.isPending : puterPending;
 
   const currentMode = MODES.find((m) => m.id === mode)!;
 
+  // Auto-switch from Gemini to Claude when no server LLM keys are configured
   useEffect(() => {
     if (mode === "gemini" && !status.isLoading && !backendReady && puter) {
       setMode("claude");
@@ -61,6 +63,26 @@ export default function AssistantPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isPending]);
+
+  async function sendViaPuter(trimmed: string) {
+    setPuterPending(true);
+    try {
+      const reply = await puterChat(trimmed, messages, mode as PuterModel);
+      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+    } catch (e: any) {
+      const msg = e?.message || "Puter AI unavailable";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Sorry — ${msg}. Try switching to another mode.`,
+        },
+      ]);
+      toast.error(msg);
+    } finally {
+      setPuterPending(false);
+    }
+  }
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -74,29 +96,27 @@ export default function AssistantPage() {
     setInput("");
 
     if (mode === "claude" || mode === "grok") {
-      setPuterPending(true);
-      try {
-        const reply = await puterChat(trimmed, messages, mode as PuterModel);
-        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-      } catch (e: any) {
-        const msg = e?.message || "Puter AI unavailable";
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `Sorry — ${msg}. Try switching to Gemini (backend) mode.`,
-          },
-        ]);
-        toast.error(msg);
-      } finally {
-        setPuterPending(false);
-      }
+      await sendViaPuter(trimmed);
     } else {
+      // Gemini (server) mode
       try {
         const result = await chat.mutateAsync({ message: trimmed, history: messages });
+
+        // If server returned a SCIE statistical fallback AND Puter is available,
+        // transparently retry with Puter (free Claude) for a real AI answer.
+        if (result.scie_fallback && puter) {
+          await sendViaPuter(trimmed);
+          return;
+        }
+
         setMessages((prev) => [...prev, { role: "assistant", content: result.reply }]);
         if (result.error) toast.error(result.error);
       } catch (e: any) {
+        // If backend fails and Puter is available, fall through to Puter
+        if (puter) {
+          await sendViaPuter(trimmed);
+          return;
+        }
         const msg = e?.message || "Failed to reach the assistant";
         setMessages((prev) => [
           ...prev,
