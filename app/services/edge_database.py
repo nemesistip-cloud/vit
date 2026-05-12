@@ -109,7 +109,7 @@ class EdgeDatabase:
     @staticmethod
     async def archive_dead_edges(db: AsyncSession) -> int:
         """Archive edges that have died"""
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         result = await db.execute(
             select(Edge).where(Edge.status == "dead")

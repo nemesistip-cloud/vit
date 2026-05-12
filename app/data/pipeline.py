@@ -228,7 +228,9 @@ async def _upsert_fixture(
     kickoff_time: Optional[datetime] = None
     if kickoff_raw:
         try:
-            kickoff_time = datetime.fromisoformat(str(kickoff_raw).replace("Z", "+00:00"))
+            kickoff_time = datetime.fromisoformat(
+                str(kickoff_raw).replace("Z", "+00:00")
+            ).replace(tzinfo=None)
         except Exception:
             pass
 
@@ -391,7 +393,9 @@ async def run_odds_refresh() -> Dict[str, Any]:
 
 async def _mark_stale_records():
     """Flag feature records whose kickoff has already passed."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)
+    # kickoff_time is stored as naive UTC (DateTime without timezone=True),
+    # so the cutoff must also be naive to avoid asyncpg TIMESTAMP mismatch.
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)).replace(tzinfo=None)
     async with AsyncSessionLocal() as db:
         await db.execute(
             update(MatchFeatureStore)

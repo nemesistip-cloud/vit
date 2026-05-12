@@ -4,7 +4,7 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from decimal import Decimal
 from typing import List, Optional
 

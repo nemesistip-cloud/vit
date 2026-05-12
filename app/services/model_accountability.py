@@ -3,7 +3,7 @@ import logging
 from typing import Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.db.models import ModelPerformance, Prediction
 

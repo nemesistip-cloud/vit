@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, Optional
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
