@@ -1,7 +1,7 @@
 """Task system service layer — handles task creation, completion, and rewards."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
 
