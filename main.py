@@ -1972,12 +1972,21 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
     from app.modules.wallet.models import WalletTransaction
 
     total_predictions = (await db.execute(select(func.count(Prediction.id)))).scalar() or 0
+    # Use Prediction.was_correct as primary accuracy source; fall back to CLVEntry
     settled_total = (await db.execute(
-        select(func.count(CLVEntry.id)).where(CLVEntry.bet_outcome.in_(["win", "loss"]))
+        select(func.count(Prediction.id)).where(Prediction.was_correct.isnot(None))
     )).scalar() or 0
     settled_wins = (await db.execute(
-        select(func.count(CLVEntry.id)).where(CLVEntry.bet_outcome == "win")
+        select(func.count(Prediction.id)).where(Prediction.was_correct == True)
     )).scalar() or 0
+    if settled_total == 0:
+        # Legacy fallback: CLVEntry
+        settled_total = (await db.execute(
+            select(func.count(CLVEntry.id)).where(CLVEntry.bet_outcome.in_(["win", "loss"]))
+        )).scalar() or 0
+        settled_wins = (await db.execute(
+            select(func.count(CLVEntry.id)).where(CLVEntry.bet_outcome == "win")
+        )).scalar() or 0
     total_staked = (await db.execute(
         select(func.sum(WalletTransaction.amount)).where(
             WalletTransaction.type == "stake",

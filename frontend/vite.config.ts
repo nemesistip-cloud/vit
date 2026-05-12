@@ -41,6 +41,8 @@ export default defineConfig({
             "@radix-ui/react-tooltip",
           ],
           "vendor-icons":   ["lucide-react"],
+          "vendor-markdown": ["react-markdown"],
+          "vendor-syntax":  ["react-syntax-highlighter"],
         },
       },
     },

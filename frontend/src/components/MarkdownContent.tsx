@@ -1,7 +1,25 @@
 import ReactMarkdown from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import type { Components } from "react-markdown";
+
+import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
+import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
+import python from "react-syntax-highlighter/dist/esm/languages/prism/python";
+import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
+import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
+import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
+
+SyntaxHighlighter.registerLanguage("javascript", javascript);
+SyntaxHighlighter.registerLanguage("js", javascript);
+SyntaxHighlighter.registerLanguage("typescript", typescript);
+SyntaxHighlighter.registerLanguage("ts", typescript);
+SyntaxHighlighter.registerLanguage("python", python);
+SyntaxHighlighter.registerLanguage("py", python);
+SyntaxHighlighter.registerLanguage("json", json);
+SyntaxHighlighter.registerLanguage("bash", bash);
+SyntaxHighlighter.registerLanguage("sh", bash);
+SyntaxHighlighter.registerLanguage("sql", sql);
 
 const codeBlockStyle = {
   borderRadius: "0.375rem",
