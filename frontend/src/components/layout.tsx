@@ -125,7 +125,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     name: "Pro",
     items: [
       ...(NAV_GROUPS.find(g => g.name === "Pro")?.items ?? []),
-      ...(canUploadAi ? [{ name: "AI Sources", href: "/ai-sources", icon: Brain }] : []),
+      ...(canUploadAi ? [
+        { name: "AI Sources", href: "/ai-sources", icon: Brain },
+        { name: "AI Upload",  href: "/ai-upload",  icon: Bot },
+      ] : []),
     ],
   };
 

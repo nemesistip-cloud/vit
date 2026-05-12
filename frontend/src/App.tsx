@@ -60,6 +60,7 @@ const KYCPage             = lazy(() => import("@/pages/kyc"));
 const IDLookupPage        = lazy(() => import("@/pages/id-lookup"));
 const ModelPerformancePage = lazy(() => import("@/pages/model-performance"));
 const BankrollPage        = lazy(() => import("@/pages/bankroll"));
+const AIUploadPage        = lazy(() => import("@/pages/ai-upload"));
 
 function RouteFallback() {
   return (
@@ -242,6 +243,9 @@ function Router() {
       </Route>
       <Route path="/bankroll">
         <Layout><ProtectedRoute component={BankrollPage} /></Layout>
+      </Route>
+      <Route path="/ai-upload">
+        <Layout><ProtectedRoute component={AIUploadPage} /></Layout>
       </Route>
       <Route path="/competitions">
         <Redirect to="/matches" />

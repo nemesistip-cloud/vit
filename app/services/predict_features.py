@@ -167,12 +167,39 @@ def _elo_proxy(home_form: Dict[str, float], away_form: Dict[str, float]) -> floa
     Cheap ELO-delta proxy from form differential.
 
     +400 ≈ heavy home favourite, -400 ≈ heavy away favourite, 0 = balanced.
-    Real ELO is computed elsewhere; this is a strong-enough signal for the
-    sklearn heads when ELO state isn't available.
+    Used as fallback when real ELO state is unavailable.
     """
     h_strength = home_form["pts_pg"] + 0.6 * home_form["gf_pg"] - 0.5 * home_form["ga_pg"]
     a_strength = away_form["pts_pg"] + 0.6 * away_form["gf_pg"] - 0.5 * away_form["ga_pg"]
     return round((h_strength - a_strength) * 90.0, 2)
+
+
+async def _elo_diff_with_fallback(
+    db: AsyncSession,
+    home_team: str,
+    away_team: str,
+    league: str,
+    home_form: Dict[str, float],
+    away_form: Dict[str, float],
+) -> float:
+    """
+    Return ELO difference using real TeamEloSystem if available,
+    falling back to form-proxy if the team_elo table doesn't exist yet.
+    """
+    try:
+        from app.ml.features.elo import get_elo_system
+        elo_system = get_elo_system()
+        diff = await elo_system.get_elo_diff(db, home_team, away_team, league)
+        # If both teams are at default (1500), diff=0; fall through to proxy
+        if diff != 0.0:
+            return diff
+    except Exception:
+        pass
+    # Fallback: form-based proxy
+    return _elo_proxy(
+        {"pts_pg": home_form["pts_pg"], "gf_pg": home_form["gf_pg"], "ga_pg": home_form["ga_pg"]},
+        {"pts_pg": away_form["pts_pg"], "gf_pg": away_form["gf_pg"], "ga_pg": away_form["ga_pg"]},
+    )
 
 
 async def build_predict_features(
@@ -262,9 +289,9 @@ async def build_predict_features(
         "h2h_home_goals_pg": h2h_b["home_gpg"],
         "h2h_away_goals_pg": h2h_b["away_gpg"],
         "home_adv_league":   _LEAGUE_HOME_ADV.get((league or "").lower(), _DEFAULT_HOME_ADV),
-        "elo_diff":          _elo_proxy(
-            {"pts_pg": home_10["pts_pg"], "gf_pg": home_10["gf_pg"], "ga_pg": home_10["ga_pg"]},
-            {"pts_pg": away_10["pts_pg"], "gf_pg": away_10["gf_pg"], "ga_pg": away_10["ga_pg"]},
+        "elo_diff":          await _elo_diff_with_fallback(
+            db, home_team, away_team, league or "default",
+            home_10, away_10,
         ),
     })
 

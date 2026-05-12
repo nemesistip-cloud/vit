@@ -1933,6 +1933,16 @@ app.include_router(chain_router)
 app.include_router(tma_router)
 app.include_router(cashout_router)
 
+# VIT v6.1 — Goliath G-Score, Sharp Money, Stats Dashboard, AI Upload, Health
+from app.api.routes.goliath import router as goliath_router
+from app.api.routes.stats import router as stats_router
+from app.api.routes.ai_upload import router as ai_upload_router
+from app.api.routes.health_ext import router as health_ext_router
+app.include_router(goliath_router)
+app.include_router(stats_router)
+app.include_router(ai_upload_router)
+app.include_router(health_ext_router)
+
 
 def _format_count(value: int) -> str:
     if value >= 1_000_000:
