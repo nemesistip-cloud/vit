@@ -5,9 +5,6 @@ cd "$(dirname "$0")/.."
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-5000}"
 
-# v4.10.0 (Phase B) — Activate trained .pkl weights by default for the
-# 12-model ensemble. Exported here so it wins over the .env default
-# (load_dotenv runs with override=False, so the shell value takes precedence).
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
 
 if command -v fuser >/dev/null 2>&1; then
@@ -21,17 +18,6 @@ if [ ! -d "frontend/node_modules" ] || [ "frontend/package.json" -nt "frontend/n
 else
     echo "[startup] Frontend dependencies up to date, skipping install."
 fi
-
-echo "[startup] Starting frontend on port ${FRONTEND_PORT}..."
-cd frontend
-# package.json dev script already sets --host 0.0.0.0 --port 5000; override port only if custom
-if [ "${FRONTEND_PORT}" != "5000" ]; then
-    VITE_PORT="${FRONTEND_PORT}" npx vite --host 0.0.0.0 --port "${FRONTEND_PORT}" &
-else
-    npm run dev &
-fi
-FRONTEND_PID=$!
-cd ..
 
 echo "[startup] Running database schema setup..."
 python -c "
@@ -93,7 +79,6 @@ async def ensure_schema():
                 for col, ddl in user_additions.items():
                     if col not in user_col_names:
                         await conn.exec_driver_sql(f'ALTER TABLE users ADD COLUMN {col} {ddl}')
-                # tasks table additions
                 task_cols = (await conn.exec_driver_sql('PRAGMA table_info(tasks)')).fetchall()
                 task_col_names = {row[1] for row in task_cols}
                 task_additions = {
@@ -123,6 +108,28 @@ asyncio.run(ensure_schema())
 echo "[startup] Starting backend on port ${BACKEND_PORT}..."
 python -m uvicorn main:app --host 0.0.0.0 --port "${BACKEND_PORT}" &
 BACKEND_PID=$!
+
+echo "[startup] Waiting for backend to be ready..."
+WAIT_SECS=0
+until curl -sf "http://localhost:${BACKEND_PORT}/health" >/dev/null 2>&1; do
+    sleep 1
+    WAIT_SECS=$((WAIT_SECS + 1))
+    if [ $WAIT_SECS -ge 60 ]; then
+        echo "[startup] Backend did not become ready within 60s — starting frontend anyway"
+        break
+    fi
+done
+echo "[startup] Backend ready after ${WAIT_SECS}s"
+
+echo "[startup] Starting frontend on port ${FRONTEND_PORT}..."
+cd frontend
+if [ "${FRONTEND_PORT}" != "5000" ]; then
+    VITE_PORT="${FRONTEND_PORT}" npx vite --host 0.0.0.0 --port "${FRONTEND_PORT}" &
+else
+    npm run dev &
+fi
+FRONTEND_PID=$!
+cd ..
 
 trap 'echo "[shutdown] Stopping services..."; kill $FRONTEND_PID $BACKEND_PID 2>/dev/null || true' EXIT
 wait

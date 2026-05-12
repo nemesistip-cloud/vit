@@ -110,20 +110,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Sliding-window rate limiter keyed by (user_id > api_key > ip).
 
     Limits (per minute):
-    - Anonymous (IP):        60 req/min general · 20 predict
-    - API-key auth:         180 req/min general · 80 predict
-    - JWT user:             300 req/min general · 120 predict
+    - Anonymous (IP):        200 req/min general · 40 predict
+    - API-key auth:         400 req/min general · 120 predict
+    - JWT user:             600 req/min general · 200 predict
 
     Backend: Redis sliding window (REDIS_URL) with in-memory deque fallback.
     SEC-07: _buckets is cleaned up periodically.
     """
 
-    ANON_LIMIT           = 60
-    APIKEY_LIMIT         = 180
-    JWT_LIMIT            = 300
-    PREDICT_ANON_LIMIT   = 20
-    PREDICT_APIKEY_LIMIT = 80
-    PREDICT_JWT_LIMIT    = 120
+    ANON_LIMIT           = 200
+    APIKEY_LIMIT         = 400
+    JWT_LIMIT            = 600
+    PREDICT_ANON_LIMIT   = 40
+    PREDICT_APIKEY_LIMIT = 120
+    PREDICT_JWT_LIMIT    = 200
     WINDOW_SECONDS       = 60
     EVICT_INTERVAL       = 300
 
@@ -131,6 +131,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         "/health", "/docs", "/openapi.json", "/redoc",
         "/static", "/favicon", "/ws", "/webhook",
         "/api/public", "/notifications/ws",
+        "/config/public", "/config/public/refresh",
+        "/analytics/summary", "/analytics/accuracy",
+        "/analytics/leaderboard",
+        "/matches/upcoming", "/matches/recent", "/matches/live",
+        "/subscription/plans",
+        "/api/wallet/vitcoin-price",
+        "/ai-feed/recent",
+        "/system/status",
     )
 
     def __init__(self, app):

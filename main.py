@@ -974,6 +974,60 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  Subscription plan seeding failed: {_e}")
 
+    # SEED WALLET SUBSCRIPTION PLANS
+    try:
+        from decimal import Decimal as _Decimal
+        from app.db.database import AsyncSessionLocal
+        from app.modules.wallet.models import WalletSubscriptionPlan as _WalletPlan
+        from sqlalchemy import select as _select, func as _func
+
+        _wallet_plans = [
+            {
+                "name": "Viewer",
+                "description": "Basic access — view predictions and match data",
+                "features": ["View predictions", "Match history", "Public leaderboard"],
+                "price_ngn": _Decimal("0"), "price_usd": _Decimal("0"),
+                "price_usdt": _Decimal("0"), "price_pi": _Decimal("0"),
+                "price_vitcoin": _Decimal("0"), "duration_days": 30,
+            },
+            {
+                "name": "Analyst",
+                "description": "Advanced analytics and AI insights",
+                "features": ["All Viewer features", "Advanced analytics", "AI insights", "Accumulator builder", "Model breakdown", "Telegram alerts"],
+                "price_ngn": _Decimal("75000"), "price_usd": _Decimal("49"),
+                "price_usdt": _Decimal("49"), "price_pi": _Decimal("155"),
+                "price_vitcoin": _Decimal("490"), "duration_days": 30,
+            },
+            {
+                "name": "Pro",
+                "description": "Full access to all 5 prediction markets",
+                "features": ["All Analyst features", "Over/Under markets", "BTTS", "Asian handicap", "Bankroll tools", "Priority support"],
+                "price_ngn": _Decimal("150000"), "price_usd": _Decimal("99"),
+                "price_usdt": _Decimal("99"), "price_pi": _Decimal("315"),
+                "price_vitcoin": _Decimal("990"), "duration_days": 30,
+            },
+            {
+                "name": "Validator",
+                "description": "Unlimited predictions, validator rewards and governance",
+                "features": ["All Pro features", "Unlimited predictions", "Submit predictions", "Validator pool rewards", "Governance voting", "CSV upload"],
+                "price_ngn": _Decimal("300000"), "price_usd": _Decimal("199"),
+                "price_usdt": _Decimal("199"), "price_pi": _Decimal("633"),
+                "price_vitcoin": _Decimal("1990"), "duration_days": 30,
+            },
+        ]
+
+        async with AsyncSessionLocal() as _db:
+            _count = (await _db.execute(_select(_func.count()).select_from(_WalletPlan))).scalar()
+            if _count == 0:
+                for _wp in _wallet_plans:
+                    _db.add(_WalletPlan(**_wp))
+                await _db.commit()
+                print(f"✅ Wallet subscription plans seeded ({len(_wallet_plans)} plans)")
+            else:
+                print(f"✅ Wallet subscription plans: {_count} already seeded")
+    except Exception as _e:
+        print(f"⚠️  Wallet subscription plan seeding failed: {_e}")
+
     # BACKFILL WALLETS FOR EXISTING USERS
     try:
         import uuid as _uuid
