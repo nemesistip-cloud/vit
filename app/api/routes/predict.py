@@ -457,7 +457,13 @@ async def predict(
         if db_match is None:
             try:
                 from app.data.match_dedup import find_existing_match
-                db_match = await find_existing_match(db, match.home_team, match.away_team, naive_kickoff, match.league)
+                # Use a savepoint so that if find_existing_match raises a DB
+                # exception (e.g. missing column) it rolls back only to the
+                # savepoint and does NOT abort the outer transaction.  This is
+                # critical for PostgreSQL where any uncaught exception inside a
+                # transaction leaves the whole transaction in a failed state.
+                async with db.begin_nested():
+                    db_match = await find_existing_match(db, match.home_team, match.away_team, naive_kickoff, match.league)
             except Exception:
                 pass
 
@@ -505,9 +511,17 @@ async def predict(
         # v4.10.0 (Phase A): replace hardcoded sklearn feature globals with
         # rolling form / H2H / ELO-proxy values queried from the DB.
         try:
-            match_features = await build_predict_features(
-                db, match.home_team, match.away_team, match.league
-            )
+            # Run build_predict_features in its own isolated session so that
+            # any internal DB exception (e.g. missing team_elo table) that is
+            # caught inside the function does NOT abort our outer transaction.
+            # Using the same session would leave the PostgreSQL connection in
+            # "InFailedSQLTransactionError" state even if Python never sees the
+            # exception, breaking the subsequent Prediction INSERT.
+            from app.db.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as _feat_db:
+                match_features = await build_predict_features(
+                    _feat_db, match.home_team, match.away_team, match.league
+                )
         except Exception as exc:
             logger.warning(
                 "PREDICT_FALLBACK build_predict_features raised %s — using "
@@ -953,7 +967,31 @@ async def get_match_insights(
     )
     pred = pred_row.scalars().first()
     if not pred:
-        raise HTTPException(status_code=404, detail="Prediction not found")
+        # No prior prediction — return a synthetic market-implied insight so
+        # the frontend never gets a hard 404 when visiting the insights tab
+        # before submitting a prediction.
+        synthetic_no_pred = {
+            "summary": (
+                f"No prediction has been submitted yet for "
+                f"{match.home_team} vs {match.away_team}. "
+                "Submit a prediction to unlock AI-powered tactical insights."
+            ),
+            "key_factors": [
+                "Match has not been analysed yet",
+                "Submit a prediction to trigger the 13-model ensemble",
+                "AI insights will appear here once the prediction is ready",
+            ],
+            "recommendation": "Run the prediction first via the Predict tab.",
+            "confidence": 0.0,
+            "provider": "system",
+        }
+        return {
+            "match_id": match_id,
+            "gemini": synthetic_no_pred,
+            "claude": None,
+            "grok": None,
+            "source": "no_prediction",
+        }
 
     conf = float(pred.confidence) if isinstance(pred.confidence, (int, float)) else 0.5
     home_p = float(pred.home_prob or 0.33)

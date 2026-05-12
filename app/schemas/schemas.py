@@ -13,6 +13,22 @@ class MatchRequest(BaseModel):
     market_odds: Dict[str, float] = Field(default_factory=dict)
     fixture_id: Optional[str] = None  # Unique fixture ID from Football-Data API
 
+    @field_validator("kickoff_time", mode="before")
+    @classmethod
+    def strip_double_utc_marker(cls, v: Any) -> Any:
+        """Strip trailing 'Z' when the offset '+00:00' is already present.
+
+        The frontend sometimes sends '2026-05-13T16:00:00+00:00Z' which has
+        both an explicit UTC offset AND a trailing Z — that double marker is
+        not valid ISO-8601 and Pydantic rejects it.  Remove the trailing Z
+        when the string already carries an explicit timezone offset.
+        """
+        if isinstance(v, str) and v.endswith("Z"):
+            stripped = v[:-1]
+            if "+" in stripped or (stripped.count("-") > 2):
+                return stripped
+        return v
+
 
 class ResultUpdate(BaseModel):
     home_goals: int = Field(..., ge=0, description="Home team goals (must be 0 or more)")

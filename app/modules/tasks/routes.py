@@ -170,6 +170,61 @@ async def get_suggested_tasks(
 
 # ── User endpoints (must be BEFORE /{task_id} to avoid path param collision) ───
 
+@router.get("/user/active", response_model=List[UserTaskCompletionResponse])
+async def get_user_active_tasks(
+    limit: int = Query(100, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get user's active (in-progress, not yet completed) tasks. Alias for /user/progress with completed_only=False."""
+    completions = await TaskService.get_user_task_completions(
+        db=db,
+        user_id=current_user.id,
+        completed_only=False,
+        limit=limit
+    )
+    return completions
+
+
+@router.get("/leaderboard")
+async def get_task_leaderboard(
+    limit: int = Query(20, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """Task leaderboard — top users by VIT earned and tasks completed."""
+    from sqlalchemy import select, func
+    from app.modules.tasks.models import UserTaskCompletion
+    from app.db.models import User
+
+    result = await db.execute(
+        select(
+            User.id,
+            User.username,
+            func.count(UserTaskCompletion.id).label("tasks_completed"),
+            func.coalesce(func.sum(UserTaskCompletion.total_vit_earned), 0).label("total_vit"),
+            func.coalesce(func.sum(UserTaskCompletion.total_xp_earned), 0).label("total_xp"),
+        )
+        .join(UserTaskCompletion, User.id == UserTaskCompletion.user_id, isouter=True)
+        .where(UserTaskCompletion.is_completed == True)
+        .group_by(User.id, User.username)
+        .order_by(func.coalesce(func.sum(UserTaskCompletion.total_vit_earned), 0).desc())
+        .limit(limit)
+    )
+    rows = result.fetchall()
+    entries = [
+        {
+            "rank": i + 1,
+            "user_id": row.id,
+            "username": row.username or f"user_{row.id}",
+            "tasks_completed": row.tasks_completed,
+            "total_vit_earned": float(row.total_vit or 0),
+            "total_xp_earned": int(row.total_xp or 0),
+        }
+        for i, row in enumerate(rows)
+    ]
+    return {"entries": entries, "total": len(entries)}
+
+
 @router.get("/user/progress", response_model=List[UserTaskCompletionResponse])
 async def get_user_task_progress(
     completed_only: bool = False,
@@ -266,6 +321,63 @@ async def reset_expired_tasks(
 
     reset_count = await TaskService.reset_expired_tasks(db)
     return {"reset_count": reset_count}
+
+
+@router.post("/{task_id}/start")
+async def start_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Start a task for the current user (alias for /{task_id}/progress with increment=0)."""
+    task = await TaskService.get_task_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    try:
+        completion = await TaskService.update_task_progress(
+            db=db,
+            user_id=current_user.id,
+            task_id=task_id,
+            progress_increment=0
+        )
+        return {
+            "task_id": task_id,
+            "status": "started",
+            "current_progress": completion.current_progress,
+            "required_progress": completion.required_progress,
+            "is_completed": completion.is_completed,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{task_id}/submit")
+async def submit_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Submit a task for completion — increments progress by 1 and awards rewards if complete."""
+    try:
+        completion = await TaskService.update_task_progress(
+            db=db,
+            user_id=current_user.id,
+            task_id=task_id,
+            progress_increment=1
+        )
+        return {
+            "task_id": task_id,
+            "status": "completed" if completion.is_completed else "in_progress",
+            "current_progress": completion.current_progress,
+            "required_progress": completion.required_progress,
+            "is_completed": completion.is_completed,
+            "vit_earned": float(completion.total_vit_earned),
+            "xp_earned": completion.total_xp_earned,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ── Single-item endpoints (/{task_id} MUST come after all literal paths) ───────

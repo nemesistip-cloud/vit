@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/leaderboard", tags=["Leaderboard"])
 
 @router.get("")
 async def get_leaderboard(
-    category: str = Query("win_rate", enum=["win_rate", "xp", "streak", "predictions"]),
+    category: str = Query("win_rate", enum=["win_rate", "xp", "streak", "predictions", "accuracy"]),
     limit: int = Query(20, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -27,6 +27,8 @@ async def get_leaderboard(
     ROI = sum of settled_profit (from Prediction.settled_profit, fallback to CLVEntry.profit).
     Uses a single aggregated SQL query joining Match for actual outcome comparison.
     """
+    if category == "accuracy":
+        category = "win_rate"
     _cache_key = f"leaderboard:{category}:{limit}"
     _cached = await cache.get(_cache_key)
     if _cached is not None:
