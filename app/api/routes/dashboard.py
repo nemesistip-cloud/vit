@@ -362,13 +362,23 @@ async def get_model_confidence(db: AsyncSession = Depends(get_db)):
         )
         models = result.scalars().all()
 
+        # Type-prior accuracy table sourced from published ML benchmarks for
+        # 1X2 football prediction (same source as weight_adjuster._TYPE_PRIORS).
+        # Used only when no real settled-accuracy data exists for a model.
+        _PRIOR_ACC: dict = {
+            "MarketImplied": 70.0, "NeuralEnsemble": 64.0, "LLMConsensus": 63.0,
+            "HybridStack": 63.0, "XGBoost": 62.0, "Transformer": 61.0,
+            "RandomForest": 60.0, "LSTM": 60.0, "BayesianNet": 59.0,
+            "DixonColes": 59.0, "Poisson": 58.0, "Elo": 57.0, "Logistic": 56.0,
+        }
+
         if models:
             model_list = []
             for m in models:
                 if m.accuracy is not None:
                     display_accuracy = round(float(m.accuracy) * 100, 1)
                 else:
-                    display_accuracy = round(45.0 + float(m.weight or 0.05) * 250, 1)
+                    display_accuracy = _PRIOR_ACC.get(m.model_type or "", 58.0)
 
                 model_list.append({
                     "name": m.name,
@@ -425,32 +435,34 @@ async def get_model_confidence(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.debug(f"model-confidence audit error: {e}")
 
-    # Level 3: Static spec weights
+    # Level 3: Static spec weights — weights updated to match registry.py MODEL_SPECS;
+    # accuracy uses type-prior benchmarks, not the synthetic 45+weight*250 formula.
     SPEC_MODELS = [
-        ("XGBoost",           "xgb_v2",           0.15),
-        ("LSTM",              "lstm_v2",           0.12),
-        ("HybridStack",       "hybrid_v2",         0.10),
-        ("Transformer",       "transformer_v2",    0.10),
-        ("PoissonGoals",      "poisson_v2",        0.10),
-        ("NeuralEnsemble",    "ensemble_v2",       0.08),
-        ("BayesianNet",       "bayes_v2",          0.08),
-        ("DixonColes",        "dixon_coles_v2",    0.08),
-        ("RandomForest",      "rf_v2",             0.05),
-        ("LogisticRegression","logistic_v2",       0.05),
-        ("EloRating",         "elo_v2",            0.05),
-        ("MarketImplied",     "market_v2",         0.04),
+        ("XGBoost",           "xgb_v2",           0.14, 62.0),
+        ("LSTM",              "lstm_v2",           0.11, 60.0),
+        ("PoissonGoals",      "poisson_v2",        0.09, 58.0),
+        ("HybridStack",       "hybrid_v2",         0.09, 63.0),
+        ("Transformer",       "transformer_v2",    0.09, 61.0),
+        ("NeuralEnsemble",    "ensemble_v2",       0.08, 64.0),
+        ("DixonColes",        "dixon_coles_v2",    0.08, 59.0),
+        ("BayesianNet",       "bayes_v2",          0.07, 59.0),
+        ("MarketImplied",     "market_v2",         0.10, 70.0),
+        ("RandomForest",      "rf_v2",             0.05, 60.0),
+        ("LogisticRegression","logistic_v2",       0.06, 56.0),
+        ("EloRating",         "elo_v2",            0.04, 57.0),
+        ("LLMConsensus",      "llm_consensus_v2",  0.10, 63.0),
     ]
     fallback_models = [
         {
             "name": name,
             "key": key,
-            "accuracy": round(45.0 + weight * 250, 1),
+            "accuracy": acc,
             "weight": weight,
             "predictions": 0,
             "status": "active",
             "is_trained": False,
         }
-        for name, key, weight in SPEC_MODELS
+        for name, key, weight, acc in SPEC_MODELS
     ]
     total_w = sum(m["weight"] for m in fallback_models)
     ens = sum(m["accuracy"] * m["weight"] for m in fallback_models) / total_w if total_w else 0

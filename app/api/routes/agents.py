@@ -32,7 +32,7 @@ async def agents_summary(_user=Depends(verify_api_key)):
 
 
 @router.post("/trigger/{agent_name}")
-async def trigger_agent(agent_name: str, _user=Depends(verify_api_key)):
+async def trigger_agent(agent_name: str, _user=Depends(_get_admin)):
     """Manually trigger an agent's next cycle immediately."""
     try:
         from app.agents.coordinator import get_coordinator

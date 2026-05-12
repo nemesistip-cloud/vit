@@ -824,6 +824,7 @@ async def lifespan(app: FastAPI):
              {"NGN": 0.000633, "USD": 1.0, "USDT": 1.0, "PI": 0.314159, "VITCoin": 0.10},
              "Per-currency rate to 1 USD (used by the conversion engine)"),
             ("conversion_fee_pct", {"value": 0.5}, "Currency conversion fee percentage"),
+            ("withdrawal_fee_pct", {"value": 1.0}, "Withdrawal fee percentage (1.0 = 1% of withdrawal amount)"),
         ]
         async with AsyncSessionLocal() as _db:
             for key, value, desc in _default_configs:

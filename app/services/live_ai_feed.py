@@ -299,7 +299,17 @@ class LiveAIFeedService:
             weighted_draw = sum(p.draw_prob * p.confidence for p in predictions) / total_confidence
             weighted_away = sum(p.away_prob * p.confidence for p in predictions) / total_confidence
         else:
-            weighted_home = weighted_draw = weighted_away = 0.33
+            # Fall back to simple average across sources — never uniform 0.33
+            n = len(predictions)
+            weighted_home = consensus_home
+            weighted_draw = consensus_draw
+            weighted_away = consensus_away
+            if n > 0:
+                total = weighted_home + weighted_draw + weighted_away
+                if total > 0:
+                    weighted_home /= total
+                    weighted_draw /= total
+                    weighted_away /= total
 
         all_probs = home_probs + draw_probs + away_probs
         mean_prob = sum(all_probs) / len(all_probs)

@@ -166,9 +166,9 @@ class ModelPerformance(Base):
     model_type = Column(String, nullable=False)
     version = Column(Integer, default=1)
 
-    weight_decay_rate = Column(Float, default=0.05)
-    min_weight_threshold = Column(Float, default=0.05)
-    performance_window = Column(Integer, default=100)
+    weight_decay_rate = Column(Float, default=0.03)      # 3% decay (was 5% — too aggressive)
+    min_weight_threshold = Column(Float, default=0.10)   # 0.10 floor matches weight_adjuster MIN_WEIGHT
+    performance_window = Column(Integer, default=20)     # 20 samples (was 100 — never reached with sparse data)
     last_weight_update = Column(DateTime(timezone=True), nullable=True)
     consecutive_underperforming = Column(Integer, default=0)
 

@@ -354,7 +354,22 @@ class WithdrawalService:
         balance = await self.wallet_service.get_balance(wallet_id, currency)
         if balance < amount:
             raise ValueError(f"Insufficient {currency.value} balance")
-        fee_amount = Decimal("0.00")
+
+        # Read withdrawal fee percentage from PlatformConfig (key: "withdrawal_fee_pct").
+        # Defaults to 1.0% when the config row is absent.
+        fee_pct = Decimal("1.0")
+        try:
+            from app.modules.wallet.models import PlatformConfig
+            _fee_cfg_res = await self.db.execute(
+                select(PlatformConfig).where(PlatformConfig.key == "withdrawal_fee_pct")
+            )
+            _fee_cfg = _fee_cfg_res.scalar_one_or_none()
+            if _fee_cfg and isinstance(_fee_cfg.value, dict):
+                fee_pct = Decimal(str(_fee_cfg.value.get("value", "1.0")))
+        except Exception as _fee_err:
+            logger.debug("withdrawal fee config read failed: %s", _fee_err)
+
+        fee_amount = (amount * fee_pct / Decimal("100")).quantize(Decimal("0.00000001"))
         net_amount = amount - fee_amount
         auto_approved = amount <= auto_approve_limit
         status = "auto_approved" if auto_approved else "pending"
