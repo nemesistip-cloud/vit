@@ -1017,14 +1017,6 @@ async def lifespan(app: FastAPI):
 
         _secure_pass = _os.environ.get("ADMIN_PASSWORD", "")
 
-        def _is_weak(hashed: str) -> bool:
-            """Heuristic: short bcrypt hash cost (<= 10) = likely a legacy default."""
-            try:
-                cost = int(hashed.split("$")[2]) if hashed.startswith("$2") else 99
-                return cost < 10
-            except Exception:
-                return False
-
         if _secure_pass:
             _strength_ok = (
                 len(_secure_pass) >= 10
@@ -1039,12 +1031,16 @@ async def lifespan(app: FastAPI):
                     _admins = (await _db.execute(_select(_User).where(_User.role == "admin"))).scalars().all()
                     _updated = 0
                     for _admin in _admins:
-                        if _is_weak(_admin.hashed_password):
+                        # Rotate if the stored hash no longer matches ADMIN_PASSWORD
+                        # (handles both legacy weak hashes and any out-of-sync passwords)
+                        if not verify_password(_secure_pass, _admin.hashed_password):
                             _admin.hashed_password = hash_password(_secure_pass)
                             _updated += 1
                     if _updated:
                         await _db.commit()
                         print(f"✅ Rotated {_updated} admin account(s) to use ADMIN_PASSWORD from environment")
+                    else:
+                        print("✅ Admin password already matches ADMIN_PASSWORD")
     except Exception as _e:
         print(f"⚠️  Admin password check failed: {_e}")
 

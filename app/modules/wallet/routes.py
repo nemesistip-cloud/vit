@@ -4,7 +4,7 @@
 import csv
 import io
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -783,7 +783,7 @@ async def get_exchange_rates(db: AsyncSession = Depends(get_db)):
         },
         "ngn_per_usd": ngn_rate,
         "vit_price_usd": vit_usd,
-        "updated_at": __import__("datetime").datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 

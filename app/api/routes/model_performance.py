@@ -180,10 +180,10 @@ async def get_performance_summary(db: AsyncSession = Depends(get_db)):
 async def trigger_performance_sync(db: AsyncSession = Depends(get_db)):
     """Admin trigger: force the performance monitor agent to run now."""
     try:
-        from app.agents.coordinator import get_coordinator
-        coord = get_coordinator()
-        if coord:
-            agent = coord.get_agent("performance-monitor")
+        from app.core.swarm_orchestrator import get_swarm
+        swarm = get_swarm()
+        if swarm:
+            agent = swarm.agents.get("performance-monitor")
             if agent:
                 import asyncio
                 asyncio.create_task(agent.run_cycle())
