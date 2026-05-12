@@ -216,7 +216,7 @@ async def get_ticket_candidates(
     )
 
     if only_upcoming:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         q = q.where(Match.kickoff_time > now, Match.actual_outcome.is_(None))
 
     result = await db.execute(q.order_by(Prediction.timestamp.desc()).limit(500))

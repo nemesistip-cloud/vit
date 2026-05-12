@@ -204,19 +204,62 @@ async def _cash_out_football_com(position: StakePosition, amount: Decimal) -> di
 
 
 async def _cash_out_internal(position: StakePosition, amount: Decimal) -> dict:
-    """Execute cash-out via internal VIT staking settlement."""
+    """Execute cash-out via internal VIT staking settlement.
+
+    Marks the stake REFUNDED and credits the cash-out amount back to the
+    user's VITCoin wallet so the funds are immediately spendable.
+    """
     try:
         from app.db.database import AsyncSessionLocal
         from app.modules.blockchain.models import UserStake, StakeStatus
+        from app.modules.wallet.services import WalletService
+        from app.modules.wallet.models import Currency
         from sqlalchemy import select, update
+        import uuid as _uuid
+
         async with AsyncSessionLocal() as db:
-            await db.execute(
-                update(UserStake)
-                .where(UserStake.id == position.position_id)
-                .values(status=StakeStatus.REFUNDED.value)
+            # 1. Mark stake as refunded
+            result = await db.execute(
+                select(UserStake).where(UserStake.id == position.position_id)
             )
+            stake = result.scalar_one_or_none()
+            if stake is None:
+                raise ValueError(f"Stake {position.position_id} not found")
+
+            stake.status = StakeStatus.REFUNDED.value
+
+            # 2. Credit cash-out amount to user's VITCoin wallet
+            wallet_svc = WalletService(db)
+            wallet = await wallet_svc.get_or_create_wallet(stake.user_id)
+            ref = f"CASHOUT-{position.position_id[:8]}-{_uuid.uuid4().hex[:6].upper()}"
+            await wallet_svc.credit(
+                wallet_id=wallet.id,
+                user_id=stake.user_id,
+                currency=Currency.VITCOIN,
+                amount=amount,
+                tx_type="cashout",
+                reference=ref,
+                metadata={
+                    "source": "cash_out_sentinel",
+                    "stake_id": position.position_id,
+                    "match_id": position.match_id,
+                    "strategy": position.strategy,
+                    "original_stake": float(position.stake_amount),
+                },
+            )
+
             await db.commit()
-        return {"internal": True, "refunded": float(amount), "position_id": position.position_id}
+
+        logger.info(
+            "[cash-out] internal: stake %s refunded, credited %.4f VIT to user %s (ref=%s)",
+            position.position_id[:8], float(amount), stake.user_id, ref,
+        )
+        return {
+            "internal": True,
+            "refunded": float(amount),
+            "position_id": position.position_id,
+            "wallet_ref": ref,
+        }
     except Exception as exc:
         logger.error("[cash-out] internal settlement error: %s", exc)
         return {"error": str(exc)}

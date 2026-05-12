@@ -118,7 +118,7 @@ class EdgeDatabase:
 
         for edge in dead_edges:
             edge.status = "archived"
-            edge.archived_at = datetime.utcnow()
+            edge.archived_at = datetime.now(timezone.utc)
 
         await db.commit()
 

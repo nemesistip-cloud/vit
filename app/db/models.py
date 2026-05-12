@@ -13,7 +13,7 @@ class Match(Base):
     home_team = Column(String, nullable=False)
     away_team = Column(String, nullable=False)
     league = Column(String, nullable=False)
-    kickoff_time = Column(DateTime, nullable=False)
+    kickoff_time = Column(DateTime(timezone=True), nullable=False)
     status = Column(String, default="scheduled")
 
     # Provenance: where this fixture came from

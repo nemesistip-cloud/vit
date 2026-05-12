@@ -156,9 +156,40 @@ async def initiate_deposit(
     """Initiate a deposit — calls Paystack/Stripe when keys are configured."""
     import uuid as _uuid
     import os as _os
+    from datetime import timezone as _tz
 
     service = WalletService(db)
     wallet = await service.get_or_create_wallet(current_user.id)
+
+    # ── Idempotency guard ──────────────────────────────────────────────
+    # Return the existing pending transaction if one for the same
+    # user / amount / currency / method was created within the last 5 minutes.
+    # This prevents double-charges from rapid re-submissions or retries.
+    _five_min_ago = datetime.now(_tz.utc).replace(tzinfo=None) - timedelta(minutes=5)
+    _dup_result = await db.execute(
+        select(WalletTransaction).where(
+            WalletTransaction.user_id == current_user.id,
+            WalletTransaction.type == "deposit",
+            WalletTransaction.status == "pending",
+            WalletTransaction.currency == request.currency.upper(),
+            WalletTransaction.amount == Decimal(str(request.amount)),
+            WalletTransaction.created_at >= _five_min_ago,
+        ).order_by(WalletTransaction.created_at.desc()).limit(1)
+    )
+    _existing = _dup_result.scalar_one_or_none()
+    if _existing is not None:
+        _meta = _existing.tx_metadata or {}
+        logger.info(
+            "Deposit idempotency hit for user %s ref=%s", current_user.id, _existing.reference
+        )
+        return {
+            "status": "pending",
+            "reference": _existing.reference,
+            "payment_link": _meta.get("payment_link") or f"https://paystack.com/pay/vit-sports?ref={_existing.reference}",
+            "gateway_error": _meta.get("gateway_error"),
+            "idempotent": True,
+        }
+
     ref = f"DEP-{current_user.id}-{_uuid.uuid4().hex[:8].upper()}"
 
     payment_link = None
@@ -275,7 +306,7 @@ async def initiate_deposit(
         "reference": ref,
         "payment_link": fallback_link,
         "gateway_error": gateway_error,
-        "expires_at": (datetime.utcnow() + timedelta(hours=1)).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "currency": request.currency,
         "amount": request.amount,
         "method": request.method,
@@ -327,7 +358,7 @@ async def verify_deposit(
         if tx:
             tx.status = "confirmed"
             tx.amount = verified_amount
-            tx.processed_at = datetime.utcnow()
+            tx.processed_at = datetime.now(timezone.utc)
         else:
             import uuid as _uuid
             db.add(_WalletTx(
@@ -719,7 +750,7 @@ async def export_statement_csv(
         ])
     output.seek(0)
 
-    filename = f"vit_statement_{current_user.username}_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    filename = f"vit_statement_{current_user.username}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -752,7 +783,7 @@ async def get_exchange_rates(db: AsyncSession = Depends(get_db)):
         },
         "ngn_per_usd": ngn_rate,
         "vit_price_usd": vit_usd,
-        "updated_at": __import__("datetime").datetime.utcnow().isoformat(),
+        "updated_at": __import__("datetime").datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -924,7 +955,7 @@ async def get_vitcoin_price_history(
 ):
     """Return VITCoin price history for the last N days (for sparkline charts)."""
     from datetime import timezone as _tz
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     result = await db.execute(
         select(VITCoinPriceHistory)
         .where(VITCoinPriceHistory.calculated_at >= cutoff)

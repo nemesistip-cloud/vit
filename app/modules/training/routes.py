@@ -130,7 +130,7 @@ async def upload_dataset(
         generated_prompt=prompt,
         vitcoin_reward=reward,
         vitcoin_earned=False,
-        completed_at=datetime.utcnow(),
+        completed_at=datetime.now(timezone.utc),
     )
     db.add(job)
     await db.flush()

@@ -35,7 +35,7 @@ class DecisionLogger:
             model_contributions=json.dumps(decision.get("model_weights", {})),
             market_context=json.dumps(context.get("market", {})),
             bankroll_state=json.dumps(context.get("bankroll", {})),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         self.db.add(log_entry)
         await self.db.commit()

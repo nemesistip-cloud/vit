@@ -23,17 +23,18 @@ class AIProfilerService:
         result = await self.db.execute(select(AIPerformance))
         performances = result.scalars().all()
 
+        min_weight = 0.1
         for perf in performances:
             # Weight based on accuracy and calibration
             base_weight = (perf.accuracy * 0.7) + (perf.calibration_score * 0.3)
 
-            # Minimum weight threshold
-            min_weight = 0.1
-            new_weight = max(base_weight, min_weight)
-
-            # Decay weight if sample size is small
+            # Decay weight if sample size is small — apply BEFORE floor clamp so
+            # the clamp always enforces min_weight regardless of decay magnitude.
             if perf.sample_size < 10:
-                new_weight *= 0.8
+                base_weight *= 0.8
+
+            # Clamp to minimum weight threshold AFTER any decay
+            new_weight = max(base_weight, min_weight)
 
             perf.current_weight = new_weight
             perf.last_updated = datetime.now()
@@ -51,12 +52,16 @@ class AIProfilerService:
 
         predictions = result.all()
         if not predictions:
-            return {"home": 0.33, "draw": 0.33, "away": 0.33}
+            n = 3
+            p = round(1.0 / n, 6)
+            return {"home": p, "draw": p, "away": round(1.0 - 2 * p, 6)}
 
         total_weight = sum(perf.current_weight for _, perf in predictions)
 
         if total_weight == 0:
-            return {"home": 0.33, "draw": 0.33, "away": 0.33}
+            n = 3
+            p = round(1.0 / n, 6)
+            return {"home": p, "draw": p, "away": round(1.0 - 2 * p, 6)}
 
         weighted_home = sum(pred.home_prob * perf.current_weight for pred, perf in predictions) / total_weight
         weighted_draw = sum(pred.draw_prob * perf.current_weight for pred, perf in predictions) / total_weight
@@ -85,21 +90,23 @@ class AIProfilerService:
         draw_overrates = []
         away_overrates = []
 
-        for pred, match in predictions:
-            if match.actual_outcome and match.home_goals is not None:
-                # Calculate actual probabilities from results
-                total_matches = len(predictions)
-                home_wins = sum(1 for p, m in predictions if m.actual_outcome == "home")
-                draws = sum(1 for p, m in predictions if m.actual_outcome == "draw")
-                away_wins = sum(1 for p, m in predictions if m.actual_outcome == "away")
+        # Pre-compute outcome frequencies once (O(n)) instead of inside the loop (O(n²))
+        settled = [(p, m) for p, m in predictions if m.actual_outcome and m.home_goals is not None]
+        total_settled = len(settled)
+        if total_settled > 0:
+            home_wins  = sum(1 for _, m in settled if m.actual_outcome == "home")
+            draws      = sum(1 for _, m in settled if m.actual_outcome == "draw")
+            away_wins  = sum(1 for _, m in settled if m.actual_outcome == "away")
+            actual_home_prob = home_wins  / total_settled
+            actual_draw_prob = draws      / total_settled
+            actual_away_prob = away_wins  / total_settled
+        else:
+            actual_home_prob = actual_draw_prob = actual_away_prob = 1 / 3
 
-                actual_home_prob = home_wins / total_matches if total_matches > 0 else 0.33
-                actual_draw_prob = draws / total_matches if total_matches > 0 else 0.33
-                actual_away_prob = away_wins / total_matches if total_matches > 0 else 0.33
-
-                home_overrates.append(pred.home_prob - actual_home_prob)
-                draw_overrates.append(pred.draw_prob - actual_draw_prob)
-                away_overrates.append(pred.away_prob - actual_away_prob)
+        for pred, match in settled:
+            home_overrates.append(pred.home_prob - actual_home_prob)
+            draw_overrates.append(pred.draw_prob - actual_draw_prob)
+            away_overrates.append(pred.away_prob - actual_away_prob)
 
         return {
             "source": source,

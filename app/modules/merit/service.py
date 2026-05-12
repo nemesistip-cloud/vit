@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
@@ -84,7 +84,7 @@ async def record_merit_event(
 
     ms.score = new_score
     ms.tier = new_tier
-    ms.last_activity_at = datetime.utcnow()
+    ms.last_activity_at = datetime.now(timezone.utc)
 
     if points > 0:
         ms.total_earned += points
@@ -137,7 +137,7 @@ async def apply_inactivity_decay(db: AsyncSession, user_id: int) -> MeritScore |
     if not ms or ms.score <= 0:
         return None
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     last = ms.last_activity_at or ms.created_at
     days_inactive = (now - last).days
 

@@ -56,7 +56,7 @@ class ModelAccountability:
             model.current_weight = max(_MIN_WEIGHT, min(_MAX_WEIGHT, model.current_weight))
             # Also honour the per-row threshold (may be higher than the global floor)
             model.current_weight = max(model.current_weight, model.min_weight_threshold)
-            model.last_weight_update = datetime.utcnow()
+            model.last_weight_update = datetime.now(timezone.utc)
             model.accuracy_score = accuracy
 
             # Sync weight to ModelMetadata so both systems share one source of truth
@@ -82,7 +82,7 @@ class ModelAccountability:
         from app.db.models import CLVEntry
         from sqlalchemy.orm import aliased
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Fetch settled predictions; LEFT-join CLVEntry so rows still come back
         # even when the closing price was never recorded.

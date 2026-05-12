@@ -192,7 +192,7 @@ async def backfill_ft_results(
             session = AsyncSessionLocal()
             await session.__aenter__()  # type: ignore[attr-defined]
 
-        now_utc = datetime.utcnow()
+        now_utc = datetime.now(timezone.utc)
         # Pull all matches whose kickoff is in the past and not yet completed
         rows = (await session.execute(
             select(Match).where(

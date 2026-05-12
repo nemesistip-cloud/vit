@@ -185,7 +185,7 @@ class VITCoinPricingEngine:
     async def get_rolling_revenue(self, days: int = 30) -> Decimal:
         """Get rolling revenue from fees for the last N days."""
 
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
         result = await self.db.execute(
             select(func.sum(WalletTransaction.amount))
