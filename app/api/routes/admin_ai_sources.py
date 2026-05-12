@@ -409,13 +409,32 @@ async def run_server_analysis(
                 method = "ml_ensemble"
 
             if not analysis:
-                results.append({
-                    "match_id": match.id,
-                    "match": f"{home} vs {away}",
-                    "status": "skipped",
-                    "error": "No AI provider or ML ensemble available",
-                })
-                continue
+                try:
+                    from app.services.deterministic_insights import generate_deterministic_insights
+                    det = generate_deterministic_insights(
+                        home_team=home, away_team=away,
+                        league=league or "default",
+                        home_prob=0.45, draw_prob=0.26, away_prob=0.29,
+                        confidence=0.5,
+                    )
+                    analysis = {
+                        "home_prob": det["home_prob"],
+                        "draw_prob": det["draw_prob"],
+                        "away_prob": det["away_prob"],
+                        "confidence": det["confidence"],
+                        "reason": det.get("summary") or f"VIT Statistical Engine baseline for {home} vs {away}.",
+                        "raw_content": str(det),
+                    }
+                    method = "scie_deterministic"
+                except Exception as scie_exc:
+                    logger.warning("[server-analysis] SCIE fallback failed for %s vs %s: %s", home, away, scie_exc)
+                    results.append({
+                        "match_id": match.id,
+                        "match": f"{home} vs {away}",
+                        "status": "skipped",
+                        "error": "Statistical engine fallback failed — match skipped",
+                    })
+                    continue
 
             ok = await service.ingest_prediction(
                 match_id=match.id,

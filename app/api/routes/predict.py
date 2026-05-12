@@ -1013,20 +1013,18 @@ async def get_match_insights(
         confidence=conf,
     )
 
-    gemini_insight = None
-    if raw.get("available"):
-        gemini_insight = {
-            "summary": raw.get("summary"),
-            "key_factors": raw.get("key_factors", []),
-            "recommendation": raw.get("value_assessment"),
-            "confidence": conf,
-            "provider": "gemini",
-        }
+    gemini_insight = {
+        "summary": raw.get("summary"),
+        "key_factors": raw.get("key_factors", []),
+        "recommendation": raw.get("value_assessment"),
+        "confidence": conf,
+        "provider": raw.get("source", "vit-statistical-engine"),
+    }
 
     return {
         "match_id": match_id,
         "gemini": gemini_insight,
         "claude": None,
         "grok": None,
-        "source": "gemini" if gemini_insight else "unavailable",
+        "source": raw.get("source", "vit-statistical-engine"),
     }

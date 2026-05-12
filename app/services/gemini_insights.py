@@ -16,20 +16,25 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_EMPTY = {
-    "available": False,
-    "summary": None,
-    "key_factors": [],
-    "value_assessment": None,
-    "recommendation": None,
-    "risk_level": None,
-    "insight_tags": [],
-    "error": None,
-}
+def _scie_fallback(
+    home_team: str = "", away_team: str = "", league: str = "default",
+    home_prob: float = 0.45, draw_prob: float = 0.26, away_prob: float = 0.29,
+    over_25_prob=None, btts_prob=None, bet_side=None,
+    edge: float = 0.0, entry_odds=None, confidence: float = 0.5,
+) -> dict:
+    """Return a fully-populated deterministic insight when Gemini (and all other LLMs) are unavailable."""
+    from app.services.deterministic_insights import generate_deterministic_insights
+    result = generate_deterministic_insights(
+        home_team=home_team or "Home", away_team=away_team or "Away",
+        league=league or "default", home_prob=home_prob, draw_prob=draw_prob,
+        away_prob=away_prob, over_25_prob=over_25_prob, btts_prob=btts_prob,
+        bet_side=bet_side, edge=edge, entry_odds=entry_odds, confidence=confidence,
+    )
+    return {**result, "source": "vit-statistical-engine", "available": True}
 
 
 def _no_key() -> dict:
-    return {**_EMPTY, "error": "No AI provider available — check provider keys"}
+    return _scie_fallback()
 
 
 def _build_prompt(
@@ -95,7 +100,8 @@ async def generate_match_insights(
 
     result = await call_ai_with_provider(prompt, max_tokens=700, temperature=0.3, preferred="gemini")
     if result is None:
-        return _no_key()
+        return _scie_fallback(home_team, away_team, league, home_prob, draw_prob, away_prob,
+                              over_25_prob, btts_prob, bet_side, edge, entry_odds, confidence)
 
     raw, provider = result
     try:
@@ -138,4 +144,5 @@ async def generate_match_insights(
         }
     except Exception as exc:
         logger.error("gemini_insights error: %s", exc)
-        return {**_no_key(), "error": str(exc)}
+        return _scie_fallback(home_team, away_team, league, home_prob, draw_prob, away_prob,
+                              over_25_prob, btts_prob, bet_side, edge, entry_odds, confidence)

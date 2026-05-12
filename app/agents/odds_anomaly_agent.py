@@ -193,18 +193,66 @@ class OddsAnomalyAgent(BaseAgent):
             curr_away_odds = anomaly.get("away_odds_curr") or anomaly.get("curr_odds", {}).get("away", 2.0)
 
             if not grok_key:
-                explanation = (
-                    f"VIT SCIE detected a significant ML probability shift for "
-                    f"{anomaly['home_team']} vs {anomaly['away_team']} "
-                    f"(max drift: {anomaly.get('max_move',0)*100:.1f}%). "
-                    "Grok key not configured for detailed explanation."
-                ) if source == "scie" else (
-                    "Significant odds movement detected — Grok key not configured for explanation."
+                from app.services.ai_client import call_ai
+                import asyncio
+                fallback_prompt = _build_anomaly_prompt(
+                    anomaly["home_team"], anomaly["away_team"],
+                    prev_home_odds, curr_home_odds,
+                    prev_away_odds, curr_away_odds,
+                    source=source,
                 )
-                cause = "UNKNOWN"
-                confidence = 0.3
-                action = "WATCH"
-                meta: Dict = {**anomaly}
+                try:
+                    fallback_raw = await asyncio.wait_for(
+                        call_ai(fallback_prompt, max_tokens=400, temperature=0.5),
+                        timeout=18.0,
+                    )
+                except Exception:
+                    fallback_raw = None
+
+                if fallback_raw:
+                    import json as _json
+                    try:
+                        text = fallback_raw.strip()
+                        if text.startswith("```"):
+                            text = text.split("```")[1]
+                            if text.startswith("json"):
+                                text = text[4:]
+                        parsed = _json.loads(text.strip())
+                        explanation = parsed.get("explanation", fallback_raw[:300])
+                        cause = parsed.get("likely_cause", "UNKNOWN")
+                        confidence = float(parsed.get("confidence", 0.5))
+                        action = parsed.get("action", "WATCH")
+                        meta: Dict = {**anomaly, **parsed}
+                    except Exception:
+                        explanation = fallback_raw[:500]
+                        cause = "UNKNOWN"
+                        confidence = 0.5
+                        action = "WATCH"
+                        meta = {**anomaly}
+                else:
+                    drift_pct = anomaly.get("max_move", 0) * 100
+                    if source == "scie":
+                        explanation = (
+                            f"VIT SCIE detected a significant ML probability shift for "
+                            f"{anomaly['home_team']} vs {anomaly['away_team']} "
+                            f"(max drift: {drift_pct:.1f}%). "
+                            f"Home odds moved {prev_home_odds:.2f}→{curr_home_odds:.2f}; "
+                            f"Away odds moved {prev_away_odds:.2f}→{curr_away_odds:.2f}. "
+                            f"Possible causes: team news, lineup changes, or sharp money entering the market."
+                        )
+                    else:
+                        explanation = (
+                            f"Significant odds movement detected for "
+                            f"{anomaly['home_team']} vs {anomaly['away_team']} "
+                            f"(drift: {drift_pct:.1f}%). "
+                            f"Home: {prev_home_odds:.2f}→{curr_home_odds:.2f}, "
+                            f"Away: {prev_away_odds:.2f}→{curr_away_odds:.2f}. "
+                            f"Monitor team news for causative event."
+                        )
+                    cause = "MARKET_MOVE"
+                    confidence = 0.4
+                    action = "WATCH"
+                    meta = {**anomaly}
             else:
                 prompt = _build_anomaly_prompt(
                     anomaly["home_team"], anomaly["away_team"],

@@ -53,6 +53,12 @@ export default function AssistantPage() {
   const currentMode = MODES.find((m) => m.id === mode)!;
 
   useEffect(() => {
+    if (mode === "gemini" && !status.isLoading && !backendReady && puter) {
+      setMode("claude");
+    }
+  }, [mode, backendReady, puter, status.isLoading]);
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isPending]);
 
@@ -168,9 +174,13 @@ export default function AssistantPage() {
             <Badge variant="outline" className="font-mono text-xs border-green-500/40 text-green-500">
               ● Ready
             </Badge>
+          ) : mode === "gemini" && !backendReady ? (
+            <Badge variant="outline" className="font-mono text-xs border-blue-500/40 text-blue-400">
+              ● Use Free Modes
+            </Badge>
           ) : (
             <Badge variant="outline" className="font-mono text-xs border-amber-500/40 text-amber-500">
-              ● Not configured
+              ● Loading…
             </Badge>
           )}
 
@@ -276,8 +286,8 @@ export default function AssistantPage() {
               placeholder={
                 isReady
                   ? `Ask ${currentMode.label} anything about VIT Sports…`
-                  : mode === "gemini"
-                  ? "Backend AI not configured"
+                  : mode === "gemini" && !backendReady
+                  ? "Switch to Claude or Grok for free unlimited AI…"
                   : "Puter AI loading…"
               }
               disabled={!isReady || isPending}
