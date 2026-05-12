@@ -1,11 +1,89 @@
 {
   "match_id": 21,
-  "generated_at": "2026-05-12T11:58:55.593037+00:00",
+  "generated_at": "2026-05-12T12:22:23.876566+00:00",
   "insights": {
     "deterministic": {
       "available": true,
       "source": "deterministic",
       "label": "VIT Statistical Engine",
+      "home_prob": 0.4177,
+      "draw_prob": 0.2701,
+      "away_prob": 0.3122,
+      "confidence": 0.4093,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 41.8% probability in Celta Vigo vs Levante (La Liga). The home side carries a 41.8% win probability versus 31.2% for the visitors, with a draw at 27.0%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (41.8% for Home Win)",
+        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "Ensemble entropy at 98% of maximum — uncertain split"
+      ],
+      "value_assessment": "No meaningful edge detected at 3.10; pass unless line moves.",
+      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "risk_level": "HIGH",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:high",
+        "goals-market",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "gemini": {
+      "available": true,
+      "source": "gemini",
+      "label": "Google Gemini",
+      "home_prob": 0.4177,
+      "draw_prob": 0.2701,
+      "away_prob": 0.3122,
+      "confidence": 0.4093,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 41.8% probability in Celta Vigo vs Levante (La Liga). The home side carries a 41.8% win probability versus 31.2% for the visitors, with a draw at 27.0%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (41.8% for Home Win)",
+        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "Ensemble entropy at 98% of maximum — uncertain split"
+      ],
+      "value_assessment": "No meaningful edge detected at 3.10; pass unless line moves.",
+      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "risk_level": "HIGH",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:high",
+        "goals-market",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "claude": {
+      "available": true,
+      "source": "claude",
+      "label": "Anthropic Claude",
+      "home_prob": 0.4177,
+      "draw_prob": 0.2701,
+      "away_prob": 0.3122,
+      "confidence": 0.4093,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 41.8% probability in Celta Vigo vs Levante (La Liga). The home side carries a 41.8% win probability versus 31.2% for the visitors, with a draw at 27.0%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (41.8% for Home Win)",
+        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "Ensemble entropy at 98% of maximum — uncertain split"
+      ],
+      "value_assessment": "No meaningful edge detected at 3.10; pass unless line moves.",
+      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "risk_level": "HIGH",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:high",
+        "goals-market",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "grok": {
+      "available": true,
+      "source": "grok",
+      "label": "xAI Grok",
       "home_prob": 0.4177,
       "draw_prob": 0.2701,
       "away_prob": 0.3122,
