@@ -1,6 +1,6 @@
 # VIT Sports Intelligence Network — System Roadmap
-**Version:** 4.7.5  
-**Last updated:** 2026-05-03  
+**Version:** 6.0.0  
+**Last updated:** 2026-05-13  
 **Purpose:** Handoff document for the next agent. Read this before doing any work.
 
 ---
@@ -9,16 +9,18 @@
 
 | Layer | Technology |
 |---|---|
-| Backend | Python 3.11 / FastAPI 0.115.6 / SQLAlchemy (aiosqlite) |
-| Database | SQLite (`vit.db`) in WAL mode — PostgreSQL for production |
-| Frontend | React 19 / TypeScript / Vite / TailwindCSS 4 / ShadCN UI |
+| Backend | Python 3.11 / FastAPI 0.115 / SQLAlchemy 2.0 async (aiosqlite dev / asyncpg prod) |
+| Database | SQLite (`vit.db`) in WAL mode (dev) — PostgreSQL via `DATABASE_URL` (prod) |
+| Frontend | React 19 / TypeScript / Vite 6 / TailwindCSS 4 / ShadCN/Radix UI |
 | State mgmt | `@tanstack/react-query` (server state) + `vitWS` WebSocket singleton |
-| Agents | 22 autonomous agents via `BaseAgent` + coordinator |
-| ML | 12 models (6 base + 6 v2) loaded at startup |
-| Auth | JWT (access/refresh) + TOTP 2FA |
+| Agents | 22 autonomous agents via `BaseAgent` + `SwarmOrchestrator` (30s heartbeat supervisor) |
+| ML | 13 models loaded at startup (6 base + 6 v2 + 1 ensemble) |
+| Auth | JWT (access/refresh) + TOTP 2FA + JWT blocklist (`token_blocklist` table) |
+| Payments | Stripe (USD), Paystack (NGN), USDT, Pi Network, VITCoin |
+| Chain | VIT-Chain sovereign hash-linked ledger (`vit_chain_ledger.db`, PoW difficulty=4) |
 | Startup | `bash scripts/start_fullstack.sh` → uvicorn port 8000 + Vite port 5000 |
 
-**Health check:** `GET /health` → `{"status":"ok","models_loaded":12,"db_connected":true}`
+**Health check:** `GET /health` → `{"status":"ok","version":"6.0.0","models_loaded":13,"agents":{"total":22,"running":22}}`
 
 ---
 
@@ -27,142 +29,121 @@
 ### Configured (valid)
 | Secret | Status | Notes |
 |---|---|---|
-| `JWT_SECRET_KEY` | ✅ 64 chars | Valid |
-| `GEMINI_API_KEY` | ✅ 39 chars (`AIza…`) | Valid format; primary AI provider |
-| `OPENAI_API_KEY` | ✅ 164 chars (`sk-p…`) | Valid project key |
-| `FOOTBALL_DATA_API_KEY` | ✅ 32 chars | Valid — but see Network Constraint below |
-| `PAYSTACK_SECRET_KEY` | ✅ 48 chars | Valid |
-| `TELEGRAM_BOT_TOKEN` | ✅ 46 chars | Valid |
-| `REDIS_URL` | ✅ 107 chars | Configured; caching integration may be incomplete |
-| `ADMIN_EMAIL` | ✅ `admin@vit.network` | |
-| `ADMIN_PASSWORD` | ✅ 11 chars | Set via env; do not hardcode |
-| `STRIPE_SECRET_KEY` | ⚠️ 27 chars (`mk_1…`) | Unusual prefix — verify it is a valid Stripe key |
+| `JWT_SECRET_KEY` | ✅ Configured | Valid |
+| `SECRET_KEY` | ✅ Configured | Flask/session secret |
+| `GEMINI_API_KEY` | ✅ Valid (`AIza…`) | Primary AI provider — available |
+| `OPENAI_API_KEY` | ✅ Valid (`sk-p…`) | Secondary AI provider — available |
+| `FOOTBALL_DATA_API_KEY` | ✅ Configured | Blocked at network level (see below) |
+| `PAYSTACK_SECRET_KEY` | ✅ Configured | Valid |
+| `STRIPE_SECRET_KEY` | ⚠️ Suspect prefix (`mk_1…`) | Not a standard `sk_live_` / `sk_test_` key — checkout will fail |
+| `TELEGRAM_BOT_TOKEN` | ✅ Configured | Valid |
+| `ADMIN_PASSWORD` | ✅ Configured | Do not hardcode |
+| `ODDS_API_KEY` | ✅ Configured | Used by odds router; returns 503 without valid key |
 
-### Invalid / Missing (need fixing)
+### Invalid / Missing (action required)
 | Secret | Status | Impact |
 |---|---|---|
-| `CLAUDE_API_KEY` | ❌ 3 chars (`Key`) | Placeholder — Claude always fails auth → 30-min backoff |
-| `XAI_API_KEY` | ❌ 3 chars (`Key`) | Placeholder — Grok always fails auth → 30-min backoff |
-| `RESEND_API_KEY` | ❌ MISSING | Email notifications (`/email/*`) are completely broken |
+| `CLAUDE_API_KEY` | ❌ 3-char placeholder (`Key`) | Claude always fails auth → 30-min backoff |
+| `XAI_API_KEY` | ❌ 3-char placeholder (`Key`) | Grok always fails auth → 30-min backoff |
+| `RESEND_API_KEY` | ❌ Missing | Email notifications disabled (password reset, verification broken) |
+| `DATABASE_URL` | ⚠️ Not set in dev | Defaults to SQLite — set for production PostgreSQL |
+| `VAULT_MASTER_KEY` | ⚠️ Not set | TMA vault uses base64 fallback — set for production security |
 
-**To fix:** Replace `CLAUDE_API_KEY` and `XAI_API_KEY` in Replit Secrets with real keys, or leave as-is (the 30-min backoff means they are skipped cleanly — no crash). Add `RESEND_API_KEY` to enable email.
+**To fix:** Replace `CLAUDE_API_KEY` and `XAI_API_KEY` with real keys in Replit Secrets. The 30-min backoff on invalid keys is silent (no crash) but disables those providers.
 
 ### Network Constraint (Replit sandbox)
-`api.football-data.org:443` is **TCP-blocked** at the Replit network level. DNS resolves but all connections timeout. The system runs fully in offline mode:
-- Match data: synthetic fixtures with real team names
-- FT results: simulated via `app/services/ft_backfill.py`
-- Circuit breaker: 10-min skip after first ConnectTimeout (`results_settler.py`)
-- This is **not an API key issue** — it is a sandbox restriction.
+`api.football-data.org:443` is **TCP-blocked** at the Replit network level. DNS resolves but all connections time out. The system handles this gracefully:
+- Match fixtures: 159 records seeded via internal pipeline
+- Settlement: attempts Football-Data.org first, falls back to TheSportsDB (free, always available)
+- Circuit breaker in `results_settler.py`: 10-min skip window after first `ConnectTimeout`
+- This is **not an API key issue** — it is a sandbox network restriction
 
 ---
 
-## 3. Database State (as of 2026-05-03)
+## 3. Database State (as of 2026-05-13)
 
 | Table | Rows | Status |
 |---|---|---|
 | `users` | 1 | Admin only; no real users yet |
-| `matches` | 15 | All synthetic (`source=synthetic`) |
-| `predictions` | 15 | 9 settled (was_correct set), 6 open — seeded synthetically |
+| `matches` | 159 | Real team names; seeded from pipeline |
+| `predictions` | 330 | All settled — seeded synthetically |
 | `wallets` | 1 | Admin wallet only |
-| `model_metadata` | 12 | 12 models registered |
+| `model_metadata` | 13 | All 13 models registered (v1+v2+ensemble) |
 | `subscription_plans` | 3 | Basic / Pro / Elite seeded |
-| `platform_configs` | 11 | Config defaults seeded |
-| `vitcoin_price_history` | 5 | Price history seeded |
-| `node_activities` | 106 | Agent activity recorded |
-| `network_snapshots` | 3 | Network state snapshots |
-| `vit_identities` | 22 | W3C DID docs for 22 agents |
-| `verifiable_credentials` | 12 | VCs for 12 models |
-| `agent_insights` | 25 | AI agent insight reports |
-| `audit_logs` | 5 | Admin audit trail |
-| `pipeline_runs` | 4 | ETL pipeline run history |
+| `platform_configs` | 12 | Config defaults seeded |
+| `vitcoin_price_history` | 7 | Price history seeded |
+| `node_activities` | 167 | Agent activity recorded |
+| `network_snapshots` | 5 | Network state snapshots |
+| `vit_identities` | 22 | W3C DID docs for all 22 agents |
+| `verifiable_credentials` | 14 | VCs for agents and models |
+| `agent_insights` | 44 | AI agent insight reports |
+| `pipeline_runs` | 6 | ETL pipeline run history |
+| `marketplace_listings` | 12 | 12 system ML models listed |
+| `validator_profiles` | 1 | Admin registered as active validator |
+| `tasks` | 8 | Gamification tasks seeded |
+| `task_categories` | 3 | Prediction / Social / Learning |
+| `bankroll_states` | 5 964 | Kelly criterion states tracked |
 
-### Empty tables (feature exists, no data yet)
+### Empty tables (feature complete, no live data yet)
 | Table | Feature | Blocker |
 |---|---|---|
-| `oracle_results` | Oracle consensus output | No settled matches from live API |
-| `match_settlements` | Settlement pipeline | Football API network-blocked |
-| `consensus_predictions` | Oracle aggregation | Depends on oracle_results |
-| `clv_entries` | Closing Line Value tracking | Needs settled match data |
-| `model_performances` | ML accuracy metrics | Needs predictions + settlements |
-| `marketplace_listings` | Model marketplace | No listings submitted |
-| `validator_profiles` | Validator system | No validators registered |
-| `tasks` / `task_categories` | Gamification tasks | Not seeded |
-| `bankroll_states` | Wallet bankroll tracking | Not initialized |
-| `training_jobs` | ML retraining | No jobs triggered |
-| `notifications` | In-app + push notifications | No events to fire them |
+| `oracle_results` | Oracle consensus output | No live settled matches from external API |
+| `match_settlements` | Settlement pipeline | Football-Data.org TCP-blocked in sandbox |
+| `consensus_predictions` | Oracle aggregation | Depends on `oracle_results` |
+| `clv_entries` | Closing Line Value tracking | Needs live odds + settled matches |
+| `model_performances` | ML accuracy metrics | Needs live settled predictions from real API |
+| `training_jobs` | ML retraining pipeline | Needs 50+ settled predictions; no jobs triggered yet |
+| `notifications` | In-app + push | No real events to trigger them |
 | `gov_proposals` / `gov_votes` | DAO governance | No proposals created |
-| `bridge_transactions` | Token bridge | Not used |
+| `bridge_transactions` | Cross-chain bridge | Not used |
+| `audit_logs` | Admin audit trail | No admin actions logged yet |
 
 ---
 
-## 4. Known Bugs & Broken Endpoints
+## 4. Known Bugs & Incomplete Implementations
 
-### 4.1 Broken API Endpoints (404s)
-The frontend calls these paths but they return 404:
+### 4.1 Stripe payment key invalid
+`STRIPE_SECRET_KEY` starts with `mk_1…` which is not a standard Stripe key format. Subscription checkout (`/subscription/create-checkout`) will fail silently at payment intent creation.
 
-| Frontend Call | Why it 404s | Fix |
-|---|---|---|
-| `GET /api/agents/status` | `agents` router has prefix `/agents` — no `/api` prefix, but frontend `apiGet("/agents/status")` adds `/api` automatically | Either add `/api` prefix to the agents router, or check if the main FastAPI app mounts it under `/api` via `APIRouter` |
-| `GET /api/ai-feed` | `ai_feed` router requires `verify_api_key` (developer key), not JWT Bearer token | Frontend should use a dev API key header, or route needs auth relaxation |
+**Fix:** Get a valid `sk_test_…` key from the Stripe dashboard and update the Replit Secret.
 
-**To investigate:** Run `curl http://localhost:8000/openapi.json | python3 -m json.tool | grep '"path"'` to see all real registered routes.
+### 4.2 Email disabled (no Resend key)
+`app/services/alerts.py` and all email routes (`/auth/forgot-password`, `/auth/send-verification`, `/auth/verify-email`) require `RESEND_API_KEY`. Without it, transactional email is completely disabled.
 
-### 4.2 AI Insight Services Still Using Isolated HTTP Clients
-`grok_insights.py` was fixed this session to use the shared `call_ai()` cascade. The other three services still have the same problem — isolated `httpx` clients with hardcoded models, no cascade fallback:
+**Fix:** Create a free Resend account at resend.com, generate an API key, and add it to Replit Secrets.
 
-| File | Model Used | Issue |
-|---|---|---|
-| `app/services/claude_insights.py` | `claude-3-haiku-20240307` (old) | Isolated httpx; fails hard if Claude key invalid (no fallback) |
-| `app/services/openai_insights.py` | `gpt-4o-mini` | Isolated httpx; no fallback; never tries newer models |
-| `app/services/gemini_insights.py` | `gemini-2.0-flash` list | Has its own model fallback list, but still isolated (no cross-provider fallback) |
+### 4.3 CLV tracking empty
+`clv_entries` = 0 rows. CLV is computed at settlement time from `Match.closing_odds_*` columns. The columns exist on `Match` records but odds data has never been populated (Odds API returns 503 without a valid key, Football-Data.org is blocked).
 
-**Fix pattern** (same as what was done for `grok_insights.py`):
-```python
-from app.services.ai_client import call_ai
+**Fix:** Supply a valid `ODDS_API_KEY` so the odds refresh agent can fill closing odds. CLV will then populate automatically as matches settle.
 
-async def generate_match_insights(...) -> dict:
-    raw = await call_ai(prompt, max_tokens=600, temperature=0.6, preferred="<provider>")
-    if raw is None:
-        return {**_no_key(), "error": "All AI providers unavailable"}
-    # parse JSON from raw ...
-```
+### 4.4 Model performance metrics empty
+`model_performances` = 0 rows. The `performance-monitor` agent runs every 30 min (90s initial delay) and calls `rolling_window_accuracy()`. This was fixed (join now uses `cast(Match.id, String) == AIPredictionAudit.match_id`), but `ai_prediction_audits` table has no records yet because no live predictions have been made through the API (predictions are seeded synthetically, not via the inference endpoint).
 
-These are called by `app/services/multi_ai_dispatcher.py` → match-detail AI insights panel.
+**Fix:** Once real users make predictions through the app (calling `POST /predict/{match_id}`), the audit records will populate and the performance monitor will track accuracy.
 
-### 4.3 Support Status Shows All Providers Unavailable
-`GET /api/support/status` returns `{"providers": {"gemini": false, "claude": false, "openai": false, "grok": false}}` even though GEMINI and OPENAI keys are valid.
+### 4.5 Results settlement errors in sandbox
+The `results_settler.py` settlement loop was previously crashing for all 21 match attempts with `sqlalchemy.exc.MissingGreenlet`. This is now fixed (session uses `expire_on_commit=False`). However, settlement still produces 0 results because Football-Data.org is TCP-blocked and TheSportsDB fallback only has historical matches that don't match the fixture IDs in the DB.
 
-**Root cause:** `provider_status()` in `ai_client.py` calls `_provider_available()` which returns `false` if the provider is in the 30-minute backoff window (set when any prior call failed). Claude and Grok are invalid keys (3 chars) so they always backoff. Gemini/OpenAI may have hit an error on first attempt.
-
-**Fix:** The status endpoint should distinguish between "key not configured", "in backoff", and "tested OK". The current implementation collapses these into a single boolean.
-
-### 4.4 Gamification Tasks Not Seeded
-The `tasks` and `task_categories` tables are empty. The Tasks page (`/tasks`) and the onboarding component (`components/onboarding.tsx`) will show nothing. There is task CRUD in the admin panel but no seed data.
-
-**Fix:** Add a task seeding step to `main.py` startup (similar to how subscription plans and config defaults are seeded). Example categories: Prediction, Social, Training. Example tasks: "Make your first prediction", "Complete profile", "Refer a friend".
-
-### 4.5 ML Performance Tracking Not Recording
-`model_performances` = 0 rows. The `performance-monitor` agent runs every 30 minutes (with 90s initial delay) but has nothing to report because there are no settled predictions from the live API (football API is blocked) and match settlements have never triggered.
-
-**Fix:** The agent should also process the synthetic settled predictions in the DB. Check `app/agents/performance_monitor.py` — it likely filters on `source != synthetic`.
+**Fix (long-term):** Seed a dedicated batch of matches with known final scores, then trigger settlement manually via `POST /admin/settle` to verify the full pipeline end-to-end.
 
 ---
 
-## 5. Completed Work (this session + previous sessions)
+## 5. Completed Work
 
-### Session 1 — Prior fixes
+### Session 1 — Initial setup
 - Puter.js multi-account panel (`ai-sources.tsx`, `puter-ai.ts`)
 - `isPuterSignedIn`/`puterSignIn`/`puterSignOut`/`getPuterUser` exports
-- DELAY_MS raised to 3500ms
-- Rate-limit detection with 15s cooldown in agent loop
+- DELAY_MS raised to 3500ms in agent loop
+- Rate-limit detection with 15s cooldown
 - JWT-based rate limiter keying with raised limits
 
 ### Session 2 — Top 10 bug fixes
-1. Grok model names: `grok-2`/`grok-beta` → `grok-3-mini`/`grok-2-1212`
+1. Grok model names corrected: `grok-2`/`grok-beta` → `grok-3-mini`/`grok-2-1212`
 2. Provider 30-min backoff on 401/403 auth failures
 3. Claude + Grok model loops `break` on auth failures
 4. Match sync error logging uses `repr(e)` + exception type (was silent)
-5. Misleading `pip install sports-skills` message replaced
+5. Misleading `pip install sports-skills` startup message removed
 6. Vite startup duplicate `--host --port` flags removed
 7. Odds anomaly agent's private `_call_grok` → shared `call_ai` cascade
 8. News sentinel logs when scraper returns empty
@@ -170,10 +151,18 @@ The `tasks` and `task_categories` tables are empty. The Tasks page (`/tasks`) an
 10. `/api/support/status` now reports per-provider availability
 
 ### Session 3 — Research tab + model upgrade
-1. **EV Scanner status codes fixed** (`app/modules/quant/routes.py`): was filtering for `"SCHEDULED"/"TIMED"` (Football-Data.org codes) — added `"upcoming"`, `"scheduled"`, `"live"`, `"in_play"` so local DB statuses match
-2. **`grok_insights.py` upgraded**: removed deprecated `grok-beta` + isolated `httpx` client; now uses shared `call_ai()` cascade with `preferred="grok"`, plus markdown fence stripping
-3. **StrategyPanel empty-state fixed** (`frontend/src/pages/research.tsx`): missing `data?.error` handler left panel blank on no-data — added `<Err msg={data.error} />` guard (same pattern as other panels)
-4. **Synthetic predictions seeded**: 15 predictions (9 settled, 6 open) seeded into `vit.db` with realistic probabilities, odds, and outcomes so all quant panels show real data
+1. EV Scanner status codes fixed (`app/modules/quant/routes.py`): added `"upcoming"`, `"scheduled"`, `"live"`, `"in_play"` to match DB values
+2. `grok_insights.py` upgraded to use shared `call_ai()` cascade with markdown fence stripping
+3. `StrategyPanel` empty-state fixed (`research.tsx`): added `data.error` guard
+4. Synthetic predictions seeded: 15 predictions (9 settled) for quant panel data
+
+### Session 4 — V6 upgrade + route audit
+1. `APP_VERSION` updated: `"5.0.0"` → `"6.0.0"` in `app/config.py` (single source of truth for `/health` and startup banner)
+2. `/system/status` flat field aliases added (`main.py`): `total_users`, `active_users_30d`, `active_validators`, `total_staked_vit` now present at top level (ecosystem ticker was reading flat fields but endpoint only returned nested structure)
+3. Ecosystem ticker price field fixed (`ecosystem-ticker.tsx`): was reading `price?.price_usd` but backend returns `price?.price` — changed to `price?.price ?? price?.price_usd` for forward compatibility
+4. `rolling_window_accuracy` join fixed (`app/services/accuracy_enhancer.py`): was joining `Match.external_id == AIPredictionAudit.match_id` but the orchestrator stores the integer match ID as a string — corrected to `cast(Match.id, String) == AIPredictionAudit.match_id`
+5. Results settler `MissingGreenlet` crash fixed (`app/services/results_settler.py`): after each `await db.commit()` in the loop, SQLAlchemy expired all loaded `Match` attributes causing a lazy-load attempt that fails in async context — fixed with `db.sync_session.expire_on_commit = False`
+6. Full route audit completed: all 57 frontend pages verified against backend endpoints — all API paths are correctly registered and matched
 
 ---
 
@@ -181,143 +170,188 @@ The `tasks` and `task_categories` tables are empty. The Tasks page (`/tasks`) an
 
 ### P0 — Fix immediately (broken user-facing features)
 
-**P0-A: Fix `/api/agents/status` 404** ✅ DONE
-- Fixed in `main.py`: `app.include_router(agents_router, prefix="/api")` — all agent routes now at `/api/agents/...`
+**P0-A: Replace Stripe key**
+- Current `STRIPE_SECRET_KEY` has prefix `mk_1…` — not a valid Stripe key format
+- Subscription checkout will fail silently at payment intent creation
+- Get a `sk_test_…` key from Stripe dashboard and update the Replit Secret
 
-**P0-B: Add `RESEND_API_KEY` to enable email**
-- `app/services/alerts.py` and email routes use Resend for transactional email
-- Without this key, password reset, email verification, and notifications are broken
-- Add the secret via Replit Secrets panel, not in code
-
-**P0-C: Convert `claude_insights.py`, `openai_insights.py`, `gemini_insights.py` to use `call_ai` cascade** ✅ ALREADY DONE
-- All three insight files already use `call_ai_with_provider` cascade — ROADMAP was outdated
+**P0-B: Add Resend API key for email**
+- Password reset, email verification, and notification emails are completely non-functional
+- Create a free Resend account → generate API key → add as `RESEND_API_KEY` in Replit Secrets
 
 ### P1 — High value (significant UX improvement)
 
-**P1-A: Seed gamification tasks** ✅ DONE
-- Added startup seeding in `main.py`: 3 categories (Prediction, Social, Learning), 8 tasks total
+**P1-A: Seed real (or more) settled matches for the performance pipeline**
+- `model_performances`, `clv_entries`, and `ai_prediction_audits` are all empty because the settlement pipeline has never run successfully against matching fixtures
+- Option A: Insert a batch of 20–30 matches with known outcomes directly into the DB, then call `POST /admin/settle` to exercise the full settlement → CLV → performance pipeline
+- Option B: Switch match data source to an API not blocked in the Replit sandbox (e.g., `api-football.com` free tier or TheSportsDB)
 
-**P1-B: Fix provider status endpoint** ✅ ALREADY DONE
-- `provider_status()` in `ai_client.py` already returns rich `configured/available/cooling/failing` states
-
-**P1-C: Populate `model_performances` via performance monitor agent** ✅ NO CHANGE NEEDED
-- Performance monitor already filters on `Match.actual_outcome.isnot(None)` — works correctly with real data
-- Synthetic matches purged at startup; monitor populates as real settled matches accumulate
-
-**P1-D: Fix STRIPE_SECRET_KEY**
-- Current value starts with `mk_1` — not a standard Stripe key prefix
-  - `sk_live_…` = production
-  - `sk_test_…` = test mode
-  - `mk_1…` = unknown / possibly wrong format
-- Subscription checkout will fail silently at payment intent creation
-- Get a valid test key from Stripe dashboard and update the secret
+**P1-B: Supply real Claude and Grok API keys**
+- Both providers are currently placeholder 3-char strings → permanent 30-min backoff
+- This halves the effective AI capacity (Gemini + OpenAI work, Claude + Grok never tried)
+- Replace `CLAUDE_API_KEY` and `XAI_API_KEY` in Replit Secrets
 
 ### P2 — Medium priority (feature completeness)
 
-**P2-A: Oracle node results pipeline** ✅ DONE
-- Fixed 3 bugs in `app/agents/oracle_node_agent.py`:
-  1. Status filter now includes `"settled"` (was only `"finished"` — all real matches are `"settled"`)
-  2. Removed 6-hour lookback window that excluded all historical data
-  3. `_MIN_AGREEMENT` lowered to 1 (single internal oracle node is now sufficient)
-  4. Added auto-creation of `ConsensusPrediction` row when consensus is reached (required by `settle_match`)
+**P2-A: Populate closing odds via Odds API**
+- `ODDS_API_KEY` is configured but the odds refresh agent returns 503 if the key is invalid
+- Valid odds data is required for CLV calculation and the arbitrage/comparison pages
+- Verify the key is active at the-odds-api.com
 
-**P2-B: CLV (Closing Line Value) tracking** ✅ DONE
-- `backfill_missing_clv()` now called at startup (auto-fills CLV for any settled predictions)
-- CLV backfill works off `Match.closing_odds_*` columns; will populate as odds data accumulates
-- Fixed `audit_sentinel_agent.py` NameError (`api_key` was referenced but never defined)
+**P2-B: Trigger first ML retraining job**
+- `training_jobs` = 0; `retrain_trigger` agent runs every 12h but threshold check may block it
+- Manually trigger via `POST /admin/training/trigger` once 50+ settled predictions exist
+- Review `app/agents/retrain_trigger.py` for the minimum-sample threshold
 
-**P2-C: Marketplace seed listings** ✅ ALREADY DONE
-- `seed_system_listings()` already called at startup — 12 system model listings seeded
+**P2-C: Create first governance proposal**
+- DAO governance UI is complete (`/governance`) but has no proposals
+- Creating one proposal as seed data would exercise the full vote → execute pipeline
+- Use admin account via `POST /api/governance/proposals`
 
-**P2-D: Validator system bootstrap** ✅ DONE
-- Admin user seeded as active validator at startup (stake=1000 VIT, trust_score=0.95)
+### P3 — Nice to have (polish)
 
-### P3 — Nice to have (polish & completeness)
+**P3-A: Redis caching** ✅ Done
+- `app/services/cache.py` uses Redis primary + in-memory fallback; applied to key endpoints
 
-**P3-A: Replace synthetic match data with real data alternative**
-- Football-Data.org is blocked from Replit sandbox — consider switching to a free API that isn't blocked (e.g., `api-football.com` free tier, or `thesportsdb.com`)
-- Alternatively: build a CSV/JSON fixture importer in admin panel so admins can upload real match schedules
+**P3-B: Production deployment prep**
+- Set `DATABASE_URL` to a real PostgreSQL instance
+- Set `VAULT_MASTER_KEY` for AES-256-GCM TMA vault encryption (currently base64 fallback)
+- Set `ENVIRONMENT=production` to enable ML model loading at startup
+- Run `alembic upgrade head` before first production start
 
-**P3-B: Redis caching integration** ✅ DONE
-- Created `app/services/cache.py` (Redis primary + in-memory fallback)
-- Applied to `/matches/upcoming` (15s TTL), `/api/leaderboard` (60s), `/analytics/summary` (30s)
-
-**P3-C: ML model retraining pipeline**
-- `training_jobs` = 0, `training_datasets` = 0
-- `app/agents/retrain_trigger.py` runs every 12h but has no data to train on
-- Needs at minimum 50+ settled predictions before retraining is meaningful
-- Consider seeding more synthetic settled predictions (currently only 9)
-
-**P3-D: Bridge & governance**
+**P3-C: Bridge & governance data**
 - `bridge_transactions` = 0, `gov_proposals` = 0
-- These are complete features with working UIs but no data
-- Low risk — pages degrade gracefully with empty states
+- Both features have complete UIs that gracefully show empty states
+- No code changes needed; data will appear with real usage
 
 ---
 
-## 7. File Quick-Reference
+## 7. Architecture Reference
+
+### Router registration (main.py lines 1824–1994)
+All routers are registered. Key prefixes:
+| Prefix | Router file |
+|---|---|
+| `/api/agents` | `app/api/routes/agents.py` |
+| `/api/ai-engine` | `app/modules/ai/routes.py` |
+| `/api/ai-upload` | `app/api/routes/ai_upload.py` |
+| `/api/bankroll` | `app/api/routes/bankroll.py` |
+| `/api/bridge` | `app/modules/bridge/routes.py` |
+| `/api/cashout` | `app/modules/betting/cash_out_sentinel.py` |
+| `/api/chain` | `vit_chain.py` (VIT-Chain ledger) |
+| `/api/contracts` | `app/modules/smart_contracts/routes.py` |
+| `/api/developer` | `app/modules/developer/routes.py` |
+| `/api/did` | `app/modules/did/routes.py` |
+| `/api/governance` | `app/modules/governance/routes.py` |
+| `/api/identity` | `app/modules/identity/routes.py` |
+| `/api/kyc` | `app/modules/kyc/routes.py` |
+| `/api/leaderboard` | `app/api/routes/dashboard.py` |
+| `/api/marketplace` | `app/modules/marketplace/routes.py` |
+| `/api/merit` | `app/modules/merit/routes.py` |
+| `/api/models` | `app/api/routes/model_performance.py` |
+| `/api/network` | `app/modules/network/routes.py` |
+| `/api/oracle` | `app/modules/blockchain/oracle.py` |
+| `/api/referral` | `app/modules/referral/routes.py` |
+| `/api/rewards` | `app/modules/rewards/routes.py` |
+| `/api/security` | `app/modules/security/routes.py` |
+| `/api/stats` | `app/api/routes/stats.py` |
+| `/api/tasks` | `app/modules/tasks/routes.py` |
+| `/api/tma` | `app/modules/telegram_mini_app/integration.py` |
+| `/api/treasury` | `app/modules/treasury/routes.py` |
+| `/api/trust` | `app/modules/trust/routes.py` |
+| `/api/wallet` | `app/modules/wallet/routes.py` |
+| `/auth` | `app/auth/verification.py` + `app/auth/totp.py` |
+| `/admin` | `app/api/routes/admin.py` |
+| `/analytics` | `app/api/routes/analytics.py` |
+| `/subscription` | `app/api/routes/subscription.py` |
+| `/training` | `app/api/routes/training.py` |
+
+### SwarmOrchestrator vs AgentCoordinator
+- `app/core/swarm_orchestrator.py` supervises all 22 agents with per-agent restart tracking
+- `app.state.agent_coordinator` is kept as an alias for legacy routes
+- Health endpoint reads from `swarm.health_summary()`
+- All 22 agents start in sequence at startup (~30–35s total boot time)
+
+### AI cascade order
+1. **Chat** (`gemini_chat.py`): Gemini → Claude → Grok on 429/error
+2. **Analysis** (`multi_ai_dispatcher.py`): fans out to all 4 providers in parallel; `scie.py` is statistical fallback
+3. **Insights** (`claude_insights.py`, `openai_insights.py`, `gemini_insights.py`, `grok_insights.py`): all use `call_ai()` from `app/services/ai_client.py`
+4. Per-provider timeout: 20s. Backoff on 401/403: 30 min. Backoff on 429: 8s.
+
+---
+
+## 8. File Quick-Reference
 
 ### Backend — Key files
 | File | Purpose |
 |---|---|
-| `main.py` | App startup, router mounting, fixture seeding, agent boot |
+| `main.py` | App startup, 530+ routes, all router mounts, lifespan hooks |
+| `app/config.py` | `APP_VERSION = "6.0.0"` and all module-level config vars |
 | `app/db/models.py` | All SQLAlchemy ORM models |
-| `app/db/database.py` | SQLite WAL config, `AsyncSessionLocal`, `get_db` |
-| `app/config.py` | Module-level config vars (NOT a `settings` object) |
-| `app/services/ai_client.py` | Shared AI cascade: Gemini→Claude→OpenAI→Grok, backoff logic |
-| `app/services/grok_insights.py` | Match insights via `call_ai` cascade (fixed) |
-| `app/services/claude_insights.py` | Match insights — **still isolated httpx** (needs P0-C fix) |
-| `app/services/openai_insights.py` | Match insights — **still isolated httpx** (needs P0-C fix) |
-| `app/services/gemini_insights.py` | Match insights — **still isolated httpx** (needs P0-C fix) |
-| `app/services/multi_ai_dispatcher.py` | Fan-out match analysis to all 4 AI providers |
-| `app/agents/coordinator.py` | Starts all 22 agents, `node_id` assignment |
-| `app/agents/base.py` | `BaseAgent`: loop, interval, delay, error handling |
-| `app/modules/quant/routes.py` | Research Terminal backend: backtest, monte-carlo, EV scanner, strategy |
-| `app/api/routes/agents.py` | Agent status/trigger endpoints — **prefix issue** (see P0-A) |
-| `app/api/routes/ai_support.py` | AI support chat endpoint with cascade |
-| `app/api/routes/admin.py` | Full admin panel backend (large file) |
-| `scripts/start_fullstack.sh` | Startup script (fixed duplicate Vite flags) |
+| `app/db/database.py` | `AsyncSessionLocal`, `get_db`, SQLite WAL config |
+| `app/core/swarm_orchestrator.py` | Supervises all 22 agents, 30s heartbeat |
+| `app/services/ai_client.py` | Shared `call_ai()` cascade: Gemini→Claude→OpenAI→Grok |
+| `app/services/results_settler.py` | Match settlement — `expire_on_commit=False` fix applied |
+| `app/services/accuracy_enhancer.py` | `rolling_window_accuracy()` — join fix applied |
+| `vit_chain.py` | VIT-Chain sovereign ledger (hash-linked SQLite) |
+| `app/modules/betting/cash_out_sentinel.py` | Momentum-based auto cash-out engine |
+| `app/modules/telegram_mini_app/integration.py` | TMA initData auth + vault + metering |
+| `app/api/middleware/auth.py` | `APIKeyMiddleware` — JWT + API key auth, `_PUBLIC_SUBPATHS` list |
+| `app/api/routes/admin.py` | Full admin panel backend (~3 800 lines) |
+| `app/api/routes/training.py` | ML training pipeline endpoints |
+| `app/modules/wallet/routes.py` | Wallet + KYC + admin KYC endpoints |
+| `alembic/versions/` | 17 migrations; latest: `e5f6a7b8c9d0` (v6 schema) |
 
 ### Frontend — Key files
 | File | Purpose |
 |---|---|
-| `frontend/src/App.tsx` | Routes, lazy imports, auth wrappers |
+| `frontend/src/App.tsx` | All 57 routes, lazy imports, auth wrappers |
+| `frontend/src/api-client/index.ts` | Central `API` constants object — all route strings |
 | `frontend/src/lib/auth.tsx` | `useAuth()`, JWT storage, token refresh |
 | `frontend/src/lib/apiClient.ts` | `apiGet`/`apiPost` — prepends `/api` to all paths |
-| `frontend/src/lib/puter-ai.ts` | Puter.js browser AI (withRetry, sign-in/out) |
-| `frontend/src/pages/research.tsx` | Research Terminal: backtester, Monte Carlo, EV scanner, strategy |
-| `frontend/src/pages/agents.tsx` | Agent monitor — calls `/api/agents/status` (broken, see P0-A) |
-| `frontend/src/pages/ai-sources.tsx` | AI provider panel + Puter multi-account |
-| `frontend/src/pages/admin.tsx` | Full admin dashboard (large file) |
+| `frontend/src/components/ecosystem-ticker.tsx` | Price ticker — uses `price?.price` field |
+| `frontend/src/pages/admin.tsx` | Full admin dashboard (~3 200 lines) |
+| `frontend/src/pages/training.tsx` | ML training job board |
+| `frontend/src/pages/agents.tsx` | Agent monitor (`/api/agents/status`) |
+| `scripts/start_fullstack.sh` | Startup script (backend port 8000 + frontend port 5000) |
+| `scripts/start_production.sh` | Production: builds `frontend/dist`, then gunicorn on :5000 |
 
 ---
 
-## 8. Coding Conventions
+## 9. Coding Conventions
 
-- **Database:** Always use `AsyncSession` from `app.db.database.get_db`. Never call `sqlite3` directly in app code (use aiosqlite for scripts only).
-- **Config:** Read env vars via `os.getenv()` — no `settings` object. Config is in `app/config.py` as module-level variables.
-- **AI calls:** Always use `call_ai()` from `app.services.ai_client` — never add new isolated httpx clients to provider APIs.
-- **Auth:** All protected endpoints use `Depends(get_current_user)`. Admin endpoints additionally check `current_user.role == "admin"`.
-- **Status codes:** Match status values in DB are **lowercase**: `upcoming`, `scheduled`, `live`, `in_play`, `completed`, `finished`. Never filter with uppercase Football-Data.org codes.
-- **Error logging:** Use `repr(e)` and `type(e).__name__` in error logs — `str(e)` is often empty for network exceptions.
-- **Frontend API calls:** `apiGet("/some/path")` prepends `/api` automatically → becomes `/api/some/path`.
-- **Agent intervals:** All agents inherit from `BaseAgent`. To find an agent's run frequency, check its `interval` kwarg in `coordinator.py`.
+- **Database:** Always use `AsyncSession` from `app.db.database.get_db`. For background tasks that loop and commit, set `session.sync_session.expire_on_commit = False` to prevent lazy-load errors after each commit.
+- **Config:** Read env vars via `os.getenv()` — no `settings` object. `APP_VERSION` lives in `app/config.py`.
+- **AI calls:** Always use `call_ai()` from `app.services.ai_client` — never add new isolated `httpx` clients to provider APIs.
+- **Auth:** Protected endpoints use `Depends(get_current_user)`. Admin endpoints additionally check `current_user.role == "admin"`.
+- **Match status values:** Always lowercase: `upcoming`, `scheduled`, `live`, `in_play`, `completed`, `finished`. Never use Football-Data.org uppercase codes inside the app.
+- **Error logging:** Use `repr(e)` and `type(e).__name__` — `str(e)` is often empty for network exceptions.
+- **Frontend API calls:** `apiGet("/some/path")` prepends `/api` automatically → becomes `/api/some/path`. Paths in `API` constants in `api-client/index.ts` already include `/api/`.
+- **AIPredictionAudit.match_id:** Stored as `str(integer_match_id)` — join to `Match` using `cast(Match.id, String)`, not `Match.external_id`.
+- **main.py:** ~100KB — read in sections using `offset`/`limit`. Router registrations are at lines 1824–1994.
 
 ---
 
-## 9. Running the App
+## 10. Running the App
 
 ```bash
-# Start everything (backend port 8000 + frontend port 5000)
+# Development (backend :8000 + frontend :5000)
 bash scripts/start_fullstack.sh
+
+# Production (builds frontend first, then serves everything on :5000)
+bash scripts/start_production.sh
 
 # Health check
 curl http://localhost:8000/health
 
-# Get admin token (for API testing)
+# Get admin JWT (for API testing)
 curl -X POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@vit.network","password":"<ADMIN_PASSWORD env var>"}'
+  -d '{"email":"admin@vit.network","password":"<ADMIN_PASSWORD>"}'
+
+# Test a protected endpoint
+curl http://localhost:8000/api/agents/status \
+  -H "Authorization: Bearer <token>"
 ```
 
-The Replit workflow `Start application` runs `bash scripts/start_fullstack.sh` automatically.
+The Replit workflow `Start application` runs `bash scripts/start_fullstack.sh` automatically. Backend takes ~30–35s to boot (22 agents + migrations + seeding) before accepting connections.
