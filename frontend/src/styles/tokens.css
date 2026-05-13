@@ -364,8 +364,19 @@
 }
 
 /* ── Disable backdrop-filter on mobile (Android Chrome rendering bug) ── */
+/* Tailwind applies blur via CSS custom property --tw-backdrop-blur, so we      */
+/* must reset both the property and the variable to fully kill the compositing. */
 @media (max-width: 1023px) {
   * {
+    --tw-backdrop-blur: ;
+    --tw-backdrop-brightness: ;
+    --tw-backdrop-contrast: ;
+    --tw-backdrop-grayscale: ;
+    --tw-backdrop-hue-rotate: ;
+    --tw-backdrop-invert: ;
+    --tw-backdrop-opacity: ;
+    --tw-backdrop-saturate: ;
+    --tw-backdrop-sepia: ;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }

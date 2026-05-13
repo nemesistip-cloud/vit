@@ -139,7 +139,9 @@ export default function MatchDetailPage() {
                   <div className="text-center font-mono bg-background/50 px-4 py-2 rounded-lg border border-border">
                     <span className="block text-xl font-bold text-primary">VS</span>
                     <span className="text-xs text-muted-foreground">
-                      {format(new Date(match.kickoff_time), "HH:mm")}
+                      {match.kickoff_time
+                        ? (() => { try { return format(new Date(match.kickoff_time), "HH:mm"); } catch { return "—"; } })()
+                        : "—"}
                     </span>
                   </div>
                 )}
@@ -703,7 +705,11 @@ export default function MatchDetailPage() {
             <CardContent className="pt-4 space-y-3 font-mono text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground uppercase text-xs">Kickoff</span>
-                <span>{format(new Date(match.kickoff_time), "yyyy-MM-dd HH:mm")}</span>
+                <span>
+                  {match.kickoff_time
+                    ? (() => { try { return format(new Date(match.kickoff_time), "yyyy-MM-dd HH:mm"); } catch { return match.kickoff_time; } })()
+                    : "—"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground uppercase text-xs">League</span>

@@ -115,7 +115,7 @@ export default function AccumulatorPage() {
       apiPost<BetReceipt>("/admin/accumulator/place-bet", { accumulator: acc, stake, currency }),
     onSuccess: (receipt, vars) => {
       setReceipts((r) => ({ ...r, [vars.accIdx]: receipt }));
-      toast.success(`✅ Bet placed! Potential payout: ${receipt.currency} ${receipt.potential_payout.toFixed(2)}`);
+      toast.success(`✅ Bet placed! Potential payout: ${receipt.currency} ${(receipt.potential_payout ?? 0).toFixed(2)}`);
     },
     onError: (e) => toast.error(e.message ?? "Failed to place bet"),
   });
