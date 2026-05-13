@@ -213,7 +213,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/80" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-72 flex flex-col shadow-2xl vit-animate-slide-down"
+          <div className="absolute left-0 top-0 h-full w-72 flex flex-col shadow-2xl vit-animate-slide-left"
             style={{ background: "var(--vit-gradient-sidebar)" }}>
             <div className="flex items-center justify-between p-4 border-b border-white/5">
               <div className="flex items-center gap-2.5">

@@ -375,13 +375,32 @@ async def settle_results(days_back: int = 2) -> dict:
     details         = []
 
     async with AsyncSessionLocal() as db:
-        # Prevent SQLAlchemy from expiring object attributes after each commit
-        # (without this, accessing m.home_team on a previously-committed Match
-        #  triggers a lazy-load attempt which fails in the async greenlet context)
-        db.sync_session.expire_on_commit = False
-        # Pre-load all matches (any status) to avoid N+1 queries
+        # Load all matches and immediately snapshot their attributes into plain dicts.
+        #
+        # WHY: db.rollback() (called on per-match errors below) expires ALL ORM objects
+        # in the session — even those loaded before the failing iteration.  On the next
+        # iteration, accessing m.home_team on an expired object triggers SQLAlchemy's
+        # sync lazy-reload path, which asyncpg (async-only driver) cannot handle,
+        # raising MissingGreenlet.  Plain dicts are immune to session state changes.
         all_matches_result = await db.execute(select(Match))
-        all_matches: list[Match] = all_matches_result.scalars().all()
+        _raw: list[Match] = all_matches_result.scalars().all()
+
+        # Snapshot — copy only the fields we need for matching/comparison
+        all_snaps: list[dict] = [
+            {
+                "id":                m.id,
+                "home_team":         m.home_team,
+                "away_team":         m.away_team,
+                "kickoff_time":      m.kickoff_time,
+                "status":            m.status,
+                "actual_outcome":    m.actual_outcome,
+                "closing_odds_home": m.closing_odds_home,
+                "closing_odds_draw": m.closing_odds_draw,
+                "closing_odds_away": m.closing_odds_away,
+            }
+            for m in _raw
+        ]
+        del _raw  # allow GC; all access goes through snaps from here on
 
         for api_match in finished:
             try:
@@ -390,30 +409,36 @@ async def settle_results(days_back: int = 2) -> dict:
                 outcome = _determine_outcome(home_g, away_g)
                 kickoff = _parse_kickoff(api_match.get("kickoff", ""))
 
+                # Normalise kickoff to UTC-aware for safe comparison regardless
+                # of whether the DB stores naive or aware datetimes.
+                if kickoff.tzinfo is None:
+                    kickoff = kickoff.replace(tzinfo=timezone.utc)
+
                 # ── Find DB match with name + kickoff proximity check ─
-                db_match: Optional[Match] = None
-                for m in all_matches:
-                    if not (_names_match(api_match["home_team"], m.home_team) and
-                            _names_match(api_match["away_team"], m.away_team)):
+                snap: Optional[dict] = None
+                for m in all_snaps:
+                    if not (_names_match(api_match["home_team"], m["home_team"]) and
+                            _names_match(api_match["away_team"], m["away_team"])):
                         continue
-                    # Kickoff date proximity: matches must be within 36 hours of each other
-                    # This prevents pairing the same two teams from different fixtures
-                    if m.kickoff_time:
-                        delta_seconds = abs((m.kickoff_time - kickoff).total_seconds())
-                        if delta_seconds > 36 * 3600:
+                    # Kickoff proximity: must be within 36 hours of each other
+                    if m["kickoff_time"]:
+                        kt = m["kickoff_time"]
+                        # Normalise DB kickoff to UTC-aware as well
+                        if kt.tzinfo is None:
+                            kt = kt.replace(tzinfo=timezone.utc)
+                        if abs((kt - kickoff).total_seconds()) > 36 * 3600:
                             continue
-                    db_match = m
+                    snap = m
                     break
 
                 # ── Already settled → skip ────────────────────────────
-                # Check both status AND actual_outcome to avoid false misses
-                if db_match and (db_match.status == "completed" or db_match.actual_outcome is not None):
+                if snap and (snap["status"] == "completed" or snap["actual_outcome"] is not None):
                     already_settled += 1
                     continue
 
                 # ── No DB record → create a completed match record ────
-                if db_match is None:
-                    db_match = Match(
+                if snap is None:
+                    new_match = Match(
                         home_team     = api_match["home_team"],
                         away_team     = api_match["away_team"],
                         league        = api_match["league"],
@@ -423,20 +448,31 @@ async def settle_results(days_back: int = 2) -> dict:
                         actual_outcome= outcome,
                         status        = "completed",
                     )
-                    db.add(db_match)
-                    await db.flush()           # get db_match.id
-                    all_matches.append(db_match)
+                    db.add(new_match)
+                    await db.flush()           # assigns new_match.id
+                    await db.commit()
+                    # Add a snapshot of the new record so future iterations can match it
+                    all_snaps.append({
+                        "id":                new_match.id,
+                        "home_team":         api_match["home_team"],
+                        "away_team":         api_match["away_team"],
+                        "kickoff_time":      kickoff,
+                        "status":            "completed",
+                        "actual_outcome":    outcome,
+                        "closing_odds_home": None,
+                        "closing_odds_draw": None,
+                        "closing_odds_away": None,
+                    })
                     created_new  += 1
                     no_prediction += 1
-                    await db.commit()
                     settled += 1
                     logger.info(
                         f"[settle] New record created: "
                         f"{api_match['home_team']} {home_g}-{away_g} {api_match['away_team']}"
                     )
                     details.append({
-                        "home_team":  db_match.home_team,
-                        "away_team":  db_match.away_team,
+                        "home_team":  api_match["home_team"],
+                        "away_team":  api_match["away_team"],
                         "home_goals": home_g,
                         "away_goals": away_g,
                         "outcome":    outcome,
@@ -446,7 +482,14 @@ async def settle_results(days_back: int = 2) -> dict:
                     })
                     continue
 
-                # ── Existing unsettled match → update scores ──────────
+                # ── Existing unsettled match → fetch ORM object and update ──
+                # Re-fetch by PK so we always work on a fresh, non-expired object
+                # (immune to the rollback-expiry issue that affects the snapshot list).
+                db_match: Optional[Match] = await db.get(Match, snap["id"])
+                if db_match is None:
+                    logger.warning("[settle] Match id=%s disappeared — skipping", snap["id"])
+                    continue
+
                 db_match.home_goals     = home_g
                 db_match.away_goals     = away_g
                 db_match.actual_outcome = outcome
@@ -461,9 +504,9 @@ async def settle_results(days_back: int = 2) -> dict:
                 if not predictions_for_match:
                     no_prediction += 1
 
-                clv_home = db_match.closing_odds_home or None
-                clv_draw = db_match.closing_odds_draw or None
-                clv_away = db_match.closing_odds_away or None
+                clv_home = snap["closing_odds_home"]
+                clv_draw = snap["closing_odds_draw"]
+                clv_away = snap["closing_odds_away"]
                 closing_available = all(x is not None for x in [clv_home, clv_draw, clv_away])
 
                 match_profit: float = 0.0
@@ -564,6 +607,9 @@ async def settle_results(days_back: int = 2) -> dict:
                             logger.warning(f"Auto-settle notification failed (non-fatal): {ne}")
 
                 await db.commit()
+                # Update the snapshot so future iterations see the settled state
+                snap["status"] = "completed"
+                snap["actual_outcome"] = outcome
                 settled += 1
                 logger.info(
                     f"[settle] Settled: {db_match.home_team} {home_g}-{away_g} "
