@@ -157,7 +157,7 @@ class WeightOptimizerAgent(BaseAgent):
 
             try:
                 from sqlalchemy import select
-                from app.db.models import ModelMetadata  # type: ignore
+                from app.modules.ai.models import ModelMetadata
 
                 row = (await db.execute(
                     select(ModelMetadata).where(ModelMetadata.key == model_key)
@@ -199,7 +199,7 @@ class WeightOptimizerAgent(BaseAgent):
         Returns a summary including the Gini coefficient before and after.
         """
         from sqlalchemy import select
-        from app.db.models import ModelMetadata  # type: ignore
+        from app.modules.ai.models import ModelMetadata
 
         rows_res = await db.execute(select(ModelMetadata))
         rows: list = rows_res.scalars().all()

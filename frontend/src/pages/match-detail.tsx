@@ -8,6 +8,8 @@ import { AIInsightComparison } from "@/components/AIInsightComparison";
 import { MatchAssistantCard } from "@/components/MatchAssistantCard";
 import { ProbabilityTrio } from "@/components/ProbabilityGauge";
 import { ModelInterpretation } from "@/components/ModelInterpretation";
+import { ModelVsMarket } from "@/components/ModelVsMarket";
+import { AiSourceComparison } from "@/components/AiSourceComparison";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -207,6 +209,25 @@ export default function MatchDetailPage() {
                 awayProb={awayProb}
                 homeLabel={match.home_team}
                 awayLabel={match.away_team}
+              />
+
+              <ModelVsMarket
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                homeProb={homeProb || null}
+                drawProb={drawProb || null}
+                awayProb={awayProb || null}
+                over25Prob={match.over_25_prob ?? null}
+                under25Prob={match.under_25_prob ?? null}
+                bttsProb={match.btts_prob ?? null}
+                noBttsProb={match.no_btts_prob ?? null}
+                ahLine={matchAhLine}
+                ahHomeProb={ahHomeProb}
+                ahAwayProb={ahAwayProb}
+                oddsHome={match.odds?.home ?? null}
+                oddsDraw={match.odds?.draw ?? null}
+                oddsAway={match.odds?.away ?? null}
+                betSide={match.bet_side ?? null}
               />
 
               {/* Extended Market Probabilities */}

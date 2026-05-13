@@ -222,7 +222,7 @@ class UserStake(Base):
     )
     match_id: Mapped[str] = mapped_column(String(100), nullable=False)
     # Extended market support: home|draw|away|over_25|under_25|btts_yes|btts_no|ah_home|ah_away|cs_NM
-    prediction: Mapped[str] = mapped_column(String(20), nullable=False)
+    prediction: Mapped[str] = mapped_column(String(30), nullable=False)
     stake_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), default="VITCoin")
     status: Mapped[str] = mapped_column(String(20), default=StakeStatus.ACTIVE.value)

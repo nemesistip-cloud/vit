@@ -79,6 +79,29 @@ async def _recent_matches_for(
     return list(res.scalars().all())
 
 
+async def _venue_matches_for(
+    db: AsyncSession, team: str, as_home: bool, limit: int = 5
+) -> List[Match]:
+    """
+    Settled matches for a team restricted to a single venue role.
+    as_home=True  → home games only (home_team == team)
+    as_home=False → away games only (away_team == team)
+    """
+    condition = Match.home_team == team if as_home else Match.away_team == team
+    stmt = (
+        select(Match)
+        .where(
+            condition,
+            Match.home_goals.isnot(None),
+            Match.away_goals.isnot(None),
+        )
+        .order_by(desc(Match.kickoff_time))
+        .limit(limit)
+    )
+    res = await db.execute(stmt)
+    return list(res.scalars().all())
+
+
 async def _h2h_matches(
     db: AsyncSession, home: str, away: str, limit: int = 10
 ) -> List[Match]:
@@ -270,6 +293,22 @@ async def build_predict_features(
     away_10 = _form_block(away_team, away_recent, window=10)
     h2h_b   = _h2h_block(home_team, away_team, h2h)
 
+    # Venue-specific form (home team's home games; away team's away games).
+    # These capture a team's true home/away strength, not their mixed form.
+    try:
+        home_home_matches = await _venue_matches_for(db, home_team, as_home=True, limit=5)
+    except Exception as exc:
+        logger.warning(f"home venue fetch failed for {home_team}: {exc}")
+        home_home_matches = []
+    try:
+        away_away_matches = await _venue_matches_for(db, away_team, as_home=False, limit=5)
+    except Exception as exc:
+        logger.warning(f"away venue fetch failed for {away_team}: {exc}")
+        away_away_matches = []
+
+    home_home_5 = _form_block(home_team, home_home_matches, window=5)
+    away_away_5 = _form_block(away_team, away_away_matches, window=5)
+
     out.update({
         "home_form_pts_5":   home_5["pts_pg"],
         "away_form_pts_5":   away_5["pts_pg"],
@@ -283,6 +322,14 @@ async def build_predict_features(
         "away_gf_pg_10":     away_10["gf_pg"],
         "home_ga_pg_10":     home_10["ga_pg"],
         "away_ga_pg_10":     away_10["ga_pg"],
+        # Venue-specific form
+        "home_home_pts_5":   home_home_5["pts_pg"],
+        "home_home_gf_pg_5": home_home_5["gf_pg"],
+        "home_home_ga_pg_5": home_home_5["ga_pg"],
+        "away_away_pts_5":   away_away_5["pts_pg"],
+        "away_away_gf_pg_5": away_away_5["gf_pg"],
+        "away_away_ga_pg_5": away_away_5["ga_pg"],
+        # H2H
         "h2h_home_win_pct":  h2h_b["home_wr"],
         "h2h_draw_pct":      h2h_b["draw_wr"],
         "h2h_away_win_pct":  h2h_b["away_wr"],
@@ -295,10 +342,13 @@ async def build_predict_features(
         ),
     })
 
-    # Completeness: 1.0 if we have ≥5 home, ≥5 away, ≥3 h2h matches
+    # Completeness: 1.0 if we have ≥5 home, ≥5 away, ≥3 h2h matches.
+    # Also reward having venue-specific form data.
     completeness_signals.append(min(1.0, home_10["n"] / 5.0))
     completeness_signals.append(min(1.0, away_10["n"] / 5.0))
     completeness_signals.append(min(1.0, h2h_b["n"] / 3.0))
-    out["feature_completeness"] = round(sum(completeness_signals) / 3.0, 3)
+    completeness_signals.append(min(1.0, home_home_5["n"] / 3.0))
+    completeness_signals.append(min(1.0, away_away_5["n"] / 3.0))
+    out["feature_completeness"] = round(sum(completeness_signals) / len(completeness_signals), 3)
 
     return out

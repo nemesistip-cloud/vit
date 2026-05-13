@@ -120,6 +120,12 @@ async def stake_on_prediction(
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
+    # Match.id is INTEGER in DB — cast the string path param safely
+    try:
+        match_id_int = int(match_id)
+    except (ValueError, TypeError):
+        raise HTTPException(404, "Match not found")
+
     amount = Decimal(str(body.amount))
     if amount < MIN_STAKE_VITCOIN:
         raise HTTPException(400, f"Minimum stake is {MIN_STAKE_VITCOIN} VITCoin")
@@ -136,7 +142,7 @@ async def stake_on_prediction(
     # prediction can be staked on, which blocks normal user flow.
     if not cp:
         match_exists = (
-            await db.execute(select(Match.id).where(Match.id == match_id))
+            await db.execute(select(Match.id).where(Match.id == match_id_int))
         ).scalar_one_or_none()
         if not match_exists:
             raise HTTPException(404, "Match not found")
@@ -150,7 +156,7 @@ async def stake_on_prediction(
         raise HTTPException(400, f"Match is {cp.status} — staking is closed")
 
     # Block staking after kickoff — stops in-play / post-result staking abuse
-    match_row = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
+    match_row = (await db.execute(select(Match).where(Match.id == match_id_int))).scalar_one_or_none()
     if match_row and match_row.kickoff_time:
         kt = match_row.kickoff_time
         if kt.tzinfo is None:

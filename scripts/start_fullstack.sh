@@ -88,6 +88,12 @@ async def ensure_schema():
                 for col, ddl in task_additions.items():
                     if col not in task_col_names:
                         await conn.exec_driver_sql(f'ALTER TABLE tasks ADD COLUMN {col} {ddl}')
+                stake_cols = (await conn.exec_driver_sql('PRAGMA table_info(user_stakes)')).fetchall()
+                stake_col_names = {row[1] for row in stake_cols}
+                if 'ah_line' not in stake_col_names:
+                    await conn.exec_driver_sql('ALTER TABLE user_stakes ADD COLUMN ah_line REAL')
+                if 'prediction' in stake_col_names:
+                    pass  # SQLite cannot ALTER column type; String(10) is enforced at ORM level only
             else:
                 await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER')
                 await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN')
@@ -98,6 +104,11 @@ async def ensure_schema():
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0')
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0')
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0')
+                await conn.exec_driver_sql('ALTER TABLE user_stakes ADD COLUMN IF NOT EXISTS ah_line NUMERIC(5,2)')
+                try:
+                    await conn.exec_driver_sql('ALTER TABLE user_stakes ALTER COLUMN prediction TYPE VARCHAR(20)')
+                except Exception:
+                    pass
         print('[startup] Database schema ready')
     except Exception as e:
         print(f'[startup] DB schema warning: {e}')

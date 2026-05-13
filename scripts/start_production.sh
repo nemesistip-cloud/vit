@@ -94,6 +94,11 @@ async def ensure_schema():
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0')
                 await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT')
                 await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT')
+                await conn.exec_driver_sql('ALTER TABLE user_stakes ADD COLUMN IF NOT EXISTS ah_line NUMERIC(5,2)')
+                try:
+                    await conn.exec_driver_sql('ALTER TABLE user_stakes ALTER COLUMN prediction TYPE VARCHAR(20)')
+                except Exception:
+                    pass
         print('[production] Database schema ready')
     except Exception as e:
         print(f'[production] DB schema warning: {e}')
@@ -102,7 +107,8 @@ asyncio.run(ensure_schema())
 PYEOF
 
 echo "[production] Starting VIT backend with gunicorn on port ${PORT} (workers=${WORKERS})..."
-exec gunicorn main:app \
+GUNICORN_BIN="$(python -c 'import sys, os; print(os.path.join(os.path.dirname(sys.executable), "gunicorn"))' 2>/dev/null || echo gunicorn)"
+exec "$GUNICORN_BIN" main:app \
     --bind "0.0.0.0:${PORT}" \
     --worker-class uvicorn.workers.UvicornWorker \
     --workers "${WORKERS}" \
