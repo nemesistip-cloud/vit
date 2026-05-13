@@ -132,11 +132,11 @@ function AIInsightPanel({ match }: { match: any }) {
   return (
     <div className="space-y-3">
       {insights.length > 0 && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           {insights.map((ins) => (
-            <div key={ins.label} className="flex items-center gap-1.5 text-xs font-mono">
-              <span className="text-muted-foreground shrink-0 w-[72px]">{ins.label}</span>
-              <span className={`font-medium ${ins.accent ?? "text-foreground"}`}>{ins.value}</span>
+            <div key={ins.label} className="flex items-start gap-1.5 text-xs font-mono min-w-0">
+              <span className="text-muted-foreground shrink-0 w-[84px] leading-tight pt-px">{ins.label}</span>
+              <span className={`font-medium leading-tight min-w-0 break-words ${ins.accent ?? "text-foreground"}`}>{ins.value}</span>
             </div>
           ))}
         </div>
@@ -239,7 +239,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
         onClose={() => setShowPredict(false)}
       />
 
-      <Card className="bg-card/50 backdrop-blur border-border hover:border-primary/50 transition-colors duration-200 h-full flex flex-col">
+      <Card className="bg-card/50 border-border hover:border-primary/50 transition-colors duration-200 h-full flex flex-col">
         <CardContent className="p-0 flex flex-col h-full">
           <Link href={`/matches/${match.match_id}`} className="flex flex-col flex-1">
             {/* Header */}
@@ -305,7 +305,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
             <div className="px-4 pb-3 flex justify-between items-center text-xs font-mono text-muted-foreground border-t border-border/30 pt-2">
               <span className="flex items-center gap-1.5">
                 <Activity className="w-3 h-3" />
-                {format(new Date(match.kickoff_time), "MMM dd HH:mm")}
+                {match.kickoff_time ? format(new Date(match.kickoff_time), "MMM dd HH:mm") : "TBC"}
                 <SourceBadge source={(match as any).source} />
               </span>
               {match.edge != null && (
