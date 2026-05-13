@@ -1,28 +1,15 @@
 #!/usr/bin/env bash
-# Production startup — builds frontend, then starts FastAPI via gunicorn.
-# The built frontend (frontend/dist) is served directly by FastAPI's StaticFiles mount.
-# This script is used by Replit deployment; never run Vite in production.
+# Production run script — skips frontend build (handled by build_frontend.sh).
+# Runs DB schema setup then starts FastAPI via gunicorn.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT="${PORT:-5000}"
-# Use 1 worker to avoid race conditions in startup migrations/seeding.
-# Increase via WEB_CONCURRENCY env var only after verifying DB is stable.
 WORKERS="${WEB_CONCURRENCY:-1}"
 
-# v4.10 — activate trained .pkl weights in production
+# Force production environment regardless of shared env vars
+export ENVIRONMENT="production"
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
-export ENVIRONMENT="${ENVIRONMENT:-production}"
-
-echo "[production] Building frontend..."
-cd frontend
-if [ ! -d "node_modules" ]; then
-    echo "[production] Installing frontend dependencies..."
-    npm install --prefer-offline --silent 2>/dev/null || npm install
-fi
-npm run build
-echo "[production] Frontend build complete."
-cd ..
 
 echo "[production] Running database schema setup..."
 python - <<'PYEOF'

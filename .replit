@@ -83,7 +83,7 @@ packages = ["cargo", "freetype", "glibcLocales", "lcms2", "libiconv", "libimageq
 [deployment]
 deploymentTarget = "autoscale"
 run = ["bash", "scripts/start_production.sh"]
-build = ["bash", "scripts/start_production.sh"]
+build = ["bash", "scripts/build_frontend.sh"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
