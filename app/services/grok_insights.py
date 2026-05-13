@@ -54,6 +54,7 @@ Return ONLY valid JSON (no markdown fences):
   "summary": "2-3 sentence analysis",
   "key_factors": ["factor 1", "factor 2", "factor 3"],
   "value_assessment": "1-2 sentences on value",
+  "recommendation": "BUY|SELL|HOLD with brief reason",
   "risk_level": "LOW",
   "insight_tags": ["tag1", "tag2"]
 }}
@@ -68,7 +69,7 @@ async def generate_match_insights(
     bet_side: Optional[str] = None, edge: float = 0.0,
     entry_odds: Optional[float] = None, confidence: float = 0.5,
 ) -> dict:
-    from app.services.ai_client import call_ai
+    from app.services.ai_client import call_ai_with_provider
 
     prompt = _build_prompt(
         home_team, away_team, league, home_prob, draw_prob, away_prob,
@@ -76,16 +77,17 @@ async def generate_match_insights(
     )
 
     try:
-        raw = await call_ai(prompt, max_tokens=600, temperature=0.6, preferred="grok")
+        result = await call_ai_with_provider(prompt, max_tokens=600, temperature=0.6, preferred="grok")
     except Exception as exc:
         logger.error("grok_insights call_ai error: %s", exc)
         return _scie_fallback(home_team, away_team, league, home_prob, draw_prob, away_prob,
                               over_25_prob, btts_prob, bet_side, edge, entry_odds, confidence)
 
-    if raw is None:
+    if result is None:
         return _scie_fallback(home_team, away_team, league, home_prob, draw_prob, away_prob,
                               over_25_prob, btts_prob, bet_side, edge, entry_odds, confidence)
 
+    raw, provider = result
     raw = raw.strip()
 
     if raw.startswith("```"):
@@ -98,22 +100,29 @@ async def generate_match_insights(
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         return {
-            "available": True, "source": "grok",
+            "available": True, "source": provider,
             "home_prob": home_prob, "draw_prob": draw_prob, "away_prob": away_prob,
             "confidence": 0.7, "summary": raw[:400],
-            "key_factors": [], "value_assessment": "", "risk_level": "MEDIUM",
+            "key_factors": [], "value_assessment": "",
+            "recommendation": "", "risk_level": "MEDIUM",
             "insight_tags": [], "error": None,
         }
 
+    hp = float(parsed.get("home_prob", home_prob))
+    dp = float(parsed.get("draw_prob", draw_prob))
+    ap = float(parsed.get("away_prob", away_prob))
+    total = hp + dp + ap
+    if total > 0 and abs(total - 1.0) > 0.01:
+        hp /= total; dp /= total; ap /= total
+
     return {
-        "available": True, "source": "grok",
-        "home_prob": float(parsed.get("home_prob", home_prob)),
-        "draw_prob": float(parsed.get("draw_prob", draw_prob)),
-        "away_prob": float(parsed.get("away_prob", away_prob)),
+        "available": True, "source": provider,
+        "home_prob": round(hp, 4), "draw_prob": round(dp, 4), "away_prob": round(ap, 4),
         "confidence": float(parsed.get("confidence", 0.7)),
         "summary": parsed.get("summary", ""),
         "key_factors": parsed.get("key_factors", []),
         "value_assessment": parsed.get("value_assessment", ""),
+        "recommendation": parsed.get("recommendation", ""),
         "risk_level": parsed.get("risk_level", "MEDIUM"),
         "insight_tags": parsed.get("insight_tags", []),
         "error": None,

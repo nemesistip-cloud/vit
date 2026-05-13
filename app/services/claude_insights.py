@@ -58,6 +58,7 @@ Respond with ONLY valid JSON (no markdown):
   "summary": "2-3 sentence tactical overview",
   "key_factors": ["factor 1", "factor 2", "factor 3"],
   "value_assessment": "1-2 sentences on bet value",
+  "recommendation": "BUY|SELL|HOLD with brief reason",
   "risk_level": "LOW",
   "insight_tags": ["tag1", "tag2"]
 }}
@@ -108,6 +109,7 @@ async def generate_match_insights(
             "summary": parsed.get("summary", ""),
             "key_factors": parsed.get("key_factors", []),
             "value_assessment": parsed.get("value_assessment", ""),
+            "recommendation": parsed.get("recommendation", ""),
             "risk_level": parsed.get("risk_level", "MEDIUM"),
             "insight_tags": parsed.get("insight_tags", []),
             "error": None,
@@ -117,7 +119,8 @@ async def generate_match_insights(
             "available": True, "source": provider,
             "home_prob": home_prob, "draw_prob": draw_prob, "away_prob": away_prob,
             "confidence": 0.7, "summary": raw[:400],
-            "key_factors": [], "value_assessment": "", "risk_level": "MEDIUM",
+            "key_factors": [], "value_assessment": "",
+            "recommendation": "", "risk_level": "MEDIUM",
             "insight_tags": [], "error": None,
         }
     except Exception as exc:

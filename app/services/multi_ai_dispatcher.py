@@ -121,13 +121,36 @@ async def run_multi_ai(
         results_list = await asyncio.gather(*tasks, return_exceptions=False)
         results.update({r["source"]: r for r in results_list})
 
-    # ── Deterministic fallback: ensure at least one result is available ───────
-    # If every LLM provider failed or is cooling down, inject the statistical
-    # engine result so the AI panel is never completely empty.
-    llm_available = any(
-        r.get("available") for s, r in results.items() if s != "deterministic"
-    )
-    if not llm_available and "deterministic" not in results:
+    # ── Deduplicate fallback-only results ─────────────────────────────────────
+    # Each *_insights service has its own _scie_fallback that returns
+    # available=True + is_fallback=True when its LLM is down.  Without
+    # deduplication the dispatcher returns 3 identical cards labelled
+    # Gemini / Claude / Grok — misleading UX.
+    #
+    # Rule: if EVERY requested slot is a fallback result (no real LLM answered),
+    # consolidate into a single "deterministic" key and mark the LLM slots
+    # unavailable so the frontend shows one authoritative statistical card.
+    llm_slots   = [s for s in sources if s in results and s != "deterministic"]
+    real_llm    = [s for s in llm_slots if results[s].get("available") and not results[s].get("is_fallback")]
+    fallback_llm = [s for s in llm_slots if results[s].get("is_fallback")]
+
+    if not real_llm and fallback_llm:
+        # Promote the first fallback result to the deterministic slot
+        first_key = fallback_llm[0]
+        det_result = dict(results[first_key])
+        det_result["source"] = "deterministic"
+        det_result["label"]  = "VIT Statistical Engine"
+        results["deterministic"] = det_result
+        # Mark all LLM slots as truly unavailable
+        for key in llm_slots:
+            results[key] = {
+                "available": False, "source": key,
+                "label": PROVIDER_LABELS.get(key, key),
+                "error": "LLM unavailable — statistical fallback provided",
+            }
+        logger.info("[multi-ai] All LLM providers used fallback — consolidated into deterministic slot")
+    elif not real_llm and not fallback_llm and "deterministic" not in results:
+        # All providers hard-failed with available=False — inject deterministic
         logger.info("[multi-ai] All LLM providers unavailable — using deterministic fallback")
         det_result = await _call_provider("deterministic", kwargs)
         results["deterministic"] = det_result

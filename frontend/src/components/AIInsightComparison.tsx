@@ -7,15 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BrainCircuit, Zap, Sparkles, RefreshCw, TrendingUp,
-  AlertTriangle, Bot, CheckCircle2, WifiOff,
+  AlertTriangle, Bot, CheckCircle2, WifiOff, BarChart2,
 } from "lucide-react";
 import { analyzeMatchWithPuter, isPuterAvailable, MatchAnalysis } from "@/lib/puter-ai";
 
 const AI_PROVIDERS = {
-  gemini: { name: "Gemini", color: "hsl(var(--primary))",   icon: Sparkles     },
-  claude: { name: "Claude", color: "hsl(262 83% 58%)",      icon: BrainCircuit },
-  grok:   { name: "Grok",   color: "hsl(var(--secondary))", icon: Zap           },
-  puter:  { name: "Puter",  color: "hsl(173 80% 50%)",      icon: Bot           },
+  gemini:        { name: "Gemini",              color: "hsl(var(--primary))",   icon: Sparkles     },
+  claude:        { name: "Claude",              color: "hsl(262 83% 58%)",      icon: BrainCircuit },
+  grok:          { name: "Grok",                color: "hsl(var(--secondary))", icon: Zap           },
+  puter:         { name: "Puter",               color: "hsl(173 80% 50%)",      icon: Bot           },
+  deterministic: { name: "VIT Statistical Engine", color: "hsl(220 70% 60%)", icon: BarChart2     },
 } as const;
 
 type Provider = keyof typeof AI_PROVIDERS;
@@ -38,6 +39,7 @@ interface Insight {
   available?: boolean;
   error?: string | null;
   from_cache?: boolean;
+  is_fallback?: boolean;
 }
 
 interface ProviderResult extends Insight {
@@ -62,7 +64,7 @@ interface PuterInsightState {
   error?: string;
 }
 
-// ── Shared filled insight card layout ────────────────────────────────────────
+// ── Shared filled insight card ────────────────────────────────────────────────
 
 function FilledInsightCard({
   provider,
@@ -70,18 +72,20 @@ function FilledInsightCard({
   color,
   icon: Icon,
   fullWidth = false,
+  isFallback = false,
 }: {
   provider: string;
   insight: Insight;
   color: string;
   icon: React.ElementType;
   fullWidth?: boolean;
+  isFallback?: boolean;
 }) {
   const riskCls = RISK_COLOR[insight.risk_level?.toUpperCase() ?? "MEDIUM"] ?? RISK_COLOR.MEDIUM;
 
   return (
     <Card
-      className={`bg-card/50 backdrop-blur flex flex-col ${fullWidth ? "col-span-full" : ""}`}
+      className={`bg-card/60 flex flex-col ${fullWidth ? "col-span-full" : ""}`}
       style={{ borderColor: `${color}40`, borderWidth: "1px" }}
     >
       <CardHeader className="pb-3 border-b shrink-0" style={{ borderColor: `${color}20` }}>
@@ -89,7 +93,12 @@ function FilledInsightCard({
           <span className="flex items-center gap-2">
             <Icon className="w-4 h-4 shrink-0" style={{ color }} />
             <span style={{ color }}>{provider}</span>
-            {insight.from_cache && (
+            {isFallback && (
+              <span className="text-[9px] font-mono text-muted-foreground/60 border border-border/40 rounded px-1">
+                statistical
+              </span>
+            )}
+            {insight.from_cache && !isFallback && (
               <span className="text-[9px] font-mono text-muted-foreground/50 border border-border/40 rounded px-1">cached</span>
             )}
           </span>
@@ -154,30 +163,23 @@ function FilledInsightCard({
   );
 }
 
-// ── Puter hero card (shown when it's the primary/only provider) ───────────────
+// ── Puter hero card ───────────────────────────────────────────────────────────
 
 function PuterHeroCard({
-  puterState,
-  onRun,
-  canRun,
-  homeTeam,
-  awayTeam,
+  puterState, onRun, canRun, homeTeam, awayTeam,
 }: {
-  puterState: PuterInsightState;
-  onRun: () => void;
-  canRun: boolean;
-  homeTeam?: string;
-  awayTeam?: string;
+  puterState: PuterInsightState; onRun: () => void;
+  canRun: boolean; homeTeam?: string; awayTeam?: string;
 }) {
   const color = AI_PROVIDERS.puter.color;
 
   if (puterState.status === "loading") {
     return (
-      <Card className="col-span-full" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
+      <Card className="col-span-full bg-card/60" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
         <CardContent className="py-10 flex flex-col items-center gap-4">
           <Bot className="w-8 h-8 animate-pulse" style={{ color }} />
           <p className="font-mono text-sm" style={{ color }}>Puter AI is analyzing {homeTeam} vs {awayTeam}…</p>
-          <p className="text-xs text-muted-foreground font-mono">Free browser-side analysis via Puter.js — no API key needed</p>
+          <p className="text-xs text-muted-foreground font-mono">Free browser-side analysis — no API key needed</p>
           <div className="w-full max-w-sm space-y-2">
             <Skeleton className="h-3 w-full" />
             <Skeleton className="h-3 w-5/6 mx-auto" />
@@ -202,7 +204,7 @@ function PuterHeroCard({
 
   if (puterState.status === "error") {
     return (
-      <Card className="col-span-full" style={{ borderColor: `${color}30`, borderWidth: "1px" }}>
+      <Card className="col-span-full bg-card/60" style={{ borderColor: `${color}30`, borderWidth: "1px" }}>
         <CardContent className="py-8 flex flex-col items-center gap-3">
           <Bot className="w-7 h-7 text-muted-foreground/40" />
           <p className="font-mono text-xs text-muted-foreground uppercase">Puter AI — Analysis failed</p>
@@ -217,9 +219,8 @@ function PuterHeroCard({
     );
   }
 
-  // idle — show a prominent CTA
   return (
-    <Card className="col-span-full" style={{ borderColor: `${color}40`, borderWidth: "1px", background: `${color}05` }}>
+    <Card className="col-span-full bg-card/60" style={{ borderColor: `${color}40`, borderWidth: "1px", background: `${color}05` }}>
       <CardContent className="py-10 flex flex-col items-center gap-4 text-center">
         <Bot className="w-10 h-10" style={{ color }} />
         <div>
@@ -230,12 +231,7 @@ function PuterHeroCard({
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground font-mono">
-          {[
-            "No API key needed",
-            "Browser-side Claude",
-            "Tactical probabilities",
-            "Key factors",
-          ].map((t) => (
+          {["No API key needed", "Browser-side Claude", "Tactical probabilities", "Key factors"].map((t) => (
             <span key={t} className="flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3 text-emerald-500" /> {t}
             </span>
@@ -243,10 +239,8 @@ function PuterHeroCard({
         </div>
         {canRun ? (
           <Button
-            size="lg"
-            className="font-mono gap-2 mt-2"
-            style={{ background: color, color: "#000" }}
-            onClick={onRun}
+            size="lg" className="font-mono gap-2 mt-2"
+            style={{ background: color, color: "#000" }} onClick={onRun}
           >
             <Bot className="w-4 h-4" /> Analyze Free with Puter AI
           </Button>
@@ -260,14 +254,12 @@ function PuterHeroCard({
   );
 }
 
-// ── Standard provider card (when server providers work) ──────────────────────
+// ── Standard server provider card ─────────────────────────────────────────────
 
 function ServerInsightCard({
-  provider,
-  insight,
-  isLoading,
+  provider, insight, isLoading,
 }: {
-  provider: Exclude<Provider, "puter">;
+  provider: Exclude<Provider, "puter" | "deterministic">;
   insight?: Insight;
   isLoading: boolean;
 }) {
@@ -275,7 +267,7 @@ function ServerInsightCard({
 
   if (isLoading) {
     return (
-      <Card className="bg-card/40 backdrop-blur border-border">
+      <Card className="bg-card/40 border-border">
         <CardHeader className="pb-3"><Skeleton className="h-6 w-32" /></CardHeader>
         <CardContent className="space-y-3">
           <Skeleton className="h-4 w-full" />
@@ -288,7 +280,7 @@ function ServerInsightCard({
 
   if (!insight || insight.available === false) {
     return (
-      <Card className="bg-card/20 backdrop-blur border-border/40">
+      <Card className="bg-card/30 border-border/40">
         <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-2 p-6">
           <Icon className="w-7 h-7 text-muted-foreground/20" />
           <p className="font-mono text-[11px] text-muted-foreground/50 uppercase">{name}</p>
@@ -299,26 +291,28 @@ function ServerInsightCard({
   }
 
   return (
-    <FilledInsightCard provider={name} insight={insight} color={color} icon={Icon} />
+    <FilledInsightCard
+      provider={name}
+      insight={insight}
+      color={color}
+      icon={Icon}
+      isFallback={insight.is_fallback}
+    />
   );
 }
 
-// ── Inline puter card in grid (when mixed providers) ─────────────────────────
+// ── Puter grid card ───────────────────────────────────────────────────────────
 
 function PuterGridCard({
-  puterState,
-  onRun,
-  canRun,
+  puterState, onRun, canRun,
 }: {
-  puterState: PuterInsightState;
-  onRun: () => void;
-  canRun: boolean;
+  puterState: PuterInsightState; onRun: () => void; canRun: boolean;
 }) {
   const color = AI_PROVIDERS.puter.color;
 
   if (puterState.status === "loading") {
     return (
-      <Card className="bg-card/40 backdrop-blur" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
+      <Card className="bg-card/40" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
         <CardHeader className="pb-3"><Skeleton className="h-6 w-32" style={{ background: `${color}20` }} /></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center gap-2 text-xs font-mono" style={{ color }}>
@@ -337,7 +331,7 @@ function PuterGridCard({
 
   if (puterState.status === "error") {
     return (
-      <Card className="bg-card/20 backdrop-blur border-border/40">
+      <Card className="bg-card/30 border-border/40">
         <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-2 p-6">
           <Bot className="w-7 h-7 text-muted-foreground/30" />
           <p className="font-mono text-[10px] text-amber-500/80">{puterState.error}</p>
@@ -350,7 +344,7 @@ function PuterGridCard({
   }
 
   return (
-    <Card className="bg-card/20 backdrop-blur flex flex-col" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
+    <Card className="bg-card/30 flex flex-col" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
       <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-3 p-6">
         <Bot className="w-7 h-7" style={{ color }} />
         <p className="font-mono text-xs font-bold" style={{ color }}>Puter AI · Free</p>
@@ -378,15 +372,9 @@ function resolveInsight(data: InsightsData | undefined, provider: Exclude<Provid
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function AIInsightComparison({
-  matchId,
-  homeTeam,
-  awayTeam,
-  league,
+  matchId, homeTeam, awayTeam, league,
 }: {
-  matchId: string;
-  homeTeam?: string;
-  awayTeam?: string;
-  league?: string;
+  matchId: string; homeTeam?: string; awayTeam?: string; league?: string;
 }) {
   const { data: insights, isLoading, isError, refetch, isFetching } = useQuery<InsightsData>({
     queryKey: ["ai-insights", matchId],
@@ -400,24 +388,34 @@ export function AIInsightComparison({
   const autoTriggered = useRef(false);
 
   const canRunPuter = isPuterAvailable() && !!homeTeam && !!awayTeam;
-
-  const serverProviders: Exclude<Provider, "puter">[] = ["gemini", "claude", "grok"];
+  const serverProviders: Exclude<Provider, "puter" | "deterministic">[] = ["gemini", "claude", "grok"];
 
   const serverInsights = serverProviders.map((p) => resolveInsight(insights, p));
-  const serverHasAny   = serverInsights.some((ins) => ins?.available !== false && ins != null);
-  const allServerFailed = !isLoading && !isError && serverInsights.every(
-    (ins) => !ins || ins.available === false
-  );
 
-  // ── Auto-trigger Puter when all server providers are unavailable ──────────
+  // Has any LLM slot with real (non-fallback) data?
+  const hasRealLLM = serverInsights.some(
+    (ins) => ins?.available !== false && ins != null && !ins.is_fallback
+  );
+  // Any server slot at all (including fallback)?
+  const serverHasAny = serverInsights.some(
+    (ins) => ins?.available !== false && ins != null
+  );
+  // Deterministic slot from backend deduplication
+  const deterministicInsight = resolveInsight(insights, "deterministic");
+  const hasDeterministic = !!deterministicInsight && deterministicInsight.available !== false;
+
+  // All server providers truly failed (no real LLM AND no deterministic fallback)
+  const allServerFailed = !isLoading && !isError &&
+    !serverHasAny && !hasDeterministic;
+
+  // Auto-trigger Puter when all server providers are truly unavailable
   useEffect(() => {
     if (
       allServerFailed &&
       !autoTriggered.current &&
       canRunPuter &&
       puterState.status === "idle" &&
-      homeTeam &&
-      awayTeam
+      homeTeam && awayTeam
     ) {
       autoTriggered.current = true;
       runPuter();
@@ -436,8 +434,7 @@ export function AIInsightComparison({
       };
       const analysis: MatchAnalysis = await analyzeMatchWithPuter(
         homeTeam, awayTeam, league ?? "Football",
-        priors.home, priors.draw, priors.away,
-        "claude",
+        priors.home, priors.draw, priors.away, "claude",
       );
       const insight: Insight = {
         available: true,
@@ -457,7 +454,7 @@ export function AIInsightComparison({
   const isFromCache = cacheHits.length === (insights?.sources_requested?.length ?? 0) && cacheHits.length > 0;
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-border">
+    <Card className="bg-card/60 border-border">
       <CardHeader className="border-b border-border/50 pb-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <CardTitle className="font-mono uppercase flex items-center gap-2">
@@ -465,7 +462,12 @@ export function AIInsightComparison({
             Multi-AI Intelligence
             {allServerFailed && puterState.status !== "done" && (
               <span className="text-[10px] font-mono font-normal text-muted-foreground border border-border/40 rounded px-1.5 py-0.5 flex items-center gap-1">
-                <WifiOff className="w-3 h-3" /> server providers offline · using Puter
+                <WifiOff className="w-3 h-3" /> server offline · Puter fallback
+              </span>
+            )}
+            {hasDeterministic && !hasRealLLM && (
+              <span className="text-[10px] font-mono font-normal text-blue-400/80 border border-blue-400/30 rounded px-1.5 py-0.5 flex items-center gap-1">
+                <BarChart2 className="w-3 h-3" /> statistical engine
               </span>
             )}
           </CardTitle>
@@ -476,8 +478,7 @@ export function AIInsightComparison({
               </span>
             )}
             <Button
-              variant="outline"
-              size="sm"
+              variant="outline" size="sm"
               className="font-mono text-xs h-7 px-2.5"
               onClick={() => { autoTriggered.current = false; refetch(); }}
               disabled={isFetching}
@@ -506,8 +507,7 @@ export function AIInsightComparison({
                   Or get a free browser-side analysis now:
                 </p>
                 <Button
-                  size="sm"
-                  className="font-mono gap-2"
+                  size="sm" className="font-mono gap-2"
                   style={{ background: AI_PROVIDERS.puter.color, color: "#000" }}
                   onClick={runPuter}
                   disabled={puterState.status === "loading"}
@@ -543,26 +543,50 @@ export function AIInsightComparison({
               </div>
             )}
 
-            {/* All server providers failed — Puter takes the full width */}
+            {/* Deterministic fallback — all LLMs were down, backend consolidated into 1 card */}
+            {!isLoading && hasDeterministic && !hasRealLLM && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <FilledInsightCard
+                    provider="VIT Statistical Engine"
+                    insight={deterministicInsight!}
+                    color={AI_PROVIDERS.deterministic.color}
+                    icon={BarChart2}
+                    fullWidth
+                    isFallback
+                  />
+                </div>
+                {/* Still show Puter option alongside */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border/40 flex items-start gap-3">
+                    <BarChart2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                    <p className="text-[11px] font-mono text-muted-foreground leading-relaxed">
+                      Live AI providers (Gemini, Claude, Grok) are temporarily unavailable.
+                      The VIT Statistical Engine above provides a deterministic analysis from
+                      the 13-model ensemble. Try Puter AI for a free LLM-powered breakdown:
+                    </p>
+                  </div>
+                  <PuterGridCard puterState={puterState} onRun={runPuter} canRun={canRunPuter} />
+                </div>
+              </div>
+            )}
+
+            {/* All providers truly failed — Puter takes full width */}
             {!isLoading && allServerFailed && (
               <div className="grid grid-cols-1 gap-4">
                 <PuterHeroCard
-                  puterState={puterState}
-                  onRun={runPuter}
-                  canRun={canRunPuter}
-                  homeTeam={homeTeam}
-                  awayTeam={awayTeam}
+                  puterState={puterState} onRun={runPuter} canRun={canRunPuter}
+                  homeTeam={homeTeam} awayTeam={awayTeam}
                 />
               </div>
             )}
 
-            {/* At least one server provider has data — normal 4-col grid */}
+            {/* Normal 4-col grid — at least one real LLM answered */}
             {!isLoading && serverHasAny && (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 {serverProviders.map((p) => (
                   <ServerInsightCard
-                    key={p}
-                    provider={p}
+                    key={p} provider={p}
                     insight={resolveInsight(insights, p)}
                     isLoading={false}
                   />
@@ -571,29 +595,29 @@ export function AIInsightComparison({
               </div>
             )}
 
-            {/* Provider status footer (only when at least one provider succeeded) */}
-            {!isLoading && (serverHasAny || puterState.status === "done") && (
+            {/* Provider status footer */}
+            {!isLoading && (serverHasAny || hasDeterministic || puterState.status === "done") && (
               <div className="mt-5 p-3 bg-muted/20 rounded-lg border border-border/40">
                 <div className="flex items-center gap-3 flex-wrap">
                   <p className="text-[10px] font-mono text-muted-foreground uppercase shrink-0">Providers</p>
-                  {(["gemini", "claude", "grok", "puter"] as Provider[]).map((p) => {
+                  {(["gemini", "claude", "grok", "deterministic", "puter"] as Provider[]).map((p) => {
                     const { name, color, icon: Icon } = AI_PROVIDERS[p];
                     let active = false;
                     if (p === "puter") {
                       active = puterState.status === "done";
+                    } else if (p === "deterministic") {
+                      active = hasDeterministic;
                     } else {
                       const r = resolveInsight(insights, p);
-                      active = !!r && r.available !== false;
+                      active = !!r && r.available !== false && !r.is_fallback;
                     }
                     return (
                       <div key={p} className="flex items-center gap-1.5">
                         <Icon className="w-3 h-3" style={{ color: active ? color : "hsl(var(--muted-foreground))" }} />
-                        <span className="text-[10px] font-mono" style={{ color: active ? color : "hsl(var(--muted-foreground))" }}>
+                        <span className="text-[10px] font-mono" style={{ color: active ? color : undefined }}>
                           {name}
                         </span>
-                        <span className={`text-[9px] font-mono ${active ? "text-emerald-500" : "text-muted-foreground/40"}`}>
-                          {active ? "✓" : "—"}
-                        </span>
+                        <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
                       </div>
                     );
                   })}
