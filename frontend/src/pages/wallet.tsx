@@ -302,7 +302,8 @@ export default function WalletPage() {
   const { data: vitPriceHistory } = useQuery<{ history: { price_usd: number; calculated_at: string }[] }>({
     queryKey: ["vit-price-history"],
     queryFn: () => apiGet("/api/wallet/vitcoin-price/history?days=7"),
-    staleTime: 10 * 60 * 1000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 
   const { data: withdrawalsData, isLoading: loadingWithdrawals } = useQuery<{

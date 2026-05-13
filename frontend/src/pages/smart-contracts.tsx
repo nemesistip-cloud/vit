@@ -193,7 +193,7 @@ export default function SmartContractsPage() {
             </div>
           ) : (
             <span className="text-xs text-muted-foreground">
-              Connect a wallet to interact with VITCoin on Base L2 — read-only mode active
+              Internal VIT contracts are fully operational — external wallet required only for Base L2 bridging
             </span>
           )}
         </div>

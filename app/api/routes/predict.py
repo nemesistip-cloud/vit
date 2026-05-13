@@ -205,20 +205,21 @@ def _entropy_confidence(hp: float, dp: float, ap: float) -> float:
     """
     Map a 1x2 probability distribution to a confidence score in [0.50, 0.95].
 
-    Uniform (1/3, 1/3, 1/3) → 0.50 (no information).
-    Sharp consensus (e.g. 0.85, 0.10, 0.05) → ~0.93.
+    v2: power-law (sqrt) amplification mirrors the updated ModelOrchestrator
+    formula so the vig-removal fallback path is consistent.
 
-    Mirrors the entropy→confidence mapping inside ModelOrchestrator so that
-    the vig-removal fallback path produces a confidence value derived from
-    the actual data rather than a hardcoded constant.
+    Uniform (1/3, 1/3, 1/3) → ~0.50.
+    Sharp consensus (0.85, 0.10, 0.05) → ~0.87.
     """
     probs = [p for p in (hp, dp, ap) if p > 0]
     if not probs:
         return 0.50
-    ent = -sum(p * math.log(p) for p in probs)
-    max_ent = math.log(3)
+    import math as _math
+    ent = -sum(p * _math.log(p) for p in probs)
+    max_ent = _math.log(3)
     normalised = max(0.0, min(1.0, 1.0 - (ent / max_ent)))
-    return round(0.50 + normalised * 0.45, 3)
+    amplified = _math.sqrt(normalised + 1e-9)
+    return round(min(0.95, 0.50 + amplified * 0.45), 3)
 
 
 def validate_prediction_response(result: dict, market_odds: Optional[dict] = None) -> dict:

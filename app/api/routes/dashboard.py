@@ -172,26 +172,121 @@ async def get_recent_activity(
         return []
 
     uid = current_user.id
-    result = await db.execute(
-        select(Match, Prediction)
-        .join(Prediction, Match.id == Prediction.match_id)
-        .where(Prediction.user_id == uid)
-        .order_by(Prediction.timestamp.desc())
-        .limit(limit)
-    )
-    rows = result.all()
     activity = []
-    for match, pred in rows:
-        activity.append({
-            "id": str(pred.id),
-            "type": "prediction",
-            "description": f"{match.home_team} vs {match.away_team}",
-            "bet_side": pred.bet_side,
-            "outcome": match.actual_outcome,
-            "edge": pred.vig_free_edge,
-            "created_at": pred.timestamp.isoformat() if pred.timestamp else None,
-        })
-    return activity
+
+    # 1. Recent predictions
+    try:
+        pred_rows = await db.execute(
+            select(Match, Prediction)
+            .join(Prediction, Match.id == Prediction.match_id)
+            .where(Prediction.user_id == uid)
+            .order_by(Prediction.timestamp.desc())
+            .limit(limit)
+        )
+        for match, pred in pred_rows.all():
+            outcome_label = None
+            if match.actual_outcome and pred.bet_side:
+                outcome_label = (
+                    "win" if match.actual_outcome == pred.bet_side else "loss"
+                )
+            activity.append({
+                "id": f"pred-{pred.id}",
+                "type": "prediction",
+                "icon": "⚽",
+                "description": f"{match.home_team} vs {match.away_team}",
+                "detail": f"Tipped {(pred.bet_side or '?').upper()}",
+                "bet_side": pred.bet_side,
+                "outcome": outcome_label,
+                "edge": pred.vig_free_edge,
+                "created_at": pred.timestamp.isoformat() if pred.timestamp else None,
+            })
+    except Exception:
+        pass
+
+    # 2. Recent task completions
+    try:
+        from app.modules.tasks.models import UserTaskCompletion, Task as TaskModel
+        task_rows = await db.execute(
+            select(UserTaskCompletion, TaskModel)
+            .join(TaskModel, UserTaskCompletion.task_id == TaskModel.id)
+            .where(UserTaskCompletion.user_id == uid)
+            .where(UserTaskCompletion.is_completed == True)
+            .order_by(UserTaskCompletion.last_completed_at.desc())
+            .limit(limit)
+        )
+        for completion, task in task_rows.all():
+            activity.append({
+                "id": f"task-{completion.id}",
+                "type": "task_completed",
+                "icon": "🏆",
+                "description": f"Task completed: {task.title}",
+                "detail": f"+{task.vit_reward} VIT · +{task.xp_reward} XP",
+                "vit_earned": task.vit_reward,
+                "xp_earned": task.xp_reward,
+                "outcome": "win",
+                "created_at": completion.last_completed_at.isoformat()
+                if completion.last_completed_at else None,
+            })
+    except Exception:
+        pass
+
+    # 3. Recent wallet transactions (deposits / withdrawals)
+    try:
+        from app.modules.wallet.models import WalletTransaction
+        tx_rows = await db.execute(
+            select(WalletTransaction)
+            .where(WalletTransaction.user_id == uid)
+            .order_by(WalletTransaction.created_at.desc())
+            .limit(limit)
+        )
+        for tx in tx_rows.scalars().all():
+            tx_type = getattr(tx, "transaction_type", None)
+            direction = getattr(tx, "direction", None)
+            amount = float(getattr(tx, "amount", 0) or 0)
+            currency = getattr(tx, "currency", "VIT")
+            activity.append({
+                "id": f"tx-{tx.id}",
+                "type": "wallet_transaction",
+                "icon": "💰" if (direction and "in" in str(direction).lower()) else "💸",
+                "description": f"Wallet {str(tx_type or 'transaction').replace('_', ' ').title()}",
+                "detail": f"{amount:,.2f} {currency}",
+                "amount": amount,
+                "currency": currency,
+                "outcome": None,
+                "created_at": tx.created_at.isoformat() if tx.created_at else None,
+            })
+    except Exception:
+        pass
+
+    # 4. Login events from audit_log
+    try:
+        from app.db.models import AuditLog
+        login_rows = await db.execute(
+            select(AuditLog)
+            .where(AuditLog.user_id == uid)
+            .where(AuditLog.action.in_(["user.login", "login", "auth.login"]))
+            .order_by(AuditLog.created_at.desc())
+            .limit(3)
+        )
+        for log in login_rows.scalars().all():
+            activity.append({
+                "id": f"login-{log.id}",
+                "type": "login",
+                "icon": "🔑",
+                "description": "Signed in",
+                "detail": getattr(log, "ip_address", None) or "—",
+                "outcome": None,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            })
+    except Exception:
+        pass
+
+    # Sort all events newest-first and return the top `limit`
+    activity.sort(
+        key=lambda e: e.get("created_at") or "1970-01-01T00:00:00",
+        reverse=True,
+    )
+    return activity[:limit]
 
 
 @router.get("/top-opportunities")

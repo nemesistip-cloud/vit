@@ -84,13 +84,20 @@ def _entropy(h: float, d: float, a: float) -> float:
 
 
 def _confidence_from_probs(h: float, d: float, a: float) -> float:
-    """Map entropy to calibrated [0.50, 0.95] confidence score."""
+    """Map entropy to calibrated [0.50, 0.95] confidence score.
+
+    v2: power-law amplification gives meaningful dynamic range.
+    Football distributions always cluster near max entropy, so the old
+    linear mapping produced 51-57% for every match.  A square-root
+    transform spreads scores across the 55-85% range instead.
+    """
     ent = _entropy(h, d, a)
     max_ent = math.log(3)
     normalised = max(0.0, 1.0 - ent / max_ent)
-    # Brier-score-calibrated mapping: sigmoid-stretched for better resolution
-    raw = 0.50 + normalised * 0.45
-    return round(raw, 3)
+    # Power-law amplification: sqrt makes mid-range values more expressive
+    amplified = math.sqrt(normalised + 1e-9)
+    raw = 0.50 + amplified * 0.45
+    return round(min(0.95, raw), 3)
 
 
 def _inject_noise(p: float, sigma: float = 0.015) -> float:
@@ -207,6 +214,27 @@ AH_LINES: Tuple[float, ...] = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 # Maximum number of goals per side considered when building the score-prob
 # matrix. 6×6 = 49 cells covers >99.9 % of football match probability mass.
 _CS_MAX_GOALS: int = 6
+
+# League-specific average total goals per game (both teams combined).
+# Used to correct the over/under lambda when no form data is available.
+# Source: 5-season rolling averages (2019-2024).
+_LEAGUE_GOAL_PRIORS: Dict[str, float] = {
+    "premier_league":        2.70,
+    "la_liga":               2.55,
+    "bundesliga":            3.10,
+    "serie_a":               2.52,
+    "ligue_1":               2.65,
+    "championship":          2.60,
+    "eredivisie":            3.05,
+    "primeira_liga":         2.50,
+    "scottish_premiership":  2.90,
+    "superlig":              2.60,
+    "pro_league":            2.70,
+    "mls":                   2.95,
+    "brasileirao":           2.60,
+    "liga_mx":               2.60,
+    "default":               2.65,
+}
 
 
 def _build_score_matrix(
@@ -2035,10 +2063,45 @@ class ModelOrchestrator:
                 "away": {"low": round(final_ap - 0.04, 4), "mid": round(final_ap, 4), "high": round(final_ap + 0.04, 4)},
             }
 
-        # ── Exact Poisson over/BTTS from solved lambdas ───────────────────────
-        final_over = _poisson_over25(lam_h + lam_a)
-        p_h_scores = 1 - math.exp(-lam_h)
-        p_a_scores = 1 - math.exp(-lam_a)
+        # ── Over/BTTS — lambda adjusted for goal volume ────────────────────────
+        # The 1x2 market-derived lambdas capture home:away *ratio* well but
+        # systematically underestimate total goals because draw probability
+        # compresses both values.  We correct by blending with:
+        #   (a) a league-specific historical goal average (always applied), and
+        #   (b) per-team form averages from match_features (when available).
+        market_lambda_total = lam_h + lam_a
+        league_avg_goals = _LEAGUE_GOAL_PRIORS.get(
+            league, _LEAGUE_GOAL_PRIORS["default"]
+        )
+
+        h_gf = float(match_features.get("home_gf_pg_5") or 0.0)
+        a_gf = float(match_features.get("away_gf_pg_5") or 0.0)
+        h_ga = float(match_features.get("home_ga_pg_5") or 0.0)
+        a_ga = float(match_features.get("away_ga_pg_5") or 0.0)
+        feat_completeness = float(match_features.get("feature_completeness") or 0.0)
+
+        if h_gf > 0.2 and a_gf > 0.2 and feat_completeness >= 0.3:
+            # Dixon-Coles style: avg of attack vs defence matchups
+            form_lambda_total = (h_gf + a_ga + a_gf + h_ga) / 2.0
+            form_weight = min(0.45, feat_completeness * 0.6)
+            blended_total = (
+                (1 - form_weight) * market_lambda_total
+                + form_weight * form_lambda_total
+            )
+        else:
+            # No reliable form: blend market-implied with league prior (40 %)
+            blended_total = 0.60 * market_lambda_total + 0.40 * league_avg_goals
+
+        if market_lambda_total > 0:
+            _scale = blended_total / market_lambda_total
+            ou_lam_h = max(0.10, lam_h * _scale)
+            ou_lam_a = max(0.10, lam_a * _scale)
+        else:
+            ou_lam_h, ou_lam_a = lam_h, lam_a
+
+        final_over = _poisson_over25(ou_lam_h + ou_lam_a)
+        p_h_scores = 1 - math.exp(-ou_lam_h)
+        p_a_scores = 1 - math.exp(-ou_lam_a)
         final_btts  = round(max(0.05, min(0.95, p_h_scores * p_a_scores)), 4)
 
         # ── v4.6.1: Asian Handicap + Correct Score from score matrix ──────────
@@ -2050,12 +2113,19 @@ class ModelOrchestrator:
             fair_line, fair_h, fair_a = -0.5, 0.5, 0.5
         cs_dict, top_cs, top_cs_p = _correct_score_probs(score_matrix, top_n=15)
 
-        overall_conf = _confidence_from_probs(final_hp, final_dp, final_ap)
-
         # Compute model agreement: % models within ±5% of ensemble home_prob
         agreement = sum(
             1 for hp in preds_h if abs(hp - final_hp) < 0.05
         ) / len(preds_h) * 100
+
+        # Overall confidence: entropy-based score boosted/penalised by model
+        # agreement.  Agreement above 50% adds up to +5 pp; below 50% subtracts
+        # up to -5 pp.  Keeps final value in [0.50, 0.95].
+        _base_conf = _confidence_from_probs(final_hp, final_dp, final_ap)
+        _agreement_bonus = (agreement / 100.0 - 0.50) * 0.10
+        overall_conf = round(
+            min(0.95, max(0.50, _base_conf + _agreement_bonus)), 3
+        )
 
         # ── P3#14: Model attribution — how much did each model move the needle?
         attribution = []

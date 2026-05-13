@@ -262,11 +262,26 @@ export default function TasksPage() {
     }
   };
 
+  // Normalise legacy or broken action_url values to valid app routes.
+  const LEGACY_ROUTE_MAP: Record<string, string> = {
+    "/profile":         "/settings",
+    "/account":         "/settings",
+    "/user/profile":    "/settings",
+    "/user/settings":   "/settings",
+    "/home":            "/",
+    "/index":           "/",
+    "/competition":     "/competitions",
+    "/match":           "/matches",
+    "/prediction":      "/predictions",
+  };
+
   // Smart action-URL inference — uses the explicit task.action_url if set,
   // otherwise scans the title/description for a known section keyword and
   // returns the matching page. Returns null if nothing relevant matches.
   const inferActionUrl = (task: Task): string | null => {
-    if (task.action_url) return task.action_url;
+    if (task.action_url) {
+      return LEGACY_ROUTE_MAP[task.action_url] ?? task.action_url;
+    }
     const t = (task.title + " " + task.description + " " + (task.short_description ?? "")).toLowerCase();
     if (/(predict|tip|forecast)/.test(t)) return "/predictions";
     if (/(accumulator|acca|parlay|combo)/.test(t)) return "/accumulator";

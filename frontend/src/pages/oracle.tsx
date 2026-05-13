@@ -132,6 +132,21 @@ export default function OraclePage() {
         </Button>
       </div>
 
+      {/* No-data notice — shown until the first oracle submission arrives */}
+      {!statsLoading && stats && stats.total_submissions === 0 && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-300">Oracle Awaiting First Submissions</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              The oracle consensus engine is live and ready. Metrics will populate automatically as
+              match results are submitted by oracle nodes after matches are settled.
+              Submissions are triggered automatically when match actual outcomes are recorded.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stats grid */}
       {statsLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
