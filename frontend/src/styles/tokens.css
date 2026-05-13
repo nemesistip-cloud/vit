@@ -140,17 +140,13 @@
 /* ── Utility Classes ──────────────────────────────────────────── */
 
 .vit-glass {
-  background: var(--vit-glass-bg);
+  background: rgba(8, 8, 18, 0.92);
   border: 1px solid var(--vit-glass-border);
-  backdrop-filter: blur(var(--vit-glass-blur));
-  -webkit-backdrop-filter: blur(var(--vit-glass-blur));
 }
 
 .vit-glass-premium {
-  background: var(--vit-glass-premium-bg);
+  background: rgba(5, 5, 15, 0.96);
   border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
 }
 
 .vit-glow-cyan   { box-shadow: var(--vit-shadow-cyan-glow); }
@@ -215,9 +211,8 @@
 
 /* ── Card variants ───────────────────────────────────────────── */
 .vit-card {
-  background: rgba(12, 12, 24, 0.8);
+  background: rgba(12, 12, 24, 0.95);
   border: 1px solid rgba(255,255,255,0.06);
-  backdrop-filter: blur(12px);
   border-radius: var(--vit-radius-lg);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -366,6 +361,14 @@
 }
 .vit-ticker-content:hover {
   animation-play-state: paused;
+}
+
+/* ── Disable backdrop-filter on mobile (Android Chrome rendering bug) ── */
+@media (max-width: 1023px) {
+  * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 /* ── Custom scrollbar ─────────────────────────────────────────── */
