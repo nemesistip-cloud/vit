@@ -112,6 +112,11 @@ class PredictionResponse(BaseModel):
     # v5.0.0 — calibration advisory note surfaced to the user
     calibration_note: Optional[str] = None
 
+    # v6.0.0 — VIT (Value Intelligence Trust) composite score
+    vit_score: Optional[float] = None      # 0–100 composite
+    vit_tier: Optional[str] = None         # ELITE | STRONG | SOLID | WATCHLIST | SKIP
+    vit_components: Optional[Dict[str, float]] = None  # {value, intelligence, trust}
+
 
 class CLVResponse(BaseModel):
     match_id: int

@@ -23,11 +23,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "Bet",
     items: [
-      { name: "Dashboard",   href: "/dashboard",   icon: Home },
-      { name: "Matches",     href: "/matches",     icon: Activity },
-      { name: "Predictions", href: "/predictions", icon: CheckSquare },
-      { name: "Accumulator", href: "/accumulator", icon: Layers },
-      { name: "Odds Intel",  href: "/odds",        icon: TrendingUp },
+      { name: "Dashboard",      href: "/dashboard",          icon: Home },
+      { name: "Matches",        href: "/matches",            icon: Activity },
+      { name: "Value Intel",    href: "/value-intelligence", icon: Shield },
+      { name: "Predictions",   href: "/predictions",        icon: CheckSquare },
+      { name: "Accumulator",   href: "/accumulator",        icon: Layers },
+      { name: "Odds Intel",    href: "/odds",               icon: TrendingUp },
     ],
   },
   {

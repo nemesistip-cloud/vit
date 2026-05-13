@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Brain, Zap, TrendingUp, AlertTriangle, CheckCircle2, MinusCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { VITScoreCard } from "@/components/VITScoreCard";
 
 interface ModelInterpretationProps {
   homeProb: number;
@@ -14,6 +15,10 @@ interface ModelInterpretationProps {
   entryOdds?: number | null;
   modelCount?: number;
   className?: string;
+  vitScore?: number | null;
+  vitTier?: string | null;
+  vitComponents?: { value: number; intelligence: number; trust: number } | null;
+  agreementPct?: number | null;
 }
 
 function getVerdict(h: number, d: number, a: number, conf: number) {
@@ -39,6 +44,10 @@ export function ModelInterpretation({
   entryOdds,
   modelCount,
   className,
+  vitScore,
+  vitTier,
+  vitComponents,
+  agreementPct,
 }: ModelInterpretationProps) {
   const { leader, strength } = getVerdict(homeProb, drawProb, awayProb, confidence);
   const leaderLabel = leader === "home" ? homeTeam : leader === "draw" ? "Draw" : awayTeam;
@@ -119,6 +128,17 @@ export function ModelInterpretation({
             Low-conviction match. Consider smaller stake sizes or avoiding this fixture.
           </p>
         </div>
+      )}
+
+      {vitScore != null && vitTier && (
+        <VITScoreCard
+          vitScore={vitScore}
+          vitTier={vitTier}
+          vitComponents={vitComponents}
+          edge={edge}
+          agreementPct={agreementPct}
+          confidence={confidence}
+        />
       )}
     </div>
   );

@@ -201,6 +201,34 @@ def build_alternative_bets(
     return out
 
 
+def compute_vit_score(edge: float, agreement_pct: float, confidence: float) -> dict:
+    """
+    Compute the VIT (Value Intelligence Trust) composite score.
+
+    Three pillars:
+      V — Value:       how much edge our model has over the vig-free market price
+      I — Intelligence: what fraction of the 13-model ensemble agrees on the pick
+      T — Trust:        calibrated entropy-based confidence from probability sharpness
+
+    Weights: V=40%, I=35%, T=25%
+    Score range: 0–100.  Tiers: ELITE ≥72, STRONG ≥55, SOLID ≥40, WATCHLIST ≥25, SKIP <25
+    """
+    v = min(100.0, max(0.0, float(edge or 0) * 500.0))       # 20% edge → 100
+    i = min(100.0, max(0.0, float(agreement_pct or 0) * 100.0))
+    t = min(100.0, max(0.0, float(confidence or 0) * 100.0))
+    score = round(0.40 * v + 0.35 * i + 0.25 * t, 1)
+    if score >= 72:   tier = "ELITE"
+    elif score >= 55: tier = "STRONG"
+    elif score >= 40: tier = "SOLID"
+    elif score >= 25: tier = "WATCHLIST"
+    else:             tier = "SKIP"
+    return {
+        "vit_score":      score,
+        "vit_tier":       tier,
+        "vit_components": {"value": round(v, 1), "intelligence": round(i, 1), "trust": round(t, 1)},
+    }
+
+
 def _entropy_confidence(hp: float, dp: float, ap: float) -> float:
     """
     Map a 1x2 probability distribution to a confidence score in [0.50, 0.95].
@@ -308,7 +336,11 @@ def build_prediction_response(
     
     # Estimate prediction accuracy based on historical patterns
     prediction_accuracy_estimate = min(85.0, prediction.confidence * 100 + prediction.vig_free_edge * 200)
-    
+
+    # VIT composite score
+    _agreement = float((prediction.model_consensus or {}).get("agreement_pct", 0.0)) if prediction.model_consensus else 0.0
+    _vit = compute_vit_score(prediction.vig_free_edge or 0, _agreement, prediction.confidence or 0)
+
     return PredictionResponse(
         match_id=prediction.match_id,
         home_prob=prediction.home_prob,
@@ -350,6 +382,9 @@ def build_prediction_response(
         intelligence_rating=intelligence_rating,
         prediction_accuracy_estimate=prediction_accuracy_estimate,
         data_quality=data_quality,
+        vit_score=_vit["vit_score"],
+        vit_tier=_vit["vit_tier"],
+        vit_components=_vit["vit_components"],
     )
 
 
@@ -939,6 +974,80 @@ async def predict(
         logger.error(f"Prediction failed: {e}", exc_info=True)
         await db.rollback()
         raise HTTPException(status_code=500, detail="Prediction failed. Please verify the match data and try again.")
+
+
+@router.get("/value-intelligence")
+async def value_intelligence_feed(
+    limit: int = 20,
+    min_vit: float = 25.0,
+    tier: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return recent predictions ranked by VIT (Value Intelligence Trust) score.
+
+    The VIT score is a composite of:
+      • Value       (40%) — vig-free edge over market
+      • Intelligence (35%) — model ensemble agreement %
+      • Trust       (25%) — calibrated confidence
+    """
+    from sqlalchemy import desc as _desc
+    rows = (await db.execute(
+        select(Prediction, Match)
+        .join(Match, Match.id == Prediction.match_id)
+        .order_by(_desc(Prediction.timestamp))
+        .limit(200)
+    )).all()
+
+    results = []
+    for pred, match in rows:
+        agreement_pct = float((pred.model_consensus or {}).get("agreement_pct", 0.0)) if pred.model_consensus else 0.0
+        vit = compute_vit_score(pred.vig_free_edge or 0, agreement_pct, pred.confidence or 0)
+        score = vit["vit_score"]
+        vtier = vit["vit_tier"]
+
+        if score < min_vit:
+            continue
+        if tier and vtier != tier.upper():
+            continue
+
+        results.append({
+            "prediction_id":   pred.id,
+            "match_id":        pred.match_id,
+            "home_team":       match.home_team,
+            "away_team":       match.away_team,
+            "league":          match.league,
+            "kickoff_time":    match.kickoff_time.isoformat() if match.kickoff_time else None,
+            "actual_outcome":  match.actual_outcome,
+            "home_prob":       round(float(pred.home_prob or 0), 4),
+            "draw_prob":       round(float(pred.draw_prob or 0), 4),
+            "away_prob":       round(float(pred.away_prob or 0), 4),
+            "over_25_prob":    round(float(pred.over_25_prob or 0), 4),
+            "btts_prob":       round(float(pred.btts_prob or 0), 4),
+            "bet_side":        pred.bet_side,
+            "entry_odds":      round(float(pred.entry_odds or 0), 3),
+            "edge":            round(float(pred.vig_free_edge or 0), 4),
+            "confidence":      round(float(pred.confidence or 0), 4),
+            "recommended_stake": round(float(pred.recommended_stake or 0), 4),
+            "agreement_pct":   round(agreement_pct, 4),
+            "vit_score":       score,
+            "vit_tier":        vtier,
+            "vit_components":  vit["vit_components"],
+            "timestamp":       pred.timestamp.isoformat() if pred.timestamp else None,
+        })
+
+    results.sort(key=lambda r: r["vit_score"], reverse=True)
+    results = results[:limit]
+
+    tier_counts: dict = {}
+    for r in results:
+        tier_counts[r["vit_tier"]] = tier_counts.get(r["vit_tier"], 0) + 1
+
+    return {
+        "total":       len(results),
+        "tier_counts": tier_counts,
+        "predictions": results,
+    }
 
 
 @router.get("/{match_id}/insights")

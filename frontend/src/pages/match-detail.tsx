@@ -196,6 +196,10 @@ export default function MatchDetailPage() {
                 betSide={match.bet_side ?? null}
                 entryOdds={match.entry_odds ?? null}
                 modelCount={modelContributions.length || 13}
+                vitScore={(match as any).vit_score ?? null}
+                vitTier={(match as any).vit_tier ?? null}
+                vitComponents={(match as any).vit_components ?? null}
+                agreementPct={(match as any).model_consensus?.agreement_pct ?? null}
               />
               <ProbabilityTrio
                 homeProb={homeProb}
