@@ -2297,6 +2297,10 @@ async def system_status(db: AsyncSession = Depends(get_db)):
             "total_profit": float(total_profit),
             "platform_volume": float(platform_volume),
         },
+        "total_users": total_users,
+        "active_users_30d": active_30d,
+        "active_validators": validators,
+        "total_staked_vit": float(total_staked_vit),
     }
 
 

@@ -375,6 +375,10 @@ async def settle_results(days_back: int = 2) -> dict:
     details         = []
 
     async with AsyncSessionLocal() as db:
+        # Prevent SQLAlchemy from expiring object attributes after each commit
+        # (without this, accessing m.home_team on a previously-committed Match
+        #  triggers a lazy-load attempt which fails in the async greenlet context)
+        db.sync_session.expire_on_commit = False
         # Pre-load all matches (any status) to avoid N+1 queries
         all_matches_result = await db.execute(select(Match))
         all_matches: list[Match] = all_matches_result.scalars().all()

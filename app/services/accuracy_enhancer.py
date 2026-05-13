@@ -101,9 +101,10 @@ async def rolling_window_accuracy(db, window: int = 50) -> list[RollingMetrics]:
     from app.modules.ai.models import AIPredictionAudit
     from app.db.models import Match
 
+    from sqlalchemy import cast, String as SAString
     rows = (await db.execute(
         select(AIPredictionAudit, Match.actual_outcome)
-        .join(Match, Match.external_id == AIPredictionAudit.match_id, isouter=True)
+        .join(Match, cast(Match.id, SAString) == AIPredictionAudit.match_id, isouter=True)
         .where(Match.actual_outcome.isnot(None))
         .order_by(desc(AIPredictionAudit.created_at))
         .limit(window * 50)             # pull enough to cover all 13 models × window

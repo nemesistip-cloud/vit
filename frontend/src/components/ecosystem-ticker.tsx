@@ -59,7 +59,7 @@ export function EcosystemTicker() {
     staleTime: 30_000,
   });
 
-  const vitPrice   = price?.price_usd ?? 0;
+  const vitPrice   = price?.price ?? price?.price_usd ?? 0;
   const change24h  = price?.change_24h ?? 0;
   const totalUsers = system?.total_users ?? 0;
   const activeUsers= system?.active_users_30d ?? 0;
