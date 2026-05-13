@@ -13,8 +13,8 @@ if command -v fuser >/dev/null 2>&1; then
 fi
 
 echo "[startup] Installing frontend dependencies..."
-if [ ! -d "frontend/node_modules" ] || [ "frontend/package.json" -nt "frontend/node_modules/.package-lock.json" ]; then
-    cd frontend && npm install --prefer-offline --silent 2>/dev/null || true && cd ..
+if [ ! -d "frontend/node_modules/@rollup/rollup-linux-x64-gnu" ] || [ ! -d "frontend/node_modules" ] || [ "frontend/package.json" -nt "frontend/node_modules/.package-lock.json" ]; then
+    cd frontend && npm install --force --silent 2>/dev/null || true && cd ..
 else
     echo "[startup] Frontend dependencies up to date, skipping install."
 fi
