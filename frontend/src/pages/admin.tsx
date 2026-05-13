@@ -1219,7 +1219,7 @@ function FixtureHealthCard() {
 
         {data && (
           <p className="text-[10px] font-mono text-muted-foreground/50 pt-1">
-            Last scanned: {new Date(data.checked_at).toLocaleString()}
+            Last scanned: {data.checked_at ? new Date(data.checked_at).toLocaleString() : "—"}
           </p>
         )}
       </CardContent>
@@ -3144,7 +3144,7 @@ function TrainingInsightCard() {
             )}
 
             <p className="text-[10px] font-mono text-gray-600 text-right">
-              Generated {new Date(data.report_generated_at).toLocaleTimeString()}
+              Generated {data.report_generated_at ? new Date(data.report_generated_at).toLocaleTimeString() : "—"}
             </p>
           </>
         )}

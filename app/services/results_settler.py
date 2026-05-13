@@ -30,6 +30,20 @@ from app.services.clv_tracker import CLVTracker
 
 logger = logging.getLogger(__name__)
 
+# ── Concurrency guard ────────────────────────────────────────────────────────
+# Both auto_settle_loop (main.py) and live_match_tracker_loop call settlement
+# functions. Without a lock they can race and double-settle the same predictions.
+_SETTLE_LOCK: asyncio.Lock | None = None
+
+def _get_settle_lock() -> asyncio.Lock:
+    """Return (or lazily create) the module-level asyncio lock.
+    Must be created inside a running event loop, so we defer creation."""
+    global _SETTLE_LOCK
+    if _SETTLE_LOCK is None:
+        _SETTLE_LOCK = asyncio.Lock()
+    return _SETTLE_LOCK
+
+
 COMPETITIONS = {
     "premier_league": "PL",
     "serie_a":        "SA",
@@ -355,6 +369,17 @@ async def settle_results(days_back: int = 2) -> dict:
       1. Football-Data.org (if FOOTBALL_DATA_API_KEY is set and endpoint reachable)
       2. TheSportsDB (free, always available — used as automatic fallback)
     """
+    lock = _get_settle_lock()
+    if lock.locked():
+        logger.debug("[settle] Skipping — settlement already running")
+        return {"settled": 0, "already_settled": 0, "errors": 0, "skipped": True,
+                "message": "Settlement already in progress — skipped"}
+    async with lock:
+        return await _settle_results_inner(days_back)
+
+
+async def _settle_results_inner(days_back: int = 2) -> dict:
+    """Inner implementation of settle_results — called only when lock is held."""
     finished = await fetch_finished_matches(days_back)
     if not finished:
         logger.info("[settle] Football-Data.org returned 0 matches — trying TheSportsDB fallback")
@@ -667,6 +692,16 @@ async def settle_completed_db_matches() -> dict:
     Called by the live-match tracker every 2 minutes so predictions get
     settled quickly without burning extra API quota.
     """
+    lock = _get_settle_lock()
+    if lock.locked():
+        logger.debug("[settle_db] Skipping — settlement already running")
+        return {"settled": 0, "no_prediction": 0, "errors": 0}
+    async with lock:
+        return await _settle_completed_db_matches_inner()
+
+
+async def _settle_completed_db_matches_inner() -> dict:
+    """Inner implementation — called only when lock is held."""
     settled       = 0
     no_prediction = 0
     errors        = 0
@@ -704,14 +739,18 @@ async def settle_completed_db_matches() -> dict:
                     if not prediction.bet_side:
                         continue
 
-                    # Skip if already fully settled
+                    # Skip if already fully settled (check settled_profit first —
+                    # faster than a CLV join, and guards predictions with no CLV entry)
+                    if prediction.settled_profit is not None:
+                        continue
+
                     clv_res = await db.execute(
                         select(CLVEntry).where(CLVEntry.prediction_id == prediction.id)
                         .limit(1)
                     )
                     clv_entry = clv_res.scalar_one_or_none()
                     if clv_entry and clv_entry.bet_outcome is not None:
-                        continue  # already settled
+                        continue  # already settled via CLV path
 
                     won    = prediction.bet_side == outcome
                     stake  = float(prediction.recommended_stake or 0.0)
