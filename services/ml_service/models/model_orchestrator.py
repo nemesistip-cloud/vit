@@ -1675,27 +1675,38 @@ class ModelOrchestrator:
             # a fresh v2 training run lands.
             loaded = False
             loaded_from = None
+            brier_score: Optional[float] = None
             if use_real:
                 payload = self._try_load_pkl(key, models_dir, cache_on)
                 if payload is not None:
                     self._attach_sklearn_payload(model_obj, key, payload)
                     loaded = True
                     loaded_from = key
+                    brier_score = float((payload.get("metrics") or {}).get("brier_score") or 0.25)
                 elif parent_version:
                     payload = self._try_load_pkl(parent_version, models_dir, cache_on)
                     if payload is not None:
                         self._attach_sklearn_payload(model_obj, key, payload)
                         loaded = True
                         loaded_from = parent_version
+                        brier_score = float((payload.get("metrics") or {}).get("brier_score") or 0.25)
                         logger.info(
                             "↳ %s loaded weights from parent %s (v2 pkl not yet trained)",
                             key, parent_version,
                         )
 
             self._pkl_loaded[key] = loaded
-            # Use performance-based base weight; real pkl models get 2× boost
+            # Brier-calibrated weight: trained models are scaled by their calibration
+            # quality measured during training.  Lower Brier score → higher weight.
+            # Formula: base × clamp(1.20, 2.0 + (0.25 − brier) × 8, 2.50)
+            #   brier=0.18 → ×2.46   brier=0.25 → ×2.00   brier=0.30 → ×1.60
+            # Untrained (algorithmic-only) models keep their base weight unmodified.
             base_w = _MODEL_BASE_WEIGHTS.get(key, 1.0)
-            weight = round(base_w * 2.0 if loaded else base_w, 4)
+            if loaded and brier_score is not None:
+                brier_mult = max(1.20, min(2.50, 2.0 + (0.25 - brier_score) * 8.0))
+                weight = round(base_w * brier_mult, 4)
+            else:
+                weight = base_w
 
             self.models[key]    = model_obj
             self.model_meta[key] = {
@@ -1709,6 +1720,7 @@ class ModelOrchestrator:
                 "parent_version":    parent_version,
                 "change_summary":    change_summary,
                 "loaded_from":       loaded_from,
+                "brier_score":       brier_score,
             }
             results[key] = True
 
@@ -2113,10 +2125,26 @@ class ModelOrchestrator:
             fair_line, fair_h, fair_a = -0.5, 0.5, 0.5
         cs_dict, top_cs, top_cs_p = _correct_score_probs(score_matrix, top_n=15)
 
-        # Compute model agreement: % models within ±5% of ensemble home_prob
-        agreement = sum(
-            1 for hp in preds_h if abs(hp - final_hp) < 0.05
-        ) / len(preds_h) * 100
+        # Argmax-consensus agreement: % of models that vote the same winning side
+        # as the ensemble.  This is far more meaningful than a ±5 % home-prob
+        # threshold — it directly feeds the VIT Intelligence pillar.
+        if final_hp >= final_dp and final_hp >= final_ap:
+            _ens_side = "home"
+        elif final_dp >= final_hp and final_dp >= final_ap:
+            _ens_side = "draw"
+        else:
+            _ens_side = "away"
+        _agree_votes = 0
+        for _pi in range(len(preds_h)):
+            if preds_h[_pi] >= preds_d[_pi] and preds_h[_pi] >= preds_a[_pi]:
+                _m_side = "home"
+            elif preds_d[_pi] >= preds_h[_pi] and preds_d[_pi] >= preds_a[_pi]:
+                _m_side = "draw"
+            else:
+                _m_side = "away"
+            if _m_side == _ens_side:
+                _agree_votes += 1
+        agreement = (_agree_votes / len(preds_h)) * 100 if preds_h else 0.0
 
         # Overall confidence: entropy-based score boosted/penalised by model
         # agreement.  Agreement above 50% adds up to +5 pp; below 50% subtracts
@@ -2178,7 +2206,7 @@ class ModelOrchestrator:
                 "models_used":       len(self.models),
                 "models_total":      _TOTAL_MODEL_SPECS,
                 "model_agreement":   round(agreement, 1),
-                "data_source":       "differentiated_ensemble_v4",
+                "data_source":       "differentiated_ensemble_v5",
                 "ensemble_diversity": round(var_h, 5),
                 "llm_signals_used":  bool(ai_signals),
                 "league":            league or None,

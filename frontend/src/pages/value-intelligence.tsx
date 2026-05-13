@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import {
-  Shield, TrendingUp, Brain, Zap, Clock, Trophy,
+  Shield, TrendingUp, Brain, Clock, Trophy,
   ChevronRight, RefreshCw, Activity, Target, Info,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -36,7 +36,9 @@ interface VITPrediction {
   agreement_pct: number;
   vit_score: number;
   vit_tier: string;
-  vit_components: { value: number; intelligence: number; trust: number };
+  vit_components: { value: number; intelligence: number; trust: number; recency?: number };
+  has_market_odds: boolean;
+  prediction_age_hours: number;
   timestamp: string | null;
 }
 
@@ -118,27 +120,40 @@ function VITPredictionCard({ p }: { p: VITPrediction }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg bg-background/40 border border-border/40 px-2 py-1.5 text-center">
-            <div className="font-mono text-[9px] text-muted-foreground uppercase mb-0.5 flex items-center justify-center gap-1">
-              <TrendingUp className="w-2.5 h-2.5 text-emerald-400" /> Value
+        <div className="grid grid-cols-4 gap-1.5">
+          <div className="rounded-lg bg-background/40 border border-border/40 px-1.5 py-1.5 text-center">
+            <div className="font-mono text-[8px] text-muted-foreground uppercase mb-0.5 flex items-center justify-center gap-0.5">
+              <TrendingUp className="w-2 h-2 text-emerald-400" /> Value
             </div>
             <div className="font-mono text-sm font-bold text-emerald-400">{p.vit_components.value.toFixed(0)}</div>
-            <div className="font-mono text-[9px] text-muted-foreground">{(p.edge * 100).toFixed(1)}% edge</div>
+            <div className="font-mono text-[8px] text-muted-foreground">
+              {p.has_market_odds ? `${(p.edge * 100).toFixed(1)}% edge` : "no odds"}
+            </div>
           </div>
-          <div className="rounded-lg bg-background/40 border border-border/40 px-2 py-1.5 text-center">
-            <div className="font-mono text-[9px] text-muted-foreground uppercase mb-0.5 flex items-center justify-center gap-1">
-              <Brain className="w-2.5 h-2.5 text-blue-400" /> Intel
+          <div className="rounded-lg bg-background/40 border border-border/40 px-1.5 py-1.5 text-center">
+            <div className="font-mono text-[8px] text-muted-foreground uppercase mb-0.5 flex items-center justify-center gap-0.5">
+              <Brain className="w-2 h-2 text-blue-400" /> Intel
             </div>
             <div className="font-mono text-sm font-bold text-blue-400">{p.vit_components.intelligence.toFixed(0)}</div>
-            <div className="font-mono text-[9px] text-muted-foreground">{(p.agreement_pct * 100).toFixed(0)}% agree</div>
+            <div className="font-mono text-[8px] text-muted-foreground">{(p.agreement_pct * 100).toFixed(0)}% agree</div>
           </div>
-          <div className="rounded-lg bg-background/40 border border-border/40 px-2 py-1.5 text-center">
-            <div className="font-mono text-[9px] text-muted-foreground uppercase mb-0.5 flex items-center justify-center gap-1">
-              <Shield className="w-2.5 h-2.5 text-purple-400" /> Trust
+          <div className="rounded-lg bg-background/40 border border-border/40 px-1.5 py-1.5 text-center">
+            <div className="font-mono text-[8px] text-muted-foreground uppercase mb-0.5 flex items-center justify-center gap-0.5">
+              <Shield className="w-2 h-2 text-purple-400" /> Trust
             </div>
             <div className="font-mono text-sm font-bold text-purple-400">{p.vit_components.trust.toFixed(0)}</div>
-            <div className="font-mono text-[9px] text-muted-foreground">{(p.confidence * 100).toFixed(0)}% conf</div>
+            <div className="font-mono text-[8px] text-muted-foreground">{(p.confidence * 100).toFixed(0)}% conf</div>
+          </div>
+          <div className="rounded-lg bg-background/40 border border-border/40 px-1.5 py-1.5 text-center">
+            <div className="font-mono text-[8px] text-muted-foreground uppercase mb-0.5 flex items-center justify-center gap-0.5">
+              <Clock className="w-2 h-2 text-cyan-400" /> Fresh
+            </div>
+            <div className="font-mono text-sm font-bold text-cyan-400">
+              {(p.vit_components.recency ?? 100).toFixed(0)}
+            </div>
+            <div className="font-mono text-[8px] text-muted-foreground">
+              {p.prediction_age_hours < 1 ? "< 1h" : `${p.prediction_age_hours.toFixed(0)}h`}
+            </div>
           </div>
         </div>
 
@@ -222,21 +237,26 @@ export default function ValueIntelligencePage() {
           <Info className="w-3.5 h-3.5 text-primary" />
           <span className="font-mono text-xs font-bold text-primary uppercase tracking-wider">VIT Score Formula</span>
         </div>
-        <div className="grid grid-cols-3 gap-3 mb-3">
-          <div className="rounded-lg bg-background/40 border border-emerald-500/20 px-3 py-2 text-center">
-            <TrendingUp className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
-            <div className="font-mono text-xs font-bold text-emerald-400">Value 40%</div>
-            <div className="font-mono text-[9px] text-muted-foreground">Vig-free edge over market</div>
+        <div className="grid grid-cols-4 gap-2 mb-3">
+          <div className="rounded-lg bg-background/40 border border-emerald-500/20 px-2 py-2 text-center">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400 mx-auto mb-1" />
+            <div className="font-mono text-[10px] font-bold text-emerald-400">Value 35%</div>
+            <div className="font-mono text-[8px] text-muted-foreground">Vig-free edge over market</div>
           </div>
-          <div className="rounded-lg bg-background/40 border border-blue-500/20 px-3 py-2 text-center">
-            <Brain className="w-4 h-4 text-blue-400 mx-auto mb-1" />
-            <div className="font-mono text-xs font-bold text-blue-400">Intelligence 35%</div>
-            <div className="font-mono text-[9px] text-muted-foreground">Model consensus agreement</div>
+          <div className="rounded-lg bg-background/40 border border-blue-500/20 px-2 py-2 text-center">
+            <Brain className="w-3.5 h-3.5 text-blue-400 mx-auto mb-1" />
+            <div className="font-mono text-[10px] font-bold text-blue-400">Intel 30%</div>
+            <div className="font-mono text-[8px] text-muted-foreground">Argmax-consensus voting</div>
           </div>
-          <div className="rounded-lg bg-background/40 border border-purple-500/20 px-3 py-2 text-center">
-            <Shield className="w-4 h-4 text-purple-400 mx-auto mb-1" />
-            <div className="font-mono text-xs font-bold text-purple-400">Trust 25%</div>
-            <div className="font-mono text-[9px] text-muted-foreground">Calibrated probability confidence</div>
+          <div className="rounded-lg bg-background/40 border border-purple-500/20 px-2 py-2 text-center">
+            <Shield className="w-3.5 h-3.5 text-purple-400 mx-auto mb-1" />
+            <div className="font-mono text-[10px] font-bold text-purple-400">Trust 25%</div>
+            <div className="font-mono text-[8px] text-muted-foreground">Entropy-based sharpness</div>
+          </div>
+          <div className="rounded-lg bg-background/40 border border-cyan-500/20 px-2 py-2 text-center">
+            <Clock className="w-3.5 h-3.5 text-cyan-400 mx-auto mb-1" />
+            <div className="font-mono text-[10px] font-bold text-cyan-400">Recency 10%</div>
+            <div className="font-mono text-[8px] text-muted-foreground">Signal freshness decay</div>
           </div>
         </div>
         {allTotal > 0 && (

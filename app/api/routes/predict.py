@@ -201,31 +201,105 @@ def build_alternative_bets(
     return out
 
 
-def compute_vit_score(edge: float, agreement_pct: float, confidence: float) -> dict:
+def compute_vit_score(
+    edge: float,
+    agreement_pct: float,
+    confidence: float,
+    *,
+    home_prob: float = 0.0,
+    draw_prob: float = 0.0,
+    away_prob: float = 0.0,
+    models_voted: int = 0,
+    total_models: int = 13,
+    prediction_age_hours: float = 0.0,
+) -> dict:
     """
-    Compute the VIT (Value Intelligence Trust) composite score.
+    Compute the VIT (Value Intelligence Trust) composite score — v3.
 
-    Three pillars:
-      V — Value:       how much edge our model has over the vig-free market price
-      I — Intelligence: what fraction of the 13-model ensemble agrees on the pick
-      T — Trust:        calibrated entropy-based confidence from probability sharpness
+    Four pillars  (weights: V=35 % · I=30 % · T=25 % · R=10 %):
 
-    Weights: V=40%, I=35%, T=25%
-    Score range: 0–100.  Tiers: ELITE ≥72, STRONG ≥55, SOLID ≥40, WATCHLIST ≥25, SKIP <25
+    V — Value (35 %)
+        Primary  : vig-free edge × 500  (20 % edge → V=100)
+        Fallback : when no odds data, probability margin above uniform × 300
+                   (max_prob − 1/3) · 300, capped at 60 so no-odds picks
+                   can reach at most SOLID without confirmed market edge.
+
+    I — Intelligence (30 %)
+        Argmax-consensus: fraction of the 13-model ensemble that votes the
+        same winning side as the final ensemble prediction (not ±5 % threshold).
+        Depth-adjusted by voting coverage ratio, floored at 0.70.
+
+    T — Trust (25 %)
+        Shannon-entropy sharpness from the 1×2 probability distribution.
+        Uniform (1/3,1/3,1/3) → T≈50; sharp (0.85,0.10,0.05) → T≈90.
+        Falls back to raw confidence × 100 when probs are unavailable.
+
+    R — Recency (10 %)
+        Fresh predictions (age < 2 h) score R=100.
+        Decays linearly: R = max(0, 100 − age_hours × 2.083).
+        At 48 h the prediction is fully stale and R = 0.
+
+    Quality multiplier: 0.85 when no market odds are present (edge=0),
+    so no-odds predictions are honestly discounted across the board.
+
+    Score range  : 0–100
+    Tiers        : ELITE ≥72 · STRONG ≥55 · SOLID ≥40 · WATCHLIST ≥25 · SKIP <25
     """
-    v = min(100.0, max(0.0, float(edge or 0) * 500.0))       # 20% edge → 100
-    i = min(100.0, max(0.0, float(agreement_pct or 0) * 100.0))
-    t = min(100.0, max(0.0, float(confidence or 0) * 100.0))
-    score = round(0.40 * v + 0.35 * i + 0.25 * t, 1)
+    edge = float(edge or 0)
+
+    # ── Value pillar (35 %) ───────────────────────────────────────────────────
+    has_odds = edge > 0.0
+    if has_odds:
+        v = min(100.0, edge * 500.0)
+    else:
+        max_p = max(float(home_prob or 0), float(draw_prob or 0), float(away_prob or 0))
+        margin = max(0.0, max_p - (1.0 / 3.0))
+        v = min(60.0, margin * 300.0)
+
+    # ── Intelligence pillar (30 %) ────────────────────────────────────────────
+    i_base = min(100.0, max(0.0, float(agreement_pct or 0) * 100.0))
+    voted_ratio = (models_voted / max(total_models, 1)) if models_voted > 0 else 1.0
+    depth_adj = min(1.0, 0.70 + 0.30 * voted_ratio)
+    i = i_base * depth_adj
+
+    # ── Trust pillar (25 %) ───────────────────────────────────────────────────
+    hp = float(home_prob or 0)
+    dp = float(draw_prob or 0)
+    ap = float(away_prob or 0)
+    prob_list = [p for p in (hp, dp, ap) if p > 1e-9]
+    if len(prob_list) >= 2:
+        ent = -sum(p * math.log(p) for p in prob_list)
+        max_ent = math.log(3)
+        normalised = max(0.0, 1.0 - ent / max_ent)
+        t = min(95.0, 50.0 + normalised * 50.0)
+    else:
+        t = min(95.0, max(0.0, float(confidence or 0) * 100.0))
+
+    # ── Recency pillar (10 %) ─────────────────────────────────────────────────
+    # 100 at 0 h → 0 at 48 h  (2.083 pts per hour)
+    r = max(0.0, min(100.0, 100.0 - float(prediction_age_hours or 0) * 2.083))
+
+    # ── Composite score ───────────────────────────────────────────────────────
+    quality = 1.0 if has_odds else 0.85
+    raw = 0.35 * v + 0.30 * i + 0.25 * t + 0.10 * r
+    score = round(min(100.0, max(0.0, quality * raw)), 1)
+
     if score >= 72:   tier = "ELITE"
     elif score >= 55: tier = "STRONG"
     elif score >= 40: tier = "SOLID"
     elif score >= 25: tier = "WATCHLIST"
     else:             tier = "SKIP"
+
     return {
         "vit_score":      score,
         "vit_tier":       tier,
-        "vit_components": {"value": round(v, 1), "intelligence": round(i, 1), "trust": round(t, 1)},
+        "vit_components": {
+            "value":        round(v, 1),
+            "intelligence": round(i, 1),
+            "trust":        round(t, 1),
+            "recency":      round(r, 1),
+        },
+        "has_market_odds": has_odds,
     }
 
 
@@ -337,9 +411,21 @@ def build_prediction_response(
     # Estimate prediction accuracy based on historical patterns
     prediction_accuracy_estimate = min(85.0, prediction.confidence * 100 + prediction.vig_free_edge * 200)
 
-    # VIT composite score
-    _agreement = float((prediction.model_consensus or {}).get("agreement_pct", 0.0)) if prediction.model_consensus else 0.0
-    _vit = compute_vit_score(prediction.vig_free_edge or 0, _agreement, prediction.confidence or 0)
+    # VIT composite score — v2 (entropy Trust + prob-margin Value fallback)
+    _mc = prediction.model_consensus or {}
+    _agreement = float(_mc.get("agreement_pct", 0.0))
+    _models_voted = int(_mc.get("voted_models", 0))
+    _total_models = int(_mc.get("total_models", 13))
+    _vit = compute_vit_score(
+        prediction.vig_free_edge or 0,
+        _agreement,
+        prediction.confidence or 0,
+        home_prob=float(prediction.home_prob or 0),
+        draw_prob=float(prediction.draw_prob or 0),
+        away_prob=float(prediction.away_prob or 0),
+        models_voted=_models_voted,
+        total_models=_total_models,
+    )
 
     return PredictionResponse(
         match_id=prediction.match_id,
@@ -1001,8 +1087,29 @@ async def value_intelligence_feed(
 
     results = []
     for pred, match in rows:
-        agreement_pct = float((pred.model_consensus or {}).get("agreement_pct", 0.0)) if pred.model_consensus else 0.0
-        vit = compute_vit_score(pred.vig_free_edge or 0, agreement_pct, pred.confidence or 0)
+        _mc2 = pred.model_consensus or {}
+        agreement_pct = float(_mc2.get("agreement_pct", 0.0))
+        _mv = int(_mc2.get("voted_models", 0))
+        _tm = int(_mc2.get("total_models", 13))
+        # Recency: compute how many hours old this prediction is
+        import datetime as _dt
+        _now = _dt.datetime.utcnow()
+        if pred.timestamp:
+            _ts = pred.timestamp if pred.timestamp.tzinfo is None else pred.timestamp.replace(tzinfo=None)
+            _age_h = max(0.0, (_now - _ts).total_seconds() / 3600.0)
+        else:
+            _age_h = 0.0
+        vit = compute_vit_score(
+            pred.vig_free_edge or 0,
+            agreement_pct,
+            pred.confidence or 0,
+            home_prob=float(pred.home_prob or 0),
+            draw_prob=float(pred.draw_prob or 0),
+            away_prob=float(pred.away_prob or 0),
+            models_voted=_mv,
+            total_models=_tm,
+            prediction_age_hours=_age_h,
+        )
         score = vit["vit_score"]
         vtier = vit["vit_tier"]
 
@@ -1033,6 +1140,8 @@ async def value_intelligence_feed(
             "vit_score":       score,
             "vit_tier":        vtier,
             "vit_components":  vit["vit_components"],
+            "has_market_odds": vit.get("has_market_odds", False),
+            "prediction_age_hours": round(_age_h, 1),
             "timestamp":       pred.timestamp.isoformat() if pred.timestamp else None,
         })
 

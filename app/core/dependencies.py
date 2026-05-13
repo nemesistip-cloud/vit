@@ -16,31 +16,33 @@ def _is_production() -> bool:
     return bool(os.getenv("REPLIT_DEPLOYMENT")) or os.getenv("ENVIRONMENT", "").lower() == "production"
 
 
+def _has_trained_models() -> bool:
+    """True when ≥4 trained PKL files are present in models/."""
+    import glob
+    return len(glob.glob("models/*.pkl")) >= 4
+
+
 @lru_cache(maxsize=1)
 def get_orchestrator() -> Optional[ModelOrchestrator]:
     """Lazy-load ModelOrchestrator singleton.
 
-    ML models are only loaded in production (published) to keep the dev
-    environment fast and resource-light.  Set REPLIT_DEPLOYMENT=1 or
-    ENVIRONMENT=production to force model loading locally.
+    Models are loaded whenever trained PKL files exist on disk (both dev and
+    production).  This gives full VIT scoring in the development environment
+    without any manual flag.  Set SKIP_MODEL_LOAD=1 to explicitly defer.
     """
-    if not _is_production():
-        print("ℹ️  Model loading deferred — models load only after publishing (set ENVIRONMENT=production to override)")
-        try:
-            orch = ModelOrchestrator()
-            print("✅ Orchestrator skeleton ready (no models loaded in dev)")
-            return orch
-        except Exception as e:
-            print(f"❌ Orchestrator init failed: {e}")
-            return None
+    skip = os.getenv("SKIP_MODEL_LOAD", "").lower() in ("1", "true", "yes")
+    should_load = not skip and (_is_production() or _has_trained_models())
 
     try:
         orch = ModelOrchestrator()
-        orch.load_all_models()
-        print(f"✅ Orchestrator initialized: {orch.num_models_ready()} models")
+        if should_load:
+            orch.load_all_models()
+            print(f"✅ Orchestrator initialized: {orch.num_models_ready()} models ready")
+        else:
+            print("ℹ️  Model loading deferred — no trained PKLs found (run training first)")
         return orch
     except Exception as e:
-        print(f"❌ Orchestrator load failed: {e}")
+        print(f"❌ Orchestrator init failed: {e}")
         import traceback
         traceback.print_exc()
         return None
