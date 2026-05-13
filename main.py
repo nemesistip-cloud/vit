@@ -2257,8 +2257,11 @@ async def system_status(db: AsyncSession = Depends(get_db)):
     active_30d = (await db.execute(
         select(func.count(User.id)).where(User.created_at >= thirty_days_ago)
     )).scalar() or 0
+    from app.modules.blockchain.models import ValidatorProfile, ValidatorStatus
     validators = (await db.execute(
-        select(func.count(User.id)).where(User.role == "validator")
+        select(func.count(ValidatorProfile.id)).where(
+            ValidatorProfile.status == ValidatorStatus.ACTIVE.value
+        )
     )).scalar() or 0
 
     # Economy stats
