@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# Build-phase script: installs Python packages + builds the frontend bundle.
-# Run by Replit deployment as the build command — must exit cleanly.
+# Build-phase script: installs frontend deps and builds the bundle.
+# Python packages (.pythonlibs) are included in the deployment image — no pip needed here.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
-echo "[build] Installing Python dependencies..."
-pip install -r requirements.txt --quiet --no-cache-dir
 
 echo "[build] Installing frontend dependencies..."
 cd frontend

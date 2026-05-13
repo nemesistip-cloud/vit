@@ -220,7 +220,7 @@ function DashboardTab() {
       {/* ── KPI Cards ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map(k => (
-          <div key={k.label} className={`relative overflow-hidden rounded-xl border ${k.border} bg-gray-900 ${k.glow} transition-all hover:scale-[1.01]`}>
+          <div key={k.label} className={`relative overflow-hidden rounded-xl border ${k.border} bg-gray-900 ${k.glow}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${k.gradient}`} />
             <div className="relative p-4">
               <div className="flex items-start justify-between mb-3">
@@ -330,7 +330,7 @@ function DashboardTab() {
                 disabled={a.loading}
                 onClick={a.action}
                 className={`flex flex-col items-center justify-center gap-1.5 h-16 rounded-lg border bg-gradient-to-br ${a.cls}
-                  transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}>
+                  transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed`}>
                 <a.icon className={`w-4 h-4 ${a.loading ? "animate-spin" : ""}`} />
                 <span className="text-[11px] font-medium leading-tight text-center">
                   {a.loading ? "Working…" : a.label}

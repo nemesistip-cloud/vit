@@ -239,7 +239,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
         onClose={() => setShowPredict(false)}
       />
 
-      <Card className="bg-card/50 backdrop-blur border-border hover:border-primary/50 transition-all duration-200 group hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(0,255,255,0.08)] h-full flex flex-col">
+      <Card className="bg-card/50 backdrop-blur border-border hover:border-primary/50 transition-colors duration-200 h-full flex flex-col">
         <CardContent className="p-0 flex flex-col h-full">
           <Link href={`/matches/${match.match_id}`} className="flex flex-col flex-1">
             {/* Header */}

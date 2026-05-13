@@ -92,7 +92,7 @@ function VITPredictionCard({ p }: { p: VITPrediction }) {
   return (
     <Link href={`/matches/${p.match_id}`}>
       <div className={cn(
-        "rounded-xl border p-4 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-lg space-y-3",
+        "rounded-xl border p-4 cursor-pointer transition-colors hover:bg-card/80 space-y-3",
         tierBg
       )}>
         <div className="flex items-start justify-between gap-3">

@@ -1,7 +1,4 @@
-# Python package cache — reinstalled during build via pip install -r requirements.txt
-.pythonlibs/
-
-# pip / npm / misc caches — not needed in deployment image
+# Large caches — not needed in deployment image
 .cache/
 .local/share/
 .npm/
@@ -15,7 +12,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
 
 # Dev tools
 .git/
@@ -23,10 +19,6 @@ __pycache__/
 attached_assets/
 screenshots/
 *.log
-
-# Jupyter / ML experiment artefacts
-*.ipynb_checkpoints/
-.ipynb_checkpoints/
 
 # OS junk
 .DS_Store

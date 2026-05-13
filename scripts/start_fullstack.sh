@@ -122,12 +122,13 @@ done
 echo "[startup] Backend ready after ${WAIT_SECS}s"
 
 echo "[startup] Starting frontend on port ${FRONTEND_PORT}..."
-cd frontend
-if [ "${FRONTEND_PORT}" != "5000" ]; then
-    VITE_PORT="${FRONTEND_PORT}" npx vite --host 0.0.0.0 --port "${FRONTEND_PORT}" &
-else
-    npm run dev &
+# Kill anything still holding the frontend port before Vite starts
+if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${FRONTEND_PORT}/tcp" >/dev/null 2>&1 || true
 fi
+sleep 1
+cd frontend
+npx vite --host 0.0.0.0 --port "${FRONTEND_PORT}" &
 FRONTEND_PID=$!
 cd ..
 

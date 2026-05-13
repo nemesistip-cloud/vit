@@ -233,7 +233,7 @@ export default function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map((f) => (
-              <div key={f.title} className={`rounded-xl border p-6 ${f.bg} transition-all duration-250 hover:-translate-y-1 hover:shadow-lg cursor-default`}>
+              <div key={f.title} className={`rounded-xl border p-6 ${f.bg} transition-colors duration-200 cursor-default`}>
                 <div className={`w-10 h-10 rounded-lg bg-background/50 border border-border/50 flex items-center justify-center mb-4`}>
                   <f.icon className={`w-5 h-5 ${f.color}`} />
                 </div>
@@ -372,7 +372,7 @@ export default function LandingPage() {
             {plans.map((plan) => (
               <div
                 key={plan.name}
-                className={`rounded-xl border p-6 flex flex-col transition-all duration-250 hover:-translate-y-1 ${
+                className={`rounded-xl border p-6 flex flex-col transition-colors duration-200 ${
                   plan.highlight
                     ? "border-primary/40 bg-primary/5 shadow-lg vit-glow-cyan"
                     : "border-border bg-card/50"
