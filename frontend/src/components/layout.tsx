@@ -293,9 +293,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* ── Main content + ecosystem ticker ──────────────── */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden isolate">
         <EcosystemTicker />
-        <main className="flex-1 overflow-y-auto bg-background vit-scrollbar">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background vit-scrollbar">
           <div className="p-4 lg:p-6 max-w-7xl mx-auto pb-24 lg:pb-8">
             {children}
           </div>

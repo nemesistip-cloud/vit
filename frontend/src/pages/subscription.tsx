@@ -182,7 +182,7 @@ export default function SubscriptionPage() {
             return (
               <Card
                 key={plan.name}
-                className={`bg-card/50 backdrop-blur flex flex-col relative ${colors.border} ${colors.glow} ${isCurrent ? "ring-1 ring-primary/40" : ""}`}
+                className={`bg-card/60 flex flex-col relative ${colors.border} ${colors.glow} ${isCurrent ? "ring-1 ring-primary/40" : ""}`}
               >
                 {isCurrent && (
                   <div className="absolute -top-3 right-4">

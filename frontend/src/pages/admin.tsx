@@ -4707,7 +4707,7 @@ export default function AdminPage() {
   const activeGroup = tabGroups.find(g => g.tabs.some(t => t.value === activeTab));
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="w-full">
 
       {/* ── Command Header ─────────────────────────────────────────── */}
       <div className="relative border-b border-gray-800 bg-gray-950">

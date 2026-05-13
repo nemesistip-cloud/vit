@@ -1077,7 +1077,7 @@ export default function AISourcesPage() {
 
   if (permsQ.isLoading) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4">
+      <div className="w-full">
         <Skeleton className="h-32 w-full bg-gray-800" />
       </div>
     );
@@ -1085,7 +1085,7 @@ export default function AISourcesPage() {
 
   if (permsQ.data && !permsQ.data.can_upload) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4 flex items-center justify-center">
+      <div className="w-full flex items-center justify-center py-20">
         <Card className="bg-gray-800 border-gray-700 max-w-md w-full">
           <CardContent className="p-8 text-center">
             <Lock className="w-10 h-10 mx-auto mb-3 text-amber-400" />
@@ -1101,7 +1101,7 @@ export default function AISourcesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-4 md:p-6 pb-24">
+    <div className="space-y-6">
       <div className="max-w-5xl mx-auto space-y-5">
 
         {/* ── Header ─────────────────────────────────────────── */}

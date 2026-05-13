@@ -214,7 +214,7 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
     <div className="grid grid-cols-1 gap-3">
       {predictions.map((prediction, i) => (
         <Link key={`${prediction.match_id}-${i}`} href={`/matches/${prediction.match_id}`}>
-          <Card className="bg-card/50 backdrop-blur border-border hover:border-primary/50 transition-colors cursor-pointer overflow-hidden">
+          <Card className="bg-card/60 border-border hover:border-primary/50 transition-colors cursor-pointer overflow-hidden">
             <CardContent className="p-0 flex flex-col md:flex-row">
               {/* Left: fixture identity + result */}
               <div className="p-5 md:w-1/3 border-b md:border-b-0 md:border-r border-border/50 bg-muted/10 flex flex-col justify-center gap-2">
@@ -603,7 +603,7 @@ function TicketBuilder() {
   }
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-border">
+    <Card className="bg-card/60 border-border">
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">

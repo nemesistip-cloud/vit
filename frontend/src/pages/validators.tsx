@@ -54,7 +54,7 @@ function AdminValidatorPanel() {
   };
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.08)]">
+    <Card className="bg-card/60 border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.08)]">
       <CardHeader className="border-b border-border/50 pb-4">
         <CardTitle className="font-mono uppercase flex items-center text-amber-400">
           <Lock className="w-5 h-5 mr-2" /> Admin · Validator Management
@@ -196,7 +196,7 @@ function NetworkAnalyticsPanel({ isAdmin = false }: { isAdmin?: boolean }) {
   const slashes = Array.isArray(slashHist?.events) ? slashHist.events : [];
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-primary/20 shadow-[0_0_20px_rgba(0,255,255,0.05)]">
+    <Card className="bg-card/60 border-primary/20 shadow-[0_0_20px_rgba(0,255,255,0.05)]">
       <CardHeader className="border-b border-border/50 pb-4">
         <CardTitle className="font-mono uppercase flex items-center text-primary">
           <BarChart3 className="w-5 h-5 mr-2" /> Network Analytics
@@ -407,7 +407,7 @@ export default function ValidatorsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/60 border-border">
             <CardHeader className="border-b border-border/50 pb-4">
               <CardTitle className="font-mono uppercase flex items-center">
                 <ShieldCheck className="w-5 h-5 mr-2 text-primary" />
@@ -482,7 +482,7 @@ export default function ValidatorsPage() {
 
         <div className="space-y-6">
           {myValidator ? (
-            <Card className="bg-card/50 backdrop-blur border-primary/20">
+            <Card className="bg-card/60 border-primary/20">
               <CardHeader className="border-b border-border/50 pb-4">
                 <CardTitle className="font-mono uppercase text-sm flex items-center justify-between">
                   <span className="flex items-center"><CheckCircle2 className="w-4 h-4 mr-2 text-primary" /> My Validator Profile</span>
@@ -530,7 +530,7 @@ export default function ValidatorsPage() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="bg-card/50 backdrop-blur border-secondary/20 shadow-[0_0_20px_rgba(255,215,0,0.05)]">
+            <Card className="bg-card/60 border-secondary/20 shadow-[0_0_20px_rgba(255,215,0,0.05)]">
               <CardHeader className="border-b border-border/50 pb-4">
                 <CardTitle className="font-mono uppercase flex items-center text-secondary">
                   <Trophy className="w-5 h-5 mr-2" />
@@ -584,7 +584,7 @@ export default function ValidatorsPage() {
             </Card>
           )}
 
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/60 border-border">
             <CardHeader className="border-b border-border/50 pb-4">
               <CardTitle className="font-mono uppercase text-sm flex items-center">
                 <Activity className="w-4 h-4 mr-2" />

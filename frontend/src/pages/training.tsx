@@ -58,7 +58,7 @@ export default function TrainingPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="space-y-6">
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/60 border-border">
             <CardHeader className="pb-2 border-b border-border/50">
               <CardTitle className="font-mono uppercase text-sm flex items-center">
                 <Activity className="w-4 h-4 mr-2 text-primary" />
@@ -83,7 +83,7 @@ export default function TrainingPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/60 border-border">
             <CardHeader className="pb-2 border-b border-border/50">
               <CardTitle className="font-mono uppercase text-sm flex items-center">
                 <Database className="w-4 h-4 mr-2 text-primary" />
@@ -119,7 +119,7 @@ export default function TrainingPage() {
         </div>
 
         <div className="md:col-span-2 space-y-6">
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/60 border-border">
             <CardHeader className="pb-4 border-b border-border/50">
               <CardTitle className="font-mono uppercase flex items-center">
                 <Cpu className="w-5 h-5 mr-2 text-primary" />
@@ -159,7 +159,7 @@ export default function TrainingPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/60 border-border">
             <CardHeader className="pb-4 border-b border-border/50">
               <CardTitle className="font-mono uppercase text-sm flex items-center">
                 <Server className="w-4 h-4 mr-2" />
@@ -351,7 +351,7 @@ function ModelVersionHistory() {
   const history = data?.history ?? [];
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-border/50">
+    <Card className="bg-card/60 border-border/50">
       <CardHeader className="pb-3 border-b border-border/50">
         <div className="flex items-center justify-between">
           <CardTitle className="font-mono uppercase flex items-center gap-2 text-sm">
@@ -433,7 +433,7 @@ function TrainingGuide() {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-primary/20">
+    <Card className="bg-card/60 border-primary/20">
       <CardHeader className="pb-3 border-b border-border/50">
         <div className="flex items-center justify-between">
           <CardTitle className="font-mono uppercase flex items-center gap-2 text-sm">
@@ -667,7 +667,7 @@ function DatasetManagement() {
   ];
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-border">
+    <Card className="bg-card/60 border-border">
       <CardHeader className="border-b border-border/50 pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="font-mono uppercase flex items-center gap-2">

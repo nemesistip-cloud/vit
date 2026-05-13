@@ -363,10 +363,11 @@
   animation-play-state: paused;
 }
 
-/* ── Disable backdrop-filter on mobile (Android Chrome rendering bug) ── */
-/* Tailwind applies blur via CSS custom property --tw-backdrop-blur, so we      */
-/* must reset both the property and the variable to fully kill the compositing. */
-@media (max-width: 1023px) {
+/* ── Disable backdrop-filter on mobile + tablet (Android Chrome rendering bug) ── */
+/* Tailwind applies blur via CSS custom property --tw-backdrop-blur, so we          */
+/* must reset both the property and the variable to fully kill the compositing.     */
+/* Breakpoint raised to 1279px (xl) to cover all tablets and phones.               */
+@media (max-width: 1279px) {
   * {
     --tw-backdrop-blur: ;
     --tw-backdrop-brightness: ;
@@ -380,6 +381,13 @@
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+}
+
+/* ── Page containment — prevents glow / compositing layers bleeding across pages */
+.vit-page-container {
+  isolation: isolate;
+  contain: layout style;
+  overflow: clip;
 }
 
 /* ── Custom scrollbar ─────────────────────────────────────────── */

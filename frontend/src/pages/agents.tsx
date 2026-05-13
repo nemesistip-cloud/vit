@@ -381,7 +381,7 @@ export default function AgentsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-4 md:p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
