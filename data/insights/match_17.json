@@ -1,24 +1,24 @@
 {
   "match_id": 17,
-  "generated_at": "2026-05-13T10:31:27.840502+00:00",
+  "generated_at": "2026-05-14T16:43:17.547658+00:00",
   "insights": {
     "deterministic": {
       "available": true,
       "source": "deterministic",
       "label": "VIT Statistical Engine",
-      "home_prob": 0.457,
-      "draw_prob": 0.2651,
-      "away_prob": 0.2779,
-      "confidence": 0.418,
-      "summary": "The 13-model ensemble assigns Home Win a marginal 45.7% probability in Artis Brno vs Příbram (Czech National Football League). The home side carries a 45.7% win probability versus 27.8% for the visitors, with a draw at 26.5%. Goals market signals Lean Under (37% O2.5).",
+      "home_prob": 0.4521,
+      "draw_prob": 0.262,
+      "away_prob": 0.2859,
+      "confidence": 0.4168,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 45.2% probability in Nyíregyháza vs Kazincbarcika (Hungarian Nb I). The home side carries a 45.2% win probability versus 28.6% for the visitors, with a draw at 26.2%. Goals market signals Lean Under (42% O2.5).",
       "key_factors": [
-        "ML ensemble conviction: marginal (45.7% for Home Win)",
-        "Market edge is positive at 4.72% vs vig-free fair price",
-        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "ML ensemble conviction: marginal (45.2% for Home Win)",
+        "Market edge is positive at 4.17% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
         "Ensemble entropy at 97% of maximum — uncertain split"
       ],
-      "value_assessment": "Edge of 4.72% at 2.30 represents a value bet opportunity per the ML ensemble.",
-      "recommendation": "BUY — ensemble edge of 4.72% on HOME meets minimum threshold.",
+      "value_assessment": "Edge of 4.17% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 4.17% on HOME meets minimum threshold.",
       "risk_level": "MEDIUM",
       "insight_tags": [
         "conviction:marginal",

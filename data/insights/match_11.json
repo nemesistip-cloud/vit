@@ -1,0 +1,33 @@
+{
+  "match_id": 11,
+  "generated_at": "2026-05-14T21:10:49.166671+00:00",
+  "insights": {
+    "deterministic": {
+      "available": true,
+      "source": "deterministic",
+      "label": "VIT Statistical Engine",
+      "home_prob": 0.4366,
+      "draw_prob": 0.2596,
+      "away_prob": 0.3037,
+      "confidence": 0.4135,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 43.7% probability in Bayer Leverkusen vs Hamburg (Bundesliga). The home side carries a 43.7% win probability versus 30.4% for the visitors, with a draw at 26.0%. Goals market signals Neutral (47% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (43.7% for Home Win)",
+        "Market edge is positive at 2.46% vs vig-free fair price",
+        "Over 2.5 Goals at 46.5% — below 50% threshold",
+        "Ensemble entropy at 98% of maximum — uncertain split"
+      ],
+      "value_assessment": "Marginal edge of 2.46% — proceed only with bankroll discipline.",
+      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    }
+  }
+}

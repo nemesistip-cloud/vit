@@ -1,29 +1,30 @@
 {
   "match_id": 18,
-  "generated_at": "2026-05-04T22:41:53.719839+00:00",
+  "generated_at": "2026-05-14T20:57:24.158729+00:00",
   "insights": {
     "deterministic": {
       "available": true,
       "source": "deterministic",
       "label": "VIT Statistical Engine",
-      "home_prob": 0.4411,
-      "draw_prob": 0.2395,
-      "away_prob": 0.3194,
-      "confidence": 0.4168,
-      "summary": "The 13-model ensemble assigns Home Win a marginal 44.1% probability in Madura United vs Bali United (Indonesian Super League). The home side carries a 44.1% win probability versus 31.9% for the visitors, with a draw at 24.0%. Goals market signals Lean Under (37% O2.5).",
+      "home_prob": 0.4601,
+      "draw_prob": 0.2551,
+      "away_prob": 0.2848,
+      "confidence": 0.4193,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 46.0% probability in Puskás Akadémia FC vs MTK Budapest (Hungarian Nb I). The home side carries a 46.0% win probability versus 28.5% for the visitors, with a draw at 25.5%. Goals market signals Lean Under (42% O2.5).",
       "key_factors": [
-        "ML ensemble conviction: marginal (44.1% for Home Win)",
-        "Market edge is positive at 2.95% vs vig-free fair price",
-        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "ML ensemble conviction: marginal (46.0% for Home Win)",
+        "Market edge is positive at 5.07% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
         "Ensemble entropy at 97% of maximum — uncertain split"
       ],
-      "value_assessment": "Marginal edge of 2.95% — proceed only with bankroll discipline.",
-      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "value_assessment": "Edge of 5.07% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 5.07% on HOME meets minimum threshold.",
       "risk_level": "MEDIUM",
       "insight_tags": [
         "conviction:marginal",
         "risk:medium",
         "goals-market",
+        "edge-bet",
         "deterministic-fallback"
       ],
       "error": null,
