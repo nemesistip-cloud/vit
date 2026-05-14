@@ -282,4 +282,23 @@
   .page-enter {
     animation: vit-fade-in 0.25s var(--vit-ease-out) forwards;
   }
+
+  /* ── Landing ticker tape ──────── */
+  .vit-ticker-wrap {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+  }
+  .vit-ticker-content {
+    display: inline-flex;
+    white-space: nowrap;
+    animation: vit-ticker-scroll 40s linear infinite;
+  }
+  .vit-ticker-wrap:hover .vit-ticker-content {
+    animation-play-state: paused;
+  }
+  @keyframes vit-ticker-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
 }

@@ -1453,7 +1453,10 @@ async def lifespan(app: FastAPI):
                 _admin_user = (await _db.execute(_select(__import__('app.db.models', fromlist=['User']).User).where(
                     __import__('app.db.models', fromlist=['User']).User.role == "admin"
                 ))).scalar_one_or_none()
-                _admin_id = _admin_user.id if _admin_user else 1
+                if not _admin_user:
+                    print("⚠️  Gamification task seeding skipped: no admin user exists yet (will retry on next startup)")
+                    raise RuntimeError("no admin user yet")
+                _admin_id = _admin_user.id
 
                 _cat_map = {}
                 for _cat in _task_categories:
