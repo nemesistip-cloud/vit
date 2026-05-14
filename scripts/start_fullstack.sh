@@ -7,10 +7,29 @@ FRONTEND_PORT="${FRONTEND_PORT:-5000}"
 
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
 
-if command -v fuser >/dev/null 2>&1; then
-    fuser -k "${BACKEND_PORT}/tcp" >/dev/null 2>&1 || true
-    fuser -k "${FRONTEND_PORT}/tcp" >/dev/null 2>&1 || true
-fi
+# Kill any stale processes holding our ports.
+# We use /proc/net/tcp to find PIDs without needing fuser/ss/lsof.
+kill_port() {
+    local port=$1
+    local hex_port
+    hex_port=$(printf '%04X' "$port")
+    local inode
+    inode=$(awk "/00000000:${hex_port} / {print \$10}" /proc/net/tcp /proc/net/tcp6 2>/dev/null | head -1)
+    if [ -n "$inode" ]; then
+        local pid
+        pid=$(grep -rl "socket:\[${inode}\]" /proc/*/fd 2>/dev/null | grep -oP '(?<=/proc/)\d+' | head -1 || true)
+        if [ -n "$pid" ] && [ "$pid" != "$$" ]; then
+            echo "[startup] Killing stale process $pid on port $port"
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 1
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
+    fi
+}
+
+kill_port "$BACKEND_PORT"
+kill_port "$FRONTEND_PORT"
+sleep 1
 
 echo "[startup] Installing frontend dependencies..."
 if [ ! -d "frontend/node_modules/@rollup/rollup-linux-x64-gnu" ] || [ ! -d "frontend/node_modules" ] || [ "frontend/package.json" -nt "frontend/node_modules/.package-lock.json" ]; then
@@ -133,10 +152,7 @@ done
 echo "[startup] Backend ready after ${WAIT_SECS}s"
 
 echo "[startup] Starting frontend on port ${FRONTEND_PORT}..."
-# Kill anything still holding the frontend port before Vite starts
-if command -v fuser >/dev/null 2>&1; then
-    fuser -k "${FRONTEND_PORT}/tcp" >/dev/null 2>&1 || true
-fi
+kill_port "$FRONTEND_PORT"
 sleep 1
 cd frontend
 npx vite --host 0.0.0.0 --port "${FRONTEND_PORT}" &

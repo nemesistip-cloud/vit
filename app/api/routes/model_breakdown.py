@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, and_, func
+from sqlalchemy import select, desc, and_, func, cast, String
 
 from app.db.database import get_db
 from app.api.middleware.auth import verify_api_key
@@ -153,7 +153,7 @@ async def walk_forward_backtest(
     # Fetch settled audits
     result = await db.execute(
         select(AIPredictionAudit, Match)
-        .join(Match, Match.id == func.cast(AIPredictionAudit.match_id, type_=Match.id.__class__))
+        .join(Match, AIPredictionAudit.match_id == cast(Match.id, String))
         .where(
             and_(
                 AIPredictionAudit.created_at >= cutoff,
