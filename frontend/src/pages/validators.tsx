@@ -11,7 +11,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { ShieldCheck, Trophy, Activity, CheckCircle2, Coins, Lock, AlertTriangle, Ban, Play, Pause, Hourglass, BarChart3, Flame, Database, Zap, TrendingUp } from "lucide-react";
@@ -47,6 +54,10 @@ function AdminValidatorPanel() {
   const slash = useAdminSlashValidator();
 
   const list = data?.validators ?? [];
+
+  const [rejectTarget, setRejectTarget] = useState<{ id: number; username: string; stake: string } | null>(null);
+  const [slashTarget, setSlashTarget] = useState<{ id: number; username: string; stake: string } | null>(null);
+  const [slashReason, setSlashReason] = useState("");
 
   const run = async (action: () => Promise<any>, label: string) => {
     try { await action(); toast.success(label); refetch(); }
@@ -101,10 +112,7 @@ function AdminValidatorPanel() {
                             <CheckCircle2 className="w-3 h-3 mr-1" /> Approve
                           </Button>
                           <Button size="sm" variant="destructive" disabled={reject.isPending}
-                            onClick={() => {
-                              if (confirm(`Reject ${v.username}'s application and refund ${v.stake_amount} VIT?`))
-                                run(() => reject.mutateAsync(v.id), "Application rejected, stake refunded");
-                            }}>
+                            onClick={() => setRejectTarget({ id: v.id, username: v.username, stake: String(v.stake_amount) })}>
                             Reject + Refund
                           </Button>
                         </>
@@ -116,11 +124,7 @@ function AdminValidatorPanel() {
                             <Pause className="w-3 h-3 mr-1" /> Suspend
                           </Button>
                           <Button size="sm" variant="destructive" disabled={slash.isPending}
-                            onClick={() => {
-                              const reason = prompt(`Slash ${v.username}? This burns their entire ${v.stake_amount} VIT stake. Enter a reason:`);
-                              if (reason)
-                                run(() => slash.mutateAsync({ id: v.id, burn_pct: 1.0, reason }), "Validator slashed, stake burned");
-                            }}>
+                            onClick={() => { setSlashTarget({ id: v.id, username: v.username, stake: String(v.stake_amount) }); setSlashReason(""); }}>
                             <Ban className="w-3 h-3 mr-1" /> Slash
                           </Button>
                         </>
@@ -132,11 +136,7 @@ function AdminValidatorPanel() {
                             <Play className="w-3 h-3 mr-1" /> Reactivate
                           </Button>
                           <Button size="sm" variant="destructive" disabled={slash.isPending}
-                            onClick={() => {
-                              const reason = prompt(`Slash ${v.username}? Burns ${v.stake_amount} VIT. Enter a reason:`);
-                              if (reason)
-                                run(() => slash.mutateAsync({ id: v.id, burn_pct: 1.0, reason }), "Validator slashed");
-                            }}>
+                            onClick={() => { setSlashTarget({ id: v.id, username: v.username, stake: String(v.stake_amount) }); setSlashReason(""); }}>
                             <Ban className="w-3 h-3 mr-1" /> Slash
                           </Button>
                         </>
@@ -154,6 +154,68 @@ function AdminValidatorPanel() {
           </TabsContent>
         </Tabs>
       </CardContent>
+
+      {/* Reject confirmation dialog */}
+      <AlertDialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-mono">Reject Application</AlertDialogTitle>
+            <AlertDialogDescription>
+              Reject <strong>{rejectTarget?.username}</strong>'s validator application and refund{" "}
+              <strong>{rejectTarget?.stake} VIT</strong> to their wallet? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (rejectTarget) run(() => reject.mutateAsync(String(rejectTarget.id)), "Application rejected, stake refunded");
+                setRejectTarget(null);
+              }}
+            >
+              Reject + Refund
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Slash dialog with reason input */}
+      <Dialog open={!!slashTarget} onOpenChange={(o) => !o && setSlashTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-mono text-red-400">Slash Validator</DialogTitle>
+            <DialogDescription>
+              This will burn <strong>{slashTarget?.stake} VIT</strong> staked by{" "}
+              <strong>{slashTarget?.username}</strong>. This action is permanent and cannot be reversed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="text-xs font-mono uppercase text-muted-foreground">Reason for slashing *</label>
+            <Input
+              placeholder="Enter slash reason..."
+              value={slashReason}
+              onChange={(e) => setSlashReason(e.target.value)}
+              className="font-mono text-sm"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSlashTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={!slashReason.trim() || slash.isPending}
+              onClick={() => {
+                if (slashTarget && slashReason.trim()) {
+                  run(() => slash.mutateAsync({ id: String(slashTarget.id), burn_pct: 1.0, reason: slashReason.trim() }), "Validator slashed, stake burned");
+                  setSlashTarget(null);
+                }
+              }}
+            >
+              <Ban className="w-3.5 h-3.5 mr-1.5" /> Confirm Slash
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -343,6 +405,7 @@ export default function ValidatorsPage() {
   const apply = useApplyAsValidator();
   const withdraw = useWithdrawValidator();
   const [stakeInput, setStakeInput] = useState("100");
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   if (isLoadingVal || isLoadingEcon) {
     return <div className="h-full flex items-center justify-center font-mono text-muted-foreground">Scanning consensus nodes…</div>;
@@ -358,12 +421,13 @@ export default function ValidatorsPage() {
   };
 
   const handleWithdraw = async () => {
-    if (!confirm("Withdraw your validator profile? Your locked stake will be refunded to your wallet.")) return;
     try {
       const r: any = await withdraw.mutateAsync();
       toast.success(`Withdrawn — ${Number(r.refunded || 0).toLocaleString()} VIT refunded`);
     } catch (e: any) {
       toast.error(e?.message || "Withdraw failed");
+    } finally {
+      setWithdrawOpen(false);
     }
   };
 
@@ -522,10 +586,29 @@ export default function ValidatorsPage() {
                   <span className="font-bold text-primary">{(myValidator.accuracy_rate * 100).toFixed(1)}%</span>
                 </div>
                 {myValidator.status !== "slashed" && (
-                  <Button variant="outline" className="w-full mt-3" size="sm"
-                    onClick={handleWithdraw} disabled={withdraw.isPending}>
-                    {withdraw.isPending ? "Withdrawing…" : "Withdraw & Refund Stake"}
-                  </Button>
+                  <>
+                    <Button variant="outline" className="w-full mt-3" size="sm"
+                      onClick={() => setWithdrawOpen(true)} disabled={withdraw.isPending}>
+                      {withdraw.isPending ? "Withdrawing…" : "Withdraw & Refund Stake"}
+                    </Button>
+                    <AlertDialog open={withdrawOpen} onOpenChange={setWithdrawOpen}>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="font-mono">Withdraw Validator Profile</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will deactivate your validator node and refund your locked stake to your wallet.
+                            You can re-apply at any time.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleWithdraw} disabled={withdraw.isPending}>
+                            {withdraw.isPending ? "Withdrawing…" : "Confirm Withdrawal"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
                 )}
               </CardContent>
             </Card>

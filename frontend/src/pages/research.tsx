@@ -10,14 +10,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { apiGet } from "@/lib/apiClient";
 
 // ─── API fetch helper ────────────────────────────────────────────────────────
 const API = "/api/quant";
 
-async function fetchJson(path: string, token: string) {
-  const r = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  return r.json();
+async function fetchJson(path: string, _token?: string) {
+  return apiGet<any>(path);
 }
 
 // ─── Stat chip ───────────────────────────────────────────────────────────────

@@ -3090,7 +3090,7 @@ function TrainingInsightCard() {
             </div>
 
             {/* Model breakdown table */}
-            {data.model_breakdown.length > 0 && (
+            {(data.model_breakdown ?? []).length > 0 && (
               <div className="overflow-x-auto rounded border border-gray-700">
                 <table className="w-full text-sm">
                   <thead className="border-b border-gray-700 bg-gray-800/60">
@@ -3103,7 +3103,7 @@ function TrainingInsightCard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.model_breakdown.map(m => (
+                    {(data.model_breakdown ?? []).map(m => (
                       <tr key={m.key} className="border-b border-gray-800 hover:bg-gray-800/40 transition-colors">
                         <td className="p-2 pl-3">
                           <div className="text-white text-xs font-medium">{m.name}</div>
@@ -3131,10 +3131,10 @@ function TrainingInsightCard() {
             )}
 
             {/* Recommendations */}
-            {data.recommendations.length > 0 && (
+            {(data.recommendations ?? []).length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-mono text-gray-400 uppercase">Recommendations</p>
-                {data.recommendations.map((rec, i) => (
+                {(data.recommendations ?? []).map((rec, i) => (
                   <div key={i} className="flex gap-2 p-2.5 rounded bg-gray-800/60 border border-indigo-500/20 text-sm text-gray-300">
                     <Lightbulb className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                     <span>{rec}</span>

@@ -551,7 +551,7 @@ export default function AccumulatorPage() {
                           size="sm"
                           className="font-mono text-xs gap-1.5"
                           onClick={() => handlePlaceBet(acc, i)}
-                          disabled={placeBetMutation.isPending || !stakes[i]}
+                          disabled={placeBetMutation.isPending || !stakes[i] || Number(stakes[i]) <= 0}
                         >
                           <Wallet className="w-3.5 h-3.5" />
                           Place Bet

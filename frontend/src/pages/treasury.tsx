@@ -264,7 +264,7 @@ export default function TreasuryPage() {
               >
                 {epochMutation.isPending ? "Distributing…" : "Distribute Rewards"}
               </Button>
-              {epochMutation.data && (
+              {epochMutation.data?.distributed && (
                 <div className="bg-slate-900 rounded p-3 border border-green-500/20 space-y-1">
                   {Object.entries(epochMutation.data.distributed).map(([pool, amount]) => (
                     <div key={pool} className="flex justify-between text-xs">

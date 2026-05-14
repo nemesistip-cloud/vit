@@ -1014,13 +1014,14 @@ function MyStakesTab() {
     );
   }
 
-  const totalValue = data.stakes.reduce(
+  const stakes = data.stakes ?? [];
+  const totalValue = stakes.reduce(
     (sum, s) => sum + parseFloat(s.current_amount) + parseFloat(s.earnings_accumulated), 0
   );
-  const totalEarnings = data.stakes.reduce(
+  const totalEarnings = stakes.reduce(
     (sum, s) => sum + parseFloat(s.earnings_accumulated), 0
   );
-  const totalSlashed = data.stakes.reduce(
+  const totalSlashed = stakes.reduce(
     (sum, s) => sum + parseFloat(s.slashed_amount), 0
   );
 
@@ -1044,7 +1045,7 @@ function MyStakesTab() {
 
       {/* Stakes list */}
       <div className="space-y-3">
-        {data.stakes.map((s) => (
+        {stakes.map((s) => (
           <Card key={s.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1 flex-1">

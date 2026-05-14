@@ -174,7 +174,7 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
     try {
       const ko = new Date(p.kickoff_time).getTime();
       if (!Number.isFinite(ko)) return true;
-      return Date.now() - ko <= 90 * 60 * 1000;
+      return Date.now() - ko <= 130 * 60 * 1000;
     } catch {
       return true;
     }

@@ -181,7 +181,7 @@ function AllMarketsTab() {
         {data && <DataStatusBadge status={data.data_status} />}
         {data?.markets_fetched && (
           <div className="flex gap-1 flex-wrap">
-            {[...data.markets_fetched, ...data.markets_derived].map((m: string) => (
+            {[...(data.markets_fetched ?? []), ...(data.markets_derived ?? [])].map((m: string) => (
               <Badge key={m} variant="outline" className="font-mono text-[10px] border-primary/20 text-primary/70">
                 {m}
               </Badge>
