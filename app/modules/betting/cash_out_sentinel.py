@@ -442,8 +442,9 @@ async def cashout_strategies():
             {
                 "id": "aggressive",
                 "name": "Aggressive",
-                "description": "Cash out early to lock in profit at 15% gain threshold.",
-                "min_profit_pct": 0.15,
+                "description": "Cash out to lock ≥75% of potential profit, or cut ≥50% loss — fastest exit.",
+                "min_profit_pct": _STRATEGY_CONFIG[CashOutStrategy.AGGRESSIVE]["profit_lock"],
+                "max_loss_pct": _STRATEGY_CONFIG[CashOutStrategy.AGGRESSIVE]["loss_cut"],
                 "momentum_threshold": 0.65,
                 "risk_level": "low",
                 "recommended_for": "Volatile matches, injury concerns, weather risk",
@@ -451,8 +452,9 @@ async def cashout_strategies():
             {
                 "id": "balanced",
                 "name": "Balanced",
-                "description": "Cash out at 25% gain — balances profit capture with upside.",
-                "min_profit_pct": 0.25,
+                "description": "Cash out when ≥50% of potential profit secured, or ≥25% loss reached.",
+                "min_profit_pct": _STRATEGY_CONFIG[CashOutStrategy.BALANCED]["profit_lock"],
+                "max_loss_pct": _STRATEGY_CONFIG[CashOutStrategy.BALANCED]["loss_cut"],
                 "momentum_threshold": 0.72,
                 "risk_level": "medium",
                 "recommended_for": "Standard pre-match bets, moderate confidence",
@@ -460,8 +462,9 @@ async def cashout_strategies():
             {
                 "id": "conservative",
                 "name": "Conservative",
-                "description": "Let positions run until 40%+ gain or strong reversal signal.",
-                "min_profit_pct": 0.40,
+                "description": "Let positions run until ≥90% profit locked, only cutting at ≥10% loss.",
+                "min_profit_pct": _STRATEGY_CONFIG[CashOutStrategy.CONSERVATIVE]["profit_lock"],
+                "max_loss_pct": _STRATEGY_CONFIG[CashOutStrategy.CONSERVATIVE]["loss_cut"],
                 "momentum_threshold": 0.80,
                 "risk_level": "high",
                 "recommended_for": "High-confidence model bets, top-league fixtures",
@@ -485,8 +488,8 @@ async def cashout_config():
         "executed": s.get("executed", 0),
         "supported_bookmakers": ["sportybet", "football.com", "internal"],
         "config": {
-            "aggressive":   {"min_profit_pct": 0.15, "momentum_threshold": 0.65},
-            "balanced":     {"min_profit_pct": 0.25, "momentum_threshold": 0.72},
-            "conservative": {"min_profit_pct": 0.40, "momentum_threshold": 0.80},
+            "aggressive":   {"profit_lock": _STRATEGY_CONFIG[CashOutStrategy.AGGRESSIVE]["profit_lock"],   "loss_cut": _STRATEGY_CONFIG[CashOutStrategy.AGGRESSIVE]["loss_cut"],   "momentum_threshold": 0.65},
+            "balanced":     {"profit_lock": _STRATEGY_CONFIG[CashOutStrategy.BALANCED]["profit_lock"],     "loss_cut": _STRATEGY_CONFIG[CashOutStrategy.BALANCED]["loss_cut"],     "momentum_threshold": 0.72},
+            "conservative": {"profit_lock": _STRATEGY_CONFIG[CashOutStrategy.CONSERVATIVE]["profit_lock"], "loss_cut": _STRATEGY_CONFIG[CashOutStrategy.CONSERVATIVE]["loss_cut"], "momentum_threshold": 0.80},
         },
     }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -91,12 +91,15 @@ export default function ModelPerformancePage() {
     staleTime: 120_000,
   });
 
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current); }, []);
+
   const handleSync = async () => {
     setSyncing(true);
     try {
       await apiPost("/api/models/performance/sync");
       toast.success("Performance sync triggered — data will refresh in ~30s");
-      setTimeout(() => refetch(), 5000);
+      syncTimeoutRef.current = setTimeout(() => refetch(), 5000);
     } catch {
       toast.error("Sync failed");
     } finally {

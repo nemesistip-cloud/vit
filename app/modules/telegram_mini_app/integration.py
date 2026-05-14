@@ -153,8 +153,28 @@ def decrypt_credential(ciphertext_b64: str) -> str:
 class TMASessionStore:
     """In-memory session store with 24-hour TTL. Backed by DB for persistence."""
 
+    _CLEANUP_INTERVAL_SECONDS = 1800  # prune expired sessions every 30 minutes
+
     def __init__(self) -> None:
         self._sessions: Dict[str, Dict[str, Any]] = {}
+        self._cleanup_task: Optional[asyncio.Task] = None
+
+    def start_cleanup_loop(self) -> None:
+        """Start background task that prunes expired sessions periodically."""
+        import asyncio as _asyncio
+
+        async def _loop() -> None:
+            while True:
+                await _asyncio.sleep(self._CLEANUP_INTERVAL_SECONDS)
+                try:
+                    removed = self.cleanup()
+                    if removed:
+                        logger.info("[tma-session] cleanup removed %d expired sessions", removed)
+                except Exception as exc:
+                    logger.warning("[tma-session] cleanup error: %s", exc)
+
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = _asyncio.create_task(_loop(), name="tma-session-cleanup")
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
@@ -247,6 +267,10 @@ class TMAAPI:
         self._bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
         logger.info("[tma-api] initialised (bot_token=%s)",
                     "configured" if self._bot_token else "MISSING")
+        try:
+            self._sessions.start_cleanup_loop()
+        except RuntimeError:
+            pass
 
     def authenticate(self, init_data: str) -> dict:
         """

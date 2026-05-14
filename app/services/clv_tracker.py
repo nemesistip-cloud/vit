@@ -80,18 +80,17 @@ class CLVTracker:
         elif clv_entry.bet_side == "away":
             closing_odds = closing_odds_away
         else:
-            logger.warning(f"Unknown bet_side: {clv_entry.bet_side}")
-            closing_odds = closing_odds_home  # Fallback
+            logger.error(
+                f"Unknown bet_side '{clv_entry.bet_side}' for match {match_id} — "
+                "CLV cannot be calculated accurately; skipping update."
+            )
+            return None
 
         # Calculate CLV
         clv_entry.closing_odds = closing_odds
         clv_entry.clv = CLVTracker.calculate_clv(clv_entry.entry_odds, closing_odds)
         clv_entry.bet_outcome = actual_outcome
         clv_entry.profit = profit
-
-        # Remove the commit - let the caller handle transaction management
-        # await db.commit()
-        # await db.refresh(clv_entry)
 
         logger.info(f"CLV for match {match_id}: {clv_entry.clv:.4f} (side={clv_entry.bet_side})")
 
@@ -126,8 +125,11 @@ class CLVTracker:
         elif clv_entry.bet_side == "away":
             closing_odds = closing_odds_away
         else:
-            logger.warning(f"Unknown bet_side: {clv_entry.bet_side}")
-            closing_odds = closing_odds_home  # Fallback
+            logger.error(
+                f"Unknown bet_side '{clv_entry.bet_side}' for prediction {prediction_id} — "
+                "CLV cannot be calculated accurately; skipping update."
+            )
+            return None
 
         # Calculate CLV
         clv_entry.closing_odds = closing_odds

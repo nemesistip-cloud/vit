@@ -97,8 +97,11 @@ function SparklineChart({ data }: { data: { price_usd: number; calculated_at: st
     t: format(new Date(d.calculated_at), "MM/dd HH:mm"),
     v: d.price_usd,
   }));
-  const min = Math.min(...chartData.map((d) => d.v));
-  const max = Math.max(...chartData.map((d) => d.v));
+  const rawMin = Math.min(...chartData.map((d) => d.v));
+  const rawMax = Math.max(...chartData.map((d) => d.v));
+  const padding = rawMin === rawMax ? Math.max(rawMin * 0.01, 0.0001) : 0;
+  const min = rawMin - padding;
+  const max = rawMax + padding;
   const trend = chartData[chartData.length - 1].v >= chartData[0].v;
   return (
     <ResponsiveContainer width="100%" height={64}>
@@ -290,7 +293,7 @@ export default function WalletPage() {
   const queryClient = useQueryClient();
   const { data: wallet, isLoading: loadingWallet } = useGetWallet();
   const { data: publicCfg } = usePublicConfig();
-  const CURRENCIES = publicCfg?.currencies.map((c) => c.code) ?? ["NGN", "USD", "USDT", "PI", "VITCoin"];
+  const CURRENCIES = publicCfg?.currencies?.map((c) => c.code) ?? ["NGN", "USD", "USDT", "PI", "VITCoin"];
   const SYM: Record<string, string> = Object.fromEntries(
     (publicCfg?.currencies ?? []).map((c) => [c.code, c.symbol])
   );

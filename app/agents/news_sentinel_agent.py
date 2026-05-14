@@ -234,10 +234,14 @@ class NewsSentinelAgent(BaseAgent):
                     })
                 try:
                     text = raw.strip()
-                    if text.startswith("```"):
-                        text = text.split("```")[1]
+                    fence_match = __import__('re').search(r"```(?:json)?\s*([\s\S]*?)```", text)
+                    if fence_match:
+                        text = fence_match.group(1).strip()
+                    elif text.startswith("```"):
+                        text = text[3:]
                         if text.startswith("json"):
                             text = text[4:]
+                        text = text.rstrip("`").strip()
                     parsed = _json.loads(text.strip())
                     content    = parsed.get("summary", raw[:300])
                     confidence = float(parsed.get("confidence", 0.65))

@@ -375,9 +375,9 @@ def validate_prediction_response(result: dict, market_odds: Optional[dict] = Non
                 "were supplied — cannot generate a prediction for this fixture."
             )
     else:
-        # Always normalise — ensemble models can drift; 15% tolerance before hard error
-        if abs(total - 1.0) > 0.15:
-            raise ValueError(f"Probabilities sum to {total:.4f} (>15% off) — likely model failure")
+        # Always normalise — ensemble models can drift; 10% tolerance before hard error
+        if abs(total - 1.0) > 0.10:
+            raise ValueError(f"Probabilities sum to {total:.4f} (>10% off) — likely model failure")
         result["home_prob"] = hp / total
         result["draw_prob"] = dp / total
         result["away_prob"] = ap / total

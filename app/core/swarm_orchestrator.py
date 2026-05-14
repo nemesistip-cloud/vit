@@ -25,10 +25,19 @@ _MAX_BUS_EVENTS = 200   # ring-buffer size for cross-agent event bus
 
 
 def get_swarm() -> "SwarmOrchestrator":
-    global _GLOBAL_SWARM
+    """Return the global SwarmOrchestrator. Must be initialised via set_swarm() at startup."""
     if _GLOBAL_SWARM is None:
-        _GLOBAL_SWARM = SwarmOrchestrator()
+        raise RuntimeError(
+            "SwarmOrchestrator has not been initialised. "
+            "Call set_swarm() or instantiate SwarmOrchestrator before using get_swarm()."
+        )
     return _GLOBAL_SWARM
+
+
+def set_swarm(instance: "SwarmOrchestrator") -> None:
+    """Register the global SwarmOrchestrator instance (called from app lifespan)."""
+    global _GLOBAL_SWARM
+    _GLOBAL_SWARM = instance
 
 
 # ── Per-agent supervisor record ────────────────────────────────────────────────

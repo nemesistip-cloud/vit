@@ -358,6 +358,7 @@ async def adjust_weights_for_match(
     if updated_reg_rows:
         weights = [float(r.weight) for r in updated_reg_rows]
         mean_w = sum(weights) / len(weights)
+        _orch_meta = getattr(orchestrator, "model_meta", None) if orchestrator else None
         if mean_w > 0 and abs(mean_w - 1.0) > 0.02:   # only normalize if >2% off
             scale = 1.0 / mean_w
             for row, adj in zip(updated_reg_rows, adjustments):
@@ -365,14 +366,15 @@ async def adjust_weights_for_match(
                 adj["norm_weight"] = norm_weight
                 adj["new_weight"]  = norm_weight
                 row.weight = norm_weight
-                if row.key in orchestrator.model_meta:
-                    orchestrator.model_meta[row.key]["weight"] = norm_weight
+                if _orch_meta is not None and row.key in _orch_meta:
+                    _orch_meta[row.key]["weight"] = norm_weight
             logger.debug(f"[weight_adjuster] Normalized weights (mean was {mean_w:.4f})")
         else:
             # Push weights to orchestrator without rescaling
-            for row in updated_reg_rows:
-                if row.key in orchestrator.model_meta:
-                    orchestrator.model_meta[row.key]["weight"] = row.weight
+            if _orch_meta is not None:
+                for row in updated_reg_rows:
+                    if row.key in _orch_meta:
+                        _orch_meta[row.key]["weight"] = row.weight
 
     await db.commit()
 
