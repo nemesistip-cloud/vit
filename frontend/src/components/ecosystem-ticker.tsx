@@ -123,7 +123,7 @@ export function EcosystemTicker() {
   ];
 
   return (
-    <div className="border-b border-border/40 bg-sidebar overflow-hidden">
+    <div className="border-b border-border/40 bg-sidebar overflow-hidden isolate" style={{ contain: "layout paint", transform: "translateZ(0)" }}>
       <div className="flex items-center">
         <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border-r border-primary/20">
           <span className="vit-live-dot" />

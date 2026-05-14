@@ -247,11 +247,6 @@
 }
 
 /* ── Animations ──────────────────────────────────────────────── */
-@keyframes vit-scan {
-  0%   { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
-}
-
 @keyframes vit-pulse-glow {
   0%, 100% { opacity: 0.55; }
   50%       { opacity: 1; }
@@ -345,13 +340,22 @@
 }
 
 /* ── Ticker tape ──────────────────────────────────────────────── */
+/* Force an explicit GPU compositor boundary on the wrapper so the      */
+/* translateX animation on the child cannot paint outside its container */
+/* on Android Chrome (causes full-page horizontal scan-line artifacts). */
 .vit-ticker-wrap {
   overflow: hidden;
   white-space: nowrap;
+  /* Create an isolated stacking context + compositor layer */
+  transform: translateZ(0);
+  isolation: isolate;
+  contain: layout paint;
 }
 .vit-ticker-content {
   display: inline-flex;
   animation: vit-ticker 35s linear infinite;
+  /* Promote to its own dedicated GPU layer so paint stays inside wrap */
+  will-change: transform;
 }
 .vit-ticker-content:hover {
   animation-play-state: paused;

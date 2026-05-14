@@ -4616,11 +4616,11 @@ function AdminHealthPills() {
       {pills.map(p => (
         <div key={p.label} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${
           p.ok === null
-            ? "bg-muted/40/50 border-border text-muted-foreground"
+            ? "bg-muted/50 border-border text-muted-foreground"
             : p.ok
               ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
               : p.optional
-                ? "bg-muted/40/50 border-border text-muted-foreground"
+                ? "bg-muted/50 border-border text-muted-foreground"
                 : "bg-red-500/10 border-red-500/30 text-red-300"
         }`}>
           <span className={`w-1.5 h-1.5 rounded-full ${
