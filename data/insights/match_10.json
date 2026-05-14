@@ -1,30 +1,29 @@
 {
   "match_id": 10,
-  "generated_at": "2026-05-04T18:13:32.174617+00:00",
+  "generated_at": "2026-05-14T15:12:53.596727+00:00",
   "insights": {
     "deterministic": {
       "available": true,
       "source": "deterministic",
       "label": "VIT Statistical Engine",
-      "home_prob": 0.4615,
-      "draw_prob": 0.2405,
-      "away_prob": 0.298,
-      "confidence": 0.4209,
-      "summary": "The 13-model ensemble assigns Home Win a marginal 46.2% probability in Sevilla vs Real Sociedad (La Liga). The home side carries a 46.2% win probability versus 29.8% for the visitors, with a draw at 24.0%. Goals market signals Lean Under (37% O2.5).",
+      "home_prob": 0.433,
+      "draw_prob": 0.258,
+      "away_prob": 0.309,
+      "confidence": 0.413,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 43.3% probability in Girona vs Real Sociedad (La Liga). The home side carries a 43.3% win probability versus 30.9% for the visitors, with a draw at 25.8%. Goals market signals Lean Under (42% O2.5).",
       "key_factors": [
-        "ML ensemble conviction: marginal (46.2% for Home Win)",
-        "Market edge is positive at 5.22% vs vig-free fair price",
-        "Over 2.5 Goals at 36.8% — below 50% threshold",
-        "Ensemble entropy at 97% of maximum — uncertain split"
+        "ML ensemble conviction: marginal (43.3% for Home Win)",
+        "Market edge is positive at 2.05% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
+        "Ensemble entropy at 98% of maximum — uncertain split"
       ],
-      "value_assessment": "Edge of 5.22% at 2.30 represents a value bet opportunity per the ML ensemble.",
-      "recommendation": "BUY — ensemble edge of 5.22% on HOME meets minimum threshold.",
+      "value_assessment": "Marginal edge of 2.05% — proceed only with bankroll discipline.",
+      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
       "risk_level": "MEDIUM",
       "insight_tags": [
         "conviction:marginal",
         "risk:medium",
         "goals-market",
-        "edge-bet",
         "deterministic-fallback"
       ],
       "error": null,

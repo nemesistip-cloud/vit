@@ -224,7 +224,7 @@ function DashboardTab() {
             <div className={`absolute inset-0 bg-gradient-to-br ${k.gradient}`} />
             <div className="relative p-4">
               <div className="flex items-start justify-between mb-3">
-                <div className={`p-2 rounded-lg bg-muted/20/80 border border-border/50`}>
+                <div className={`p-2 rounded-lg bg-muted/20 border border-border/50`}>
                   <k.icon className={`w-4 h-4 ${k.iconColor}`} />
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -262,7 +262,7 @@ function DashboardTab() {
                 {serviceRows.map(row => (
                   <div key={row.label} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
                     row.optional && !row.ok
-                      ? "bg-muted/20/30 border-border/50"
+                      ? "bg-muted/20 border-border/50"
                       : row.limited
                         ? "bg-amber-500/5 border-amber-500/20"
                         : row.ok
@@ -353,7 +353,7 @@ function DashboardTab() {
         <div className="divide-y divide-gray-800/80">
           {stats?.recent_activity?.length ? (
             stats.recent_activity.slice(0, 8).map((a, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20/30 transition-colors">
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors">
                 <StatusBadge status={a.status} />
                 <span className="text-xs text-foreground/80 font-mono flex-1 truncate">{a.action}</span>
                 <span className="text-xs text-muted-foreground/60 hidden sm:block shrink-0">
@@ -416,7 +416,7 @@ function LeaguesTab() {
             </thead>
             <tbody>
               {data?.leagues?.map(lg => (
-                <tr key={lg.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                <tr key={lg.id} className="border-b border-border/50 hover:bg-muted/20">
                   <td className="p-3 font-medium text-foreground">{lg.name}</td>
                   <td className="p-3 text-muted-foreground">{lg.country}</td>
                   <td className="p-3">
@@ -633,7 +633,7 @@ function CurrencyTab() {
             </thead>
             <tbody>
               {data?.currencies?.map(c => (
-                <tr key={c.code} className="border-b border-border/50 hover:bg-muted/20/40">
+                <tr key={c.code} className="border-b border-border/50 hover:bg-muted/20">
                   <td className="p-3">
                     <span className="font-bold text-foreground">{c.symbol}</span>
                     <span className="ml-2 text-muted-foreground">{c.code} — {c.name}</span>
@@ -1469,7 +1469,7 @@ function CSVUploadCard() {
 
         {/* Format guide */}
         {showFormat && (
-          <div className="p-3 rounded bg-muted/20/60 border border-border space-y-3">
+          <div className="p-3 rounded bg-muted/20 border border-border space-y-3">
             <p className="text-[10px] font-mono text-muted-foreground uppercase flex items-center gap-1">
               <Info className="w-3 h-3" /> Accepted CSV formats
             </p>
@@ -1502,7 +1502,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
         {rows.length > 0 && (
           <div className="overflow-x-auto rounded border border-border">
             <table className="w-full text-xs">
-              <thead className="border-b border-border bg-muted/20/60 sticky top-0">
+              <thead className="border-b border-border bg-muted/20 sticky top-0">
                 <tr className="text-muted-foreground font-mono uppercase text-[10px]">
                   <th className="text-left p-2 pl-3">#</th>
                   <th className="text-left p-2">Match</th>
@@ -1517,7 +1517,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
               </thead>
               <tbody>
                 {rows.map((r: CsvUploadRow, idx: number) => (
-                  <tr key={idx} className="border-b border-border/50 hover:bg-muted/20/40">
+                  <tr key={idx} className="border-b border-border/50 hover:bg-muted/20">
                     <td className="p-2 pl-3 text-muted-foreground font-mono">{r.row ?? idx + 1}</td>
                     <td className="p-2 text-foreground/90 font-mono whitespace-nowrap">
                       {r.home_team} <span className="text-muted-foreground">vs</span> {r.away_team}
@@ -1981,7 +1981,7 @@ function UsersTab() {
                 </thead>
                 <tbody>
                   {data?.users?.map(u => (
-                    <tr key={u.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                    <tr key={u.id} className="border-b border-border/50 hover:bg-muted/20">
                       <td className="p-3">
                         <div className="font-medium text-foreground">{u.username}</div>
                         <div className="text-xs text-muted-foreground font-mono">{u.email}</div>
@@ -2293,7 +2293,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
 
       {/* Final summary */}
       {isDone && job?.summary && (
-        <div className="border-t border-border/60 px-4 py-3 bg-muted/20/40">
+        <div className="border-t border-border/60 px-4 py-3 bg-muted/20">
           {job.status === "completed" ? (
             <div className="flex flex-wrap gap-4 text-xs">
               <span className="text-muted-foreground">
@@ -2525,7 +2525,7 @@ function ModelsTab() {
                   </thead>
                   <tbody>
                     {modelsData?.models?.map(m => (
-                      <tr key={m.key} className="border-b border-border/50 hover:bg-muted/20/40">
+                      <tr key={m.key} className="border-b border-border/50 hover:bg-muted/20">
                         <td className="p-3">
                           <div className="text-foreground font-medium">{m.model_name}</div>
                           <div className="text-xs text-muted-foreground font-mono">{m.key}</div>
@@ -2726,7 +2726,7 @@ function ModelsTab() {
                       }[status];
                       const showStreakDots = m.is_active && streak > 0;
                       return (
-                        <tr key={m.key} className={`border-b border-border/50 transition-colors ${!m.is_active ? "opacity-60" : "hover:bg-muted/20/40"}`}>
+                        <tr key={m.key} className={`border-b border-border/50 transition-colors ${!m.is_active ? "opacity-60" : "hover:bg-muted/20"}`}>
                           <td className="p-3">
                             <div className="text-foreground font-medium">{m.name}</div>
                             <div className="text-xs text-muted-foreground font-mono">{m.key}</div>
@@ -2900,7 +2900,7 @@ function ModelsTab() {
                   </thead>
                   <tbody>
                     {pendingData?.items?.map(l => (
-                      <tr key={l.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                      <tr key={l.id} className="border-b border-border/50 hover:bg-muted/20">
                         <td className="p-3">
                           <div className="text-foreground font-medium">{l.name}</div>
                           <div className="text-xs text-muted-foreground truncate max-w-[200px]">{l.description}</div>
@@ -3093,7 +3093,7 @@ function TrainingInsightCard() {
             {(data.model_breakdown ?? []).length > 0 && (
               <div className="overflow-x-auto rounded border border-border">
                 <table className="w-full text-sm">
-                  <thead className="border-b border-border bg-muted/20/60">
+                  <thead className="border-b border-border bg-muted/20">
                     <tr className="text-muted-foreground font-mono text-xs">
                       <th className="text-left p-2 pl-3">Model</th>
                       <th className="text-right p-2">Weight</th>
@@ -3104,7 +3104,7 @@ function TrainingInsightCard() {
                   </thead>
                   <tbody>
                     {(data.model_breakdown ?? []).map(m => (
-                      <tr key={m.key} className="border-b border-border/50 hover:bg-muted/20/40 transition-colors">
+                      <tr key={m.key} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                         <td className="p-2 pl-3">
                           <div className="text-foreground text-xs font-medium">{m.name}</div>
                           <div className="text-muted-foreground text-[10px] font-mono">{m.key}</div>
@@ -3135,7 +3135,7 @@ function TrainingInsightCard() {
               <div className="space-y-2">
                 <p className="text-xs font-mono text-muted-foreground uppercase">Recommendations</p>
                 {(data.recommendations ?? []).map((rec, i) => (
-                  <div key={i} className="flex gap-2 p-2.5 rounded bg-muted/20/60 border border-indigo-500/20 text-sm text-foreground/80">
+                  <div key={i} className="flex gap-2 p-2.5 rounded bg-muted/20 border border-indigo-500/20 text-sm text-foreground/80">
                     <Lightbulb className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                     <span>{rec}</span>
                   </div>
@@ -3309,7 +3309,7 @@ function AuditTab() {
                 </thead>
                 <tbody>
                   {data?.logs?.map(lg => (
-                    <tr key={lg.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                    <tr key={lg.id} className="border-b border-border/50 hover:bg-muted/20">
                       <td className="p-3 text-muted-foreground text-xs whitespace-nowrap">
                         {lg.timestamp ? new Date(lg.timestamp).toLocaleString() : "-"}
                       </td>
@@ -3567,7 +3567,7 @@ function TasksTab() {
                 </thead>
                 <tbody>
                   {tasksData?.tasks?.map((task: any) => (
-                    <tr key={task.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                    <tr key={task.id} className="border-b border-border/50 hover:bg-muted/20">
                       <td className="p-3">
                         <div className="text-foreground font-medium">{task.name}</div>
                         <div className="text-xs text-muted-foreground truncate max-w-[200px]">{task.description}</div>
@@ -3640,7 +3640,7 @@ function TasksTab() {
               </thead>
               <tbody>
                 {completionsData?.completions?.slice(0, 20).map((comp: any) => (
-                  <tr key={comp.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                  <tr key={comp.id} className="border-b border-border/50 hover:bg-muted/20">
                     <td className="p-3 text-foreground/80 font-mono text-xs">#{comp.user_id}</td>
                     <td className="p-3 text-foreground text-sm">{comp.task_name}</td>
                     <td className="p-3 text-xs">
@@ -4786,7 +4786,7 @@ export default function AdminPage() {
                         className={`${groupColor[group.label]} flex items-center gap-1.5 text-muted-foreground hover:text-foreground
                           px-3 py-1.5 rounded-md transition-all text-xs font-medium
                           data-[state=inactive]:bg-transparent data-[state=inactive]:border data-[state=inactive]:border-transparent
-                          data-[state=inactive]:hover:bg-muted/20/60 data-[state=inactive]:hover:border-border`}
+                          data-[state=inactive]:hover:bg-muted/20 data-[state=inactive]:hover:border-border`}
                       >
                         <tab.icon className="w-3.5 h-3.5 shrink-0" />
                         <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>

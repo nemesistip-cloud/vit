@@ -123,8 +123,8 @@ function StatusBadge({ status }: { status: string }) {
     running:  { label: "Running",  className: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
     ok:       { label: "OK",       className: "bg-green-500/20 text-green-300 border-green-500/30" },
     error:    { label: "Error",    className: "bg-red-500/20 text-red-300 border-red-500/30" },
-    idle:     { label: "Idle",     className: "bg-muted/50/20 text-foreground/80 border-border/40" },
-    disabled: { label: "Disabled", className: "bg-muted/40/20 text-muted-foreground border-border/30" },
+    idle:     { label: "Idle",     className: "bg-muted/40 text-foreground/80 border-border/40" },
+    disabled: { label: "Disabled", className: "bg-muted/40 text-muted-foreground border-border/30" },
   };
   const c = config[status] ?? config.idle;
   return (
@@ -146,7 +146,7 @@ function AgentCard({ name, snap, onTrigger, triggering }: {
   const meta = AGENT_META[name] ?? {
     label: name, category: "Other", icon: <Settings className="w-4 h-4" />, description: "",
   };
-  const catColor = CATEGORY_COLORS[meta.category] ?? "bg-muted/50/20 text-foreground/80 border-border/40";
+  const catColor = CATEGORY_COLORS[meta.category] ?? "bg-muted/40 text-foreground/80 border-border/40";
   const hasResult = snap.last_result && Object.keys(snap.last_result).length > 0;
 
   return (
@@ -173,17 +173,17 @@ function AgentCard({ name, snap, onTrigger, triggering }: {
       <CardContent className="px-4 pb-4 space-y-3">
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-muted/20/50 rounded-lg p-2">
+          <div className="bg-muted/20 rounded-lg p-2">
             <div className="text-sm font-bold text-foreground">{snap.run_count}</div>
             <div className="text-xs text-muted-foreground">Runs</div>
           </div>
-          <div className="bg-muted/20/50 rounded-lg p-2">
+          <div className="bg-muted/20 rounded-lg p-2">
             <div className={cn("text-sm font-bold", snap.error_count > 0 ? "text-red-400" : "text-foreground")}>
               {snap.error_count}
             </div>
             <div className="text-xs text-muted-foreground">Errors</div>
           </div>
-          <div className="bg-muted/20/50 rounded-lg p-2">
+          <div className="bg-muted/20 rounded-lg p-2">
             <div className="text-sm font-bold text-cyan-400">{nextRunIn(snap.next_run_at)}</div>
             <div className="text-xs text-muted-foreground">Next run</div>
           </div>
@@ -285,7 +285,7 @@ function ProviderStatusBar() {
               ? `cooling ${info?.cooling_for_seconds}s`
               : "ready";
             return (
-              <div key={name} className="flex items-center gap-2 bg-muted/20/50 rounded-lg px-2 py-1.5">
+              <div key={name} className="flex items-center gap-2 bg-muted/20 rounded-lg px-2 py-1.5">
                 {available ? (
                   <Wifi className={cn("w-3 h-3", color)} />
                 ) : (
@@ -429,7 +429,7 @@ export default function AgentsPage() {
           { label: "Healthy",  value: statusCounts.ok,      color: "text-green-400",  bg: "bg-green-500/10 border-green-500/20" },
           { label: "Running",  value: statusCounts.running,  color: "text-blue-400",   bg: "bg-blue-500/10 border-blue-500/20" },
           { label: "Error",    value: statusCounts.error,    color: "text-red-400",    bg: "bg-red-500/10 border-red-500/20" },
-          { label: "Idle",     value: statusCounts.idle,     color: "text-muted-foreground",  bg: "bg-muted/20/50 border-border/50" },
+          { label: "Idle",     value: statusCounts.idle,     color: "text-muted-foreground",  bg: "bg-muted/20 border-border/50" },
         ].map(({ label, value, color, bg }) => (
           <Card key={label} className={cn("border", bg)}>
             <CardContent className="p-4 text-center">

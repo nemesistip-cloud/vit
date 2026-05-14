@@ -91,7 +91,7 @@ const SEVERITY_COLOR: Record<string, string> = {
 const STATUS_COLOR: Record<string, string> = {
   open:      "bg-red-500/20 text-red-300",
   reviewed:  "bg-blue-500/20 text-blue-300",
-  dismissed: "bg-muted/50/20 text-muted-foreground",
+  dismissed: "bg-muted/40 text-muted-foreground",
   actioned:  "bg-emerald-500/20 text-emerald-300",
 };
 

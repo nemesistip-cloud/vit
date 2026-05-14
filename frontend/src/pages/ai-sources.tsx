@@ -217,7 +217,7 @@ function SlotBadge({ status }: { status: SlotStatus }) {
     ingesting: { label: "Saving…",   cls: "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40", icon: <Loader2 className="w-3 h-3 animate-spin mr-1" /> },
     done:      { label: "Done",      cls: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> },
     failed:    { label: "Failed",    cls: "bg-rose-500/20 text-rose-300 border border-rose-500/30",   icon: <XCircle className="w-3 h-3 mr-1" /> },
-    skipped:   { label: "Skipped",   cls: "bg-muted/30/40 text-muted-foreground",         icon: null },
+    skipped:   { label: "Skipped",   cls: "bg-muted/30 text-muted-foreground",         icon: null },
   };
   const c = cfg[status];
   return (
@@ -304,7 +304,7 @@ function MatchCard({
               {match.sources.map((s) => (
                 <Badge
                   key={s}
-                  className="bg-muted/40/50 text-muted-foreground text-[10px] px-1.5 py-0 border-0 capitalize"
+                  className="bg-muted/40 text-muted-foreground text-[10px] px-1.5 py-0 border-0 capitalize"
                 >
                   {s} ✓
                 </Badge>
@@ -323,7 +323,7 @@ function MatchCard({
               const model = MODELS.find((x) => x.id === m);
               if (!model) return null;
               return (
-                <div key={m} className="bg-muted/20/60 rounded p-2 space-y-1.5">
+                <div key={m} className="bg-muted/20 rounded p-2 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold ${model.color}`}>{model.label}</span>
                     <span className="text-xs text-muted-foreground">
@@ -435,7 +435,7 @@ function PerformanceStatsPanel() {
   const hasPerf = (data?.performance?.length ?? 0) > 0;
 
   return (
-    <Card className="bg-muted/20/60 border-border">
+    <Card className="bg-muted/20 border-border">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
@@ -593,7 +593,7 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
   };
 
   return (
-    <Card className="bg-muted/20/60 border-border">
+    <Card className="bg-muted/20 border-border">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
           <Settings className="w-5 h-5 text-amber-400" />
@@ -724,7 +724,7 @@ function ManualUploadForm({ matches }: { matches: AISourceMatch[] }) {
   };
 
   return (
-    <Card className="bg-muted/20/60 border-border">
+    <Card className="bg-muted/20 border-border">
       <button
         className="w-full flex items-center justify-between px-5 py-4 text-left"
         onClick={() => setOpen((x) => !x)}
@@ -861,7 +861,7 @@ function ExistingSourcesPanel({ matchId }: { matchId: number | null }) {
   const preds = q.data?.predictions ?? [];
 
   return (
-    <Card className="bg-muted/20/40 border-border">
+    <Card className="bg-muted/20 border-border">
       <CardHeader className="pb-2 pt-4 px-4">
         <CardTitle className="text-sm text-foreground/80 flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-cyan-400" />

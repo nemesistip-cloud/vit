@@ -359,6 +359,26 @@
   animation-play-state: paused;
 }
 
+/* ── Disable ticker animation on mobile (Android Chrome GPU scan-line bug) ───── */
+/* The translateX + will-change compositor layer bleeds across the full page on   */
+/* Android Chrome. On ≤1279px we stop the animation and let the wrapper scroll.  */
+@media (max-width: 1279px) {
+  .vit-ticker-content {
+    animation: none !important;
+    will-change: auto !important;
+    transform: none !important;
+  }
+  .vit-ticker-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .vit-ticker-wrap::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* ── Disable backdrop-filter on mobile + tablet (Android Chrome rendering bug) ── */
 /* Tailwind applies blur via CSS custom property --tw-backdrop-blur, so we          */
 /* must reset both the property and the variable to fully kill the compositing.     */

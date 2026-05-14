@@ -319,7 +319,7 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
               <div
                 key={i}
                 className={`flex items-start gap-3 p-2.5 rounded-lg transition-colors ${
-                  item.status === "done" ? "bg-emerald-500/5 border border-emerald-500/10" : "border border-transparent hover:bg-muted/20/40"
+                  item.status === "done" ? "bg-emerald-500/5 border border-emerald-500/10" : "border border-transparent hover:bg-muted/20"
                 }`}
               >
                 <item.icon className={`w-4 h-4 mt-0.5 shrink-0 ${STATUS_META[item.status].color}`} />
@@ -417,7 +417,7 @@ export default function RoadmapPage() {
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {ARCH_STACK.map(row => (
-              <div key={row.layer} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/20/50 border border-border/50">
+              <div key={row.layer} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/20 border border-border/50">
                 <div>
                   <span className="text-xs text-muted-foreground font-mono">{row.layer}</span>
                   <div className="text-sm text-foreground font-medium">{row.tech}</div>
