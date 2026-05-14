@@ -14,6 +14,9 @@ import {
   PuterModel,
   PUTER_CLAUDE_MODEL,
   PUTER_GROK_MODEL,
+  PUTER_LLAMA_MODEL,
+  PUTER_MISTRAL_MODEL,
+  PUTER_DEEPSEEK_MODEL,
 } from "@/lib/puter-ai";
 import { toast } from "sonner";
 import {
@@ -100,8 +103,11 @@ interface SlotResult {
 type MatchResults = Partial<Record<PuterModel, SlotResult>>;
 
 const MODELS: { id: PuterModel; label: string; model: string; color: string }[] = [
-  { id: "claude", label: "Claude", model: PUTER_CLAUDE_MODEL, color: "text-purple-400" },
-  { id: "grok",   label: "Grok",   model: PUTER_GROK_MODEL,  color: "text-cyan-400"   },
+  { id: "claude",   label: "Claude 3.5",    model: PUTER_CLAUDE_MODEL,   color: "text-purple-400" },
+  { id: "grok",     label: "Grok",          model: PUTER_GROK_MODEL,     color: "text-cyan-400"   },
+  { id: "llama",    label: "Llama 3.1 70B", model: PUTER_LLAMA_MODEL,    color: "text-orange-400" },
+  { id: "mistral",  label: "Mistral Large", model: PUTER_MISTRAL_MODEL,  color: "text-blue-400"   },
+  { id: "deepseek", label: "DeepSeek",      model: PUTER_DEEPSEEK_MODEL, color: "text-green-400"  },
 ];
 
 // Delay between Puter calls — raised to 3.5s to stay within free tier limits

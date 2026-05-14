@@ -5,7 +5,9 @@ Provider cascade (tried in order until one succeeds):
   2. Claude   (CLAUDE_API_KEY)   — claude-3-5-haiku-20241022 → claude-3-haiku-20240307
   3. OpenAI   (OPENAI_API_KEY)   — gpt-4o-mini → gpt-3.5-turbo
   4. xAI/Grok (XAI_API_KEY)      — grok-3-mini → grok-2-1212
-  5. Puter    (PUTER_API_KEY)    — GPT-4o-mini via puter.com (optional free tier)
+  5. DeepSeek (DEEPSEEK_API_KEY) — deepseek-chat (V3) → deepseek-reasoner (R1)
+  6. Mistral  (MISTRAL_API_KEY)  — mistral-small-latest → open-mistral-7b
+  7. Puter    (PUTER_API_KEY)    — GPT-4o-mini via puter.com (optional free tier)
 
 Rate-limit handling:
   - On HTTP 429: exponential backoff (2 s → 4 s → 8 s) then try next provider.
@@ -50,6 +52,14 @@ _GROK_MODELS = [
     "grok-3-mini",
     "grok-2-1212",
 ]
+_DEEPSEEK_MODELS = [
+    "deepseek-chat",
+    "deepseek-reasoner",
+]
+_MISTRAL_MODELS = [
+    "mistral-small-latest",
+    "open-mistral-7b",
+]
 
 # ── Backoff state (module-level — shared across all agents) ────────────────────
 
@@ -59,7 +69,7 @@ _BACKOFF_SECONDS = [2, 4, 8, 16]
 
 # ── Dynamic provider priority (hot-reloadable) ─────────────────────────────────
 
-_DEFAULT_PRIORITY = ["gemini", "claude", "openai", "grok", "puter"]
+_DEFAULT_PRIORITY = ["gemini", "claude", "openai", "grok", "deepseek", "mistral", "puter"]
 _provider_priority: list[str] = list(_DEFAULT_PRIORITY)
 
 
@@ -77,6 +87,11 @@ def set_provider_priority(order: list[str]) -> list[str]:
     _provider_priority = clean
     logger.info("[ai-client] provider priority updated: %s", clean)
     return list(_provider_priority)
+
+
+def get_all_providers() -> list[str]:
+    """Return the full list of known providers."""
+    return list(_DEFAULT_PRIORITY)
 
 
 def get_provider_failures() -> dict[str, dict]:
@@ -315,6 +330,102 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
     return None
 
 
+async def _try_deepseek(prompt: str, max_tokens: int, temperature: float) -> str | None:
+    """DeepSeek AI — OpenAI-compatible API at api.deepseek.com."""
+    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        return None
+    if len(api_key) < 20:
+        logger.debug("[ai-client] deepseek: key too short — skipping")
+        return None
+    if not _provider_available("deepseek"):
+        return None
+
+    url = "https://api.deepseek.com/v1/chat/completions"
+    for model in _DEEPSEEK_MODELS:
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": max_tokens,
+                        "temperature": temperature,
+                    },
+                )
+                if resp.status_code == 404:
+                    continue
+                if resp.status_code == 429:
+                    _mark_rate_limited("deepseek", resp.headers.get("Retry-After"))
+                    return None
+                resp.raise_for_status()
+                text = resp.json()["choices"][0]["message"]["content"]
+                logger.debug("[ai-client] deepseek/%s responded (%d chars)", model, len(text))
+                return text
+        except httpx.HTTPStatusError as e:
+            sc = e.response.status_code
+            logger.warning("[ai-client] deepseek/%s HTTP %d", model, sc)
+            if sc in (400, 401, 403):
+                _mark_provider_failed("deepseek", sc)
+                break
+        except Exception as e:
+            logger.warning("[ai-client] deepseek/%s error: %s", model, e)
+    return None
+
+
+async def _try_mistral(prompt: str, max_tokens: int, temperature: float) -> str | None:
+    """Mistral AI — OpenAI-compatible API at api.mistral.ai."""
+    api_key = os.getenv("MISTRAL_API_KEY", "").strip()
+    if not api_key:
+        return None
+    if len(api_key) < 20:
+        logger.debug("[ai-client] mistral: key too short — skipping")
+        return None
+    if not _provider_available("mistral"):
+        return None
+
+    url = "https://api.mistral.ai/v1/chat/completions"
+    for model in _MISTRAL_MODELS:
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": max_tokens,
+                        "temperature": temperature,
+                    },
+                )
+                if resp.status_code == 404:
+                    continue
+                if resp.status_code == 429:
+                    _mark_rate_limited("mistral", resp.headers.get("Retry-After"))
+                    return None
+                resp.raise_for_status()
+                text = resp.json()["choices"][0]["message"]["content"]
+                logger.debug("[ai-client] mistral/%s responded (%d chars)", model, len(text))
+                return text
+        except httpx.HTTPStatusError as e:
+            sc = e.response.status_code
+            logger.warning("[ai-client] mistral/%s HTTP %d", model, sc)
+            if sc in (400, 401, 403):
+                _mark_provider_failed("mistral", sc)
+                break
+        except Exception as e:
+            logger.warning("[ai-client] mistral/%s error: %s", model, e)
+    return None
+
+
 async def _try_puter(prompt: str, max_tokens: int, temperature: float) -> str | None:
     """Puter AI — free tier via puter.com REST API (requires PUTER_API_KEY)."""
     from app.services.puter_ai import try_puter
@@ -342,11 +453,13 @@ async def call_ai_with_provider(
     Like call_ai() but returns (text, provider_name) on success, or None on failure.
     """
     _fn_map = {
-        "gemini": _try_gemini,
-        "claude": _try_claude,
-        "openai": _try_openai,
-        "grok":   _try_grok,
-        "puter":  _try_puter,
+        "gemini":   _try_gemini,
+        "claude":   _try_claude,
+        "openai":   _try_openai,
+        "grok":     _try_grok,
+        "deepseek": _try_deepseek,
+        "mistral":  _try_mistral,
+        "puter":    _try_puter,
     }
     providers = [(n, _fn_map[n]) for n in _provider_priority if n in _fn_map]
     if preferred and preferred in _fn_map:
@@ -373,16 +486,18 @@ async def call_ai(
     """
     Call the best available AI provider and return the text response.
 
-    Tries providers in priority order: Gemini → Claude → OpenAI → xAI/Grok → Puter.
+    Tries providers in priority order: Gemini → Claude → OpenAI → xAI/Grok → DeepSeek → Mistral → Puter.
     Rate-limited providers are skipped and retried next cycle.
     Returns None if all providers are unavailable or fail.
     """
     _fn_map = {
-        "gemini": _try_gemini,
-        "claude": _try_claude,
-        "openai": _try_openai,
-        "grok":   _try_grok,
-        "puter":  _try_puter,
+        "gemini":   _try_gemini,
+        "claude":   _try_claude,
+        "openai":   _try_openai,
+        "grok":     _try_grok,
+        "deepseek": _try_deepseek,
+        "mistral":  _try_mistral,
+        "puter":    _try_puter,
     }
     providers = [(n, _fn_map[n]) for n in _provider_priority if n in _fn_map]
 
@@ -418,10 +533,12 @@ def provider_status() -> dict[str, dict]:
         return len(v) >= min_len
 
     keys = {
-        "gemini": _key_valid("GEMINI_API_KEY"),
-        "claude": _key_valid("CLAUDE_API_KEY"),
-        "openai": _key_valid("OPENAI_API_KEY"),
-        "grok":   _key_valid("XAI_API_KEY"),
+        "gemini":   _key_valid("GEMINI_API_KEY"),
+        "claude":   _key_valid("CLAUDE_API_KEY"),
+        "openai":   _key_valid("OPENAI_API_KEY"),
+        "grok":     _key_valid("XAI_API_KEY"),
+        "deepseek": _key_valid("DEEPSEEK_API_KEY"),
+        "mistral":  _key_valid("MISTRAL_API_KEY"),
     }
     result = {}
     for name, has_key in keys.items():

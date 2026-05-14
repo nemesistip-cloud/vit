@@ -12,13 +12,15 @@ from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
-PROVIDERS = ["gemini", "claude", "grok", "openai"]
+PROVIDERS = ["gemini", "claude", "grok", "openai", "deepseek", "mistral"]
 
 PROVIDER_LABELS = {
     "gemini":        "Google Gemini",
     "claude":        "Anthropic Claude",
     "grok":          "xAI Grok",
     "openai":        "OpenAI GPT",
+    "deepseek":      "DeepSeek AI",
+    "mistral":       "Mistral AI",
     "deterministic": "VIT Statistical Engine",
 }
 
@@ -38,6 +40,10 @@ async def _call_provider(provider: str, kwargs: dict) -> dict:
             from app.services.grok_insights import generate_match_insights
         elif provider == "openai":
             from app.services.openai_insights import generate_match_insights
+        elif provider == "deepseek":
+            from app.services.deepseek_insights import generate_match_insights
+        elif provider == "mistral":
+            from app.services.mistral_insights import generate_match_insights
         elif provider == "deterministic":
             from app.services.deterministic_insights import generate_match_insights
         else:

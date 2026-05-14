@@ -14,6 +14,8 @@ python3 -c "from main import app; print('OK')"  # test backend import
 **Required secrets** (set in Replit Secrets):
 - `JWT_SECRET_KEY`, `SECRET_KEY`, `ADMIN_PASSWORD`
 - `GEMINI_API_KEY`, `OPENAI_API_KEY`, `CLAUDE_API_KEY`, `XAI_API_KEY`
+- `DEEPSEEK_API_KEY` (DeepSeek — get free key at platform.deepseek.com)
+- `MISTRAL_API_KEY` (Mistral AI — get free key at console.mistral.ai)
 - `TELEGRAM_BOT_TOKEN`, `PAYSTACK_SECRET_KEY`, `STRIPE_SECRET_KEY`
 - `DATABASE_URL` (PostgreSQL in prod)
 - Optional: `REDIS_URL`, `RESEND_API_KEY`, `VAULT_MASTER_KEY` (TMA vault encryption)

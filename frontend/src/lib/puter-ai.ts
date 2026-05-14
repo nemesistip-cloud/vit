@@ -31,10 +31,25 @@ export interface MatchAnalysis {
   raw_content: string;
 }
 
-export const PUTER_CLAUDE_MODEL = "claude-sonnet-4-6";
-export const PUTER_GROK_MODEL   = "x-ai/grok-4.3";
+export const PUTER_CLAUDE_MODEL    = "claude-sonnet-4-6";
+export const PUTER_GROK_MODEL      = "x-ai/grok-4.3";
+export const PUTER_LLAMA_MODEL     = "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo";
+export const PUTER_MISTRAL_MODEL   = "mistral-large-latest";
+export const PUTER_DEEPSEEK_MODEL  = "deepseek-chat";
 
-export type PuterModel = "claude" | "grok";
+export type PuterModel = "claude" | "grok" | "llama" | "mistral" | "deepseek";
+
+const PUTER_MODEL_MAP: Record<PuterModel, string> = {
+  claude:   PUTER_CLAUDE_MODEL,
+  grok:     PUTER_GROK_MODEL,
+  llama:    PUTER_LLAMA_MODEL,
+  mistral:  PUTER_MISTRAL_MODEL,
+  deepseek: PUTER_DEEPSEEK_MODEL,
+};
+
+export function puterModelId(model: PuterModel): string {
+  return PUTER_MODEL_MAP[model] ?? PUTER_CLAUDE_MODEL;
+}
 
 export function isPuterAvailable(): boolean {
   return typeof window !== "undefined" && !!window.puter;
@@ -130,7 +145,7 @@ export async function puterChat(
 ): Promise<string> {
   if (!isPuterAvailable()) throw new Error("Puter not available");
 
-  const modelId = model === "grok" ? PUTER_GROK_MODEL : PUTER_CLAUDE_MODEL;
+  const modelId = puterModelId(model);
 
   const messages: { role: string; content: string }[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -203,7 +218,7 @@ export async function analyzeMatchWithPuter(
 ): Promise<MatchAnalysis> {
   if (!isPuterAvailable()) throw new Error("Puter.js not available — ensure you are signed in");
 
-  const modelId = model === "grok" ? PUTER_GROK_MODEL : PUTER_CLAUDE_MODEL;
+  const modelId = puterModelId(model);
   const prompt = buildMatchPrompt(homeTeam, awayTeam, league, priorHome, priorDraw, priorAway);
 
   const messages: { role: string; content: string }[] = [
