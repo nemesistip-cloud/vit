@@ -359,31 +359,81 @@
   animation-play-state: paused;
 }
 
-/* ── Disable ticker animation on mobile (Android Chrome GPU scan-line bug) ───── */
-/* The translateX + will-change compositor layer bleeds across the full page on   */
-/* Android Chrome. On ≤1279px we stop the animation and let the wrapper scroll.  */
+/* ════════════════════════════════════════════════════════════════════════════
+   MOBILE GPU COMPOSITOR FIX — Android Chrome scan-line artifact
+   ────────────────────────────────────────────────────────────────────────────
+   Root cause: Any CSS animation that runs on the GPU (transform, opacity,
+   background-position) creates a compositor layer. On Android Chrome, when
+   two or more compositor layers overlap, their paint regions bleed across
+   the ENTIRE viewport as horizontal scan-lines.
+
+   Every class below either (a) runs an infinite animation, (b) promotes an
+   element to a GPU layer via will-change or translateZ(0), or (c) applies
+   backdrop-filter which forces a separate composited layer. All are killed
+   at ≤1279px so the page renders on the CPU rasteriser with no layer splits.
+   ════════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 1279px) {
+
+  /* ── 1. Ticker: stop animation + remove GPU force-compositing layer ───────── */
   .vit-ticker-content {
     animation: none !important;
     will-change: auto !important;
     transform: none !important;
   }
   .vit-ticker-wrap {
+    /* No animation running → no need for isolated GPU layer */
+    transform: none !important;
+    isolation: auto !important;
+    contain: none !important;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
-  .vit-ticker-wrap::-webkit-scrollbar {
-    display: none;
-  }
-}
+  .vit-ticker-wrap::-webkit-scrollbar { display: none; }
 
-/* ── Disable backdrop-filter on mobile + tablet (Android Chrome rendering bug) ── */
-/* Tailwind applies blur via CSS custom property --tw-backdrop-blur, so we          */
-/* must reset both the property and the variable to fully kill the compositing.     */
-/* Breakpoint raised to 1279px (xl) to cover all tablets and phones.               */
-@media (max-width: 1279px) {
+  /* ── 2. Live indicator: static dot — no scale/opacity animation ──────────── */
+  .vit-live-dot {
+    animation: none !important;
+    box-shadow: none !important;
+  }
+
+  /* ── 3. Shimmer skeleton: static gradient — no background-position sweep ─── */
+  .vit-shimmer {
+    animation: none !important;
+    background: var(--vit-gray-800) !important;
+  }
+
+  /* ── 4. All one-shot entry animations: already forwarded → remove layer ───── */
+  .vit-animate-slide-up,
+  .vit-animate-slide-down,
+  .vit-animate-slide-left,
+  .vit-animate-fade-in,
+  .vit-animate-scale-in,
+  .vit-animate-celebrate,
+  .vit-animate-count-up {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* ── 5. Tailwind infinite animations (animate-pulse, -bounce, -ping, -spin) ─ */
+  /*    These import from tw-animate-css and all create infinite GPU layers.      */
+  /*    Skeleton loaders become static on mobile — acceptable tradeoff.           */
+  .animate-pulse  { animation: none !important; }
+  .animate-bounce { animation: none !important; }
+  .animate-ping   { animation: none !important; }
+  .animate-spin   { animation: none !important; }
+
+  /* ── 6. vit-border-gradient pseudo-element: remove GPU force-layer ────────── */
+  /*    The ::before mask trick does not need translateZ — it has no animation.   */
+  .vit-border-gradient::before,
+  .vit-border-gradient-gold::before {
+    transform: none !important;
+  }
+
+  /* ── 7. Backdrop-filter: kills a whole-page composited surface on Android ─── */
+  /*    Tailwind stores blur values in CSS custom properties; reset all of them.  */
   * {
     --tw-backdrop-blur: ;
     --tw-backdrop-brightness: ;
@@ -396,6 +446,11 @@
     --tw-backdrop-sepia: ;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+  }
+
+  /* ── 8. Global will-change flush: no element may hint GPU promotion ─────────── */
+  * {
+    will-change: auto !important;
   }
 }
 

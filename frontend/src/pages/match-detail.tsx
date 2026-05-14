@@ -162,7 +162,7 @@ export default function MatchDetailPage() {
                 )}
                 {(match as any).status === "live" ? (
                   <Badge variant="default" className="mt-4 font-mono bg-red-600 hover:bg-red-600 flex items-center gap-1.5">
-                    <Radio className="w-3 h-3 animate-pulse" /> LIVE
+                    <span className="vit-live-dot" style={{ background: "#fff" }} /> LIVE
                   </Badge>
                 ) : match.actual_outcome ? (
                   <Badge variant="secondary" className="mt-4 font-mono">SETTLED</Badge>

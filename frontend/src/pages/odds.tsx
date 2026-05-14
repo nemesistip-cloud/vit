@@ -59,7 +59,7 @@ function FreshnessBar({
     <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-primary">
-          <Radio className="w-3 h-3 animate-pulse" /> FETCHING LIVE ODDS...
+          <span className="vit-live-dot" style={{ background: "currentColor" }} /> FETCHING LIVE ODDS...
         </span>
       ) : fetchedAt ? (
         <>
