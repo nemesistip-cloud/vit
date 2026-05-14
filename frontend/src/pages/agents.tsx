@@ -408,7 +408,7 @@ export default function AgentsPage() {
               autoRefresh && "border-cyan-700 text-cyan-300"
             )}
           >
-            <RefreshCw className={cn("w-3 h-3 mr-1.5", autoRefresh && "animate-spin")} />
+            <RefreshCw className="w-3 h-3 mr-1.5" />
             {autoRefresh ? `Auto (${countdown}s)` : "Auto-refresh off"}
           </Button>
           <Button

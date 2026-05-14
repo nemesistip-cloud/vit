@@ -50,7 +50,7 @@ export function WelcomeModal({ username, onClose, onStartTour }: WelcomeModalPro
                   background: i % 3 === 0 ? "#00f5ff" : i % 3 === 1 ? "#ffd700" : "#a855f7",
                   left: `${Math.random() * 100}%`,
                   top: `${Math.random() * 100}%`,
-                  animation: `vit-float ${1 + Math.random()}s ease-in-out infinite`,
+                  animation: `vit-float 1.2s ease-in-out 3`,
                   animationDelay: `${Math.random() * 0.5}s`,
                 }}
               />

@@ -323,8 +323,6 @@
 .vit-animate-slide-left    { animation: vit-slide-in-left var(--vit-duration-slow)  var(--vit-ease-out)    forwards; }
 .vit-animate-fade-in       { animation: vit-fade-in       var(--vit-duration-normal) var(--vit-ease-out)   forwards; }
 .vit-animate-scale-in      { animation: vit-scale-in      var(--vit-duration-slow)  var(--vit-ease-spring) forwards; }
-.vit-animate-float         { animation: vit-float         3s ease-in-out infinite; }
-.vit-animate-pulse-glow    { animation: vit-pulse-glow    2s ease-in-out infinite; }
 .vit-animate-celebrate     { animation: vit-celebrate     0.6s var(--vit-ease-bounce); }
 
 /* ── Shimmer loading skeleton ─────────────────────────────────── */

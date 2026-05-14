@@ -2605,7 +2605,7 @@ function ModelsTab() {
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono truncate">{kpi.label}</div>
                       <div className={`text-3xl font-bold mt-1 ${toneClass.text} font-mono tabular-nums`}>{kpi.value}</div>
                     </div>
-                    <div className={`p-2.5 rounded-lg ${toneClass.bg} ${kpi.pulse ? "vit-animate-pulse-glow" : ""}`}>
+                    <div className={`p-2.5 rounded-lg ${toneClass.bg} transition-opacity`}>
                       <kpi.icon className={`w-5 h-5 ${toneClass.text}`} />
                     </div>
                   </CardContent>
@@ -2654,7 +2654,7 @@ function ModelsTab() {
             </CardHeader>
             <CardContent className="p-0">
               {atRiskCount > 0 && (
-                <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm flex items-center gap-2 vit-animate-pulse-glow">
+                <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   <span className="font-semibold">{atRiskCount}</span>
                   <span>
@@ -2721,7 +2721,7 @@ function ModelsTab() {
                       const statusBadge = {
                         healthy: { label: "Healthy", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", dot: "bg-emerald-400" },
                         watch:   { label: streak > 0 ? `Watch · day ${streak}/7` : "Watch", cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", dot: "bg-amber-400" },
-                        risk:    { label: demotedLabel, cls: "bg-red-500/20 text-red-400 border-red-500/30 vit-animate-pulse-glow", dot: "bg-red-400 animate-pulse" },
+                        risk:    { label: demotedLabel, cls: "bg-red-500/20 text-red-400 border-red-500/30", dot: "bg-red-400" },
                         new:     { label: "Insufficient",  cls: "bg-muted/20 text-muted-foreground border-border/40", dot: "bg-muted/60" },
                       }[status];
                       const showStreakDots = m.is_active && streak > 0;

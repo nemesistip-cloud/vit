@@ -189,7 +189,7 @@ export function WalletConnectButton({
           {isWrongChain ? (
             <AlertTriangle className="w-4 h-4 text-destructive" />
           ) : (
-            <span className={`w-2 h-2 rounded-full ${chain.dot} animate-pulse`} />
+            <span className={`w-2 h-2 rounded-full ${chain.dot}`} />
           )}
 
           <span className="text-foreground">{shortAddr(address!)}</span>
@@ -293,7 +293,7 @@ export function WalletPanel() {
     <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${chain.dot} animate-pulse`} />
+          <span className={`w-2 h-2 rounded-full ${chain.dot}`} />
           <span className={`text-xs font-semibold ${chain.color}`}>{chain.label}</span>
         </div>
         <WalletConnectButton size="sm" showBalance={false} />

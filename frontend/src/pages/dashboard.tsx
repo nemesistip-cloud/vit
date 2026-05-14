@@ -297,7 +297,7 @@ export default function DashboardPage() {
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
-    <div className="space-y-6 pb-20 md:pb-6 vit-animate-fade-in">
+    <div className="space-y-6 pb-20 md:pb-6">
 
       {/* ── Welcome Header ──────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pt-1">
