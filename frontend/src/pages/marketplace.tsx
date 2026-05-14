@@ -685,7 +685,7 @@ function ModelCard({ listing }: { listing: Listing }) {
 
 const RANK_COLORS = [
   "text-yellow-400",
-  "text-slate-300",
+  "text-foreground/80",
   "text-amber-600",
 ];
 

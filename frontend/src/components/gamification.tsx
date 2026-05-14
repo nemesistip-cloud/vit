@@ -174,7 +174,7 @@ interface LeaderboardEntry {
 
 const RANK_COLORS: Record<number, string> = {
   1: "text-secondary",
-  2: "text-gray-300",
+  2: "text-foreground/80",
   3: "text-amber-600",
 };
 

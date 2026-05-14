@@ -495,7 +495,7 @@ export default function ValidatorsPage() {
                                 ? "bg-emerald-500 animate-pulse"
                                 : validator.accuracy_rate > 0
                                 ? "bg-amber-400"
-                                : "bg-gray-500"
+                                : "bg-muted/50"
                             }`}
                             title={
                               validator.accuracy_rate >= 0.55

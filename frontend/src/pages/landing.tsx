@@ -103,7 +103,7 @@ function TickerTape({ items }: { items: LandingTickerItem[] }) {
             <span className={`font-bold ${item.outcome === "WIN" ? "text-emerald-400" : item.outcome === "LOSS" ? "text-rose-400" : "text-muted-foreground"}`}>
               {item.outcome}
             </span>
-            <span className="text-white/10">•</span>
+            <span className="text-foreground/10">•</span>
           </span>
         ))}
       </div>

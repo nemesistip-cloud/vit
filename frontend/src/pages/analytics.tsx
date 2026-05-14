@@ -39,7 +39,7 @@ function StatCard({ label, value, sub, icon: Icon, color = "text-primary" }: {
 function RankBadge({ rank }: { rank: number }) {
   const cls =
     rank === 1 ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/40" :
-    rank === 2 ? "bg-slate-400/20 text-slate-300 border-slate-400/40" :
+    rank === 2 ? "bg-muted/20 text-foreground/80 border-border/40" :
     rank === 3 ? "bg-amber-700/20 text-amber-600 border-amber-700/40" :
     "bg-muted/20 text-muted-foreground border-muted/30";
   return (

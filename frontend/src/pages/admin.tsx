@@ -126,14 +126,14 @@ function StatusBadge({ status }: { status: string }) {
     warning: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border font-medium ${map[status] ?? "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border font-medium ${map[status] ?? "bg-muted/20 text-muted-foreground border-border/40"}`}>
       {status}
     </span>
   );
 }
 
 function HealthDot({ ok, optional }: { ok: boolean; optional?: boolean }) {
-  return <span className={`inline-block w-2 h-2 rounded-full ${optional ? "bg-gray-500" : ok ? "bg-emerald-400" : "bg-red-400"}`} />;
+  return <span className={`inline-block w-2 h-2 rounded-full ${optional ? "bg-muted/60" : ok ? "bg-emerald-400" : "bg-red-400"}`} />;
 }
 
 // ─── Module 1: Dashboard ──────────────────────────────────────────────
@@ -220,19 +220,19 @@ function DashboardTab() {
       {/* ── KPI Cards ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map(k => (
-          <div key={k.label} className={`relative overflow-hidden rounded-xl border ${k.border} bg-gray-900 ${k.glow}`}>
+          <div key={k.label} className={`relative overflow-hidden rounded-xl border ${k.border} bg-card ${k.glow}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${k.gradient}`} />
             <div className="relative p-4">
               <div className="flex items-start justify-between mb-3">
-                <div className={`p-2 rounded-lg bg-gray-800/80 border border-gray-700/50`}>
+                <div className={`p-2 rounded-lg bg-muted/20/80 border border-border/50`}>
                   <k.icon className={`w-4 h-4 ${k.iconColor}`} />
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60" />
               </div>
               <div className={`text-2xl sm:text-3xl font-bold font-mono tabular-nums ${k.valueCls}`}>
                 {sLoading ? "—" : k.value.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">{k.label}</div>
+              <div className="text-xs text-muted-foreground mt-1 font-medium uppercase tracking-wide">{k.label}</div>
             </div>
           </div>
         ))}
@@ -241,13 +241,13 @@ function DashboardTab() {
       <div className="grid lg:grid-cols-2 gap-4">
 
         {/* ── System Health Matrix ─────────────────────────────────── */}
-        <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-          <div className="px-4 pt-4 pb-3 border-b border-gray-800 flex items-center justify-between">
+        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-4 rounded-full bg-cyan-400/80" />
-              <span className="text-sm font-semibold text-white">System Health</span>
+              <span className="text-sm font-semibold text-foreground">System Health</span>
             </div>
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-gray-500 hover:text-cyan-400"
+            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-cyan-400"
               onClick={() => qc.invalidateQueries({ queryKey: ["admin-health"] })}>
               <RefreshCw className="w-3 h-3" />
             </Button>
@@ -255,14 +255,14 @@ function DashboardTab() {
           <div className="p-4 space-y-2">
             {!health ? (
               <div className="grid grid-cols-2 gap-2">
-                {[1,2,3,4,5,6].map(i => <div key={i} className="h-9 rounded-lg bg-gray-800 animate-pulse" />)}
+                {[1,2,3,4,5,6].map(i => <div key={i} className="h-9 rounded-lg bg-muted/20 animate-pulse" />)}
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {serviceRows.map(row => (
                   <div key={row.label} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
                     row.optional && !row.ok
-                      ? "bg-gray-800/30 border-gray-700/50"
+                      ? "bg-muted/20/30 border-border/50"
                       : row.limited
                         ? "bg-amber-500/5 border-amber-500/20"
                         : row.ok
@@ -270,16 +270,16 @@ function DashboardTab() {
                           : "bg-red-500/5 border-red-500/20"
                   }`}>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${
-                      row.optional && !row.ok ? "bg-gray-600" :
+                      row.optional && !row.ok ? "bg-muted/40" :
                       row.limited ? "bg-amber-400" :
                       row.ok ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-red-400 animate-pulse"
                     }`} />
                     <div className="min-w-0">
-                      <div className="text-xs font-medium text-gray-300 truncate">{row.label}</div>
-                      {row.detail && <div className="text-[10px] text-gray-500">{row.detail}</div>}
+                      <div className="text-xs font-medium text-foreground/80 truncate">{row.label}</div>
+                      {row.detail && <div className="text-[10px] text-muted-foreground">{row.detail}</div>}
                     </div>
                     <span className={`ml-auto text-[10px] font-medium shrink-0 ${
-                      row.optional && !row.ok ? "text-gray-600" :
+                      row.optional && !row.ok ? "text-muted-foreground/60" :
                       row.limited ? "text-amber-400" :
                       row.ok ? "text-emerald-400" : "text-red-400"
                     }`}>
@@ -290,18 +290,18 @@ function DashboardTab() {
               </div>
             )}
             {health && (
-              <div className="mt-3 pt-3 border-t border-gray-800 grid grid-cols-3 gap-2">
+              <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-3 gap-2">
                 {[
                   { label: "CPU", value: health.cpu_pct, warn: 80 },
                   { label: "RAM", value: health.mem_pct, warn: 85 },
                   { label: "Disk", value: health.disk_pct, warn: 90 },
                 ].map(m => (
                   <div key={m.label} className="text-center">
-                    <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">{m.label}</div>
-                    <div className={`text-lg font-bold font-mono ${m.value > m.warn ? "text-red-400" : "text-white"}`}>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{m.label}</div>
+                    <div className={`text-lg font-bold font-mono ${m.value > m.warn ? "text-red-400" : "text-foreground"}`}>
                       {m.value}%
                     </div>
-                    <div className="mt-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="mt-1 h-1 bg-muted/20 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all ${m.value > m.warn ? "bg-red-400" : m.value > m.warn * 0.8 ? "bg-amber-400" : "bg-emerald-400"}`}
                         style={{ width: `${m.value}%` }} />
                     </div>
@@ -313,10 +313,10 @@ function DashboardTab() {
         </div>
 
         {/* ── Quick Actions ────────────────────────────────────────── */}
-        <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-          <div className="px-4 pt-4 pb-3 border-b border-gray-800 flex items-center gap-2">
+        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-center gap-2">
             <div className="w-1.5 h-4 rounded-full bg-amber-400/80" />
-            <span className="text-sm font-semibold text-white">Quick Actions</span>
+            <span className="text-sm font-semibold text-foreground">Quick Actions</span>
           </div>
           <div className="p-4 grid grid-cols-2 gap-2">
             {[
@@ -342,27 +342,27 @@ function DashboardTab() {
       </div>
 
       {/* ── Recent Activity ──────────────────────────────────────────── */}
-      <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-        <div className="px-4 pt-4 pb-3 border-b border-gray-800 flex items-center gap-2">
+      <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-center gap-2">
           <div className="w-1.5 h-4 rounded-full bg-purple-400/80" />
-          <span className="text-sm font-semibold text-white">Recent Activity</span>
+          <span className="text-sm font-semibold text-foreground">Recent Activity</span>
           {stats?.recent_activity?.length ? (
-            <span className="ml-auto text-xs text-gray-500">{stats.recent_activity.length} events</span>
+            <span className="ml-auto text-xs text-muted-foreground">{stats.recent_activity.length} events</span>
           ) : null}
         </div>
         <div className="divide-y divide-gray-800/80">
           {stats?.recent_activity?.length ? (
             stats.recent_activity.slice(0, 8).map((a, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/30 transition-colors">
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20/30 transition-colors">
                 <StatusBadge status={a.status} />
-                <span className="text-xs text-gray-300 font-mono flex-1 truncate">{a.action}</span>
-                <span className="text-xs text-gray-600 hidden sm:block shrink-0">
+                <span className="text-xs text-foreground/80 font-mono flex-1 truncate">{a.action}</span>
+                <span className="text-xs text-muted-foreground/60 hidden sm:block shrink-0">
                   {a.timestamp ? new Date(a.timestamp).toLocaleTimeString() : ""}
                 </span>
               </div>
             ))
           ) : (
-            <div className="text-center text-gray-600 text-sm py-10">
+            <div className="text-center text-muted-foreground/60 text-sm py-10">
               <Activity className="w-8 h-8 mx-auto mb-2 opacity-20" />
               No recent activity
             </div>
@@ -394,18 +394,18 @@ function LeaguesTab() {
   if (isLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <Card className="bg-gray-900 border-gray-700">
+    <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <Globe className="w-5 h-5 text-cyan-400" /> League Configuration ({data?.leagues?.length ?? 0} leagues)
         </CardTitle>
-        <CardDescription className="text-gray-400">Configure status, weights and data quality for each league</CardDescription>
+        <CardDescription className="text-muted-foreground">Configure status, weights and data quality for each league</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-700 text-gray-400">
+              <tr className="border-b border-border text-muted-foreground">
                 <th className="text-left p-3">League</th>
                 <th className="text-left p-3">Country</th>
                 <th className="text-left p-3">Status</th>
@@ -416,26 +416,26 @@ function LeaguesTab() {
             </thead>
             <tbody>
               {data?.leagues?.map(lg => (
-                <tr key={lg.id} className="border-b border-gray-800 hover:bg-gray-800/40">
-                  <td className="p-3 font-medium text-white">{lg.name}</td>
-                  <td className="p-3 text-gray-400">{lg.country}</td>
+                <tr key={lg.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                  <td className="p-3 font-medium text-foreground">{lg.name}</td>
+                  <td className="p-3 text-muted-foreground">{lg.country}</td>
                   <td className="p-3">
-                    <span className={`capitalize font-medium ${(statusColor as any)[lg.status] ?? "text-gray-400"}`}>{lg.status}</span>
+                    <span className={`capitalize font-medium ${(statusColor as any)[lg.status] ?? "text-muted-foreground"}`}>{lg.status}</span>
                   </td>
-                  <td className="p-3 text-gray-300">{lg.weight.toFixed(1)}×</td>
+                  <td className="p-3 text-foreground/80">{lg.weight.toFixed(1)}×</td>
                   <td className="p-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                      <div className="w-20 h-1.5 bg-muted/40 rounded-full overflow-hidden">
                         <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${lg.data_quality}%` }} />
                       </div>
-                      <span className="text-gray-400 text-xs">{lg.data_quality}%</span>
+                      <span className="text-muted-foreground text-xs">{lg.data_quality}%</span>
                     </div>
                   </td>
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-1">
                       {(["active", "paused", "disabled"] as const).map(s => (
                         <Button key={s} size="sm" variant="outline"
-                          className={`h-6 px-2 text-xs border-gray-600 ${lg.status === s ? "bg-gray-700" : "bg-transparent"}`}
+                          className={`h-6 px-2 text-xs border-border ${lg.status === s ? "bg-muted/40" : "bg-transparent"}`}
                           onClick={() => updateMutation.mutate({ id: lg.id, body: { status: s } })}>
                           {s}
                         </Button>
@@ -474,32 +474,32 @@ function MarketsTab() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {data?.markets?.map(mk => (
-          <Card key={mk.id} className="bg-gray-900 border-gray-700">
+          <Card key={mk.id} className="bg-card border-border">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
-                <CardTitle className="text-white text-base">{mk.name}</CardTitle>
+                <CardTitle className="text-foreground text-base">{mk.name}</CardTitle>
                 <StatusBadge status={mk.status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between text-gray-400">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Stake Range</span>
-                <span className="text-white">{mk.min_stake}–{mk.max_stake} VIT</span>
+                <span className="text-foreground">{mk.min_stake}–{mk.max_stake} VIT</span>
               </div>
-              <div className="flex justify-between text-gray-400">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Edge Threshold</span>
-                <span className="text-white">{mk.edge_threshold}%</span>
+                <span className="text-foreground">{mk.edge_threshold}%</span>
               </div>
-              <div className="flex justify-between text-gray-400">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Commission</span>
-                <span className="text-white">{mk.commission_rate}%</span>
+                <span className="text-foreground">{mk.commission_rate}%</span>
               </div>
               <div className="flex flex-wrap gap-1 pt-1">
                 {mk.available_tiers.map(t => (
-                  <Badge key={t} variant="outline" className="text-xs border-gray-600 text-gray-400 capitalize">{t}</Badge>
+                  <Badge key={t} variant="outline" className="text-xs border-border text-muted-foreground capitalize">{t}</Badge>
                 ))}
               </div>
-              <Button size="sm" variant="outline" className="w-full mt-2 border-gray-600 text-gray-300 hover:text-white"
+              <Button size="sm" variant="outline" className="w-full mt-2 border-border text-foreground/80 hover:text-foreground"
                 onClick={() => setEditing(mk)}>
                 <Edit className="w-3 h-3 mr-1" /> Configure
               </Button>
@@ -510,14 +510,14 @@ function MarketsTab() {
 
       {editing && (
         <Dialog open onOpenChange={() => setEditing(null)}>
-          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogContent className="bg-card border-border text-foreground max-w-md">
             <DialogHeader><DialogTitle>Configure — {editing.name}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
               <div className="space-y-1">
-                <Label className="text-gray-400">Status</Label>
+                <Label className="text-muted-foreground">Status</Label>
                 <Select defaultValue={editing.status} onValueChange={v => setEditing(e => e ? { ...e, status: v } : null)}>
-                  <SelectTrigger className="bg-gray-800 border-gray-600"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectTrigger className="bg-muted/20 border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-muted/20 border-border">
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="paused">Paused</SelectItem>
                     <SelectItem value="disabled">Disabled</SelectItem>
@@ -526,29 +526,29 @@ function MarketsTab() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-gray-400">Min Stake (VIT)</Label>
-                  <Input type="number" className="bg-gray-800 border-gray-600 text-white" defaultValue={editing.min_stake}
+                  <Label className="text-muted-foreground">Min Stake (VIT)</Label>
+                  <Input type="number" className="bg-muted/20 border-border text-foreground" defaultValue={editing.min_stake}
                     onChange={e => setEditing(m => m ? { ...m, min_stake: +e.target.value } : null)} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-400">Max Stake (VIT)</Label>
-                  <Input type="number" className="bg-gray-800 border-gray-600 text-white" defaultValue={editing.max_stake}
+                  <Label className="text-muted-foreground">Max Stake (VIT)</Label>
+                  <Input type="number" className="bg-muted/20 border-border text-foreground" defaultValue={editing.max_stake}
                     onChange={e => setEditing(m => m ? { ...m, max_stake: +e.target.value } : null)} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-400">Edge Threshold %</Label>
-                  <Input type="number" step="0.1" className="bg-gray-800 border-gray-600 text-white" defaultValue={editing.edge_threshold}
+                  <Label className="text-muted-foreground">Edge Threshold %</Label>
+                  <Input type="number" step="0.1" className="bg-muted/20 border-border text-foreground" defaultValue={editing.edge_threshold}
                     onChange={e => setEditing(m => m ? { ...m, edge_threshold: +e.target.value } : null)} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-400">Commission %</Label>
-                  <Input type="number" step="0.1" className="bg-gray-800 border-gray-600 text-white" defaultValue={editing.commission_rate}
+                  <Label className="text-muted-foreground">Commission %</Label>
+                  <Input type="number" step="0.1" className="bg-muted/20 border-border text-foreground" defaultValue={editing.commission_rate}
                     onChange={e => setEditing(m => m ? { ...m, commission_rate: +e.target.value } : null)} />
                 </div>
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" className="border-gray-600" onClick={() => setEditing(null)}>Cancel</Button>
+              <Button variant="outline" className="border-border" onClick={() => setEditing(null)}>Cancel</Button>
               <Button className="bg-cyan-500 hover:bg-cyan-400 text-black"
                 disabled={updateMutation.isPending}
                 onClick={() => updateMutation.mutate({ id: editing.id, body: { status: editing.status, min_stake: editing.min_stake, max_stake: editing.max_stake, edge_threshold: editing.edge_threshold, commission_rate: editing.commission_rate } })}>
@@ -589,24 +589,24 @@ function CurrencyTab() {
   return (
     <div className="space-y-6">
       {/* VIT Pricing Engine */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <Coins className="w-5 h-5 text-amber-400" /> VIT Coin Pricing Engine
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="bg-gray-800 rounded-lg p-4 text-center">
-              <div className="text-xs text-gray-500 mb-1">Current Price</div>
+            <div className="bg-muted/20 rounded-lg p-4 text-center">
+              <div className="text-xs text-muted-foreground mb-1">Current Price</div>
               <div className="text-xl font-bold text-amber-400 truncate">${(vit.current_price_usd ?? 0.10).toFixed(6)}</div>
             </div>
-            <div className="bg-gray-800 rounded-lg p-4 text-center">
-              <div className="text-xs text-gray-500 mb-1">Circulating Supply</div>
-              <div className="text-xl font-bold text-white truncate">{(vit.circulating_supply ?? 0).toLocaleString()}</div>
+            <div className="bg-muted/20 rounded-lg p-4 text-center">
+              <div className="text-xs text-muted-foreground mb-1">Circulating Supply</div>
+              <div className="text-xl font-bold text-foreground truncate">{(vit.circulating_supply ?? 0).toLocaleString()}</div>
             </div>
-            <div className="bg-gray-800 rounded-lg p-4 text-center">
-              <div className="text-xs text-gray-500 mb-1">30d Revenue</div>
+            <div className="bg-muted/20 rounded-lg p-4 text-center">
+              <div className="text-xs text-muted-foreground mb-1">30d Revenue</div>
               <div className="text-xl font-bold text-emerald-400 truncate">${(vit.rolling_revenue_usd ?? 0).toFixed(2)}</div>
             </div>
           </div>
@@ -617,14 +617,14 @@ function CurrencyTab() {
       </Card>
 
       {/* Fiat Currencies */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white">Fiat Currency Rates</CardTitle>
+          <CardTitle className="text-foreground">Fiat Currency Rates</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-700 text-gray-400">
+              <tr className="border-b border-border text-muted-foreground">
                 <th className="text-left p-3">Currency</th>
                 <th className="text-left p-3">Rate (USD)</th>
                 <th className="text-left p-3">Status</th>
@@ -633,14 +633,14 @@ function CurrencyTab() {
             </thead>
             <tbody>
               {data?.currencies?.map(c => (
-                <tr key={c.code} className="border-b border-gray-800 hover:bg-gray-800/40">
+                <tr key={c.code} className="border-b border-border/50 hover:bg-muted/20/40">
                   <td className="p-3">
-                    <span className="font-bold text-white">{c.symbol}</span>
-                    <span className="ml-2 text-gray-400">{c.code} — {c.name}</span>
+                    <span className="font-bold text-foreground">{c.symbol}</span>
+                    <span className="ml-2 text-muted-foreground">{c.code} — {c.name}</span>
                   </td>
-                  <td className="p-3 font-mono text-gray-200">{c.rate_to_usd}</td>
+                  <td className="p-3 font-mono text-foreground/90">{c.rate_to_usd}</td>
                   <td className="p-3"><StatusBadge status={c.status} /></td>
-                  <td className="p-3 text-gray-400 text-xs">
+                  <td className="p-3 text-muted-foreground text-xs">
                     {c.symbol}{c.min_deposit.toLocaleString()} / {c.symbol}{c.max_deposit.toLocaleString()}
                   </td>
                 </tr>
@@ -651,17 +651,17 @@ function CurrencyTab() {
       </Card>
 
       {/* Conversion Fees */}
-      <Card className="bg-gray-900 border-gray-700">
-        <CardHeader><CardTitle className="text-white">Conversion Fees</CardTitle></CardHeader>
+      <Card className="bg-card border-border">
+        <CardHeader><CardTitle className="text-foreground">Conversion Fees</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-3 gap-4">
           {[
             { label: "Fiat → VIT", key: "fiat_to_vit" },
             { label: "VIT → Fiat", key: "vit_to_fiat" },
             { label: "Cross-Fiat",  key: "cross_fiat" },
           ].map(f => (
-            <div key={f.key} className="bg-gray-800 rounded-lg p-4 text-center">
-              <div className="text-xs text-gray-500 mb-1">{f.label}</div>
-              <div className="text-xl font-bold text-white">{fees[f.key] ?? 0}%</div>
+            <div key={f.key} className="bg-muted/20 rounded-lg p-4 text-center">
+              <div className="text-xs text-muted-foreground mb-1">{f.label}</div>
+              <div className="text-xl font-bold text-foreground">{fees[f.key] ?? 0}%</div>
             </div>
           ))}
         </CardContent>
@@ -686,7 +686,7 @@ function SubscriptionsTab() {
   });
 
   const tierColors: Record<string, string> = {
-    free: "border-gray-600 bg-gray-800",
+    free: "border-border bg-muted/20",
     analyst: "border-blue-500/50 bg-blue-950/30",
     pro: "border-purple-500/50 bg-purple-950/30",
     elite: "border-amber-500/50 bg-amber-950/30",
@@ -698,26 +698,26 @@ function SubscriptionsTab() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {data?.plans?.map(plan => (
-          <Card key={plan.id} className={`border ${tierColors[plan.name] ?? "border-gray-700 bg-gray-900"}`}>
+          <Card key={plan.id} className={`border ${tierColors[plan.name] ?? "border-border bg-card"}`}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-white text-lg">{plan.display_name}</CardTitle>
+                <CardTitle className="text-foreground text-lg">{plan.display_name}</CardTitle>
                 {!plan.is_active && <Badge variant="outline" className="border-red-500/50 text-red-400 text-xs">Inactive</Badge>}
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-2xl font-bold text-white">
-                ${plan.price_monthly}<span className="text-sm text-gray-400">/mo</span>
+              <div className="text-2xl font-bold text-foreground">
+                ${plan.price_monthly}<span className="text-sm text-muted-foreground">/mo</span>
               </div>
-              <div className="text-sm text-gray-400">
-                ${plan.price_yearly}<span className="text-gray-500">/yr</span>
+              <div className="text-sm text-muted-foreground">
+                ${plan.price_yearly}<span className="text-muted-foreground">/yr</span>
               </div>
-              <div className="text-sm text-gray-300">
+              <div className="text-sm text-foreground/80">
                 {plan.prediction_limit === null || plan.prediction_limit === undefined
                   ? "Unlimited predictions/day"
                   : `${plan.prediction_limit} predictions/day`}
               </div>
-              <Button size="sm" variant="outline" className="w-full border-gray-600 text-gray-300 hover:text-white"
+              <Button size="sm" variant="outline" className="w-full border-border text-foreground/80 hover:text-foreground"
                 onClick={() => setEditing(plan)}>
                 <Edit className="w-3 h-3 mr-1" /> Edit Plan
               </Button>
@@ -728,37 +728,37 @@ function SubscriptionsTab() {
 
       {editing && (
         <Dialog open onOpenChange={() => setEditing(null)}>
-          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogContent className="bg-card border-border text-foreground max-w-md">
             <DialogHeader><DialogTitle>Edit Plan — {editing.display_name}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-gray-400">Monthly Price ($)</Label>
-                  <Input type="number" step="0.01" className="bg-gray-800 border-gray-600 text-white"
+                  <Label className="text-muted-foreground">Monthly Price ($)</Label>
+                  <Input type="number" step="0.01" className="bg-muted/20 border-border text-foreground"
                     defaultValue={editing.price_monthly}
                     onChange={e => setEditing(p => p ? { ...p, price_monthly: +e.target.value } : null)} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-400">Yearly Price ($)</Label>
-                  <Input type="number" step="0.01" className="bg-gray-800 border-gray-600 text-white"
+                  <Label className="text-muted-foreground">Yearly Price ($)</Label>
+                  <Input type="number" step="0.01" className="bg-muted/20 border-border text-foreground"
                     defaultValue={editing.price_yearly}
                     onChange={e => setEditing(p => p ? { ...p, price_yearly: +e.target.value } : null)} />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-gray-400">Daily Prediction Limit (blank = unlimited)</Label>
-                <Input type="number" className="bg-gray-800 border-gray-600 text-white"
+                <Label className="text-muted-foreground">Daily Prediction Limit (blank = unlimited)</Label>
+                <Input type="number" className="bg-muted/20 border-border text-foreground"
                   defaultValue={editing.prediction_limit ?? ""}
                   onChange={e => setEditing(p => p ? { ...p, prediction_limit: e.target.value ? +e.target.value : undefined } : null)} />
               </div>
               <div className="flex items-center justify-between py-2">
-                <Label className="text-gray-400">Active</Label>
+                <Label className="text-muted-foreground">Active</Label>
                 <Switch defaultChecked={editing.is_active}
                   onCheckedChange={v => setEditing(p => p ? { ...p, is_active: v } : null)} />
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" className="border-gray-600" onClick={() => setEditing(null)}>Cancel</Button>
+              <Button variant="outline" className="border-border" onClick={() => setEditing(null)}>Cancel</Button>
               <Button className="bg-cyan-500 hover:bg-cyan-400 text-black"
                 disabled={updateMutation.isPending}
                 onClick={() => updateMutation.mutate({ id: editing.id, body: { price_monthly: editing.price_monthly, price_yearly: editing.price_yearly, prediction_limit: editing.prediction_limit, is_active: editing.is_active } })}>
@@ -861,14 +861,14 @@ function SystemTab() {
       {configStatus && (
         <Card className={`border ${configStatus.summary.errors > 0 ? "border-red-500/40 bg-red-500/5" : configStatus.summary.warnings > 0 ? "border-amber-500/40 bg-amber-500/5" : "border-emerald-500/40 bg-emerald-500/5"}`}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-white flex items-center gap-2 text-sm">
+            <CardTitle className="text-foreground flex items-center gap-2 text-sm">
               {configStatus.summary.errors > 0
                 ? <XCircle className="w-4 h-4 text-red-400" />
                 : configStatus.summary.warnings > 0
                 ? <AlertTriangle className="w-4 h-4 text-amber-400" />
                 : <CheckCircle className="w-4 h-4 text-emerald-400" />}
               Configuration Health
-              <span className="ml-auto text-xs font-normal text-gray-400">
+              <span className="ml-auto text-xs font-normal text-muted-foreground">
                 {configStatus.summary.ok}/{configStatus.summary.total} services configured
               </span>
             </CardTitle>
@@ -895,12 +895,12 @@ function SystemTab() {
       )}
 
       {/* Feature Flags */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <Settings className="w-5 h-5 text-purple-400" /> Feature Flags
           </CardTitle>
-          <CardDescription className="text-gray-400">Toggle platform features without code changes</CardDescription>
+          <CardDescription className="text-muted-foreground">Toggle platform features without code changes</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -911,10 +911,10 @@ function SystemTab() {
                 const isOn = typeof val === "object" ? val.value : val;
                 const desc = typeof val === "object" ? val.description : key;
                 return (
-                  <div key={key} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
+                  <div key={key} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                     <div>
-                      <div className="text-white font-mono text-sm">{key}</div>
-                      <div className="text-xs text-gray-500">{desc}</div>
+                      <div className="text-foreground font-mono text-sm">{key}</div>
+                      <div className="text-xs text-muted-foreground">{desc}</div>
                     </div>
                     <Switch checked={isOn} onCheckedChange={v => flagMutation.mutate({ key, value: v })} />
                   </div>
@@ -926,12 +926,12 @@ function SystemTab() {
       </Card>
 
       {/* API Keys — Grouped */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <Key className="w-5 h-5 text-amber-400" /> API Keys & Secrets
           </CardTitle>
-          <CardDescription className="text-gray-400">
+          <CardDescription className="text-muted-foreground">
             Set keys here to persist them encrypted in the database — they survive restarts automatically.
             Keys already in <span className="text-cyan-400 font-medium">Replit Secrets</span> always take priority and are shown with a cyan badge.
           </CardDescription>
@@ -939,13 +939,13 @@ function SystemTab() {
         <CardContent className="space-y-5">
           {sortedGroups.map(group => (
             <div key={group}>
-              <div className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2 px-1">{group}</div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 px-1">{group}</div>
               <div className="space-y-1">
                 {keysByGroup[group].map(k => (
-                  <div key={k.name} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-800 hover:border-gray-700">
+                  <div key={k.name} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-border/50 hover:border-border">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="text-white text-sm font-medium">{k.label}</div>
+                        <div className="text-foreground text-sm font-medium">{k.label}</div>
                         {k.required && <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">Required</span>}
                         {k.source === "replit_secret" && (
                           <span className="text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.5 rounded flex items-center gap-1">
@@ -958,24 +958,24 @@ function SystemTab() {
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 truncate mt-0.5">{k.description}</div>
+                      <div className="text-xs text-muted-foreground truncate mt-0.5">{k.description}</div>
                     </div>
                     <div className="flex items-center gap-2 ml-3 shrink-0">
-                      <span className="font-mono text-xs text-gray-400 hidden sm:block">
+                      <span className="font-mono text-xs text-muted-foreground hidden sm:block">
                         {showKey[k.name] ? (k.masked || "Not set") : (k.configured ? "••••••••" : "Not set")}
                       </span>
                       {k.configured && (
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500 hover:text-white"
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                           onClick={() => setShowKey(s => ({ ...s, [k.name]: !s[k.name] }))}>
                           {showKey[k.name] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                         </Button>
                       )}
                       {k.configured
                         ? <CheckCircle className="w-4 h-4 text-emerald-400" />
-                        : <XCircle className="w-4 h-4 text-gray-600" />}
+                        : <XCircle className="w-4 h-4 text-muted-foreground/60" />}
                       {k.source === "database" && (
                         <Button size="sm" variant="ghost"
-                          className="h-7 w-7 p-0 text-gray-500 hover:text-red-400"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-red-400"
                           title="Remove from database"
                           onClick={() => deleteKeyMutation.mutate(k.name)}>
                           <Trash2 className="w-3 h-3" />
@@ -998,32 +998,32 @@ function SystemTab() {
       {/* API Key Edit Dialog */}
       {editingKey && (
         <Dialog open onOpenChange={() => setEditingKey(null)}>
-          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogContent className="bg-card border-border text-foreground max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Key className="w-5 h-5 text-amber-400" /> Update {editingKey.label}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-gray-400">{editingKey.description}</p>
+              <p className="text-sm text-muted-foreground">{editingKey.description}</p>
               <div className="space-y-2">
-                <Label className="text-gray-300">New Value</Label>
+                <Label className="text-foreground/80">New Value</Label>
                 <div className="relative">
                   <Input
                     type={showNewKey ? "text" : "password"}
                     placeholder={`Enter new value for ${editingKey.name}`}
                     value={newKeyValue}
                     onChange={e => setNewKeyValue(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white pr-10 font-mono"
+                    className="bg-muted/20 border-border text-foreground pr-10 font-mono"
                     autoFocus
                   />
                   <Button size="sm" variant="ghost"
-                    className="absolute right-1 top-1 h-7 w-7 p-0 text-gray-500 hover:text-white"
+                    className="absolute right-1 top-1 h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                     onClick={() => setShowNewKey(v => !v)}>
                     {showNewKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   Variable name: <span className="font-mono text-amber-400">{editingKey.name}</span>
                 </p>
               </div>
@@ -1033,7 +1033,7 @@ function SystemTab() {
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" className="border-gray-600 text-gray-300"
+              <Button variant="outline" className="border-border text-foreground/80"
                 onClick={() => setEditingKey(null)}>Cancel</Button>
               <Button
                 className="bg-amber-500 hover:bg-amber-400 text-black font-semibold"
@@ -1054,9 +1054,9 @@ function SystemTab() {
       <CSVUploadCard />
 
       {/* System Actions */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <Server className="w-5 h-5 text-cyan-400" /> System Actions
           </CardTitle>
         </CardHeader>
@@ -1283,15 +1283,15 @@ function FootballDataCard() {
   const statusColor =
     testResult?.status === "ok" ? "text-emerald-400" :
     testResult?.status === "no_key" ? "text-amber-400" :
-    testResult ? "text-red-400" : "text-gray-500";
+    testResult ? "text-red-400" : "text-muted-foreground";
 
   return (
-    <Card className="bg-gray-900 border-gray-700">
+    <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <Globe className="w-5 h-5 text-emerald-400" /> Football-Data.org Integration
         </CardTitle>
-        <CardDescription className="text-gray-400">
+        <CardDescription className="text-muted-foreground">
           Update <span className="font-mono text-amber-400">FOOTBALL_DATA_API_KEY</span> above first,
           then test the connection and pull fixtures or finished-match results.
         </CardDescription>
@@ -1324,12 +1324,12 @@ function FootballDataCard() {
           </Button>
         </div>
         {testResult && (
-          <div className={`text-xs px-3 py-2 rounded border border-gray-800 bg-gray-950 ${statusColor}`}>
+          <div className={`text-xs px-3 py-2 rounded border border-border/50 bg-background ${statusColor}`}>
             <span className="font-semibold uppercase mr-2">{testResult.status}</span>
             {testResult.message}
           </div>
         )}
-        <div className="text-xs text-gray-500 space-y-1">
+        <div className="text-xs text-muted-foreground space-y-1">
           <div>• <span className="text-cyan-400">Fetch Upcoming Fixtures</span> — pulls scheduled matches for the next 14 days, dedup'd against existing rows.</div>
           <div>• <span className="text-purple-400">Sync FT Results</span> — settles predictions against finished matches from the API (last 7 days).</div>
           <div>• <span className="text-amber-400">Backfill Past Results</span> — runs the API settle, then simulates final scores for any past local-only/seed matches that have no provider counterpart.</div>
@@ -1404,7 +1404,7 @@ function CSVUploadCard() {
 
   const STATUS_BADGE: Record<string, string> = {
     ok:        "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-    duplicate: "bg-gray-500/10 text-gray-400 border-gray-500/30",
+    duplicate: "bg-muted/10 text-muted-foreground border-border/40",
     warning:   "bg-amber-500/10 text-amber-400 border-amber-500/30",
     error:     "bg-red-500/10 text-red-400 border-red-500/30",
   };
@@ -1418,12 +1418,12 @@ function CSVUploadCard() {
   const rows      = result?.rows ?? (result as any)?.results ?? [];
 
   return (
-    <Card className="bg-gray-900 border-gray-700">
+    <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <FileUp className="w-5 h-5 text-purple-400" /> CSV Fixture Upload
         </CardTitle>
-        <CardDescription className="text-gray-400">
+        <CardDescription className="text-muted-foreground">
           Bulk-import fixtures from a CSV file — runs ML predictions immediately on import.
           Supports both standard format and shorthand <span className="font-mono text-purple-300">#,date,time,home,away,league,H,D,A</span>.
         </CardDescription>
@@ -1443,14 +1443,14 @@ function CSVUploadCard() {
             />
           </label>
           <Button
-            className="bg-purple-600 hover:bg-purple-500 text-white"
+            className="bg-purple-600 hover:bg-purple-500 text-foreground"
             disabled={!file || uploadMutation.isPending}
             onClick={() => file && uploadMutation.mutate(file)}
           >
             {uploadMutation.isPending ? "Uploading…" : "Upload & Predict"}
           </Button>
           <button
-            className="text-xs font-mono text-gray-500 hover:text-gray-300 underline underline-offset-2"
+            className="text-xs font-mono text-muted-foreground hover:text-foreground/80 underline underline-offset-2"
             onClick={() => setShowFormat(f => !f)}
           >
             {showFormat ? "Hide format guide" : "Show format guide"}
@@ -1461,7 +1461,7 @@ function CSVUploadCard() {
         {result && (
           <div className="flex gap-4 text-xs font-mono flex-wrap">
             <span className="text-emerald-400 font-bold">{imported} imported</span>
-            <span className="text-gray-400">{skipped} duplicates</span>
+            <span className="text-muted-foreground">{skipped} duplicates</span>
             {warnCount > 0 && <span className="text-amber-400">{warnCount} warnings</span>}
             {errCount > 0  && <span className="text-red-400">{errCount} errors</span>}
           </div>
@@ -1469,21 +1469,21 @@ function CSVUploadCard() {
 
         {/* Format guide */}
         {showFormat && (
-          <div className="p-3 rounded bg-gray-800/60 border border-gray-700 space-y-3">
-            <p className="text-[10px] font-mono text-gray-500 uppercase flex items-center gap-1">
+          <div className="p-3 rounded bg-muted/20/60 border border-border space-y-3">
+            <p className="text-[10px] font-mono text-muted-foreground uppercase flex items-center gap-1">
               <Info className="w-3 h-3" /> Accepted CSV formats
             </p>
             <div>
-              <p className="text-[10px] font-mono text-gray-500 mb-1">Standard format</p>
-              <pre className="text-[11px] font-mono text-gray-400 whitespace-pre-wrap">{`home_team,away_team,kickoff_time,league,home_odds,draw_odds,away_odds
+              <p className="text-[10px] font-mono text-muted-foreground mb-1">Standard format</p>
+              <pre className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">{`home_team,away_team,kickoff_time,league,home_odds,draw_odds,away_odds
 Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
             </div>
             <div>
-              <p className="text-[10px] font-mono text-gray-500 mb-1">Shorthand format (e.g. bookmaker export)</p>
-              <pre className="text-[11px] font-mono text-gray-400 whitespace-pre-wrap">{`#,date,time,home,away,league,H,D,A
+              <p className="text-[10px] font-mono text-muted-foreground mb-1">Shorthand format (e.g. bookmaker export)</p>
+              <pre className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">{`#,date,time,home,away,league,H,D,A
 1,10 May,15:00,Arsenal,Chelsea,England - Premier League,2.10,3.40,3.60`}</pre>
             </div>
-            <p className="text-[10px] font-mono text-gray-500">
+            <p className="text-[10px] font-mono text-muted-foreground">
               Columns <span className="text-purple-300">home_odds / H</span>, <span className="text-purple-300">draw_odds / D</span>, <span className="text-purple-300">away_odds / A</span>, <span className="text-purple-300">kickoff_time</span> and <span className="text-purple-300">league</span> are optional — defaults are applied if missing.
             </p>
           </div>
@@ -1500,10 +1500,10 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
 
         {/* Results table */}
         {rows.length > 0 && (
-          <div className="overflow-x-auto rounded border border-gray-700">
+          <div className="overflow-x-auto rounded border border-border">
             <table className="w-full text-xs">
-              <thead className="border-b border-gray-700 bg-gray-800/60 sticky top-0">
-                <tr className="text-gray-400 font-mono uppercase text-[10px]">
+              <thead className="border-b border-border bg-muted/20/60 sticky top-0">
+                <tr className="text-muted-foreground font-mono uppercase text-[10px]">
                   <th className="text-left p-2 pl-3">#</th>
                   <th className="text-left p-2">Match</th>
                   <th className="text-left p-2 hidden sm:table-cell">League</th>
@@ -1517,38 +1517,38 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
               </thead>
               <tbody>
                 {rows.map((r: CsvUploadRow, idx: number) => (
-                  <tr key={idx} className="border-b border-gray-800 hover:bg-gray-800/40">
-                    <td className="p-2 pl-3 text-gray-500 font-mono">{r.row ?? idx + 1}</td>
-                    <td className="p-2 text-gray-200 font-mono whitespace-nowrap">
-                      {r.home_team} <span className="text-gray-500">vs</span> {r.away_team}
+                  <tr key={idx} className="border-b border-border/50 hover:bg-muted/20/40">
+                    <td className="p-2 pl-3 text-muted-foreground font-mono">{r.row ?? idx + 1}</td>
+                    <td className="p-2 text-foreground/90 font-mono whitespace-nowrap">
+                      {r.home_team} <span className="text-muted-foreground">vs</span> {r.away_team}
                     </td>
-                    <td className="p-2 text-gray-400 hidden sm:table-cell text-[10px] max-w-[140px] truncate" title={r.league}>
+                    <td className="p-2 text-muted-foreground hidden sm:table-cell text-[10px] max-w-[140px] truncate" title={r.league}>
                       {r.league || "—"}
                     </td>
-                    <td className="p-2 text-center text-gray-500 hidden md:table-cell font-mono text-[10px] whitespace-nowrap">
+                    <td className="p-2 text-center text-muted-foreground hidden md:table-cell font-mono text-[10px] whitespace-nowrap">
                       {r.kickoff ? (() => { try { return new Date(r.kickoff).toLocaleString(undefined, {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); } catch { return r.kickoff.slice(0,16); } })() : "—"}
                     </td>
                     <td className="p-2 text-center">
                       {r.match_id ? (
                         <a href={`/matches/${r.match_id}`} target="_blank" rel="noreferrer"
                           className="font-mono text-cyan-400 hover:underline">#{r.match_id}</a>
-                      ) : <span className="text-gray-600">—</span>}
+                      ) : <span className="text-muted-foreground/60">—</span>}
                     </td>
                     <td className="p-2 text-center whitespace-nowrap">
                       <span className={`border rounded px-1.5 py-0.5 font-mono text-[10px] ${STATUS_BADGE[r.status] ?? STATUS_BADGE.warning}`}>
                         {r.status}
                       </span>
                       {r.message && (
-                        <span className="ml-1.5 text-[10px] text-gray-500 max-w-[120px] truncate inline-block align-bottom" title={r.message}>{r.message}</span>
+                        <span className="ml-1.5 text-[10px] text-muted-foreground max-w-[120px] truncate inline-block align-bottom" title={r.message}>{r.message}</span>
                       )}
                     </td>
                     <td className="p-2 text-center hidden lg:table-cell font-mono text-[10px] whitespace-nowrap">
                       {r.home_prob != null ? (
                         <span>
                           <span className="text-primary">{(r.home_prob * 100).toFixed(0)}%</span>
-                          <span className="text-gray-600"> / </span>
-                          <span className="text-gray-300">{(r.draw_prob! * 100).toFixed(0)}%</span>
-                          <span className="text-gray-600"> / </span>
+                          <span className="text-muted-foreground/60"> / </span>
+                          <span className="text-foreground/80">{(r.draw_prob! * 100).toFixed(0)}%</span>
+                          <span className="text-muted-foreground/60"> / </span>
                           <span className="text-primary">{(r.away_prob! * 100).toFixed(0)}%</span>
                         </span>
                       ) : "—"}
@@ -1562,7 +1562,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
                         }`}>
                           {SIDE_LABEL[r.best_side] ?? r.best_side}
                           {r.home_odds && r.draw_odds && r.away_odds ? (
-                            <span className="text-gray-500 ml-1">
+                            <span className="text-muted-foreground ml-1">
                               @{r.best_side === "home" ? r.home_odds : r.best_side === "draw" ? r.draw_odds : r.away_odds}
                             </span>
                           ) : null}
@@ -1596,12 +1596,12 @@ function MLCalibrationCard() {
   const reloadMutation = useAdminCalibrationReload();
 
   return (
-    <Card className="bg-gray-900 border-gray-700">
+    <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <Activity className="w-5 h-5 text-green-400" /> ML Calibration
         </CardTitle>
-        <CardDescription className="text-gray-400">
+        <CardDescription className="text-muted-foreground">
           Fit and reload probability calibrators for improved prediction accuracy
         </CardDescription>
       </CardHeader>
@@ -1645,12 +1645,12 @@ function ManualSettlementCard() {
 
   return (
     <>
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-orange-400" /> Manual Settlement
           </CardTitle>
-          <CardDescription className="text-gray-400">
+          <CardDescription className="text-muted-foreground">
             Manually trigger result settlement and backfill operations
           </CardDescription>
         </CardHeader>
@@ -1675,13 +1675,13 @@ function ManualSettlementCard() {
       </Card>
 
       <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
-        <DialogContent className="bg-gray-900 border-gray-700">
+        <DialogContent className="bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="text-white">
+            <DialogTitle className="text-foreground">
               Confirm {confirmDialog.type === 'settle' ? 'Result Settlement' : 'Backfill Operation'}
             </DialogTitle>
           </DialogHeader>
-          <div className="text-gray-300">
+          <div className="text-foreground/80">
             {confirmDialog.type === 'settle'
               ? "This will settle all unsettled predictions against completed matches. Continue?"
               : "This will backfill full-time results for past matches. This operation may take time. Continue?"
@@ -1726,44 +1726,44 @@ function GlobalAccumulatorCard() {
   const sendMutation = useAdminAccumulatorSend();
 
   return (
-    <Card className="bg-gray-900 border-gray-700">
+    <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <Package className="w-5 h-5 text-purple-400" /> Global Accumulator
         </CardTitle>
-        <CardDescription className="text-gray-400">
+        <CardDescription className="text-muted-foreground">
           Place bets on and broadcast accumulator tips
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label className="text-gray-300">Accumulator ID</Label>
+            <Label className="text-foreground/80">Accumulator ID</Label>
             <Input
               placeholder="Enter accumulator ID"
               value={accumulatorId}
               onChange={(e) => setAccumulatorId(e.target.value)}
-              className="bg-gray-800 border-gray-600 text-white"
+              className="bg-muted/20 border-border text-foreground"
             />
           </div>
           <div>
-            <Label className="text-gray-300">Stake Amount</Label>
+            <Label className="text-foreground/80">Stake Amount</Label>
             <Input
               type="number"
               placeholder="0.00"
               value={stakeAmount}
               onChange={(e) => setStakeAmount(e.target.value)}
-              className="bg-gray-800 border-gray-600 text-white"
+              className="bg-muted/20 border-border text-foreground"
             />
           </div>
         </div>
         <div>
-          <Label className="text-gray-300">Broadcast Message (Optional)</Label>
+          <Label className="text-foreground/80">Broadcast Message (Optional)</Label>
           <Input
             placeholder="Custom message for broadcast"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            className="bg-gray-800 border-gray-600 text-white"
+            className="bg-muted/20 border-border text-foreground"
           />
         </div>
         <div className="flex gap-3">
@@ -1851,52 +1851,52 @@ function AIFeedConsensusCard() {
   };
 
   return (
-    <Card className="bg-gray-900 border-gray-700">
+    <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <Zap className="w-5 h-5 text-yellow-400" /> AI Feed Consensus
         </CardTitle>
-        <CardDescription className="text-gray-400">
+        <CardDescription className="text-muted-foreground">
           Manually push AI consensus predictions
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <Label className="text-gray-300">Home Team</Label>
+            <Label className="text-foreground/80">Home Team</Label>
             <Input
               placeholder="Home team name"
               value={homeTeam}
               onChange={(e) => setHomeTeam(e.target.value)}
-              className="bg-gray-800 border-gray-600 text-white"
+              className="bg-muted/20 border-border text-foreground"
             />
           </div>
           <div>
-            <Label className="text-gray-300">Away Team</Label>
+            <Label className="text-foreground/80">Away Team</Label>
             <Input
               placeholder="Away team name"
               value={awayTeam}
               onChange={(e) => setAwayTeam(e.target.value)}
-              className="bg-gray-800 border-gray-600 text-white"
+              className="bg-muted/20 border-border text-foreground"
             />
           </div>
           <div>
-            <Label className="text-gray-300">League</Label>
+            <Label className="text-foreground/80">League</Label>
             <Input
               placeholder="League name"
               value={league}
               onChange={(e) => setLeague(e.target.value)}
-              className="bg-gray-800 border-gray-600 text-white"
+              className="bg-muted/20 border-border text-foreground"
             />
           </div>
         </div>
         <div>
-          <Label className="text-gray-300">Market Odds (JSON)</Label>
+          <Label className="text-foreground/80">Market Odds (JSON)</Label>
           <Input
             placeholder='{"home": 2.1, "draw": 3.2, "away": 3.5}'
             value={marketOdds}
             onChange={(e) => setMarketOdds(e.target.value)}
-            className="bg-gray-800 border-gray-600 text-white"
+            className="bg-muted/20 border-border text-foreground"
           />
         </div>
         <Button
@@ -1941,24 +1941,24 @@ function UsersTab() {
   });
 
   const tierColors: Record<string, string> = {
-    viewer: "text-gray-400", analyst: "text-blue-400",
+    viewer: "text-muted-foreground", analyst: "text-blue-400",
     pro: "text-purple-400", elite: "text-amber-400",
   };
 
   return (
     <div className="space-y-4">
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
               <Users className="w-5 h-5 text-cyan-400" /> User Management
               <Badge className="ml-2 bg-cyan-500/20 text-cyan-400 border-cyan-500/30">{data?.total ?? 0} users</Badge>
             </CardTitle>
             <div className="relative w-64">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-500" />
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
               <Input placeholder="Search users…" value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-9 bg-gray-800 border-gray-600 text-white h-9" />
+                className="pl-9 bg-muted/20 border-border text-foreground h-9" />
             </div>
           </div>
         </CardHeader>
@@ -1969,7 +1969,7 @@ function UsersTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-700 text-gray-400">
+                  <tr className="border-b border-border text-muted-foreground">
                     <th className="text-left p-3">User</th>
                     <th className="text-left p-3">Role</th>
                     <th className="text-left p-3">Tier</th>
@@ -1981,18 +1981,18 @@ function UsersTab() {
                 </thead>
                 <tbody>
                   {data?.users?.map(u => (
-                    <tr key={u.id} className="border-b border-gray-800 hover:bg-gray-800/40">
+                    <tr key={u.id} className="border-b border-border/50 hover:bg-muted/20/40">
                       <td className="p-3">
-                        <div className="font-medium text-white">{u.username}</div>
-                        <div className="text-xs text-gray-500 font-mono">{u.email}</div>
+                        <div className="font-medium text-foreground">{u.username}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{u.email}</div>
                       </td>
                       <td className="p-3">
-                        <span className={`text-xs font-mono ${u.role === "admin" ? "text-amber-400" : "text-gray-300"}`}>
+                        <span className={`text-xs font-mono ${u.role === "admin" ? "text-amber-400" : "text-foreground/80"}`}>
                           {u.role}{u.admin_role ? ` (${u.admin_role})` : ""}
                         </span>
                       </td>
                       <td className="p-3">
-                        <span className={`text-xs font-semibold ${tierColors[u.subscription_tier] ?? "text-gray-400"}`}>
+                        <span className={`text-xs font-semibold ${tierColors[u.subscription_tier] ?? "text-muted-foreground"}`}>
                           {u.subscription_tier?.toUpperCase() ?? "VIEWER"}
                         </span>
                       </td>
@@ -2005,16 +2005,16 @@ function UsersTab() {
                             ? <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">Banned</span>
                             : u.is_active
                               ? <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">Active</span>
-                              : <span className="text-xs bg-gray-500/20 text-gray-400 border border-gray-500/30 px-1.5 py-0.5 rounded">Inactive</span>}
+                              : <span className="text-xs bg-muted/20 text-muted-foreground border border-border/40 px-1.5 py-0.5 rounded">Inactive</span>}
                           {u.is_verified && <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded">Verified</span>}
                         </div>
                       </td>
-                      <td className="p-3 text-gray-500 text-xs whitespace-nowrap">
+                      <td className="p-3 text-muted-foreground text-xs whitespace-nowrap">
                         {u.created_at ? new Date(u.created_at).toLocaleDateString() : "-"}
                       </td>
                       <td className="p-3">
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                             onClick={() => { setEditingUser(u); setEditForm({ role: u.role, subscription_tier: u.subscription_tier, is_active: u.is_active, is_verified: u.is_verified }); }}>
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
@@ -2028,7 +2028,7 @@ function UsersTab() {
                     </tr>
                   ))}
                   {!data?.users?.length && (
-                    <tr><td colSpan={7} className="text-center text-gray-500 py-8">No users found</td></tr>
+                    <tr><td colSpan={7} className="text-center text-muted-foreground py-8">No users found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -2040,7 +2040,7 @@ function UsersTab() {
       {/* Edit User Dialog */}
       {editingUser && (
         <Dialog open onOpenChange={() => setEditingUser(null)}>
-          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogContent className="bg-card border-border text-foreground max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Edit className="w-5 h-5 text-cyan-400" /> Edit User — {editingUser.username}
@@ -2048,40 +2048,40 @@ function UsersTab() {
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-1">
-                <Label className="text-gray-300">Role</Label>
+                <Label className="text-foreground/80">Role</Label>
                 <Select value={editForm.role} onValueChange={v => setEditForm(f => ({ ...f, role: v }))}>
-                  <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                  <SelectTrigger className="bg-muted/20 border-border text-foreground">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                  <SelectContent className="bg-muted/20 border-border text-foreground">
                     {["user", "admin"].map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-gray-300">Subscription Tier</Label>
+                <Label className="text-foreground/80">Subscription Tier</Label>
                 <Select value={editForm.subscription_tier} onValueChange={v => setEditForm(f => ({ ...f, subscription_tier: v }))}>
-                  <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                  <SelectTrigger className="bg-muted/20 border-border text-foreground">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                  <SelectContent className="bg-muted/20 border-border text-foreground">
                     {["viewer", "analyst", "pro", "elite"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-gray-300">Account Active</Label>
+                <Label className="text-foreground/80">Account Active</Label>
                 <Switch checked={editForm.is_active ?? true}
                   onCheckedChange={v => setEditForm(f => ({ ...f, is_active: v }))} />
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-gray-300">Email Verified</Label>
+                <Label className="text-foreground/80">Email Verified</Label>
                 <Switch checked={editForm.is_verified ?? false}
                   onCheckedChange={v => setEditForm(f => ({ ...f, is_verified: v }))} />
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" className="border-gray-600 text-gray-300" onClick={() => setEditingUser(null)}>Cancel</Button>
+              <Button variant="outline" className="border-border text-foreground/80" onClick={() => setEditingUser(null)}>Cancel</Button>
               <Button className="bg-cyan-500 hover:bg-cyan-400 text-black font-semibold"
                 disabled={editMutation.isPending}
                 onClick={() => editMutation.mutate({ id: editingUser.id, body: editForm })}>
@@ -2158,7 +2158,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
     running:   "text-cyan-400 bg-cyan-500/15 border-cyan-500/30",
     completed: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30",
     failed:    "text-red-400 bg-red-500/15 border-red-500/30",
-  }[job?.status ?? "queued"] ?? "text-gray-400";
+  }[job?.status ?? "queued"] ?? "text-muted-foreground";
 
   const eventIcon = (type: string) => {
     if (type === "model_done") return "✓";
@@ -2176,16 +2176,16 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
     if (type === "model_start") return "text-cyan-400";
     if (type === "done") return "text-amber-400";
     if (type === "weights_saved" || type === "weights_reloaded") return "text-purple-400";
-    return "text-gray-400";
+    return "text-muted-foreground";
   };
 
   return (
-    <div className="rounded-lg border border-cyan-500/30 bg-gray-900/80 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/60">
+    <div className="rounded-lg border border-cyan-500/30 bg-card/80 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
         <div className="flex items-center gap-3">
           <Cpu className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-semibold text-white">Training Job</span>
-          <span className="font-mono text-xs text-gray-500">JOB_{jobId.slice(0, 8)}</span>
+          <span className="text-sm font-semibold text-foreground">Training Job</span>
+          <span className="font-mono text-xs text-muted-foreground">JOB_{jobId.slice(0, 8)}</span>
           {job?.status && (
             <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${statusColor}`}>
               {job.status.toUpperCase()}
@@ -2194,12 +2194,12 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
         </div>
         <div className="flex items-center gap-2">
           {job?.status === "running" && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted-foreground">
               Model {job.current_index ?? 0} / {job.total_models ?? "?"} — {pct}%
             </span>
           )}
           {isDone && (
-            <button onClick={onDismiss} className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded hover:bg-gray-700">
+            <button onClick={onDismiss} className="text-xs text-muted-foreground hover:text-foreground/80 transition-colors px-2 py-1 rounded hover:bg-muted/40">
               Dismiss ×
             </button>
           )}
@@ -2208,7 +2208,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
 
       {/* Progress bar */}
       {!isDone && (
-        <div className="w-full bg-gray-800 h-1">
+        <div className="w-full bg-muted/20 h-1">
           <div
             className="h-1 bg-cyan-500 transition-all duration-700"
             style={{ width: `${pct}%` }}
@@ -2216,7 +2216,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
         </div>
       )}
       {isDone && job?.status === "completed" && (
-        <div className="w-full bg-gray-800 h-1">
+        <div className="w-full bg-muted/20 h-1">
           <div className="h-1 bg-emerald-500 w-full" />
         </div>
       )}
@@ -2224,7 +2224,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-gray-700/50">
         {/* Event log */}
         <div className="p-3">
-          <div className="text-xs text-gray-500 uppercase tracking-widest mb-2 font-semibold">Live Log</div>
+          <div className="text-xs text-muted-foreground uppercase tracking-widest mb-2 font-semibold">Live Log</div>
           <div
             ref={logRef}
             className="h-44 overflow-y-auto font-mono text-xs space-y-0.5 pr-1 scrollbar-thin scrollbar-thumb-gray-700"
@@ -2233,7 +2233,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
               <div className="text-red-400">Could not connect to job — retrying…</div>
             )}
             {!job && !isError && (
-              <div className="text-gray-500 animate-pulse">Connecting to job…</div>
+              <div className="text-muted-foreground animate-pulse">Connecting to job…</div>
             )}
             {(job?.events ?? []).map((evt, i) => {
               const label = evt.model
@@ -2245,7 +2245,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
               return (
                 <div key={i} className={`flex gap-2 leading-5 ${eventColor(evt.type)}`}>
                   <span className="shrink-0 w-[18px] text-center">{eventIcon(evt.type)}</span>
-                  <span className="text-gray-500 shrink-0">{ts}</span>
+                  <span className="text-muted-foreground shrink-0">{ts}</span>
                   <span className="truncate">{label}{accStr}{elStr}</span>
                 </div>
               );
@@ -2261,16 +2261,16 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
 
         {/* Per-model results */}
         <div className="p-3">
-          <div className="text-xs text-gray-500 uppercase tracking-widest mb-2 font-semibold">
+          <div className="text-xs text-muted-foreground uppercase tracking-widest mb-2 font-semibold">
             Per-Model Results
           </div>
           <div className="h-44 overflow-y-auto space-y-1 pr-1">
             {Object.entries(job?.results ?? {}).length === 0 && (
-              <div className="text-gray-600 text-xs font-mono">Results appear as models complete…</div>
+              <div className="text-muted-foreground/60 text-xs font-mono">Results appear as models complete…</div>
             )}
             {Object.entries(job?.results ?? {}).map(([key, r]) => (
-              <div key={key} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-gray-800">
-                <span className="text-gray-300 truncate max-w-[140px]" title={r.model_name}>{r.model_name}</span>
+              <div key={key} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/50">
+                <span className="text-foreground/80 truncate max-w-[140px]" title={r.model_name}>{r.model_name}</span>
                 <div className="flex items-center gap-2 shrink-0">
                   {r.status === "ok" && r.accuracy !== undefined && (
                     <span className={`font-mono font-semibold ${r.accuracy >= 0.6 ? "text-emerald-400" : r.accuracy >= 0.5 ? "text-amber-400" : "text-red-400"}`}>
@@ -2278,7 +2278,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
                     </span>
                   )}
                   {r.elapsed_s !== undefined && (
-                    <span className="text-gray-600">{r.elapsed_s}s</span>
+                    <span className="text-muted-foreground/60">{r.elapsed_s}s</span>
                   )}
                   {r.status === "ok"
                     ? <span className="text-emerald-500">✓</span>
@@ -2293,29 +2293,29 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
 
       {/* Final summary */}
       {isDone && job?.summary && (
-        <div className="border-t border-gray-700/60 px-4 py-3 bg-gray-800/40">
+        <div className="border-t border-border/60 px-4 py-3 bg-muted/20/40">
           {job.status === "completed" ? (
             <div className="flex flex-wrap gap-4 text-xs">
-              <span className="text-gray-400">
+              <span className="text-muted-foreground">
                 Models trained: <span className="text-emerald-400 font-semibold">{job.summary.models_trained ?? "—"}</span>
                 {(job.summary.models_failed ?? 0) > 0 && (
                   <span className="text-red-400 ml-1">({job.summary.models_failed} failed)</span>
                 )}
               </span>
               {job.summary.avg_accuracy !== undefined && (
-                <span className="text-gray-400">
+                <span className="text-muted-foreground">
                   Avg accuracy: <span className={`font-semibold font-mono ${(job.summary.avg_accuracy ?? 0) >= 0.6 ? "text-emerald-400" : "text-amber-400"}`}>
                     {((job.summary.avg_accuracy ?? 0) * 100).toFixed(1)}%
                   </span>
                 </span>
               )}
               {job.summary.version && (
-                <span className="text-gray-400">
+                <span className="text-muted-foreground">
                   Version: <span className="text-cyan-400 font-mono">{job.summary.version}</span>
                 </span>
               )}
               {job.summary.saved_pkls && (
-                <span className="text-gray-400">
+                <span className="text-muted-foreground">
                   Weights saved: <span className="text-purple-400 font-semibold">{Object.keys(job.summary.saved_pkls).length} .pkl files</span>
                 </span>
               )}
@@ -2456,7 +2456,7 @@ function ModelsTab() {
       <div className="flex gap-2 flex-wrap">
         <Button
           variant={activeSection === "engine" ? "default" : "outline"}
-          className={activeSection === "engine" ? "bg-cyan-500 text-black" : "border-gray-600 text-gray-300"}
+          className={activeSection === "engine" ? "bg-cyan-500 text-black" : "border-border text-foreground/80"}
           onClick={() => setActiveSection("engine")}>
           <Cpu className="w-4 h-4 mr-2" /> AI Engine ({modelsData?.models?.length ?? 0})
         </Button>
@@ -2464,11 +2464,11 @@ function ModelsTab() {
           variant={activeSection === "accountability" ? "default" : "outline"}
           className={activeSection === "accountability"
             ? "bg-purple-500 text-black"
-            : "border-gray-600 text-gray-300"}
+            : "border-border text-foreground/80"}
           onClick={() => setActiveSection("accountability")}>
           <Activity className="w-4 h-4 mr-2" /> Accountability
           {atRiskCount > 0 && (
-            <span className="ml-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+            <span className="ml-2 bg-red-500 text-foreground text-xs px-1.5 py-0.5 rounded-full">
               {atRiskCount} at risk
             </span>
           )}
@@ -2477,11 +2477,11 @@ function ModelsTab() {
           variant={activeSection === "marketplace" ? "default" : "outline"}
           className={activeSection === "marketplace"
             ? "bg-amber-500 text-black"
-            : "border-gray-600 text-gray-300"}
+            : "border-border text-foreground/80"}
           onClick={() => setActiveSection("marketplace")}>
           <Package className="w-4 h-4 mr-2" /> Marketplace Pending
           {(pendingData?.total ?? 0) > 0 && (
-            <span className="ml-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+            <span className="ml-2 bg-red-500 text-foreground text-xs px-1.5 py-0.5 rounded-full">
               {pendingData?.total}
             </span>
           )}
@@ -2489,10 +2489,10 @@ function ModelsTab() {
       </div>
 
       {activeSection === "engine" && (
-        <Card className="bg-gray-900 border-gray-700">
+        <Card className="bg-card border-border">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-white flex items-center gap-2">
+              <CardTitle className="text-foreground flex items-center gap-2">
                 <Cpu className="w-5 h-5 text-cyan-400" /> AI Model Registry
               </CardTitle>
               <Button size="sm" variant="outline" className="border-cyan-500/30 text-cyan-400 hover:border-cyan-400"
@@ -2514,7 +2514,7 @@ function ModelsTab() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-700 text-gray-400">
+                    <tr className="border-b border-border text-muted-foreground">
                       <th className="text-left p-3">Model</th>
                       <th className="text-left p-3">Type</th>
                       <th className="text-left p-3">Weight</th>
@@ -2525,12 +2525,12 @@ function ModelsTab() {
                   </thead>
                   <tbody>
                     {modelsData?.models?.map(m => (
-                      <tr key={m.key} className="border-b border-gray-800 hover:bg-gray-800/40">
+                      <tr key={m.key} className="border-b border-border/50 hover:bg-muted/20/40">
                         <td className="p-3">
-                          <div className="text-white font-medium">{m.model_name}</div>
-                          <div className="text-xs text-gray-500 font-mono">{m.key}</div>
+                          <div className="text-foreground font-medium">{m.model_name}</div>
+                          <div className="text-xs text-muted-foreground font-mono">{m.key}</div>
                         </td>
-                        <td className="p-3 text-gray-400 text-xs">{m.model_type ?? "—"}</td>
+                        <td className="p-3 text-muted-foreground text-xs">{m.model_type ?? "—"}</td>
                         <td className="p-3 text-cyan-400 font-mono text-xs">{m.weight?.toFixed(2)}</td>
                         <td className="p-3">
                           {(m.ready || m.error === null)
@@ -2540,18 +2540,18 @@ function ModelsTab() {
                           {m.pkl_loaded && <span className="ml-1 text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">Real Weights</span>}
                         </td>
                         <td className="p-3">
-                          <span className={`text-xs ${m.source === "marketplace" ? "text-amber-400" : "text-gray-500"}`}>
+                          <span className={`text-xs ${m.source === "marketplace" ? "text-amber-400" : "text-muted-foreground"}`}>
                             {m.source ?? "internal"}
                             {m.listing_id ? ` #${m.listing_id}` : ""}
                           </span>
-                          {m.trained_count ? <div className="text-[10px] text-gray-500 mt-1">{m.trained_count.toLocaleString()} samples</div> : null}
+                          {m.trained_count ? <div className="text-[10px] text-muted-foreground mt-1">{m.trained_count.toLocaleString()} samples</div> : null}
                         </td>
                         <td className="p-3">
                           <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-400 hover:text-emerald-300"
                             onClick={() => trainMutation.mutate(m.key)} disabled={trainMutation.isPending}>
                             <Zap className="w-3 h-3 mr-1" /> Train
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-400 hover:text-cyan-400"
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-cyan-400"
                             onClick={() => reloadMutation.mutate(m.key)}>
                             <RefreshCw className="w-3 h-3 mr-1" /> Reload
                           </Button>
@@ -2559,7 +2559,7 @@ function ModelsTab() {
                       </tr>
                     ))}
                     {!modelsData?.models?.length && (
-                      <tr><td colSpan={6} className="text-center text-gray-500 py-8">No models found</td></tr>
+                      <tr><td colSpan={6} className="text-center text-muted-foreground py-8">No models found</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -2593,16 +2593,16 @@ function ModelsTab() {
               { label: "At Risk · Demoted",  value: accountabilityKpis.atRisk + accountabilityKpis.demoted, icon: XCircle, tone: "destructive" as const, pulse: (accountabilityKpis.atRisk + accountabilityKpis.demoted) > 0 },
             ].map((kpi) => {
               const toneClass = {
-                neutral:     { ring: "border-gray-700",         text: "text-cyan-400",    bg: "bg-cyan-500/10"    },
+                neutral:     { ring: "border-border",         text: "text-cyan-400",    bg: "bg-cyan-500/10"    },
                 success:     { ring: "border-emerald-500/30",   text: "text-emerald-400", bg: "bg-emerald-500/10" },
-                warning:     { ring: kpi.value > 0 ? "border-amber-500/40" : "border-gray-700", text: "text-amber-400", bg: "bg-amber-500/10" },
-                destructive: { ring: kpi.value > 0 ? "border-red-500/40"   : "border-gray-700", text: "text-red-400",   bg: "bg-red-500/10"   },
+                warning:     { ring: kpi.value > 0 ? "border-amber-500/40" : "border-border", text: "text-amber-400", bg: "bg-amber-500/10" },
+                destructive: { ring: kpi.value > 0 ? "border-red-500/40"   : "border-border", text: "text-red-400",   bg: "bg-red-500/10"   },
               }[kpi.tone];
               return (
-                <Card key={kpi.label} className={`bg-gray-900 ${toneClass.ring} transition-colors`}>
+                <Card key={kpi.label} className={`bg-card ${toneClass.ring} transition-colors`}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="min-w-0">
-                      <div className="text-[10px] uppercase tracking-wider text-gray-400 font-mono truncate">{kpi.label}</div>
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono truncate">{kpi.label}</div>
                       <div className={`text-3xl font-bold mt-1 ${toneClass.text} font-mono tabular-nums`}>{kpi.value}</div>
                     </div>
                     <div className={`p-2.5 rounded-lg ${toneClass.bg} ${kpi.pulse ? "vit-animate-pulse-glow" : ""}`}>
@@ -2614,10 +2614,10 @@ function ModelsTab() {
             })}
           </div>
 
-          <Card className="bg-gray-900 border-gray-700">
+          <Card className="bg-card border-border">
             <CardHeader>
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <CardTitle className="text-white flex items-center gap-2">
+                <CardTitle className="text-foreground flex items-center gap-2">
                   <Activity className="w-5 h-5 text-purple-400" /> CLV-Blended Accountability
                 </CardTitle>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2644,7 +2644,7 @@ function ModelsTab() {
                   </Button>
                 </div>
               </div>
-              <CardDescription className="text-gray-400">
+              <CardDescription className="text-muted-foreground">
                 Per-model rolling Closing-Line Value alongside log-loss and accuracy.
                 CLV is the leading indicator of true edge — a sustained negative
                 CLV means the model is on the wrong side of sharp money.
@@ -2668,18 +2668,18 @@ function ModelsTab() {
                 <div className="px-4 py-3 space-y-2">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 py-2">
-                      <Skeleton className="h-8 w-32 bg-gray-800" />
-                      <Skeleton className="h-6 w-20 bg-gray-800 ml-auto" />
-                      <Skeleton className="h-6 w-12 bg-gray-800" />
-                      <Skeleton className="h-6 w-16 bg-gray-800" />
-                      <Skeleton className="h-6 w-16 bg-gray-800" />
-                      <Skeleton className="h-6 w-20 bg-gray-800" />
-                      <Skeleton className="h-7 w-20 bg-gray-800" />
+                      <Skeleton className="h-8 w-32 bg-muted/20" />
+                      <Skeleton className="h-6 w-20 bg-muted/20 ml-auto" />
+                      <Skeleton className="h-6 w-12 bg-muted/20" />
+                      <Skeleton className="h-6 w-16 bg-muted/20" />
+                      <Skeleton className="h-6 w-16 bg-muted/20" />
+                      <Skeleton className="h-6 w-20 bg-muted/20" />
+                      <Skeleton className="h-7 w-20 bg-muted/20" />
                     </div>
                   ))}
                 </div>
               ) : !perfData?.length ? (
-                <div className="text-center text-gray-500 py-12">
+                <div className="text-center text-muted-foreground py-12">
                   <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
                   <div>No performance data yet.</div>
                   <div className="text-xs mt-1">CLV scores appear once matches settle and predictions are evaluated.</div>
@@ -2688,7 +2688,7 @@ function ModelsTab() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-700 text-gray-400">
+                    <tr className="border-b border-border text-muted-foreground">
                       <th className="text-left p-3">Model</th>
                       <th className="text-center p-3">Status</th>
                       <th className="text-right p-3">Weight</th>
@@ -2722,14 +2722,14 @@ function ModelsTab() {
                         healthy: { label: "Healthy", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", dot: "bg-emerald-400" },
                         watch:   { label: streak > 0 ? `Watch · day ${streak}/7` : "Watch", cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", dot: "bg-amber-400" },
                         risk:    { label: demotedLabel, cls: "bg-red-500/20 text-red-400 border-red-500/30 vit-animate-pulse-glow", dot: "bg-red-400 animate-pulse" },
-                        new:     { label: "Insufficient",  cls: "bg-gray-500/20 text-gray-400 border-gray-500/30", dot: "bg-gray-500" },
+                        new:     { label: "Insufficient",  cls: "bg-muted/20 text-muted-foreground border-border/40", dot: "bg-muted/60" },
                       }[status];
                       const showStreakDots = m.is_active && streak > 0;
                       return (
-                        <tr key={m.key} className={`border-b border-gray-800 transition-colors ${!m.is_active ? "opacity-60" : "hover:bg-gray-800/40"}`}>
+                        <tr key={m.key} className={`border-b border-border/50 transition-colors ${!m.is_active ? "opacity-60" : "hover:bg-muted/20/40"}`}>
                           <td className="p-3">
-                            <div className="text-white font-medium">{m.name}</div>
-                            <div className="text-xs text-gray-500 font-mono">{m.key}</div>
+                            <div className="text-foreground font-medium">{m.name}</div>
+                            <div className="text-xs text-muted-foreground font-mono">{m.key}</div>
                           </td>
                           <td className="p-3">
                             <div className="flex flex-col items-center gap-1.5">
@@ -2743,7 +2743,7 @@ function ModelsTab() {
                                     <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${
                                       i < streak
                                         ? (streak >= 5 ? "bg-red-500" : streak >= 3 ? "bg-amber-500" : "bg-amber-600")
-                                        : "bg-gray-700"
+                                        : "bg-muted/40"
                                     }`} />
                                   ))}
                                 </div>
@@ -2756,7 +2756,7 @@ function ModelsTab() {
                           <td className="p-3 text-right font-mono text-xs">
                             {typeof m.accuracy_1x2 === "number" ? (
                               <div className="flex flex-col items-end gap-0.5">
-                                <span className={m.metric_source === "live" ? "text-gray-200" : "text-amber-300/80"}>
+                                <span className={m.metric_source === "live" ? "text-foreground/90" : "text-amber-300/80"}>
                                   {m.metric_source !== "live" && <span className="text-amber-500 mr-0.5">~</span>}
                                   {(m.accuracy_1x2 * 100).toFixed(1)}%
                                 </span>
@@ -2782,7 +2782,7 @@ function ModelsTab() {
                           <td className="p-3 text-right font-mono text-xs">
                             {typeof m.brier_score === "number" ? (
                               <div className="flex flex-col items-end gap-0.5">
-                                <span className={m.metric_source === "live" ? "text-gray-300" : "text-gray-300/70"}>
+                                <span className={m.metric_source === "live" ? "text-foreground/80" : "text-foreground/80/70"}>
                                   {m.metric_source !== "live" && <span className="text-amber-500 mr-0.5">~</span>}
                                   {m.brier_score.toFixed(4)}
                                 </span>
@@ -2797,13 +2797,13 @@ function ModelsTab() {
                               <span className={`font-mono text-xs ${
                                 clv > 0.001 ? "text-emerald-400"
                                 : clv < -0.001 ? "text-red-400"
-                                : "text-gray-400"
+                                : "text-muted-foreground"
                               }`}>
                                 {clvN > 0 ? (clv > 0 ? "+" : "") + clv.toFixed(4) : "—"}
                               </span>
                               {clvN > 0 && (
-                                <div className="relative w-20 h-1 bg-gray-800 rounded-full" title="CLV magnitude (range −0.02 to +0.02)">
-                                  <div className="absolute left-1/2 top-0 w-px h-full bg-gray-600" />
+                                <div className="relative w-20 h-1 bg-muted/20 rounded-full" title="CLV magnitude (range −0.02 to +0.02)">
+                                  <div className="absolute left-1/2 top-0 w-px h-full bg-muted/40" />
                                   {clv !== 0 && (
                                     <div
                                       className={`absolute top-0 h-full rounded-full ${clv > 0 ? "bg-emerald-500" : "bg-red-500"}`}
@@ -2817,10 +2817,10 @@ function ModelsTab() {
                               )}
                             </div>
                           </td>
-                          <td className="p-3 text-right font-mono text-xs text-gray-400">
+                          <td className="p-3 text-right font-mono text-xs text-muted-foreground">
                             {clvN}
                           </td>
-                          <td className="p-3 text-right font-mono text-xs text-gray-400">
+                          <td className="p-3 text-right font-mono text-xs text-muted-foreground">
                             {total.toLocaleString()}
                           </td>
                           <td className="p-3 text-center">
@@ -2849,7 +2849,7 @@ function ModelsTab() {
                     })}
                   </tbody>
                 </table>
-                <div className="text-xs text-gray-500 px-4 py-3 border-t border-gray-800 space-y-1">
+                <div className="text-xs text-muted-foreground px-4 py-3 border-t border-border/50 space-y-1">
                   <div>
                     CLV score is a rolling EMA of (model_prob − market_prob) × CLV per settled match.
                     Status thresholds: Healthy = positive CLV &amp; ≥ 50% accuracy ·
@@ -2871,13 +2871,13 @@ function ModelsTab() {
       )}
 
       {activeSection === "marketplace" && (
-        <Card className="bg-gray-900 border-gray-700">
+        <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
               <Package className="w-5 h-5 text-amber-400" /> Pending Marketplace Models
               <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">{pendingData?.total ?? 0} pending</Badge>
             </CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardDescription className="text-muted-foreground">
               Review uploaded model files. Approved models are activated and registered in the prediction engine.
             </CardDescription>
           </CardHeader>
@@ -2888,7 +2888,7 @@ function ModelsTab() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-700 text-gray-400">
+                    <tr className="border-b border-border text-muted-foreground">
                       <th className="text-left p-3">Model Name</th>
                       <th className="text-left p-3">Category</th>
                       <th className="text-left p-3">Creator</th>
@@ -2900,13 +2900,13 @@ function ModelsTab() {
                   </thead>
                   <tbody>
                     {pendingData?.items?.map(l => (
-                      <tr key={l.id} className="border-b border-gray-800 hover:bg-gray-800/40">
+                      <tr key={l.id} className="border-b border-border/50 hover:bg-muted/20/40">
                         <td className="p-3">
-                          <div className="text-white font-medium">{l.name}</div>
-                          <div className="text-xs text-gray-500 truncate max-w-[200px]">{l.description}</div>
+                          <div className="text-foreground font-medium">{l.name}</div>
+                          <div className="text-xs text-muted-foreground truncate max-w-[200px]">{l.description}</div>
                         </td>
-                        <td className="p-3 text-gray-400 text-xs">{l.category}</td>
-                        <td className="p-3 text-gray-400 text-xs font-mono">#{l.creator_id}</td>
+                        <td className="p-3 text-muted-foreground text-xs">{l.category}</td>
+                        <td className="p-3 text-muted-foreground text-xs font-mono">#{l.creator_id}</td>
                         <td className="p-3 text-amber-400 font-mono text-xs">{l.price_per_call} VIT</td>
                         <td className="p-3">
                           {l.package_id
@@ -2915,7 +2915,7 @@ function ModelsTab() {
                                 <span className="text-xs text-emerald-400 flex items-center gap-1">
                                   <Upload className="w-3 h-3" /> Package ({l.package_file_count ?? 0} files)
                                 </span>
-                                <div className="text-[11px] text-gray-500 font-mono">
+                                <div className="text-[11px] text-muted-foreground font-mono">
                                   {l.primary_file ?? l.package_id} · {l.file_size_bytes ? `${(l.file_size_bytes / 1024).toFixed(0)} KB` : "size unknown"}
                                 </div>
                                 {l.execution_status && (
@@ -2927,9 +2927,9 @@ function ModelsTab() {
                             ? <span className="text-xs text-emerald-400 flex items-center gap-1"><Upload className="w-3 h-3" /> Model file ({l.file_size_bytes ? `${(l.file_size_bytes / 1024).toFixed(0)} KB` : "?"})</span>
                             : l.webhook_url
                               ? <span className="text-xs text-blue-400">Webhook</span>
-                              : <span className="text-xs text-gray-500">No file</span>}
+                              : <span className="text-xs text-muted-foreground">No file</span>}
                         </td>
-                        <td className="p-3 text-gray-500 text-xs whitespace-nowrap">
+                        <td className="p-3 text-muted-foreground text-xs whitespace-nowrap">
                           {l.created_at ? new Date(l.created_at).toLocaleDateString() : "-"}
                         </td>
                         <td className="p-3">
@@ -2953,7 +2953,7 @@ function ModelsTab() {
                       </tr>
                     ))}
                     {!pendingData?.items?.length && (
-                      <tr><td colSpan={7} className="text-center text-gray-500 py-8">No pending listings — all clear!</td></tr>
+                      <tr><td colSpan={7} className="text-center text-muted-foreground py-8">No pending listings — all clear!</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -2966,24 +2966,24 @@ function ModelsTab() {
       {/* Reject Dialog */}
       {rejectingId !== null && (
         <Dialog open onOpenChange={() => setRejectingId(null)}>
-          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogContent className="bg-card border-border text-foreground max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-red-400">
                 <XCircle className="w-5 h-5" /> Reject Listing #{rejectingId}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <Label className="text-gray-300">Rejection Reason (shown to the creator)</Label>
+              <Label className="text-foreground/80">Rejection Reason (shown to the creator)</Label>
               <textarea
-                className="w-full bg-gray-800 border border-gray-600 rounded-md text-white text-sm p-3 min-h-[100px] resize-none focus:outline-none focus:border-red-500"
+                className="w-full bg-muted/20 border border-border rounded-md text-foreground text-sm p-3 min-h-[100px] resize-none focus:outline-none focus:border-red-500"
                 placeholder="e.g. Model does not meet performance standards, or violates marketplace guidelines."
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
               />
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" className="border-gray-600 text-gray-300" onClick={() => setRejectingId(null)}>Cancel</Button>
-              <Button className="bg-red-500 hover:bg-red-400 text-white"
+              <Button variant="outline" className="border-border text-foreground/80" onClick={() => setRejectingId(null)}>Cancel</Button>
+              <Button className="bg-red-500 hover:bg-red-400 text-foreground"
                 disabled={!rejectReason.trim() || rejectMutation.isPending}
                 onClick={() => { rejectMutation.mutate({ id: rejectingId!, reason: rejectReason }); setRejectingId(null); }}>
                 Confirm Rejection
@@ -3029,8 +3029,8 @@ const STATUS_CLS: Record<string, string> = {
   healthy:   "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
   watch:     "text-amber-400 border-amber-500/30 bg-amber-500/10",
   at_risk:   "text-red-400 border-red-500/30 bg-red-500/10",
-  untrained: "text-gray-400 border-gray-500/30 bg-gray-500/10",
-  no_data:   "text-gray-500 border-gray-600/30 bg-gray-600/10",
+  untrained: "text-muted-foreground border-border/40 bg-muted/10",
+  no_data:   "text-muted-foreground border-border/30 bg-muted/10",
 };
 
 function TrainingInsightCard() {
@@ -3043,10 +3043,10 @@ function TrainingInsightCard() {
   const summary = data?.ensemble_summary;
 
   return (
-    <Card className="bg-gray-900 border-gray-700">
+    <Card className="bg-card border-border">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-indigo-400" /> Training Insight Report
           </CardTitle>
           <Button size="sm" variant="outline" className="border-indigo-500/30 text-indigo-400 hover:border-indigo-400"
@@ -3055,20 +3055,20 @@ function TrainingInsightCard() {
             {isFetching ? "Refreshing…" : "Refresh"}
           </Button>
         </div>
-        <CardDescription className="text-gray-400">
+        <CardDescription className="text-muted-foreground">
           Per-model accuracy breakdown, weight distribution, and actionable improvement suggestions.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {isLoading && (
           <div className="space-y-2">
-            {[1,2,3].map(i => <div key={i} className="h-8 rounded bg-gray-800 animate-pulse" />)}
+            {[1,2,3].map(i => <div key={i} className="h-8 rounded bg-muted/20 animate-pulse" />)}
           </div>
         )}
         {isError && (
           <div className="text-center py-6">
             <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-            <p className="text-gray-400 text-sm">Could not load training report. Train at least one model first.</p>
+            <p className="text-muted-foreground text-sm">Could not load training report. Train at least one model first.</p>
           </div>
         )}
 
@@ -3082,8 +3082,8 @@ function TrainingInsightCard() {
                 { label: "Models Trained", value: `${summary?.trained_models ?? 0} / ${summary?.total_models ?? 0}`,  color: "text-emerald-400" },
                 { label: "Best Model",     value: summary?.best_model ?? "—", color: "text-amber-400" },
               ].map(({ label, value, color }) => (
-                <div key={label} className="bg-gray-800 rounded p-3 border border-gray-700">
-                  <p className="text-xs text-gray-400 font-mono uppercase mb-1">{label}</p>
+                <div key={label} className="bg-muted/20 rounded p-3 border border-border">
+                  <p className="text-xs text-muted-foreground font-mono uppercase mb-1">{label}</p>
                   <p className={`text-sm font-bold font-mono truncate ${color}`}>{value}</p>
                 </div>
               ))}
@@ -3091,10 +3091,10 @@ function TrainingInsightCard() {
 
             {/* Model breakdown table */}
             {(data.model_breakdown ?? []).length > 0 && (
-              <div className="overflow-x-auto rounded border border-gray-700">
+              <div className="overflow-x-auto rounded border border-border">
                 <table className="w-full text-sm">
-                  <thead className="border-b border-gray-700 bg-gray-800/60">
-                    <tr className="text-gray-400 font-mono text-xs">
+                  <thead className="border-b border-border bg-muted/20/60">
+                    <tr className="text-muted-foreground font-mono text-xs">
                       <th className="text-left p-2 pl-3">Model</th>
                       <th className="text-right p-2">Weight</th>
                       <th className="text-right p-2">Accuracy</th>
@@ -3104,18 +3104,18 @@ function TrainingInsightCard() {
                   </thead>
                   <tbody>
                     {(data.model_breakdown ?? []).map(m => (
-                      <tr key={m.key} className="border-b border-gray-800 hover:bg-gray-800/40 transition-colors">
+                      <tr key={m.key} className="border-b border-border/50 hover:bg-muted/20/40 transition-colors">
                         <td className="p-2 pl-3">
-                          <div className="text-white text-xs font-medium">{m.name}</div>
-                          <div className="text-gray-500 text-[10px] font-mono">{m.key}</div>
+                          <div className="text-foreground text-xs font-medium">{m.name}</div>
+                          <div className="text-muted-foreground text-[10px] font-mono">{m.key}</div>
                         </td>
                         <td className="p-2 text-right text-cyan-400 font-mono text-xs">
                           {m.weight != null ? m.weight.toFixed(3) : "—"}
                         </td>
-                        <td className="p-2 text-right text-gray-200 font-mono text-xs">
+                        <td className="p-2 text-right text-foreground/90 font-mono text-xs">
                           {m.accuracy != null ? `${(m.accuracy * 100).toFixed(1)}%` : "—"}
                         </td>
-                        <td className="p-2 text-right text-gray-400 font-mono text-xs">
+                        <td className="p-2 text-right text-muted-foreground font-mono text-xs">
                           {m.trained_matches > 0 ? m.trained_matches.toLocaleString() : (m.trained ? "yes" : "—")}
                         </td>
                         <td className="p-2 text-center">
@@ -3133,9 +3133,9 @@ function TrainingInsightCard() {
             {/* Recommendations */}
             {(data.recommendations ?? []).length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-mono text-gray-400 uppercase">Recommendations</p>
+                <p className="text-xs font-mono text-muted-foreground uppercase">Recommendations</p>
                 {(data.recommendations ?? []).map((rec, i) => (
-                  <div key={i} className="flex gap-2 p-2.5 rounded bg-gray-800/60 border border-indigo-500/20 text-sm text-gray-300">
+                  <div key={i} className="flex gap-2 p-2.5 rounded bg-muted/20/60 border border-indigo-500/20 text-sm text-foreground/80">
                     <Lightbulb className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                     <span>{rec}</span>
                   </div>
@@ -3143,7 +3143,7 @@ function TrainingInsightCard() {
               </div>
             )}
 
-            <p className="text-[10px] font-mono text-gray-600 text-right">
+            <p className="text-[10px] font-mono text-muted-foreground/60 text-right">
               Generated {data.report_generated_at ? new Date(data.report_generated_at).toLocaleTimeString() : "—"}
             </p>
           </>
@@ -3181,15 +3181,15 @@ function KYCTab() {
 
   return (
     <div className="space-y-4">
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <UserCheck className="w-5 h-5 text-emerald-400" /> KYC Verification Queue
             <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
               {data?.total ?? 0} pending
             </Badge>
           </CardTitle>
-          <CardDescription className="text-gray-400">
+          <CardDescription className="text-muted-foreground">
             Review and approve user identity verification submissions.
           </CardDescription>
         </CardHeader>
@@ -3199,17 +3199,17 @@ function KYCTab() {
           ) : data?.kyc_requests?.length ? (
             <div className="space-y-4">
               {data.kyc_requests.map(kyc => (
-                <div key={kyc.id} className="border border-gray-700 rounded-lg p-4 hover:border-gray-600">
+                <div key={kyc.id} className="border border-border rounded-lg p-4 hover:border-border">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">{kyc.full_name ?? `User #${kyc.user_id}`}</span>
+                        <span className="text-foreground font-medium">{kyc.full_name ?? `User #${kyc.user_id}`}</span>
                         <span className="text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded">{kyc.status}</span>
                       </div>
-                      {kyc.email && <div className="text-sm text-gray-400 font-mono">{kyc.email}</div>}
-                      {kyc.document_type && <div className="text-xs text-gray-500">Document: {kyc.document_type}</div>}
+                      {kyc.email && <div className="text-sm text-muted-foreground font-mono">{kyc.email}</div>}
+                      {kyc.document_type && <div className="text-xs text-muted-foreground">Document: {kyc.document_type}</div>}
                       {kyc.submitted_at && (
-                        <div className="text-xs text-gray-600">
+                        <div className="text-xs text-muted-foreground/60">
                           Submitted: {new Date(kyc.submitted_at).toLocaleString()}
                         </div>
                       )}
@@ -3232,14 +3232,14 @@ function KYCTab() {
                       placeholder="Rejection reason (optional)"
                       value={noteInput[kyc.id] ?? ""}
                       onChange={e => setNoteInput(n => ({ ...n, [kyc.id]: e.target.value }))}
-                      className="h-8 text-xs bg-gray-800 border-gray-600 text-white"
+                      className="h-8 text-xs bg-muted/20 border-border text-foreground"
                     />
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center text-gray-500 py-12">
+            <div className="text-center text-muted-foreground py-12">
               <UserCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p>No pending KYC submissions — all caught up!</p>
             </div>
@@ -3271,24 +3271,24 @@ function AuditTab() {
     <div className="space-y-4">
       <div className="flex gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <Input placeholder="Filter by action…" className="pl-9 bg-gray-800 border-gray-600 text-white"
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Filter by action…" className="pl-9 bg-muted/20 border-border text-foreground"
             value={actionFilter} onChange={e => setActionFilter(e.target.value)} />
         </div>
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <Input placeholder="Filter by actor…" className="pl-9 bg-gray-800 border-gray-600 text-white"
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Filter by actor…" className="pl-9 bg-muted/20 border-border text-foreground"
             value={actorFilter} onChange={e => setActorFilter(e.target.value)} />
         </div>
       </div>
 
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center justify-between">
+          <CardTitle className="text-foreground flex items-center justify-between">
             <span className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-emerald-400" /> Audit Trail
             </span>
-            <span className="text-sm text-gray-500 font-normal">{data?.total ?? 0} entries</span>
+            <span className="text-sm text-muted-foreground font-normal">{data?.total ?? 0} entries</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -3298,7 +3298,7 @@ function AuditTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-700 text-gray-400">
+                  <tr className="border-b border-border text-muted-foreground">
                     <th className="text-left p-3">Timestamp</th>
                     <th className="text-left p-3">Actor</th>
                     <th className="text-left p-3">Action</th>
@@ -3309,21 +3309,21 @@ function AuditTab() {
                 </thead>
                 <tbody>
                   {data?.logs?.map(lg => (
-                    <tr key={lg.id} className="border-b border-gray-800 hover:bg-gray-800/40">
-                      <td className="p-3 text-gray-500 text-xs whitespace-nowrap">
+                    <tr key={lg.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                      <td className="p-3 text-muted-foreground text-xs whitespace-nowrap">
                         {lg.timestamp ? new Date(lg.timestamp).toLocaleString() : "-"}
                       </td>
-                      <td className="p-3 text-gray-300 font-mono text-xs truncate max-w-[140px]">{lg.actor}</td>
+                      <td className="p-3 text-foreground/80 font-mono text-xs truncate max-w-[140px]">{lg.actor}</td>
                       <td className="p-3 text-cyan-400 font-mono text-xs">{lg.action}</td>
-                      <td className="p-3 text-gray-400 text-xs">{lg.resource ?? "-"}</td>
+                      <td className="p-3 text-muted-foreground text-xs">{lg.resource ?? "-"}</td>
                       <td className="p-3"><StatusBadge status={lg.status} /></td>
-                      <td className="p-3 text-gray-500 text-xs truncate max-w-[200px]">
+                      <td className="p-3 text-muted-foreground text-xs truncate max-w-[200px]">
                         {lg.details ? JSON.stringify(lg.details).slice(0, 60) : "-"}
                       </td>
                     </tr>
                   ))}
                   {!data?.logs?.length && (
-                    <tr><td colSpan={6} className="text-center text-gray-500 py-8">No audit entries found</td></tr>
+                    <tr><td colSpan={6} className="text-center text-muted-foreground py-8">No audit entries found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -3418,30 +3418,30 @@ function TasksTab() {
   return (
     <div className="space-y-6">
       {/* Task Creation */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <Plus className="w-5 h-5 text-emerald-400" /> Create New Task
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <Label className="text-gray-300">Task Name</Label>
+              <Label className="text-foreground/80">Task Name</Label>
               <Input
                 value={newTask.name}
                 onChange={e => setNewTask(t => ({ ...t, name: e.target.value }))}
-                className="bg-gray-800 border-gray-600 text-white"
+                className="bg-muted/20 border-border text-foreground"
                 placeholder="e.g. Make Your First Prediction"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-gray-300">Category</Label>
+              <Label className="text-foreground/80">Category</Label>
               <Select value={newTask.category_id} onValueChange={v => setNewTask(t => ({ ...t, category_id: v }))}>
-                <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                <SelectTrigger className="bg-muted/20 border-border text-foreground">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                <SelectContent className="bg-muted/20 border-border text-foreground">
                   {tasksData?.categories?.map((cat: any) => (
                     <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                   ))}
@@ -3449,31 +3449,31 @@ function TasksTab() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-gray-300">XP Reward</Label>
+              <Label className="text-foreground/80">XP Reward</Label>
               <Input
                 type="number"
                 value={newTask.xp_reward}
                 onChange={e => setNewTask(t => ({ ...t, xp_reward: +e.target.value }))}
-                className="bg-gray-800 border-gray-600 text-white"
+                className="bg-muted/20 border-border text-foreground"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-gray-300">VIT Reward</Label>
+              <Label className="text-foreground/80">VIT Reward</Label>
               <Input
                 type="number"
                 step="0.01"
                 value={newTask.vit_reward}
                 onChange={e => setNewTask(t => ({ ...t, vit_reward: +e.target.value }))}
-                className="bg-gray-800 border-gray-600 text-white"
+                className="bg-muted/20 border-border text-foreground"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-gray-300">Trigger Type</Label>
+              <Label className="text-foreground/80">Trigger Type</Label>
               <Select value={newTask.trigger_type} onValueChange={v => setNewTask(t => ({ ...t, trigger_type: v }))}>
-                <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                <SelectTrigger className="bg-muted/20 border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                <SelectContent className="bg-muted/20 border-border text-foreground">
                   <SelectItem value="manual">Manual</SelectItem>
                   <SelectItem value="xp_threshold">XP Threshold</SelectItem>
                   <SelectItem value="prediction_count">Prediction Count</SelectItem>
@@ -3483,12 +3483,12 @@ function TasksTab() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-gray-300">Reset Frequency</Label>
+              <Label className="text-foreground/80">Reset Frequency</Label>
               <Select value={newTask.reset_frequency} onValueChange={v => setNewTask(t => ({ ...t, reset_frequency: v }))}>
-                <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                <SelectTrigger className="bg-muted/20 border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                <SelectContent className="bg-muted/20 border-border text-foreground">
                   <SelectItem value="never">Never</SelectItem>
                   <SelectItem value="daily">Daily</SelectItem>
                   <SelectItem value="weekly">Weekly</SelectItem>
@@ -3498,11 +3498,11 @@ function TasksTab() {
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-gray-300">Description</Label>
+            <Label className="text-foreground/80">Description</Label>
             <Textarea
               value={newTask.description}
               onChange={e => setNewTask(t => ({ ...t, description: e.target.value }))}
-              className="bg-gray-800 border-gray-600 text-white"
+              className="bg-muted/20 border-border text-foreground"
               placeholder="Task description and completion instructions"
               rows={3}
             />
@@ -3513,7 +3513,7 @@ function TasksTab() {
                 checked={newTask.is_active}
                 onCheckedChange={v => setNewTask(t => ({ ...t, is_active: v }))}
               />
-              <Label className="text-gray-300">Active</Label>
+              <Label className="text-foreground/80">Active</Label>
             </div>
             <Button
               className="bg-emerald-500 hover:bg-emerald-400 text-black"
@@ -3528,10 +3528,10 @@ function TasksTab() {
       </Card>
 
       {/* Task Management */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-cyan-400" /> Task Management
               <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
                 {tasksData?.tasks?.length ?? 0} tasks
@@ -3555,7 +3555,7 @@ function TasksTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-700 text-gray-400">
+                  <tr className="border-b border-border text-muted-foreground">
                     <th className="text-left p-3">Task</th>
                     <th className="text-left p-3">Category</th>
                     <th className="text-left p-3">Rewards</th>
@@ -3567,31 +3567,31 @@ function TasksTab() {
                 </thead>
                 <tbody>
                   {tasksData?.tasks?.map((task: any) => (
-                    <tr key={task.id} className="border-b border-gray-800 hover:bg-gray-800/40">
+                    <tr key={task.id} className="border-b border-border/50 hover:bg-muted/20/40">
                       <td className="p-3">
-                        <div className="text-white font-medium">{task.name}</div>
-                        <div className="text-xs text-gray-500 truncate max-w-[200px]">{task.description}</div>
+                        <div className="text-foreground font-medium">{task.name}</div>
+                        <div className="text-xs text-muted-foreground truncate max-w-[200px]">{task.description}</div>
                       </td>
-                      <td className="p-3 text-gray-400 text-xs">
+                      <td className="p-3 text-muted-foreground text-xs">
                         {tasksData.categories?.find((c: any) => c.id === task.category_id)?.name}
                       </td>
                       <td className="p-3 text-xs">
                         <div className="text-cyan-400">{task.xp_reward} XP</div>
                         <div className="text-amber-400">{task.vit_reward} VIT</div>
                       </td>
-                      <td className="p-3 text-xs text-gray-400 capitalize">
+                      <td className="p-3 text-xs text-muted-foreground capitalize">
                         {task.trigger_type.replace("_", " ")}
                       </td>
                       <td className="p-3">
                         <StatusBadge status={task.is_active ? "active" : "disabled"} />
                       </td>
-                      <td className="p-3 text-gray-400 text-xs">
+                      <td className="p-3 text-muted-foreground text-xs">
                         {task.completion_count ?? 0}
                         {task.max_completions && ` / ${task.max_completions}`}
                       </td>
                       <td className="p-3">
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                             onClick={() => setEditingTask(task)}>
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
@@ -3608,7 +3608,7 @@ function TasksTab() {
                     </tr>
                   ))}
                   {!tasksData?.tasks?.length && (
-                    <tr><td colSpan={7} className="text-center text-gray-500 py-8">No tasks found</td></tr>
+                    <tr><td colSpan={7} className="text-center text-muted-foreground py-8">No tasks found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -3618,9 +3618,9 @@ function TasksTab() {
       </Card>
 
       {/* Recent Completions */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-emerald-400" /> Recent Completions
             <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
               {completionsData?.total ?? 0} total
@@ -3631,7 +3631,7 @@ function TasksTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-700 text-gray-400">
+                <tr className="border-b border-border text-muted-foreground">
                   <th className="text-left p-3">User</th>
                   <th className="text-left p-3">Task</th>
                   <th className="text-left p-3">Rewards Earned</th>
@@ -3640,20 +3640,20 @@ function TasksTab() {
               </thead>
               <tbody>
                 {completionsData?.completions?.slice(0, 20).map((comp: any) => (
-                  <tr key={comp.id} className="border-b border-gray-800 hover:bg-gray-800/40">
-                    <td className="p-3 text-gray-300 font-mono text-xs">#{comp.user_id}</td>
-                    <td className="p-3 text-white text-sm">{comp.task_name}</td>
+                  <tr key={comp.id} className="border-b border-border/50 hover:bg-muted/20/40">
+                    <td className="p-3 text-foreground/80 font-mono text-xs">#{comp.user_id}</td>
+                    <td className="p-3 text-foreground text-sm">{comp.task_name}</td>
                     <td className="p-3 text-xs">
                       <div className="text-cyan-400">{comp.xp_earned} XP</div>
                       <div className="text-amber-400">{comp.vit_earned} VIT</div>
                     </td>
-                    <td className="p-3 text-gray-500 text-xs whitespace-nowrap">
+                    <td className="p-3 text-muted-foreground text-xs whitespace-nowrap">
                       {comp.completed_at ? new Date(comp.completed_at).toLocaleString() : "-"}
                     </td>
                   </tr>
                 ))}
                 {!completionsData?.completions?.length && (
-                  <tr><td colSpan={4} className="text-center text-gray-500 py-8">No completions yet</td></tr>
+                  <tr><td colSpan={4} className="text-center text-muted-foreground py-8">No completions yet</td></tr>
                 )}
               </tbody>
             </table>
@@ -3664,7 +3664,7 @@ function TasksTab() {
       {/* Edit Task Dialog */}
       {editingTask && (
         <Dialog open onOpenChange={() => setEditingTask(null)}>
-          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl">
+          <DialogContent className="bg-card border-border text-foreground max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Edit className="w-5 h-5 text-cyan-400" /> Edit Task — {editingTask.name}
@@ -3673,20 +3673,20 @@ function TasksTab() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-gray-300">Task Name</Label>
+                  <Label className="text-foreground/80">Task Name</Label>
                   <Input
                     value={editingTask.name}
                     onChange={e => setEditingTask(t => t && ({ ...t, name: e.target.value } as EditingTask))}
-                    className="bg-gray-800 border-gray-600 text-white"
+                    className="bg-muted/20 border-border text-foreground"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-300">Category</Label>
+                  <Label className="text-foreground/80">Category</Label>
                   <Select value={editingTask.category_id?.toString()} onValueChange={v => setEditingTask(t => t && ({ ...t, category_id: Number(v) } as EditingTask))}>
-                    <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                    <SelectTrigger className="bg-muted/20 border-border text-foreground">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                    <SelectContent className="bg-muted/20 border-border text-foreground">
                       {tasksData?.categories?.map((cat: any) => (
                         <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                       ))}
@@ -3694,31 +3694,31 @@ function TasksTab() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-300">XP Reward</Label>
+                  <Label className="text-foreground/80">XP Reward</Label>
                   <Input
                     type="number"
                     value={editingTask.xp_reward}
                     onChange={e => setEditingTask(t => t && ({ ...t, xp_reward: +e.target.value } as EditingTask))}
-                    className="bg-gray-800 border-gray-600 text-white"
+                    className="bg-muted/20 border-border text-foreground"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-300">VIT Reward</Label>
+                  <Label className="text-foreground/80">VIT Reward</Label>
                   <Input
                     type="number"
                     step="0.01"
                     value={editingTask.vit_reward}
                     onChange={e => setEditingTask(t => t && ({ ...t, vit_reward: +e.target.value } as EditingTask))}
-                    className="bg-gray-800 border-gray-600 text-white"
+                    className="bg-muted/20 border-border text-foreground"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-300">Trigger Type</Label>
+                  <Label className="text-foreground/80">Trigger Type</Label>
                   <Select value={editingTask.trigger_type} onValueChange={v => setEditingTask(t => t && ({ ...t, trigger_type: v } as EditingTask))}>
-                    <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                    <SelectTrigger className="bg-muted/20 border-border text-foreground">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                    <SelectContent className="bg-muted/20 border-border text-foreground">
                       <SelectItem value="manual">Manual</SelectItem>
                       <SelectItem value="xp_threshold">XP Threshold</SelectItem>
                       <SelectItem value="prediction_count">Prediction Count</SelectItem>
@@ -3728,12 +3728,12 @@ function TasksTab() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-gray-300">Reset Frequency</Label>
+                  <Label className="text-foreground/80">Reset Frequency</Label>
                   <Select value={editingTask.reset_frequency} onValueChange={v => setEditingTask(t => t && ({ ...t, reset_frequency: v } as EditingTask))}>
-                    <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                    <SelectTrigger className="bg-muted/20 border-border text-foreground">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                    <SelectContent className="bg-muted/20 border-border text-foreground">
                       <SelectItem value="never">Never</SelectItem>
                       <SelectItem value="daily">Daily</SelectItem>
                       <SelectItem value="weekly">Weekly</SelectItem>
@@ -3743,11 +3743,11 @@ function TasksTab() {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-gray-300">Description</Label>
+                <Label className="text-foreground/80">Description</Label>
                 <Textarea
                   value={editingTask.description}
                   onChange={e => setEditingTask(t => t && ({ ...t, description: e.target.value } as EditingTask))}
-                  className="bg-gray-800 border-gray-600 text-white"
+                  className="bg-muted/20 border-border text-foreground"
                   rows={3}
                 />
               </div>
@@ -3757,7 +3757,7 @@ function TasksTab() {
                     checked={editingTask.is_active}
                     onCheckedChange={v => setEditingTask(t => t && ({ ...t, is_active: v } as EditingTask))}
                   />
-                  <Label className="text-gray-300">Active</Label>
+                  <Label className="text-foreground/80">Active</Label>
                 </div>
                 <Button
                   className="bg-cyan-500 hover:bg-cyan-400 text-black"
@@ -3857,21 +3857,21 @@ export function AISourcesTab() {
   });
 
   if (permsQ.isLoading) {
-    return <Skeleton className="h-64 w-full bg-gray-800" />;
+    return <Skeleton className="h-64 w-full bg-muted/20" />;
   }
 
   if (permsQ.data && !permsQ.data.can_upload) {
     return (
-      <Card className="bg-gray-800 border-gray-700">
-        <CardContent className="p-6 text-center text-gray-300">
+      <Card className="bg-muted/20 border-border">
+        <CardContent className="p-6 text-center text-foreground/80">
           <Lock className="w-10 h-10 mx-auto mb-3 text-amber-400" />
           <h3 className="text-lg font-semibold mb-2">AI Source Uploads Locked</h3>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-foreground">
             Uploading raw Claude / Grok analysis requires an admin account or an
             <span className="text-cyan-400"> analyst, pro, or elite</span> subscription tier.
           </p>
-          <p className="text-xs text-gray-500 mt-2">
-            Current role: <span className="text-white">{permsQ.data.role}</span> · tier: <span className="text-white">{permsQ.data.tier}</span>
+          <p className="text-xs text-muted-foreground mt-2">
+            Current role: <span className="text-foreground">{permsQ.data.role}</span> · tier: <span className="text-foreground">{permsQ.data.tier}</span>
           </p>
         </CardContent>
       </Card>
@@ -3908,9 +3908,9 @@ export function AISourcesTab() {
 
   return (
     <div className="space-y-4">
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-muted/20 border-border">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
+          <CardTitle className="flex items-center gap-2 text-foreground">
             <Brain className="w-5 h-5 text-cyan-400" />
             Upload AI Match Analysis
           </CardTitle>
@@ -3923,20 +3923,20 @@ export function AISourcesTab() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label className="text-gray-300">Match</Label>
+              <Label className="text-foreground/80">Match</Label>
               <Select
                 value={selectedMatchId ? String(selectedMatchId) : ""}
                 onValueChange={v => setSelectedMatchId(parseInt(v, 10))}
               >
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                <SelectTrigger className="bg-card border-border text-foreground">
                   <SelectValue placeholder={matchesQ.isLoading ? "Loading…" : "Select a match"} />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700 text-white max-h-80">
+                <SelectContent className="bg-card border-border text-foreground max-h-80">
                   {matchesQ.isLoading && (
-                    <div className="px-3 py-2 text-sm text-gray-400">Loading matches…</div>
+                    <div className="px-3 py-2 text-sm text-muted-foreground">Loading matches…</div>
                   )}
                   {!matchesQ.isLoading && matches.length === 0 && (
-                    <div className="px-3 py-2 text-sm text-gray-400">
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
                       No upcoming matches found. Sync fixtures first.
                     </div>
                   )}
@@ -3951,7 +3951,7 @@ export function AISourcesTab() {
                             {m.home_team} vs {m.away_team}
                             {m.league ? ` · ${m.league}` : ""}
                           </span>
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-muted-foreground">
                             {dateStr}
                             {m.sources.length > 0 ? ` · covered: ${m.sources.join(", ")}` : ""}
                           </span>
@@ -3966,12 +3966,12 @@ export function AISourcesTab() {
               )}
             </div>
             <div>
-              <Label className="text-gray-300">AI Source</Label>
+              <Label className="text-foreground/80">AI Source</Label>
               <Select value={form.source} onValueChange={v => setForm(f => ({ ...f, source: v }))}>
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white capitalize">
+                <SelectTrigger className="bg-card border-border text-foreground capitalize">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                <SelectContent className="bg-card border-border text-foreground">
                   {(permsQ.data?.allowed_sources ?? AI_SOURCE_OPTIONS).map(s => (
                     <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
                   ))}
@@ -3983,42 +3983,42 @@ export function AISourcesTab() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {(["home_prob", "draw_prob", "away_prob", "confidence"] as const).map(k => (
               <div key={k}>
-                <Label className="text-gray-300 capitalize">{k.replace("_", " ")}</Label>
+                <Label className="text-foreground/80 capitalize">{k.replace("_", " ")}</Label>
                 <Input
                   type="number" step="0.01" min="0" max="1"
                   value={(form as any)[k]}
                   onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
-                  className="bg-gray-900 border-gray-700 text-white"
+                  className="bg-card border-border text-foreground"
                 />
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             Sum of home + draw + away should be ≈ 1.00 (auto-normalised within ±10%).
           </p>
 
           <div>
-            <Label className="text-gray-300">Short reason (one line)</Label>
+            <Label className="text-foreground/80">Short reason (one line)</Label>
             <Input
               value={form.reason}
               onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
               placeholder="e.g. Home side missing 2 starting CBs, away in form"
               maxLength={500}
-              className="bg-gray-900 border-gray-700 text-white"
+              className="bg-card border-border text-foreground"
             />
           </div>
 
           <div>
-            <Label className="text-gray-300">Raw Claude / Grok analysis (full paste)</Label>
+            <Label className="text-foreground/80">Raw Claude / Grok analysis (full paste)</Label>
             <Textarea
               value={form.raw_content}
               onChange={e => setForm(f => ({ ...f, raw_content: e.target.value }))}
               placeholder="Paste the full reasoning text from the AI here…"
               rows={8}
               maxLength={20000}
-              className="bg-gray-900 border-gray-700 text-white font-mono text-xs"
+              className="bg-card border-border text-foreground font-mono text-xs"
             />
-            <p className="text-xs text-gray-500 mt-1">{form.raw_content.length}/20000 chars</p>
+            <p className="text-xs text-muted-foreground mt-1">{form.raw_content.length}/20000 chars</p>
           </div>
 
           <div className="flex justify-end">
@@ -4035,27 +4035,27 @@ export function AISourcesTab() {
       </Card>
 
       {selectedMatchId && (
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-muted/20 border-border">
           <CardHeader>
-            <CardTitle className="text-white text-base">
+            <CardTitle className="text-foreground text-base">
               Existing AI sources for this match
             </CardTitle>
           </CardHeader>
           <CardContent>
             {detailQ.isLoading ? (
-              <Skeleton className="h-24 w-full bg-gray-700" />
+              <Skeleton className="h-24 w-full bg-muted/40" />
             ) : (detailQ.data?.predictions ?? []).length === 0 ? (
-              <p className="text-sm text-gray-400">No AI sources uploaded yet for this match.</p>
+              <p className="text-sm text-muted-foreground">No AI sources uploaded yet for this match.</p>
             ) : (
               <div className="space-y-3">
                 {(detailQ.data?.predictions ?? []).map(p => (
-                  <div key={p.id} className="border border-gray-700 rounded p-3 bg-gray-900/40">
+                  <div key={p.id} className="border border-border rounded p-3 bg-card/40">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-2">
                         <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                           {p.source}
                         </Badge>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-muted-foreground">
                           conf {fmtPct(p.confidence)} · {p.timestamp ? new Date(p.timestamp).toLocaleString() : ""}
                         </span>
                         {p.was_correct === true && (
@@ -4074,20 +4074,20 @@ export function AISourcesTab() {
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs text-gray-300 mb-2">
-                      <div>Home: <span className="text-white">{fmtPct(p.home_prob)}</span></div>
-                      <div>Draw: <span className="text-white">{fmtPct(p.draw_prob)}</span></div>
-                      <div>Away: <span className="text-white">{fmtPct(p.away_prob)}</span></div>
+                    <div className="grid grid-cols-3 gap-2 text-xs text-foreground/80 mb-2">
+                      <div>Home: <span className="text-foreground">{fmtPct(p.home_prob)}</span></div>
+                      <div>Draw: <span className="text-foreground">{fmtPct(p.draw_prob)}</span></div>
+                      <div>Away: <span className="text-foreground">{fmtPct(p.away_prob)}</span></div>
                     </div>
                     {p.reason && (
-                      <p className="text-sm text-gray-200 mb-1">{p.reason}</p>
+                      <p className="text-sm text-foreground/90 mb-1">{p.reason}</p>
                     )}
                     {p.raw_content && (
-                      <details className="text-xs text-gray-400">
+                      <details className="text-xs text-muted-foreground">
                         <summary className="cursor-pointer text-cyan-400 hover:text-cyan-300">
                           View raw analysis ({p.raw_content.length} chars)
                         </summary>
-                        <pre className="whitespace-pre-wrap mt-2 p-2 bg-black/40 rounded border border-gray-700">
+                        <pre className="whitespace-pre-wrap mt-2 p-2 bg-card/60 rounded border border-border">
 {p.raw_content}
                         </pre>
                       </details>
@@ -4215,15 +4215,15 @@ function MLAgentsTab() {
     running:  "bg-blue-500/20 text-blue-300 border-blue-500/30",
     ok:       "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
     error:    "bg-red-500/20 text-red-300 border-red-500/30",
-    idle:     "bg-slate-700/30 text-slate-400 border-slate-600/30",
-    disabled: "bg-slate-800/30 text-slate-500 border-slate-700/30",
+    idle:     "bg-muted/15 text-muted-foreground border-border/30",
+    disabled: "bg-muted/15 text-muted-foreground border-border/30",
   };
   const DOT_STYLES: Record<string, string> = {
     running:  "bg-blue-400 animate-pulse",
     ok:       "bg-emerald-400",
     error:    "bg-red-400 animate-pulse",
-    idle:     "bg-slate-500",
-    disabled: "bg-slate-700",
+    idle:     "bg-muted/50",
+    disabled: "bg-muted/40",
   };
 
   const ML_AGENTS = [
@@ -4235,7 +4235,7 @@ function MLAgentsTab() {
   ];
 
   function renderInsights(key: string, result: Record<string, unknown> | null) {
-    if (!result) return <p className="text-xs text-slate-500 italic">No data yet</p>;
+    if (!result) return <p className="text-xs text-muted-foreground italic">No data yet</p>;
 
     if (key === "performance-monitor") {
       const flagged = (result.flagged_models as string[] | undefined) ?? [];
@@ -4243,11 +4243,11 @@ function MLAgentsTab() {
       return (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Checked:</span>
-            <span className="text-xs font-bold text-white">{checked}</span>
+            <span className="text-xs text-muted-foreground">Checked:</span>
+            <span className="text-xs font-bold text-foreground">{checked}</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-400">Flagged:</span>
+            <span className="text-xs text-muted-foreground">Flagged:</span>
             {flagged.length === 0
               ? <span className="text-xs text-emerald-400 font-medium">None — all nominal</span>
               : flagged.map(m => <span key={m} className="text-xs bg-red-500/20 text-red-300 border border-red-500/30 px-1.5 py-0.5 rounded">{m}</span>)
@@ -4273,10 +4273,10 @@ function MLAgentsTab() {
           )}
           {triggered.length > 0
             ? <p className="text-xs text-cyan-300 font-medium">Triggered: {triggered.join(", ")}</p>
-            : <p className="text-xs text-slate-500">No retrains triggered this cycle</p>
+            : <p className="text-xs text-muted-foreground">No retrains triggered this cycle</p>
           }
           {recent.slice(-2).map((e, i) => (
-            <div key={i} className="flex items-center gap-1 text-xs text-slate-400">
+            <div key={i} className="flex items-center gap-1 text-xs text-muted-foreground">
               <span className="text-cyan-500">↻</span>
               <span>{e.model}</span>
               {e.job_id && (
@@ -4297,12 +4297,12 @@ function MLAgentsTab() {
       return (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Production:</span>
+            <span className="text-xs text-muted-foreground">Production:</span>
             <span className="text-xs font-mono text-amber-300">{prod ? prod.slice(0, 8) : "none"}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">Promoted: <span className="text-emerald-300 font-bold">{result.promoted as number ?? 0}</span></span>
-            <span className="text-xs text-slate-400">Skipped: <span className="text-slate-300 font-bold">{result.skipped as number ?? 0}</span></span>
+            <span className="text-xs text-muted-foreground">Promoted: <span className="text-emerald-300 font-bold">{result.promoted as number ?? 0}</span></span>
+            <span className="text-xs text-muted-foreground">Skipped: <span className="text-foreground/80 font-bold">{result.skipped as number ?? 0}</span></span>
           </div>
           {promotionLog.slice(-1).map((p, i) => (
             <p key={i} className="text-xs text-emerald-400">
@@ -4319,7 +4319,7 @@ function MLAgentsTab() {
       return (
         <div className="space-y-1">
           {tempFit && (
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-muted-foreground">
               Temperature:{" "}
               <span className="text-purple-300 font-mono">
                 {tempFit.fitted ? `${(tempFit.temperature ?? 0).toFixed(4)} (n=${tempFit.n_samples})` : (tempFit.reason ?? "not fitted")}
@@ -4328,8 +4328,8 @@ function MLAgentsTab() {
           )}
           {weightUpdate && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400">Models updated:</span>
-              <span className="text-white font-bold">{weightUpdate.models_updated ?? 0}</span>
+              <span className="text-muted-foreground">Models updated:</span>
+              <span className="text-foreground font-bold">{weightUpdate.models_updated ?? 0}</span>
               {(weightUpdate.needs_review?.length ?? 0) > 0 && (
                 <span className="text-amber-300">({weightUpdate.needs_review!.length} review)</span>
               )}
@@ -4345,8 +4345,8 @@ function MLAgentsTab() {
       return (
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">Issues: <span className={`font-bold ${issues.length > 0 ? "text-red-300" : "text-emerald-300"}`}>{issues.length}</span></span>
-            <span className="text-xs text-slate-400">Actions: <span className="text-white font-bold">{actions.length}</span></span>
+            <span className="text-xs text-muted-foreground">Issues: <span className={`font-bold ${issues.length > 0 ? "text-red-300" : "text-emerald-300"}`}>{issues.length}</span></span>
+            <span className="text-xs text-muted-foreground">Actions: <span className="text-foreground font-bold">{actions.length}</span></span>
           </div>
           {issues.length > 0
             ? issues.slice(0, 2).map((iss, i) => <p key={i} className="text-xs text-red-300 leading-snug">{iss}</p>)
@@ -4365,11 +4365,11 @@ function MLAgentsTab() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
             <Bot className="w-5 h-5 text-purple-400" />
             ML Autonomous Agent Pipeline
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             {ML_AGENTS.length} agents govern training decisions end-to-end — monitor decisions, tune thresholds, or intervene manually
           </p>
         </div>
@@ -4377,7 +4377,7 @@ function MLAgentsTab() {
           size="sm"
           onClick={emergencyRetrain}
           disabled={triggering === "emergency"}
-          className="bg-red-600 hover:bg-red-500 text-white border-0 shrink-0 h-8 text-xs"
+          className="bg-red-600 hover:bg-red-500 text-foreground border-0 shrink-0 h-8 text-xs"
         >
           {triggering === "emergency"
             ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Starting…</>
@@ -4393,72 +4393,72 @@ function MLAgentsTab() {
 
       {/* Threshold Config */}
       {cfg && (
-        <Card className="bg-slate-900/60 border-slate-700/50">
+        <Card className="bg-card/60 border-border/50">
           <CardHeader className="pb-2 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-              <Settings className="w-4 h-4 text-slate-400" />
+            <CardTitle className="text-sm font-semibold text-foreground/90 flex items-center gap-2">
+              <Settings className="w-4 h-4 text-muted-foreground" />
               Agent Decision Thresholds
-              <span className="ml-auto text-xs font-normal text-slate-500">hot-reloaded on next agent cycle</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">hot-reloaded on next agent cycle</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="px-5 pb-5 space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="space-y-1">
-                <Label className="text-xs text-slate-400">Accuracy Floor</Label>
+                <Label className="text-xs text-muted-foreground">Accuracy Floor</Label>
                 <Input
                   type="number" step="0.01" min="0" max="1"
                   value={cfg.accuracy_floor}
                   onChange={e => setCfg(c => c ? { ...c, accuracy_floor: parseFloat(e.target.value) } : c)}
-                  className="h-8 text-xs bg-slate-800 border-slate-600 text-white"
+                  className="h-8 text-xs bg-muted/20 border-border text-foreground"
                 />
-                <p className="text-xs text-slate-500">Below this = flagged</p>
+                <p className="text-xs text-muted-foreground">Below this = flagged</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-slate-400">Cooldown (hours)</Label>
+                <Label className="text-xs text-muted-foreground">Cooldown (hours)</Label>
                 <Input
                   type="number" step="1" min="1"
                   value={cfg.retrain_cooldown_hours}
                   onChange={e => setCfg(c => c ? { ...c, retrain_cooldown_hours: parseInt(e.target.value) } : c)}
-                  className="h-8 text-xs bg-slate-800 border-slate-600 text-white"
+                  className="h-8 text-xs bg-muted/20 border-border text-foreground"
                 />
-                <p className="text-xs text-slate-500">Min gap between retrains</p>
+                <p className="text-xs text-muted-foreground">Min gap between retrains</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-slate-400">Min Flag Cycles</Label>
+                <Label className="text-xs text-muted-foreground">Min Flag Cycles</Label>
                 <Input
                   type="number" step="1" min="1"
                   value={cfg.min_flag_cycles}
                   onChange={e => setCfg(c => c ? { ...c, min_flag_cycles: parseInt(e.target.value) } : c)}
-                  className="h-8 text-xs bg-slate-800 border-slate-600 text-white"
+                  className="h-8 text-xs bg-muted/20 border-border text-foreground"
                 />
-                <p className="text-xs text-slate-500">Consecutive flags to retrain</p>
+                <p className="text-xs text-muted-foreground">Consecutive flags to retrain</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-slate-400">Auto-Promote Δ</Label>
+                <Label className="text-xs text-muted-foreground">Auto-Promote Δ</Label>
                 <div className="relative">
                   <Input
                     type="number" step="0.1" min="0"
                     value={parseFloat((cfg.auto_promote_threshold * 100).toFixed(2))}
                     onChange={e => setCfg(c => c ? { ...c, auto_promote_threshold: parseFloat(e.target.value) / 100 } : c)}
-                    className="h-8 text-xs bg-slate-800 border-slate-600 text-white pr-6"
+                    className="h-8 text-xs bg-muted/20 border-border text-foreground pr-6"
                   />
-                  <span className="absolute right-2.5 top-2 text-xs text-slate-500">%</span>
+                  <span className="absolute right-2.5 top-2 text-xs text-muted-foreground">%</span>
                 </div>
-                <p className="text-xs text-slate-500">Acc. gain needed to promote</p>
+                <p className="text-xs text-muted-foreground">Acc. gain needed to promote</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-6">
               <div className="flex items-center gap-2">
                 <Switch checked={cfg.auto_retrain_enabled} onCheckedChange={v => setCfg(c => c ? { ...c, auto_retrain_enabled: v } : c)} />
-                <Label className="text-xs text-slate-300">Auto-Retrain</Label>
-                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg.auto_retrain_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-slate-700/30 text-slate-500 border-slate-600/30"}`}>
+                <Label className="text-xs text-foreground/80">Auto-Retrain</Label>
+                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg.auto_retrain_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-muted/15 text-muted-foreground border-border/30"}`}>
                   {cfg.auto_retrain_enabled ? "ON" : "OFF"}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Switch checked={cfg.auto_promote_enabled} onCheckedChange={v => setCfg(c => c ? { ...c, auto_promote_enabled: v } : c)} />
-                <Label className="text-xs text-slate-300">Auto-Promote</Label>
-                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg.auto_promote_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-slate-700/30 text-slate-500 border-slate-600/30"}`}>
+                <Label className="text-xs text-foreground/80">Auto-Promote</Label>
+                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg.auto_promote_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-muted/15 text-muted-foreground border-border/30"}`}>
                   {cfg.auto_promote_enabled ? "ON" : "OFF"}
                 </span>
               </div>
@@ -4466,7 +4466,7 @@ function MLAgentsTab() {
                 size="sm"
                 onClick={saveConfig}
                 disabled={saving}
-                className="ml-auto bg-purple-600 hover:bg-purple-500 text-white border-0 h-8 text-xs"
+                className="ml-auto bg-purple-600 hover:bg-purple-500 text-foreground border-0 h-8 text-xs"
               >
                 {saving
                   ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Saving…</>
@@ -4481,7 +4481,7 @@ function MLAgentsTab() {
       {/* Agent Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[0, 1, 2, 3, 4].map(i => <Card key={i} className="h-48 bg-slate-900/60 border-slate-700/50 animate-pulse" />)}
+          {[0, 1, 2, 3, 4].map(i => <Card key={i} className="h-48 bg-card/60 border-border/50 animate-pulse" />)}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -4492,12 +4492,12 @@ function MLAgentsTab() {
             const dotCls    = DOT_STYLES[statusStr]    ?? DOT_STYLES.idle;
 
             return (
-              <Card key={key} className="bg-slate-900/60 border-slate-700/50 hover:border-slate-600/50 transition-colors">
+              <Card key={key} className="bg-card/60 border-border/50 hover:border-border/50 transition-colors">
                 <CardHeader className="pb-2 pt-4 px-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${dotCls}`} />
-                      <span className="text-sm font-semibold text-white truncate">{label}</span>
+                      <span className="text-sm font-semibold text-foreground truncate">{label}</span>
                     </div>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full border font-medium shrink-0 ${statCls}`}>
                       {statusStr}
@@ -4505,33 +4505,33 @@ function MLAgentsTab() {
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {icon}
-                    <span className="text-xs text-slate-500">every {period}</span>
-                    <span className="text-xs text-slate-600 ml-auto">{relML(snap?.last_run_at ?? null)}</span>
+                    <span className="text-xs text-muted-foreground">every {period}</span>
+                    <span className="text-xs text-muted-foreground/60 ml-auto">{relML(snap?.last_run_at ?? null)}</span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5 leading-snug">{description}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{description}</p>
                 </CardHeader>
 
                 <CardContent className="px-4 pb-4 space-y-3">
                   {/* Stats strip */}
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-slate-800/50 rounded-lg p-1.5">
-                      <div className="text-sm font-bold text-white">{snap?.run_count ?? 0}</div>
-                      <div className="text-xs text-slate-500">Runs</div>
+                    <div className="bg-muted/20 rounded-lg p-1.5">
+                      <div className="text-sm font-bold text-foreground">{snap?.run_count ?? 0}</div>
+                      <div className="text-xs text-muted-foreground">Runs</div>
                     </div>
-                    <div className="bg-slate-800/50 rounded-lg p-1.5">
-                      <div className={`text-sm font-bold ${(snap?.error_count ?? 0) > 0 ? "text-red-400" : "text-white"}`}>
+                    <div className="bg-muted/20 rounded-lg p-1.5">
+                      <div className={`text-sm font-bold ${(snap?.error_count ?? 0) > 0 ? "text-red-400" : "text-foreground"}`}>
                         {snap?.error_count ?? 0}
                       </div>
-                      <div className="text-xs text-slate-500">Errors</div>
+                      <div className="text-xs text-muted-foreground">Errors</div>
                     </div>
-                    <div className="bg-slate-800/50 rounded-lg p-1.5">
+                    <div className="bg-muted/20 rounded-lg p-1.5">
                       <div className="text-sm font-bold text-cyan-400">
                         {snap?.next_run_at ? (() => {
                           const d = (new Date(snap.next_run_at).getTime() - Date.now()) / 1000;
                           return d <= 0 ? "now" : d < 60 ? `${Math.round(d)}s` : d < 3600 ? `${Math.round(d / 60)}m` : `${Math.round(d / 3600)}h`;
                         })() : "—"}
                       </div>
-                      <div className="text-xs text-slate-500">Next</div>
+                      <div className="text-xs text-muted-foreground">Next</div>
                     </div>
                   </div>
 
@@ -4553,7 +4553,7 @@ function MLAgentsTab() {
                     variant="outline"
                     onClick={() => triggerAgent(key)}
                     disabled={triggering === key}
-                    className="w-full border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white text-xs h-7"
+                    className="w-full border-border text-foreground/80 hover:bg-muted/40 hover:text-foreground text-xs h-7"
                   >
                     {triggering === key
                       ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Triggering…</>
@@ -4568,9 +4568,9 @@ function MLAgentsTab() {
       )}
 
       {/* Pipeline flow diagram — static visual */}
-      <Card className="bg-slate-900/40 border-slate-700/40">
+      <Card className="bg-card/40 border-border/40">
         <CardContent className="px-5 py-4">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Autonomous Decision Flow</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Autonomous Decision Flow</p>
           <div className="flex items-center gap-1 flex-wrap text-xs">
             {[
               { label: "Performance Monitor",  color: "bg-violet-500/20 text-violet-300 border-violet-500/30",  note: "30m · flags drift" },
@@ -4580,7 +4580,7 @@ function MLAgentsTab() {
               { label: "Self-Healing",          color: "bg-rose-500/20 text-rose-300 border-rose-500/30",        note: "5m · watchdog" },
             ].map((step, i) => (
               <div key={i} className="flex items-center gap-1">
-                {i > 0 && <span className="text-slate-600">→</span>}
+                {i > 0 && <span className="text-muted-foreground/60">→</span>}
                 <div className={`flex flex-col items-center border rounded px-2 py-1 ${step.color}`}>
                   <span className="font-semibold">{step.label}</span>
                   <span className="text-xs opacity-70">{step.note}</span>
@@ -4616,17 +4616,17 @@ function AdminHealthPills() {
       {pills.map(p => (
         <div key={p.label} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${
           p.ok === null
-            ? "bg-gray-700/50 border-gray-600 text-gray-400"
+            ? "bg-muted/40/50 border-border text-muted-foreground"
             : p.ok
               ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
               : p.optional
-                ? "bg-gray-700/50 border-gray-600 text-gray-500"
+                ? "bg-muted/40/50 border-border text-muted-foreground"
                 : "bg-red-500/10 border-red-500/30 text-red-300"
         }`}>
           <span className={`w-1.5 h-1.5 rounded-full ${
-            p.ok === null ? "bg-gray-500" :
+            p.ok === null ? "bg-muted/60" :
             p.ok ? "bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" :
-            p.optional ? "bg-gray-500" : "bg-red-400 animate-pulse"
+            p.optional ? "bg-muted/60" : "bg-red-400 animate-pulse"
           }`} />
           {p.label}
         </div>
@@ -4698,10 +4698,10 @@ export default function AdminPage() {
 
   const groupColor: Record<string, string> = {
     OVERVIEW:     "data-[state=active]:bg-cyan-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(6,182,212,0.4)]",
-    INTELLIGENCE: "data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_12px_rgba(168,85,247,0.4)]",
+    INTELLIGENCE: "data-[state=active]:bg-purple-500 data-[state=active]:text-foreground data-[state=active]:shadow-[0_0_12px_rgba(168,85,247,0.4)]",
     OPERATIONS:   "data-[state=active]:bg-emerald-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(52,211,153,0.4)]",
     FINANCE:      "data-[state=active]:bg-amber-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(245,158,11,0.4)]",
-    SYSTEM:       "data-[state=active]:bg-rose-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_12px_rgba(244,63,94,0.4)]",
+    SYSTEM:       "data-[state=active]:bg-rose-500 data-[state=active]:text-foreground data-[state=active]:shadow-[0_0_12px_rgba(244,63,94,0.4)]",
   };
 
   const activeGroup = tabGroups.find(g => g.tabs.some(t => t.value === activeTab));
@@ -4710,7 +4710,7 @@ export default function AdminPage() {
     <div className="w-full">
 
       {/* ── Command Header ─────────────────────────────────────────── */}
-      <div className="relative border-b border-gray-800 bg-gray-950">
+      <div className="relative border-b border-border/50 bg-background">
         {/* Gradient accent line */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent" />
 
@@ -4719,15 +4719,15 @@ export default function AdminPage() {
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="absolute inset-0 rounded-lg bg-cyan-500/20 blur-sm" />
-              <div className="relative w-9 h-9 rounded-lg border border-cyan-500/40 bg-gray-900 flex items-center justify-center">
+              <div className="relative w-9 h-9 rounded-lg border border-cyan-500/40 bg-card flex items-center justify-center">
                 <Shield className="w-5 h-5 text-cyan-400" />
               </div>
             </div>
             <div>
-              <div className="font-bold text-white text-base leading-tight tracking-wide">
+              <div className="font-bold text-foreground text-base leading-tight tracking-wide">
                 ADMIN <span className="text-cyan-400">CONTROL CENTER</span>
               </div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Sports Intelligence Network</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest">VIT Sports Intelligence Network</div>
             </div>
           </div>
 
@@ -4737,7 +4737,7 @@ export default function AdminPage() {
           {/* Right: user */}
           <div className="flex items-center gap-2.5 shrink-0">
             <div className="text-right hidden sm:block">
-              <div className="text-sm text-white font-medium leading-tight">{user.username}</div>
+              <div className="text-sm text-foreground font-medium leading-tight">{user.username}</div>
               <div className={`text-[10px] font-semibold tracking-wide uppercase ${isSuperAdmin ? "text-amber-400" : "text-cyan-400"}`}>
                 {adminRoleLabel[user.admin_role ?? "admin"] ?? "Admin"}
               </div>
@@ -4773,7 +4773,7 @@ export default function AdminPage() {
             <TabsList className="h-auto flex flex-wrap gap-x-1 gap-y-1.5 bg-transparent p-0 justify-start border-0 rounded-none">
               {tabGroups.map((group, gi) => (
                 <div key={group.label} className="flex items-center gap-1">
-                  {gi > 0 && <div className="w-px h-5 bg-gray-700 mx-1 hidden sm:block" />}
+                  {gi > 0 && <div className="w-px h-5 bg-muted/40 mx-1 hidden sm:block" />}
                   <div className="flex items-center gap-0.5">
                     {/* Group label — only on desktop */}
                     <span className={`hidden lg:block text-[9px] font-bold tracking-widest uppercase px-1 ${group.color} opacity-70`}>
@@ -4783,10 +4783,10 @@ export default function AdminPage() {
                       <TabsTrigger
                         key={tab.value}
                         value={tab.value}
-                        className={`${groupColor[group.label]} flex items-center gap-1.5 text-gray-400 hover:text-white
+                        className={`${groupColor[group.label]} flex items-center gap-1.5 text-muted-foreground hover:text-foreground
                           px-3 py-1.5 rounded-md transition-all text-xs font-medium
                           data-[state=inactive]:bg-transparent data-[state=inactive]:border data-[state=inactive]:border-transparent
-                          data-[state=inactive]:hover:bg-gray-800/60 data-[state=inactive]:hover:border-gray-700`}
+                          data-[state=inactive]:hover:bg-muted/20/60 data-[state=inactive]:hover:border-border`}
                       >
                         <tab.icon className="w-3.5 h-3.5 shrink-0" />
                         <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
@@ -4878,31 +4878,31 @@ function CalibrationTab() {
   return (
     <div className="space-y-4">
       {/* ── Ensemble Calibration ──────────────────────────────────────── */}
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-muted/20 border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
+          <CardTitle className="text-foreground flex items-center gap-2">
             <Cpu className="w-4 h-4 text-cyan-400" />
             Ensemble Calibration
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="text-sm text-gray-300">
+            <div className="text-sm text-foreground/80">
               Current temperature:{" "}
               <span className="font-mono text-cyan-400">{Number(T).toFixed(3)}</span>
-              <span className="ml-2 text-xs text-gray-500">
+              <span className="ml-2 text-xs text-muted-foreground">
                 (T&gt;1 softens overconfident probabilities)
               </span>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <label className="text-xs text-gray-400">Window</label>
+              <label className="text-xs text-muted-foreground">Window</label>
               <input
                 type="number"
                 min={10}
                 max={500}
                 value={rollingWindow}
                 onChange={(e) => setRollingWindow(Math.max(10, Math.min(500, Number(e.target.value) || 50)))}
-                className="w-20 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white"
+                className="w-20 bg-card border border-border rounded px-2 py-1 text-sm text-foreground"
               />
               <Button onClick={refit} disabled={busy} size="sm">
                 {busy ? "Re-fitting…" : "Re-fit Temperature"}
@@ -4911,19 +4911,19 @@ function CalibrationTab() {
           </div>
 
           {reportQ.isLoading ? (
-            <div className="text-gray-400 text-sm">Loading rolling-window report…</div>
+            <div className="text-muted-foreground text-sm">Loading rolling-window report…</div>
           ) : models.length === 0 ? (
-            <div className="rounded border border-gray-700 bg-gray-900/60 p-4 text-sm space-y-2">
-              <div className="text-gray-300 font-medium flex items-center gap-2">
+            <div className="rounded border border-border bg-card/60 p-4 text-sm space-y-2">
+              <div className="text-foreground/80 font-medium flex items-center gap-2">
                 <Activity className="w-4 h-4 text-cyan-400" />
                 No settled predictions in the rolling window yet
               </div>
-              <div className="text-gray-500 text-xs leading-relaxed">
-                This table is computed from <span className="text-gray-300">AIPredictionAudit</span> records
+              <div className="text-muted-foreground text-xs leading-relaxed">
+                This table is computed from <span className="text-foreground/80">AIPredictionAudit</span> records
                 joined to matches with a known final result. It will populate once matches settle and the
                 ensemble has generated audit-logged predictions for them.
               </div>
-              <div className="text-gray-500 text-xs">
+              <div className="text-muted-foreground text-xs">
                 In the meantime, the <span className="text-amber-400 font-mono">Accountability</span> tab
                 shows per-model bootstrapped metrics as a baseline.
               </div>
@@ -4932,7 +4932,7 @@ function CalibrationTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-400 border-b border-gray-700">
+                  <tr className="text-left text-muted-foreground border-b border-border">
                     <th className="py-2 px-2">Model</th>
                     <th className="py-2 px-2 text-right">Samples</th>
                     <th className="py-2 px-2 text-right">Accuracy</th>
@@ -4942,25 +4942,25 @@ function CalibrationTab() {
                 </thead>
                 <tbody>
                   {models.map((m, i) => (
-                    <tr key={m.model_key} className="border-b border-gray-800/50">
+                    <tr key={m.model_key} className="border-b border-border/50/50">
                       <td className="py-2 px-2 font-mono text-cyan-300">
                         {i + 1}. {m.model_key}
                       </td>
-                      <td className="py-2 px-2 text-right text-gray-300">{m.samples}</td>
-                      <td className="py-2 px-2 text-right text-gray-200">
+                      <td className="py-2 px-2 text-right text-foreground/80">{m.samples}</td>
+                      <td className="py-2 px-2 text-right text-foreground/90">
                         {(m.accuracy_1x2 * 100).toFixed(1)}%
                       </td>
                       <td className="py-2 px-2 text-right font-mono text-yellow-400">
                         {Number(m.log_loss).toFixed(4)}
                       </td>
-                      <td className="py-2 px-2 text-right font-mono text-gray-300">
+                      <td className="py-2 px-2 text-right font-mono text-foreground/80">
                         {Number(m.brier).toFixed(4)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div className="text-xs text-gray-500 mt-3">
+              <div className="text-xs text-muted-foreground mt-3">
                 Models sorted best → worst by log-loss (a strictly proper score). Lower is better.
               </div>
             </div>
@@ -4969,10 +4969,10 @@ function CalibrationTab() {
       </Card>
 
       {/* ── AI Provider Activity ──────────────────────────────────────── */}
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-muted/20 border-border">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
               <Brain className="w-4 h-4 text-purple-400" />
               AI Source Performance
             </CardTitle>
@@ -4980,7 +4980,7 @@ function CalibrationTab() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-gray-600 text-gray-400 hover:text-white"
+                className="border-border text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   providerStatsQ.refetch();
                   qc.invalidateQueries({ queryKey: ["ai-provider-stats"] });
@@ -4991,7 +4991,7 @@ function CalibrationTab() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-purple-500/50 text-purple-300 hover:text-white hover:bg-purple-950/50"
+                className="border-purple-500/50 text-purple-300 hover:text-foreground hover:bg-purple-950/50"
                 disabled={updatePerfMutation.isPending}
                 title="Recompute accuracy from settled match outcomes (requires settled AIPrediction rows)"
                 onClick={() => updatePerfMutation.mutate(undefined, {
@@ -5006,19 +5006,19 @@ function CalibrationTab() {
               </Button>
             </div>
           </div>
-          <CardDescription className="text-gray-500 text-xs mt-1">
+          <CardDescription className="text-muted-foreground text-xs mt-1">
             Activity across Gemini, Claude, OpenAI, and Grok derived from agent insight calls.
             "Accuracy" column populates only after matches settle and <span className="font-mono">Update Performance</span> is run.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {providerStatsQ.isLoading ? (
-            <div className="text-gray-400 text-sm">Loading provider stats…</div>
+            <div className="text-muted-foreground text-sm">Loading provider stats…</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-400 border-b border-gray-700">
+                  <tr className="text-left text-muted-foreground border-b border-border">
                     <th className="py-2 px-2">Provider</th>
                     <th className="py-2 px-2 text-right">Total calls</th>
                     <th className="py-2 px-2 text-right">Agent insights</th>
@@ -5029,28 +5029,28 @@ function CalibrationTab() {
                 </thead>
                 <tbody>
                   {providers.map((p: any) => (
-                    <tr key={p.provider} className={`border-b border-gray-800/50 ${!p.has_data ? "opacity-40" : ""}`}>
+                    <tr key={p.provider} className={`border-b border-border/50/50 ${!p.has_data ? "opacity-40" : ""}`}>
                       <td className="py-2 px-2">
                         <div className="flex items-center gap-2">
-                          <span className={`w-1.5 h-1.5 rounded-full ${p.has_data ? "bg-emerald-400" : "bg-gray-600"}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${p.has_data ? "bg-emerald-400" : "bg-muted/40"}`} />
                           <span className="font-mono text-purple-300 capitalize">{p.provider}</span>
                         </div>
                       </td>
-                      <td className="py-2 px-2 text-right font-mono text-gray-200">
+                      <td className="py-2 px-2 text-right font-mono text-foreground/90">
                         {p.total_calls > 0 ? p.total_calls.toLocaleString() : "—"}
                       </td>
-                      <td className="py-2 px-2 text-right text-gray-400">
+                      <td className="py-2 px-2 text-right text-muted-foreground">
                         {p.insight_count > 0 ? p.insight_count.toLocaleString() : "—"}
                       </td>
                       <td className="py-2 px-2 text-right font-mono text-blue-400">
                         {p.avg_confidence != null ? `${(p.avg_confidence * 100).toFixed(1)}%` : "—"}
                       </td>
-                      <td className="py-2 px-2 text-right text-gray-200">
+                      <td className="py-2 px-2 text-right text-foreground/90">
                         {p.accuracy != null
                           ? `${(p.accuracy * 100).toFixed(1)}%`
-                          : <span className="text-gray-600 text-xs">awaiting settlements</span>}
+                          : <span className="text-muted-foreground/60 text-xs">awaiting settlements</span>}
                       </td>
-                      <td className="py-2 px-2 text-right text-gray-400 text-xs">
+                      <td className="py-2 px-2 text-right text-muted-foreground text-xs">
                         {p.last_active ? new Date(p.last_active).toLocaleDateString() : "—"}
                       </td>
                     </tr>
@@ -5058,7 +5058,7 @@ function CalibrationTab() {
                 </tbody>
               </table>
               {activeProviders.length === 0 && (
-                <div className="text-center text-gray-500 text-xs py-3 border-t border-gray-800 mt-2">
+                <div className="text-center text-muted-foreground text-xs py-3 border-t border-border/50 mt-2">
                   No agent calls recorded yet — providers will appear here once agents generate insights.
                 </div>
               )}

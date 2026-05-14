@@ -127,23 +127,23 @@ export default function SecurityPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <ShieldAlert className="w-6 h-6 text-red-400" />
           Security Layer
         </h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <p className="text-muted-foreground text-sm mt-1">
           Anti-Sybil detection, fraud alerts, multi-signature operations, wallet freeze
         </p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {stats.map((s) => (
-          <Card key={s.label} className={`bg-slate-800/50 border ${s.urgent ? "border-red-500/40" : "border-slate-700"}`}>
+          <Card key={s.label} className={`bg-muted/20 border ${s.urgent ? "border-red-500/40" : "border-border"}`}>
             <CardContent className="p-4 flex items-center gap-3">
               <s.icon className={`w-8 h-8 ${s.color}`} />
               <div>
-                <div className={`text-2xl font-bold ${s.urgent ? "text-red-400" : "text-white"}`}>{s.value}</div>
-                <div className="text-xs text-slate-400">{s.label}</div>
+                <div className={`text-2xl font-bold ${s.urgent ? "text-red-400" : "text-foreground"}`}>{s.value}</div>
+                <div className="text-xs text-muted-foreground">{s.label}</div>
               </div>
             </CardContent>
           </Card>
@@ -151,7 +151,7 @@ export default function SecurityPage() {
       </div>
 
       <Tabs defaultValue="sybil">
-        <TabsList className="bg-slate-800 border border-slate-700">
+        <TabsList className="bg-muted/20 border border-border">
           <TabsTrigger value="sybil">Anti-Sybil</TabsTrigger>
           <TabsTrigger value="multisig">Multi-Sig</TabsTrigger>
           <TabsTrigger value="freeze">Wallet Freeze</TabsTrigger>
@@ -159,60 +159,60 @@ export default function SecurityPage() {
 
         <TabsContent value="sybil" className="mt-4">
           <div className="grid md:grid-cols-2 gap-6">
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-muted/20 border-border">
               <CardHeader>
-                <CardTitle className="text-white text-base flex items-center gap-2">
+                <CardTitle className="text-foreground text-base flex items-center gap-2">
                   <Fingerprint className="w-4 h-4 text-orange-400" />
                   Sybil Risk Evaluation
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <Label className="text-slate-300">User ID</Label>
+                  <Label className="text-foreground/80">User ID</Label>
                   <Input value={sybilUserId} onChange={(e) => setSybilUserId(e.target.value)}
-                    placeholder="123" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                    placeholder="123" className="bg-card border-border text-foreground mt-1" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-slate-300 text-xs">Prediction Velocity</Label>
+                    <Label className="text-foreground/80 text-xs">Prediction Velocity</Label>
                     <Input value={sybilPredVel} onChange={(e) => setSybilPredVel(e.target.value)}
-                      placeholder="0–50+" className="bg-slate-900 border-slate-600 text-white mt-1 text-sm" />
+                      placeholder="0–50+" className="bg-card border-border text-foreground mt-1 text-sm" />
                   </div>
                   <div>
-                    <Label className="text-slate-300 text-xs">Stake Velocity</Label>
+                    <Label className="text-foreground/80 text-xs">Stake Velocity</Label>
                     <Input value={sybilStakeVel} onChange={(e) => setSybilStakeVel(e.target.value)}
-                      placeholder="0–20+" className="bg-slate-900 border-slate-600 text-white mt-1 text-sm" />
+                      placeholder="0–20+" className="bg-card border-border text-foreground mt-1 text-sm" />
                   </div>
                 </div>
                 <div>
-                  <Label className="text-slate-300">Account Age (days)</Label>
+                  <Label className="text-foreground/80">Account Age (days)</Label>
                   <Input value={sybilAge} onChange={(e) => setSybilAge(e.target.value)}
-                    placeholder="0–365" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                    placeholder="0–365" className="bg-card border-border text-foreground mt-1" />
                 </div>
                 <Button onClick={runSybilEval} disabled={sybilMutation.isPending || !sybilUserId}
-                  className="bg-orange-700 hover:bg-orange-600 text-white w-full">
+                  className="bg-orange-700 hover:bg-orange-600 text-foreground w-full">
                   {sybilMutation.isPending ? "Evaluating…" : "Evaluate Risk"}
                 </Button>
               </CardContent>
             </Card>
 
             {sybilResult && (
-              <Card className={`border ${RISK_COLORS[sybilResult.risk_level] ?? ""} bg-slate-800/50`}>
+              <Card className={`border ${RISK_COLORS[sybilResult.risk_level] ?? ""} bg-muted/20`}>
                 <CardHeader>
-                  <CardTitle className="text-white text-base">Evaluation Result</CardTitle>
+                  <CardTitle className="text-foreground text-base">Evaluation Result</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-300">Risk Level</span>
+                    <span className="text-foreground/80">Risk Level</span>
                     <Badge className={`${RISK_COLORS[sybilResult.risk_level]} border capitalize`}>
                       {sybilResult.risk_level}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-300">Anomaly Score</span>
-                    <span className="text-white font-bold">{(sybilResult.anomaly_score * 100).toFixed(1)}%</span>
+                    <span className="text-foreground/80">Anomaly Score</span>
+                    <span className="text-foreground font-bold">{(sybilResult.anomaly_score * 100).toFixed(1)}%</span>
                   </div>
-                  <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="w-full bg-muted/40 rounded-full h-2">
                     <div className="h-2 rounded-full bg-orange-500" style={{ width: `${sybilResult.anomaly_score * 100}%` }} />
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -222,9 +222,9 @@ export default function SecurityPage() {
                       ["Device FPs", String(sybilResult.device_fingerprints)],
                       ["Referral Cluster", sybilResult.referral_cluster_score.toFixed(3)],
                     ].map(([label, val]) => (
-                      <div key={label} className="bg-slate-900 rounded p-2">
-                        <div className="text-slate-500">{label}</div>
-                        <div className="text-white font-semibold">{val}</div>
+                      <div key={label} className="bg-card rounded p-2">
+                        <div className="text-muted-foreground">{label}</div>
+                        <div className="text-foreground font-semibold">{val}</div>
                       </div>
                     ))}
                   </div>
@@ -236,38 +236,38 @@ export default function SecurityPage() {
 
         <TabsContent value="multisig" className="mt-4">
           <div className="grid md:grid-cols-2 gap-6">
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-muted/20 border-border">
               <CardHeader>
-                <CardTitle className="text-white text-base flex items-center gap-2">
+                <CardTitle className="text-foreground text-base flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-violet-400" />
                   Propose Multi-Sig Operation
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <Label className="text-slate-300">Operation Type</Label>
+                  <Label className="text-foreground/80">Operation Type</Label>
                   <Input value={msOpType} onChange={(e) => setMsOpType(e.target.value)}
-                    placeholder="treasury_spend / contract_upgrade / etc." className="bg-slate-900 border-slate-600 text-white mt-1" />
+                    placeholder="treasury_spend / contract_upgrade / etc." className="bg-card border-border text-foreground mt-1" />
                 </div>
                 <div>
-                  <Label className="text-slate-300">Description</Label>
+                  <Label className="text-foreground/80">Description</Label>
                   <Input value={msDesc} onChange={(e) => setMsDesc(e.target.value)}
-                    placeholder="Detailed description of operation" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                    placeholder="Detailed description of operation" className="bg-card border-border text-foreground mt-1" />
                 </div>
                 <div>
-                  <Label className="text-slate-300">Payload (JSON)</Label>
+                  <Label className="text-foreground/80">Payload (JSON)</Label>
                   <textarea value={msPayload} onChange={(e) => setMsPayload(e.target.value)}
-                    className="w-full mt-1 p-2 bg-slate-900 border border-slate-600 rounded text-slate-300 text-sm font-mono h-20 resize-none" />
+                    className="w-full mt-1 p-2 bg-card border border-border rounded text-foreground/80 text-sm font-mono h-20 resize-none" />
                 </div>
                 <div>
-                  <Label className="text-slate-300">Approval Threshold</Label>
+                  <Label className="text-foreground/80">Approval Threshold</Label>
                   <Input value={msThreshold} onChange={(e) => setMsThreshold(e.target.value)}
-                    type="number" min="1" max="10" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                    type="number" min="1" max="10" className="bg-card border-border text-foreground mt-1" />
                 </div>
                 <Button
                   onClick={() => multisigMutation.mutate({ operation_type: msOpType, description: msDesc, payload: msPayload, threshold: parseInt(msThreshold), required_signers: parseInt(msThreshold) + 1 })}
                   disabled={multisigMutation.isPending || !msOpType}
-                  className="bg-violet-700 hover:bg-violet-600 text-white w-full"
+                  className="bg-violet-700 hover:bg-violet-600 text-foreground w-full"
                 >
                   {multisigMutation.isPending ? "Proposing…" : "Propose Operation"}
                 </Button>
@@ -275,16 +275,16 @@ export default function SecurityPage() {
             </Card>
 
             {msResult && (
-              <Card className="bg-slate-800/50 border-violet-500/30">
-                <CardHeader><CardTitle className="text-white text-base">Operation #{msResult.operation_id}</CardTitle></CardHeader>
+              <Card className="bg-muted/20 border-violet-500/30">
+                <CardHeader><CardTitle className="text-foreground text-base">Operation #{msResult.operation_id}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex justify-between"><span className="text-slate-400">Type</span><span className="text-white">{msResult.operation_type}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Status</span>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="text-foreground">{msResult.operation_type}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Status</span>
                     <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30">{msResult.status}</Badge>
                   </div>
-                  <div className="flex justify-between"><span className="text-slate-400">Threshold</span><span className="text-white">{msResult.threshold} signatures</span></div>
-                  {msResult.expires_at && <div className="flex justify-between"><span className="text-slate-400">Expires</span><span className="text-slate-300 text-xs">{new Date(msResult.expires_at).toLocaleString()}</span></div>}
-                  <p className="text-xs text-slate-400">Signers can now call POST /api/security/multisig/{"{"}operation_id{"}"}/sign to approve.</p>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Threshold</span><span className="text-foreground">{msResult.threshold} signatures</span></div>
+                  {msResult.expires_at && <div className="flex justify-between"><span className="text-muted-foreground">Expires</span><span className="text-foreground/80 text-xs">{new Date(msResult.expires_at).toLocaleString()}</span></div>}
+                  <p className="text-xs text-muted-foreground">Signers can now call POST /api/security/multisig/{"{"}operation_id{"}"}/sign to approve.</p>
                 </CardContent>
               </Card>
             )}
@@ -292,35 +292,35 @@ export default function SecurityPage() {
         </TabsContent>
 
         <TabsContent value="freeze" className="mt-4">
-          <Card className="bg-slate-800/50 border-slate-700 max-w-md">
+          <Card className="bg-muted/20 border-border max-w-md">
             <CardHeader>
-              <CardTitle className="text-white text-base flex items-center gap-2">
+              <CardTitle className="text-foreground text-base flex items-center gap-2">
                 <Lock className="w-4 h-4 text-blue-400" />
                 Freeze Wallet
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-muted-foreground">
                 Instantly freeze a user wallet for fraud investigation. Requires admin access in production.
               </p>
               <div>
-                <Label className="text-slate-300">User ID</Label>
+                <Label className="text-foreground/80">User ID</Label>
                 <Input value={freezeUserId} onChange={(e) => setFreezeUserId(e.target.value)}
-                  placeholder="123" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                  placeholder="123" className="bg-card border-border text-foreground mt-1" />
               </div>
               <div>
-                <Label className="text-slate-300">Reason</Label>
+                <Label className="text-foreground/80">Reason</Label>
                 <Input value={freezeReason} onChange={(e) => setFreezeReason(e.target.value)}
-                  placeholder="Suspicious activity / Sybil detection / etc." className="bg-slate-900 border-slate-600 text-white mt-1" />
+                  placeholder="Suspicious activity / Sybil detection / etc." className="bg-card border-border text-foreground mt-1" />
               </div>
               <Button
                 onClick={() => freezeMutation.mutate({ user_id: parseInt(freezeUserId), reason: freezeReason })}
                 disabled={freezeMutation.isPending || !freezeUserId || !freezeReason}
-                className="bg-red-700 hover:bg-red-600 text-white w-full"
+                className="bg-red-700 hover:bg-red-600 text-foreground w-full"
               >
                 {freezeMutation.isPending ? "Freezing…" : "Freeze Wallet"}
               </Button>
-              <p className="text-xs text-slate-500">Active freezes: {dashboard?.active_wallet_freezes ?? 0}</p>
+              <p className="text-xs text-muted-foreground">Active freezes: {dashboard?.active_wallet_freezes ?? 0}</p>
             </CardContent>
           </Card>
         </TabsContent>

@@ -476,7 +476,7 @@ function EVScannerPanel({ token }: { token: string }) {
                           ? "bg-blue-500/20 text-blue-400"
                           : s.side === "away"
                           ? "bg-amber-500/20 text-amber-400"
-                          : "bg-slate-500/20 text-slate-400"
+                          : "bg-muted/20 text-muted-foreground"
                       }`}
                     >
                       {s.side}

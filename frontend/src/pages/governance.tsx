@@ -408,7 +408,7 @@ export default function GovernancePage() {
 
       {/* Vote Modal */}
       {selectedProposal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-card/80 flex items-center justify-center p-4">
           <Card className="w-full max-w-md border border-border bg-background">
             <CardHeader>
               <CardTitle className="text-base">Cast Your Vote</CardTitle>

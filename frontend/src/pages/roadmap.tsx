@@ -264,11 +264,11 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
               <CardTitle className={`text-lg font-bold ${phase.color}`}>{phase.title}</CardTitle>
               <PhaseStatusBadge status={phase.status} />
             </div>
-            <p className="text-sm text-gray-400 mb-3">{phase.subtitle}</p>
+            <p className="text-sm text-muted-foreground mb-3">{phase.subtitle}</p>
 
             {/* Progress bar */}
             <div className="flex items-center gap-3">
-              <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div className="flex-1 bg-muted/20 rounded-full h-1.5 overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
                     phase.status === "complete" ? "bg-emerald-500" :
@@ -279,14 +279,14 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <span className="text-xs font-mono text-gray-500 shrink-0">
+              <span className="text-xs font-mono text-muted-foreground shrink-0">
                 {done}/{total} <span className={phase.color}>({pct}%)</span>
               </span>
             </div>
 
             <div className="flex items-center gap-2 mt-2">
-              <Clock className="w-3 h-3 text-gray-500" />
-              <span className="text-xs text-gray-500">{phase.eta}</span>
+              <Clock className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">{phase.eta}</span>
             </div>
           </div>
 
@@ -299,7 +299,7 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
         {/* Tech stack chips */}
         <div className="flex flex-wrap gap-1.5 mt-3 ml-14">
           {phase.techStack.map(t => (
-            <span key={t} className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-gray-800 border border-gray-700 text-gray-400">
+            <span key={t} className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-muted/20 border border-border text-muted-foreground">
               {t}
             </span>
           ))}
@@ -309,7 +309,7 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
       {open && (
         <CardContent className="pt-0">
           {phase.architectureNote && (
-            <div className={`ml-14 mb-4 p-3 rounded-lg border ${phase.borderColor} ${phase.bgColor} text-xs text-gray-300 leading-relaxed`}>
+            <div className={`ml-14 mb-4 p-3 rounded-lg border ${phase.borderColor} ${phase.bgColor} text-xs text-foreground/80 leading-relaxed`}>
               {phase.architectureNote}
             </div>
           )}
@@ -319,19 +319,19 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
               <div
                 key={i}
                 className={`flex items-start gap-3 p-2.5 rounded-lg transition-colors ${
-                  item.status === "done" ? "bg-emerald-500/5 border border-emerald-500/10" : "border border-transparent hover:bg-gray-800/40"
+                  item.status === "done" ? "bg-emerald-500/5 border border-emerald-500/10" : "border border-transparent hover:bg-muted/20/40"
                 }`}
               >
                 <item.icon className={`w-4 h-4 mt-0.5 shrink-0 ${STATUS_META[item.status].color}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`text-sm ${item.status === "done" ? "text-white" : "text-gray-300"}`}>
+                    <span className={`text-sm ${item.status === "done" ? "text-foreground" : "text-foreground/80"}`}>
                       {item.label}
                     </span>
                     <StatusBadge status={item.status} />
                   </div>
                   {item.detail && (
-                    <p className="text-xs text-gray-500 mt-0.5">{item.detail}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{item.detail}</p>
                   )}
                 </div>
               </div>
@@ -358,10 +358,10 @@ export default function RoadmapPage() {
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-mono text-primary uppercase tracking-widest">
           <Rocket className="w-3 h-3" /> Ecosystem Roadmap
         </div>
-        <h1 className="text-3xl md:text-4xl font-bold text-white">
+        <h1 className="text-3xl md:text-4xl font-bold text-foreground">
           VIT Intelligence Network
         </h1>
-        <p className="text-gray-400 max-w-2xl mx-auto text-sm leading-relaxed">
+        <p className="text-muted-foreground max-w-2xl mx-auto text-sm leading-relaxed">
           From AI-native prediction infrastructure to a sovereign Cosmos app-chain.
           An AI-native blockchain built for intelligence coordination — not just transactions.
         </p>
@@ -378,7 +378,7 @@ export default function RoadmapPage() {
           <div key={s.label} className={`border rounded-xl p-4 text-center ${s.bg}`}>
             <s.icon className={`w-5 h-5 mx-auto mb-1 ${s.color}`} />
             <div className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</div>
-            <div className="text-xs text-gray-500 font-mono">{s.label}</div>
+            <div className="text-xs text-muted-foreground font-mono">{s.label}</div>
           </div>
         ))}
       </div>
@@ -386,7 +386,7 @@ export default function RoadmapPage() {
       {/* ── Timeline connector label ────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/30 via-amber-500/20 via-blue-500/20 to-purple-500/30" />
-        <span className="text-xs font-mono text-gray-500 uppercase tracking-widest shrink-0">Build Timeline</span>
+        <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest shrink-0">Build Timeline</span>
         <div className="h-px flex-1 bg-gradient-to-l from-emerald-500/30 via-amber-500/20 via-blue-500/20 to-purple-500/30" />
       </div>
 
@@ -404,12 +404,12 @@ export default function RoadmapPage() {
       </div>
 
       {/* ── Architecture stack table ────────────────────────────────── */}
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2 text-base">
+          <CardTitle className="text-foreground flex items-center gap-2 text-base">
             <Cpu className="w-4 h-4 text-cyan-400" /> Target Architecture Stack
           </CardTitle>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground">
             The full recommended stack for VIT as an AI-native sovereign chain.
             Phase column shows when each layer comes online.
           </p>
@@ -417,10 +417,10 @@ export default function RoadmapPage() {
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {ARCH_STACK.map(row => (
-              <div key={row.layer} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-800/50 border border-gray-800">
+              <div key={row.layer} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/20/50 border border-border/50">
                 <div>
-                  <span className="text-xs text-gray-500 font-mono">{row.layer}</span>
-                  <div className="text-sm text-white font-medium">{row.tech}</div>
+                  <span className="text-xs text-muted-foreground font-mono">{row.layer}</span>
+                  <div className="text-sm text-foreground font-medium">{row.tech}</div>
                 </div>
                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${PHASE_COLOR[row.phase]}`}>
                   P{row.phase}
@@ -476,7 +476,7 @@ export default function RoadmapPage() {
             <CardContent>
               <div className="space-y-1.5">
                 {col.items.map(item => (
-                  <div key={item} className="flex items-center gap-2 text-xs text-gray-300">
+                  <div key={item} className="flex items-center gap-2 text-xs text-foreground/80">
                     <ArrowRight className={`w-3 h-3 shrink-0 ${col.color} opacity-60`} />
                     {item}
                   </div>
@@ -490,7 +490,7 @@ export default function RoadmapPage() {
       {/* ── Legend ─────────────────────────────────────────────────── */}
       <div className="flex flex-wrap justify-center gap-4 pt-2">
         {Object.entries(STATUS_META).map(([key, meta]) => (
-          <div key={key} className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div key={key} className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <meta.icon className={`w-3.5 h-3.5 ${meta.color}`} />
             <span>{meta.label}</span>
           </div>

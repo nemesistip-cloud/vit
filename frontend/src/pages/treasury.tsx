@@ -38,7 +38,7 @@ const POOL_COLORS: Record<string, string> = {
   validator_rewards: "bg-green-500",
   ai_infrastructure: "bg-blue-500",
   ecosystem_grants: "bg-purple-500",
-  reserve: "bg-slate-500",
+  reserve: "bg-muted/50",
   oracle_incentives: "bg-yellow-500",
   prediction_liquidity: "bg-cyan-500",
   bug_bounty: "bg-red-500",
@@ -117,11 +117,11 @@ export default function TreasuryPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Vault className="w-6 h-6 text-yellow-400" />
             VIT Treasury
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-muted-foreground text-sm mt-1">
             Governance-controlled multi-pool treasury — 8 allocation pools
           </p>
         </div>
@@ -137,12 +137,12 @@ export default function TreasuryPage() {
           { label: "Total Spent", value: `${((overview?.total_spent_vit ?? 0) / 1000).toFixed(1)}K VIT`, icon: TrendingDown, color: "text-red-400" },
           { label: "Pending Grants", value: overview?.pending_grant_proposals ?? 0, icon: Clock, color: "text-blue-400" },
         ].map((s) => (
-          <Card key={s.label} className="bg-slate-800/50 border-slate-700">
+          <Card key={s.label} className="bg-muted/20 border-border">
             <CardContent className="p-4 flex items-center gap-3">
               <s.icon className={`w-8 h-8 ${s.color}`} />
               <div>
-                <div className="text-lg font-bold text-white">{s.value}</div>
-                <div className="text-xs text-slate-400">{s.label}</div>
+                <div className="text-lg font-bold text-foreground">{s.value}</div>
+                <div className="text-xs text-muted-foreground">{s.label}</div>
               </div>
             </CardContent>
           </Card>
@@ -150,7 +150,7 @@ export default function TreasuryPage() {
       </div>
 
       <Tabs defaultValue="pools">
-        <TabsList className="bg-slate-800 border border-slate-700">
+        <TabsList className="bg-muted/20 border border-border">
           <TabsTrigger value="pools">Pools</TabsTrigger>
           <TabsTrigger value="deposit">Deposit</TabsTrigger>
           <TabsTrigger value="epoch">Epoch Rewards</TabsTrigger>
@@ -159,36 +159,36 @@ export default function TreasuryPage() {
 
         <TabsContent value="pools" className="mt-4 space-y-3">
           {isLoading ? (
-            <div className="text-slate-400 text-center py-8">Loading pools…</div>
+            <div className="text-muted-foreground text-center py-8">Loading pools…</div>
           ) : pools.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">No pools. Click Initialize Pools.</div>
+            <div className="text-center py-12 text-muted-foreground">No pools. Click Initialize Pools.</div>
           ) : (
             <div className="grid md:grid-cols-2 gap-3">
               {pools.map((pool) => (
-                <Card key={pool.pool_type} className="bg-slate-800/50 border-slate-700">
+                <Card key={pool.pool_type} className="bg-muted/20 border-border">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xl">{POOL_ICONS[pool.pool_type] ?? "💰"}</span>
                         <div>
-                          <div className="font-semibold text-white capitalize text-sm">
+                          <div className="font-semibold text-foreground capitalize text-sm">
                             {pool.pool_type.replace(/_/g, " ")}
                           </div>
-                          <div className="text-xs text-slate-500">{pool.allocation_pct}% allocation</div>
+                          <div className="text-xs text-muted-foreground">{pool.allocation_pct}% allocation</div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-white">{pool.balance.toFixed(2)}</div>
-                        <div className="text-xs text-slate-400">VIT</div>
+                        <div className="font-bold text-foreground">{pool.balance.toFixed(2)}</div>
+                        <div className="text-xs text-muted-foreground">VIT</div>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+                    <div className="w-full bg-muted/40 rounded-full h-1.5 mb-2">
                       <div
-                        className={`h-1.5 rounded-full ${POOL_COLORS[pool.pool_type] ?? "bg-slate-500"}`}
+                        className={`h-1.5 rounded-full ${POOL_COLORS[pool.pool_type] ?? "bg-muted/50"}`}
                         style={{ width: `${Math.min(pool.utilization_pct, 100)}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-xs text-slate-500">
+                    <div className="flex justify-between text-xs text-muted-foreground">
                       <span>{pool.share_of_treasury.toFixed(1)}% of treasury</span>
                       <span>{pool.utilization_pct.toFixed(1)}% utilized</span>
                     </div>
@@ -203,17 +203,17 @@ export default function TreasuryPage() {
         </TabsContent>
 
         <TabsContent value="deposit" className="mt-4">
-          <Card className="bg-slate-800/50 border-slate-700 max-w-md">
+          <Card className="bg-muted/20 border-border max-w-md">
             <CardHeader>
-              <CardTitle className="text-white text-base">Deposit to Pool</CardTitle>
+              <CardTitle className="text-foreground text-base">Deposit to Pool</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label className="text-slate-300">Pool</Label>
+                <Label className="text-foreground/80">Pool</Label>
                 <select
                   value={depositPool}
                   onChange={(e) => setDepositPool(e.target.value)}
-                  className="w-full mt-1 p-2 bg-slate-900 border border-slate-600 rounded text-slate-300 text-sm"
+                  className="w-full mt-1 p-2 bg-card border border-border rounded text-foreground/80 text-sm"
                 >
                   {pools.map((p) => (
                     <option key={p.pool_type} value={p.pool_type}>
@@ -223,19 +223,19 @@ export default function TreasuryPage() {
                 </select>
               </div>
               <div>
-                <Label className="text-slate-300">Amount (VIT)</Label>
+                <Label className="text-foreground/80">Amount (VIT)</Label>
                 <Input value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)}
-                  placeholder="1000" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                  placeholder="1000" className="bg-card border-border text-foreground mt-1" />
               </div>
               <div>
-                <Label className="text-slate-300">Source</Label>
+                <Label className="text-foreground/80">Source</Label>
                 <Input value={depositSource} onChange={(e) => setDepositSource(e.target.value)}
-                  placeholder="validator_fee / protocol_revenue / etc." className="bg-slate-900 border-slate-600 text-white mt-1" />
+                  placeholder="validator_fee / protocol_revenue / etc." className="bg-card border-border text-foreground mt-1" />
               </div>
               <Button
                 onClick={() => depositMutation.mutate({ pool_type: depositPool, amount: parseFloat(depositAmount), source: depositSource })}
                 disabled={depositMutation.isPending || !depositAmount || !depositSource}
-                className="bg-yellow-600 hover:bg-yellow-500 text-white w-full"
+                className="bg-yellow-600 hover:bg-yellow-500 text-foreground w-full"
               >
                 {depositMutation.isPending ? "Processing…" : "Deposit"}
               </Button>
@@ -244,31 +244,31 @@ export default function TreasuryPage() {
         </TabsContent>
 
         <TabsContent value="epoch" className="mt-4">
-          <Card className="bg-slate-800/50 border-slate-700 max-w-md">
+          <Card className="bg-muted/20 border-border max-w-md">
             <CardHeader>
-              <CardTitle className="text-white text-base">Distribute Epoch Reward</CardTitle>
+              <CardTitle className="text-foreground text-base">Distribute Epoch Reward</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-muted-foreground">
                 Distribute a block reward across all pools by their configured allocation percentages.
               </p>
               <div>
-                <Label className="text-slate-300">Total Block Reward (VIT)</Label>
+                <Label className="text-foreground/80">Total Block Reward (VIT)</Label>
                 <Input value={epochReward} onChange={(e) => setEpochReward(e.target.value)}
-                  placeholder="1000" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                  placeholder="1000" className="bg-card border-border text-foreground mt-1" />
               </div>
               <Button
                 onClick={() => epochMutation.mutate(parseFloat(epochReward))}
                 disabled={epochMutation.isPending}
-                className="bg-green-700 hover:bg-green-600 text-white w-full"
+                className="bg-green-700 hover:bg-green-600 text-foreground w-full"
               >
                 {epochMutation.isPending ? "Distributing…" : "Distribute Rewards"}
               </Button>
               {epochMutation.data?.distributed && (
-                <div className="bg-slate-900 rounded p-3 border border-green-500/20 space-y-1">
+                <div className="bg-card rounded p-3 border border-green-500/20 space-y-1">
                   {Object.entries(epochMutation.data.distributed).map(([pool, amount]) => (
                     <div key={pool} className="flex justify-between text-xs">
-                      <span className="text-slate-400 capitalize">{pool.replace(/_/g, " ")}</span>
+                      <span className="text-muted-foreground capitalize">{pool.replace(/_/g, " ")}</span>
                       <span className="text-green-400">+{(amount as number).toFixed(2)} VIT</span>
                     </div>
                   ))}
@@ -279,32 +279,32 @@ export default function TreasuryPage() {
         </TabsContent>
 
         <TabsContent value="grants" className="mt-4">
-          <Card className="bg-slate-800/50 border-slate-700 max-w-lg">
+          <Card className="bg-muted/20 border-border max-w-lg">
             <CardHeader>
-              <CardTitle className="text-white text-base">Submit Grant Proposal</CardTitle>
+              <CardTitle className="text-foreground text-base">Submit Grant Proposal</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label className="text-slate-300">Title</Label>
+                <Label className="text-foreground/80">Title</Label>
                 <Input value={grantTitle} onChange={(e) => setGrantTitle(e.target.value)}
-                  placeholder="VIT Ecosystem Development Grant" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                  placeholder="VIT Ecosystem Development Grant" className="bg-card border-border text-foreground mt-1" />
               </div>
               <div>
-                <Label className="text-slate-300">Description</Label>
+                <Label className="text-foreground/80">Description</Label>
                 <textarea
                   value={grantDesc}
                   onChange={(e) => setGrantDesc(e.target.value)}
-                  className="w-full mt-1 p-3 bg-slate-900 border border-slate-600 rounded-md text-sm text-slate-300 h-24 resize-none"
+                  className="w-full mt-1 p-3 bg-card border border-border rounded-md text-sm text-foreground/80 h-24 resize-none"
                   placeholder="Detailed description of how the grant will be used…"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-slate-300">Pool</Label>
+                  <Label className="text-foreground/80">Pool</Label>
                   <select
                     value={grantPool}
                     onChange={(e) => setGrantPool(e.target.value)}
-                    className="w-full mt-1 p-2 bg-slate-900 border border-slate-600 rounded text-slate-300 text-sm"
+                    className="w-full mt-1 p-2 bg-card border border-border rounded text-foreground/80 text-sm"
                   >
                     {["ecosystem_grants", "ai_infrastructure", "bug_bounty"].map((p) => (
                       <option key={p} value={p}>{p.replace(/_/g, " ")}</option>
@@ -312,15 +312,15 @@ export default function TreasuryPage() {
                   </select>
                 </div>
                 <div>
-                  <Label className="text-slate-300">Amount (VIT)</Label>
+                  <Label className="text-foreground/80">Amount (VIT)</Label>
                   <Input value={grantAmount} onChange={(e) => setGrantAmount(e.target.value)}
-                    placeholder="5000" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                    placeholder="5000" className="bg-card border-border text-foreground mt-1" />
                 </div>
               </div>
               <Button
                 onClick={() => grantMutation.mutate({ title: grantTitle, description: grantDesc, pool_type: grantPool, requested_amount: parseFloat(grantAmount) })}
                 disabled={grantMutation.isPending || !grantTitle || !grantAmount}
-                className="bg-purple-700 hover:bg-purple-600 text-white w-full"
+                className="bg-purple-700 hover:bg-purple-600 text-foreground w-full"
               >
                 {grantMutation.isPending ? "Submitting…" : "Submit Proposal"}
               </Button>

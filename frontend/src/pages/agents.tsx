@@ -110,11 +110,11 @@ function StatusDot({ status }: { status: string }) {
     running:  "bg-blue-400 animate-pulse",
     ok:       "bg-green-400",
     error:    "bg-red-400",
-    idle:     "bg-slate-500",
-    disabled: "bg-slate-700",
+    idle:     "bg-muted/50",
+    disabled: "bg-muted/40",
   };
   return (
-    <span className={cn("inline-block w-2 h-2 rounded-full", classes[status] ?? "bg-slate-500")} />
+    <span className={cn("inline-block w-2 h-2 rounded-full", classes[status] ?? "bg-muted/50")} />
   );
 }
 
@@ -123,8 +123,8 @@ function StatusBadge({ status }: { status: string }) {
     running:  { label: "Running",  className: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
     ok:       { label: "OK",       className: "bg-green-500/20 text-green-300 border-green-500/30" },
     error:    { label: "Error",    className: "bg-red-500/20 text-red-300 border-red-500/30" },
-    idle:     { label: "Idle",     className: "bg-slate-500/20 text-slate-300 border-slate-500/30" },
-    disabled: { label: "Disabled", className: "bg-slate-700/20 text-slate-500 border-slate-700/30" },
+    idle:     { label: "Idle",     className: "bg-muted/50/20 text-foreground/80 border-border/40" },
+    disabled: { label: "Disabled", className: "bg-muted/40/20 text-muted-foreground border-border/30" },
   };
   const c = config[status] ?? config.idle;
   return (
@@ -146,16 +146,16 @@ function AgentCard({ name, snap, onTrigger, triggering }: {
   const meta = AGENT_META[name] ?? {
     label: name, category: "Other", icon: <Settings className="w-4 h-4" />, description: "",
   };
-  const catColor = CATEGORY_COLORS[meta.category] ?? "bg-slate-500/20 text-slate-300 border-slate-500/30";
+  const catColor = CATEGORY_COLORS[meta.category] ?? "bg-muted/50/20 text-foreground/80 border-border/40";
   const hasResult = snap.last_result && Object.keys(snap.last_result).length > 0;
 
   return (
-    <Card className="bg-slate-900/60 border-slate-700/50 hover:border-slate-600/50 transition-colors">
+    <Card className="bg-card/60 border-border/50 hover:border-border/70 transition-colors">
       <CardHeader className="pb-2 pt-4 px-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <StatusDot status={snap.status} />
-            <span className="text-sm font-semibold text-white truncate">{meta.label}</span>
+            <span className="text-sm font-semibold text-foreground truncate">{meta.label}</span>
           </div>
           <StatusBadge status={snap.status} />
         </div>
@@ -163,34 +163,34 @@ function AgentCard({ name, snap, onTrigger, triggering }: {
           <span className={cn("text-xs px-1.5 py-0.5 rounded border", catColor)}>
             {meta.category}
           </span>
-          <span className="text-xs text-slate-500">every {intervalLabel(snap.interval_seconds)}</span>
+          <span className="text-xs text-muted-foreground">every {intervalLabel(snap.interval_seconds)}</span>
         </div>
         {meta.description && (
-          <p className="text-xs text-slate-500 mt-1 leading-snug">{meta.description}</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-snug">{meta.description}</p>
         )}
       </CardHeader>
 
       <CardContent className="px-4 pb-4 space-y-3">
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-slate-800/50 rounded-lg p-2">
-            <div className="text-sm font-bold text-white">{snap.run_count}</div>
-            <div className="text-xs text-slate-500">Runs</div>
+          <div className="bg-muted/20/50 rounded-lg p-2">
+            <div className="text-sm font-bold text-foreground">{snap.run_count}</div>
+            <div className="text-xs text-muted-foreground">Runs</div>
           </div>
-          <div className="bg-slate-800/50 rounded-lg p-2">
-            <div className={cn("text-sm font-bold", snap.error_count > 0 ? "text-red-400" : "text-white")}>
+          <div className="bg-muted/20/50 rounded-lg p-2">
+            <div className={cn("text-sm font-bold", snap.error_count > 0 ? "text-red-400" : "text-foreground")}>
               {snap.error_count}
             </div>
-            <div className="text-xs text-slate-500">Errors</div>
+            <div className="text-xs text-muted-foreground">Errors</div>
           </div>
-          <div className="bg-slate-800/50 rounded-lg p-2">
+          <div className="bg-muted/20/50 rounded-lg p-2">
             <div className="text-sm font-bold text-cyan-400">{nextRunIn(snap.next_run_at)}</div>
-            <div className="text-xs text-slate-500">Next run</div>
+            <div className="text-xs text-muted-foreground">Next run</div>
           </div>
         </div>
 
         {/* Timing */}
-        <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
             Last: {relativeTime(snap.last_run_at)}
@@ -210,13 +210,13 @@ function AgentCard({ name, snap, onTrigger, triggering }: {
           <div>
             <button
               onClick={() => setExpanded(v => !v)}
-              className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground/90 transition-colors"
             >
               {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               Last result
             </button>
             {expanded && (
-              <pre className="mt-2 text-xs bg-slate-950/60 border border-slate-700/40 rounded-lg p-2 overflow-auto max-h-40 text-slate-300 leading-snug">
+              <pre className="mt-2 text-xs bg-background/60 border border-border/40 rounded-lg p-2 overflow-auto max-h-40 text-foreground/80 leading-snug">
                 {JSON.stringify(snap.last_result, null, 2)}
               </pre>
             )}
@@ -229,7 +229,7 @@ function AgentCard({ name, snap, onTrigger, triggering }: {
           variant="outline"
           onClick={() => onTrigger(name)}
           disabled={triggering || snap.status === "disabled"}
-          className="w-full border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white text-xs h-8"
+          className="w-full border-border text-foreground/80 hover:bg-muted/40 hover:text-foreground text-xs h-8"
         >
           {triggering ? (
             <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Triggering…</>
@@ -260,11 +260,11 @@ function ProviderStatusBar() {
   });
 
   return (
-    <Card className="bg-slate-900/60 border-slate-700/50">
+    <Card className="bg-card/60 border-border/50">
       <CardContent className="px-4 py-3">
         <div className="flex items-center gap-1 mb-2">
-          <Brain className="w-4 h-4 text-slate-400" />
-          <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">AI Providers</span>
+          <Brain className="w-4 h-4 text-muted-foreground" />
+          <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">AI Providers</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {keys.map(({ name, color }) => {
@@ -285,17 +285,17 @@ function ProviderStatusBar() {
               ? `cooling ${info?.cooling_for_seconds}s`
               : "ready";
             return (
-              <div key={name} className="flex items-center gap-2 bg-slate-800/50 rounded-lg px-2 py-1.5">
+              <div key={name} className="flex items-center gap-2 bg-muted/20/50 rounded-lg px-2 py-1.5">
                 {available ? (
                   <Wifi className={cn("w-3 h-3", color)} />
                 ) : (
-                  <WifiOff className={cn("w-3 h-3", failing ? "text-red-500" : "text-slate-600")} />
+                  <WifiOff className={cn("w-3 h-3", failing ? "text-red-500" : "text-muted-foreground/60")} />
                 )}
                 <div className="min-w-0">
-                  <div className={cn("text-xs font-medium truncate", available ? color : failing ? "text-red-400" : "text-slate-500")}>
+                  <div className={cn("text-xs font-medium truncate", available ? color : failing ? "text-red-400" : "text-muted-foreground")}>
                     {name}
                   </div>
-                  <div className={cn("text-xs", failing ? "text-red-500/70" : "text-slate-600")}>
+                  <div className={cn("text-xs", failing ? "text-red-500/70" : "text-muted-foreground/60")}>
                     {statusLabel}
                   </div>
                 </div>
@@ -387,9 +387,9 @@ export default function AgentsPage() {
         <div>
           <div className="flex items-center gap-2">
             <Cpu className="w-6 h-6 text-cyan-400" />
-            <h1 className="text-2xl font-bold text-white">Agent Control Room</h1>
+            <h1 className="text-2xl font-bold text-foreground">Agent Control Room</h1>
           </div>
-          <p className="text-slate-400 text-sm mt-0.5">
+          <p className="text-muted-foreground text-sm mt-0.5">
             {coordinator ? (
               <>
                 {coordinator.agent_count} agents · {coordinator.running_tasks} running ·
@@ -404,7 +404,7 @@ export default function AgentsPage() {
             size="sm"
             onClick={() => setAutoRefresh(v => !v)}
             className={cn(
-              "border-slate-700 text-slate-300 text-xs h-8",
+              "border-border text-foreground/80 text-xs h-8",
               autoRefresh && "border-cyan-700 text-cyan-300"
             )}
           >
@@ -415,7 +415,7 @@ export default function AgentsPage() {
             variant="outline"
             size="sm"
             onClick={() => refetch()}
-            className="border-slate-700 text-slate-300 text-xs h-8"
+            className="border-border text-foreground/80 text-xs h-8"
           >
             <RefreshCw className="w-3 h-3 mr-1.5" />
             Refresh
@@ -429,12 +429,12 @@ export default function AgentsPage() {
           { label: "Healthy",  value: statusCounts.ok,      color: "text-green-400",  bg: "bg-green-500/10 border-green-500/20" },
           { label: "Running",  value: statusCounts.running,  color: "text-blue-400",   bg: "bg-blue-500/10 border-blue-500/20" },
           { label: "Error",    value: statusCounts.error,    color: "text-red-400",    bg: "bg-red-500/10 border-red-500/20" },
-          { label: "Idle",     value: statusCounts.idle,     color: "text-slate-400",  bg: "bg-slate-800/50 border-slate-700/50" },
+          { label: "Idle",     value: statusCounts.idle,     color: "text-muted-foreground",  bg: "bg-muted/20/50 border-border/50" },
         ].map(({ label, value, color, bg }) => (
           <Card key={label} className={cn("border", bg)}>
             <CardContent className="p-4 text-center">
               <div className={cn("text-2xl font-bold", color)}>{value}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
             </CardContent>
           </Card>
         ))}
@@ -446,7 +446,7 @@ export default function AgentsPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-xs text-slate-500 mr-1">Category:</span>
+          <span className="text-xs text-muted-foreground mr-1">Category:</span>
           {CATEGORIES.map(cat => (
             <button
               key={cat}
@@ -455,7 +455,7 @@ export default function AgentsPage() {
                 "text-xs px-2 py-1 rounded-full border transition-colors",
                 filterCategory === cat
                   ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
-                  : "border-slate-700 text-slate-400 hover:border-slate-500"
+                  : "border-border text-muted-foreground hover:border-border"
               )}
             >
               {cat}
@@ -463,7 +463,7 @@ export default function AgentsPage() {
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-slate-500 mr-1">Status:</span>
+          <span className="text-xs text-muted-foreground mr-1">Status:</span>
           {["All", "ok", "running", "error", "idle"].map(s => (
             <button
               key={s}
@@ -472,7 +472,7 @@ export default function AgentsPage() {
                 "text-xs px-2 py-1 rounded-full border transition-colors",
                 filterStatus === s
                   ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
-                  : "border-slate-700 text-slate-400 hover:border-slate-500"
+                  : "border-border text-muted-foreground hover:border-border"
               )}
             >
               {s === "All" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -485,7 +485,7 @@ export default function AgentsPage() {
       {isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Card key={i} className="bg-slate-900/60 border-slate-700/50 h-64 animate-pulse" />
+            <Card key={i} className="bg-card/60 border-border/50 h-64 animate-pulse" />
           ))}
         </div>
       )}
@@ -517,12 +517,12 @@ export default function AgentsPage() {
           </div>
 
           {filteredAgents.length === 0 && (
-            <div className="text-center py-16 text-slate-500">
+            <div className="text-center py-16 text-muted-foreground">
               No agents match the current filters
             </div>
           )}
 
-          <p className="text-xs text-slate-600 text-center">
+          <p className="text-xs text-muted-foreground/60 text-center">
             {agentEntries.length} total agents · showing {filteredAgents.length} ·
             last updated {new Date(dataUpdatedAt).toLocaleTimeString()}
           </p>

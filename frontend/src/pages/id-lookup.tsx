@@ -27,10 +27,10 @@ interface PublicIDCard {
 // ── Config ─────────────────────────────────────────────────────────────────
 
 const TIER_CONFIG = {
-  basic:    { label: "Basic",    color: "text-zinc-400",    bg: "bg-zinc-500/10",   border: "border-zinc-700",         icon: User,        gradient: "from-zinc-800 to-zinc-900" },
-  standard: { label: "Standard", color: "text-blue-400",    bg: "bg-blue-500/10",   border: "border-blue-500/30",      icon: ShieldCheck, gradient: "from-blue-950 to-zinc-900" },
-  verified: { label: "Verified", color: "text-emerald-400", bg: "bg-emerald-500/10",border: "border-emerald-500/30",   icon: BadgeCheck,  gradient: "from-emerald-950 to-zinc-900" },
-  elite:    { label: "Elite",    color: "text-amber-400",   bg: "bg-amber-500/10",  border: "border-amber-500/30",     icon: Crown,       gradient: "from-amber-950 to-zinc-900" },
+  basic:    { label: "Basic",    color: "text-muted-foreground",    bg: "bg-muted/10",   border: "border-border",         icon: User,        gradient: "from-card to-card" },
+  standard: { label: "Standard", color: "text-blue-400",    bg: "bg-blue-500/10",   border: "border-blue-500/30",      icon: ShieldCheck, gradient: "from-blue-950 to-card" },
+  verified: { label: "Verified", color: "text-emerald-400", bg: "bg-emerald-500/10",border: "border-emerald-500/30",   icon: BadgeCheck,  gradient: "from-emerald-950 to-card" },
+  elite:    { label: "Elite",    color: "text-amber-400",   bg: "bg-amber-500/10",  border: "border-amber-500/30",     icon: Crown,       gradient: "from-amber-950 to-card" },
 };
 
 const BADGE_CONFIG: Record<string, { label: string; icon: typeof ShieldCheck; color: string }> = {

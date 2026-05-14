@@ -139,11 +139,11 @@ export default function SmartContractsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <FileCode2 className="w-6 h-6 text-violet-400" />
             Smart Contract Engine
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-muted-foreground text-sm mt-1">
             VIT rule-based deterministic contract execution — 5 built-in contracts
           </p>
         </div>
@@ -211,12 +211,12 @@ export default function SmartContractsPage() {
           { label: "Total Gas", value: (totalGas / 1_000_000).toFixed(2) + "M", icon: Flame, color: "text-orange-400" },
           { label: "VIT Locked", value: totalLocked.toFixed(0), icon: Shield, color: "text-green-400" },
         ].map((stat) => (
-          <Card key={stat.label} className="bg-slate-800/50 border-slate-700">
+          <Card key={stat.label} className="bg-muted/20 border-border">
             <CardContent className="p-4 flex items-center gap-3">
               <stat.icon className={`w-8 h-8 ${stat.color}`} />
               <div>
-                <div className="text-lg font-bold text-white">{stat.value}</div>
-                <div className="text-xs text-slate-400">{stat.label}</div>
+                <div className="text-lg font-bold text-foreground">{stat.value}</div>
+                <div className="text-xs text-muted-foreground">{stat.label}</div>
               </div>
             </CardContent>
           </Card>
@@ -224,7 +224,7 @@ export default function SmartContractsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-slate-800 border border-slate-700">
+        <TabsList className="bg-muted/20 border border-border">
           <TabsTrigger value="contracts">Contracts</TabsTrigger>
           <TabsTrigger value="call" disabled={!selectedContract}>Call</TabsTrigger>
           <TabsTrigger value="events" disabled={!selectedContract}>Events</TabsTrigger>
@@ -233,9 +233,9 @@ export default function SmartContractsPage() {
 
         <TabsContent value="contracts" className="space-y-3 mt-4">
           {isLoading ? (
-            <div className="text-slate-400 text-center py-8">Loading contracts…</div>
+            <div className="text-muted-foreground text-center py-8">Loading contracts…</div>
           ) : contracts.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
+            <div className="text-center py-12 text-muted-foreground">
               No contracts deployed.{" "}
               <button onClick={() => bootstrapMutation.mutate()} className="text-violet-400 hover:underline">
                 Bootstrap built-in contracts
@@ -245,10 +245,10 @@ export default function SmartContractsPage() {
             contracts.map((c) => (
               <Card
                 key={c.address}
-                className={`bg-slate-800/50 border cursor-pointer transition-colors ${
+                className={`bg-muted/20 border cursor-pointer transition-colors ${
                   selectedContract?.address === c.address
                     ? "border-violet-500/60"
-                    : "border-slate-700 hover:border-slate-600"
+                    : "border-border hover:border-border"
                 }`}
                 onClick={() => { setSelectedContract(c); setActiveTab("call"); }}
               >
@@ -256,23 +256,23 @@ export default function SmartContractsPage() {
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white">{c.name}</span>
+                        <span className="font-semibold text-foreground">{c.name}</span>
                         <Badge className="text-xs" variant="outline">v{c.version}</Badge>
                         {c.is_builtin && (
                           <Badge className="text-xs bg-violet-500/20 text-violet-300 border-violet-500/30">Built-in</Badge>
                         )}
-                        <Badge className={`text-xs border ${STATUS_COLORS[c.status] ?? "text-slate-400"}`}>
+                        <Badge className={`text-xs border ${STATUS_COLORS[c.status] ?? "text-muted-foreground"}`}>
                           {c.status}
                         </Badge>
                       </div>
-                      <div className="text-xs text-slate-500 font-mono">{c.address}</div>
-                      <div className="flex gap-4 text-xs text-slate-400 mt-2">
+                      <div className="text-xs text-muted-foreground font-mono">{c.address}</div>
+                      <div className="flex gap-4 text-xs text-muted-foreground mt-2">
                         <span><Zap className="w-3 h-3 inline mr-1" />{c.total_calls} calls</span>
                         <span><Flame className="w-3 h-3 inline mr-1" />{c.total_gas_used.toLocaleString()} gas</span>
                         <span>Methods: {c.abi_methods.join(", ")}</span>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-500 mt-1" />
+                    <ChevronRight className="w-5 h-5 text-muted-foreground mt-1" />
                   </div>
                 </CardContent>
               </Card>
@@ -282,23 +282,23 @@ export default function SmartContractsPage() {
 
         <TabsContent value="call" className="mt-4">
           {selectedContract && (
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-muted/20 border-border">
               <CardHeader>
-                <CardTitle className="text-white text-base flex items-center gap-2">
+                <CardTitle className="text-foreground text-base flex items-center gap-2">
                   <Play className="w-4 h-4 text-green-400" />
                   Call: {selectedContract.name}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label className="text-slate-300">Method</Label>
+                  <Label className="text-foreground/80">Method</Label>
                   <div className="flex gap-2 mt-1 flex-wrap">
                     {selectedContract.abi_methods.map((m) => (
                       <Button
                         key={m}
                         size="sm"
                         variant={callMethod === m ? "default" : "outline"}
-                        className={callMethod === m ? "bg-violet-600" : "border-slate-600 text-slate-300"}
+                        className={callMethod === m ? "bg-violet-600" : "border-border text-foreground/80"}
                         onClick={() => setCallMethod(m)}
                       >
                         {m}
@@ -307,25 +307,25 @@ export default function SmartContractsPage() {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-slate-300">Parameters (JSON)</Label>
+                  <Label className="text-foreground/80">Parameters (JSON)</Label>
                   <textarea
                     value={callParams}
                     onChange={(e) => setCallParams(e.target.value)}
-                    className="w-full mt-1 p-3 bg-slate-900 border border-slate-600 rounded-md text-sm text-slate-300 font-mono h-28 resize-none focus:outline-none focus:border-violet-500"
+                    className="w-full mt-1 p-3 bg-card border border-border rounded-md text-sm text-foreground/80 font-mono h-28 resize-none focus:outline-none focus:border-violet-500"
                     placeholder='{"key": "value"}'
                   />
                 </div>
                 <Button
                   onClick={handleCall}
                   disabled={callMutation.isPending || !callMethod}
-                  className="bg-violet-600 hover:bg-violet-500 text-white"
+                  className="bg-violet-600 hover:bg-violet-500 text-foreground"
                 >
                   {callMutation.isPending ? "Executing…" : "Execute Call"}
                 </Button>
                 {callMutation.data && (
-                  <div className="bg-slate-900 rounded-md p-3 border border-green-500/30">
+                  <div className="bg-card rounded-md p-3 border border-green-500/30">
                     <div className="text-xs text-green-400 font-semibold mb-1">Result</div>
-                    <pre className="text-xs text-slate-300 overflow-auto">
+                    <pre className="text-xs text-foreground/80 overflow-auto">
                       {JSON.stringify(callMutation.data.result, null, 2)}
                     </pre>
                   </div>
@@ -337,20 +337,20 @@ export default function SmartContractsPage() {
 
         <TabsContent value="events" className="mt-4 space-y-2">
           {(eventsData?.events ?? []).length === 0 ? (
-            <div className="text-center py-12 text-slate-500">No events emitted yet</div>
+            <div className="text-center py-12 text-muted-foreground">No events emitted yet</div>
           ) : (
             (eventsData?.events ?? []).map((e) => (
-              <Card key={e.id} className="bg-slate-800/50 border-slate-700">
+              <Card key={e.id} className="bg-muted/20 border-border">
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between mb-2">
                     <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-xs">{e.event_name}</Badge>
-                    <span className="text-xs text-slate-500">Block #{e.block_number}</span>
+                    <span className="text-xs text-muted-foreground">Block #{e.block_number}</span>
                   </div>
-                  <div className="text-xs font-mono text-slate-400 mb-1">{e.topic.slice(0, 20)}…</div>
-                  <pre className="text-xs text-slate-300 bg-slate-900 p-2 rounded overflow-auto">
+                  <div className="text-xs font-mono text-muted-foreground mb-1">{e.topic.slice(0, 20)}…</div>
+                  <pre className="text-xs text-foreground/80 bg-card p-2 rounded overflow-auto">
                     {JSON.stringify(e.data, null, 2)}
                   </pre>
-                  <div className="text-xs text-slate-500 mt-1">{new Date(e.emitted_at).toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{new Date(e.emitted_at).toLocaleString()}</div>
                 </CardContent>
               </Card>
             ))
@@ -359,21 +359,21 @@ export default function SmartContractsPage() {
 
         <TabsContent value="history" className="mt-4 space-y-2">
           {(callsData?.calls ?? []).length === 0 ? (
-            <div className="text-center py-12 text-slate-500">No calls recorded yet</div>
+            <div className="text-center py-12 text-muted-foreground">No calls recorded yet</div>
           ) : (
             (callsData?.calls ?? []).map((c) => (
-              <Card key={c.id} className="bg-slate-800/50 border-slate-700">
+              <Card key={c.id} className="bg-muted/20 border-border">
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Badge className={`text-xs ${CALL_STATUS_COLORS[c.status] ?? ""}`}>{c.status}</Badge>
-                      <span className="text-sm font-semibold text-white">{c.method}</span>
+                      <span className="text-sm font-semibold text-foreground">{c.method}</span>
                     </div>
-                    <span className="text-xs text-slate-400">{c.gas_used.toLocaleString()} gas</span>
+                    <span className="text-xs text-muted-foreground">{c.gas_used.toLocaleString()} gas</span>
                   </div>
-                  <div className="text-xs font-mono text-slate-500 mt-1">{c.tx_hash.slice(0, 24)}…</div>
+                  <div className="text-xs font-mono text-muted-foreground mt-1">{c.tx_hash.slice(0, 24)}…</div>
                   {c.error && <div className="text-xs text-red-400 mt-1">{c.error}</div>}
-                  <div className="text-xs text-slate-500 mt-1">{new Date(c.called_at).toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{new Date(c.called_at).toLocaleString()}</div>
                 </CardContent>
               </Card>
             ))

@@ -37,12 +37,12 @@ const TIER_COLORS: Record<string, string> = {
   elite: "text-yellow-400 border-yellow-400/30 bg-yellow-400/10",
   pro: "text-blue-400 border-blue-400/30 bg-blue-400/10",
   analyst: "text-purple-400 border-purple-400/30 bg-purple-400/10",
-  viewer: "text-gray-400 border-gray-400/30 bg-gray-400/10",
+  viewer: "text-muted-foreground border-border/30 bg-muted/10",
 };
 
 function RankIcon({ rank }: { rank: number }) {
   if (rank === 1) return <Crown className="w-5 h-5 text-yellow-400" />;
-  if (rank === 2) return <Medal className="w-5 h-5 text-gray-300" />;
+  if (rank === 2) return <Medal className="w-5 h-5 text-foreground/80" />;
   if (rank === 3) return <Award className="w-5 h-5 text-amber-600" />;
   return <span className="font-mono text-sm text-muted-foreground w-5 text-center">{rank}</span>;
 }

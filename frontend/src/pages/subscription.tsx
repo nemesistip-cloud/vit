@@ -191,7 +191,7 @@ export default function SubscriptionPage() {
                 )}
                 {plan.name === "pro" && !isCurrent && (
                   <div className="absolute -top-3 right-4">
-                    <Badge className="bg-blue-500 text-white font-mono text-xs">MOST POPULAR</Badge>
+                    <Badge className="bg-blue-500 text-foreground font-mono text-xs">MOST POPULAR</Badge>
                   </div>
                 )}
 

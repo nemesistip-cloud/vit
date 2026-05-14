@@ -63,7 +63,7 @@ function num(v?: number | null, dp = 4) {
 function bar(v: number, max: number, color: string) {
   const pct = Math.min(100, Math.round((v / max) * 100));
   return (
-    <div className="w-full bg-white/5 rounded-full h-1.5 mt-1">
+    <div className="w-full bg-muted/20 rounded-full h-1.5 mt-1">
       <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${pct}%` }} />
     </div>
   );
@@ -109,13 +109,13 @@ export function EnsembleLeaderboard() {
   }
 
   return (
-    <Card className="bg-black/40 border-white/10">
+    <Card className="bg-card/60 border-border/30">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Trophy className="w-4 h-4 text-yellow-400" />
-            <CardTitle className="text-sm font-semibold text-white">Ensemble Leaderboard</CardTitle>
-            <Badge className="bg-white/10 text-white/60 text-xs border-0 ml-1">
+            <CardTitle className="text-sm font-semibold text-foreground">Ensemble Leaderboard</CardTitle>
+            <Badge className="bg-muted/30 text-foreground/60 text-xs border-0 ml-1">
               {models.length} models
             </Badge>
           </div>
@@ -124,13 +124,13 @@ export function EnsembleLeaderboard() {
             variant="ghost"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="h-7 px-2 text-xs text-white/60 hover:text-white"
+            className="h-7 px-2 text-xs text-foreground/60 hover:text-foreground"
           >
             <RefreshCw className={`w-3 h-3 mr-1 ${isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
-        <CardDescription className="text-xs text-white/40 mt-1">
+        <CardDescription className="text-xs text-foreground/40 mt-1">
           Live model weights, accuracy, and calibration — updated after each settled match
         </CardDescription>
 
@@ -142,12 +142,12 @@ export function EnsembleLeaderboard() {
             { label: "Avg Weight", value: avgWeight.toFixed(2), icon: <Brain className="w-3 h-3" />, color: "text-blue-400" },
             { label: "Best Acc",   value: pct(bestAccuracy),  icon: <Target className="w-3 h-3" />, color: "text-yellow-400" },
           ].map(({ label, value, icon, color }) => (
-            <div key={label} className="bg-white/5 rounded-lg p-2 text-center">
+            <div key={label} className="bg-muted/20 rounded-lg p-2 text-center">
               <div className={`flex items-center justify-center gap-1 ${color} text-xs mb-0.5`}>
                 {icon}
                 <span>{label}</span>
               </div>
-              <div className="text-white font-mono text-sm font-semibold">{value}</div>
+              <div className="text-foreground font-mono text-sm font-semibold">{value}</div>
             </div>
           ))}
         </div>
@@ -156,22 +156,22 @@ export function EnsembleLeaderboard() {
       <CardContent className="p-0">
         {isLoading ? (
           <div className="px-4 pb-4 space-y-2">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full bg-white/5" />)}
+            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full bg-muted/20" />)}
           </div>
         ) : (
           <>
             {/* ── Table header ───────────────────────────────────── */}
             <div className="px-4 pb-1">
-              <div className="grid grid-cols-12 gap-1 text-xs text-white/40 uppercase tracking-wide border-b border-white/10 pb-1.5">
+              <div className="grid grid-cols-12 gap-1 text-xs text-foreground/40 uppercase tracking-wide border-b border-border/30 pb-1.5">
                 <div className="col-span-1 text-center">#</div>
                 <div className="col-span-4">Model</div>
-                <button className="col-span-2 flex items-center gap-0.5 hover:text-white/70 cursor-pointer justify-end" onClick={() => toggleSort("weight")}>
+                <button className="col-span-2 flex items-center gap-0.5 hover:text-foreground/70 cursor-pointer justify-end" onClick={() => toggleSort("weight")}>
                   Weight <SortIcon k="weight" />
                 </button>
-                <button className="col-span-2 flex items-center gap-0.5 hover:text-white/70 cursor-pointer justify-end" onClick={() => toggleSort("accuracy_1x2")}>
+                <button className="col-span-2 flex items-center gap-0.5 hover:text-foreground/70 cursor-pointer justify-end" onClick={() => toggleSort("accuracy_1x2")}>
                   Acc <SortIcon k="accuracy_1x2" />
                 </button>
-                <button className="col-span-2 flex items-center gap-0.5 hover:text-white/70 cursor-pointer justify-end" onClick={() => toggleSort("brier_score")}>
+                <button className="col-span-2 flex items-center gap-0.5 hover:text-foreground/70 cursor-pointer justify-end" onClick={() => toggleSort("brier_score")}>
                   Brier <SortIcon k="brier_score" />
                 </button>
                 <div className="col-span-1 text-center">N</div>
@@ -186,33 +186,33 @@ export function EnsembleLeaderboard() {
                 return (
                   <div key={m.key}>
                     <div
-                      className="px-4 py-2 grid grid-cols-12 gap-1 items-center hover:bg-white/5 cursor-pointer transition-colors"
+                      className="px-4 py-2 grid grid-cols-12 gap-1 items-center hover:bg-muted/20 cursor-pointer transition-colors"
                       onClick={() => setExpanded(isExp ? null : m.key)}
                     >
                       {/* Rank */}
                       <div className="col-span-1 text-center">
                         {rank <= 3 ? (
-                          <span className={`text-sm font-bold ${rank === 1 ? "text-yellow-400" : rank === 2 ? "text-gray-300" : "text-amber-600"}`}>
+                          <span className={`text-sm font-bold ${rank === 1 ? "text-yellow-400" : rank === 2 ? "text-foreground/80" : "text-amber-600"}`}>
                             {rank === 1 ? "🥇" : rank === 2 ? "🥈" : "🥉"}
                           </span>
                         ) : (
-                          <span className="text-xs text-white/30 font-mono">{rank}</span>
+                          <span className="text-xs text-foreground/30 font-mono">{rank}</span>
                         )}
                       </div>
 
                       {/* Model name + status */}
                       <div className="col-span-4 min-w-0">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-xs text-white font-medium truncate">{m.name || m.key}</span>
+                          <span className="text-xs text-foreground font-medium truncate">{m.name || m.key}</span>
                           {!m.is_active && <Badge className="bg-red-500/20 text-red-300 text-[10px] border-0 shrink-0">Off</Badge>}
                           {m.auto_demoted && <Badge className="bg-orange-500/20 text-orange-300 text-[10px] border-0 shrink-0">Demoted</Badge>}
                         </div>
-                        <div className="text-[10px] text-white/30 truncate">{m.model_type || m.key}</div>
+                        <div className="text-[10px] text-foreground/30 truncate">{m.model_type || m.key}</div>
                       </div>
 
                       {/* Weight */}
                       <div className="col-span-2 text-right">
-                        <span className="text-xs font-mono text-white">{m.weight.toFixed(3)}</span>
+                        <span className="text-xs font-mono text-foreground">{m.weight.toFixed(3)}</span>
                         {bar(m.weight, 5.0, "bg-blue-500")}
                       </div>
 
@@ -220,7 +220,7 @@ export function EnsembleLeaderboard() {
                       <div className="col-span-2 text-right">
                         <span className={`text-xs font-mono ${
                           (m.accuracy_1x2 ?? 0) >= 0.55 ? "text-green-400" :
-                          (m.accuracy_1x2 ?? 0) >= 0.45 ? "text-white" : "text-red-400"
+                          (m.accuracy_1x2 ?? 0) >= 0.45 ? "text-foreground" : "text-red-400"
                         }`}>{pct(m.accuracy_1x2)}</span>
                         {m.accuracy_1x2 != null && bar(m.accuracy_1x2, 1.0, "bg-green-500")}
                       </div>
@@ -229,14 +229,14 @@ export function EnsembleLeaderboard() {
                       <div className="col-span-2 text-right">
                         <span className={`text-xs font-mono ${
                           (m.brier_score ?? 1) <= 0.2 ? "text-green-400" :
-                          (m.brier_score ?? 1) <= 0.35 ? "text-white" : "text-red-400"
+                          (m.brier_score ?? 1) <= 0.35 ? "text-foreground" : "text-red-400"
                         }`}>{num(m.brier_score, 3)}</span>
                         {m.brier_score != null && bar(1 - m.brier_score, 1.0, "bg-purple-500")}
                       </div>
 
                       {/* N samples */}
                       <div className="col-span-1 text-center">
-                        <span className="text-[10px] text-white/50 font-mono">{m.predictions_total}</span>
+                        <span className="text-[10px] text-foreground/50 font-mono">{m.predictions_total}</span>
                       </div>
                     </div>
 
@@ -250,19 +250,19 @@ export function EnsembleLeaderboard() {
                             { label: "Correct",     value: `${m.predictions_correct ?? "–"} / ${m.predictions_total}` },
                             { label: "Calibrated",  value: m.calibrated ? "Yes" : "–" },
                           ].map(({ label, value }) => (
-                            <div key={label} className="bg-white/5 rounded p-2">
-                              <div className="text-[10px] text-white/40 uppercase tracking-wide">{label}</div>
-                              <div className="text-xs text-white font-mono mt-0.5">{value}</div>
+                            <div key={label} className="bg-muted/20 rounded p-2">
+                              <div className="text-[10px] text-foreground/40 uppercase tracking-wide">{label}</div>
+                              <div className="text-xs text-foreground font-mono mt-0.5">{value}</div>
                             </div>
                           ))}
                         </div>
 
                         {/* Weight tier */}
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-white/40">Tier</span>
+                          <span className="text-[10px] text-foreground/40">Tier</span>
                           {tierBadge(m.weight)}
                           {m.model_type && (
-                            <Badge className="bg-white/10 text-white/50 text-[10px] border-0">
+                            <Badge className="bg-muted/30 text-foreground/50 text-[10px] border-0">
                               {m.model_type}
                             </Badge>
                           )}
@@ -271,18 +271,18 @@ export function EnsembleLeaderboard() {
                         {/* Per-league accuracy */}
                         {m.league_accuracy && Object.keys(m.league_accuracy).length > 0 && (
                           <div className="mt-2">
-                            <div className="text-[10px] text-white/40 uppercase tracking-wide mb-1">Per-League Accuracy</div>
+                            <div className="text-[10px] text-foreground/40 uppercase tracking-wide mb-1">Per-League Accuracy</div>
                             <div className="flex flex-wrap gap-1.5">
                               {Object.entries(m.league_accuracy)
                                 .sort((a, b) => b[1].n - a[1].n)
                                 .slice(0, 6)
                                 .map(([league, stats]) => (
-                                  <div key={league} className="bg-white/5 rounded px-2 py-1 text-[10px]">
-                                    <span className="text-white/60">{league}</span>
-                                    <span className="text-white/80 font-mono ml-1">
+                                  <div key={league} className="bg-muted/20 rounded px-2 py-1 text-[10px]">
+                                    <span className="text-foreground/60">{league}</span>
+                                    <span className="text-foreground/80 font-mono ml-1">
                                       {pct(stats.acc)}
                                     </span>
-                                    <span className="text-white/30 ml-0.5">({stats.n})</span>
+                                    <span className="text-foreground/30 ml-0.5">({stats.n})</span>
                                   </div>
                                 ))}
                             </div>
@@ -297,11 +297,11 @@ export function EnsembleLeaderboard() {
 
             {/* ── Show more / less ───────────────────────────────── */}
             {models.length > 8 && (
-              <div className="px-4 py-2 border-t border-white/10 text-center">
+              <div className="px-4 py-2 border-t border-border/30 text-center">
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 text-xs text-white/50 hover:text-white"
+                  className="h-7 text-xs text-foreground/50 hover:text-foreground"
                   onClick={() => setShowAll(v => !v)}
                 >
                   {showAll ? (
@@ -314,7 +314,7 @@ export function EnsembleLeaderboard() {
             )}
 
             {models.length === 0 && (
-              <div className="px-4 pb-4 text-center text-xs text-white/40 py-8">
+              <div className="px-4 pb-4 text-center text-xs text-foreground/40 py-8">
                 <Zap className="w-6 h-6 mx-auto mb-2 opacity-30" />
                 No model performance data yet — run predictions to populate the leaderboard.
               </div>

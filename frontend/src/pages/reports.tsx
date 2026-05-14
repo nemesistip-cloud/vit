@@ -70,7 +70,7 @@ const AGENT_CONFIG: Record<string, { label: string; color: string; icon: React.F
   "accumulator-publisher":{ label: "Accumulator",     color: "text-emerald-400", icon: Target,        bg: "border-emerald-500/30 bg-emerald-500/5" },
 };
 
-const DEFAULT_CONFIG = { label: "Agent", color: "text-gray-400", icon: Bot, bg: "border-gray-500/30 bg-gray-500/5" };
+const DEFAULT_CONFIG = { label: "Agent", color: "text-muted-foreground", icon: Bot, bg: "border-border/40 bg-muted/10" };
 
 const SEVERITY_CLS: Record<string, string> = {
   CRITICAL: "text-red-400 border-red-500/40 bg-red-500/10",
@@ -133,9 +133,9 @@ function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
       <div className="flex items-center gap-2 flex-wrap flex-1">
         {priority.map((name, i) => {
           const info = providers[name];
-          const meta = PROVIDER_META[name] ?? { label: name, color: "text-gray-400" };
+          const meta = PROVIDER_META[name] ?? { label: name, color: "text-muted-foreground" };
           const dot = !info?.configured
-            ? "bg-gray-500/60"
+            ? "bg-muted/50"
             : info.failing
             ? "bg-red-500"
             : info.cooling
@@ -189,7 +189,7 @@ function LiveScoresTicker({ scores, wsGoals }: { scores: LiveScore[]; wsGoals: L
       <div className="flex items-center gap-4 min-w-0">
         {all.map((m) => (
           <div key={m.id} className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-mono text-white font-semibold whitespace-nowrap">
+            <span className="text-xs font-mono text-foreground font-semibold whitespace-nowrap">
               {m.home_team} <span className="text-green-400 font-bold">{m.home_score ?? "?"}-{m.away_score ?? "?"}</span> {m.away_team}
             </span>
             {m.league && (

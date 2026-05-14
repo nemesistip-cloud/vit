@@ -59,9 +59,9 @@ interface MeritEvent {
 }
 
 const TIER_CONFIG: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
-  unranked: { icon: <Target className="w-5 h-5" />, color: "text-slate-400", bg: "bg-slate-500/20 border-slate-500/30" },
+  unranked: { icon: <Target className="w-5 h-5" />, color: "text-muted-foreground", bg: "bg-muted/20 border-border/40" },
   bronze: { icon: <Shield className="w-5 h-5" />, color: "text-amber-600", bg: "bg-amber-800/20 border-amber-700/30" },
-  silver: { icon: <Star className="w-5 h-5" />, color: "text-slate-300", bg: "bg-slate-400/20 border-slate-400/30" },
+  silver: { icon: <Star className="w-5 h-5" />, color: "text-foreground/80", bg: "bg-muted/20 border-border/30" },
   gold: { icon: <Award className="w-5 h-5" />, color: "text-yellow-400", bg: "bg-yellow-500/20 border-yellow-500/30" },
   platinum: { icon: <Diamond className="w-5 h-5" />, color: "text-cyan-300", bg: "bg-cyan-500/20 border-cyan-500/30" },
   diamond: { icon: <Flame className="w-5 h-5" />, color: "text-blue-400", bg: "bg-blue-500/20 border-blue-500/30" },
@@ -127,11 +127,11 @@ export default function MeritPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Trophy className="w-6 h-6 text-yellow-400" />
           Merit Protocol
         </h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <p className="text-muted-foreground text-sm mt-1">
           Long-term reputation scoring — earn VIT bonuses by climbing the tier ladder
         </p>
       </div>
@@ -141,8 +141,8 @@ export default function MeritPage() {
           <CardContent className="p-5">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="text-slate-400 text-sm">Your Merit Score</div>
-                <div className="text-4xl font-bold text-white mt-1">{myMerit.score.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="text-muted-foreground text-sm">Your Merit Score</div>
+                <div className="text-4xl font-bold text-foreground mt-1">{myMerit.score.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                 <div className="flex items-center gap-2 mt-2">
                   <TierBadge tier={myMerit.tier} />
                   {myMerit.streak_days > 0 && (
@@ -156,18 +156,18 @@ export default function MeritPage() {
                 </div>
               </div>
               <div className="text-right text-sm">
-                <div className="text-slate-400">Peak</div>
-                <div className="text-white font-semibold">{myMerit.peak_score.toFixed(0)}</div>
+                <div className="text-muted-foreground">Peak</div>
+                <div className="text-foreground font-semibold">{myMerit.peak_score.toFixed(0)}</div>
                 <TierBadge tier={myMerit.peak_tier} />
               </div>
             </div>
             {myMerit.next_tier && (
               <div>
-                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
                   <span>Progress to {myMerit.next_tier}</span>
                   <span>{myMerit.points_to_next_tier.toFixed(0)} pts needed</span>
                 </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
+                <div className="w-full bg-muted/40 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${myTierCfg.color.replace("text-", "bg-")}`}
                     style={{ width: `${progressPct}%` }}
@@ -176,17 +176,17 @@ export default function MeritPage() {
               </div>
             )}
             <div className="grid grid-cols-3 gap-3 mt-4 text-center">
-              <div className="bg-slate-800 rounded p-2">
+              <div className="bg-muted/20 rounded p-2">
                 <div className="text-green-400 font-semibold text-sm">+{myMerit.total_earned.toFixed(0)}</div>
-                <div className="text-xs text-slate-500">Earned</div>
+                <div className="text-xs text-muted-foreground">Earned</div>
               </div>
-              <div className="bg-slate-800 rounded p-2">
+              <div className="bg-muted/20 rounded p-2">
                 <div className="text-red-400 font-semibold text-sm">-{myMerit.total_lost.toFixed(0)}</div>
-                <div className="text-xs text-slate-500">Lost</div>
+                <div className="text-xs text-muted-foreground">Lost</div>
               </div>
-              <div className="bg-slate-800 rounded p-2">
+              <div className="bg-muted/20 rounded p-2">
                 <div className="text-yellow-400 font-semibold text-sm">{myMerit.bonus_vit_earned.toFixed(2)}</div>
-                <div className="text-xs text-slate-500">Bonus VIT</div>
+                <div className="text-xs text-muted-foreground">Bonus VIT</div>
               </div>
             </div>
           </CardContent>
@@ -194,7 +194,7 @@ export default function MeritPage() {
       )}
 
       <Tabs defaultValue="leaderboard">
-        <TabsList className="bg-slate-800 border border-slate-700">
+        <TabsList className="bg-muted/20 border border-border">
           <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
           <TabsTrigger value="tiers">Tier System</TabsTrigger>
           <TabsTrigger value="history">My History</TabsTrigger>
@@ -204,29 +204,29 @@ export default function MeritPage() {
         <TabsContent value="leaderboard" className="mt-4">
           <div className="space-y-2">
             {lbLoading ? (
-              <div className="text-slate-400 text-center py-8">Loading leaderboard…</div>
+              <div className="text-muted-foreground text-center py-8">Loading leaderboard…</div>
             ) : (
               (leaderboardData?.leaderboard ?? []).map((entry) => {
                 const cfg = TIER_CONFIG[entry.tier] ?? TIER_CONFIG.unranked;
                 return (
-                  <Card key={entry.user_id} className={`bg-slate-800/50 border ${entry.rank <= 3 ? "border-yellow-500/30" : "border-slate-700"}`}>
+                  <Card key={entry.user_id} className={`bg-muted/20 border ${entry.rank <= 3 ? "border-yellow-500/30" : "border-border"}`}>
                     <CardContent className="p-3 flex items-center gap-4">
-                      <div className={`text-2xl font-bold w-8 text-center ${entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-slate-300" : entry.rank === 3 ? "text-amber-600" : "text-slate-500"}`}>
+                      <div className={`text-2xl font-bold w-8 text-center ${entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-foreground/80" : entry.rank === 3 ? "text-amber-600" : "text-muted-foreground"}`}>
                         {entry.rank <= 3 ? ["🥇", "🥈", "🥉"][entry.rank - 1] : `#${entry.rank}`}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-white font-semibold">User #{entry.user_id}</span>
+                          <span className="text-foreground font-semibold">User #{entry.user_id}</span>
                           <TierBadge tier={entry.tier} />
                         </div>
-                        <div className="flex gap-3 text-xs text-slate-400 mt-1">
+                        <div className="flex gap-3 text-xs text-muted-foreground mt-1">
                           <span>{entry.streak_days}d streak</span>
                           <span>+{entry.bonus_vit_earned.toFixed(2)} VIT bonus</span>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className={`font-bold text-lg ${cfg.color}`}>{entry.score.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                        <div className="text-xs text-slate-500">merit pts</div>
+                        <div className="text-xs text-muted-foreground">merit pts</div>
                       </div>
                     </CardContent>
                   </Card>
@@ -248,12 +248,12 @@ export default function MeritPage() {
                         <div className={cfg.color}>{cfg.icon}</div>
                         <div>
                           <div className={`font-semibold capitalize ${cfg.color}`}>{tier.tier}</div>
-                          <div className="text-xs text-slate-400">{tier.min_score.toLocaleString()}+ points</div>
+                          <div className="text-xs text-muted-foreground">{tier.min_score.toLocaleString()}+ points</div>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className={`font-bold text-lg ${cfg.color}`}>+{tier.bonus_pct.toFixed(0)}%</div>
-                        <div className="text-xs text-slate-400">VIT bonus</div>
+                        <div className="text-xs text-muted-foreground">VIT bonus</div>
                       </div>
                     </div>
                   </CardContent>
@@ -265,30 +265,30 @@ export default function MeritPage() {
 
         <TabsContent value="history" className="mt-4 space-y-2">
           {!user ? (
-            <div className="text-center text-slate-400 py-8">Sign in to view your merit history</div>
+            <div className="text-center text-muted-foreground py-8">Sign in to view your merit history</div>
           ) : (myHistory?.events ?? []).length === 0 ? (
-            <div className="text-center text-slate-400 py-8">No merit events yet</div>
+            <div className="text-center text-muted-foreground py-8">No merit events yet</div>
           ) : (
             (myHistory?.events ?? []).map((e) => (
-              <Card key={e.id} className="bg-slate-800/50 border-slate-700">
+              <Card key={e.id} className="bg-muted/20 border-border">
                 <CardContent className="p-3 flex items-center gap-3">
                   <div className={`font-bold text-sm ${e.points_delta >= 0 ? "text-green-400" : "text-red-400"}`}>
                     {e.points_delta >= 0 ? "+" : ""}{e.points_delta.toFixed(1)}
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm text-white capitalize">{e.event_type.replace(/_/g, " ")}</div>
-                    {e.description && <div className="text-xs text-slate-400">{e.description}</div>}
+                    <div className="text-sm text-foreground capitalize">{e.event_type.replace(/_/g, " ")}</div>
+                    {e.description && <div className="text-xs text-muted-foreground">{e.description}</div>}
                     {e.tier_before !== e.tier_after && (
                       <div className="flex items-center gap-1 mt-1">
                         <TierBadge tier={e.tier_before} />
-                        <span className="text-slate-500 text-xs">→</span>
+                        <span className="text-muted-foreground text-xs">→</span>
                         <TierBadge tier={e.tier_after} />
                       </div>
                     )}
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-slate-400">{e.score_after.toFixed(0)} pts</div>
-                    <div className="text-xs text-slate-500">{new Date(e.occurred_at).toLocaleDateString()}</div>
+                    <div className="text-xs text-muted-foreground">{e.score_after.toFixed(0)} pts</div>
+                    <div className="text-xs text-muted-foreground">{new Date(e.occurred_at).toLocaleDateString()}</div>
                   </div>
                 </CardContent>
               </Card>
@@ -297,9 +297,9 @@ export default function MeritPage() {
         </TabsContent>
 
         <TabsContent value="distribution" className="mt-4">
-          <Card className="bg-slate-800/50 border-slate-700">
+          <Card className="bg-muted/20 border-border">
             <CardHeader>
-              <CardTitle className="text-white text-base">Tier Distribution</CardTitle>
+              <CardTitle className="text-foreground text-base">Tier Distribution</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {Object.entries(distributionData?.distribution ?? {}).map(([tier, count]) => {
@@ -313,9 +313,9 @@ export default function MeritPage() {
                         {cfg.icon}
                         <span className="capitalize">{tier}</span>
                       </div>
-                      <span className="text-slate-300">{count} users ({pct.toFixed(1)}%)</span>
+                      <span className="text-foreground/80">{count} users ({pct.toFixed(1)}%)</span>
                     </div>
-                    <div className="w-full bg-slate-700 rounded-full h-1.5">
+                    <div className="w-full bg-muted/40 rounded-full h-1.5">
                       <div className={`h-1.5 rounded-full ${cfg.color.replace("text-", "bg-")}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>

@@ -58,13 +58,13 @@ interface KellyResult {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-xs">
+    <div className="bg-card border border-border rounded-lg p-3 text-xs">
       <div className="text-zinc-400 mb-1">{label}</div>
       {payload.map((p: any) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
           <span className="text-zinc-300">{p.name}:</span>
-          <span className="text-white font-mono">{typeof p.value === "number" ? p.value.toFixed(4) : p.value}</span>
+          <span className="text-foreground font-mono">{typeof p.value === "number" ? p.value.toFixed(4) : p.value}</span>
         </div>
       ))}
     </div>
@@ -118,7 +118,7 @@ export default function BankrollPage() {
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Wallet className="w-6 h-6 text-cyan-400" />
           Bankroll Management
         </h1>
@@ -159,7 +159,7 @@ export default function BankrollPage() {
             color: (stats?.last_30d.win_rate ?? 0) >= 50 ? "text-emerald-400" : "text-red-400",
           },
         ].map((card) => (
-          <Card key={card.label} className="bg-zinc-900 border-zinc-800">
+          <Card key={card.label} className="bg-card border-border/50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 {card.icon}
@@ -176,7 +176,7 @@ export default function BankrollPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* P&L Chart */}
-        <Card className="md:col-span-2 bg-zinc-900 border-zinc-800">
+        <Card className="md:col-span-2 bg-card border-border/50">
           <CardHeader className="pb-2 flex-row items-center justify-between">
             <div>
               <CardTitle className="text-sm font-medium text-zinc-300">Cumulative P&L</CardTitle>
@@ -228,7 +228,7 @@ export default function BankrollPage() {
         </Card>
 
         {/* Kelly Calculator */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card className="bg-card border-border/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
               <Calculator className="w-4 h-4 text-purple-400" />
@@ -245,7 +245,7 @@ export default function BankrollPage() {
                 value={kellyWinProb}
                 onChange={(e) => setKellyWinProb(e.target.value)}
                 placeholder="e.g. 0.55"
-                className="mt-1 bg-zinc-800 border-zinc-700 text-white font-mono text-sm"
+                className="mt-1 bg-muted/20 border-border text-foreground font-mono text-sm"
               />
             </div>
             <div>
@@ -254,11 +254,11 @@ export default function BankrollPage() {
                 value={kellyOdds}
                 onChange={(e) => setKellyOdds(e.target.value)}
                 placeholder="e.g. 2.10"
-                className="mt-1 bg-zinc-800 border-zinc-700 text-white font-mono text-sm"
+                className="mt-1 bg-muted/20 border-border text-foreground font-mono text-sm"
               />
             </div>
             <Button
-              className="w-full bg-cyan-600 hover:bg-cyan-500 text-white"
+              className="w-full bg-cyan-600 hover:bg-cyan-500 text-foreground"
               onClick={handleKelly}
               disabled={kellyMutation.isPending}
             >
@@ -266,7 +266,7 @@ export default function BankrollPage() {
             </Button>
 
             {kellyResult && (
-              <div className="space-y-2 pt-2 border-t border-zinc-800">
+              <div className="space-y-2 pt-2 border-t border-border/50">
                 <div className="flex items-center gap-2 mb-2">
                   {kellyResult.positive_ev ? (
                     <><CheckCircle className="w-4 h-4 text-emerald-400" /><span className="text-emerald-400 text-xs font-medium">Positive EV Bet</span></>
@@ -276,7 +276,7 @@ export default function BankrollPage() {
                 </div>
                 {[
                   { label: "Edge", value: `${kellyResult.edge_pct >= 0 ? "+" : ""}${kellyResult.edge_pct.toFixed(2)}%`, color: kellyResult.positive_ev ? "text-emerald-400" : "text-red-400" },
-                  { label: "Full Kelly", value: `${kellyResult.full_kelly_pct.toFixed(2)}%`, color: "text-white" },
+                  { label: "Full Kelly", value: `${kellyResult.full_kelly_pct.toFixed(2)}%`, color: "text-foreground" },
                   { label: "¼ Kelly (safe)", value: `${kellyResult.quarter_kelly_pct.toFixed(2)}%`, color: "text-cyan-400" },
                   { label: "Recommended Stake", value: `$${kellyResult.recommended_stake.toFixed(2)}`, color: "text-cyan-400" },
                 ].map((row) => (
@@ -290,7 +290,7 @@ export default function BankrollPage() {
 
             {/* Current Kelly from state */}
             {kelly && !kellyResult && (
-              <div className="space-y-2 pt-2 border-t border-zinc-800">
+              <div className="space-y-2 pt-2 border-t border-border/50">
                 <div className="text-zinc-400 text-xs mb-2">Based on your prediction history:</div>
                 {[
                   { label: "Win Rate", value: `${kelly.basis_win_rate}%` },
@@ -299,7 +299,7 @@ export default function BankrollPage() {
                 ].map((row) => (
                   <div key={row.label} className="flex justify-between items-center">
                     <span className="text-zinc-400 text-xs">{row.label}</span>
-                    <span className={`font-mono text-sm ${(row as any).color ?? "text-white"}`}>{row.value}</span>
+                    <span className={`font-mono text-sm ${(row as any).color ?? "text-foreground"}`}>{row.value}</span>
                   </div>
                 ))}
               </div>
@@ -309,7 +309,7 @@ export default function BankrollPage() {
       </div>
 
       {/* Stats Table */}
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-card border-border/50">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-zinc-300">Performance Breakdown</CardTitle>
         </CardHeader>
@@ -329,9 +329,9 @@ export default function BankrollPage() {
                     { label: "Win Rate", value: `${d?.win_rate ?? 0}%`, color: (d?.win_rate ?? 0) >= 50 ? "text-emerald-400" : "text-red-400" },
                     { label: "Profit", value: `${profitSign(d?.profit ?? 0)}${(d?.profit ?? 0).toFixed(4)}`, color: profitColor(d?.profit ?? 0) },
                   ].map((row) => (
-                    <div key={row.label} className="flex justify-between items-center py-1 border-b border-zinc-800/50">
+                    <div key={row.label} className="flex justify-between items-center py-1 border-b border-border/50/50">
                       <span className="text-zinc-400 text-xs">{row.label}</span>
-                      <span className={`font-mono text-sm ${(row as any).color ?? "text-white"}`}>{row.value}</span>
+                      <span className={`font-mono text-sm ${(row as any).color ?? "text-foreground"}`}>{row.value}</span>
                     </div>
                   ))}
                 </div>

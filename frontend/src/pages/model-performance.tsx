@@ -55,19 +55,19 @@ interface PerformanceData {
 function TrendIcon({ trend }: { trend: string }) {
   if (trend === "improving") return <TrendingUp className="w-4 h-4 text-emerald-400" />;
   if (trend === "declining") return <TrendingDown className="w-4 h-4 text-red-400" />;
-  return <Minus className="w-4 h-4 text-zinc-400" />;
+  return <Minus className="w-4 h-4 text-muted-foreground" />;
 }
 
 function AccuracyBar({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-zinc-500 font-mono text-xs">—</span>;
+  if (value === null) return <span className="text-muted-foreground font-mono text-xs">—</span>;
   const pct = Math.round(value * 100);
   const color = pct >= 55 ? "bg-emerald-500" : pct >= 45 ? "bg-yellow-500" : "bg-red-500";
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-muted/20 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
-      <span className="font-mono text-xs text-zinc-300 w-10 text-right">{pct}%</span>
+      <span className="font-mono text-xs text-foreground/80 w-10 text-right">{pct}%</span>
     </div>
   );
 }
@@ -126,17 +126,17 @@ export default function ModelPerformancePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Brain className="w-6 h-6 text-cyan-400" />
             Model Performance
           </h1>
-          <p className="text-zinc-400 text-sm mt-1">
+          <p className="text-muted-foreground text-sm mt-1">
             Real-time accuracy tracking across all 13 ensemble models
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Select value={days} onValueChange={setDays}>
-            <SelectTrigger className="w-32 bg-zinc-900 border-zinc-700 text-sm">
+            <SelectTrigger className="w-32 bg-card border-border text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -151,7 +151,7 @@ export default function ModelPerformancePage() {
             size="sm"
             onClick={handleSync}
             disabled={syncing}
-            className="border-zinc-700 text-zinc-300"
+            className="border-border text-foreground/80"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
             Sync
@@ -181,7 +181,7 @@ export default function ModelPerformancePage() {
             value: (gs?.sharpe_ratio ?? 0).toFixed(3),
             sub: "> 1.0 = excellent",
             icon: <Activity className="w-4 h-4 text-purple-400" />,
-            color: (gs?.sharpe_ratio ?? 0) >= 1 ? "text-purple-400" : "text-zinc-400",
+            color: (gs?.sharpe_ratio ?? 0) >= 1 ? "text-purple-400" : "text-muted-foreground",
           },
           {
             label: "Active Models",
@@ -195,17 +195,17 @@ export default function ModelPerformancePage() {
             value: gs?.profit_trend ?? "—",
             sub: `${days}d window`,
             icon: <TrendIcon trend={gs?.profit_trend ?? "neutral"} />,
-            color: gs?.profit_trend === "improving" ? "text-emerald-400" : gs?.profit_trend === "declining" ? "text-red-400" : "text-zinc-400",
+            color: gs?.profit_trend === "improving" ? "text-emerald-400" : gs?.profit_trend === "declining" ? "text-red-400" : "text-muted-foreground",
           },
         ].map((stat) => (
-          <Card key={stat.label} className="bg-zinc-900 border-zinc-800">
+          <Card key={stat.label} className="bg-card border-border/50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 {stat.icon}
-                <span className="text-zinc-400 text-xs uppercase tracking-wider">{stat.label}</span>
+                <span className="text-muted-foreground text-xs uppercase tracking-wider">{stat.label}</span>
               </div>
               <div className={`text-xl font-bold font-mono ${stat.color}`}>{stat.value}</div>
-              <div className="text-zinc-500 text-xs mt-1">{stat.sub}</div>
+              <div className="text-muted-foreground text-xs mt-1">{stat.sub}</div>
             </CardContent>
           </Card>
         ))}
@@ -213,10 +213,10 @@ export default function ModelPerformancePage() {
 
       {/* Accuracy Chart */}
       {chartData.length > 0 && (
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card className="bg-card border-border/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-300">Model Accuracy vs Weight</CardTitle>
-            <CardDescription className="text-xs text-zinc-500">
+            <CardTitle className="text-sm font-medium text-foreground/80">Model Accuracy vs Weight</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
               Bar = accuracy (%), Line = ensemble weight (scaled)
             </CardDescription>
           </CardHeader>
@@ -246,22 +246,22 @@ export default function ModelPerformancePage() {
       )}
 
       {/* Model Table */}
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-card border-border/50">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-zinc-300">
+          <CardTitle className="text-sm font-medium text-foreground/80">
             All Models ({models.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-zinc-500 text-sm">Loading models…</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">Loading models…</div>
           ) : models.length === 0 ? (
-            <div className="p-8 text-center text-zinc-500 text-sm">No model data available</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">No model data available</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider">
+                  <tr className="border-b border-border/50 text-xs text-muted-foreground uppercase tracking-wider">
                     <th className="text-left p-3 pl-4">Model</th>
                     <th className="text-left p-3">Type</th>
                     <th className="text-left p-3">Status</th>
@@ -274,15 +274,15 @@ export default function ModelPerformancePage() {
                 </thead>
                 <tbody>
                   {models.map((m) => (
-                    <tr key={m.model_key} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+                    <tr key={m.model_key} className="border-b border-border/30 hover:bg-muted/15 transition-colors">
                       <td className="p-3 pl-4">
-                        <div className="font-mono text-xs text-white">{m.model_key}</div>
-                        <div className="text-zinc-500 text-xs">{m.model_name}</div>
+                        <div className="font-mono text-xs text-foreground">{m.model_key}</div>
+                        <div className="text-muted-foreground text-xs">{m.model_name}</div>
                       </td>
                       <td className="p-3">
                         <Badge
                           variant="outline"
-                          className={`text-xs ${MODEL_TYPE_COLORS[m.model_type] ?? "text-zinc-400 bg-zinc-400/10 border-zinc-400/20"}`}
+                          className={`text-xs ${MODEL_TYPE_COLORS[m.model_type] ?? "text-muted-foreground bg-muted/10 border-border/30"}`}
                         >
                           {m.model_type}
                         </Badge>
@@ -308,10 +308,10 @@ export default function ModelPerformancePage() {
                       <td className="p-3 min-w-32">
                         <AccuracyBar value={m.accuracy} />
                       </td>
-                      <td className="p-3 text-right font-mono text-xs text-zinc-300">
+                      <td className="p-3 text-right font-mono text-xs text-foreground/80">
                         {(m.weight * 100).toFixed(1)}%
                       </td>
-                      <td className="p-3 text-right font-mono text-xs text-zinc-400">
+                      <td className="p-3 text-right font-mono text-xs text-muted-foreground">
                         {m.brier_score !== null ? m.brier_score.toFixed(3) : "—"}
                       </td>
                       <td className="p-3 text-right font-mono text-xs">
@@ -320,10 +320,10 @@ export default function ModelPerformancePage() {
                             {m.clv_score >= 0 ? "+" : ""}{(m.clv_score * 100).toFixed(1)}%
                           </span>
                         ) : (
-                          <span className="text-zinc-500">—</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="p-3 pr-4 text-right font-mono text-xs text-zinc-400">
+                      <td className="p-3 pr-4 text-right font-mono text-xs text-muted-foreground">
                         {m.predictions_total.toLocaleString()}
                       </td>
                     </tr>

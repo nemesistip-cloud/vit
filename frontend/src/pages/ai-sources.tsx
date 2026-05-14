@@ -157,20 +157,20 @@ function PuterAccountPanel() {
   if (!isPuterAvailable()) return null;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2">
-      <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+    <div className="flex items-center gap-2 flex-wrap bg-card/60 border border-border rounded-lg px-3 py-2">
+      <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
       {signedIn === null ? (
-        <span className="text-xs text-gray-500">Checking Puter…</span>
+        <span className="text-xs text-muted-foreground">Checking Puter…</span>
       ) : signedIn && username ? (
         <>
-          <span className="text-xs text-gray-300">
+          <span className="text-xs text-foreground/80">
             Puter: <span className="text-cyan-400 font-mono">{username}</span>
           </span>
           <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px]">signed in</Badge>
           <button
             onClick={handleSwitchAccount}
             disabled={busy}
-            className="text-[11px] text-gray-400 hover:text-amber-400 flex items-center gap-1 ml-auto transition-colors"
+            className="text-[11px] text-muted-foreground hover:text-amber-400 flex items-center gap-1 ml-auto transition-colors"
           >
             <LogOut className="w-3 h-3" />
             Switch account
@@ -178,7 +178,7 @@ function PuterAccountPanel() {
         </>
       ) : (
         <>
-          <span className="text-xs text-gray-400">Not signed in to Puter</span>
+          <span className="text-xs text-muted-foreground">Not signed in to Puter</span>
           <button
             onClick={handleSignIn}
             disabled={busy}
@@ -189,7 +189,7 @@ function PuterAccountPanel() {
           </button>
         </>
       )}
-      {busy && <Loader2 className="w-3 h-3 animate-spin text-gray-400 shrink-0" />}
+      {busy && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground shrink-0" />}
     </div>
   );
 }
@@ -212,12 +212,12 @@ function fmtDate(iso: string | null) {
 
 function SlotBadge({ status }: { status: SlotStatus }) {
   const cfg: Record<SlotStatus, { label: string; cls: string; icon: React.ReactNode }> = {
-    pending:   { label: "Pending",   cls: "bg-gray-700 text-gray-300",            icon: null },
+    pending:   { label: "Pending",   cls: "bg-muted/40 text-foreground/80",            icon: null },
     running:   { label: "Querying…", cls: "bg-blue-500/20 text-blue-300 border border-blue-500/40",  icon: <Loader2 className="w-3 h-3 animate-spin mr-1" /> },
     ingesting: { label: "Saving…",   cls: "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40", icon: <Loader2 className="w-3 h-3 animate-spin mr-1" /> },
     done:      { label: "Done",      cls: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> },
     failed:    { label: "Failed",    cls: "bg-rose-500/20 text-rose-300 border border-rose-500/30",   icon: <XCircle className="w-3 h-3 mr-1" /> },
-    skipped:   { label: "Skipped",   cls: "bg-gray-600/40 text-gray-500",         icon: null },
+    skipped:   { label: "Skipped",   cls: "bg-muted/30/40 text-muted-foreground",         icon: null },
   };
   const c = cfg[status];
   return (
@@ -233,7 +233,7 @@ function ProbBar({ home, draw, away }: { home: number; draw: number; away: numbe
   return (
     <div className="flex rounded overflow-hidden h-2 w-full mt-1">
       <div className="bg-emerald-500" style={{ width: `${home * 100}%` }} title={`Home ${fmtPct(home)}`} />
-      <div className="bg-gray-500"   style={{ width: `${draw * 100}%` }} title={`Draw ${fmtPct(draw)}`} />
+      <div className="bg-muted/40"   style={{ width: `${draw * 100}%` }} title={`Draw ${fmtPct(draw)}`} />
       <div className="bg-rose-500"   style={{ width: `${away * 100}%` }} title={`Away ${fmtPct(away)}`} />
     </div>
   );
@@ -265,18 +265,18 @@ function MatchCard({
     ? "border-emerald-500/30"
     : allFailed
     ? "border-rose-500/30"
-    : "border-gray-700";
+    : "border-border";
 
   return (
-    <Card className={`bg-gray-900 border ${borderCls} transition-all duration-300`}>
+    <Card className={`bg-card border ${borderCls} transition-all duration-300`}>
       <CardContent className="p-3 space-y-2">
         {/* Header row */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-white truncate">
-              {match.home_team} <span className="text-gray-500">vs</span> {match.away_team}
+            <div className="text-sm font-semibold text-foreground truncate">
+              {match.home_team} <span className="text-muted-foreground">vs</span> {match.away_team}
             </div>
-            <div className="text-xs text-gray-500 flex flex-wrap gap-1 mt-0.5">
+            <div className="text-xs text-muted-foreground flex flex-wrap gap-1 mt-0.5">
               {match.league && <span>{match.league}</span>}
               {match.match_date && <span>· {fmtDate(match.match_date)}</span>}
             </div>
@@ -304,7 +304,7 @@ function MatchCard({
               {match.sources.map((s) => (
                 <Badge
                   key={s}
-                  className="bg-gray-700/50 text-gray-400 text-[10px] px-1.5 py-0 border-0 capitalize"
+                  className="bg-muted/40/50 text-muted-foreground text-[10px] px-1.5 py-0 border-0 capitalize"
                 >
                   {s} ✓
                 </Badge>
@@ -323,30 +323,30 @@ function MatchCard({
               const model = MODELS.find((x) => x.id === m);
               if (!model) return null;
               return (
-                <div key={m} className="bg-gray-800/60 rounded p-2 space-y-1.5">
+                <div key={m} className="bg-muted/20/60 rounded p-2 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold ${model.color}`}>{model.label}</span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-muted-foreground">
                       conf {fmtPct(a.confidence)}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-1 text-xs text-center">
                     <div>
-                      <div className="text-gray-400">Home</div>
+                      <div className="text-muted-foreground">Home</div>
                       <div className="text-emerald-400 font-bold">{fmtPct(a.home_prob)}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Draw</div>
-                      <div className="text-gray-300 font-bold">{fmtPct(a.draw_prob)}</div>
+                      <div className="text-muted-foreground">Draw</div>
+                      <div className="text-foreground/80 font-bold">{fmtPct(a.draw_prob)}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Away</div>
+                      <div className="text-muted-foreground">Away</div>
                       <div className="text-rose-400 font-bold">{fmtPct(a.away_prob)}</div>
                     </div>
                   </div>
                   <ProbBar home={a.home_prob} draw={a.draw_prob} away={a.away_prob} />
                   {a.reason && (
-                    <p className="text-[11px] text-gray-400 italic">{a.reason}</p>
+                    <p className="text-[11px] text-muted-foreground italic">{a.reason}</p>
                   )}
                   {(a.key_factors?.length ?? 0) > 0 && (
                     <button
@@ -358,7 +358,7 @@ function MatchCard({
                     </button>
                   )}
                   {expanded && (
-                    <ul className="text-[11px] text-gray-400 space-y-0.5 pl-2">
+                    <ul className="text-[11px] text-muted-foreground space-y-0.5 pl-2">
                       {(a.key_factors ?? []).map((f, i) => (
                         <li key={i} className="flex gap-1">
                           <span className="text-cyan-500">•</span> {f}
@@ -435,14 +435,14 @@ function PerformanceStatsPanel() {
   const hasPerf = (data?.performance?.length ?? 0) > 0;
 
   return (
-    <Card className="bg-gray-800/60 border-gray-700">
+    <Card className="bg-muted/20/60 border-border">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-white text-base">
+          <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <BarChart3 className="w-4 h-4 text-cyan-400" />
             AI Source Performance
             {(data?.total_ingested ?? 0) > 0 && (
-              <Badge className="bg-gray-700 text-gray-300 border-0 text-[10px] ml-1">
+              <Badge className="bg-muted/40 text-foreground/80 border-0 text-[10px] ml-1">
                 {data!.total_ingested} ingested
               </Badge>
             )}
@@ -450,7 +450,7 @@ function PerformanceStatsPanel() {
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 text-xs text-gray-400 hover:text-white border border-gray-700"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground border border-border"
             onClick={triggerUpdate}
             disabled={refreshing}
           >
@@ -464,18 +464,18 @@ function PerformanceStatsPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         {q.isLoading ? (
-          <Skeleton className="h-16 w-full bg-gray-700" />
+          <Skeleton className="h-16 w-full bg-muted/40" />
         ) : !hasPerf ? (
           <div className="space-y-2">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               {data?.message ?? "No performance data yet — metrics are computed after matches settle."}
             </p>
             {Object.keys(sourceCounts).length > 0 && (
               <div>
-                <p className="text-xs text-gray-400 mb-1.5 font-medium">Ingested by source:</p>
+                <p className="text-xs text-muted-foreground mb-1.5 font-medium">Ingested by source:</p>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(sourceCounts).map(([src, cnt]) => (
-                    <Badge key={src} className="bg-gray-700 text-gray-300 border-0 capitalize text-[10px]">
+                    <Badge key={src} className="bg-muted/40 text-foreground/80 border-0 capitalize text-[10px]">
                       {src}: {cnt}
                     </Badge>
                   ))}
@@ -486,7 +486,7 @@ function PerformanceStatsPanel() {
         ) : (
           <div className="space-y-2">
             {data!.performance.map((p) => (
-              <div key={p.source} className="bg-gray-900/60 rounded p-2.5 text-xs">
+              <div key={p.source} className="bg-card/60 rounded p-2.5 text-xs">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
                     <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 capitalize text-[10px]">
@@ -498,26 +498,26 @@ function PerformanceStatsPanel() {
                       </Badge>
                     )}
                   </div>
-                  <span className="text-gray-500 text-[10px]">{p.ingested_count} predictions</span>
+                  <span className="text-muted-foreground text-[10px]">{p.ingested_count} predictions</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <div className="text-gray-400">Accuracy</div>
+                    <div className="text-muted-foreground">Accuracy</div>
                     <div className={`font-bold ${p.accuracy >= 0.6 ? "text-emerald-400" : p.accuracy >= 0.45 ? "text-amber-400" : "text-rose-400"}`}>
                       {fmtPct(p.accuracy)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-gray-400">Calibration</div>
-                    <div className="text-gray-300 font-bold">{fmtPct(p.calibration_score)}</div>
+                    <div className="text-muted-foreground">Calibration</div>
+                    <div className="text-foreground/80 font-bold">{fmtPct(p.calibration_score)}</div>
                   </div>
                   <div>
-                    <div className="text-gray-400">Weight</div>
+                    <div className="text-muted-foreground">Weight</div>
                     <div className="text-cyan-400 font-bold">{p.current_weight.toFixed(2)}×</div>
                   </div>
                 </div>
                 {p.sample_size > 0 && (
-                  <div className="mt-1 text-[10px] text-gray-600">
+                  <div className="mt-1 text-[10px] text-muted-foreground/60">
                     Based on {p.sample_size} settled match{p.sample_size !== 1 ? "es" : ""}
                   </div>
                 )}
@@ -593,9 +593,9 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
   };
 
   return (
-    <Card className="bg-gray-800/60 border-gray-700">
+    <Card className="bg-muted/20/60 border-border">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-white text-base">
+        <CardTitle className="flex items-center gap-2 text-foreground text-base">
           <Settings className="w-5 h-5 text-amber-400" />
           Server-Side Analysis
           <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] ml-1">
@@ -610,19 +610,19 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
       <CardContent className="space-y-3">
         {summary && (
           <div className={`grid gap-3 text-center ${summary.mlFallback > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
-            <div className="bg-gray-900/60 rounded p-2">
+            <div className="bg-card/60 rounded p-2">
               <div className="text-xl font-bold text-emerald-400">{summary.ingested}</div>
-              <div className="text-xs text-gray-500">Ingested</div>
+              <div className="text-xs text-muted-foreground">Ingested</div>
             </div>
             {summary.mlFallback > 0 && (
               <div className="bg-blue-900/30 border border-blue-500/20 rounded p-2">
                 <div className="text-xl font-bold text-blue-400">{summary.mlFallback}</div>
-                <div className="text-xs text-gray-500">ML Ensemble</div>
+                <div className="text-xs text-muted-foreground">ML Ensemble</div>
               </div>
             )}
-            <div className="bg-gray-900/60 rounded p-2">
+            <div className="bg-card/60 rounded p-2">
               <div className="text-xl font-bold text-amber-400">{summary.skipped}</div>
-              <div className="text-xs text-gray-500">Skipped</div>
+              <div className="text-xs text-muted-foreground">Skipped</div>
             </div>
           </div>
         )}
@@ -642,11 +642,11 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
         {results && results.length > 0 && (
           <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
             {results.map((r) => (
-              <div key={r.match_id} className="flex items-start gap-2 text-xs py-1 border-b border-gray-700/50 last:border-0">
+              <div key={r.match_id} className="flex items-start gap-2 text-xs py-1 border-b border-border/50 last:border-0">
                 <span className={`shrink-0 font-medium ${r.status === "ingested" ? "text-emerald-400" : r.status === "skipped" ? "text-amber-400" : "text-rose-400"}`}>
                   {r.status === "ingested" ? "✓" : r.status === "skipped" ? "—" : "✗"}
                 </span>
-                <span className="text-gray-300 flex-1 truncate">{r.match}</span>
+                <span className="text-foreground/80 flex-1 truncate">{r.match}</span>
                 {r.status === "ingested" && r.method && (
                   <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border font-mono ${
                     r.method === "ml_ensemble"
@@ -657,7 +657,7 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
                   </span>
                 )}
                 {r.status === "ingested" && r.home_prob != null && (
-                  <span className="text-gray-500 shrink-0 font-mono">
+                  <span className="text-muted-foreground shrink-0 font-mono">
                     {fmtPct(r.home_prob)}/{fmtPct(r.draw_prob ?? 0)}/{fmtPct(r.away_prob ?? 0)}
                   </span>
                 )}
@@ -724,32 +724,32 @@ function ManualUploadForm({ matches }: { matches: AISourceMatch[] }) {
   };
 
   return (
-    <Card className="bg-gray-800/60 border-gray-700">
+    <Card className="bg-muted/20/60 border-border">
       <button
         className="w-full flex items-center justify-between px-5 py-4 text-left"
         onClick={() => setOpen((x) => !x)}
       >
         <div className="flex items-center gap-2">
-          <Upload className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-semibold text-gray-300">Manual Upload</span>
-          <Badge className="bg-gray-700 text-gray-400 text-[10px] border-0 ml-1">fallback</Badge>
+          <Upload className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground/80">Manual Upload</span>
+          <Badge className="bg-muted/40 text-muted-foreground text-[10px] border-0 ml-1">fallback</Badge>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
 
       {open && (
         <CardContent className="pt-0 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label className="text-gray-300 text-xs">Match</Label>
+              <Label className="text-foreground/80 text-xs">Match</Label>
               <Select
                 value={selectedMatchId ? String(selectedMatchId) : ""}
                 onValueChange={(v) => setSelectedMatchId(parseInt(v, 10))}
               >
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white text-sm">
+                <SelectTrigger className="bg-card border-border text-foreground text-sm">
                   <SelectValue placeholder="Select a match" />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700 text-white max-h-72">
+                <SelectContent className="bg-card border-border text-foreground max-h-72">
                   {matches.map((m) => (
                     <SelectItem key={m.id} value={String(m.id)}>
                       {m.home_team} vs {m.away_team}
@@ -760,12 +760,12 @@ function ManualUploadForm({ matches }: { matches: AISourceMatch[] }) {
               </Select>
             </div>
             <div>
-              <Label className="text-gray-300 text-xs">AI Source</Label>
+              <Label className="text-foreground/80 text-xs">AI Source</Label>
               <Select value={form.source} onValueChange={(v) => setForm((f) => ({ ...f, source: v }))}>
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white text-sm capitalize">
+                <SelectTrigger className="bg-card border-border text-foreground text-sm capitalize">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                <SelectContent className="bg-card border-border text-foreground">
                   {ALLOWED_SOURCES.map((s) => (
                     <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
                   ))}
@@ -777,46 +777,46 @@ function ManualUploadForm({ matches }: { matches: AISourceMatch[] }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {(["home_prob", "draw_prob", "away_prob", "confidence"] as const).map((k) => (
               <div key={k}>
-                <Label className="text-gray-300 text-xs capitalize">{k.replace("_", " ")}</Label>
+                <Label className="text-foreground/80 text-xs capitalize">{k.replace("_", " ")}</Label>
                 <Input
                   type="number" step="0.01" min="0" max="1"
                   value={(form as any)[k]}
                   onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}
-                  className="bg-gray-900 border-gray-700 text-white text-sm"
+                  className="bg-card border-border text-foreground text-sm"
                 />
               </div>
             ))}
           </div>
 
           <div>
-            <Label className="text-gray-300 text-xs">Short reason</Label>
+            <Label className="text-foreground/80 text-xs">Short reason</Label>
             <Input
               value={form.reason}
               onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
               placeholder="e.g. Home side missing 2 starting CBs, away in form"
               maxLength={500}
-              className="bg-gray-900 border-gray-700 text-white text-sm"
+              className="bg-card border-border text-foreground text-sm"
             />
           </div>
 
           <div>
-            <Label className="text-gray-300 text-xs">Raw analysis (full paste)</Label>
+            <Label className="text-foreground/80 text-xs">Raw analysis (full paste)</Label>
             <Textarea
               value={form.raw_content}
               onChange={(e) => setForm((f) => ({ ...f, raw_content: e.target.value }))}
               placeholder="Paste the full reasoning text here…"
               rows={5}
               maxLength={20000}
-              className="bg-gray-900 border-gray-700 text-white font-mono text-xs"
+              className="bg-card border-border text-foreground font-mono text-xs"
             />
-            <p className="text-xs text-gray-600 mt-1">{form.raw_content.length}/20000</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">{form.raw_content.length}/20000</p>
           </div>
 
           <div className="flex justify-end">
             <Button
               onClick={submit}
               disabled={submitting || !selectedMatchId}
-              className="bg-gray-700 hover:bg-gray-600 text-white text-sm"
+              className="bg-muted/40 hover:bg-muted/30 text-foreground text-sm"
             >
               <Upload className="w-4 h-4 mr-2" />
               {submitting ? "Uploading…" : "Upload"}
@@ -861,28 +861,28 @@ function ExistingSourcesPanel({ matchId }: { matchId: number | null }) {
   const preds = q.data?.predictions ?? [];
 
   return (
-    <Card className="bg-gray-800/40 border-gray-700">
+    <Card className="bg-muted/20/40 border-border">
       <CardHeader className="pb-2 pt-4 px-4">
-        <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+        <CardTitle className="text-sm text-foreground/80 flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-cyan-400" />
           Ingested Sources
         </CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-4">
         {q.isLoading ? (
-          <Skeleton className="h-16 w-full bg-gray-700" />
+          <Skeleton className="h-16 w-full bg-muted/40" />
         ) : preds.length === 0 ? (
-          <p className="text-xs text-gray-500">No sources ingested yet.</p>
+          <p className="text-xs text-muted-foreground">No sources ingested yet.</p>
         ) : (
           <div className="space-y-2">
             {preds.map((p) => (
-              <div key={p.id} className="border border-gray-700 rounded p-2.5 bg-gray-900/50 text-xs">
+              <div key={p.id} className="border border-border rounded p-2.5 bg-card/50 text-xs">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-2">
                     <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 capitalize text-[10px]">
                       {p.source}
                     </Badge>
-                    <span className="text-gray-500">conf {fmtPct(p.confidence)}</span>
+                    <span className="text-muted-foreground">conf {fmtPct(p.confidence)}</span>
                     {p.was_correct === true && (
                       <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px]">✓ correct</Badge>
                     )}
@@ -901,11 +901,11 @@ function ExistingSourcesPanel({ matchId }: { matchId: number | null }) {
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center mb-1.5">
                   <div>Home <span className="text-emerald-400 font-bold">{fmtPct(p.home_prob)}</span></div>
-                  <div>Draw <span className="text-gray-300 font-bold">{fmtPct(p.draw_prob)}</span></div>
+                  <div>Draw <span className="text-foreground/80 font-bold">{fmtPct(p.draw_prob)}</span></div>
                   <div>Away <span className="text-rose-400 font-bold">{fmtPct(p.away_prob)}</span></div>
                 </div>
                 <ProbBar home={p.home_prob} draw={p.draw_prob} away={p.away_prob} />
-                {p.reason && <p className="text-gray-400 italic mt-1.5">{p.reason}</p>}
+                {p.reason && <p className="text-muted-foreground italic mt-1.5">{p.reason}</p>}
               </div>
             ))}
           </div>
@@ -1078,7 +1078,7 @@ export default function AISourcesPage() {
   if (permsQ.isLoading) {
     return (
       <div className="w-full">
-        <Skeleton className="h-32 w-full bg-gray-800" />
+        <Skeleton className="h-32 w-full bg-muted/20" />
       </div>
     );
   }
@@ -1086,11 +1086,11 @@ export default function AISourcesPage() {
   if (permsQ.data && !permsQ.data.can_upload) {
     return (
       <div className="w-full flex items-center justify-center py-20">
-        <Card className="bg-gray-800 border-gray-700 max-w-md w-full">
+        <Card className="bg-muted/20 border-border max-w-md w-full">
           <CardContent className="p-8 text-center">
             <Lock className="w-10 h-10 mx-auto mb-3 text-amber-400" />
             <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-muted-foreground">
               AI Source access requires an admin account or{" "}
               <span className="text-cyan-400">analyst, pro, or elite</span> subscription.
             </p>
@@ -1109,7 +1109,7 @@ export default function AISourcesPage() {
           <Brain className="w-7 h-7 text-cyan-400 shrink-0 mt-1" />
           <div>
             <h1 className="text-2xl font-bold">AI Sources</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Autonomous agents query Claude & Grok via Puter (free) for every match and
               self-ingest the analysis into the prediction ensemble.
             </p>
@@ -1117,9 +1117,9 @@ export default function AISourcesPage() {
         </div>
 
         {/* ── Agent Control Panel ─────────────────────────────── */}
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-muted/20 border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-white text-base">
+            <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <Bot className="w-5 h-5 text-cyan-400" />
               Autonomous AI Agent
               {agentStatus === "running" && (
@@ -1141,7 +1141,7 @@ export default function AISourcesPage() {
           <CardContent className="space-y-4">
             {/* Model Toggles */}
             <div>
-              <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
+              <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-wide">
                 AI Models (FREE via Puter.js)
               </p>
               <div className="flex gap-2 flex-wrap">
@@ -1154,13 +1154,13 @@ export default function AISourcesPage() {
                       disabled={agentStatus === "running"}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
                         active
-                          ? "border-cyan-500/60 bg-cyan-500/10 text-white"
-                          : "border-gray-700 bg-gray-900 text-gray-500"
+                          ? "border-cyan-500/60 bg-cyan-500/10 text-foreground"
+                          : "border-border bg-card text-muted-foreground"
                       } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                      <Zap className={`w-3.5 h-3.5 ${active ? "text-cyan-400" : "text-gray-600"}`} />
+                      <Zap className={`w-3.5 h-3.5 ${active ? "text-cyan-400" : "text-muted-foreground/60"}`} />
                       {m.label}
-                      <span className="text-[10px] text-gray-500">{m.model}</span>
+                      <span className="text-[10px] text-muted-foreground">{m.model}</span>
                     </button>
                   );
                 })}
@@ -1181,17 +1181,17 @@ export default function AISourcesPage() {
             {/* Stats row */}
             {agentStatus !== "idle" && (
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-gray-900/60 rounded p-2">
-                  <div className="text-xl font-bold text-white">{matches.length}</div>
-                  <div className="text-xs text-gray-500">Matches</div>
+                <div className="bg-card/60 rounded p-2">
+                  <div className="text-xl font-bold text-foreground">{matches.length}</div>
+                  <div className="text-xs text-muted-foreground">Matches</div>
                 </div>
-                <div className="bg-gray-900/60 rounded p-2">
+                <div className="bg-card/60 rounded p-2">
                   <div className="text-xl font-bold text-emerald-400">{doneSlots}</div>
-                  <div className="text-xs text-gray-500">Ingested</div>
+                  <div className="text-xs text-muted-foreground">Ingested</div>
                 </div>
-                <div className="bg-gray-900/60 rounded p-2">
+                <div className="bg-card/60 rounded p-2">
                   <div className="text-xl font-bold text-rose-400">{failedSlots}</div>
-                  <div className="text-xs text-gray-500">Failed</div>
+                  <div className="text-xs text-muted-foreground">Failed</div>
                 </div>
               </div>
             )}
@@ -1199,19 +1199,19 @@ export default function AISourcesPage() {
             {/* Progress bar */}
             {agentStatus === "running" && (
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs text-gray-400">
+                <div className="flex justify-between text-xs text-muted-foreground">
                   <span className="truncate">{progress.matchLabel}</span>
                   <span className="shrink-0 ml-2">
                     {progress.current}/{progress.total} matches
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-gray-700 overflow-hidden">
+                <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500"
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>
-                <p className="text-[11px] text-gray-500">
+                <p className="text-[11px] text-muted-foreground">
                   {DELAY_MS / 1000}s cooldown between calls · auto-retries on rate limit · switch Puter account if blocked.
                 </p>
               </div>
@@ -1246,7 +1246,7 @@ export default function AISourcesPage() {
               <Button
                 onClick={() => qc.invalidateQueries({ queryKey: ["ai-sources"] })}
                 variant="outline"
-                className="border-gray-600 text-gray-400 hover:bg-gray-700"
+                className="border-border text-muted-foreground hover:bg-muted/40"
                 disabled={agentStatus === "running"}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
@@ -1255,7 +1255,7 @@ export default function AISourcesPage() {
             </div>
 
             {matchesQ.isLoading && (
-              <p className="text-xs text-gray-500 flex items-center gap-1">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Loading matches…
               </p>
             )}
@@ -1270,7 +1270,7 @@ export default function AISourcesPage() {
         {/* ── Match Grid ─────────────────────────────────────── */}
         {(agentStatus !== "idle" || results.size > 0) && matches.length > 0 && (
           <div>
-            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
               <Cpu className="w-4 h-4" />
               Match Processing Queue
             </h2>
