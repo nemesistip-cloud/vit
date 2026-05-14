@@ -32,7 +32,7 @@ export default function MatchDetailPage() {
   const [, setLocation] = useLocation();
   const matchId = params.id || "";
 
-  const { data: match, isLoading } = useGetMatch(matchId);
+  const { data: match, isLoading, isError } = useGetMatch(matchId);
   const { data: consensus } = useGetConsensusPrediction(matchId);
   const { data: wallet } = useGetWallet();
   const stake = useStakeOnPrediction();
@@ -53,6 +53,21 @@ export default function MatchDetailPage() {
         <div className="text-center space-y-2">
           <div className="text-2xl animate-pulse">⬡</div>
           <div>RETRIEVING_DATA...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center space-y-4 font-mono">
+          <div className="text-4xl text-red-500">⚠</div>
+          <div className="text-muted-foreground uppercase text-sm">Failed to load match data</div>
+          <div className="text-xs text-red-400/70">The intelligence network could not retrieve this match.</div>
+          <Button variant="outline" className="font-mono uppercase text-xs" onClick={() => setLocation("/matches")}>
+            <ChevronLeft className="w-4 h-4 mr-2" /> Return to Feed
+          </Button>
         </div>
       </div>
     );

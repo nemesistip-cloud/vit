@@ -1173,7 +1173,7 @@ function FixtureHealthCard() {
             All fixtures healthy — no issues detected.
           </div>
         ) : (
-          Object.entries(data.categories).map(([key, cat]) => (
+          Object.entries(data.categories ?? {}).map(([key, cat]) => (
             <div key={key} className={`rounded-md border p-3 ${severityBg(cat.severity)}`}>
               <button
                 className="w-full flex items-center justify-between gap-2"
@@ -1190,17 +1190,17 @@ function FixtureHealthCard() {
                 </div>
                 <span className={`text-xs font-mono font-bold shrink-0 ${severityColor(cat.severity)}`}>
                   {cat.count} {cat.count === 1 ? "issue" : "issues"}
-                  {cat.sample.length > 0 && (
+                  {(cat.sample?.length ?? 0) > 0 && (
                     <ChevronRight className={`inline w-3 h-3 ml-1 transition-transform ${expanded === key ? "rotate-90" : ""}`} />
                   )}
                 </span>
               </button>
 
-              {expanded === key && cat.sample.length > 0 && (
+              {expanded === key && (cat.sample?.length ?? 0) > 0 && (
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-[10px] font-mono border-separate border-spacing-y-0.5">
                     <tbody>
-                      {cat.sample.map((row, i) => (
+                      {(cat.sample ?? []).map((row, i) => (
                         <tr key={i} className="bg-background/60 rounded">
                           {Object.entries(row).map(([k, v]) => (
                             <td key={k} className="px-2 py-1 align-top first:text-muted-foreground">

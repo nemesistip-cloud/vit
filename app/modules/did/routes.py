@@ -52,6 +52,22 @@ class SelfRegisterRequest(BaseModel):
 
 # ── Specific routes BEFORE the catch-all /{did:path} ────────────────────────
 
+@router.get("/me")
+async def get_my_did(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return the current user's DID document, creating one if it doesn't exist yet."""
+    label = current_user.email.split("@")[0]
+    identity = await get_or_create_user_identity(current_user.id, label, db)
+    await db.commit()
+    return {
+        "did": identity.did,
+        "document": identity.did_document,
+        "created_at": identity.created_at.isoformat(),
+    }
+
+
 @router.post("/user/register")
 async def register_user_did(
     body: SelfRegisterRequest,

@@ -60,10 +60,9 @@ async def get_leaderboard(
         else_=0,
     )
 
-    # ROI: prefer settled_profit on prediction row; fall back to final_ev as estimate
+    # ROI: only count actual settled profit — never mix in predicted EV
     roi_pred = func.coalesce(
         Prediction.settled_profit,
-        Prediction.final_ev,
         0.0,
     )
 
