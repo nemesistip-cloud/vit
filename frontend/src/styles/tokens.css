@@ -170,12 +170,12 @@
   background-clip: text;
 }
 .vit-gradient-text-cyber {
-  background: linear-gradient(90deg, var(--vit-brand-cyan), var(--vit-brand-purple), var(--vit-brand-cyan));
-  background-size: 200% auto;
+  background: linear-gradient(90deg, var(--vit-brand-cyan), var(--vit-brand-purple));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: vit-gradient-shift 4s linear infinite;
+  /* Removed background-position animation — it forces CPU repaints every frame
+     and causes visible flicker when composited alongside other animated layers. */
 }
 
 /* ── Gradient Border (via background-clip) ───────────────────── */
@@ -305,12 +305,6 @@
   to   { transform: translateX(-50%); }
 }
 
-@keyframes vit-gradient-shift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
 @keyframes vit-border-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
@@ -388,6 +382,15 @@
   isolation: isolate;
   contain: layout style;
   overflow: clip;
+}
+
+/* ── Hero / decorative section containment ───────────────────── */
+/* Isolates absolute-positioned glow orbs and background decorations
+   so their stacking contexts cannot bleed into adjacent sections.   */
+.vit-section-contained {
+  isolation: isolate;
+  contain: paint;
+  overflow: hidden;
 }
 
 /* ── Custom scrollbar ─────────────────────────────────────────── */

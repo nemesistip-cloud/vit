@@ -163,7 +163,7 @@ export function ModelVsMarket({
   const groups = ["1X2", "Goals", "BTTS", "AH"] as const;
 
   return (
-    <div className="rounded-xl border border-border bg-card/50 backdrop-blur overflow-hidden">
+    <div className="rounded-xl border border-border bg-card/80 overflow-hidden">
       <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-primary" />

@@ -109,7 +109,7 @@ export function AiSourceComparison({
 
   if (isLoading) {
     return (
-      <Card className="bg-card/50 backdrop-blur border-border">
+      <Card className="bg-card/80 border-border">
         <CardHeader className="pb-3 border-b border-border/50">
           <Skeleton className="h-5 w-48" />
         </CardHeader>
@@ -127,7 +127,7 @@ export function AiSourceComparison({
   const modelPick = hasModel ? pickLabel(modelHomeProb!, modelDrawProb!, modelAwayProb!) : null;
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-border">
+    <Card className="bg-card/80 border-border">
       <CardHeader className="pb-3 border-b border-border/50">
         <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
           <Bot className="w-4 h-4 text-primary" />

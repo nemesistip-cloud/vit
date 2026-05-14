@@ -133,16 +133,17 @@ export default function AuthPage() {
 
   return (
     <>
-      <div className="min-h-screen w-full flex bg-background relative overflow-hidden">
+      <div className="min-h-screen w-full flex bg-background vit-section-contained relative">
 
         {/* ── Background effects ──────────────────────── */}
         <div className="absolute inset-0 pointer-events-none" style={{
           backgroundImage: 'linear-gradient(to right, rgba(0,245,255,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,245,255,0.03) 1px, transparent 1px)',
           backgroundSize: '48px 48px',
         }} />
+        {/* Glow orbs — radial-gradient only, no CSS filter blur (avoids GPU compositing artifacts) */}
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-96 h-96" style={{ background: 'radial-gradient(ellipse at center, rgba(0,245,255,0.07) 0%, transparent 68%)' }} />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64" style={{ background: 'radial-gradient(ellipse at center, rgba(168,85,247,0.07) 0%, transparent 68%)' }} />
         </div>
 
         {/* ── Left panel (desktop) ──────────────────────── */}

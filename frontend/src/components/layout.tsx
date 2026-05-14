@@ -160,7 +160,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     onClick={onClick}
                     className={`group relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-mono font-medium transition-all duration-150 cursor-pointer ${
                       isActive
-                        ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(0,245,255,0.08)] vit-animate-slide-left"
+                        ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(0,245,255,0.08)]"
                         : "text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent hover:border-white/5"
                     }`}
                   >

@@ -146,7 +146,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
 
       {/* ── Nav ─────────────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-background/80">
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-background/95">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-primary/10 border border-primary/30 rounded-lg flex items-center justify-center vit-glow-cyan-s">
@@ -175,16 +175,16 @@ export default function LandingPage() {
       </nav>
 
       {/* ── Hero ────────────────────────────────────────── */}
-      <section className="relative pt-32 pb-20 md:pt-44 md:pb-28 px-4 md:px-8 overflow-hidden">
+      <section className="vit-section-contained relative pt-32 pb-20 md:pt-44 md:pb-28 px-4 md:px-8">
         {/* Radial grid */}
         <div className="absolute inset-0 pointer-events-none" style={{
           backgroundImage: 'linear-gradient(to right, rgba(0,245,255,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,245,255,0.04) 1px, transparent 1px)',
           backgroundSize: '48px 48px',
           maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent)',
         }} />
-        {/* Glow orbs */}
-        <div className="absolute top-16 left-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-24 right-1/4 w-[400px] h-[400px] bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+        {/* Glow orbs — radial-gradient only, no CSS filter blur (avoids GPU compositing artifacts) */}
+        <div className="absolute top-16 left-1/4 w-[500px] h-[500px] pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(0,245,255,0.07) 0%, transparent 68%)' }} />
+        <div className="absolute top-24 right-1/4 w-[400px] h-[400px] pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(168,85,247,0.07) 0%, transparent 68%)' }} />
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
         <div className="relative max-w-5xl mx-auto text-center">
@@ -218,7 +218,7 @@ export default function LandingPage() {
           </div>
 
           {/* Social proof */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-2xl mx-auto p-6 rounded-2xl border border-white/5 bg-white/[0.02] backdrop-blur">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-2xl mx-auto p-6 rounded-2xl border border-white/5 bg-white/[0.03]">
             <StatCounter value={stats?.predictions_display ?? "0"} label="Predictions" />
             <StatCounter value={stats?.accuracy_display ?? "Live"} label="Accuracy" />
             <StatCounter value={stats?.total_staked_display ?? "$0"} label="Total Staked" />
@@ -297,7 +297,7 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            <div className="rounded-2xl border border-white/8 bg-card/40 backdrop-blur p-6 space-y-4 shadow-2xl">
+            <div className="rounded-2xl border border-white/8 bg-card/80 p-6 space-y-4 shadow-2xl">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Model Consensus</span>
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono border border-primary/25 bg-primary/10 text-primary">
