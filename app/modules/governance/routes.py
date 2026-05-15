@@ -242,11 +242,11 @@ async def refresh_tallies(
 
 # ── Summary stats ─────────────────────────────────────────────────────────────
 
-@router.get("/stats", summary="Governance platform statistics")
+@router.get("/stats", summary="Governance platform statistics (public)")
 async def governance_stats(
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_optional_user),
 ):
+    """Public governance statistics available to all users (no auth required)."""
     from sqlalchemy import func, select
     from app.modules.governance.models import Proposal, Vote
     total_proposals  = (await db.execute(select(func.count(Proposal.id)))).scalar() or 0

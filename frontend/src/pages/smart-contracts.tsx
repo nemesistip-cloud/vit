@@ -74,6 +74,11 @@ export default function SmartContractsPage() {
   const [callParams, setCallParams] = useState("{}");
   const [activeTab, setActiveTab] = useState("contracts");
 
+  // SEC-M1: Detect MetaMask availability
+  const [hasMetaMask, setHasMetaMask] = useState(
+    typeof window !== "undefined" && typeof (window as any).ethereum !== "undefined"
+  );
+
   const { data: contractsData, isLoading } = useQuery({
     queryKey: [API.contracts],
     queryFn: () => apiGet<{ contracts: Contract[]; total: number }>(API.contracts),
@@ -162,8 +167,21 @@ export default function SmartContractsPage() {
       </div>
 
       {/* Chain connection status bar */}
+      {!hasMetaMask && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 flex items-center gap-3 flex-wrap">
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm text-amber-300 font-semibold mb-2">
+              MetaMask wallet required for blockchain features
+            </p>
+            <p className="text-xs text-amber-200">
+              Install MetaMask extension to enable smart contract execution and bridging. Internal VIT contracts are fully operational — external wallet is only required for Base L2 interactions.
+            </p>
+          </div>
+        </div>
+      )}
       <div className={`rounded-xl border p-3 flex items-center gap-3 flex-wrap ${
-        isConnected && isBaseChain
+        isConnected && (window as any).ethereum
           ? "border-emerald-500/20 bg-emerald-500/5"
           : isConnected
           ? "border-amber-500/20 bg-amber-500/5"

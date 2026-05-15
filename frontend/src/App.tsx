@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { GamblingAgeDisclaimer } from "@/components/gambling-age-disclaimer";
 import { wagmiConfig } from "@/lib/web3";
 
 // Eager — first-paint surfaces (landing + auth) and the tiny info page used for legal routes.
@@ -116,7 +117,8 @@ function Router() {
 
   return (
     <Suspense fallback={<RouteFallback />}>
-    <Switch>
+      <GamblingAgeDisclaimer isOpen={!!user} showOnce={true} />
+      <Switch>
       <Route path="/">
         {user ? <Redirect to="/dashboard" /> : <LandingPage />}
       </Route>

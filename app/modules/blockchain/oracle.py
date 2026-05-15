@@ -91,9 +91,16 @@ async def oracle_stats(db: AsyncSession = Depends(get_db)):
 
 
 def _require_oracle_key(x_oracle_key: str = Header(...)):
+    """SEC-23: Oracle API key validation (required, case-sensitive)."""
     expected = os.getenv("ORACLE_API_KEY", "")
-    if not expected or x_oracle_key != expected:
-        raise HTTPException(403, "Invalid oracle API key")
+    if not expected or expected == "":
+        logger.error("ORACLE_API_KEY not configured in environment")
+        raise HTTPException(status_code=503, detail="oracle_not_configured")
+    if not x_oracle_key:
+        raise HTTPException(status_code=401, detail="missing_oracle_key")
+    if x_oracle_key != expected:
+        logger.warning(f"Invalid oracle key attempt")
+        raise HTTPException(status_code=403, detail="invalid_oracle_key")
 
 
 class OracleResultBody(BaseModel):

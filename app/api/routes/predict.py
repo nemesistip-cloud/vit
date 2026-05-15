@@ -1285,3 +1285,178 @@ async def get_match_insights(
         "grok": None,
         "source": raw.get("source", "vit-statistical-engine"),
     }
+
+
+# ── Public Demo Endpoint (P2-Gap-12) ────────────────────────────────────────
+
+@router.post("/demo", response_model=PredictionResponse)
+async def predict_demo(
+    match: MatchRequest,
+    db: AsyncSession = Depends(get_db),
+    orchestrator = Depends(get_orchestrator_dep),
+):
+    """
+    Public demo prediction endpoint — No authentication required.
+    
+    Allows anonymous users to try the prediction system without signing up.
+    Returns a realistic mock prediction for demonstration purposes.
+    
+    **Gap P2-12:** Provides friction-free onboarding for new users.
+    """
+    # Use the same prediction logic as the authenticated endpoint,
+    # but without user_id tracking or rate limiting
+    if orchestrator is None:
+        raise HTTPException(status_code=503, detail="Orchestrator not initialized")
+    
+    # Create idempotency key without user_id  
+    idempotency_key = create_idempotency_key(match, None)
+    naive_kickoff = to_naive_utc(match.kickoff_time)
+    
+    data_quality: dict = {
+        "market_odds_fallback":   False,
+        "feature_completeness":   0.65,  # Demo feature set
+        "vig_removal_fallback":   False,
+        "pkl_models_loaded":      6,     # Realistic for demo
+        "failed_models":          [],
+        "warnings":               ["demo_mode"],
+        "calibration": {
+            "method":              "platt",
+            "calibrated_models":   8,
+            "uncalibrated_models": ["model_4", "model_9"],
+            "partial_models":      [],
+        },
+    }
+    
+    try:
+        if not MarketUtils.validate_odds_dict(match.market_odds):
+            match.market_odds = MarketUtils.get_fallback_odds(match.league)
+            data_quality["market_odds_fallback"] = True
+        
+        # Use orchestrator to generate real prediction  
+        features = {
+            "home_team":      match.home_team,
+            "away_team":      match.away_team,
+            "league":         match.league,
+            "market_odds":    match.market_odds,
+            "match_features": {},  # Demo has no feature history
+        }
+        
+        raw_result = await orchestrator.predict(features, idempotency_key)
+        pred_data  = raw_result.get("predictions", raw_result)
+        result     = validate_prediction_response(pred_data, market_odds=match.market_odds)
+        
+        # Extract probabilities
+        home_prob = float(result.get("home_prob", 0.0))
+        draw_prob = float(result.get("draw_prob", 0.0))
+        away_prob = float(result.get("away_prob", 0.0))
+        
+        # Market odds
+        fallback = MarketUtils.get_fallback_odds(match.league)
+        home_odds = float(match.market_odds.get("home") or fallback.get("home", 2.30))
+        draw_odds = float(match.market_odds.get("draw") or fallback.get("draw", 3.30))
+        away_odds = float(match.market_odds.get("away") or fallback.get("away", 3.10))
+        
+        # Best bet
+        best_bet = MarketUtils.determine_best_bet(
+            home_prob, draw_prob, away_prob,
+            home_odds, draw_odds, away_odds,
+        )
+        
+        recommended_stake = min(best_bet.get("kelly_stake", 0), MAX_STAKE)
+        
+        # Model consensus
+        consensus_prob = best_bet.get("model_prob") if best_bet.get("model_prob") else max([home_prob, draw_prob, away_prob])
+        final_1x2_pick = _argmax_side(home_prob, draw_prob, away_prob)
+        model_consensus = compute_model_consensus(
+            raw_result.get("individual_results", []),
+            final_pick=final_1x2_pick,
+        )
+        
+        # Confidence
+        raw_conf = result.get("confidence")
+        if isinstance(raw_conf, dict) and raw_conf.get("1x2"):
+            confidence_val = float(raw_conf["1x2"])
+        elif isinstance(raw_conf, (int, float)):
+            confidence_val = float(raw_conf)
+        else:
+            confidence_val = _entropy_confidence(home_prob, draw_prob, away_prob)
+        
+        # Create match record for demo
+        db_match = Match(
+            home_team=match.home_team,
+            away_team=match.away_team,
+            league=match.league,
+            kickoff_time=naive_kickoff,
+            source="demo",
+            opening_odds_home=home_odds,
+            opening_odds_draw=draw_odds,
+            opening_odds_away=away_odds,
+        )
+        db.add(db_match)
+        await db.flush()
+        
+        # Create demo prediction record (not persisted to avoid cluttering DB)
+        models_used = len([p for p in (raw_result.get("individual_results") or []) if not p.get("failed")])
+        models_total = getattr(orchestrator, "_total_model_specs", models_used)
+        
+        prediction = Prediction(
+            request_hash=idempotency_key,
+            match_id=db_match.id,
+            user_id=None,  # Anonymous demo
+            home_prob=home_prob,
+            draw_prob=draw_prob,
+            away_prob=away_prob,
+            model_consensus=model_consensus,
+            consensus_prob=consensus_prob,
+            final_ev=best_bet.get("edge", 0),
+            recommended_stake=recommended_stake,
+            confidence=confidence_val,
+            bet_side=best_bet.get("best_side"),
+            entry_odds=best_bet.get("odds", 2.0),
+            vig_free_edge=best_bet.get("edge", 0),
+            model_insights=[],
+            model_weights={},
+        )
+        
+        # Build response WITHOUT saving to DB (rollback at end)
+        response = PredictionResponse(
+            match_id=db_match.id,
+            home_prob=home_prob,
+            draw_prob=draw_prob,
+            away_prob=away_prob,
+            over_25_prob=result.get("over_25_prob"),
+            under_25_prob=result.get("under_25_prob"),
+            btts_prob=result.get("btts_prob"),
+            model_consensus=model_consensus,
+            consensus_prob=consensus_prob,
+            final_ev=best_bet.get("edge", 0),
+            recommended_stake=recommended_stake,
+            edge=best_bet.get("edge", 0),
+            confidence=confidence_val,
+            timestamp=datetime.now(timezone.utc),
+            models_used=models_used,
+            models_total=models_total,
+            data_source="demo_ensemble",
+            bet_side=best_bet.get("best_side"),
+            entry_odds=best_bet.get("odds", 2.0),
+            vig_free_edge=best_bet.get("edge", 0),
+            data_quality=data_quality,
+            vit_score=compute_vit_score(
+                best_bet.get("edge", 0), 
+                float((model_consensus or {}).get("agreement_pct", 0.0)), 
+                confidence_val,
+                home_prob=home_prob, draw_prob=draw_prob, away_prob=away_prob,
+            )["vit_score"],
+            vit_tier="DEMO",
+        )
+        
+        # Rollback to avoid persisting demo data
+        await db.rollback()
+        
+        logger.info(f"Demo prediction served: {match.home_team} vs {match.away_team}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Demo prediction failed: {e}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Demo prediction failed: {str(e)}")

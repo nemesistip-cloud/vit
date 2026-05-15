@@ -33,7 +33,10 @@ async def agents_summary(_user=Depends(verify_api_key)):
 
 @router.post("/trigger/{agent_name}")
 async def trigger_agent(agent_name: str, _user=Depends(_get_admin)):
-    """Manually trigger an agent's next cycle immediately."""
+    """Manually trigger an agent's next cycle immediately (admin-only)."""
+    # SEC-13: Verify admin-only access (lateral privilege fix)
+    if not hasattr(_user, 'is_admin') or not _user.is_admin:
+        raise HTTPException(status_code=403, detail="admin_only")
     try:
         from app.agents.coordinator import get_coordinator
         ok = get_coordinator().trigger(agent_name)

@@ -80,7 +80,7 @@ function OfferCard({
           <div className="flex items-center gap-1.5 shrink-0">
             <Coins className="w-3.5 h-3.5 text-yellow-400" />
             <span className="text-yellow-400 font-mono text-sm font-semibold">
-              +{offer.reward_vitcoin.toFixed(0)} VIT
+              +{offer.reward_vitcoin.toFixed(2)} VIT
             </span>
           </div>
         </div>
@@ -120,7 +120,7 @@ function OfferCard({
               ) : (
                 <>
                   <Zap className="w-3 h-3 mr-1.5" />
-                  Claim {offer.reward_vitcoin.toFixed(0)} VIT
+                  Claim {offer.reward_vitcoin.toFixed(2)} VIT
                 </>
               )}
             </Button>
