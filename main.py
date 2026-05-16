@@ -1,4 +1,4 @@
-# main.py — VIT Sports Intelligence Network v4.7.5
+# main.py — VIT Sports Intelligence Network v7.0.0
 # Full Integration: AI + Wallet + Blockchain + Training
 
 import asyncio

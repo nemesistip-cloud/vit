@@ -1,4 +1,4 @@
-# VIT Sports Intelligence Network v6.0
+# VIT Sports Intelligence Network v7.0
 
 A 13-model AI ensemble football prediction platform with a VITCoin wallet economy, VIT-Chain sovereign ledger, 22 autonomous AI agents (all running), Telegram Mini App integration, cash-out sentinel, blockchain staking, model marketplace, and governance DAO.
 

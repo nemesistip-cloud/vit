@@ -214,6 +214,9 @@ async def send_notification_email(
         "[email-dev] NOT SENT (no transport configured) "
         f"TO={to_email} SUBJECT={subject} BODY={body[:120]}"
     )
+    if os.getenv("ENVIRONMENT") == "development":
+        logger.info(f"[MOCK EMAIL] Success response for {to_email}")
+        return True
     return False
 
 
@@ -277,6 +280,9 @@ async def send_verification_email(
         "[email-dev] Verification email NOT SENT (no transport) "
         f"TO={to_email} LINK={verification_link}"
     )
+    if os.getenv("ENVIRONMENT") == "development":
+        logger.info(f"[MOCK EMAIL] Success response for {to_email}")
+        return True
     return False
 
 
@@ -314,4 +320,7 @@ async def send_password_reset_email(
         "[email-dev] Password reset email NOT SENT (no transport) "
         f"TO={to_email} LINK={reset_link}"
     )
+    if os.getenv("ENVIRONMENT") == "development":
+        logger.info(f"[MOCK EMAIL] Success response for {to_email}")
+        return True
     return False
