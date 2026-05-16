@@ -1824,32 +1824,73 @@ async def _fetch_fixtures(count: int, target_date: Optional[str] = None) -> list
         date_to   = (now + timedelta(days=7)).strftime("%Y-%m-%d")
     fixtures     = []
 
-    async with httpx.AsyncClient(timeout=5) as client:
-        for league, code in COMPETITIONS.items():
-            if len(fixtures) >= count:
-                break
-            try:
-                r = await client.get(
-                    f"https://api.football-data.org/v4/competitions/{code}/matches",
-                    headers={"X-Auth-Token": football_key},
-                    params={"status": "SCHEDULED", "dateFrom": date_from, "dateTo": date_to},
-                )
-                if r.status_code == 200:
-                    for m in r.json().get("matches", []):
-                        fixtures.append({
-                            "fixture_id":   str(m.get("id", "")),  # Unique ID from Football-Data API
-                            "home_team":    m["homeTeam"]["name"],
-                            "away_team":    m["awayTeam"]["name"],
-                            "league":       league,
-                            "kickoff_time": m["utcDate"],
-                            "market_odds":  {},
-                        })
-                        if len(fixtures) >= count:
-                            break
-                elif r.status_code == 429:
-                    logger.warning(f"Football-Data rate limit hit for {league}")
-            except Exception as e:
-                logger.warning(f"Fixture fetch failed for {league}: {e}")
+    _fdata_rate_limited = False
+    if football_key:
+        async with httpx.AsyncClient(timeout=5) as client:
+            for league, code in COMPETITIONS.items():
+                if len(fixtures) >= count:
+                    break
+                if _fdata_rate_limited:
+                    break
+                try:
+                    r = await client.get(
+                        f"https://api.football-data.org/v4/competitions/{code}/matches",
+                        headers={"X-Auth-Token": football_key},
+                        params={"status": "SCHEDULED", "dateFrom": date_from, "dateTo": date_to},
+                    )
+                    if r.status_code == 200:
+                        for m in r.json().get("matches", []):
+                            fixtures.append({
+                                "fixture_id":   str(m.get("id", "")),
+                                "home_team":    m["homeTeam"]["name"],
+                                "away_team":    m["awayTeam"]["name"],
+                                "league":       league,
+                                "kickoff_time": m["utcDate"],
+                                "market_odds":  {},
+                            })
+                            if len(fixtures) >= count:
+                                break
+                    elif r.status_code == 429:
+                        logger.warning(f"Football-Data rate limit hit for {league} — switching to fallback sources")
+                        _fdata_rate_limited = True
+                    elif r.status_code in (401, 403):
+                        logger.warning(f"Football-Data auth error {r.status_code} — key may be invalid")
+                        break
+                except Exception as e:
+                    logger.warning(f"Fixture fetch failed for {league}: {e}")
+
+    # ── Fallback 1: TheSportsDB (free, no auth) when football-data is rate-limited or no key ──
+    if len(fixtures) < count:
+        try:
+            from app.services.fixture_fetcher import fetch_upcoming_multi_source
+            reason = "rate-limited" if _fdata_rate_limited else "no key / insufficient results"
+            logger.info(f"football-data.org {reason} — fetching from TheSportsDB + OpenLigaDB fallback")
+            fallback_events = await fetch_upcoming_multi_source(days_ahead=14)
+            seen_fp = {
+                f"{f['kickoff_time'][:10]}::{f['home_team'].lower()}::{f['away_team'].lower()}"
+                for f in fixtures
+                if f.get("kickoff_time") and f.get("home_team")
+            }
+            for ev in fallback_events:
+                if len(fixtures) >= count:
+                    break
+                ko = ev.get("kickoff_time")
+                ko_str = ko.strftime("%Y-%m-%d") if ko else "unknown"
+                fp = f"{ko_str}::{ev['home_team'].lower()}::{ev['away_team'].lower()}"
+                if fp in seen_fp:
+                    continue
+                seen_fp.add(fp)
+                fixtures.append({
+                    "fixture_id":   ev.get("external_id") or "",
+                    "home_team":    ev["home_team"],
+                    "away_team":    ev["away_team"],
+                    "league":       ev.get("league", "unknown"),
+                    "kickoff_time": ko.isoformat() if ko else date_from + "T15:00:00Z",
+                    "market_odds":  {},
+                    "source":       ev.get("source", "fallback"),
+                })
+        except Exception as _fb_err:
+            logger.warning(f"Multi-source fixture fallback failed: {_fb_err}")
 
     ODDS_SPORT_MAP = {
         "premier_league": "soccer_epl",

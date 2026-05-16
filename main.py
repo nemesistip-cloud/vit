@@ -1612,16 +1612,25 @@ async def lifespan(app: FastAPI):
     app.state.background_supervisor = supervisor
 
     async def sync_upcoming_loop():
-        """B-1: Refresh upcoming fixtures from TheSportsDB every 6 hours."""
+        """B-1: Refresh upcoming fixtures from all sources every 6 hours.
+
+        Priority chain: TheSportsDB → football-data.org → OpenLigaDB → API-Football
+        Falls back gracefully when any source is rate-limited or unavailable.
+        """
         await asyncio.sleep(300)  # initial delay — let DB settle first
         while True:
             try:
                 from app.db.database import AsyncSessionLocal
-                from app.services.sportsdb_api import sync_upcoming_fixtures
+                from app.services.fixture_fetcher import sync_upcoming_multi_source
                 async with AsyncSessionLocal() as _db:
-                    _res = await sync_upcoming_fixtures(_db, days_ahead=14)
+                    _res = await sync_upcoming_multi_source(_db, days_ahead=14)
                     if _res["inserted"] > 0:
-                        print(f"[fixture-sync] {_res['inserted']} new upcoming fixtures added from TheSportsDB")
+                        print(
+                            f"[fixture-sync] {_res['inserted']} new upcoming fixtures added "
+                            f"({_res['total_fetched']} total fetched from all sources)"
+                        )
+                    else:
+                        print(f"[fixture-sync] No new fixtures (all {_res['total_fetched']} already in DB)")
             except Exception as _se:
                 print(f"[fixture-sync] ERROR: {_se}")
             await asyncio.sleep(6 * 3600)
