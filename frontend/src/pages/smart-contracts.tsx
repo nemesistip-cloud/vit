@@ -140,6 +140,18 @@ export default function SmartContractsPage() {
 
   const isBaseChain = chainId === base.id;
 
+  const handleBootstrap = () => {
+    if (!hasMetaMask) {
+      toast({
+        title: "MetaMask Required",
+        description: "Please install MetaMask to bootstrap smart contracts.",
+        variant: "destructive"
+      });
+      return;
+    }
+    bootstrapMutation.mutate();
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -155,7 +167,7 @@ export default function SmartContractsPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <WalletConnectButton />
           <Button
-            onClick={() => bootstrapMutation.mutate()}
+            onClick={handleBootstrap}
             disabled={bootstrapMutation.isPending}
             variant="outline"
             className="border-violet-500/30 text-violet-300"
@@ -334,7 +346,17 @@ export default function SmartContractsPage() {
                   />
                 </div>
                 <Button
-                  onClick={handleCall}
+                  onClick={() => {
+                    if (!hasMetaMask) {
+                      toast({
+                        title: "MetaMask Required",
+                        description: "You need MetaMask installed to execute contract calls.",
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+                    handleCall();
+                  }}
                   disabled={callMutation.isPending || !callMethod}
                   className="bg-violet-600 hover:bg-violet-500 text-foreground"
                 >
