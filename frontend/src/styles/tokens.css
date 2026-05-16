@@ -464,6 +464,27 @@
   * {
     will-change: auto !important;
   }
+
+  /* ── 9. Kill all CSS transitions — any animated transform/opacity creates a  ── */
+  /*    compositor layer for its duration. On mobile touch there are no hover     */
+  /*    states anyway, so instant transitions are imperceptible.                  */
+  *, *::before, *::after {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+
+  /* ── 10. Kill all CSS filter — filter forces an isolated composited surface ── */
+  /*     on the GPU regardless of animation state.                               */
+  *, *::before, *::after {
+    filter: none !important;
+    -webkit-filter: none !important;
+  }
+
+  /* ── 11. Kill large box-shadows — spread > 8px can trigger layer promotion ── */
+  /*     on Android Chrome. Keep borders and subtle shadows; remove glows.       */
+  .shadow-xl, .shadow-2xl, .shadow-lg {
+    box-shadow: none !important;
+  }
 }
 
 /* ── Page containment — prevents glow / compositing layers bleeding across pages */
