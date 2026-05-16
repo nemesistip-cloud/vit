@@ -1925,7 +1925,33 @@ app.include_router(network_router)
 
 # VIT Quant Engine — Phase 2
 from app.modules.quant.routes import router as quant_router
+from app.modules.quality_bet.routes import router as quality_bet_router
+from app.modules.equilibrium.routes import router as equilibrium_router
+from app.modules.precision.routes import router as precision_router
+from app.modules.stream_intelligence.routes import router as stream_router
+from app.modules.ai_core.routes import router as ai_core_router
+from app.modules.freemium.routes import router as freemium_router
+from app.modules.finance.routes import router as finance_router
+from app.modules.data_sovereignty.routes import router as data_sovereignty_router
+from app.modules.physical_infra.routes import router as physical_router
+from app.modules.academy.routes import router as academy_router
+from app.modules.dispute_resolution.routes import router as dispute_router
+from app.modules.compliance.routes import router as compliance_router
+from app.modules.meta_layers.routes import router as meta_router
 app.include_router(quant_router)
+app.include_router(quality_bet_router)
+app.include_router(equilibrium_router)
+app.include_router(precision_router)
+app.include_router(stream_router)
+app.include_router(ai_core_router)
+app.include_router(freemium_router)
+app.include_router(finance_router)
+app.include_router(data_sovereignty_router)
+app.include_router(physical_router)
+app.include_router(academy_router)
+app.include_router(dispute_router)
+app.include_router(compliance_router)
+app.include_router(meta_router)
 
 # Phase 2 — Specialized Market Model Training
 from app.api.routes.market_training import router as market_training_router
