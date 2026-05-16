@@ -77,6 +77,8 @@ class DestinationType(PyEnum):
     USDT_ADDRESS = "usdt_address"
     PI_WALLET = "pi_wallet"
     PAYPAL = "paypal"
+    OPAY_ACCOUNT = "opay_account"
+    PALMPAY_ACCOUNT = "palmpay_account"
     OTHER = "other"
 
 

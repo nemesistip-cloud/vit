@@ -32,7 +32,7 @@ router = APIRouter(prefix="/api/wallet", tags=["Wallet"])
 class DepositInitiateRequest(BaseModel):
     currency: str = Field(..., description="NGN, USD, USDT, PI, VITCoin")
     amount: float = Field(..., gt=0)
-    method: str = Field(..., description="paystack, stripe, crypto, pi")
+    method: str = Field(..., description="paystack, stripe, crypto, pi, opay, palmpay")
 
 
 class DepositVerifyRequest(BaseModel):
@@ -50,7 +50,7 @@ class WithdrawRequest(BaseModel):
     currency: str
     amount: float = Field(..., gt=0)
     destination: str
-    destination_type: str = Field(..., description="bank_account, usdt_address, pi_wallet, paypal")
+    destination_type: str = Field(..., description="bank_account, usdt_address, pi_wallet, paypal, opay_account, palmpay_account")
 
 
 class SubscribeRequest(BaseModel):
@@ -224,6 +224,44 @@ async def initiate_deposit(
                         payment_link = data["data"]["authorization_url"]
                 else:
                     gateway_error = f"Paystack error {resp.status_code}"
+            except Exception as _e:
+                gateway_error = str(_e)
+
+    # ── OPay / PalmPay (NGN) ──────────────────────────────────────────
+    # Note: These usually go through a provider like Paystack or a direct integration.
+    # For this implementation, we will use Paystack as the primary aggregator for OPay.
+    elif request.method in ("opay", "palmpay"):
+        paystack_key = _os.environ.get("PAYSTACK_SECRET_KEY", "")
+        if paystack_key:
+            try:
+                import httpx as _httpx
+                amount_kobo = int(float(request.amount) * 100)
+                # Define channel based on method
+                channels = ["mobile_money", "bank"] if request.method == "opay" else ["bank"]
+
+                async with _httpx.AsyncClient(timeout=10) as client:
+                    resp = await client.post(
+                        "https://api.paystack.co/transaction/initialize",
+                        headers={"Authorization": f"Bearer {paystack_key}"},
+                        json={
+                            "email": current_user.email,
+                            "amount": amount_kobo,
+                            "reference": ref,
+                            "currency": "NGN",
+                            "channels": channels,
+                            "metadata": {
+                                "user_id": current_user.id,
+                                "vit_ref": ref,
+                                "method": request.method,
+                            },
+                        },
+                    )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("status"):
+                        payment_link = data["data"]["authorization_url"]
+                else:
+                    gateway_error = f"{request.method.upper()} error via Paystack: {resp.status_code}"
             except Exception as _e:
                 gateway_error = str(_e)
 
