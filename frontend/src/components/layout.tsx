@@ -9,7 +9,7 @@ import {
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
   Sparkles, Brain, Zap, Radio, Network, DatabaseZap, FlaskConical,
   Map, Fingerprint, BadgeCheck, Bot, Vault, Star, ShieldAlert, FileCode2,
-  ChevronRight,
+  ChevronRight, Smartphone,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -27,6 +27,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Matches",        href: "/matches",            icon: Activity },
       { name: "Value Intel",    href: "/value-intelligence", icon: Shield },
       { name: "Predictions",   href: "/predictions",        icon: CheckSquare },
+      { name: "Quality Feed",  href: "/quality-feed",       icon: Target },
       { name: "Accumulator",   href: "/accumulator",        icon: Layers },
       { name: "Odds Intel",    href: "/odds",               icon: TrendingUp },
     ],
@@ -50,6 +51,14 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Analytics",     href: "/analytics",   icon: BarChart2 },
       { name: "Intel Reports", href: "/reports",     icon: Radio },
       { name: "Research",      href: "/research",    icon: FlaskConical },
+      { name: "Stadium Mode",  href: "/stadium",     icon: Map },
+      { name: "VIT IQ Test",   href: "/iq-test",     icon: Brain },
+      { name: "Oracle's Mic",  href: "/oracle-mic",  icon: Radio },
+      { name: "Debate Arena",  href: "/debates",     icon: Sword },
+      { name: "Bet Rooms",     href: "/rooms",       icon: MessageSquare },
+      { name: "Prophecy Chain",href: "/prophecy",    icon: Sparkles },
+      { name: "2024 Wrapped",  href: "/wrapped",     icon: Trophy },
+      { name: "Discipline",    href: "/discipline",  icon: ShieldCheck },
       { name: "Marketplace",   href: "/marketplace", icon: ShoppingBag },
       { name: "Validators",    href: "/validators",  icon: ShieldCheck },
     ],
@@ -76,6 +85,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "KYC Verify",   href: "/kyc",          icon: BadgeCheck },
       { name: "Subscription", href: "/subscription", icon: CreditCard },
       { name: "Settings",     href: "/settings",     icon: Settings },
+      { name: "Install App",  href: "/install",      icon: Smartphone },
     ],
   },
 ];
