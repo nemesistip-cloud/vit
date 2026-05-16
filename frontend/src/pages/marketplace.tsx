@@ -46,6 +46,9 @@ interface Listing {
   staker_count: number;
   is_active: boolean;
   is_verified: boolean;
+  accuracy_rate: number;
+  roi: number;
+  clv_correlation: number;
   created_at: string;
 }
 
@@ -627,6 +630,16 @@ function ModelCard({ listing }: { listing: Listing }) {
               {listing.is_verified && (
                 <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">
                   ✓ Verified
+                </span>
+              )}
+              {listing.accuracy_rate > 0 && (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">
+                  {Math.round(listing.accuracy_rate * 100)}% Acc
+                </span>
+              )}
+              {listing.roi !== 0 && (
+                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${listing.roi > 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                  {listing.roi > 0 ? "+" : ""}{listing.roi}% ROI
                 </span>
               )}
               {isOwner && (
@@ -1235,6 +1248,8 @@ export default function MarketplacePage() {
               <SelectContent>
                 <SelectItem value="usage_count">Most Used</SelectItem>
                 <SelectItem value="rating">Highest Rated</SelectItem>
+                <SelectItem value="accuracy_rate">Highest Accuracy</SelectItem>
+                <SelectItem value="roi">Highest ROI</SelectItem>
                 <SelectItem value="price">Lowest Price</SelectItem>
                 <SelectItem value="revenue">Top Revenue</SelectItem>
                 <SelectItem value="created_at">Newest</SelectItem>
