@@ -38,11 +38,21 @@ def test_notifications_websocket_connects_and_pongs(monkeypatch):
     async def fake_mark_read(db, user_id, notification_id):
         return True
 
+    def fake_decode_token(token):
+        if token == "valid_token":
+            return {"type": "access", "sub": "1"}
+        return None
+
     monkeypatch.setattr(NotificationService, "unread_count", fake_unread_count)
     monkeypatch.setattr(NotificationService, "mark_read", fake_mark_read)
 
+    # Mock token decoding
+    from app.auth import jwt_utils
+    monkeypatch.setattr(jwt_utils, "decode_token", fake_decode_token)
+
     client = TestClient(app)
-    with client.websocket_connect("/api/notifications/ws/1") as websocket:
+    # SEC-01 requires a valid token in query params
+    with client.websocket_connect("/api/notifications/ws/1?token=valid_token") as websocket:
         assert websocket.receive_json() == {"action": "connected", "unread_count": 0}
         websocket.send_json({"action": "ping"})
         assert websocket.receive_json() == {"action": "pong"}
