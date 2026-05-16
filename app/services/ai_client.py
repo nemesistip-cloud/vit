@@ -146,8 +146,12 @@ def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
 async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
+        if os.getenv("ENVIRONMENT") == "development":
+            return f"[MOCK GEMINI RESPONSE] Processing prompt: {prompt[:50]}..."
         return None
     if len(api_key) < 20:
+        if os.getenv("ENVIRONMENT") == "development":
+            return f"[MOCK GEMINI RESPONSE] Key too short. Prompt: {prompt[:50]}..."
         logger.debug("[ai-client] gemini: key too short — skipping (configure a real key to enable)")
         return None
     if not _provider_available("gemini"):
@@ -188,8 +192,12 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
 async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("CLAUDE_API_KEY", "").strip()
     if not api_key:
+        if os.getenv("ENVIRONMENT") == "development":
+            return f"[MOCK CLAUDE RESPONSE] Processing prompt: {prompt[:50]}..."
         return None
     if len(api_key) < 20:
+        if os.getenv("ENVIRONMENT") == "development":
+            return f"[MOCK CLAUDE RESPONSE] Key too short. Prompt: {prompt[:50]}..."
         logger.debug("[ai-client] claude: key too short — skipping (configure a real key to enable)")
         return None
     if not _provider_available("claude"):
@@ -240,8 +248,12 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
 async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
+        if os.getenv("ENVIRONMENT") == "development":
+            return f"[MOCK OPENAI RESPONSE] Processing prompt: {prompt[:50]}..."
         return None
     if len(api_key) < 20:
+        if os.getenv("ENVIRONMENT") == "development":
+            return f"[MOCK OPENAI RESPONSE] Key too short. Prompt: {prompt[:50]}..."
         logger.debug("[ai-client] openai: key too short — skipping (configure a real key to enable)")
         return None
     if not _provider_available("openai"):
@@ -286,8 +298,12 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
 async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | None:
     api_key = os.getenv("XAI_API_KEY", "").strip()
     if not api_key:
+        if os.getenv("ENVIRONMENT") == "development":
+            return f"[MOCK GROK RESPONSE] Processing prompt: {prompt[:50]}..."
         return None
     if len(api_key) < 20:
+        if os.getenv("ENVIRONMENT") == "development":
+            return f"[MOCK GROK RESPONSE] Key too short. Prompt: {prompt[:50]}..."
         logger.debug("[ai-client] grok: key too short — skipping (configure a real key to enable)")
         return None
     if not _provider_available("grok"):
