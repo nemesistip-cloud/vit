@@ -398,6 +398,18 @@
     box-shadow: none !important;
   }
 
+  /* ── 2b. Glow box-shadows: remove large spread values that trigger layer promotion ── */
+  .vit-glow-cyan,
+  .vit-glow-cyan-s,
+  .vit-glow-gold,
+  .vit-glow-gold-s,
+  .vit-glow-purple,
+  .vit-glow-green,
+  .vit-border-glow,
+  .vit-border-glow:hover {
+    box-shadow: none !important;
+  }
+
   /* ── 3. Shimmer skeleton: static gradient — no background-position sweep ─── */
   .vit-shimmer {
     animation: none !important;
@@ -451,6 +463,27 @@
   /* ── 8. Global will-change flush: no element may hint GPU promotion ─────────── */
   * {
     will-change: auto !important;
+  }
+
+  /* ── 9. Kill all CSS transitions — any animated transform/opacity creates a  ── */
+  /*    compositor layer for its duration. On mobile touch there are no hover     */
+  /*    states anyway, so instant transitions are imperceptible.                  */
+  *, *::before, *::after {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+
+  /* ── 10. Kill all CSS filter — filter forces an isolated composited surface ── */
+  /*     on the GPU regardless of animation state.                               */
+  *, *::before, *::after {
+    filter: none !important;
+    -webkit-filter: none !important;
+  }
+
+  /* ── 11. Kill large box-shadows — spread > 8px can trigger layer promotion ── */
+  /*     on Android Chrome. Keep borders and subtle shadows; remove glows.       */
+  .shadow-xl, .shadow-2xl, .shadow-lg {
+    box-shadow: none !important;
   }
 }
 

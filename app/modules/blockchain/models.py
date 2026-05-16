@@ -77,6 +77,8 @@ class ValidatorProfile(Base):
     accurate_predictions: Mapped[int] = mapped_column(Integer, default=0)
     influence_score: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
 
+    specialist_leagues: Mapped[Optional[str]] = mapped_column(String(255), nullable=True) # comma-separated
+
     status: Mapped[str] = mapped_column(
         String(20), default=ValidatorStatus.PENDING.value
     )
@@ -102,6 +104,9 @@ class ValidatorPrediction(Base):
         String(36), ForeignKey("validator_profiles.id", ondelete="CASCADE"), nullable=False
     )
     match_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    market_type: Mapped[str] = mapped_column(String(32), default="1X2") # 1X2, OVER_UNDER, BTTS
+    prediction_value: Mapped[Optional[str]] = mapped_column(String(32), nullable=True) # home, draw, away, over, under, yes, no
 
     p_home: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
     p_draw: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
@@ -143,6 +148,12 @@ class ConsensusPrediction(Base):
     consensus_p_home: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     consensus_p_draw: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     consensus_p_away: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
+
+    # Extended Consensus
+    consensus_over_25: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
+    consensus_under_25: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
+    consensus_btts_yes: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
+    consensus_btts_no: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
 
     final_p_home: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     final_p_draw: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))

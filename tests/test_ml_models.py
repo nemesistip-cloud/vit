@@ -13,15 +13,15 @@ def orchestrator():
     return ModelOrchestrator()
 
 
-def test_orchestrator_loads_12_models(orchestrator):
-    assert len(orchestrator.models) == 12
+def test_orchestrator_loads_13_models(orchestrator):
+    assert len(orchestrator.models) == 13
 
 
 def test_all_model_keys_present(orchestrator):
     expected = {
         "logistic_v2", "rf_v2", "xgb_v2", "poisson_v2", "elo_v2",
         "dixon_coles_v2", "lstm_v2", "transformer_v2", "ensemble_v2",
-        "market_v2", "bayes_v2", "hybrid_v2",
+        "market_v2", "bayes_v2", "hybrid_v2", "llm_consensus_v1",
     }
     assert expected == set(orchestrator.models.keys())
 
@@ -106,7 +106,7 @@ async def test_predict_includes_models_used(orchestrator):
     result = await orchestrator.predict(features, "test_match_005")
     preds = _preds(result)
     assert "models_used" in preds
-    assert preds["models_used"] == 12
+    assert preds["models_used"] == 13
 
 
 @pytest.mark.asyncio
@@ -123,7 +123,7 @@ async def test_predict_with_missing_odds_uses_defaults(orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_predict_all_12_models_run(orchestrator):
+async def test_predict_all_13_models_run(orchestrator):
     features = {
         "home_team": "Ajax",
         "away_team": "PSV",
@@ -131,7 +131,7 @@ async def test_predict_all_12_models_run(orchestrator):
     }
     result = await orchestrator.predict(features, "test_match_007")
     preds = _preds(result)
-    assert preds.get("models_used") == 12
+    assert preds.get("models_used") == 13
 
 
 @pytest.mark.asyncio
@@ -174,7 +174,7 @@ async def test_predict_includes_individual_results(orchestrator):
     }
     result = await orchestrator.predict(features, "test_match_010")
     assert "individual_results" in result
-    assert len(result["individual_results"]) == 12
+    assert len(result["individual_results"]) == 13
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Key, Copy, Trash2, EyeOff, Code2, Loader2, CheckCircle2, AlertCircle, BookOpen } from "lucide-react";
+import { Key, Copy, Trash2, EyeOff, Code2, Loader2, CheckCircle2, AlertCircle, BookOpen, Download } from "lucide-react";
 
 interface APIKey {
   id: number;
@@ -40,6 +40,7 @@ interface UsageSummary {
   success_rate: number;
   total_keys: number;
   active_keys: number;
+  total_vitcoin_billed: string;
 }
 
 interface UsageLog {
@@ -96,6 +97,21 @@ export default function DeveloperPage() {
     queryKey: ["dev-usage-summary"],
     queryFn: () => apiGet<UsageSummary>("/api/developer/usage/summary"),
   });
+
+  const handleDownloadConfig = async () => {
+    try {
+      const config = await apiGet<any>("/api/developer/config/download");
+      const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `vit_api_config_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      toast.success("Config downloaded");
+    } catch (err: any) {
+      toast.error("Failed to download config");
+    }
+  };
 
   const { data: usageLogs = [] } = useQuery<UsageLog[]>({
     queryKey: ["dev-usage-logs"],
@@ -166,12 +182,13 @@ export default function DeveloperPage() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
             { label: "Active Keys",     value: summary.active_keys },
             { label: "Total API Calls", value: summary.total_api_calls },
             { label: "Success Rate",    value: `${summary.success_rate}%` },
             { label: "Errors",          value: summary.error_calls },
+            { label: "VIT Billed",      value: `${parseFloat(summary.total_vitcoin_billed).toFixed(2)} VIT` },
           ].map(s => (
             <Card key={s.label} className="border border-border">
               <CardContent className="pt-4 pb-4">
@@ -224,6 +241,11 @@ export default function DeveloperPage() {
       {/* Keys Tab */}
       {activeTab === "keys" && (
         <div className="space-y-4">
+          <div className="flex justify-end">
+             <Button size="sm" variant="outline" className="gap-2" onClick={handleDownloadConfig}>
+                <Download className="w-4 h-4" /> Download API Config
+             </Button>
+          </div>
           {/* Create Key Form */}
           <Card className="border border-border">
             <CardHeader>
@@ -298,9 +320,18 @@ export default function DeveloperPage() {
                         </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           <span className="font-mono">{k.key_prefix}••••••••••••</span>
-                          <span>{k.rate_limit_rpm} rpm</span>
+                          <span className="flex items-center gap-1">
+                            <Activity className="w-3 h-3" /> {k.rate_limit_rpm} rpm
+                          </span>
                           <span>{k.total_requests.toLocaleString()} calls</span>
                           {k.last_used_at && <span>Last used {new Date(k.last_used_at).toLocaleDateString()}</span>}
+                        </div>
+                        {/* Simple limit progress bar simulation */}
+                        <div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden">
+                           <div
+                              className="h-full bg-primary/40"
+                              style={{ width: `${Math.min(100, (k.total_requests % k.rate_limit_rpd) / k.rate_limit_rpd * 100)}%` }}
+                           />
                         </div>
                       </div>
                       <div className="flex gap-1">

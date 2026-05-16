@@ -69,6 +69,11 @@ class AIModelListing(Base):
     rating_sum      : Mapped[float]    = mapped_column(Float, default=0.0)
     rating_count    : Mapped[int]      = mapped_column(Integer, default=0)
 
+    # Performance Insights
+    accuracy_rate   : Mapped[float]    = mapped_column(Float, default=0.0)
+    roi             : Mapped[float]    = mapped_column(Float, default=0.0)
+    clv_correlation : Mapped[float]    = mapped_column(Float, default=0.0)
+
     # State
     is_active       : Mapped[bool]     = mapped_column(Boolean, default=False)  # False until admin-approved
     is_verified     : Mapped[bool]     = mapped_column(Boolean, default=False)  # admin-verified quality badge

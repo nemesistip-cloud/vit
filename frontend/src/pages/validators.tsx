@@ -405,6 +405,7 @@ export default function ValidatorsPage() {
   const apply = useApplyAsValidator();
   const withdraw = useWithdrawValidator();
   const [stakeInput, setStakeInput] = useState("100");
+  const [leaguesInput, setLeaguesInput] = useState("");
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   if (isLoadingVal || isLoadingEcon) {
@@ -413,7 +414,10 @@ export default function ValidatorsPage() {
 
   const handleApply = async () => {
     try {
-      await apply.mutateAsync({ stake_amount: parseFloat(stakeInput) });
+      await apply.mutateAsync({
+        stake_amount: parseFloat(stakeInput),
+        specialist_leagues: leaguesInput || undefined,
+      });
       toast.success("Application submitted — awaiting admin review");
     } catch (e: any) {
       toast.error(e?.message || "Application failed");
@@ -515,6 +519,15 @@ export default function ValidatorsPage() {
                         <div className="text-xs text-muted-foreground font-mono uppercase mt-1">
                           Joined {format(new Date(validator.joined_at), "yyyy-MM-dd")}
                         </div>
+                        {validator.specialist_leagues && (
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {validator.specialist_leagues.split(",").map((league: string) => (
+                              <span key={league} className="text-[9px] bg-primary/10 text-primary px-1 rounded uppercase font-mono border border-primary/20">
+                                {league.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -646,6 +659,17 @@ export default function ValidatorsPage() {
                           value={stakeInput}
                           onChange={(e) => setStakeInput(e.target.value)}
                           min="100"
+                          className="font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground uppercase mb-1 block">
+                          Specialist Leagues (optional)
+                        </label>
+                        <Input
+                          value={leaguesInput}
+                          onChange={(e) => setLeaguesInput(e.target.value)}
+                          placeholder="e.g. EPL, La Liga, UCL"
                           className="font-mono"
                         />
                       </div>

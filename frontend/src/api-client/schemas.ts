@@ -104,13 +104,22 @@ export interface Transaction {
 }
 
 export interface Validator {
+  id: string;
+  user_id: number;
   username: string;
+  email: string;
+  role: string;
+  status: string;
   trust_score: number;
   stake: number;
+  stake_amount: number;
   total_predictions: number;
+  accurate_predictions: number;
   accuracy_rate: number;
   influence_score: number;
+  specialist_leagues?: string | null;
   joined_at: string;
+  last_active?: string | null;
 }
 
 export interface TrainingJob {

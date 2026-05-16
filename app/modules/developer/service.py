@@ -196,6 +196,10 @@ async def usage_summary(db: AsyncSession, user_id: int) -> dict:
         )
     )).scalar() or 0
 
+    total_billed = (await db.execute(
+        select(func.sum(APIKey.total_vitcoin_billed)).where(APIKey.user_id == user_id)
+    )).scalar() or Decimal("0")
+
     return {
         "total_api_calls": total_calls,
         "successful_calls": success_calls,
@@ -203,6 +207,7 @@ async def usage_summary(db: AsyncSession, user_id: int) -> dict:
         "success_rate": round(success_calls / total_calls * 100, 2) if total_calls else 100.0,
         "total_keys": total_keys,
         "active_keys": active_keys,
+        "total_vitcoin_billed": str(total_billed),
     }
 
 
