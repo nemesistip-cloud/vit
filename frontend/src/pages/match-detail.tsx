@@ -794,7 +794,7 @@ export default function MatchDetailPage() {
             <CardContent className="pt-4">
               {injuries?.injuries?.length ? (
                 <div className="space-y-3">
-                  {injuries.injuries.map((injury: any) => {
+                  {injuries?.injuries?.map((injury: any) => {
                     const statusColor =
                       injury.status === "out"      ? "bg-red-500/10 border-red-500/25 text-red-400" :
                       injury.status === "doubtful" ? "bg-amber-500/10 border-amber-500/25 text-amber-400" :
@@ -878,7 +878,7 @@ export default function MatchDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {auditLog.log.map((entry: any, i: number) => (
+                      {auditLog?.log?.map((entry: any, i: number) => (
                         <tr key={i} className="border-b border-border/20 hover:bg-muted/10 transition-colors">
                           <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">
                             {entry.ts ? new Date(entry.ts).toLocaleString() : "—"}

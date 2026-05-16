@@ -93,7 +93,7 @@ function AIConfidenceWidget() {
 
   return (
     <div className="space-y-3">
-      {displayModels.map((m: any) => (
+      {displayModels?.map((m: any) => (
         <div key={m.key}>
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs font-mono text-muted-foreground">{m.name}</span>
@@ -164,7 +164,7 @@ function TopOpportunitiesWidget() {
 
   return (
     <div className="space-y-2">
-      {opportunities.map((o: any) => (
+      {opportunities?.map((o: any) => (
         <Link key={o.prediction_id} href={`/matches/${o.match_id}`}>
           <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border/30 bg-card/20 hover:border-primary/25 hover:bg-primary/5 transition-all cursor-pointer group">
             <div className="flex-1 min-w-0">
@@ -203,7 +203,7 @@ function ActivityIcon({ type, outcome, betSide }: { type?: string; outcome?: str
 /* ── Quick Actions FAB (mobile) ───────────────────────── */
 function QuickActionsFAB() {
   return (
-    <div className="fixed bottom-20 right-5 z-50 md:hidden">
+    <div className="fixed bottom-24 right-5 z-50 md:hidden">
       <Link href="/matches">
         <button className="w-12 h-12 bg-primary text-primary-foreground rounded-full shadow-xl vit-glow-cyan flex items-center justify-center active:scale-95 transition-transform">
           <Zap className="w-5 h-5" />
@@ -381,29 +381,29 @@ export default function DashboardPage() {
           [
             {
               label: "Total Users",
-              value: (system.users?.total ?? system.total_users ?? 0).toLocaleString(),
+              value: (system?.users?.total ?? system?.total_users ?? 0).toLocaleString(),
               icon: Users,
               color: "text-foreground",
             },
             {
               label: "Active (30d)",
-              value: (system.users?.active_30d ?? system.active_users_30d ?? 0).toLocaleString(),
+              value: (system?.users?.active_30d ?? system?.active_users_30d ?? 0).toLocaleString(),
               icon: Activity,
               color: "text-emerald-400",
             },
             {
               label: "Validators",
-              value: (system.users?.validators ?? system.active_validators ?? 0).toLocaleString(),
+              value: (system?.users?.validators ?? system?.active_validators ?? 0).toLocaleString(),
               icon: ShieldCheck,
               color: "text-yellow-400",
             },
             {
               label: "VIT Price",
               value: `$${Number(price?.price ?? price?.price_usd ?? 0.001).toFixed(5)}`,
-              icon: change24h >= 0 ? ArrowUpRight : ArrowDownRight,
-              color: change24h >= 0 ? "text-emerald-400" : "text-rose-400",
+              icon: (change24h ?? 0) >= 0 ? ArrowUpRight : ArrowDownRight,
+              color: (change24h ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400",
             },
-          ].map(({ label, value, icon: Icon, color }) => (
+          ]?.map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="rounded-lg border border-border/30 bg-card/20 px-3 py-2.5 flex items-center justify-between gap-2">
               <div>
                 <div className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wider">{label}</div>
@@ -485,10 +485,10 @@ export default function DashboardPage() {
                     {
                       label: "VIT Price",
                       value: `$${Number(price?.price ?? price?.price_usd ?? 0).toFixed(8)}`,
-                      color: change24h >= 0 ? "text-emerald-400" : "text-rose-400",
-                      sub: `${change24h >= 0 ? "+" : ""}${Number(change24h).toFixed(2)}% 24h`,
+                      color: (change24h ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400",
+                      sub: `${(change24h ?? 0) >= 0 ? "+" : ""}${Number(change24h ?? 0).toFixed(2)}% 24h`,
                     },
-                  ].map(({ label, value, color, sub }) => (
+                  ]?.map(({ label, value, color, sub }) => (
                     <div key={label} className="bg-background/30 rounded-lg p-3 border border-border/30 group hover:border-border/60 transition-colors">
                       <div className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wider mb-1.5">{label}</div>
                       <div className={`text-lg font-bold font-mono vit-metric ${color}`}>{value}</div>
@@ -582,7 +582,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {activityList.slice(0, 6).map((act: any, i: number) => (
+                  {activityList?.slice(0, 6).map((act: any, i: number) => (
                     <div key={act.id ?? i} className="flex items-start gap-2.5">
                       <ActivityIcon type={act.type} outcome={act.outcome} betSide={act.bet_side} />
                       <div className="flex-1 min-w-0">

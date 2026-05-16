@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ArrowRight, Eye, EyeOff, Lock, Gift, Zap, Brain, Shield, Coins, TrendingUp, BarChart2 } from "lucide-react";
+import { FcGoogle } from "react-icons/fc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { WelcomeModal, OnboardingTour } from "@/components/onboarding";
@@ -40,7 +41,7 @@ export default function AuthPage() {
     { icon: BarChart2, label: "Bankroll Management",                                    color: "text-emerald-400"},
   ];
 
-  const { login: setAuthToken } = useAuth();
+  const { login: setAuthToken, loginWithGoogle } = useAuth();
   const refCode = new URLSearchParams(search).get("ref") ?? "";
 
   const loginMutation    = useLogin();
@@ -262,7 +263,28 @@ export default function AuthPage() {
                       <h2 className="text-xl font-bold font-mono">Welcome back</h2>
                       <p className="text-[11px] text-muted-foreground font-mono mt-1">Enter your credentials to continue</p>
                     </div>
-                    <Form {...loginForm}>
+
+                    <div className="space-y-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full h-11 font-mono gap-3 bg-white/[0.02] border-white/10 hover:bg-white/[0.05]"
+                        onClick={() => loginWithGoogle()}
+                      >
+                        <FcGoogle className="w-5 h-5" />
+                        Sign in with Google
+                      </Button>
+
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t border-white/5"></span>
+                        </div>
+                        <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                          <span className="bg-background px-2 text-muted-foreground/40">Or continue with</span>
+                        </div>
+                      </div>
+
+                      <Form {...loginForm}>
                       <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
                         <FormField
                           control={loginForm.control}
@@ -327,6 +349,7 @@ export default function AuthPage() {
                         </Button>
                       </form>
                     </Form>
+                    </div>
                   </div>
                 )}
               </TabsContent>
@@ -340,6 +363,27 @@ export default function AuthPage() {
                       Get {publicCfg?.platform.welcome_bonus_vit ?? 100} VIT welcome bonus on signup
                     </p>
                   </div>
+
+                  <div className="space-y-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-11 font-mono gap-3 bg-white/[0.02] border-white/10 hover:bg-white/[0.05]"
+                      onClick={() => loginWithGoogle()}
+                    >
+                      <FcGoogle className="w-5 h-5" />
+                      Register with Google
+                    </Button>
+
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-white/5"></span>
+                      </div>
+                      <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                        <span className="bg-background px-2 text-muted-foreground/40">Or continue with</span>
+                      </div>
+                    </div>
+
                   <Form {...registerForm}>
                     <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
                       <FormField
@@ -427,6 +471,7 @@ export default function AuthPage() {
                       </p>
                     </form>
                   </Form>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>

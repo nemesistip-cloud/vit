@@ -273,7 +273,7 @@ function StakeModal({ listing }: { listing: Listing }) {
           </Button>
 
           {/* Current stakes table */}
-          {stakesData && stakesData.stakes.length > 0 && (
+          {stakesData?.stakes && stakesData.stakes.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Current stakers</p>
               {stakesData.stakes.slice(0, 5).map((s) => (
@@ -654,13 +654,13 @@ function ModelCard({ listing }: { listing: Listing }) {
           <span className="flex items-center gap-1">
             <Zap className="w-3 h-3" /> {listing.usage_count.toLocaleString()} calls
           </span>
-          <StarRating value={listing.avg_rating} count={listing.rating_count} />
+        <StarRating value={listing.avg_rating || 0} count={listing.rating_count || 0} />
         </div>
         {listing.tags && (
           <div className="flex flex-wrap gap-1 mt-2">
             {listing.tags.split(",").slice(0, 4).map((t) => (
               <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                {t.trim()}
+              {t?.trim()}
               </span>
             ))}
           </div>
@@ -949,7 +949,7 @@ function LeaderboardTab() {
                       <div className="flex flex-wrap gap-1">
                         {model.tags.split(",").map((t) => (
                           <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                            {t.trim()}
+                            {t?.trim()}
                           </span>
                         ))}
                       </div>

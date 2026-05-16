@@ -2,6 +2,10 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useGetMe } from "@/api-client";
 import type { User } from "@/api-client/schemas";
+import { signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
+import { auth, googleProvider } from "./firebase";
+import { apiPost } from "./apiClient";
+import { toast } from "sonner";
 
 const TIER_ORDER: Record<string, number> = {
   viewer: 0, analyst: 1, pro: 2, elite: 3,
@@ -11,6 +15,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (token: string, refreshToken?: string) => void;
+  loginWithGoogle: () => Promise<void>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   hasAdminRole: (roles: string | string[]) => boolean;
@@ -62,7 +67,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLocation("/dashboard");
   };
 
-  const logout = () => {
+  const loginWithGoogle = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+
+      const res = await apiPost<{ access_token: string; refresh_token: string }>(
+        "/auth/firebase",
+        { id_token: idToken }
+      );
+
+      login(res.access_token, res.refresh_token);
+      toast.success(`Welcome, ${result.user.displayName}!`);
+    } catch (error: any) {
+      console.error("Google login error:", error);
+      toast.error(error.message || "Failed to sign in with Google");
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch (e) {
+      console.warn("Firebase signout failed", e);
+    }
     localStorage.removeItem("vit_token");
     localStorage.removeItem("vit_refresh_token");
     setToken(null);
@@ -98,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: user ?? null,
         isLoading: isLoading && !!token,
         login,
+        loginWithGoogle,
         logout,
         hasPermission,
         hasAdminRole,
