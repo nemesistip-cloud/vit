@@ -79,7 +79,12 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (failureCount, error: any) => {
-        if (error?.message?.includes("401") || error?.message?.includes("Session expired")) return false;
+        const msg: string = error?.message ?? "";
+        if (
+          msg.includes("Session expired") ||
+          msg.includes("Unauthorized") ||
+          /HTTP 40[13]/.test(msg)
+        ) return false;
         return failureCount < 2;
       },
       staleTime: 15_000,

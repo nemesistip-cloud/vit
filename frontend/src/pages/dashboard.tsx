@@ -588,7 +588,7 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-mono text-xs text-foreground/80 truncate">{act.description}</p>
                         <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-muted-foreground/50 font-mono">
-                          <span>{act.created_at ? format(new Date(act.created_at), "HH:mm:ss") : ""}</span>
+                          <span>{act.created_at ? (() => { try { return format(new Date(act.created_at), "HH:mm:ss"); } catch { return ""; } })() : ""}</span>
                           {act.outcome && (
                             <>
                               <span>·</span>

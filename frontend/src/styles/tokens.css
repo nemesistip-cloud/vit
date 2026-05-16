@@ -398,6 +398,18 @@
     box-shadow: none !important;
   }
 
+  /* ── 2b. Glow box-shadows: remove large spread values that trigger layer promotion ── */
+  .vit-glow-cyan,
+  .vit-glow-cyan-s,
+  .vit-glow-gold,
+  .vit-glow-gold-s,
+  .vit-glow-purple,
+  .vit-glow-green,
+  .vit-border-glow,
+  .vit-border-glow:hover {
+    box-shadow: none !important;
+  }
+
   /* ── 3. Shimmer skeleton: static gradient — no background-position sweep ─── */
   .vit-shimmer {
     animation: none !important;
