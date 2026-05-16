@@ -1512,11 +1512,13 @@ async def lifespan(app: FastAPI):
         from decimal import Decimal as _Decimal
 
         async with AsyncSessionLocal() as _db:
-            _admin = (await _db.execute(_select(_User).where(_User.role == "admin"))).scalar_one_or_none()
+            _admin_res = await _db.execute(_select(_User).where(_User.role == "admin").limit(1))
+            _admin = _admin_res.scalar_one_or_none()
             if _admin:
-                _existing_vp = (await _db.execute(
-                    _select(ValidatorProfile).where(ValidatorProfile.user_id == _admin.id)
-                )).scalar_one_or_none()
+                _existing_vp_res = await _db.execute(
+                    _select(ValidatorProfile).where(ValidatorProfile.user_id == _admin.id).limit(1)
+                )
+                _existing_vp = _existing_vp_res.scalar_one_or_none()
                 if not _existing_vp:
                     _db.add(ValidatorProfile(
                         id=str(_uuid_mod.uuid4()),

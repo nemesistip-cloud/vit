@@ -182,6 +182,33 @@ async def usage_summary(
     return await svc.usage_summary(db, current_user.id)
 
 
+@router.get("/config/download", summary="Download my API configuration")
+async def download_config(
+    db:           AsyncSession = Depends(get_db),
+    current_user: User         = Depends(get_current_user),
+):
+    """Return a JSON configuration of all active API keys and their limits."""
+    keys = await svc.list_keys(db, current_user.id)
+    active_keys = [k for k in keys if k.is_active]
+
+    config = {
+        "user_id": current_user.id,
+        "generated_at": datetime.now().isoformat(),
+        "api_keys": [
+            {
+                "name": k.name,
+                "prefix": k.key_prefix,
+                "plan": k.plan,
+                "limits": {
+                    "rpm": k.rate_limit_rpm,
+                    "rpd": k.rate_limit_rpd
+                }
+            } for k in active_keys
+        ]
+    }
+    return config
+
+
 # ── Docs (stub endpoint returning SDK links) ──────────────────────────────────
 
 @router.get("/docs", summary="Developer documentation links")

@@ -65,6 +65,10 @@ async def get_consensus_prediction(
             "consensus_p_home": float(cp.consensus_p_home),
             "consensus_p_draw": float(cp.consensus_p_draw),
             "consensus_p_away": float(cp.consensus_p_away),
+            "consensus_over_25": float(cp.consensus_over_25),
+            "consensus_under_25": float(cp.consensus_under_25),
+            "consensus_btts_yes": float(cp.consensus_btts_yes),
+            "consensus_btts_no": float(cp.consensus_btts_no),
         },
         "final": {
             "p_home": float(cp.final_p_home),
@@ -533,6 +537,7 @@ async def withdraw_validator(
 
 class ValidatorApplyRequest(BaseModel):
     stake_amount: float = Field(..., gt=0)
+    specialist_leagues: str | None = None
 
 
 @router.post("/validators/apply")
@@ -577,6 +582,7 @@ async def apply_as_validator(
         stake_amount=amount,
         trust_score=Decimal("0.5"),
         influence_score=amount * Decimal("0.5"),
+        specialist_leagues=body.specialist_leagues,
         status=ValidatorStatus.PENDING.value,
     )
     db.add(vp)
@@ -609,6 +615,8 @@ async def apply_as_validator(
 
 class ValidatorPredictRequest(BaseModel):
     match_id: str
+    market_type: str = Field("1X2", description="1X2 | OVER_UNDER | BTTS")
+    prediction_value: str | None = Field(None, description="home|draw|away|over|under|yes|no")
     p_home: float = Field(..., ge=0, le=1)
     p_draw: float = Field(..., ge=0, le=1)
     p_away: float = Field(..., ge=0, le=1)
@@ -645,6 +653,8 @@ async def submit_validator_prediction(
     pred = ValidatorPrediction(
         validator_id=vp.id,
         match_id=body.match_id,
+        market_type=body.market_type,
+        prediction_value=body.prediction_value,
         p_home=Decimal(str(body.p_home / norm)),
         p_draw=Decimal(str(body.p_draw / norm)),
         p_away=Decimal(str(body.p_away / norm)),
