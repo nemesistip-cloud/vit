@@ -520,7 +520,7 @@ export function useGetMyValidator() {
 
 export function useApplyAsValidator() {
   const queryClient = useQueryClient();
-  return useMutation<any, Error, { stake_amount: number }>({
+  return useMutation<any, Error, { stake_amount: number; specialist_leagues?: string }>({
     mutationFn: (data) => apiPost<any>(API.applyValidator, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListValidatorsQueryKey() });

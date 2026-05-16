@@ -55,6 +55,24 @@ export function isPuterAvailable(): boolean {
   return typeof window !== "undefined" && !!window.puter;
 }
 
+/**
+ * Wait up to `timeoutMs` for the Puter.js CDN script to finish initialising.
+ * The script tag in index.html loads it synchronously relative to DOMContentLoaded
+ * but in production bundles the React app can mount before `window.puter` is set.
+ */
+export async function waitForPuter(timeoutMs = 5000): Promise<boolean> {
+  if (isPuterAvailable()) return true;
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const check = () => {
+      if (isPuterAvailable()) { resolve(true); return; }
+      if (Date.now() >= deadline) { resolve(false); return; }
+      setTimeout(check, 200);
+    };
+    check();
+  });
+}
+
 export async function isPuterSignedIn(): Promise<boolean> {
   if (!isPuterAvailable()) return false;
   try {

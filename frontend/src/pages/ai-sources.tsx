@@ -10,6 +10,7 @@ import {
   puterSignIn,
   puterSignOut,
   getPuterUser,
+  waitForPuter,
   MatchAnalysis,
   PuterModel,
   PUTER_CLAUDE_MODEL,
@@ -125,7 +126,8 @@ function PuterAccountPanel() {
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!isPuterAvailable()) { setSignedIn(false); return; }
+    const ready = isPuterAvailable() || await waitForPuter(5000);
+    if (!ready) { setSignedIn(false); return; }
     const ok = await isPuterSignedIn();
     setSignedIn(ok);
     if (ok) {
@@ -419,6 +421,7 @@ function PerformanceStatsPanel() {
         message?: string;
       }>("/api/admin/ai-sources/performance"),
     refetchInterval: 60000,
+    retry: 1,
   });
 
   const [refreshing, setRefreshing] = useState(false);
@@ -471,6 +474,17 @@ function PerformanceStatsPanel() {
       <CardContent className="space-y-3">
         {q.isLoading ? (
           <Skeleton className="h-16 w-full bg-muted/40" />
+        ) : q.isError ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 rounded p-2.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            Performance data unavailable — metrics are computed after matches settle.
+            <button
+              onClick={() => qc.invalidateQueries({ queryKey: ["ai-sources", "performance"] })}
+              className="ml-auto text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+            >
+              <RefreshCw className="w-3 h-3" /> Retry
+            </button>
+          </div>
         ) : !hasPerf ? (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
@@ -932,7 +946,16 @@ export default function AISourcesPage() {
   const [results, setResults] = useState<Map<number, MatchResults>>(new Map());
   const [progress, setProgress] = useState({ current: 0, total: 0, matchLabel: "" });
   const [focusMatchId, setFocusMatchId] = useState<number | null>(null);
+  const [puterDetected, setPuterDetected] = useState<boolean>(isPuterAvailable());
   const shouldStop = useRef(false);
+
+  useEffect(() => {
+    if (!puterDetected) {
+      waitForPuter(6000).then((ok) => {
+        if (ok) setPuterDetected(true);
+      });
+    }
+  }, []);
 
   if (!user) return <Redirect to="/login" />;
   if (!isAdmin && !hasTier("analyst")) return <Redirect to="/subscription" />;
@@ -1070,7 +1093,7 @@ export default function AISourcesPage() {
     });
   };
 
-  const puterReady = isPuterAvailable();
+  const puterReady = puterDetected;
 
   const totalSlots = matches.length * activeModels.length;
   const doneSlots = [...results.values()].reduce((acc, mr) => {

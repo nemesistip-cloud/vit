@@ -995,7 +995,7 @@ async def predict(
                 # otherwise compute from the same probabilities so the alert
                 # always shows a value when there are real probs.
                 risk_value = float(
-                    pred_data.get("risk_score")
+                    pred_data.get("risk_score") or 0.0
                     if isinstance(pred_data, dict) else 0.0
                 ) or 0.0
                 if risk_value <= 0 and (home_prob + draw_prob + away_prob) > 0:

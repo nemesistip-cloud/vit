@@ -114,6 +114,8 @@ interface LeaderboardItem {
   is_verified: boolean;
   win_rate: number;
   roi: number;
+  accuracy_rate: number;
+  clv_correlation: number;
   total_predictions: number;
   est_apy: number;
 }
@@ -838,6 +840,9 @@ function LeaderboardTab() {
             staker_count: model.staker_count,
             is_active: model.is_active,
             is_verified: model.is_verified,
+            accuracy_rate: model.accuracy_rate ?? 0,
+            roi: model.roi ?? 0,
+            clv_correlation: model.clv_correlation ?? 0,
             created_at: "",
           };
 

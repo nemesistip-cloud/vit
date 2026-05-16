@@ -696,68 +696,81 @@ async def lifespan(app: FastAPI):
                 except Exception as _mm_e:
                     print(f"⚠️  model_metadata CLV column migration skipped: {_mm_e}")
             else:
-                await conn.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER"))
-                await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'"))
-                await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE"))
-                await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON"))
-                await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0"))
-                await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0"))
-                await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0"))
-                # ── marketplace_listings new columns (PostgreSQL) ───────────
-                try:
-                    for col, ddl in [
-                        ("listing_fee_paid", "NUMERIC(20,8) DEFAULT 0"),
-                        ("pkl_path",         "VARCHAR(512)"),
-                        ("file_size_bytes",  "INTEGER"),
-                        ("pkl_sha256",       "VARCHAR(64)"),
-                        ("webhook_url",      "VARCHAR(512)"),
-                        ("webhook_secret",   "VARCHAR(256)"),
-                        ("approval_status",  "VARCHAR(20) DEFAULT 'pending'"),
-                        ("approval_note",    "TEXT"),
-                        ("approved_by",      "INTEGER"),
-                        ("approved_at",      "TIMESTAMP WITH TIME ZONE"),
-                    ]:
-                        await conn.execute(text(f"ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS {col} {ddl}"))
-                    await conn.execute(text("ALTER TABLE marketplace_usage_logs ADD COLUMN IF NOT EXISTS error_message TEXT"))
-                except Exception as _mkt_e:
-                    print(f"⚠️  marketplace column migration skipped: {_mkt_e}")
-                # ── training_jobs new columns (PostgreSQL) ────────────────────
-                try:
-                    for col, ddl in [
-                        ("events",        "JSON"),
-                        ("progress_pct",  "REAL DEFAULT 0.0"),
-                        ("current_model", "VARCHAR(200)"),
-                        ("total_models",  "INTEGER DEFAULT 0"),
-                        ("error_message", "TEXT"),
-                    ]:
-                        await conn.execute(text(f"ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS {col} {ddl}"))
-                except Exception as _tj_e:
-                    print(f"⚠️  training_jobs column migration skipped: {_tj_e}")
-                # ── model_metadata CLV columns (PostgreSQL) ───────────────────
-                try:
-                    for col, ddl in [
-                        ("clv_score",                "DOUBLE PRECISION"),
-                        ("clv_samples",              "INTEGER DEFAULT 0"),
-                        ("clv_negative_streak_days", "INTEGER DEFAULT 0"),
-                        ("last_clv_check_at",        "TIMESTAMP WITH TIME ZONE"),
-                        ("auto_demoted",             "BOOLEAN DEFAULT FALSE"),
-                    ]:
-                        await conn.execute(text(f"ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS {col} {ddl}"))
-                except Exception as _mm_e:
-                    print(f"⚠️  model_metadata CLV column migration skipped: {_mm_e}")
-
-                # tasks: action_url + action_label so each task can deep-link
-                # the user to the page where they actually do the work.
-                try:
-                    for col, ddl in [
-                        ("action_url",   "VARCHAR(200)"),
-                        ("action_label", "VARCHAR(50)"),
-                    ]:
-                        await conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {ddl}"))
-                except Exception as _t_e:
-                    print(f"⚠️  tasks action-link column migration skipped: {_t_e}")
+                # PostgreSQL path — flag for post-block migrations.
+                # We do NOT run ALTER TABLEs inside this shared connection
+                # because in PostgreSQL a caught exception taints the whole
+                # transaction; subsequent statements silently fail.
+                _pg_migrate = True
     except Exception as _e:
         print(f"⚠️  Compatibility schema update skipped: {_e}")
+
+    # ── PostgreSQL column migrations — each group uses its own transaction ──
+    # This avoids the "current transaction is aborted" cascade where one
+    # caught ALTER TABLE failure causes all later ones to silently no-op.
+    if locals().get("_pg_migrate"):
+        _pg_groups = [
+            # (label, statements)
+            ("predictions/users base cols", [
+                "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0",
+            ]),
+            ("marketplace_listings v1 cols", [
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS listing_fee_paid NUMERIC(20,8) DEFAULT 0",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS pkl_path VARCHAR(512)",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS file_size_bytes INTEGER",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS pkl_sha256 VARCHAR(64)",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS webhook_url VARCHAR(512)",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(256)",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'pending'",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS approval_note TEXT",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS approved_by INTEGER",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE",
+                "ALTER TABLE marketplace_usage_logs ADD COLUMN IF NOT EXISTS error_message TEXT",
+            ]),
+            ("training_jobs cols", [
+                "ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS events JSON",
+                "ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS progress_pct REAL DEFAULT 0.0",
+                "ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS current_model VARCHAR(200)",
+                "ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS total_models INTEGER DEFAULT 0",
+                "ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS error_message TEXT",
+            ]),
+            ("model_metadata CLV cols", [
+                "ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS clv_score DOUBLE PRECISION",
+                "ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS clv_samples INTEGER DEFAULT 0",
+                "ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS clv_negative_streak_days INTEGER DEFAULT 0",
+                "ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS last_clv_check_at TIMESTAMP WITH TIME ZONE",
+                "ALTER TABLE model_metadata ADD COLUMN IF NOT EXISTS auto_demoted BOOLEAN DEFAULT FALSE",
+            ]),
+            ("tasks action-link cols", [
+                "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url VARCHAR(200)",
+                "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label VARCHAR(50)",
+            ]),
+            ("validator_profiles specialist_leagues", [
+                "ALTER TABLE validator_profiles ADD COLUMN IF NOT EXISTS specialist_leagues VARCHAR(255)",
+            ]),
+            ("marketplace_listings performance cols (v7)", [
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS accuracy_rate DOUBLE PRECISION DEFAULT 0.0",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS roi DOUBLE PRECISION DEFAULT 0.0",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS clv_correlation DOUBLE PRECISION DEFAULT 0.0",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS total_staked NUMERIC(20,8) DEFAULT 0",
+                "ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS staker_count INTEGER DEFAULT 0",
+            ]),
+        ]
+        from app.db.database import engine as _pg_engine
+        for _label, _stmts in _pg_groups:
+            try:
+                async with _pg_engine.begin() as _c:
+                    for _s in _stmts:
+                        await _c.execute(text(_s))
+                print(f"✅ PG migration OK: {_label}")
+            except Exception as _pg_e:
+                print(f"⚠️  PG migration skipped [{_label}]: {_pg_e}")
 
     print("✅ Database migrations applied")
 
