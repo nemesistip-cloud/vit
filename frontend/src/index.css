@@ -283,4 +283,39 @@
     animation: vit-fade-in 0.25s var(--vit-ease-out) forwards;
   }
 
+  /* ── Landing ticker tape ──────── */
+  .vit-ticker-wrap {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+  }
+  .vit-ticker-content {
+    display: inline-flex;
+    white-space: nowrap;
+    animation: vit-ticker-scroll 40s linear infinite;
+  }
+  .vit-ticker-wrap:hover .vit-ticker-content {
+    animation-play-state: paused;
+  }
+  @keyframes vit-ticker-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  /* ── Fix Layout Overlaps ── */
+  .sticky-header-fix {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .content-overlap-fix {
+    position: relative;
+    z-index: 10;
+  }
+
+  .ticker-z-fix {
+    position: relative;
+    z-index: 40;
+  }
 }

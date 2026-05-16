@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useListMatches, useListRecentMatches, useListCompletedMatches, useSyncFixtures, useListLeagues } from "@/api-client";
+import { useRealtimeMatches } from "@/hooks/useRealtimeMatches";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,21 +35,23 @@ export default function MatchesPage() {
   const { data: recentData, isLoading: recentLoading, isError: isErrorRecent } = useListRecentMatches();
   const { data: completedData, isLoading: completedLoading, isError: isErrorCompleted } = useListCompletedMatches();
   const { data: leaguesData } = useListLeagues();
+  const { matches: realtimeMatches, loading: realtimeLoading } = useRealtimeMatches(100);
   const syncMutation = useSyncFixtures();
 
-  const isLoading = upcomingLoading || recentLoading || completedLoading;
+  const isLoading = (upcomingLoading || recentLoading || completedLoading) && realtimeLoading;
 
   const upcoming = upcomingData?.matches ?? [];
   const recent = recentData?.matches ?? [];
   const completed = completedData?.matches ?? [];
 
-  // Merge upcoming + recent + completed deduped by match_id so every dropdown
+  // Merge upcoming + recent + completed + realtime deduped by match_id so every dropdown
   // sees every match regardless of which collection it lives in.
   const allMatches = (() => {
     const seen = new Set<string>();
     const merged: any[] = [];
-    for (const m of [...upcoming, ...recent, ...completed]) {
-      const id = String((m as any).match_id ?? "");
+    // Prioritize realtime matches
+    for (const m of [...realtimeMatches, ...upcoming, ...recent, ...completed]) {
+      const id = String((m as any).match_id ?? (m as any).id ?? "");
       if (!id || seen.has(id)) continue;
       seen.add(id);
       merged.push(m);

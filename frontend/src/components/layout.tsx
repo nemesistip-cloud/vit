@@ -184,7 +184,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background flex flex-col lg:flex-row">
 
       {/* ── Mobile top bar ──────────────────────────────── */}
-      <div className="lg:hidden flex items-center justify-between px-4 py-2.5 border-b border-border/50 sticky top-0 z-40 bg-background">
+      <div className="lg:hidden flex items-center justify-between px-4 py-2.5 border-b border-border/50 sticky top-0 z-50 bg-background">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-primary/20 to-purple-500/20 border border-primary/25">
             <Zap className="w-3.5 h-3.5 text-primary" />
@@ -293,9 +293,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* ── Main content + ecosystem ticker ──────────────── */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <EcosystemTicker />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background vit-scrollbar">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden isolate">
+        <div className="sticky top-[53px] lg:top-0 z-40 lg:relative lg:z-auto">
+          <EcosystemTicker />
+        </div>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background vit-scrollbar relative z-10">
           <div className="p-4 lg:p-6 max-w-7xl mx-auto pb-24 lg:pb-8">
             {children}
           </div>

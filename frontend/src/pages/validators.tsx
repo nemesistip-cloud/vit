@@ -86,13 +86,13 @@ function AdminValidatorPanel() {
           <TabsContent value={tab} className="pt-4">
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground font-mono text-sm">Loading…</div>
-            ) : list.length === 0 ? (
+            ) : (list?.length ?? 0) === 0 ? (
               <div className="text-center py-8 text-muted-foreground font-mono text-sm">
                 No {tab} validators
               </div>
             ) : (
               <div className="divide-y divide-border/50">
-                {list.map((v: any) => (
+                {list?.map((v: any) => (
                   <div key={v.id} className="py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-mono font-bold flex items-center gap-2">
@@ -339,11 +339,11 @@ function NetworkAnalyticsPanel({ isAdmin = false }: { isAdmin?: boolean }) {
 
         {tab === "leaderboard" && (
           <div className="space-y-1">
-            {leaderboard.length === 0 ? (
+            {(leaderboard?.length ?? 0) === 0 ? (
               <div className="text-center py-8 text-muted-foreground font-mono text-sm">
                 No validator data yet — apply to become the first.
               </div>
-            ) : leaderboard.map((v: any, i: number) => (
+            ) : leaderboard?.map((v: any, i: number) => (
               <div key={v.validator_id ?? i} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-muted/10 transition-colors">
                 <div className={`w-7 h-7 rounded flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 ${
                   i === 0 ? "bg-secondary/20 text-secondary border border-secondary/50" :
@@ -369,11 +369,11 @@ function NetworkAnalyticsPanel({ isAdmin = false }: { isAdmin?: boolean }) {
 
         {tab === "slashing" && (
           <div className="space-y-2">
-            {slashes.length === 0 ? (
+            {(slashes?.length ?? 0) === 0 ? (
               <div className="text-center py-8 text-muted-foreground font-mono text-sm">
                 No slash events recorded.
               </div>
-            ) : slashes.map((e: any, i: number) => (
+            ) : slashes?.map((e: any, i: number) => (
               <div key={e.id ?? i} className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 space-y-1">
                 <div className="flex items-center justify-between">
                   <div className="font-mono text-xs font-bold text-red-400 truncate">{e.validator_username ?? e.validator_id?.slice(0, 12)}</div>
@@ -485,7 +485,7 @@ export default function ValidatorsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border/50">
-                {validatorList.map((validator: any, idx: number) => (
+                {validatorList?.map((validator: any, idx: number) => (
                   <div key={validator.username + idx} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-muted/10 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className="relative">
@@ -700,7 +700,7 @@ export default function ValidatorsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border/50">
-                {validatorList.slice(0, 5).map((v: any, idx: number) => (
+                {validatorList?.slice(0, 5).map((v: any, idx: number) => (
                   <div key={v.username + idx} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className={`w-8 h-8 rounded flex items-center justify-center font-mono font-bold text-sm ${
