@@ -495,7 +495,7 @@ function MarketsTab() {
                 <span className="text-foreground">{mk.commission_rate}%</span>
               </div>
               <div className="flex flex-wrap gap-1 pt-1">
-                {mk.available_tiers.map(t => (
+                {mk?.available_tiers?.map(t => (
                   <Badge key={t} variant="outline" className="text-xs border-border text-muted-foreground capitalize">{t}</Badge>
                 ))}
               </div>
@@ -875,7 +875,7 @@ function SystemTab() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {configStatus.services.map(s => (
+              {configStatus?.services?.map(s => (
                 <div key={s.key} className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs border ${
                   s.status === "ok" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300" :
                   s.status === "error" ? "bg-red-500/10 border-red-500/20 text-red-300" :
@@ -937,11 +937,11 @@ function SystemTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {sortedGroups.map(group => (
+          {sortedGroups?.map(group => (
             <div key={group}>
               <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 px-1">{group}</div>
               <div className="space-y-1">
-                {keysByGroup[group].map(k => (
+                {keysByGroup[group]?.map(k => (
                   <div key={k.name} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-border/50 hover:border-border">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1173,7 +1173,7 @@ function FixtureHealthCard() {
             All fixtures healthy — no issues detected.
           </div>
         ) : (
-          Object.entries(data.categories ?? {}).map(([key, cat]) => (
+          Object.entries(data?.categories ?? {}).map(([key, cat]) => (
             <div key={key} className={`rounded-md border p-3 ${severityBg(cat.severity)}`}>
               <button
                 className="w-full flex items-center justify-between gap-2"
@@ -1200,7 +1200,7 @@ function FixtureHealthCard() {
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-[10px] font-mono border-separate border-spacing-y-0.5">
                     <tbody>
-                      {(cat.sample ?? []).map((row, i) => (
+                      {(cat?.sample ?? []).map((row, i) => (
                         <tr key={i} className="bg-background/60 rounded">
                           {Object.entries(row).map(([k, v]) => (
                             <td key={k} className="px-2 py-1 align-top first:text-muted-foreground">
@@ -1499,7 +1499,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
         )}
 
         {/* Results table */}
-        {rows.length > 0 && (
+        {(rows?.length ?? 0) > 0 && (
           <div className="overflow-x-auto rounded border border-border">
             <table className="w-full text-xs">
               <thead className="border-b border-border bg-muted/20 sticky top-0">
@@ -1516,7 +1516,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r: CsvUploadRow, idx: number) => (
+                {rows?.map((r: CsvUploadRow, idx: number) => (
                   <tr key={idx} className="border-b border-border/50 hover:bg-muted/20">
                     <td className="p-2 pl-3 text-muted-foreground font-mono">{r.row ?? idx + 1}</td>
                     <td className="p-2 text-foreground/90 font-mono whitespace-nowrap">
@@ -2054,7 +2054,7 @@ function UsersTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-muted/20 border-border text-foreground">
-                    {["user", "admin"].map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    {["user", "admin"]?.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -2065,7 +2065,7 @@ function UsersTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-muted/20 border-border text-foreground">
-                    {["viewer", "analyst", "pro", "elite"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    {["viewer", "analyst", "pro", "elite"]?.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -2590,7 +2590,7 @@ function ModelsTab() {
               { label: "Total Models",       value: accountabilityKpis.total,    icon: Cpu,           tone: "neutral" as const, pulse: false },
               { label: "Healthy",            value: accountabilityKpis.healthy,  icon: CheckCircle,   tone: "success" as const, pulse: false },
               { label: "On Watch",           value: accountabilityKpis.watch,    icon: AlertCircle,   tone: "warning" as const, pulse: accountabilityKpis.watch > 0 },
-              { label: "At Risk · Demoted",  value: accountabilityKpis.atRisk + accountabilityKpis.demoted, icon: XCircle, tone: "destructive" as const, pulse: (accountabilityKpis.atRisk + accountabilityKpis.demoted) > 0 },
+              { label: "At Risk · Demoted",  value: (accountabilityKpis.atRisk ?? 0) + (accountabilityKpis.demoted ?? 0), icon: XCircle, tone: "destructive" as const, pulse: ((accountabilityKpis.atRisk ?? 0) + (accountabilityKpis.demoted ?? 0)) > 0 },
             ].map((kpi) => {
               const toneClass = {
                 neutral:     { ring: "border-border",         text: "text-cyan-400",    bg: "bg-cyan-500/10"    },
@@ -2702,7 +2702,7 @@ function ModelsTab() {
                     </tr>
                   </thead>
                   <tbody>
-                    {perfData.map((m: any) => {
+                    {perfData?.map((m: any) => {
                       const clv = m.clv_score ?? 0;
                       const clvN = m.clv_samples ?? 0;
                       const acc = m.accuracy_1x2 ?? 0;
@@ -3103,7 +3103,7 @@ function TrainingInsightCard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.model_breakdown ?? []).map(m => (
+                    {(data?.model_breakdown ?? []).map(m => (
                       <tr key={m.key} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                         <td className="p-2 pl-3">
                           <div className="text-foreground text-xs font-medium">{m.name}</div>
@@ -4407,7 +4407,7 @@ function MLAgentsTab() {
                 <Label className="text-xs text-muted-foreground">Accuracy Floor</Label>
                 <Input
                   type="number" step="0.01" min="0" max="1"
-                  value={cfg.accuracy_floor}
+                  value={cfg?.accuracy_floor}
                   onChange={e => setCfg(c => c ? { ...c, accuracy_floor: parseFloat(e.target.value) } : c)}
                   className="h-8 text-xs bg-muted/20 border-border text-foreground"
                 />
@@ -4417,7 +4417,7 @@ function MLAgentsTab() {
                 <Label className="text-xs text-muted-foreground">Cooldown (hours)</Label>
                 <Input
                   type="number" step="1" min="1"
-                  value={cfg.retrain_cooldown_hours}
+                  value={cfg?.retrain_cooldown_hours}
                   onChange={e => setCfg(c => c ? { ...c, retrain_cooldown_hours: parseInt(e.target.value) } : c)}
                   className="h-8 text-xs bg-muted/20 border-border text-foreground"
                 />
@@ -4427,7 +4427,7 @@ function MLAgentsTab() {
                 <Label className="text-xs text-muted-foreground">Min Flag Cycles</Label>
                 <Input
                   type="number" step="1" min="1"
-                  value={cfg.min_flag_cycles}
+                  value={cfg?.min_flag_cycles}
                   onChange={e => setCfg(c => c ? { ...c, min_flag_cycles: parseInt(e.target.value) } : c)}
                   className="h-8 text-xs bg-muted/20 border-border text-foreground"
                 />
@@ -4438,7 +4438,7 @@ function MLAgentsTab() {
                 <div className="relative">
                   <Input
                     type="number" step="0.1" min="0"
-                    value={parseFloat((cfg.auto_promote_threshold * 100).toFixed(2))}
+                    value={parseFloat(((cfg?.auto_promote_threshold || 0) * 100).toFixed(2))}
                     onChange={e => setCfg(c => c ? { ...c, auto_promote_threshold: parseFloat(e.target.value) / 100 } : c)}
                     className="h-8 text-xs bg-muted/20 border-border text-foreground pr-6"
                   />
@@ -4449,17 +4449,17 @@ function MLAgentsTab() {
             </div>
             <div className="flex flex-wrap items-center gap-6">
               <div className="flex items-center gap-2">
-                <Switch checked={cfg.auto_retrain_enabled} onCheckedChange={v => setCfg(c => c ? { ...c, auto_retrain_enabled: v } : c)} />
+                <Switch checked={cfg?.auto_retrain_enabled} onCheckedChange={v => setCfg(c => c ? { ...c, auto_retrain_enabled: v } : c)} />
                 <Label className="text-xs text-foreground/80">Auto-Retrain</Label>
-                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg.auto_retrain_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-muted/15 text-muted-foreground border-border/30"}`}>
-                  {cfg.auto_retrain_enabled ? "ON" : "OFF"}
+                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg?.auto_retrain_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-muted/15 text-muted-foreground border-border/30"}`}>
+                  {cfg?.auto_retrain_enabled ? "ON" : "OFF"}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Switch checked={cfg.auto_promote_enabled} onCheckedChange={v => setCfg(c => c ? { ...c, auto_promote_enabled: v } : c)} />
+                <Switch checked={cfg?.auto_promote_enabled} onCheckedChange={v => setCfg(c => c ? { ...c, auto_promote_enabled: v } : c)} />
                 <Label className="text-xs text-foreground/80">Auto-Promote</Label>
-                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg.auto_promote_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-muted/15 text-muted-foreground border-border/30"}`}>
-                  {cfg.auto_promote_enabled ? "ON" : "OFF"}
+                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cfg?.auto_promote_enabled ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-muted/15 text-muted-foreground border-border/30"}`}>
+                  {cfg?.auto_promote_enabled ? "ON" : "OFF"}
                 </span>
               </div>
               <Button
@@ -4485,7 +4485,7 @@ function MLAgentsTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ML_AGENTS.map(({ key, label, icon, description, period }) => {
+          {ML_AGENTS?.map(({ key, label, icon, description, period }) => {
             const snap      = mlStatus?.[key];
             const statusStr = snap?.status ?? "idle";
             const statCls   = STATUS_STYLES[statusStr] ?? STATUS_STYLES.idle;
@@ -4613,7 +4613,7 @@ function AdminHealthPills() {
 
   return (
     <div className="hidden md:flex items-center gap-1.5">
-      {pills.map(p => (
+        {pills?.map(p => (
         <div key={p.label} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${
           p.ok === null
             ? "bg-muted/50 border-border text-muted-foreground"
@@ -4771,15 +4771,15 @@ export default function AdminPage() {
           {/* Grouped Tab Navigation — TabsList must wrap ALL TabsTrigger elements */}
           <div className="mb-6">
             <TabsList className="h-auto flex flex-wrap gap-x-1 gap-y-1.5 bg-transparent p-0 justify-start border-0 rounded-none">
-              {tabGroups.map((group, gi) => (
-                <div key={group.label} className="flex items-center gap-1">
+              {tabGroups?.map((group, gi) => (
+                <div key={group?.label} className="flex items-center gap-1">
                   {gi > 0 && <div className="w-px h-5 bg-muted/40 mx-1 hidden sm:block" />}
                   <div className="flex items-center gap-0.5">
                     {/* Group label — only on desktop */}
-                    <span className={`hidden lg:block text-[9px] font-bold tracking-widest uppercase px-1 ${group.color} opacity-70`}>
-                      {group.label}
+                    <span className={`hidden lg:block text-[9px] font-bold tracking-widest uppercase px-1 ${group?.color} opacity-70`}>
+                      {group?.label}
                     </span>
-                    {group.tabs.map(tab => (
+                    {group?.tabs?.map(tab => (
                       <TabsTrigger
                         key={tab.value}
                         value={tab.value}
@@ -4941,7 +4941,7 @@ function CalibrationTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {models.map((m, i) => (
+                  {models?.map((m, i) => (
                     <tr key={m.model_key} className="border-b border-border/50/50">
                       <td className="py-2 px-2 font-mono text-cyan-300">
                         {i + 1}. {m.model_key}
@@ -5028,7 +5028,7 @@ function CalibrationTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {providers.map((p: any) => (
+                  {providers?.map((p: any) => (
                     <tr key={p.provider} className={`border-b border-border/50/50 ${!p.has_data ? "opacity-40" : ""}`}>
                       <td className="py-2 px-2">
                         <div className="flex items-center gap-2">

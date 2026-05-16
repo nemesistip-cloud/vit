@@ -455,6 +455,24 @@ export default function MatchDetailPage() {
                     </div>
                   </div>
                 </div>
+                {consensus.validators?.consensus_over_25 > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-background/50 rounded-lg border border-border">
+                       <div className="font-mono text-[10px] text-muted-foreground uppercase mb-1">Val Consensus O/U 2.5</div>
+                       <div className="flex justify-between font-mono text-sm">
+                          <span>Over: {(consensus.validators.consensus_over_25 * 100).toFixed(1)}%</span>
+                          <span>Under: {(consensus.validators.consensus_under_25 * 100).toFixed(1)}%</span>
+                       </div>
+                    </div>
+                    <div className="p-3 bg-background/50 rounded-lg border border-border">
+                       <div className="font-mono text-[10px] text-muted-foreground uppercase mb-1">Val Consensus BTTS</div>
+                       <div className="flex justify-between font-mono text-sm">
+                          <span>Yes: {(consensus.validators.consensus_btts_yes * 100).toFixed(1)}%</span>
+                          <span>No: {(consensus.validators.consensus_btts_no * 100).toFixed(1)}%</span>
+                       </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -794,7 +812,7 @@ export default function MatchDetailPage() {
             <CardContent className="pt-4">
               {injuries?.injuries?.length ? (
                 <div className="space-y-3">
-                  {injuries.injuries.map((injury: any) => {
+                  {injuries?.injuries?.map((injury: any) => {
                     const statusColor =
                       injury.status === "out"      ? "bg-red-500/10 border-red-500/25 text-red-400" :
                       injury.status === "doubtful" ? "bg-amber-500/10 border-amber-500/25 text-amber-400" :
@@ -878,7 +896,7 @@ export default function MatchDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {auditLog.log.map((entry: any, i: number) => (
+                      {auditLog?.log?.map((entry: any, i: number) => (
                         <tr key={i} className="border-b border-border/20 hover:bg-muted/10 transition-colors">
                           <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">
                             {entry.ts ? new Date(entry.ts).toLocaleString() : "—"}

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
+import { useRealtimeTicker } from "@/hooks/useRealtimeTicker";
 import { TrendingUp, TrendingDown, Activity, Users, Cpu, Zap, Globe, DollarSign } from "lucide-react";
 
 interface TickerItem {
@@ -38,11 +39,14 @@ function TickerSegment({ items }: { items: TickerItem[] }) {
 }
 
 export function EcosystemTicker() {
+  const { data: realtime } = useRealtimeTicker();
+
   const { data: price } = useQuery<any>({
     queryKey: ["ticker-price"],
     queryFn: () => apiGet("/api/dashboard/vitcoin-price"),
     refetchInterval: 60_000,
     staleTime: 30_000,
+    enabled: !realtime?.vit_price
   });
 
   const { data: system } = useQuery<any>({
@@ -50,6 +54,7 @@ export function EcosystemTicker() {
     queryFn: () => apiGet("/system/status"),
     refetchInterval: 60_000,
     staleTime: 30_000,
+    enabled: !realtime?.total_users
   });
 
   const { data: summary } = useQuery<any>({
@@ -57,16 +62,17 @@ export function EcosystemTicker() {
     queryFn: () => apiGet("/api/dashboard/summary"),
     refetchInterval: 60_000,
     staleTime: 30_000,
+    enabled: !realtime?.total_predictions
   });
 
-  const vitPrice   = price?.price ?? price?.price_usd ?? 0;
-  const change24h  = price?.change_24h ?? 0;
-  const totalUsers = system?.total_users ?? 0;
-  const activeUsers= system?.active_users_30d ?? 0;
-  const validators = system?.active_validators ?? 0;
-  const staked     = system?.total_staked_vit ?? 0;
-  const totalPreds = summary?.total_predictions ?? 0;
-  const accuracy   = ((summary?.accuracy_rate ?? 0) * 100).toFixed(1);
+  const vitPrice   = realtime?.vit_price ?? price?.price ?? price?.price_usd ?? 0;
+  const change24h  = realtime?.change_24h ?? price?.change_24h ?? 0;
+  const totalUsers = realtime?.total_users ?? system?.total_users ?? 0;
+  const activeUsers= realtime?.active_users_30d ?? system?.active_users_30d ?? 0;
+  const validators = realtime?.active_validators ?? system?.active_validators ?? 0;
+  const staked     = realtime?.total_staked_vit ?? system?.total_staked_vit ?? 0;
+  const totalPreds = realtime?.total_predictions ?? summary?.total_predictions ?? 0;
+  const accuracy   = ((realtime?.accuracy_rate ?? summary?.accuracy_rate ?? 0) * 100).toFixed(1);
 
   const items: TickerItem[] = [
     {
@@ -123,7 +129,7 @@ export function EcosystemTicker() {
   ];
 
   return (
-    <div className="border-b border-border/40 bg-sidebar overflow-hidden isolate" style={{ contain: "layout paint", transform: "translateZ(0)" }}>
+    <div className="border-b border-border/40 bg-sidebar overflow-hidden">
       <div className="flex items-center">
         <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border-r border-primary/20">
           <span className="vit-live-dot" />

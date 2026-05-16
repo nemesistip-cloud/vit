@@ -73,6 +73,10 @@ class TokenResponse(BaseModel):
     role: str
 
 
+class FirebaseLoginRequest(BaseModel):
+    id_token: str
+
+
 class TwoFARequired(BaseModel):
     """Returned when the user has 2FA enabled — full tokens are withheld."""
     requires_2fa: bool = True
@@ -173,6 +177,74 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 _MAX_FAILURES = 5
 _LOCKOUT_MINUTES = 15
+
+
+@router.post("/firebase", response_model=TokenResponse)
+async def firebase_login(body: FirebaseLoginRequest, db: AsyncSession = Depends(get_db)):
+    from app.core.firebase import verify_firebase_token
+    from sqlalchemy import func as _func
+
+    decoded_token = verify_firebase_token(body.id_token)
+    if not decoded_token:
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+
+    email = decoded_token.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Firebase token missing email")
+
+    # Check if user exists
+    result = await db.execute(select(User).where(User.email == email.lower()))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        # Create new user via Firebase (Google Login)
+        username = decoded_token.get("name", email.split("@")[0])
+        # Ensure username uniqueness
+        existing_user = await db.execute(select(User).where(User.username == username))
+        if existing_user.scalar_one_or_none():
+            username = f"{username}_{str(uuid.uuid4())[:4]}"
+
+        is_first = ((await db.execute(select(_func.count(User.id)))).scalar() or 0) == 0
+
+        user = User(
+            email=email.lower(),
+            username=username,
+            hashed_password=hash_password(str(uuid.uuid4())), # random password, they use SSO
+            role="admin" if is_first else "user",
+            is_active=True,
+            is_verified=True, # Firebase emails are verified
+        )
+        db.add(user)
+        await db.flush()
+
+        # Auto-create wallet
+        wallet = Wallet(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            vitcoin_balance=Decimal("100.00000000"),
+        )
+        db.add(wallet)
+        await db.commit()
+        await db.refresh(user)
+        await _write_audit(db, "user.register.firebase", email, "auth", str(user.id))
+    else:
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="User account is deactivated")
+
+        user.last_login = datetime.now(timezone.utc)
+        await db.commit()
+        await _write_audit(db, "user.login.firebase", email, "auth", str(user.id))
+
+    access_token = create_access_token({"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+    )
 
 
 @router.post("/login")

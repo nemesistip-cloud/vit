@@ -46,6 +46,9 @@ interface Listing {
   staker_count: number;
   is_active: boolean;
   is_verified: boolean;
+  accuracy_rate: number;
+  roi: number;
+  clv_correlation: number;
   created_at: string;
 }
 
@@ -273,7 +276,7 @@ function StakeModal({ listing }: { listing: Listing }) {
           </Button>
 
           {/* Current stakes table */}
-          {stakesData && stakesData.stakes.length > 0 && (
+          {stakesData?.stakes && stakesData.stakes.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Current stakers</p>
               {stakesData.stakes.slice(0, 5).map((s) => (
@@ -629,6 +632,16 @@ function ModelCard({ listing }: { listing: Listing }) {
                   ✓ Verified
                 </span>
               )}
+              {listing.accuracy_rate > 0 && (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">
+                  {Math.round(listing.accuracy_rate * 100)}% Acc
+                </span>
+              )}
+              {listing.roi !== 0 && (
+                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${listing.roi > 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                  {listing.roi > 0 ? "+" : ""}{listing.roi}% ROI
+                </span>
+              )}
               {isOwner && (
                 <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                   Your model
@@ -654,13 +667,13 @@ function ModelCard({ listing }: { listing: Listing }) {
           <span className="flex items-center gap-1">
             <Zap className="w-3 h-3" /> {listing.usage_count.toLocaleString()} calls
           </span>
-          <StarRating value={listing.avg_rating} count={listing.rating_count} />
+        <StarRating value={listing.avg_rating || 0} count={listing.rating_count || 0} />
         </div>
         {listing.tags && (
           <div className="flex flex-wrap gap-1 mt-2">
             {listing.tags.split(",").slice(0, 4).map((t) => (
               <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                {t.trim()}
+              {t?.trim()}
               </span>
             ))}
           </div>
@@ -949,7 +962,7 @@ function LeaderboardTab() {
                       <div className="flex flex-wrap gap-1">
                         {model.tags.split(",").map((t) => (
                           <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                            {t.trim()}
+                            {t?.trim()}
                           </span>
                         ))}
                       </div>
@@ -1235,6 +1248,8 @@ export default function MarketplacePage() {
               <SelectContent>
                 <SelectItem value="usage_count">Most Used</SelectItem>
                 <SelectItem value="rating">Highest Rated</SelectItem>
+                <SelectItem value="accuracy_rate">Highest Accuracy</SelectItem>
+                <SelectItem value="roi">Highest ROI</SelectItem>
                 <SelectItem value="price">Lowest Price</SelectItem>
                 <SelectItem value="revenue">Top Revenue</SelectItem>
                 <SelectItem value="created_at">Newest</SelectItem>

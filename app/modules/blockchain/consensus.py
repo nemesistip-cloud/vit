@@ -118,12 +118,35 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
     w_draw = Decimal("0")
     w_away = Decimal("0")
 
-    for vp, vpr in rows:
+    # Only aggregate 1X2 market for the main consensus probabilities
+    rows_1x2 = [r for r in rows if r[0].market_type == "1X2"]
+
+    for vp, vpr in rows_1x2:
         influence = vpr.stake_amount * vpr.trust_score
         total_influence += influence
         w_home += influence * vp.p_home
         w_draw += influence * vp.p_draw
         w_away += influence * vp.p_away
+
+    # Aggregate OVER_UNDER and BTTS markets
+    rows_ou = [r for r in rows if r[0].market_type == "OVER_UNDER"]
+    rows_btts = [r for r in rows if r[0].market_type == "BTTS"]
+
+    total_influence_ou = sum(r[1].stake_amount * r[1].trust_score for r in rows_ou)
+    total_influence_btts = sum(r[1].stake_amount * r[1].trust_score for r in rows_btts)
+
+    consensus_over_25 = Decimal("0")
+    consensus_under_25 = Decimal("0")
+    consensus_btts_yes = Decimal("0")
+    consensus_btts_no = Decimal("0")
+
+    if total_influence_ou > 0:
+        consensus_over_25 = sum((r[1].stake_amount * r[1].trust_score * (Decimal("1") if r[0].prediction_value == "over" else Decimal("0"))) for r in rows_ou) / total_influence_ou
+        consensus_under_25 = Decimal("1") - consensus_over_25
+
+    if total_influence_btts > 0:
+        consensus_btts_yes = sum((r[1].stake_amount * r[1].trust_score * (Decimal("1") if r[0].prediction_value == "yes" else Decimal("0"))) for r in rows_btts) / total_influence_btts
+        consensus_btts_no = Decimal("1") - consensus_btts_yes
 
     if total_influence > 0:
         consensus_home = w_home / total_influence
@@ -172,6 +195,10 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
         cp.consensus_p_home = consensus_home
         cp.consensus_p_draw = consensus_draw
         cp.consensus_p_away = consensus_away
+        cp.consensus_over_25 = consensus_over_25
+        cp.consensus_under_25 = consensus_under_25
+        cp.consensus_btts_yes = consensus_btts_yes
+        cp.consensus_btts_no = consensus_btts_no
         cp.final_p_home = final_home
         cp.final_p_draw = final_draw
         cp.final_p_away = final_away
@@ -188,6 +215,10 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
             consensus_p_home=consensus_home,
             consensus_p_draw=consensus_draw,
             consensus_p_away=consensus_away,
+            consensus_over_25=consensus_over_25,
+            consensus_under_25=consensus_under_25,
+            consensus_btts_yes=consensus_btts_yes,
+            consensus_btts_no=consensus_btts_no,
             final_p_home=final_home,
             final_p_draw=final_draw,
             final_p_away=final_away,

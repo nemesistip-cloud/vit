@@ -212,7 +212,7 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
 
   return (
     <div className="grid grid-cols-1 gap-3">
-      {predictions.map((prediction, i) => (
+      {predictions?.map((prediction, i) => (
         <Link key={`${prediction.match_id}-${i}`} href={`/matches/${prediction.match_id}`}>
           <Card className="bg-card/60 border-border hover:border-primary/50 transition-colors cursor-pointer overflow-hidden">
             <CardContent className="p-0 flex flex-col md:flex-row">
@@ -425,9 +425,9 @@ function ResultsComparison() {
       )}
 
       {/* Table */}
-      {items.length > 0 && (
+      {(items?.length ?? 0) > 0 && (
         <div className="space-y-2">
-          {items.map((item, i) => (
+          {items?.map((item, i) => (
             <Link key={`${item.match_id}-${i}`} href={`/matches/${item.match_id}`}>
               <Card className={`border transition-colors cursor-pointer hover:border-primary/50 ${
                 item.has_gap
@@ -640,7 +640,7 @@ function TicketBuilder() {
             >
               <SelectTrigger className="font-mono"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {markets.map((m) => (
+                {markets?.map((m) => (
                   <SelectItem key={m.key} value={m.key} className="font-mono text-sm">
                     {m.label} {m.uses_real_odds ? "" : " (model-priced)"}
                   </SelectItem>
@@ -724,7 +724,7 @@ function TicketBuilder() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
-              {candidates.map((c) => {
+              {candidates?.map((c) => {
                 const checked = selectedIds.has(c.match_id);
                 return (
                   <label
@@ -790,15 +790,15 @@ function TicketBuilder() {
           </Button>
         </div>
 
-        {tickets.length > 0 && (
+        {(tickets?.length ?? 0) > 0 && (
           <div className="space-y-3 pt-2">
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-primary" />
               <span className="font-mono text-sm uppercase tracking-tight">
-                Top {tickets.length} Ticket{tickets.length === 1 ? "" : "s"}
+                Top {tickets?.length} Ticket{tickets?.length === 1 ? "" : "s"}
               </span>
             </div>
-            {tickets.map((t, i) => (
+            {tickets?.map((t, i) => (
               <Card key={i} className="bg-muted/20 border-primary/20">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between flex-wrap gap-3">
@@ -822,7 +822,7 @@ function TicketBuilder() {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {t.legs.map((leg, j) => (
+                    {t?.legs?.map((leg, j) => (
                       <div key={j} className="flex items-center justify-between border border-border/50 rounded p-2 text-xs font-mono">
                         <div className="min-w-0">
                           <div className="truncate font-medium text-foreground">

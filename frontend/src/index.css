@@ -301,4 +301,21 @@
     from { transform: translateX(0); }
     to   { transform: translateX(-50%); }
   }
+
+  /* ── Fix Layout Overlaps ── */
+  .sticky-header-fix {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .content-overlap-fix {
+    position: relative;
+    z-index: 10;
+  }
+
+  .ticker-z-fix {
+    position: relative;
+    z-index: 40;
+  }
 }

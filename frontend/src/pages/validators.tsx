@@ -86,13 +86,13 @@ function AdminValidatorPanel() {
           <TabsContent value={tab} className="pt-4">
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground font-mono text-sm">Loading…</div>
-            ) : list.length === 0 ? (
+            ) : (list?.length ?? 0) === 0 ? (
               <div className="text-center py-8 text-muted-foreground font-mono text-sm">
                 No {tab} validators
               </div>
             ) : (
               <div className="divide-y divide-border/50">
-                {list.map((v: any) => (
+                {list?.map((v: any) => (
                   <div key={v.id} className="py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-mono font-bold flex items-center gap-2">
@@ -339,11 +339,11 @@ function NetworkAnalyticsPanel({ isAdmin = false }: { isAdmin?: boolean }) {
 
         {tab === "leaderboard" && (
           <div className="space-y-1">
-            {leaderboard.length === 0 ? (
+            {(leaderboard?.length ?? 0) === 0 ? (
               <div className="text-center py-8 text-muted-foreground font-mono text-sm">
                 No validator data yet — apply to become the first.
               </div>
-            ) : leaderboard.map((v: any, i: number) => (
+            ) : leaderboard?.map((v: any, i: number) => (
               <div key={v.validator_id ?? i} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-muted/10 transition-colors">
                 <div className={`w-7 h-7 rounded flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 ${
                   i === 0 ? "bg-secondary/20 text-secondary border border-secondary/50" :
@@ -369,11 +369,11 @@ function NetworkAnalyticsPanel({ isAdmin = false }: { isAdmin?: boolean }) {
 
         {tab === "slashing" && (
           <div className="space-y-2">
-            {slashes.length === 0 ? (
+            {(slashes?.length ?? 0) === 0 ? (
               <div className="text-center py-8 text-muted-foreground font-mono text-sm">
                 No slash events recorded.
               </div>
-            ) : slashes.map((e: any, i: number) => (
+            ) : slashes?.map((e: any, i: number) => (
               <div key={e.id ?? i} className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 space-y-1">
                 <div className="flex items-center justify-between">
                   <div className="font-mono text-xs font-bold text-red-400 truncate">{e.validator_username ?? e.validator_id?.slice(0, 12)}</div>
@@ -405,6 +405,7 @@ export default function ValidatorsPage() {
   const apply = useApplyAsValidator();
   const withdraw = useWithdrawValidator();
   const [stakeInput, setStakeInput] = useState("100");
+  const [leaguesInput, setLeaguesInput] = useState("");
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   if (isLoadingVal || isLoadingEcon) {
@@ -413,7 +414,10 @@ export default function ValidatorsPage() {
 
   const handleApply = async () => {
     try {
-      await apply.mutateAsync({ stake_amount: parseFloat(stakeInput) });
+      await apply.mutateAsync({
+        stake_amount: parseFloat(stakeInput),
+        specialist_leagues: leaguesInput || undefined,
+      });
       toast.success("Application submitted — awaiting admin review");
     } catch (e: any) {
       toast.error(e?.message || "Application failed");
@@ -481,7 +485,7 @@ export default function ValidatorsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border/50">
-                {validatorList.map((validator: any, idx: number) => (
+                {validatorList?.map((validator: any, idx: number) => (
                   <div key={validator.username + idx} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-muted/10 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className="relative">
@@ -515,6 +519,15 @@ export default function ValidatorsPage() {
                         <div className="text-xs text-muted-foreground font-mono uppercase mt-1">
                           Joined {format(new Date(validator.joined_at), "yyyy-MM-dd")}
                         </div>
+                        {validator.specialist_leagues && (
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {validator.specialist_leagues.split(",").map((league: string) => (
+                              <span key={league} className="text-[9px] bg-primary/10 text-primary px-1 rounded uppercase font-mono border border-primary/20">
+                                {league.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -649,6 +662,17 @@ export default function ValidatorsPage() {
                           className="font-mono"
                         />
                       </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground uppercase mb-1 block">
+                          Specialist Leagues (optional)
+                        </label>
+                        <Input
+                          value={leaguesInput}
+                          onChange={(e) => setLeaguesInput(e.target.value)}
+                          placeholder="e.g. EPL, La Liga, UCL"
+                          className="font-mono"
+                        />
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         Requires Analyst, Pro, Elite, or Admin tier. Your VITCoin will be locked until an admin approves or rejects your application.
                       </p>
@@ -676,7 +700,7 @@ export default function ValidatorsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border/50">
-                {validatorList.slice(0, 5).map((v: any, idx: number) => (
+                {validatorList?.slice(0, 5).map((v: any, idx: number) => (
                   <div key={v.username + idx} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className={`w-8 h-8 rounded flex items-center justify-center font-mono font-bold text-sm ${
