@@ -58,6 +58,16 @@ const SecurityLayerPage   = lazy(() => import("@/pages/security"));
 const RoadmapPage         = lazy(() => import("@/pages/roadmap"));
 const IdentityPage        = lazy(() => import("@/pages/identity"));
 const KYCPage             = lazy(() => import("@/pages/kyc"));
+const PWAInstallPage      = lazy(() => import("@/pages/pwa-install"));
+const StadiumModePage     = lazy(() => import("@/pages/stadium-mode"));
+const IQTestPage          = lazy(() => import("@/pages/iq-test"));
+const OraclesMicPage      = lazy(() => import("@/pages/oracle-mic"));
+const PredictionWrappedPage = lazy(() => import("@/pages/wrapped"));
+const DisciplineCoachPage = lazy(() => import("@/pages/discipline-coach"));
+const QualityFeedPage     = lazy(() => import("@/pages/quality-feed"));
+const DebateMarketsPage   = lazy(() => import("@/pages/debate-markets"));
+const BetRoomsPage        = lazy(() => import("@/pages/bet-rooms"));
+const ProphecyChainPage   = lazy(() => import("@/pages/prophecy-chain"));
 const IDLookupPage        = lazy(() => import("@/pages/id-lookup"));
 const ModelPerformancePage = lazy(() => import("@/pages/model-performance"));
 const BankrollPage        = lazy(() => import("@/pages/bankroll"));
@@ -243,6 +253,36 @@ function Router() {
       </Route>
       <Route path="/kyc">
         <Layout><ProtectedRoute component={KYCPage} /></Layout>
+      </Route>
+      <Route path="/install">
+        <Layout><PWAInstallPage /></Layout>
+      </Route>
+      <Route path="/stadium">
+        <Layout><StadiumModePage /></Layout>
+      </Route>
+      <Route path="/iq-test">
+        <Layout><IQTestPage /></Layout>
+      </Route>
+      <Route path="/oracle-mic">
+        <Layout><OraclesMicPage /></Layout>
+      </Route>
+      <Route path="/wrapped">
+        <Layout><PredictionWrappedPage /></Layout>
+      </Route>
+      <Route path="/discipline">
+        <Layout><ProtectedRoute component={DisciplineCoachPage} /></Layout>
+      </Route>
+      <Route path="/quality-feed">
+        <Layout><ProtectedRoute component={QualityFeedPage} /></Layout>
+      </Route>
+      <Route path="/debates">
+        <Layout><ProtectedRoute component={DebateMarketsPage} /></Layout>
+      </Route>
+      <Route path="/rooms">
+        <Layout><ProtectedRoute component={BetRoomsPage} /></Layout>
+      </Route>
+      <Route path="/prophecy">
+        <Layout><ProtectedRoute component={ProphecyChainPage} /></Layout>
       </Route>
       <Route path="/id/:sid" component={IDLookupPage} />
       <Route path="/id" component={IDLookupPage} />
