@@ -61,6 +61,7 @@ class BetAlert:
     vig_free_edge: float = 0.0
     risk_score:    float = 0.0   # 0 = certain, 1 = uniform/uncertain
     top_model:     str   = ""
+    bet_explanation: Optional[str] = None
     data_quality:  Optional[Dict[str, Any]] = None
     app_url:       str   = ""    # base URL for in-app fixture link
 
@@ -345,6 +346,8 @@ class TelegramAlert:
 
         # Optional secondary lines built conditionally so the message stays tight.
         extra_lines: List[str] = []
+        if alert.bet_explanation:
+            extra_lines.append(f"<b>🧠 AI Analysis:</b>\n<i>\"{alert.bet_explanation}\"</i>")
         if risk_badge:
             extra_lines.append(f"<b>📐 Risk:</b> {risk_badge} ({alert.risk_score:.2f})")
         if alert.top_model:

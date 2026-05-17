@@ -55,6 +55,8 @@ def upgrade() -> None:
         sa.Column('request_hash', sa.String(), nullable=True),
         sa.Column('home_prob', sa.Float(), nullable=False),
         sa.Column('draw_prob', sa.Float(), nullable=False),
+        sa.Column('was_correct', sa.Boolean(), nullable=True),
+        sa.Column('settled_profit', sa.Float(), nullable=True),
         sa.Column('away_prob', sa.Float(), nullable=False),
         sa.Column('over_25_prob', sa.Float(), nullable=True),
         sa.Column('under_25_prob', sa.Float(), nullable=True),

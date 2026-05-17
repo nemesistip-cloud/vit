@@ -156,6 +156,7 @@ class SwarmOrchestrator:
             ("revenue-optimizer",    "app.agents.revenue_optimizer_agent",     "RevenueOptimizerAgent"),
             ("governance-executor",  "app.agents.governance_executor_agent",   "GovernanceExecutorAgent"),
             ("self-healing",         "app.agents.self_healing_agent",          "SelfHealingAgent"),
+            ("model-tuner",          "app.agents.model_tuner_agent",           "ModelTunerAgent"),
             ("audit-sentinel",       "app.agents.audit_sentinel_agent",        "AuditSentinelAgent"),
             ("prediction-moderator", "app.agents.prediction_moderator_agent",  "PredictionModeratorAgent"),
             ("live-match-tracker",   "app.agents.live_match_tracker_agent",    "LiveMatchTrackerAgent"),

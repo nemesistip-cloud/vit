@@ -96,6 +96,14 @@ def configure_logging(level: str = "INFO") -> None:
     handler.addFilter(context_filter)
     root_logger.addHandler(handler)
 
+    # Add log buffer for AI self-healing diagnosis
+    try:
+        from app.core.log_buffer import log_buffer
+        log_buffer.setFormatter(formatter)
+        root_logger.addHandler(log_buffer)
+    except Exception:
+        pass
+
     # Suppress noisy third-party loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)

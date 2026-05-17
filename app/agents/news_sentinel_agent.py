@@ -177,6 +177,7 @@ class NewsSentinelAgent(BaseAgent):
         from app.db.models import AgentInsight
         from app.iot.processor import store_and_broadcast
         from app.services.vit_intelligence import get_team_form
+        from app.services.sentiment_analysis import analyze_market_sentiment
 
         scraper = InjuryScraper()
         try:
@@ -278,6 +279,11 @@ class NewsSentinelAgent(BaseAgent):
                     },
                 )
 
+                # --- Market Sentiment Analysis (Phase 2) ---
+                news_texts = [content] + [i.get('injury', '') for i in injuries]
+                sentiment = await analyze_market_sentiment(news_texts, target_team=team)
+                meta["market_sentiment"] = sentiment
+
                 teams_analyzed.append(team)
                 insights_stored += 1
                 await asyncio.sleep(2)
@@ -357,6 +363,10 @@ class NewsSentinelAgent(BaseAgent):
                         "source":   "vit_scie",
                     },
                 )
+
+                # --- Market Sentiment Analysis (Phase 2) ---
+                sentiment = await analyze_market_sentiment([content], target_team=team)
+                meta["market_sentiment"] = sentiment
 
                 teams_analyzed.append(team)
                 insights_stored += 1
