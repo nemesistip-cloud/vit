@@ -147,6 +147,7 @@ class HealthResponse(BaseModel):
     agents: Optional[Dict[str, Any]] = None
     data: Optional[Dict[str, Any]] = None
     ai_providers: Optional[Dict[str, str]] = None
+    schema_drift: Optional[Dict[str, Any]] = None
 
 
 class HistoryResponse(BaseModel):

@@ -2276,6 +2276,33 @@ async def health(db: AsyncSession = Depends(get_db)):
     except Exception:
         pass
 
+    # Schema drift check — compare ORM columns against actual DB columns
+    schema_drift: dict = {}
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        from app.db import models as _m
+        _TABLES_TO_CHECK = {
+            "predictions":           _m.Prediction,
+            "matches":               _m.Match,
+            "users":                 _m.User,
+        }
+        async with db.bind.connect() as _conn:
+            _inspector = await _conn.run_sync(sa_inspect)
+            for table_name, orm_cls in _TABLES_TO_CHECK.items():
+                try:
+                    _db_cols = {c["name"] for c in _inspector.get_columns(table_name)}
+                    _orm_cols = {c.key for c in orm_cls.__table__.columns}
+                    _missing = sorted(_orm_cols - _db_cols)
+                    if _missing:
+                        schema_drift[table_name] = _missing
+                        logging.getLogger("schema_drift").warning(
+                            "[schema-drift] table=%s missing_columns=%s", table_name, _missing
+                        )
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     res = HealthResponse(
         status="ok" if db_ok and models > 0 else "degraded",
         version=APP_VERSION,
@@ -2285,6 +2312,7 @@ async def health(db: AsyncSession = Depends(get_db)):
         agents=agents_info or None,
         data=data_info or None,
         ai_providers=ai_providers or None,
+        schema_drift=schema_drift or None,
     )
 
     # Real-time update to Firestore for the ecosystem ticker
