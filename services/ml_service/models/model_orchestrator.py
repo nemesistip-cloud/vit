@@ -75,8 +75,34 @@ _LEAGUE_HOME_ADVANTAGE: Dict[str, float] = {
     "liga_mx":               0.050,
 }
 
+import json
+
 # Session-level Elo store (resets on restart — fine for live inference)
 _elo_store: Dict[str, float] = {}
+_ELO_STORE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "..", "..", "data", "elo_store.json"
+)
+
+def _save_elo_store():
+    try:
+        os.makedirs(os.path.dirname(_ELO_STORE_PATH), exist_ok=True)
+        with open(_ELO_STORE_PATH, "w") as f:
+            json.dump(_elo_store, f)
+    except Exception as e:
+        logger.warning(f"Failed to save Elo store: {e}")
+
+def _load_elo_store():
+    global _elo_store
+    if os.path.exists(_ELO_STORE_PATH):
+        try:
+            with open(_ELO_STORE_PATH, "r") as f:
+                _elo_store = json.load(f)
+            logger.info(f"Loaded {len(_elo_store)} teams from Elo store")
+        except Exception as e:
+            logger.warning(f"Failed to load Elo store: {e}")
+
+_load_elo_store()
 
 
 # ── Probability utilities ─────────────────────────────────────────────────────
@@ -387,6 +413,7 @@ def _elo_update(team_h: str, team_a: str, result: str):
     score = {"H": 1.0, "D": 0.5, "A": 0.0}.get(result, 0.5)
     _elo_store[team_h] = round(r_h + _ELO_K_FACTOR * (score - e_h), 1)
     _elo_store[team_a] = round(r_a + _ELO_K_FACTOR * ((1 - score) - (1 - e_h)), 1)
+    _save_elo_store()
 
 
 # ── Training evaluation helpers ───────────────────────────────────────────────

@@ -1,0 +1,54 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: vit-sports-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vit-sports-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: vit-sports-redis
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTH_ENABLED
+        value: "true"
+      - key: PORT
+        value: 8000
+
+  # Frontend Static Site
+  - type: static
+    name: vit-sports-frontend
+    env: static
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: vit-sports-backend
+          property: host
+    rewriteRules:
+      - source: /.*
+        destination: /index.html
+
+# Managed PostgreSQL
+databases:
+  - name: vit-sports-db
+    plan: free
+
+# Managed Redis
+redis:
+  - name: vit-sports-redis
+    plan: free
+    ipAllowList: [] # Only allow internal connections

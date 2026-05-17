@@ -60,7 +60,7 @@ def _dynamic_weights(
     return ai_weight, val_weight
 
 
-async def _get_ai_prediction(match_id: str) -> Optional[dict]:
+async def _get_ai_prediction(match_id: int) -> Optional[dict]:
     """
     Retrieve AI prediction for this match from the existing prediction system.
     Returns dict with p_home, p_draw, p_away, confidence, risk, or None.
@@ -84,7 +84,7 @@ async def _get_ai_prediction(match_id: str) -> Optional[dict]:
     return None
 
 
-async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPrediction:
+async def calculate_consensus(match_id: int, db: AsyncSession) -> ConsensusPrediction:
     """
     Calculate (or recalculate) the consensus prediction for a match.
 
@@ -236,7 +236,7 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
     return cp
 
 
-async def update_trust_scores(match_id: str, oracle_result: str, db: AsyncSession) -> None:
+async def update_trust_scores(match_id: int, oracle_result: str, db: AsyncSession) -> None:
     """
     Update validator trust scores after a match result is confirmed.
 

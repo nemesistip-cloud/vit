@@ -190,6 +190,22 @@ export default function MatchDetailPage() {
             <div className="lg:col-span-2 space-y-6">
               <MatchAssistantCard match={match} consensus={consensus} />
 
+              {match.bet_explanation && (
+                <Card className="bg-primary/5 border-primary/30 shadow-[0_0_20px_rgba(0,255,255,0.05)]">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="font-mono text-sm uppercase flex items-center text-primary">
+                      <BrainCircuit className="w-4 h-4 mr-2" />
+                      DeepSeek Network Synthesis
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="font-mono text-sm leading-relaxed text-foreground">
+                      {match.bet_explanation}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
               <AIInsightComparison
                 matchId={matchId}
                 homeTeam={match?.home_team}
@@ -270,6 +286,8 @@ export default function MatchDetailPage() {
                       val: (match as any).dnb_away_prob
                         ?? (homeProb + awayProb > 0 ? awayProb / (homeProb + awayProb) : null),
                     },
+                    { label: "Top CS", val: (match as any).top_cs_prob },
+                    { label: "AH Home", val: (match as any).ah_home_prob },
                   ].map(({ label, val }) => (
                     <div key={label} className="rounded-lg border border-border bg-background/40 p-2">
                       <div className="font-mono text-[10px] text-muted-foreground uppercase">{label}</div>
@@ -301,6 +319,10 @@ export default function MatchDetailPage() {
                     <Zap className="w-4 h-4 mr-2" /> AI Recommendation
                   </h4>
                   <div className="flex flex-wrap gap-4 font-mono text-sm">
+                    <div>
+                      <span className="text-muted-foreground uppercase text-xs">Market: </span>
+                      <span className="font-bold uppercase">{(match as any).best_market ?? "1X2"}</span>
+                    </div>
                     <div>
                       <span className="text-muted-foreground uppercase text-xs">Bet Side: </span>
                       <span className="font-bold uppercase">{match.bet_side}</span>
