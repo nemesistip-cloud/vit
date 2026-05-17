@@ -146,6 +146,22 @@ async def ensure_schema():
                     await conn.exec_driver_sql('ALTER TABLE validator_profiles ADD COLUMN IF NOT EXISTS specialist_leagues VARCHAR(255)')
                 except Exception:
                     pass
+                # predictions: v7 extended columns
+                for _col, _ddl in [
+                    ('bet_explanation', 'TEXT'),
+                    ('model_consensus', 'JSONB'),
+                    ('alternative_bets', 'JSONB'),
+                    ('consensus_prob', 'DOUBLE PRECISION'),
+                    ('final_ev', 'DOUBLE PRECISION'),
+                    ('recommended_stake', 'DOUBLE PRECISION'),
+                    ('confidence', 'DOUBLE PRECISION'),
+                    ('bet_side', 'VARCHAR(20)'),
+                    ('entry_odds', 'DOUBLE PRECISION'),
+                ]:
+                    try:
+                        await conn.exec_driver_sql(f'ALTER TABLE predictions ADD COLUMN IF NOT EXISTS {_col} {_ddl}')
+                    except Exception:
+                        pass
         print('[startup] Database schema ready')
     except Exception as e:
         print(f'[startup] DB schema warning: {e}')
