@@ -4102,3 +4102,186 @@ async def emergency_retrain(_: _User = Depends(get_current_admin)):
         return result
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Schema Repair ─────────────────────────────────────────────────────────────
+
+def _sa_type_to_ddl(col, dialect: str) -> str:
+    """Convert a SQLAlchemy column type to a DDL string for ALTER TABLE."""
+    from sqlalchemy import Integer, String, Float, Boolean, Text, DateTime, JSON, Numeric
+    from sqlalchemy.types import NullType
+
+    sa_type = type(col.type)
+
+    if sa_type in (Integer,):
+        ddl = "INTEGER"
+    elif sa_type in (Float, Numeric):
+        ddl = "DOUBLE PRECISION" if dialect == "postgresql" else "REAL"
+    elif sa_type is Boolean:
+        ddl = "BOOLEAN" if dialect == "postgresql" else "INTEGER"
+    elif sa_type is Text:
+        ddl = "TEXT"
+    elif sa_type is JSON:
+        ddl = "JSONB" if dialect == "postgresql" else "TEXT"
+    elif sa_type is DateTime:
+        ddl = "TIMESTAMPTZ" if dialect == "postgresql" else "DATETIME"
+    elif sa_type is String:
+        length = getattr(col.type, "length", None)
+        ddl = f"VARCHAR({length})" if length else "TEXT"
+    else:
+        ddl = "TEXT"
+
+    if col.nullable is not False:
+        ddl += " DEFAULT NULL"
+    elif col.default is not None and hasattr(col.default, "arg"):
+        arg = col.default.arg
+        if isinstance(arg, (int, float)):
+            ddl += f" DEFAULT {arg}"
+        elif isinstance(arg, bool):
+            ddl += f" DEFAULT {1 if arg else 0}"
+        elif isinstance(arg, str):
+            ddl += f" DEFAULT '{arg}'"
+
+    return ddl
+
+
+@router.get("/schema-repair/preview")
+async def schema_repair_preview(
+    db: AsyncSession = Depends(get_db),
+    _: _User = Depends(get_current_admin),
+):
+    """
+    Dry-run: returns every missing column across all core ORM tables
+    without making any changes.  Safe to call at any time.
+    """
+    return await _run_schema_scan(db, apply=False)
+
+
+@router.post("/schema-repair")
+async def schema_repair(
+    db: AsyncSession = Depends(get_db),
+    _: _User = Depends(get_current_admin),
+):
+    """
+    Compare every ORM model column against the live database and
+    apply ALTER TABLE … ADD COLUMN for anything that is missing.
+
+    Returns a detailed report:
+      - tables_scanned   — how many tables were checked
+      - tables_repaired  — tables that had at least one column added
+      - columns_added    — total columns added
+      - repairs          — per-table list of added columns
+      - errors           — any per-column failures (column is still missing)
+      - already_in_sync  — tables that needed no changes
+    """
+    return await _run_schema_scan(db, apply=True)
+
+
+async def _run_schema_scan(db: AsyncSession, apply: bool) -> dict:
+    """Core logic shared by preview and repair endpoints."""
+    import app.db.models as _core
+
+    # Pull in cross-module models so they register with Base.metadata
+    try:
+        from app.modules.wallet.models import Wallet, WalletTransaction  # noqa: F401
+    except Exception:
+        pass
+    try:
+        from app.modules.notifications.models import Notification, NotificationPreference  # noqa: F401
+    except Exception:
+        pass
+    try:
+        from app.modules.trust.models import UserTrustScore, FraudFlag, RiskEvent  # noqa: F401
+    except Exception:
+        pass
+    try:
+        from app.modules.tasks.models import UserTaskCompletion  # noqa: F401
+    except Exception:
+        pass
+    try:
+        from app.modules.referral.models import ReferralCode, ReferralUse  # noqa: F401
+    except Exception:
+        pass
+    try:
+        from app.modules.wallet.models import PlatformSecret  # noqa: F401
+    except Exception:
+        pass
+
+    from sqlalchemy import inspect as sa_inspect, text as _text
+    from app.db.database import engine
+
+    repairs: dict = {}
+    errors: dict = {}
+    already_in_sync: list = []
+
+    async with engine.connect() as conn:
+        dialect = conn.dialect.name
+        inspector = await conn.run_sync(sa_inspect)
+
+        # Discover all tables currently present in the DB
+        existing_tables = set(await conn.run_sync(lambda c: inspector.get_table_names()))
+
+        # Walk every table registered in Base.metadata
+        from app.db.database import Base
+        for table_name, table_obj in Base.metadata.tables.items():
+            if table_name not in existing_tables:
+                # Table doesn't exist yet — skip (CREATE TABLE is handled elsewhere)
+                continue
+
+            try:
+                db_col_names = {
+                    c["name"]
+                    for c in await conn.run_sync(
+                        lambda c, tn=table_name: inspector.get_columns(tn)
+                    )
+                }
+            except Exception as exc:
+                errors.setdefault(table_name, []).append(f"introspect error: {exc}")
+                continue
+
+            orm_cols = {
+                col.key: col
+                for col in table_obj.columns
+                if not col.primary_key
+            }
+
+            missing = {k: v for k, v in orm_cols.items() if k not in db_col_names}
+
+            if not missing:
+                already_in_sync.append(table_name)
+                continue
+
+            added: list = []
+            for col_name, col_obj in missing.items():
+                ddl_type = _sa_type_to_ddl(col_obj, dialect)
+                sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {ddl_type}"
+                if apply:
+                    try:
+                        await conn.execute(_text(sql))
+                        added.append({"column": col_name, "ddl": ddl_type, "status": "added"})
+                        logger.info("[schema-repair] %s.%s added (%s)", table_name, col_name, ddl_type)
+                    except Exception as exc:
+                        errors.setdefault(table_name, []).append(
+                            {"column": col_name, "error": str(exc)}
+                        )
+                        logger.warning("[schema-repair] %s.%s FAILED: %s", table_name, col_name, exc)
+                else:
+                    added.append({"column": col_name, "ddl": ddl_type, "status": "would_add"})
+
+            if added:
+                repairs[table_name] = added
+
+        if apply:
+            await conn.commit()
+
+    total_added = sum(len(v) for v in repairs.values())
+
+    return {
+        "mode": "apply" if apply else "preview",
+        "tables_scanned": len(existing_tables),
+        "tables_repaired": len(repairs),
+        "columns_added": total_added,
+        "repairs": repairs,
+        "errors": errors,
+        "already_in_sync": sorted(already_in_sync),
+    }
