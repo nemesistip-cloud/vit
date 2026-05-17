@@ -9,12 +9,17 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 
 from app.db.database import get_db
 from app.auth.dependencies import get_current_user
 from app.db.models import Match
+
+
+class IQTestSubmission(BaseModel):
+    answers: Dict[str, int]
 
 router = APIRouter(prefix="/api/freemium", tags=["Freemium & Growth"])
 logger = logging.getLogger(__name__)
@@ -93,15 +98,26 @@ async def get_iq_test_questions():
 
 
 @router.post("/iq-test/submit")
-async def submit_iq_test(answers: Dict[int, int]):
+async def submit_iq_test(body: IQTestSubmission):
     """
     Submit answers dict {question_id: chosen_option_index}.
+    Accepts string keys ("1", "q1", "q_1") or integer keys.
     Returns score, explanations, and VIT IQ rating.
     """
+    # Normalise keys: strip non-digit prefix so "q1" → 1
+    def _parse_key(k: str) -> int:
+        stripped = k.lstrip("q_").lstrip("q")
+        try:
+            return int(stripped)
+        except ValueError:
+            return -1
+
+    normalised: Dict[int, int] = {_parse_key(k): v for k, v in body.answers.items()}
+
     results = []
     correct_count = 0
     for q in _IQ_QUESTIONS:
-        chosen = answers.get(q["id"])
+        chosen = normalised.get(q["id"])
         is_correct = chosen == q["correct"]
         if is_correct:
             correct_count += 1
@@ -114,7 +130,7 @@ async def submit_iq_test(answers: Dict[int, int]):
         })
 
     total = len(_IQ_QUESTIONS)
-    iq_score = round((correct_count / total) * 140 + 20)
+    iq_estimate = round((correct_count / total) * 140 + 20)
     pct = correct_count / total
 
     if pct == 1.0:
@@ -129,11 +145,12 @@ async def submit_iq_test(answers: Dict[int, int]):
         label = "Beginner"
 
     return {
-        "score":         correct_count,
-        "total":         total,
-        "iq_score":      iq_score,
-        "label":         label,
-        "results":       results,
+        "score":        correct_count,
+        "total":        total,
+        "iq_estimate":  iq_estimate,
+        "iq_score":     iq_estimate,
+        "label":        label,
+        "results":      results,
     }
 
 
