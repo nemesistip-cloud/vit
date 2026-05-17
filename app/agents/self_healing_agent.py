@@ -43,14 +43,42 @@ ACCURACY_DROP_MAX_MODELS = 2        # how many models can drop before alert fire
 TRIGGER_COOLDOWN_MINUTES = 10       # per-agent trigger cooldown
 
 
-async def _diagnose(snapshot: dict) -> Optional[str]:
-    prompt = (
-        "You are a platform reliability engineer. Diagnose this system health snapshot "
-        "and recommend the single most impactful fix.\n\n"
-        f"Health snapshot:\n{json.dumps(snapshot, indent=2, default=str)}\n\n"
-        "Reply in max 3 sentences: what is wrong and what to do."
-    )
-    return await call_ai(prompt, max_tokens=250, temperature=0.2)
+async def _diagnose(snapshot: dict) -> Optional[Dict[str, Any]]:
+    """Enhanced diagnosis using recent logs and DeepSeek."""
+    from app.core.log_buffer import log_buffer
+    logs = log_buffer.get_logs()
+
+    prompt = f"""
+    You are a Platform Reliability Engineer for the VIT Sports Intelligence Network.
+    Analyze this system health snapshot and recent logs to diagnose the root cause of the issues.
+
+    Health Snapshot:
+    {json.dumps(snapshot, indent=2, default=str)}
+
+    Recent Logs (Last 100 lines):
+    {'\n'.join(logs)}
+
+    Identify the core issue and recommend a specific recovery action.
+    Return a JSON object with:
+    "diagnosis": "What is wrong and why",
+    "recommendation": "What should be done",
+    "recovery_action": "RESTART_MODEL_ORCHESTRATOR" | "CLEAR_CACHE" | "TRIGGER_AGENT" | "NONE",
+    "target_agent": "agent_name_if_applicable"
+    """
+
+    try:
+        from app.services.ai_client import call_ai
+        response = await call_ai(
+            prompt=prompt,
+            temperature=0.2
+        )
+        # Attempt to parse JSON
+        clean_json = response.strip().replace("```json", "").replace("```", "")
+        import json as _json
+        return _json.loads(clean_json)
+    except Exception as e:
+        logger.error(f"Self-healing AI diagnosis failed: {e}")
+        return None
 
 
 class SelfHealingAgent(BaseAgent):
@@ -284,15 +312,35 @@ class SelfHealingAgent(BaseAgent):
                         for n, s in agent_status.get("agents", {}).items()
                     },
                 }
-                diagnosis = await _diagnose(snapshot)
-                if diagnosis:
+                diag_result = await _diagnose(snapshot)
+                if diag_result:
+                    diagnosis = diag_result.get("diagnosis", "Unknown diagnosis")
+                    recommendation = diag_result.get("recommendation", "No specific recommendation")
+                    recovery_action = diag_result.get("recovery_action", "NONE")
+
                     self._last_diagnosis_at = now
+
+                    # Execute AI-recommended recovery if safe
+                    if recovery_action == "TRIGGER_AGENT":
+                        target = diag_result.get("target_agent")
+                        if target and self._can_trigger(target):
+                            swarm.trigger(target)
+                            self._record_trigger(target)
+                            actions_taken.append(f"AI-RECOVERY: Triggered agent '{target}'")
+                    elif recovery_action == "CLEAR_CACHE":
+                        from app.services.cache import get_cache
+                        cache = get_cache()
+                        await cache.clear_all()
+                        actions_taken.append("AI-RECOVERY: Cleared system cache")
+
                     try:
                         tg = TelegramAlert()
                         await tg.send_message(
-                            f"<b>🔧 Self-Healing Diagnosis</b>\n"
+                            f"<b>🔧 DeepSeek Self-Healing Diagnosis</b>\n"
                             f"Issues: {'; '.join(unknown_issues)}\n\n"
-                            f"<i>AI Diagnosis:</i>\n{diagnosis}",
+                            f"<b>Diagnosis:</b> {diagnosis}\n"
+                            f"<b>Rec:</b> {recommendation}\n"
+                            f"<b>Action:</b> {recovery_action}",
                             AlertPriority.MEDIUM,
                         )
                         actions_taken.append("sent AI diagnosis to admin")

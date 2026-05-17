@@ -30,6 +30,7 @@ from app.tasks.clv import update_clv_task
 from app.tasks.edges import recalculate_edges_task
 from app.services.decision_logger import DecisionLogger
 from app.services.predict_features import build_predict_features
+from app.services.bet_explanation import generate_bet_explanation
 from app.services.deepseek_insights import generate_network_explanation
 
 logger = logging.getLogger(__name__)
@@ -392,6 +393,7 @@ def build_prediction_response(
     orchestrator: Optional[object] = None,
     data_quality: Optional[dict] = None,
     data_source: str = "neural_ensemble",
+    bet_explanation: Optional[str] = None,
 ) -> PredictionResponse:
     # Calculate intelligence metrics
     models_used = len(prediction.model_insights) if prediction.model_insights else 0
@@ -888,6 +890,22 @@ async def predict(
         await db.flush()
         await db.commit()
 
+        # --- Generate AI Explanation (DeepSeek Phase 1) ---
+        try:
+            bet_explanation = await generate_bet_explanation(
+                match.home_team,
+                match.away_team,
+                match.league,
+                best_bet.get("best_side", "home"),
+                float(best_bet.get("edge", 0)),
+                float(best_bet.get("odds", 2.0)),
+                consensus_prob,
+                confidence_val
+            )
+        except Exception as e:
+            logger.error(f"Explanation generation failed: {e}")
+            bet_explanation = None
+
         logger.info(
             f"Prediction saved: fixture_id={fixture_id}, match={db_match.id}, "
             f"side={best_bet.get('best_side')}, "
@@ -1047,6 +1065,7 @@ async def predict(
                     vig_free_edge=float(prediction.vig_free_edge or 0.0),
                     risk_score=risk_value,
                     top_model=top_model_name,
+                    bet_explanation=bet_explanation,
                     data_quality=data_quality,
                     app_url=os.getenv("PUBLIC_APP_URL", ""),
                 )
@@ -1059,7 +1078,8 @@ async def predict(
                 logger.warning(f"Telegram alert failed (non-fatal): {e}")
 
         response = build_prediction_response(
-            prediction, db_match, orchestrator, data_quality, data_source=data_source
+            prediction, db_match, orchestrator, data_quality, data_source=data_source,
+            bet_explanation=bet_explanation
         )
         response.calibration_note = calibration_note
         return response
@@ -1431,6 +1451,21 @@ async def predict_demo(
             model_weights={},
         )
         
+        # Generate demo explanation
+        try:
+            demo_explanation = await generate_bet_explanation(
+                match.home_team,
+                match.away_team,
+                match.league,
+                best_bet.get("best_side", "home"),
+                float(best_bet.get("edge", 0)),
+                float(best_bet.get("odds", 1.85)),
+                consensus_prob,
+                confidence_val
+            )
+        except:
+            demo_explanation = None
+
         # Build response WITHOUT saving to DB (rollback at end)
         response = PredictionResponse(
             match_id=db_match.id,
@@ -1461,6 +1496,7 @@ async def predict_demo(
                 home_prob=home_prob, draw_prob=draw_prob, away_prob=away_prob,
             )["vit_score"],
             vit_tier="DEMO",
+            bet_explanation=demo_explanation,
         )
         
         # Rollback to avoid persisting demo data
