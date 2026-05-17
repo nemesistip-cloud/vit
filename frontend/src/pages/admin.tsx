@@ -35,7 +35,7 @@ import {
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
   Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info,
-  Bot, Loader2,
+  Bot, Loader2, Wrench, Wifi, WifiOff, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -53,6 +53,25 @@ interface SystemHealth {
   models_loaded: number; cpu_pct: number; mem_pct: number; disk_pct: number;
   football_api?: boolean | "limited" | null;
   odds_api?: boolean | null;
+  deepseek_configured?: boolean;
+  mistral_configured?: boolean;
+  firebase_configured?: boolean;
+  openai_configured?: boolean;
+  claude_configured?: boolean;
+  gemini_configured?: boolean;
+}
+
+interface IntegrationStatus {
+  status: "ok" | "error" | "not_configured" | "rate_limited";
+  latency_ms?: number;
+  http_status?: number;
+  error?: string;
+  hint?: string;
+}
+
+interface IntegrationsStatusResponse {
+  integrations: Record<string, IntegrationStatus>;
+  summary: { total: number; ok: number; errors: number; not_configured: number };
 }
 
 interface League {
@@ -212,6 +231,12 @@ function DashboardTab() {
     { label: "ML Models",    ok: (health?.models_loaded ?? 0) > 0,     optional: false, icon: Cpu, detail: health ? `${health.models_loaded} loaded` : undefined },
     { label: "Football API", ok: health?.football_api === true,        optional: health?.football_api == null, limited: health?.football_api === "limited", icon: Globe },
     { label: "Odds API",     ok: health?.odds_api === true,            optional: health?.odds_api == null, icon: TrendingUp },
+    { label: "Gemini AI",    ok: health?.gemini_configured ?? null,    optional: true, icon: Brain },
+    { label: "Claude AI",    ok: health?.claude_configured ?? null,    optional: true, icon: Brain },
+    { label: "OpenAI",       ok: health?.openai_configured ?? null,    optional: true, icon: Brain },
+    { label: "DeepSeek",     ok: health?.deepseek_configured ?? null,  optional: true, icon: Cpu },
+    { label: "Mistral AI",   ok: health?.mistral_configured ?? null,   optional: true, icon: Cpu },
+    { label: "Firebase",     ok: health?.firebase_configured ?? null,  optional: true, icon: Shield },
   ] as { label: string; ok: boolean; optional: boolean; limited?: boolean; icon: any; detail?: string }[];
 
   return (
@@ -340,6 +365,9 @@ function DashboardTab() {
           </div>
         </div>
       </div>
+
+      {/* ── Integration Status ───────────────────────────────────────── */}
+      <IntegrationStatusPanel />
 
       {/* ── Recent Activity ──────────────────────────────────────────── */}
       <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
@@ -774,6 +802,287 @@ function SubscriptionsTab() {
 
 // ─── Module 7: System Configuration ──────────────────────────────────
 
+// ─── Schema Repair Panel ──────────────────────────────────────────────
+function SchemaRepairPanel() {
+  const [previewResult, setPreviewResult] = useState<any>(null);
+  const [applyResult, setApplyResult]     = useState<any>(null);
+  const [confirmOpen, setConfirmOpen]     = useState(false);
+
+  const preview = useMutation({
+    mutationFn: () => apiGet<any>("/admin/schema-repair/preview"),
+    onSuccess: (d) => { setPreviewResult(d); setApplyResult(null); },
+    onError:   () => toast.error("Schema preview failed"),
+  });
+  const apply = useMutation({
+    mutationFn: () => apiPost<any>("/admin/schema-repair", {}),
+    onSuccess: (d) => {
+      setApplyResult(d);
+      setConfirmOpen(false);
+      if (d.columns_added > 0) toast.success(`Schema repair: ${d.columns_added} column(s) added`);
+      else toast.success("Schema already in sync — nothing to repair");
+    },
+    onError: () => toast.error("Schema repair failed"),
+  });
+
+  const result   = applyResult ?? previewResult;
+  const hasGaps  = result && result.tables_repaired > 0;
+  const isApplied = !!applyResult;
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-foreground flex items-center gap-2 text-sm">
+          <Wrench className="w-4 h-4 text-cyan-400" /> Database Schema Repair
+        </CardTitle>
+        <CardDescription>
+          Compares ORM column definitions against the live database and applies
+          <code className="mx-1 text-amber-400 text-xs">ALTER TABLE … ADD COLUMN</code>
+          for any gaps. Preview first, then apply.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            className="border-cyan-500/40 text-cyan-400 hover:border-cyan-400"
+            disabled={preview.isPending}
+            onClick={() => { setPreviewResult(null); setApplyResult(null); preview.mutate(); }}
+          >
+            {preview.isPending
+              ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Scanning…</>
+              : <><Eye className="w-4 h-4 mr-2" /> Preview (dry-run)</>}
+          </Button>
+          {result && !isApplied && (
+            <Button
+              className={`font-semibold ${hasGaps ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-muted text-muted-foreground cursor-default"}`}
+              disabled={apply.isPending || !hasGaps}
+              onClick={() => hasGaps && setConfirmOpen(true)}
+            >
+              {apply.isPending
+                ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Repairing…</>
+                : <><Wrench className="w-4 h-4 mr-2" /> Apply Repair</>}
+            </Button>
+          )}
+        </div>
+
+        {result && (
+          <div className="space-y-3">
+            {/* Summary pills */}
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded-full bg-muted/30 border border-border text-foreground">
+                {result.tables_scanned} tables scanned
+              </span>
+              <span className={`px-2.5 py-1 rounded-full border ${
+                hasGaps
+                  ? "bg-amber-500/10 border-amber-500/20 text-amber-300"
+                  : "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+              }`}>
+                {result.tables_repaired} table(s) with gaps
+              </span>
+              <span className={`px-2.5 py-1 rounded-full border ${
+                result.columns_added > 0
+                  ? "bg-cyan-500/10 border-cyan-500/20 text-cyan-300"
+                  : "bg-muted/30 border-border text-muted-foreground"
+              }`}>
+                {result.columns_added} column(s) {result.mode === "apply" ? "added ✓" : "would be added"}
+              </span>
+              {Object.keys(result.errors ?? {}).length > 0 && (
+                <span className="px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-300">
+                  {Object.keys(result.errors).length} error(s)
+                </span>
+              )}
+            </div>
+
+            {/* In-sync state */}
+            {!hasGaps && Object.keys(result.errors ?? {}).length === 0 && (
+              <div className="flex items-center gap-2 text-emerald-400 text-sm py-1">
+                <CheckCircle className="w-4 h-4" /> All {result.tables_scanned} tables are in sync — no repair needed
+              </div>
+            )}
+
+            {/* Repairs table */}
+            {Object.keys(result.repairs ?? {}).length > 0 && (
+              <div className="rounded-lg border border-border/60 overflow-hidden">
+                <div className="px-3 py-2 bg-muted/20 border-b border-border/60 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {result.mode === "apply" ? "Columns Added" : "Missing Columns (Preview)"}
+                </div>
+                <div className="divide-y divide-border/40 max-h-56 overflow-y-auto">
+                  {Object.entries(result.repairs as Record<string, any[]>).map(([table, cols]) =>
+                    cols.map((c: any, i: number) => (
+                      <div key={`${table}-${i}`} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/10 text-xs">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${c.status === "added" ? "bg-emerald-400" : "bg-amber-400"}`} />
+                        <span className="font-mono text-foreground/80">{table}</span>
+                        <span className="text-muted-foreground">.</span>
+                        <span className="font-mono text-cyan-400 flex-1">{c.column}</span>
+                        <span className="font-mono text-muted-foreground hidden sm:block">{c.ddl}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                          c.status === "added"
+                            ? "bg-emerald-500/10 text-emerald-400"
+                            : "bg-amber-500/10 text-amber-300"
+                        }`}>
+                          {c.status === "added" ? "added" : "missing"}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Errors */}
+            {Object.keys(result.errors ?? {}).length > 0 && (
+              <div className="rounded-lg border border-red-500/20 overflow-hidden">
+                <div className="px-3 py-2 bg-red-500/10 border-b border-red-500/20 text-[11px] font-semibold uppercase tracking-wider text-red-300">
+                  Errors
+                </div>
+                <div className="divide-y divide-red-500/10 max-h-40 overflow-y-auto">
+                  {Object.entries(result.errors as Record<string, any[]>).map(([table, errs]) =>
+                    errs.map((e: any, i: number) => (
+                      <div key={`${table}-err-${i}`} className="flex items-start gap-2 px-3 py-2 text-xs">
+                        <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                        <span className="font-mono text-muted-foreground">{table}.{typeof e === "object" ? e.column : ""}</span>
+                        <span className="text-red-300 flex-1">{typeof e === "object" ? e.error : String(e)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+
+      {confirmOpen && (
+        <Dialog open onOpenChange={setConfirmOpen}>
+          <DialogContent className="bg-card border-border text-foreground max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-400" /> Apply Schema Repair?
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              This will run{" "}
+              <code className="text-amber-400 text-xs">ALTER TABLE … ADD COLUMN</code>{" "}
+              for the{" "}
+              <span className="text-foreground font-mono font-bold">{result?.columns_added}</span>{" "}
+              missing column(s) across{" "}
+              <span className="text-foreground font-mono font-bold">{result?.tables_repaired}</span>{" "}
+              table(s). Existing rows and data are not affected.
+            </p>
+            <DialogFooter className="gap-2 mt-2">
+              <Button variant="outline" className="border-border" onClick={() => setConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                disabled={apply.isPending}
+                onClick={() => apply.mutate()}
+              >
+                {apply.isPending
+                  ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Applying…</>
+                  : <><Wrench className="w-4 h-4 mr-2" /> Apply Now</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </Card>
+  );
+}
+
+// ─── Integration Status Panel ─────────────────────────────────────────
+function IntegrationStatusPanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, isFetching } = useQuery<IntegrationsStatusResponse>({
+    queryKey: ["admin-integrations-status"],
+    queryFn:  () => apiGet("/admin/integrations/status"),
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+
+  const serviceOrder = [
+    { key: "redis",     label: "Redis",     icon: Zap,      group: "infra" },
+    { key: "firebase",  label: "Firebase",  icon: Shield,   group: "infra" },
+    { key: "gemini",    label: "Gemini AI", icon: Brain,    group: "ai" },
+    { key: "claude",    label: "Claude AI", icon: Brain,    group: "ai" },
+    { key: "openai",    label: "OpenAI",    icon: Brain,    group: "ai" },
+    { key: "deepseek",  label: "DeepSeek",  icon: Cpu,      group: "ai" },
+    { key: "mistral",   label: "Mistral",   icon: Cpu,      group: "ai" },
+    { key: "stripe",    label: "Stripe",    icon: CreditCard, group: "pay" },
+    { key: "paystack",  label: "Paystack",  icon: CreditCard, group: "pay" },
+    { key: "telegram",  label: "Telegram",  icon: Send,     group: "msg" },
+  ];
+
+  const statusStyle = (s?: string) => {
+    if (s === "ok")             return "bg-emerald-500/10 border-emerald-500/20 text-emerald-300";
+    if (s === "rate_limited")   return "bg-amber-500/10  border-amber-500/20  text-amber-300";
+    if (s === "error")          return "bg-red-500/10    border-red-500/20    text-red-300";
+    return                             "bg-muted/20      border-border/50      text-muted-foreground";
+  };
+  const statusDot = (s?: string) => {
+    if (s === "ok")           return "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]";
+    if (s === "rate_limited") return "bg-amber-400";
+    if (s === "error")        return "bg-red-400 animate-pulse";
+    return                           "bg-muted/60";
+  };
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+      <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-4 rounded-full bg-purple-400/80" />
+          <span className="text-sm font-semibold text-foreground">Integration Status</span>
+          {data && (
+            <span className="text-xs text-muted-foreground ml-1">
+              {data.summary.ok}/{data.summary.total} connected
+            </span>
+          )}
+        </div>
+        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-purple-400"
+          onClick={() => qc.invalidateQueries({ queryKey: ["admin-integrations-status"] })}>
+          <RefreshCw className={`w-3 h-3 ${isFetching ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+      <div className="p-3">
+        {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {[1,2,3,4,5].map(i => <div key={i} className="h-14 rounded-lg bg-muted/20 animate-pulse" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {serviceOrder.map(({ key, label, icon: Icon }) => {
+              const svc = data?.integrations?.[key];
+              const st  = svc?.status;
+              return (
+                <div key={key}
+                  className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg border text-center ${statusStyle(st)}`}
+                  title={svc?.error ?? svc?.hint ?? label}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${statusDot(st)}`} />
+                    <Icon className="w-3.5 h-3.5 opacity-70" />
+                  </div>
+                  <span className="text-[11px] font-medium leading-tight">{label}</span>
+                  {svc?.latency_ms != null && (
+                    <span className="text-[10px] opacity-60 flex items-center gap-0.5">
+                      <Clock className="w-2.5 h-2.5" />{svc.latency_ms}ms
+                    </span>
+                  )}
+                  {st === "not_configured" && (
+                    <span className="text-[10px] opacity-50">not set</span>
+                  )}
+                  {st === "error" && (
+                    <span className="text-[10px] text-red-400/80 truncate max-w-full">error</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SystemTab() {
   const qc = useQueryClient();
   const { isSuperAdmin } = useAuth();
@@ -1052,6 +1361,9 @@ function SystemTab() {
 
       {/* CSV Fixture Upload */}
       <CSVUploadCard />
+
+      {/* Schema Repair */}
+      <SchemaRepairPanel />
 
       {/* System Actions */}
       <Card className="bg-card border-border">
@@ -4605,10 +4917,13 @@ function AdminHealthPills() {
   });
 
   const pills = [
-    { label: "API",      ok: health?.api ?? null },
-    { label: "DB",       ok: health?.database ?? null },
-    { label: "Redis",    ok: health?.redis ?? null, optional: true },
+    { label: "API",       ok: health?.api ?? null,                               optional: false },
+    { label: "DB",        ok: health?.database ?? null,                          optional: false },
+    { label: "Redis",     ok: health?.redis ?? null,                             optional: true  },
     { label: `${health?.models_loaded ?? "—"} ML`, ok: (health?.models_loaded ?? 0) > 0 || !health, optional: false },
+    { label: "Gemini",    ok: health?.gemini_configured ?? null,                 optional: true  },
+    { label: "DeepSeek",  ok: health?.deepseek_configured ?? null,               optional: true  },
+    { label: "Firebase",  ok: health?.firebase_configured ?? null,               optional: true  },
   ];
 
   return (

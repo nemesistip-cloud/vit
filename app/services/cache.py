@@ -77,12 +77,29 @@ _redis_client = None
 _redis_checked = False
 
 
+def extract_redis_url(raw: str) -> str:
+    """
+    Normalize REDIS_URL: if the env var was set as a full CLI command
+    (e.g. ``redis-cli -u redis://...``) extract just the URL portion.
+    Returns the cleaned URL, or empty string if no valid Redis URL found.
+    """
+    raw = raw.strip()
+    if raw.startswith(("redis://", "rediss://", "unix://")):
+        return raw
+    # Try to extract an embedded redis:// or rediss:// URL
+    import re
+    m = re.search(r"(rediss?://\S+)", raw)
+    if m:
+        return m.group(1)
+    return ""
+
+
 def _get_redis():
     global _redis_client, _redis_checked
     if _redis_checked:
         return _redis_client
     _redis_checked = True
-    redis_url = os.getenv("REDIS_URL", "").strip()
+    redis_url = extract_redis_url(os.getenv("REDIS_URL", ""))
     if not redis_url:
         return None
     try:
@@ -93,7 +110,7 @@ def _get_redis():
             socket_timeout=0.5,
             socket_connect_timeout=1.0,
         )
-        logger.info("Cache: Redis backend enabled")
+        logger.info("Cache: Redis backend enabled (%s…)", redis_url[:20])
     except Exception as exc:
         logger.warning("Cache: Redis unavailable (%s) — using memory fallback", exc)
         _redis_client = None

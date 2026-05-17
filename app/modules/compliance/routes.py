@@ -107,7 +107,7 @@ def _build_insights(
             "type": "positive",
             "icon": "zap",
             "title": "Consistent Sizing",
-            "body": "Your stake size remains consistent relative to your bankroll. No signs of "chasing" losses detected.",
+            "body": "Your stake size remains consistent relative to your bankroll. No signs of chasing losses detected.",
         })
     else:
         insights.append({

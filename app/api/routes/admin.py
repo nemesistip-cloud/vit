@@ -2868,7 +2868,8 @@ async def system_health():
         except Exception:
             db_ok = False
 
-    redis_url = get_env("REDIS_URL", "")
+    from app.services.cache import extract_redis_url
+    redis_url = extract_redis_url(get_env("REDIS_URL", ""))
     redis_ok = None
     if redis_url:
         redis_ok = False
@@ -2899,6 +2900,13 @@ async def system_health():
         except Exception:
             odds_api_ok = False
 
+    deepseek_key = get_env("DEEPSEEK_API_KEY", "").strip()
+    mistral_key  = get_env("MISTRAL_API_KEY", "").strip()
+    firebase_key = get_env("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
+    openai_key   = get_env("OPENAI_API_KEY", "").strip()
+    claude_key   = get_env("CLAUDE_API_KEY", "").strip()
+    gemini_key   = get_env("GEMINI_API_KEY", "").strip()
+
     return {
         "api":    True,
         "database": db_ok,
@@ -2910,6 +2918,146 @@ async def system_health():
         "mem_pct": round(mem.percent, 1) if mem else 0,
         "disk_pct": round(disk.percent, 1) if disk else 0,
         "python_version": platform.python_version(),
+        "deepseek_configured": len(deepseek_key) > 10,
+        "mistral_configured":  len(mistral_key) > 10,
+        "firebase_configured": len(firebase_key) > 10,
+        "openai_configured":   len(openai_key) > 10,
+        "claude_configured":   len(claude_key) > 10,
+        "gemini_configured":   len(gemini_key) > 10,
+    }
+
+
+@router.get("/integrations/status")
+async def integrations_status():
+    """
+    Live connectivity probe for Redis, Firebase Admin SDK, DeepSeek AI,
+    Mistral AI, and all other configured integrations.
+    Returns per-service status with latency where applicable.
+    """
+    import time
+
+    results: dict = {}
+
+    # ── Redis ─────────────────────────────────────────────────────────
+    from app.services.cache import extract_redis_url
+    redis_url = extract_redis_url(get_env("REDIS_URL", ""))
+    if redis_url:
+        t0 = time.monotonic()
+        try:
+            from redis import asyncio as aioredis
+            r = aioredis.from_url(redis_url, socket_connect_timeout=2)
+            await r.ping()
+            await r.close()
+            results["redis"] = {"status": "ok", "latency_ms": round((time.monotonic() - t0) * 1000)}
+        except Exception as exc:
+            results["redis"] = {"status": "error", "error": str(exc)}
+    else:
+        results["redis"] = {"status": "not_configured"}
+
+    # ── Firebase Admin SDK ────────────────────────────────────────────
+    fb_json = get_env("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
+    if fb_json:
+        try:
+            from app.core.firebase import get_firebase_app
+            fb_app = get_firebase_app()
+            results["firebase"] = {
+                "status": "ok" if fb_app else "error",
+                "error": None if fb_app else "App init returned None",
+            }
+        except Exception as exc:
+            results["firebase"] = {"status": "error", "error": str(exc)}
+    else:
+        results["firebase"] = {"status": "not_configured",
+                               "hint": "Set FIREBASE_SERVICE_ACCOUNT_JSON secret for Google sign-in"}
+
+    # ── DeepSeek ─────────────────────────────────────────────────────
+    ds_key = get_env("DEEPSEEK_API_KEY", "").strip()
+    if len(ds_key) > 10:
+        t0 = time.monotonic()
+        try:
+            import httpx as _httpx
+            async with _httpx.AsyncClient(timeout=8) as client:
+                resp = await client.post(
+                    "https://api.deepseek.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {ds_key}"},
+                    json={"model": "deepseek-chat", "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1},
+                )
+            if resp.status_code in (200, 429):
+                results["deepseek"] = {
+                    "status": "ok" if resp.status_code == 200 else "rate_limited",
+                    "latency_ms": round((time.monotonic() - t0) * 1000),
+                    "http_status": resp.status_code,
+                }
+            else:
+                results["deepseek"] = {"status": "error", "http_status": resp.status_code,
+                                       "error": resp.text[:200]}
+        except Exception as exc:
+            results["deepseek"] = {"status": "error", "error": str(exc)}
+    else:
+        results["deepseek"] = {"status": "not_configured",
+                               "hint": "Set DEEPSEEK_API_KEY — free key at platform.deepseek.com"}
+
+    # ── Mistral ───────────────────────────────────────────────────────
+    ms_key = get_env("MISTRAL_API_KEY", "").strip()
+    if len(ms_key) > 10:
+        t0 = time.monotonic()
+        try:
+            import httpx as _httpx
+            async with _httpx.AsyncClient(timeout=8) as client:
+                resp = await client.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {ms_key}"},
+                    json={"model": "mistral-small-latest", "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1},
+                )
+            if resp.status_code in (200, 429):
+                results["mistral"] = {
+                    "status": "ok" if resp.status_code == 200 else "rate_limited",
+                    "latency_ms": round((time.monotonic() - t0) * 1000),
+                }
+            else:
+                results["mistral"] = {"status": "error", "http_status": resp.status_code}
+        except Exception as exc:
+            results["mistral"] = {"status": "error", "error": str(exc)}
+    else:
+        results["mistral"] = {"status": "not_configured",
+                              "hint": "Set MISTRAL_API_KEY — free key at console.mistral.ai"}
+
+    # ── Gemini ────────────────────────────────────────────────────────
+    gm_key = get_env("GEMINI_API_KEY", "").strip()
+    results["gemini"] = {"status": "ok" if len(gm_key) > 10 else "not_configured"}
+
+    # ── Claude ────────────────────────────────────────────────────────
+    cl_key = get_env("CLAUDE_API_KEY", "").strip()
+    results["claude"] = {"status": "ok" if len(cl_key) > 10 else "not_configured"}
+
+    # ── OpenAI ────────────────────────────────────────────────────────
+    oa_key = get_env("OPENAI_API_KEY", "").strip()
+    results["openai"] = {"status": "ok" if len(oa_key) > 10 else "not_configured"}
+
+    # ── Paystack ─────────────────────────────────────────────────────
+    ps_key = get_env("PAYSTACK_SECRET_KEY", "").strip()
+    results["paystack"] = {"status": "ok" if len(ps_key) > 10 else "not_configured"}
+
+    # ── Stripe ───────────────────────────────────────────────────────
+    st_key = get_env("STRIPE_SECRET_KEY", "").strip()
+    results["stripe"] = {"status": "ok" if len(st_key) > 10 else "not_configured"}
+
+    # ── Telegram ─────────────────────────────────────────────────────
+    tg_key = get_env("TELEGRAM_BOT_TOKEN", "").strip()
+    results["telegram"] = {"status": "ok" if len(tg_key) > 10 else "not_configured"}
+
+    ok_count    = sum(1 for v in results.values() if v.get("status") in ("ok", "rate_limited"))
+    error_count = sum(1 for v in results.values() if v.get("status") == "error")
+    total       = len(results)
+
+    return {
+        "integrations": results,
+        "summary": {
+            "total": total,
+            "ok": ok_count,
+            "errors": error_count,
+            "not_configured": total - ok_count - error_count,
+        },
     }
 
 
