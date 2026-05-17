@@ -68,6 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithGoogle = async () => {
+    if (!auth || !googleProvider) {
+      toast.error("Google sign-in is not configured on this deployment.");
+      return;
+    }
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
@@ -87,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await firebaseSignOut(auth);
+      if (auth) await firebaseSignOut(auth);
     } catch (e) {
       console.warn("Firebase signout failed", e);
     }
