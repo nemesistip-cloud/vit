@@ -48,15 +48,17 @@ async def _diagnose(snapshot: dict) -> Optional[Dict[str, Any]]:
     from app.core.log_buffer import log_buffer
     logs = log_buffer.get_logs()
 
+    logs_text = "\n".join(logs)
+    snapshot_text = json.dumps(snapshot, indent=2, default=str)
     prompt = f"""
     You are a Platform Reliability Engineer for the VIT Sports Intelligence Network.
     Analyze this system health snapshot and recent logs to diagnose the root cause of the issues.
 
     Health Snapshot:
-    {json.dumps(snapshot, indent=2, default=str)}
+    {snapshot_text}
 
     Recent Logs (Last 100 lines):
-    {'\n'.join(logs)}
+    {logs_text}
 
     Identify the core issue and recommend a specific recovery action.
     Return a JSON object with:

@@ -28,7 +28,25 @@ _GLOBAL_COORDINATOR: Optional["AgentCoordinator"] = None
 
 
 def get_coordinator() -> "AgentCoordinator":
+    """
+    Return the active agent coordinator.
+
+    Prefers the running SwarmOrchestrator (registered at startup via
+    ``set_swarm()``) because it supervises all 22 agents. Falls back to the
+    legacy AgentCoordinator singleton if the swarm is unavailable.
+    """
     global _GLOBAL_COORDINATOR
+    # ── Try SwarmOrchestrator first (v7.0 preferred path) ──────────────
+    try:
+        from app.core.swarm_orchestrator import get_swarm
+        swarm = get_swarm()
+        # Wrap SwarmOrchestrator so callers that use AgentCoordinator-style
+        # attribute access (e.g. coordinator._agents) still work.
+        return swarm  # type: ignore[return-value]
+    except RuntimeError:
+        pass  # swarm not yet initialised — fall back below
+
+    # ── Legacy AgentCoordinator fallback ───────────────────────────────
     if _GLOBAL_COORDINATOR is None:
         _GLOBAL_COORDINATOR = AgentCoordinator()
     return _GLOBAL_COORDINATOR
@@ -38,9 +56,6 @@ class AgentCoordinator:
     """Central registry and controller for all autonomous agents."""
 
     def __init__(self) -> None:
-        global _GLOBAL_COORDINATOR
-        _GLOBAL_COORDINATOR = self
-
         from app.agents.performance_monitor          import PerformanceMonitorAgent
         from app.agents.weight_optimizer             import WeightOptimizerAgent
         from app.agents.retrain_trigger              import RetrainTriggerAgent
@@ -99,6 +114,8 @@ class AgentCoordinator:
         self._tasks: List[asyncio.Task] = []
         self._started_at = datetime.now(timezone.utc)
 
+        global _GLOBAL_COORDINATOR
+        _GLOBAL_COORDINATOR = self
         logger.info("[coordinator] initialised with %d agents", len(self._agents))
 
     def start(self, task_list: Optional[List[asyncio.Task]] = None) -> List[asyncio.Task]:
