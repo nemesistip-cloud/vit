@@ -103,7 +103,7 @@ class ValidatorPrediction(Base):
     validator_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("validator_profiles.id", ondelete="CASCADE"), nullable=False
     )
-    match_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    match_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
     market_type: Mapped[str] = mapped_column(String(32), default="1X2") # 1X2, OVER_UNDER, BTTS
     prediction_value: Mapped[Optional[str]] = mapped_column(String(32), nullable=True) # home, draw, away, over, under, yes, no
@@ -135,7 +135,7 @@ class ConsensusPrediction(Base):
     __tablename__ = "consensus_predictions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    match_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    match_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     match_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     ai_p_home: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
@@ -179,7 +179,7 @@ class OracleResult(Base):
     __tablename__ = "oracle_results"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    match_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    match_id: Mapped[int] = mapped_column(Integer, nullable=False)
     source: Mapped[str] = mapped_column(String(100), nullable=False)
 
     home_score: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -202,7 +202,7 @@ class MatchSettlement(Base):
     __tablename__ = "match_settlements"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    match_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    match_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     consensus_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("consensus_predictions.id"), nullable=False
     )
@@ -231,7 +231,7 @@ class UserStake(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    match_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    match_id: Mapped[int] = mapped_column(Integer, nullable=False)
     # Extended market support: home|draw|away|over_25|under_25|btts_yes|btts_no|ah_home|ah_away|cs_NM
     prediction: Mapped[str] = mapped_column(String(30), nullable=False)
     stake_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
@@ -282,7 +282,7 @@ class OracleDispute(Base):
     __tablename__ = "oracle_disputes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    match_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    match_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
     source_a: Mapped[str] = mapped_column(String(100), nullable=False)
     result_a: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -316,7 +316,7 @@ class BlockchainTransaction(Base):
     # user | validator | oracle | system
     entity_id: Mapped[str] = mapped_column(String(100), nullable=False)
 
-    match_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    match_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
     currency: Mapped[str] = mapped_column(String(10), default="VITCoin")
     meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)

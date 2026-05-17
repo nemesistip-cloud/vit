@@ -91,6 +91,7 @@ class Prediction(Base):
     raw_edge = Column(Float)  # model_prob - market_prob (unadjusted)
     normalized_edge = Column(Float)  # After removing bookmaker margin
     vig_free_edge = Column(Float)  # True edge after vig removal
+    bet_explanation = Column(Text, nullable=True)  # DeepSeek generated explanation
 
     # Settlement tracking (populated when match result is known)
     was_correct = Column(Boolean, nullable=True)   # True=win, False=loss, None=pending/no-bet

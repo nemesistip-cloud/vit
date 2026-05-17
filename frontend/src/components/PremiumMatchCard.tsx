@@ -121,7 +121,7 @@ function AIInsightPanel({ match }: { match: any }) {
     return s.replace(/_/g, " ").toUpperCase();
   };
 
-  if (insights.length === 0 && !consensus && alternatives.length === 0) {
+  if (insights.length === 0 && !consensus && alternatives.length === 0 && !match.bet_explanation) {
     return (
       <p className="text-xs font-mono text-muted-foreground text-center py-1">
         Run the ML ensemble for insights
@@ -131,6 +131,18 @@ function AIInsightPanel({ match }: { match: any }) {
 
   return (
     <div className="space-y-3">
+      {match.bet_explanation && (
+        <div className="bg-primary/5 border border-primary/20 rounded p-2.5 mb-2">
+          <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-mono uppercase text-primary">
+            <BrainCircuit className="w-3 h-3" />
+            DeepSeek Analysis
+          </div>
+          <p className="text-xs font-mono text-foreground leading-relaxed">
+            {match.bet_explanation}
+          </p>
+        </div>
+      )}
+
       {insights.length > 0 && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           {insights.map((ins) => (
@@ -294,10 +306,11 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
             {/* Confidence + risk meters */}
             <div className="p-4 border-t border-border/50">
               <ConfidenceMeter confidence={confidence} risk={risk} />
-              <div className="grid grid-cols-3 gap-2 mt-3 text-[10px] font-mono text-muted-foreground">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-[10px] font-mono text-muted-foreground">
                 <div>O2.5 <span className="text-foreground">{match.over_25_prob != null ? `${(match.over_25_prob * 100).toFixed(0)}%` : "—"}</span></div>
                 <div>BTTS <span className="text-foreground">{match.btts_prob != null ? `${(match.btts_prob * 100).toFixed(0)}%` : "—"}</span></div>
                 <div>Stake <span className="text-foreground">{match.recommended_stake != null ? `${(match.recommended_stake * 100).toFixed(1)}%` : "—"}</span></div>
+                <div className="hidden sm:block">VIT <span className="text-primary font-bold">{match.vit_score != null ? match.vit_score.toFixed(0) : "—"}</span></div>
               </div>
             </div>
 
