@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/predictions/{match_id}")
 async def get_consensus_prediction(
-    match_id: str,
+    match_id: int,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -113,7 +113,7 @@ class StakeRequest(BaseModel):
 
 @router.post("/predictions/{match_id}/stake")
 async def stake_on_prediction(
-    match_id: str,
+    match_id: int,
     body: StakeRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -123,12 +123,6 @@ async def stake_on_prediction(
         body.validate_prediction()
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-
-    # Match.id is INTEGER in DB — cast the string path param safely
-    try:
-        match_id_int = int(match_id)
-    except (ValueError, TypeError):
-        raise HTTPException(404, "Match not found")
 
     amount = Decimal(str(body.amount))
     if amount < MIN_STAKE_VITCOIN:
@@ -146,7 +140,7 @@ async def stake_on_prediction(
     # prediction can be staked on, which blocks normal user flow.
     if not cp:
         match_exists = (
-            await db.execute(select(Match.id).where(Match.id == match_id_int))
+            await db.execute(select(Match.id).where(Match.id == match_id))
         ).scalar_one_or_none()
         if not match_exists:
             raise HTTPException(404, "Match not found")
@@ -160,7 +154,7 @@ async def stake_on_prediction(
         raise HTTPException(400, f"Match is {cp.status} — staking is closed")
 
     # Block staking after kickoff — stops in-play / post-result staking abuse
-    match_row = (await db.execute(select(Match).where(Match.id == match_id_int))).scalar_one_or_none()
+    match_row = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
     if match_row and match_row.kickoff_time:
         kt = match_row.kickoff_time
         if kt.tzinfo is None:
@@ -614,7 +608,7 @@ async def apply_as_validator(
 # ── POST /validators/predict ───────────────────────────────────────────
 
 class ValidatorPredictRequest(BaseModel):
-    match_id: str
+    match_id: int
     market_type: str = Field("1X2", description="1X2 | OVER_UNDER | BTTS")
     prediction_value: str | None = Field(None, description="home|draw|away|over|under|yes|no")
     p_home: float = Field(..., ge=0, le=1)

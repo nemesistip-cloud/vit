@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Key, Copy, Trash2, EyeOff, Code2, Loader2, CheckCircle2, AlertCircle, BookOpen, Download } from "lucide-react";
+import { Key, Copy, Trash2, EyeOff, Code2, Loader2, CheckCircle2, AlertCircle, BookOpen, Download, Activity } from "lucide-react";
 
 interface APIKey {
   id: number;

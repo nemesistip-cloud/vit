@@ -128,6 +128,40 @@ async def ensure_schema():
                     await conn.exec_driver_sql('ALTER TABLE user_stakes ALTER COLUMN prediction TYPE VARCHAR(20)')
                 except Exception:
                     pass
+                # marketplace_listings: performance columns (v7)
+                for _col, _ddl in [
+                    ('accuracy_rate',   'DOUBLE PRECISION DEFAULT 0.0'),
+                    ('roi',             'DOUBLE PRECISION DEFAULT 0.0'),
+                    ('clv_correlation', 'DOUBLE PRECISION DEFAULT 0.0'),
+                    ('is_verified',     'BOOLEAN DEFAULT FALSE'),
+                    ('total_staked',    'NUMERIC(20,8) DEFAULT 0'),
+                    ('staker_count',    'INTEGER DEFAULT 0'),
+                ]:
+                    try:
+                        await conn.exec_driver_sql(f'ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS {_col} {_ddl}')
+                    except Exception:
+                        pass
+                # validator_profiles: specialist_leagues (v7)
+                try:
+                    await conn.exec_driver_sql('ALTER TABLE validator_profiles ADD COLUMN IF NOT EXISTS specialist_leagues VARCHAR(255)')
+                except Exception:
+                    pass
+                # predictions: v7 extended columns
+                for _col, _ddl in [
+                    ('bet_explanation', 'TEXT'),
+                    ('model_consensus', 'JSONB'),
+                    ('alternative_bets', 'JSONB'),
+                    ('consensus_prob', 'DOUBLE PRECISION'),
+                    ('final_ev', 'DOUBLE PRECISION'),
+                    ('recommended_stake', 'DOUBLE PRECISION'),
+                    ('confidence', 'DOUBLE PRECISION'),
+                    ('bet_side', 'VARCHAR(20)'),
+                    ('entry_odds', 'DOUBLE PRECISION'),
+                ]:
+                    try:
+                        await conn.exec_driver_sql(f'ALTER TABLE predictions ADD COLUMN IF NOT EXISTS {_col} {_ddl}')
+                    except Exception:
+                        pass
         print('[startup] Database schema ready')
     except Exception as e:
         print(f'[startup] DB schema warning: {e}')

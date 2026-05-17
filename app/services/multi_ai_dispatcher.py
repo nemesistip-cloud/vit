@@ -92,7 +92,12 @@ async def run_multi_ai(
     if not match:
         raise ValueError(f"Match {match_id} not found")
 
-    pred_row = await db.execute(select(Prediction).where(Prediction.match_id == match_id))
+    pred_row = await db.execute(
+        select(Prediction)
+        .where(Prediction.match_id == match_id)
+        .order_by(Prediction.id.desc())
+        .limit(1)
+    )
     pred = pred_row.scalar_one_or_none()
 
     kwargs = dict(

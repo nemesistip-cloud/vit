@@ -145,7 +145,7 @@ async def get_global_leaderboard(
     )
     settled_pred = case((settled_cond, 1), else_=0)
     win_pred = case((win_cond, 1), (win_cond_fallback, 1), else_=0)
-    roi_pred = func.coalesce(Prediction.settled_profit, Prediction.final_ev, 0.0)
+    roi_pred = func.coalesce(Prediction.settled_profit, 0.0)
 
     agg = (
         select(

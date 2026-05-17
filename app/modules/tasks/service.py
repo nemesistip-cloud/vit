@@ -378,24 +378,26 @@ class TaskService:
 
         current_xp = user.total_xp
 
-        # Check Century Club (100 XP)
+        # Check Century Club (100 XP) — look up task by title to avoid hardcoded ID issues
         if current_xp >= 100:
             try:
-                await TaskService.update_task_progress(
-                    db, user_id, 13, 100  # Task ID 13: "Century Club"
-                )
+                century_task = (await db.execute(
+                    select(Task).where(Task.title == "Century Club")
+                )).scalar_one_or_none()
+                if century_task:
+                    await TaskService.update_task_progress(db, user_id, century_task.id, 100)
             except Exception as e:
                 logger.warning(f"XP task update failed for user {user_id}: {e}")
 
         # Check VIT Millionaire (1000 VIT earned total)
-        # This would need to be checked when VIT is earned, not just XP
-        # For now, we'll check it here as well
         vit_stats = await TaskService.get_user_task_stats(db, user_id)
         if vit_stats["total_vit_earned"] >= 1000:
             try:
-                await TaskService.update_task_progress(
-                    db, user_id, 14, 1000  # Task ID 14: "VIT Millionaire"
-                )
+                million_task = (await db.execute(
+                    select(Task).where(Task.title == "VIT Millionaire")
+                )).scalar_one_or_none()
+                if million_task:
+                    await TaskService.update_task_progress(db, user_id, million_task.id, 1000)
             except Exception as e:
                 logger.warning(f"VIT task update failed for user {user_id}: {e}")
 

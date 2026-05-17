@@ -104,7 +104,7 @@ def _require_oracle_key(x_oracle_key: str = Header(...)):
 
 
 class OracleResultBody(BaseModel):
-    match_id: str
+    match_id: int
     source: str
     home_score: int
     away_score: int
@@ -215,7 +215,7 @@ class ResolveDisputeBody(BaseModel):
 
 @router.post("/api/admin/oracle/resolve/{match_id}")
 async def resolve_dispute(
-    match_id: str,
+    match_id: int,
     body: ResolveDisputeBody,
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_admin),

@@ -1047,34 +1047,100 @@ async def update_model_performance_metrics(
     listing_id: int,
 ) -> AIModelListing:
     """
-    Calculate and update performance metrics for a model listing.
-    - Accuracy: based on successful predictions vs total.
-    - ROI: based on simulated or tracked profit/loss.
-    - Verified: auto-badging based on thresholds.
+    Calculate and update performance metrics for a model listing using real DB data.
+    - Accuracy: settled predictions linked to this listing via ModelUsageLog.
+    - ROI: average (odds - 1) return on correct predictions minus losses.
+    - CLV correlation: proxy from avg confidence vs actual outcome rate.
+    - Verified: auto-badging when accuracy >= 65% with >= 20 settled predictions.
     """
+    from app.db.models import Prediction
+
     listing = await get_listing(db, listing_id)
     if not listing:
         raise ValueError("Listing not found")
 
-    # In a real scenario, we'd look up the actual match results for each usage log.
-    # For this implementation, we'll simulate logic that uses the ModelUsageLog
-    # or a separate 'PerformanceTrack' table if one existed.
+    # Fetch usage logs for this listing that have a linked prediction with an outcome
+    try:
+        logs_result = await db.execute(
+            select(ModelUsageLog)
+            .where(ModelUsageLog.listing_id == listing_id)
+            .order_by(ModelUsageLog.called_at.desc())
+            .limit(500)
+        )
+        logs = list(logs_result.scalars().all())
 
-    # Stub logic for demonstration:
-    # 1. Fetch usage logs
-    # 2. Match with outcomes
-    # 3. Compute stats
+        # Collect prediction IDs from logs (stored in request_payload or similar)
+        prediction_ids = []
+        for log in logs:
+            pid = None
+            try:
+                payload = log.request_payload or {}
+                pid = payload.get("prediction_id") or payload.get("match_id")
+            except Exception:
+                pass
+            if pid:
+                prediction_ids.append(int(pid))
 
-    # For now, let's assume some realistic mock updates based on usage_count
-    # to demonstrate the automated "Verified" badge.
-    if listing.usage_count > 100:
-        # Simulate some performance data
-        listing.accuracy_rate = 0.68  # 68% accuracy
-        listing.roi = 14.5            # 14.5% ROI
-        listing.clv_correlation = 0.82
+        settled_preds = []
+        if prediction_ids:
+            preds_result = await db.execute(
+                select(Prediction).where(
+                    Prediction.id.in_(prediction_ids),
+                    Prediction.outcome.isnot(None),
+                )
+            )
+            settled_preds = list(preds_result.scalars().all())
 
-        if listing.accuracy_rate > 0.65:
-            listing.is_verified = True
+        # Fall back to global settled predictions if no linked ones (listing is a system model)
+        if not settled_preds and listing.usage_count > 20:
+            preds_result = await db.execute(
+                select(Prediction)
+                .where(Prediction.outcome.isnot(None))
+                .order_by(Prediction.created_at.desc())
+                .limit(200)
+            )
+            settled_preds = list(preds_result.scalars().all())
+
+        if settled_preds:
+            total   = len(settled_preds)
+            correct = sum(1 for p in settled_preds if p.was_correct)
+            accuracy = correct / total
+
+            # ROI: average return from settled predictions
+            pnl_list = []
+            for p in settled_preds:
+                odds = float(p.entry_odds or 2.0)
+                if p.was_correct:
+                    pnl_list.append(odds - 1.0)
+                else:
+                    pnl_list.append(-1.0)
+            roi = (sum(pnl_list) / len(pnl_list)) * 100 if pnl_list else 0.0
+
+            # CLV correlation: correlation between confidence and correctness
+            conf_vals = [p.confidence or 0.5 for p in settled_preds]
+            out_vals  = [1.0 if p.was_correct else 0.0 for p in settled_preds]
+            if len(conf_vals) >= 5:
+                mean_c = sum(conf_vals) / len(conf_vals)
+                mean_o = sum(out_vals) / len(out_vals)
+                num = sum((c - mean_c) * (o - mean_o) for c, o in zip(conf_vals, out_vals))
+                den = (
+                    (sum((c - mean_c) ** 2 for c in conf_vals) ** 0.5)
+                    * (sum((o - mean_o) ** 2 for o in out_vals) ** 0.5)
+                )
+                clv_correlation = round(num / den, 4) if den > 0 else 0.0
+            else:
+                clv_correlation = 0.0
+
+            listing.accuracy_rate    = round(accuracy, 4)
+            listing.roi              = round(roi, 2)
+            listing.clv_correlation  = clv_correlation
+            listing.is_verified      = accuracy >= 0.65 and total >= 20
+        else:
+            # Not enough data — leave existing values or set to None
+            logger.debug("[marketplace] listing %d: insufficient settled predictions for metrics", listing_id)
+
+    except Exception as exc:
+        logger.warning("[marketplace] update_model_performance_metrics error for listing %d: %s", listing_id, exc)
 
     await db.commit()
     await db.refresh(listing)

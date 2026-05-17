@@ -40,6 +40,7 @@ export interface Match {
   ft_score?: string | null;
   clv?: number | null;
   profit?: number | null;
+  bet_explanation?: string | null;
   timestamp?: string | null;
   odds?: { home?: number | null; draw?: number | null; away?: number | null } | null;
   predictions_count?: number;

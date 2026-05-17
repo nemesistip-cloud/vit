@@ -138,10 +138,10 @@ export default function LeaderboardPage() {
                         <Badge
                           variant="outline"
                           className={`text-[10px] font-mono hidden sm:inline-flex ${
-                            TIER_COLORS[entry.subscription_tier] ?? TIER_COLORS.viewer
+                            TIER_COLORS[entry?.subscription_tier ?? "viewer"] ?? TIER_COLORS.viewer
                           }`}
                         >
-                          {entry.subscription_tier}
+                          {entry?.subscription_tier ?? "viewer"}
                         </Badge>
                       </div>
                       <div className="text-[11px] text-muted-foreground font-mono">

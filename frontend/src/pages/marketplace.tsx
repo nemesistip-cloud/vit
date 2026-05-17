@@ -114,6 +114,8 @@ interface LeaderboardItem {
   is_verified: boolean;
   win_rate: number;
   roi: number;
+  accuracy_rate: number;
+  clv_correlation: number;
   total_predictions: number;
   est_apy: number;
 }
@@ -838,6 +840,9 @@ function LeaderboardTab() {
             staker_count: model.staker_count,
             is_active: model.is_active,
             is_verified: model.is_verified,
+            accuracy_rate: model.accuracy_rate ?? 0,
+            roi: model.roi ?? 0,
+            clv_correlation: model.clv_correlation ?? 0,
             created_at: "",
           };
 
@@ -1170,46 +1175,52 @@ export default function MarketplacePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <ShoppingBag className="w-6 h-6 text-primary" /> AI Marketplace
-          </h1>
-          <p className="text-sm text-muted-foreground">Buy, sell, and stake on AI prediction models using VITCoin</p>
+      {/* Header banner */}
+      <div className="relative rounded-2xl overflow-hidden border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-amber-500/5 p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent pointer-events-none" />
+        <div className="relative flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <ShoppingBag className="w-6 h-6 text-primary" /> AI Model Marketplace
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Buy, sell, and stake on AI prediction models using VITCoin
+            </p>
+          </div>
+          <ListModelModal />
         </div>
-        <ListModelModal />
       </div>
 
       {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: "Active Models", value: stats.active_listings, icon: ShoppingBag },
-            { label: "Total Calls", value: stats.total_calls.toLocaleString(), icon: Zap },
-            { label: "Volume (VIT)", value: stats.total_volume_vitcoin.toFixed(2), icon: TrendingUp },
-            { label: "Protocol Revenue", value: stats.protocol_revenue_vitcoin.toFixed(2), icon: DollarSign },
-          ].map(({ label, value, icon: Icon }) => (
-            <Card key={label} className="p-3">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                <Icon className="w-3 h-3" /> {label}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Active Models",    value: stats ? String(stats.active_listings) : "—",                          icon: ShoppingBag, tint: "text-primary",    bg: "bg-primary/10"    },
+          { label: "Total Calls",      value: stats ? stats.total_calls.toLocaleString() : "—",                     icon: Zap,         tint: "text-yellow-400", bg: "bg-yellow-500/10" },
+          { label: "Volume (VIT)",     value: stats ? stats.total_volume_vitcoin.toFixed(2) : "—",                   icon: TrendingUp,  tint: "text-green-400",  bg: "bg-green-500/10"  },
+          { label: "Protocol Revenue", value: stats ? stats.protocol_revenue_vitcoin.toFixed(2) : "—",               icon: DollarSign,  tint: "text-amber-400",  bg: "bg-amber-500/10"  },
+        ].map(({ label, value, icon: Icon, tint, bg }) => (
+          <Card key={label} className="p-4 border-border/60 hover:border-primary/30 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">{label}</p>
+              <div className={`p-1.5 rounded-lg ${bg}`}>
+                <Icon className={`w-3.5 h-3.5 ${tint}`} />
               </div>
-              <p className="text-lg font-bold text-foreground">{value}</p>
-            </Card>
-          ))}
-        </div>
-      )}
+            </div>
+            <p className={`text-xl font-bold ${tint}`}>{value}</p>
+          </Card>
+        ))}
+      </div>
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="leaderboard" className="gap-1">
+        <TabsList className="flex-wrap h-auto gap-1 p-1">
+          <TabsTrigger value="leaderboard" className="gap-1.5">
             <Trophy className="w-3 h-3" /> Leaderboard
           </TabsTrigger>
           <TabsTrigger value="browse">Browse</TabsTrigger>
           <TabsTrigger value="my-models">My Models</TabsTrigger>
           <TabsTrigger value="my-usage">My Usage</TabsTrigger>
-          <TabsTrigger value="my-stakes" className="gap-1">
+          <TabsTrigger value="my-stakes" className="gap-1.5">
             <Coins className="w-3 h-3" /> My Stakes
           </TabsTrigger>
           <TabsTrigger value="docs">Build & Train Guide</TabsTrigger>

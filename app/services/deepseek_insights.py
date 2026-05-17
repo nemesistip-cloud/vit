@@ -126,3 +126,54 @@ async def generate_match_insights(
             home_team=home_team, away_team=away_team, league=league,
             home_prob=home_prob, draw_prob=draw_prob, away_prob=away_prob,
         )
+
+
+async def generate_network_explanation(
+    match_data: dict,
+    prediction_result: dict,
+) -> str:
+    """
+    Synthesize the 13-model ensemble results into a natural language explanation.
+    Used for the 'DeepSeek Analysis' section in the frontend.
+    """
+    from app.services.ai_client import call_ai_with_provider
+
+    home_team = match_data.get("home_team", "Home")
+    away_team = match_data.get("away_team", "Away")
+    league = match_data.get("league", "League")
+
+    pred = prediction_result.get("predictions", {})
+    home_prob = pred.get("home_prob", 0.33)
+    draw_prob = pred.get("draw_prob", 0.33)
+    away_prob = pred.get("away_prob", 0.34)
+
+    agreement = pred.get("model_agreement", 0.0)
+    top_model = pred.get("top_model", "Statistical Ensemble")
+    edge = pred.get("edge", 0.0)
+
+    prompt = f"""You are the VIT Intelligence Network's core analysis agent.
+Summarize why our 13-model ML ensemble reached its conclusion for {home_team} vs {away_team} ({league}).
+
+Ensemble Stats:
+- Probabilities: Home {home_prob*100:.1f}%, Draw {draw_prob*100:.1f}%, Away {away_prob*100:.1f}%
+- Model Agreement: {agreement:.1f}%
+- Value Edge: {edge*100:.2f}%
+- Top Contributing Model: {top_model}
+
+Write a professional, 3-sentence technical summary explaining the 'why' behind these numbers.
+Focus on the convergence of different mathematical signals (Poisson, ELO, Market Implied).
+Do not use bullet points or markdown headers. Just plain text.
+"""
+
+    try:
+        result = await call_ai_with_provider(prompt, max_tokens=150, temperature=0.4, preferred="deepseek")
+        if result:
+            text, _ = result
+            return text.strip()
+    except Exception as e:
+        logger.warning("Failed to generate network explanation: %s", e)
+
+    # Fallback explanation
+    return f"The ensemble reached {agreement:.1f}% agreement on this fixture, led by {top_model}. " \
+           f"With a {edge*100:.1f}% edge detected, the statistical consensus favors " \
+           f"{'Home' if home_prob > away_prob else 'Away'} based on market-implied liquidity and Poisson goal share."

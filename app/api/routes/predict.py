@@ -31,6 +31,7 @@ from app.tasks.edges import recalculate_edges_task
 from app.services.decision_logger import DecisionLogger
 from app.services.predict_features import build_predict_features
 from app.services.bet_explanation import generate_bet_explanation
+from app.services.deepseek_insights import generate_network_explanation
 
 logger = logging.getLogger(__name__)
 
@@ -473,6 +474,7 @@ def build_prediction_response(
         vit_score=_vit["vit_score"],
         vit_tier=_vit["vit_tier"],
         vit_components=_vit["vit_components"],
+        bet_explanation=prediction.bet_explanation,
     )
 
 
@@ -838,6 +840,16 @@ async def predict(
             best_bet, top_n=5, min_edge=0.0,
         )
 
+        # --- v7.0.0: Natural language network explanation ---
+        try:
+            bet_explanation = await generate_network_explanation(
+                features,
+                raw_result
+            )
+        except Exception as e:
+            logger.warning("Failed to generate bet explanation: %s", e)
+            bet_explanation = None
+
         # --- Save prediction ---
         prediction = Prediction(
             request_hash=idempotency_key,
@@ -861,6 +873,7 @@ async def predict(
             # v4.6.2 — consensus + alternatives
             model_consensus=model_consensus,
             alternative_bets=alternative_bets,
+            bet_explanation=bet_explanation,
             consensus_prob=consensus_prob,
             final_ev=best_bet.get("edge", 0),
             recommended_stake=recommended_stake,
@@ -1013,7 +1026,7 @@ async def predict(
                 # otherwise compute from the same probabilities so the alert
                 # always shows a value when there are real probs.
                 risk_value = float(
-                    pred_data.get("risk_score")
+                    pred_data.get("risk_score") or 0.0
                     if isinstance(pred_data, dict) else 0.0
                 ) or 0.0
                 if risk_value <= 0 and (home_prob + draw_prob + away_prob) > 0:

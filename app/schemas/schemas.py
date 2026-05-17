@@ -113,6 +113,7 @@ class PredictionResponse(BaseModel):
     calibration_note: Optional[str] = None
 
     # v6.0.0 — VIT (Value Intelligence Trust) composite score
+    bet_explanation: Optional[str] = None
     vit_score: Optional[float] = None      # 0–100 composite
     vit_tier: Optional[str] = None         # ELITE | STRONG | SOLID | WATCHLIST | SKIP
     vit_components: Optional[Dict[str, float]] = None  # {value, intelligence, trust}
@@ -146,6 +147,7 @@ class HealthResponse(BaseModel):
     agents: Optional[Dict[str, Any]] = None
     data: Optional[Dict[str, Any]] = None
     ai_providers: Optional[Dict[str, str]] = None
+    schema_drift: Optional[Dict[str, Any]] = None
 
 
 class HistoryResponse(BaseModel):
