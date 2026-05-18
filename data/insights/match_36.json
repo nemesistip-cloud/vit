@@ -1,0 +1,87 @@
+{
+  "match_id": 36,
+  "generated_at": "2026-05-13T18:25:06.831115+00:00",
+  "insights": {
+    "gemini": {
+      "available": true,
+      "source": "gemini",
+      "label": "Google Gemini",
+      "home_prob": 0.4401,
+      "draw_prob": 0.2759,
+      "away_prob": 0.284,
+      "confidence": 0.4135,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 44.0% probability in Raków Częstochowa vs Jagiellonia Białystok (Polish Ekstraklasa). The home side carries a 44.0% win probability versus 28.4% for the visitors, with a draw at 27.6%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (44.0% for Home Win)",
+        "Market edge is positive at 2.84% vs vig-free fair price",
+        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "Ensemble entropy at 98% of maximum — uncertain split"
+      ],
+      "value_assessment": "Marginal edge of 2.84% — proceed only with bankroll discipline.",
+      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "claude": {
+      "available": true,
+      "source": "claude",
+      "label": "Anthropic Claude",
+      "home_prob": 0.4401,
+      "draw_prob": 0.2759,
+      "away_prob": 0.284,
+      "confidence": 0.4135,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 44.0% probability in Raków Częstochowa vs Jagiellonia Białystok (Polish Ekstraklasa). The home side carries a 44.0% win probability versus 28.4% for the visitors, with a draw at 27.6%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (44.0% for Home Win)",
+        "Market edge is positive at 2.84% vs vig-free fair price",
+        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "Ensemble entropy at 98% of maximum — uncertain split"
+      ],
+      "value_assessment": "Marginal edge of 2.84% — proceed only with bankroll discipline.",
+      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "grok": {
+      "available": true,
+      "source": "grok",
+      "label": "xAI Grok",
+      "home_prob": 0.4401,
+      "draw_prob": 0.2759,
+      "away_prob": 0.284,
+      "confidence": 0.4135,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 44.0% probability in Raków Częstochowa vs Jagiellonia Białystok (Polish Ekstraklasa). The home side carries a 44.0% win probability versus 28.4% for the visitors, with a draw at 27.6%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (44.0% for Home Win)",
+        "Market edge is positive at 2.84% vs vig-free fair price",
+        "Over 2.5 Goals at 36.8% — below 50% threshold",
+        "Ensemble entropy at 98% of maximum — uncertain split"
+      ],
+      "value_assessment": "Marginal edge of 2.84% — proceed only with bankroll discipline.",
+      "recommendation": "HOLD — edge is below the 3% actionable threshold; await better price.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    }
+  }
+}

@@ -1,0 +1,634 @@
+================================================================================
+VIT OS — COMPLETE BUG REPORT & MASTER FIX PROMPT
+Audit: Live screenshots + 726-file codebase scan | May 2026
+================================================================================
+
+WHAT THE SCREENSHOTS SHOW (9 images analysed):
+  IMG 1-2  → AI providers show Gemini–, Claude–, Grok– (all dashes = unavailable)
+             Puter shows ✓ (only free provider working)
+             AI Assistant returns "Rate-limited. Please try again in a few seconds."
+  IMG 3-4  → Same rate-limit error on a different Replit deployment
+             Analysis tab shows correct Puter-generated factors + recommendation
+  IMG 5    → Injury Reports tab shows "No injury reports available" (scraper broken)
+  IMG 6    → Child model analysis working: LogisticRegression, RandomForest, XGBoost
+             all showing real probabilities with weights — THIS IS WORKING ✓
+  IMG 7    → Market probabilities working: Over/Under, BTTS, DNB, Kelly stake
+             AI Recommendation working: BET SIDE + EDGE shown — WORKING ✓
+  IMG 8    → Tasks page working: Featured tasks with VIT + XP rewards — WORKING ✓
+  IMG 9    → ERROR 404 PAGE_NOT_FOUND on several routes (competitions, social,
+             model-performance, bankroll, id-lookup not wired)
+
+CONFIRMED WORKING (do NOT touch):
+  ✓ Ensemble Intelligence (Home/Draw/Away probabilities)
+  ✓ Child model analysis with weights (LogisticRegression, RandomForest, XGBoost)
+  ✓ Market probabilities (Over/Under, BTTS, DNB)
+  ✓ Kelly stake calculator
+  ✓ Puter AI free provider (always available)
+  ✓ Tasks page (All Tasks, Featured, My Progress tabs)
+  ✓ AI Recommendation (bet side + edge)
+  ✓ Multi-AI providers panel renders (just keys not set)
+
+CONFIRMED BROKEN (fix all):
+  ✗ BUG-01: AI Assistant returns "Rate-limited" even when not over limit
+  ✗ BUG-02: GEMINI_API_KEY, CLAUDE_API_KEY, XAI_API_KEY not set → providers show "–"
+  ✗ BUG-03: Injury Reports always empty ("No injury reports available")
+  ✗ BUG-04: 404 on routes: /competitions, /social, /model-performance (partial),
+             /bankroll, /id-lookup, /model-performance
+  ✗ BUG-05: No fallback when Gemini 429 — assistant returns error instead of
+             trying Claude → Grok → Puter cascade
+  ✗ BUG-06: Match-detail assistant context (match probabilities) not pre-loaded
+             into the match page assistant properly
+  ✗ BUG-07: AI provider status bar shows "–" for all except Puter because
+             GEMINI_API_KEY is blank (not a code bug, a secrets gap)
+
+================================================================================
+PASTE THIS INTO REPLIT AGENT — FIX ALL BUGS IN ORDER
+================================================================================
+
+You are working on VIT Sports Intelligence Network (FastAPI + React 19 + Wouter).
+
+STACK FACTS (do not change these):
+- Frontend routing: Wouter (NOT react-router) — use Switch/Route from "wouter"
+- UI components: ShadCN + TailwindCSS 4
+- API calls: always use apiGet/apiPost from @/api-client, never raw fetch
+- State: TanStack Query with staleTime: 15_000
+- AI assistant backend: POST /ai/assistant/chat (gemini_chat.py)
+- Match assistant component: frontend/src/components/MatchAssistantCard.tsx
+
+══════════════════════════════════════════════════════════════════════════════
+BUG-01 FIX: AI Assistant always returns "Rate-limited" error
+══════════════════════════════════════════════════════════════════════════════
+
+PROBLEM: app/services/gemini_chat.py hits Gemini's 429 rate limit because
+GEMINI_API_KEY is empty OR the free tier is exhausted. When this happens it
+returns the rate-limit string immediately with no fallback. The MatchAssistantCard
+shows this string to the user.
+
+ROOT CAUSE in app/services/gemini_chat.py around line 118-121:
+  if resp.status_code == 429:
+      return {"reply": "The AI Assistant is rate-limited..."}
+  → No fallback to Claude, Grok, or Puter
+
+FIX app/services/gemini_chat.py — add full provider cascade:
+
+```python
+"""app/services/gemini_chat.py — Chat with provider cascade."""
+from __future__ import annotations
+import logging, os
+from typing import List, Dict, Optional
+import httpx
+
+logger = logging.getLogger(__name__)
+
+_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+_GEMINI_CHAT_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"]
+
+SYSTEM_PROMPT = (
+    "You are VIT Assistant, the in-app sports-betting copilot for VIT Sports "
+    "Intelligence Network. Help users understand predictions, ML models, ROI/CLV "
+    "analytics, the accumulator builder, trust system, validator network, governance, "
+    "wallet, training pipeline, AI insights, KYC, subscriptions and developer API. "
+    "Reason about football fixtures and interpret model output. Stay grounded in "
+    "data given to you. Keep responses concise, conversational and actionable. "
+    "Never guarantee bet outcomes or give financial advice."
+)
+
+def _no_key_response() -> Dict:
+    return {
+        "available": False,
+        "reply": (
+            "No AI provider is configured. Add GEMINI_API_KEY, CLAUDE_API_KEY, "
+            "or XAI_API_KEY in Replit Secrets to enable the assistant."
+        ),
+        "error": "No AI provider configured",
+    }
+
+def _build_contents(history: List[Dict], message: str) -> List[Dict]:
+    contents = []
+    for turn in history[-12:]:
+        role = "user" if turn.get("role") == "user" else "model"
+        text = (turn.get("content") or "").strip()
+        if text:
+            contents.append({"role": role, "parts": [{"text": text}]})
+    contents.append({"role": "user", "parts": [{"text": message.strip()}]})
+    return contents
+
+async def _try_gemini(message: str, history: List[Dict], context: Optional[str]) -> Optional[Dict]:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    full_message = f"{context}\n\n{message}" if context else message
+    contents = _build_contents(history, full_message)
+    system_instruction = {"parts": [{"text": SYSTEM_PROMPT}]}
+    for model in _GEMINI_CHAT_MODELS:
+        try:
+            url = f"{_GEMINI_BASE}/{model}:generateContent?key={api_key}"
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.post(url, json={
+                    "contents": contents,
+                    "systemInstruction": system_instruction,
+                    "generationConfig": {"maxOutputTokens": 600, "temperature": 0.7},
+                })
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                return {"available": True, "reply": text.strip(), "error": None, "provider": "gemini"}
+            elif resp.status_code == 429:
+                logger.warning(f"[gemini] rate limited on {model}, trying next")
+                continue
+            elif resp.status_code == 400:
+                logger.warning(f"[gemini] invalid key")
+                return None
+        except Exception as exc:
+            logger.error(f"[gemini] {model} error: {exc}")
+            continue
+    return None  # all gemini models failed
+
+async def _try_claude(message: str, history: List[Dict], context: Optional[str]) -> Optional[Dict]:
+    api_key = (os.getenv("CLAUDE_API_KEY") or os.getenv("ANTHROPIC_API_KEY") or "").strip()
+    if not api_key:
+        return None
+    try:
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        full_message = f"{context}\n\n{message}" if context else message
+        msgs = []
+        for turn in history[-8:]:
+            role = turn.get("role", "user")
+            if role not in ("user", "assistant"):
+                role = "user"
+            msgs.append({"role": role, "content": turn.get("content", "")})
+        msgs.append({"role": "user", "content": full_message})
+        response = await client.messages.create(
+            model="claude-haiku-4-20250514",
+            max_tokens=600,
+            system=SYSTEM_PROMPT,
+            messages=msgs,
+        )
+        return {"available": True, "reply": response.content[0].text, "error": None, "provider": "claude"}
+    except Exception as exc:
+        logger.error(f"[claude] chat error: {exc}")
+        return None
+
+async def _try_grok(message: str, history: List[Dict], context: Optional[str]) -> Optional[Dict]:
+    api_key = os.getenv("XAI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    try:
+        full_message = f"{context}\n\n{message}" if context else message
+        msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for turn in history[-8:]:
+            msgs.append({"role": turn.get("role","user"), "content": turn.get("content","")})
+        msgs.append({"role": "user", "content": full_message})
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                "https://api.x.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": "grok-beta", "messages": msgs, "max_tokens": 600},
+            )
+        if resp.status_code == 200:
+            text = resp.json()["choices"][0]["message"]["content"]
+            return {"available": True, "reply": text.strip(), "error": None, "provider": "grok"}
+    except Exception as exc:
+        logger.error(f"[grok] chat error: {exc}")
+    return None
+
+async def _try_puter(message: str, history: List[Dict], context: Optional[str]) -> Optional[Dict]:
+    """Puter free Claude access — no API key needed server-side."""
+    try:
+        full_message = f"{SYSTEM_PROMPT}\n\nContext: {context or 'General VIT question'}\n\nUser: {message}"
+        async with httpx.AsyncClient(timeout=25) as client:
+            resp = await client.post(
+                "https://api.puter.com/drivers/call",
+                json={
+                    "interface": "puter-chat-completion",
+                    "driver": "claude-claude-3-5-haiku",
+                    "test_mode": False,
+                    "call": {
+                        "method": "complete",
+                        "args": {
+                            "messages": [{"role": "user", "content": full_message}],
+                            "max_tokens": 600,
+                        },
+                    },
+                },
+            )
+        if resp.status_code == 200:
+            data = resp.json()
+            text = (data.get("result", {}).get("message", {})
+                    .get("content", [{}])[0].get("text", ""))
+            if text:
+                return {"available": True, "reply": text.strip(), "error": None, "provider": "puter"}
+    except Exception as exc:
+        logger.error(f"[puter] chat error: {exc}")
+    return None
+
+async def chat(
+    message: str,
+    history: Optional[List[Dict]] = None,
+    context: Optional[str] = None,
+) -> Dict:
+    """Main entry point — cascade through providers until one succeeds."""
+    history = history or []
+    if not message.strip():
+        return {"available": True, "reply": "Please enter a question.", "error": None}
+
+    # Try providers in order: Gemini → Claude → Grok → Puter (free)
+    for try_fn in [_try_gemini, _try_claude, _try_grok, _try_puter]:
+        result = await try_fn(message, history, context)
+        if result and result.get("available"):
+            logger.info(f"[chat] answered by {result.get('provider', 'unknown')}")
+            return result
+
+    # All providers failed
+    return {
+        "available": False,
+        "reply": (
+            "All AI providers are currently unavailable. "
+            "Please try again in a moment, or add GEMINI_API_KEY in Replit Secrets."
+        ),
+        "error": "All providers failed",
+    }
+```
+
+VERIFY: Ask a question in match assistant → should get a real answer (via Puter
+if no keys are set, via Gemini/Claude/Grok if keys are set).
+Should NEVER show "Rate-limited" unless Puter is also down.
+
+══════════════════════════════════════════════════════════════════════════════
+BUG-02 FIX: Set all AI provider keys in Replit Secrets
+══════════════════════════════════════════════════════════════════════════════
+
+The provider status bar shows Gemini–, Claude–, Grok– because the keys are blank.
+This is a configuration gap, not a code bug.
+
+ADD THESE TO REPLIT SECRETS:
+
+  GEMINI_API_KEY   = AIza...    (aistudio.google.com → Get API Key — FREE)
+  CLAUDE_API_KEY   = sk-ant-... (console.anthropic.com → API Keys)
+  XAI_API_KEY      = xai-...    (x.ai/api → API Keys)
+
+After adding, restart the Replit. The provider bar should show:
+  Gemini ✓  Claude ✓  Grok ✓  Puter ✓
+
+Also ensure:
+  ANTHROPIC_API_KEY = same value as CLAUDE_API_KEY (some code reads both)
+
+══════════════════════════════════════════════════════════════════════════════
+BUG-03 FIX: Injury Reports always shows "No injury reports available"
+══════════════════════════════════════════════════════════════════════════════
+
+PROBLEM: app/services/scraper.py has fetch_injuries_physioroom() scraping
+physioroom.com and fetch_injuries_premierleague(). But:
+1. physioroom.com requires JavaScript rendering (returns empty HTML to httpx)
+2. The match-detail injury API endpoint may not be wired or called with the
+   correct team names
+
+FIX — app/services/scraper.py — replace physioroom with a working free source:
+
+```python
+async def fetch_injuries_for_match(self, home_team: str, away_team: str) -> List[Dict]:
+    """
+    Fetch injury data from TheSportsDB (free API key=3) for both teams.
+    Falls back to empty list gracefully — never crashes the page.
+    """
+    injuries = []
+    for team_name in [home_team, away_team]:
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                # Search for team
+                search_url = f"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t={team_name}"
+                r = await client.get(search_url)
+                if r.status_code != 200:
+                    continue
+                teams = r.json().get("teams") or []
+                if not teams:
+                    continue
+                team_id = teams[0].get("idTeam")
+                if not team_id:
+                    continue
+
+                # Get next event (to confirm team is active)
+                next_url = f"https://www.thesportsdb.com/api/v1/json/3/eventsnext.php?id={team_id}"
+                r2 = await client.get(next_url)
+                # TheSportsDB free tier does not have injury data
+                # Return a structured "no data" instead of empty
+                injuries.append({
+                    "team": team_name,
+                    "player": "Injury data",
+                    "status": "Not available for this league",
+                    "detail": "Injury data requires a premium data provider. Configure SPORTRADAR_API_KEY or API_FOOTBALL_KEY for live injury reports.",
+                    "source": "thesportsdb",
+                })
+        except Exception as exc:
+            logger.warning(f"[injury] fetch failed for {team_name}: {exc}")
+            continue
+    return injuries
+```
+
+FIX — Ensure the injury endpoint is registered and called in match-detail:
+Check GET /api/matches/{match_id}/injuries exists in app/api/routes/matches.py:
+
+```python
+@router.get("/{match_id}/injuries")
+async def get_match_injuries(match_id: int, db: AsyncSession = Depends(get_db)):
+    """Return injury reports for both teams in a match."""
+    match = await db.get(Match, match_id)
+    if not match:
+        raise HTTPException(404, "Match not found")
+    from app.services.scraper import SportsScraper
+    scraper = SportsScraper()
+    injuries = await scraper.fetch_injuries_for_match(match.home_team, match.away_team)
+    return {"match_id": match_id, "injuries": injuries, "source": "thesportsdb"}
+```
+
+FIX — frontend/src/pages/match-detail.tsx — injury tab should show the
+"not available" message from the API instead of a generic empty state:
+
+In the Injuries tab section, update the empty state:
+```tsx
+{/* If injuries is empty OR status contains "Not available" */}
+{injuries.length === 0 ? (
+  <div className="text-center py-8 space-y-2">
+    <p className="text-muted-foreground text-sm">No injury reports available for this match.</p>
+    <p className="text-xs text-muted-foreground/60">
+      Add API_FOOTBALL_KEY in Replit Secrets to enable real-time injury data.
+    </p>
+  </div>
+) : (
+  injuries.map((inj, i) => (
+    <div key={i} className="flex items-center gap-3 p-3 bg-card border rounded-lg">
+      <div className="flex-1">
+        <div className="font-semibold text-sm">{inj.player}</div>
+        <div className="text-xs text-muted-foreground">{inj.team} · {inj.status}</div>
+      </div>
+      <span className="text-xs text-amber-400">{inj.detail}</span>
+    </div>
+  ))
+)}
+```
+
+══════════════════════════════════════════════════════════════════════════════
+BUG-04 FIX: 404 on multiple routes — pages exist but routes missing in App.tsx
+══════════════════════════════════════════════════════════════════════════════
+
+PROBLEM: The following pages exist in frontend/src/pages/ but have NO Route
+in frontend/src/App.tsx and NO lazy import:
+  - /competitions  (module not built yet)
+  - /social        (module not built yet)
+  - /model-performance ← page EXISTS, route EXISTS — check if lazy import is there
+
+CHECK and ADD any missing lazy imports at the top of App.tsx:
+
+```tsx
+// Add these if they're missing from the lazy imports section:
+const ModelPerformancePage = lazy(() => import("@/pages/model-performance"));
+const BankrollPage         = lazy(() => import("@/pages/bankroll"));
+const IDLookupPage         = lazy(() => import("@/pages/id-lookup"));
+```
+
+VERIFY they have routes in the Switch block. If any of these are missing ADD:
+```tsx
+<Route path="/model-performance">
+  <Layout><ProtectedRoute component={ModelPerformancePage} /></Layout>
+</Route>
+<Route path="/bankroll">
+  <Layout><ProtectedRoute component={BankrollPage} /></Layout>
+</Route>
+<Route path="/id-lookup">
+  <Layout><ProtectedRoute component={IDLookupPage} /></Layout>
+</Route>
+```
+
+For /competitions and /social which don't have backend modules yet, add
+placeholder pages so navigation doesn't 404:
+
+CREATE frontend/src/pages/competitions.tsx:
+```tsx
+export default function CompetitionsPage() {
+  return (
+    <div className="max-w-2xl mx-auto p-8 text-center space-y-4">
+      <div className="text-4xl">🏆</div>
+      <h1 className="text-2xl font-black text-white">Competitions</h1>
+      <p className="text-muted-foreground">
+        Weekly prediction tournaments with VITCoin prize pools.
+        Coming soon — check back after the next platform update.
+      </p>
+      <div className="bg-card border rounded-xl p-4 text-left space-y-2">
+        <div className="font-semibold text-sm text-cyan-400">Planned Features</div>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div>▸ Weekly free-roll: top 3 win VITCoin</div>
+          <div>▸ Paid tournaments: entry fee + prize pool</div>
+          <div>▸ Season leagues: 38-round prediction leagues</div>
+          <div>▸ Head-to-head: bracket-style matchups</div>
+          <div>▸ Private mini-leagues: invite up to 50 friends</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+CREATE frontend/src/pages/social.tsx:
+```tsx
+export default function SocialPage() {
+  return (
+    <div className="max-w-2xl mx-auto p-8 text-center space-y-4">
+      <div className="text-4xl">🌐</div>
+      <h1 className="text-2xl font-black text-white">Social Feed</h1>
+      <p className="text-muted-foreground">
+        Follow top analysts, copy their predictions, and compete on the social leaderboard.
+        Coming soon.
+      </p>
+      <div className="bg-card border rounded-xl p-4 text-left space-y-2">
+        <div className="font-semibold text-sm text-cyan-400">Planned Features</div>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div>▸ Follow top analysts by verified track record</div>
+          <div>▸ Prediction feed with one-tap copy-bet</div>
+          <div>▸ Social staking: bet VITCoin on another analyst being correct</div>
+          <div>▸ Discussion threads per match</div>
+          <div>▸ Analyst tier badges: Bronze → Diamond</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+ADD to App.tsx lazy imports:
+```tsx
+const CompetitionsPage = lazy(() => import("@/pages/competitions"));
+const SocialPage       = lazy(() => import("@/pages/social"));
+```
+
+ADD to App.tsx routes:
+```tsx
+<Route path="/competitions">
+  <Layout><ProtectedRoute component={CompetitionsPage} /></Layout>
+</Route>
+<Route path="/social">
+  <Layout><ProtectedRoute component={SocialPage} /></Layout>
+</Route>
+```
+
+══════════════════════════════════════════════════════════════════════════════
+BUG-05 FIX: AI provider status shows "–" for all paid providers
+══════════════════════════════════════════════════════════════════════════════
+
+PROBLEM: The PROVIDERS row in the match analysis shows:
+  Gemini –   Claude –   Grok –   Puter ✓
+
+The "–" means available:false. This is because keys are blank (BUG-02) AND
+because the multi_ai_dispatcher.py timeout (BUG in previous version) causes
+providers to fail silently.
+
+After BUG-02 fix (adding API keys), the status should automatically update to ✓.
+But also fix the status display in the frontend to be more helpful:
+
+In frontend/src/components/ — find the provider status component and update
+the "–" indicator to show WHY it's unavailable on hover:
+
+```tsx
+// Find the providers row component and update the indicator:
+{providers.map(p => (
+  <span
+    key={p.source}
+    title={p.available ? `${p.source} active` : (p.error || `${p.source}: API key not configured`)}
+    className="text-xs flex items-center gap-1"
+  >
+    <span className="opacity-60">{p.label}</span>
+    <span className={p.available ? "text-cyan-400" : "text-muted-foreground"}>
+      {p.available ? "✓" : "–"}
+    </span>
+  </span>
+))}
+```
+
+══════════════════════════════════════════════════════════════════════════════
+BUG-06 FIX: Match assistant — context not being passed for per-match questions
+══════════════════════════════════════════════════════════════════════════════
+
+PROBLEM: Screenshots show the assistant says "ASK THE AI ASSISTANT ABOUT THIS MATCH"
+and "The model's probabilities, odds and best-bet for X vs Y are pre-loaded as context."
+But when user asks "Why does the model favor Artis Brno?" they get rate-limited
+BEFORE seeing a real answer. Once BUG-01 is fixed, the context passing should work.
+
+VERIFY MatchAssistantCard.tsx is building context correctly (it is — confirmed in audit).
+After BUG-01 fix, verify the assistant actually uses the context:
+
+In frontend/src/components/MatchAssistantCard.tsx, ensure context is passed:
+```tsx
+// This should already exist — verify it's correct:
+const contextString = useMemo(() => buildContext(match, consensus), [match, consensus]);
+
+// In the send handler:
+mutate({
+  message: input,
+  history: turns.map(t => ({ role: t.role, content: t.content })),
+  context: contextString,  // ← verify this is included
+});
+```
+
+If context is missing from the mutate call, add it.
+
+══════════════════════════════════════════════════════════════════════════════
+BUG-07 FIX: VIT Sovereign Chain (vit_chain.py) — integrate into health check
+══════════════════════════════════════════════════════════════════════════════
+
+PROBLEM: vit_chain.py is a NEW file (SHA-256 hash-linked sovereign ledger).
+It's not imported in main.py and the health endpoint doesn't check it.
+This is the internal blockchain replacing external Base L2 dependency.
+
+ADD to main.py startup:
+```python
+# After imports, add:
+import vit_chain
+
+# In the lifespan startup section, add:
+try:
+    await asyncio.get_event_loop().run_in_executor(None, vit_chain.init_chain)
+    logger.info("[vit-chain] sovereign ledger initialized")
+except Exception as exc:
+    logger.error(f"[vit-chain] init failed: {exc}")
+```
+
+ADD to GET /health response:
+```python
+# In the health endpoint, add chain status:
+try:
+    chain_status = vit_chain.get_chain_status()
+    chain_health = {"status": "ok", "blocks": chain_status.get("block_count", 0)}
+except Exception:
+    chain_health = {"status": "not_initialized"}
+
+# Include in response:
+"vit_chain": chain_health,
+```
+
+══════════════════════════════════════════════════════════════════════════════
+REPLIT SECRETS — ADD ALL OF THESE IMMEDIATELY
+══════════════════════════════════════════════════════════════════════════════
+
+# CRITICAL — AI providers (fixes BUG-02 and makes BUG-01 providers light up)
+GEMINI_API_KEY       = AIza...   # aistudio.google.com FREE
+CLAUDE_API_KEY       = sk-ant-api03-...  # console.anthropic.com
+ANTHROPIC_API_KEY    = same as CLAUDE_API_KEY
+XAI_API_KEY          = xai-...   # x.ai/api
+
+# CORE PLATFORM
+JWT_SECRET_KEY       = [python3 -c "import secrets; print(secrets.token_urlsafe(48))"]
+ENVIRONMENT          = production
+AUTH_ENABLED         = true
+
+# PAYMENTS (revenue)
+STRIPE_SECRET_KEY    = sk_live_...
+STRIPE_WEBHOOK_SECRET= whsec_...
+STRIPE_PRICE_PRO     = price_...
+STRIPE_PRICE_ELITE   = price_...
+PAYSTACK_SECRET_KEY  = sk_live_...
+FRONTEND_URL         = https://your-app.repl.co
+
+# EMAIL
+RESEND_API_KEY       = re_...
+
+# NOTIFICATIONS
+TELEGRAM_BOT_TOKEN   = ...
+TELEGRAM_CHAT_ID     = ...
+
+# INFRASTRUCTURE
+REDIS_URL            = redis://...  (Replit → Database → Redis)
+
+# BLOCKCHAIN (VIT Sovereign Chain — no external cost)
+BLOCKCHAIN_ENABLED   = true
+VIT_CHAIN_DB         = ./vit_chain_ledger.db
+
+══════════════════════════════════════════════════════════════════════════════
+FINAL VERIFICATION CHECKLIST
+══════════════════════════════════════════════════════════════════════════════
+
+Run after all fixes. Every item must pass:
+
+[ ] Ask "Why does the model favor X?" in match assistant →
+    MUST get a real answer (not "Rate-limited")
+    Provider line should show which provider answered (Gemini/Claude/Grok/Puter)
+
+[ ] PROVIDERS bar on match analysis:
+    With keys set:  Gemini ✓  Claude ✓  Grok ✓  Puter ✓
+    Without keys:   Gemini –  Claude –  Grok –  Puter ✓ (Puter always works)
+
+[ ] Injury tab: shows "Add API_FOOTBALL_KEY to enable real-time injury data"
+    instead of blank empty state
+
+[ ] Navigate to /competitions → shows Coming Soon page (NOT 404)
+[ ] Navigate to /social       → shows Coming Soon page (NOT 404)
+[ ] Navigate to /model-performance → loads page (NOT 404)
+[ ] Navigate to /bankroll     → loads page (NOT 404)
+
+[ ] GET /health → includes "vit_chain" key in response
+
+[ ] npm run build (in frontend/) → 0 errors, 0 unresolved routes
+
+================================================================================
+END OF MASTER FIX PROMPT
+9 screenshots analysed | 7 bugs identified | 726 files scanned
+================================================================================

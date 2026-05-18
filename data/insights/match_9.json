@@ -1,0 +1,118 @@
+{
+  "match_id": 9,
+  "generated_at": "2026-05-14T21:00:16.976812+00:00",
+  "insights": {
+    "deterministic": {
+      "available": true,
+      "source": "deterministic",
+      "label": "VIT Statistical Engine",
+      "home_prob": 0.4581,
+      "draw_prob": 0.257,
+      "away_prob": 0.2849,
+      "confidence": 0.4186,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 45.8% probability in Aston Villa vs Liverpool (Premier League). The home side carries a 45.8% win probability versus 28.5% for the visitors, with a draw at 25.7%. Goals market signals Lean Under (42% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (45.8% for Home Win)",
+        "Market edge is positive at 4.84% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
+        "Ensemble entropy at 97% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 4.84% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 4.84% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "gemini": {
+      "available": true,
+      "source": "gemini",
+      "label": "Google Gemini",
+      "home_prob": 0.477,
+      "draw_prob": 0.252,
+      "away_prob": 0.2711,
+      "confidence": 0.4242,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 47.7% probability in Manchester City vs Crystal Palace (Premier League). The home side carries a 47.7% win probability versus 27.1% for the visitors, with a draw at 25.2%. Goals market signals Lean Under (42% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (47.7% for Home Win)",
+        "Market edge is positive at 6.94% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
+        "Ensemble entropy at 96% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 6.94% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 6.94% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "claude": {
+      "available": true,
+      "source": "claude",
+      "label": "Anthropic Claude",
+      "home_prob": 0.477,
+      "draw_prob": 0.252,
+      "away_prob": 0.2711,
+      "confidence": 0.4242,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 47.7% probability in Manchester City vs Crystal Palace (Premier League). The home side carries a 47.7% win probability versus 27.1% for the visitors, with a draw at 25.2%. Goals market signals Lean Under (42% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (47.7% for Home Win)",
+        "Market edge is positive at 6.94% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
+        "Ensemble entropy at 96% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 6.94% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 6.94% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "grok": {
+      "available": true,
+      "source": "grok",
+      "label": "xAI Grok",
+      "home_prob": 0.477,
+      "draw_prob": 0.252,
+      "away_prob": 0.2711,
+      "confidence": 0.4242,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 47.7% probability in Manchester City vs Crystal Palace (Premier League). The home side carries a 47.7% win probability versus 27.1% for the visitors, with a draw at 25.2%. Goals market signals Lean Under (42% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (47.7% for Home Win)",
+        "Market edge is positive at 6.94% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
+        "Ensemble entropy at 96% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 6.94% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 6.94% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    }
+  }
+}

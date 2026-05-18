@@ -1,0 +1,90 @@
+{
+  "match_id": 13,
+  "generated_at": "2026-05-13T14:53:49.523604+00:00",
+  "insights": {
+    "gemini": {
+      "available": true,
+      "source": "gemini",
+      "label": "Google Gemini",
+      "home_prob": 0.4636,
+      "draw_prob": 0.2517,
+      "away_prob": 0.2847,
+      "confidence": 0.4204,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 46.4% probability in Brest vs Strasbourg (Ligue 1). The home side carries a 46.4% win probability versus 28.5% for the visitors, with a draw at 25.2%. Goals market signals Lean Under (42% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (46.4% for Home Win)",
+        "Market edge is positive at 5.46% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
+        "Ensemble entropy at 97% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 5.46% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 5.46% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "claude": {
+      "available": true,
+      "source": "claude",
+      "label": "Anthropic Claude",
+      "home_prob": 0.4636,
+      "draw_prob": 0.2517,
+      "away_prob": 0.2847,
+      "confidence": 0.4204,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 46.4% probability in Brest vs Strasbourg (Ligue 1). The home side carries a 46.4% win probability versus 28.5% for the visitors, with a draw at 25.2%. Goals market signals Lean Under (42% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (46.4% for Home Win)",
+        "Market edge is positive at 5.46% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
+        "Ensemble entropy at 97% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 5.46% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 5.46% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    },
+    "grok": {
+      "available": true,
+      "source": "grok",
+      "label": "xAI Grok",
+      "home_prob": 0.4636,
+      "draw_prob": 0.2517,
+      "away_prob": 0.2847,
+      "confidence": 0.4204,
+      "summary": "The 13-model ensemble assigns Home Win a marginal 46.4% probability in Brest vs Strasbourg (Ligue 1). The home side carries a 46.4% win probability versus 28.5% for the visitors, with a draw at 25.2%. Goals market signals Lean Under (42% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (46.4% for Home Win)",
+        "Market edge is positive at 5.46% vs vig-free fair price",
+        "Over 2.5 Goals at 41.9% — below 50% threshold",
+        "Ensemble entropy at 97% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 5.46% at 2.30 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 5.46% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    }
+  }
+}
