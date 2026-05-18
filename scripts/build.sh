@@ -2,9 +2,29 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Ensure node and npm are available
+if ! command -v node &> /dev/null; then
+    echo "[build] Error: node is not installed." >&2
+    exit 1
+fi
+
+if ! command -v npm &> /dev/null; then
+    echo "[build] Error: npm is not installed." >&2
+    exit 1
+fi
+
+echo "[build] Node version: $(node -v)"
+echo "[build] NPM version: $(npm -v)"
+
 echo "[build] Installing frontend dependencies..."
 cd frontend
-npm install --prefer-offline --silent 2>/dev/null || npm install
+# Try npm ci for faster, more reliable builds if package-lock.json exists
+if [ -f "package-lock.json" ]; then
+    npm ci --prefer-offline --no-audit --no-fund
+else
+    npm install --prefer-offline --no-audit --no-fund
+fi
+
 echo "[build] Building frontend for production..."
 npm run build
 cd ..

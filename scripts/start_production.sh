@@ -21,6 +21,12 @@ export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-true}"
 echo "[production] VIT Sports Intelligence Network v${APP_VERSION}"
 echo "[production] Environment: ${ENVIRONMENT} | Port: ${PORT}"
 
+if [ -d "frontend/dist" ]; then
+    echo "[production] Frontend assets found in frontend/dist"
+else
+    echo "[production] WARNING: frontend/dist not found. Frontend may not be served."
+fi
+
 echo "[production] Running database schema setup..."
 python - <<'PYEOF'
 import asyncio, os
@@ -81,5 +87,7 @@ exec python -m uvicorn main:app \
     --host 0.0.0.0 \
     --port "${PORT}" \
     --workers 1 \
+    --proxy-headers \
+    --forwarded-allow-ips='*' \
     --timeout-keep-alive 75 \
     --log-level info
