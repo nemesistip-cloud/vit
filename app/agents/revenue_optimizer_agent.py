@@ -36,21 +36,46 @@ async def _gather_revenue_metrics(db) -> dict:
     metrics = {}
 
     try:
-        metrics["active_subs_7d"] = (await db.execute(
+        from app.db.models import UserSubscription as LegacySub
+
+        # Count from wallet-based system
+        wallet_active = (await db.execute(
             select(func.count(WalletUserSubscription.id))
             .where(WalletUserSubscription.created_at >= day7)
         )).scalar() or 0
+
+        # Count from legacy Stripe system
+        legacy_active = (await db.execute(
+            select(func.count(LegacySub.id))
+            .where(LegacySub.created_at >= day7)
+        )).scalar() or 0
+
+        metrics["active_subs_7d"] = wallet_active + legacy_active
     except Exception:
         metrics["active_subs_7d"] = 0
 
     try:
-        metrics["expired_subs_7d"] = (await db.execute(
+        from app.db.models import UserSubscription as LegacySub
+
+        # Count from wallet-based system
+        wallet_expired = (await db.execute(
             select(func.count(WalletUserSubscription.id))
             .where(
                 WalletUserSubscription.expires_at >= day7,
                 WalletUserSubscription.expires_at <= now,
             )
         )).scalar() or 0
+
+        # Count from legacy Stripe system
+        legacy_expired = (await db.execute(
+            select(func.count(LegacySub.id))
+            .where(
+                LegacySub.current_period_end >= day7,
+                LegacySub.current_period_end <= now,
+            )
+        )).scalar() or 0
+
+        metrics["expired_subs_7d"] = wallet_expired + legacy_expired
     except Exception:
         metrics["expired_subs_7d"] = 0
 

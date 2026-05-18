@@ -467,39 +467,49 @@ async def call_model(
     if listing.creator_id == caller_id:
         raise ValueError("Creators cannot call their own listed models")
 
-    price        = listing.price_per_call
+    # ── Check for first call free (growth incentive) ──────────────────────────
+    prior_calls = (await db.execute(
+        select(func.count(ModelUsageLog.id)).where(ModelUsageLog.caller_id == caller_id)
+    )).scalar() or 0
+
+    is_first_call = (prior_calls == 0)
+    price = Decimal("0") if is_first_call else listing.price_per_call
+
     protocol_cut = (price * PROTOCOL_FEE).quantize(Decimal("0.00000001"))
     creator_cut  = price - protocol_cut
 
-    # ── Debit caller ──────────────────────────────────────────────────────────
-    wallet_svc   = WalletService(db)
-    caller_wallet = await wallet_svc.get_or_create_wallet(caller_id)
-    if caller_wallet.vitcoin_balance < price:
-        raise ValueError(
-            f"Insufficient VITCoin balance. Need {price} VIT, you have {caller_wallet.vitcoin_balance} VIT."
+    # ── Handle Billing ────────────────────────────────────────────────────────
+    wallet_svc = WalletService(db)
+
+    if price > 0:
+        # Debit caller
+        caller_wallet = await wallet_svc.get_or_create_wallet(caller_id)
+        if caller_wallet.vitcoin_balance < price:
+            raise ValueError(
+                f"Insufficient VITCoin balance. Need {price} VIT, you have {caller_wallet.vitcoin_balance} VIT."
+            )
+
+        await wallet_svc.debit(
+            wallet_id=caller_wallet.id,
+            user_id=caller_id,
+            currency=Currency.VITCOIN,
+            amount=price,
+            tx_type="marketplace_call",
+            reference=f"mkt_call_{listing_id}_{uuid.uuid4().hex[:8]}",
+            metadata={"listing_id": listing_id, "listing_name": listing.name},
         )
 
-    await wallet_svc.debit(
-        wallet_id=caller_wallet.id,
-        user_id=caller_id,
-        currency=Currency.VITCOIN,
-        amount=price,
-        tx_type="marketplace_call",
-        reference=f"mkt_call_{listing_id}_{uuid.uuid4().hex[:8]}",
-        metadata={"listing_id": listing_id, "listing_name": listing.name},
-    )
-
-    # ── Credit creator ─────────────────────────────────────────────────────────
-    creator_wallet = await wallet_svc.get_or_create_wallet(listing.creator_id)
-    await wallet_svc.credit(
-        wallet_id=creator_wallet.id,
-        user_id=listing.creator_id,
-        currency=Currency.VITCOIN,
-        amount=creator_cut,
-        tx_type="marketplace_revenue",
-        reference=f"mkt_rev_{listing_id}_{uuid.uuid4().hex[:8]}",
-        metadata={"listing_id": listing_id, "caller_id": caller_id},
-    )
+        # Credit creator
+        creator_wallet = await wallet_svc.get_or_create_wallet(listing.creator_id)
+        await wallet_svc.credit(
+            wallet_id=creator_wallet.id,
+            user_id=listing.creator_id,
+            currency=Currency.VITCOIN,
+            amount=creator_cut,
+            tx_type="marketplace_revenue",
+            reference=f"mkt_rev_{listing_id}_{uuid.uuid4().hex[:8]}",
+            metadata={"listing_id": listing_id, "caller_id": caller_id},
+        )
 
     # ── Update listing stats ───────────────────────────────────────────────────
     listing.usage_count     += 1
