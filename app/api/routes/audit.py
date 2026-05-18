@@ -1,5 +1,5 @@
 # app/api/routes/audit.py
-# VIT Sports Intelligence — Admin Audit Log
+# Value Intelligence Trust (VIT) — Admin Audit Log
 
 import os
 from datetime import datetime, timezone

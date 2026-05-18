@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VIT Sports Intelligence Network — Large Dataset Builder
+Value Intelligence Trust (VIT) — Large Dataset Builder
 Merges all available CSVs into one unified historical_matches.json
 for ensemble model training.
 
@@ -357,7 +357,7 @@ def filter_valid(records: list) -> list:
 
 def build_dataset():
     print("=" * 60)
-    print("VIT Sports — Training Dataset Builder")
+    print("Value Intelligence Trust (VIT) — Training Dataset Builder")
     print("=" * 60)
     all_records = []
 

@@ -47,7 +47,7 @@ export function WelcomeModal({ username, onClose, onStartTour }: WelcomeModalPro
                 key={i}
                 className="absolute w-2 h-2 rounded-full"
                 style={{
-                  background: i % 3 === 0 ? "#00f5ff" : i % 3 === 1 ? "#ffd700" : "#a855f7",
+                  background: i % 3 === 0 ? "#1E6BFF" : i % 3 === 1 ? "#D4AF37" : "#00C896",
                   left: `${Math.random() * 100}%`,
                   top: `${Math.random() * 100}%`,
                   animation: `vit-float 1.2s ease-in-out 3`,

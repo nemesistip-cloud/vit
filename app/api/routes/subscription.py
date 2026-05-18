@@ -1,5 +1,5 @@
 # app/api/routes/subscription.py
-# VIT Sports Intelligence — Subscription Plans & Feature Gating
+# Value Intelligence Trust (VIT) — Subscription Plans & Feature Gating
 
 import hashlib
 import os

@@ -32,10 +32,10 @@ export default function PWAInstallPage() {
     <div className="max-w-md mx-auto px-4 py-12">
       <Card className="bg-card border-border/50 shadow-2xl">
         <CardHeader className="text-center pb-2">
-          <div className="w-16 h-16 bg-cyan-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Smartphone className="w-8 h-8 text-cyan-400" />
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Smartphone className="w-8 h-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Install VIT Sports</CardTitle>
+          <CardTitle className="text-2xl font-bold">Install VIT Network</CardTitle>
           <CardDescription>Get the best experience on your mobile device</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-4 text-center">
@@ -55,12 +55,12 @@ export default function PWAInstallPage() {
           </ul>
 
           {isInstalled ? (
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-              <p className="text-emerald-400 font-medium">App Installed Successfully!</p>
+            <div className="p-4 bg-secondary/10 border border-secondary/20 rounded-xl">
+              <p className="text-secondary font-medium">App Installed Successfully!</p>
             </div>
           ) : deferredPrompt ? (
             <Button
-              className="w-full h-12 bg-cyan-600 hover:bg-cyan-500 text-lg font-bold"
+              className="w-full h-12 vit-glow-cyan text-lg font-bold"
               onClick={handleInstall}
             >
               <Download className="w-5 h-5 mr-2" />

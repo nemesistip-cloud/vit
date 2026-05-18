@@ -491,7 +491,7 @@ export default function LandingPage() {
             <Link href="/contact"><span className="cursor-pointer hover:text-primary transition-colors">Contact</span></Link>
             <Link href="/about"><span className="cursor-pointer hover:text-primary transition-colors">About</span></Link>
           </div>
-          <span>© {new Date().getFullYear()} VIT Network</span>
+          <span>© {new Date().getFullYear()} Value Intelligence Trust (VIT)</span>
         </div>
       </footer>
     </div>

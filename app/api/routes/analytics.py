@@ -1,5 +1,5 @@
 # app/api/routes/analytics.py
-# VIT Sports Intelligence Network — v2.5.0
+# Value Intelligence Trust (VIT) — v2.5.0
 # Analytics Suite: accuracy, ROI, CLV, model contribution, CSV/Excel export
 
 import csv

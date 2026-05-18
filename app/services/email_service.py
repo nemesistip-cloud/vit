@@ -13,9 +13,10 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_FROM = os.getenv("SMTP_FROM", "VIT Network <noreply@vit.network>")
-_APP_NAME = "VIT Sports Intelligence"
-_PRIMARY = "#00e5ff"   # brand cyan
+from app.config import APP_NAME, APP_SHORT_NAME
+_FROM = os.getenv("SMTP_FROM", f"{APP_SHORT_NAME} <noreply@vit.network>")
+_APP_NAME = APP_NAME
+_PRIMARY = "#1E6BFF"   # brand blue
 
 
 # ── HTML template ──────────────────────────────────────────────────────────────
@@ -37,12 +38,12 @@ def _html_wrapper(title: str, body_html: str, footer: str = "") -> str:
 
         <!-- Header -->
         <tr>
-          <td style="background:linear-gradient(135deg,#0d1f2d,#0a1628);padding:28px 32px;text-align:center;border-bottom:1px solid #1e1e2e;">
+          <td style="background:linear-gradient(135deg,#050505,#0a0a0f);padding:28px 32px;text-align:center;border-bottom:1px solid #1e1e2e;">
             <div style="font-size:22px;font-weight:700;color:{_PRIMARY};letter-spacing:1px;font-family:monospace;">
-              VIT_OS
+              {APP_SHORT_NAME}
             </div>
             <div style="font-size:11px;color:#555;margin-top:4px;letter-spacing:2px;text-transform:uppercase;">
-              Sports Intelligence Network
+              Value Intelligence Trust
             </div>
           </td>
         </tr>
@@ -226,9 +227,9 @@ async def send_test_email(to_email: str, username: str) -> bool:
         to_email=to_email,
         username=username,
         ntype="system",
-        title="Test Notification — VIT Network",
+        title=f"Test Notification — {APP_SHORT_NAME}",
         body=(
-            "This is a test email from VIT Sports Intelligence Network. "
+            f"This is a test email from {APP_NAME}. "
             "If you received this, your email notifications are working correctly."
         ),
     )
@@ -254,19 +255,19 @@ async def send_verification_email(
     ttl_hours: int = 24,
 ) -> bool:
     """Send a branded email-verification link."""
-    title = "Verify your VIT Network email"
+    title = f"Verify your {APP_SHORT_NAME} email"
     body_html = f"""
     <p style="margin:0 0 12px;color:#c0c0d8;">Hi {username or 'there'},</p>
     <p style="color:#a0a0b8;font-size:14px;line-height:1.7;margin:0 0 8px;">
       You're almost there! Click the button below to verify your email address
-      and unlock full access to the VIT Sports Intelligence Network.
+      and unlock full access to the {APP_NAME}.
     </p>
     {_cta_button("Verify Email Address", verification_link)}
     <p style="color:#666;font-size:12px;margin:16px 0 0;">
-      This link expires in {ttl_hours} hours. If you didn't create a VIT account, you can safely ignore this email.
+      This link expires in {ttl_hours} hours. If you didn't create a {APP_SHORT_NAME} account, you can safely ignore this email.
     </p>
     """
-    subject = "🔐 Verify your VIT Network email"
+    subject = f"🔐 Verify your {APP_SHORT_NAME} email"
     html = _html_wrapper(title, body_html)
 
     if os.getenv("RESEND_API_KEY"):
@@ -293,11 +294,11 @@ async def send_password_reset_email(
     ttl_hours: int = 2,
 ) -> bool:
     """Send a branded password-reset link."""
-    title = "Reset your VIT Network password"
+    title = f"Reset your {APP_SHORT_NAME} password"
     body_html = f"""
     <p style="margin:0 0 12px;color:#c0c0d8;">Hi {username or 'there'},</p>
     <p style="color:#a0a0b8;font-size:14px;line-height:1.7;margin:0 0 8px;">
-      We received a request to reset the password for your VIT Network account.
+      We received a request to reset the password for your {APP_SHORT_NAME} account.
       Click the button below to choose a new password.
     </p>
     {_cta_button("Reset My Password", reset_link)}
@@ -306,7 +307,7 @@ async def send_password_reset_email(
       no action is needed — your account is still secure.
     </p>
     """
-    subject = "🔑 Reset your VIT Network password"
+    subject = f"🔑 Reset your {APP_SHORT_NAME} password"
     html = _html_wrapper(title, body_html)
 
     if os.getenv("RESEND_API_KEY"):

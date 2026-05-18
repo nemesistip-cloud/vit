@@ -1,21 +1,57 @@
-# VIT Sports Intelligence Network
+# Value Intelligence Trust (VIT)
 
-FastAPI + React football prediction platform with admin-managed API keys, model upload, CLV tracking, bankroll reporting, and Colab training assets.
+To build intelligent systems where value, trust, and merit become programmable.
 
-## Local setup
+VIT is an integrated ecosystem of AI, Blockchain, and autonomous infrastructure designed to coordinate economies more efficiently than corruption, manipulation, or chaos. This repository contains the core platform combining a 13-model ML ensemble, a multi-AI LLM cascade, a sovereign blockchain ledger (VIT-Chain), and a swarm of 22 autonomous agents.
 
-1. Copy `.env.example` to `.env`.
-2. Set `AUTH_ENABLED=true`, `API_KEY`, and `SESSION_SECRET`.
-3. Install backend packages with `pip install -r requirements.txt`.
-4. Run `./scripts/start_backend.sh`.
-5. Run frontend separately with `./scripts/start_frontend.sh`.
+## Design Philosophy
 
-Enter the admin key in the top bar. Use Admin > API Key Management to update Football Data, Odds API, Telegram, and AI provider keys.
+- **Institutional-Grade**: High-fidelity analysis and cryptographic transparency.
+- **Programmable Trust**: Merit-based coordination via decentralized identity (DID).
+- **Neural Connectivity**: Multi-provider AI consensus (DeepSeek, Claude, Grok, Gemini).
+- **Premium Geometric**: A minimal, futurist design language built for precision.
 
-## Colab training
+## Core Layers
 
-Upload `colab/train_real_match_models.py` to Colab, provide `/content/historical_matches.csv` with columns `home_team`, `away_team`, `home_goals`, `away_goals`, run it, then download `/content/vit_training_output/vit_models.zip`. Upload that zip in Admin > Model Weights Upload.
+- **VIT Intelligence**: The AI backbone delivering predictive analytics and tactical insights.
+- **VIT Chain**: A dedicated ledger for verifiable trust and settlement.
+- **VIT Cloud**: Decentralized infrastructure for smart contract execution and storage.
+- **VIT Network**: A swarm of 22 specialized agents governing platform health and performance.
 
-## GitHub readiness
+## Getting Started
 
-Generated files, local secrets, databases, Python caches, model weights, and frontend build outputs are ignored. Commit source files, `requirements.txt`, `.env.example`, scripts, and the Colab trainer.
+### Local Environment
+
+1. **Configure Environment**:
+   ```bash
+   cp .env.example .env
+   # Set ADMIN_PASSWORD and JWT_SECRET_KEY in .env
+   ```
+
+2. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   cd frontend && npm install
+   ```
+
+3. **Start Services**:
+   - Backend: `./scripts/start_backend.sh`
+   - Frontend: `./scripts/start_frontend.sh`
+
+### Configuration
+
+The system uses a **Single Source of Truth** for branding. All platform names, taglines, and mission statements are centralized in `app/config.py` and propagated to the frontend via the Public Config API.
+
+## Intelligence Training
+
+The system supports local and cloud-based training:
+- **Colab Pipeline**: Use `colab/train_real_match_models.py` for cloud-scale training.
+- **Ensemble Registry**: Upload trained `.pkl` weights via the Admin Control Center.
+- **Autonomous Tuning**: The `ModelTunerAgent` suggests parameter updates based on live performance metrics.
+
+## Contributing
+
+We are building the infrastructure for a digital civilization based on merit and verifiable trust. Contributors are expected to maintain the "Institutional-Grade" standards of the VIT Ecosystem.
+
+---
+© 2026 Value Intelligence Trust (VIT) · Where Value, Intelligence, and Trust Converge.

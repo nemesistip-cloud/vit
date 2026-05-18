@@ -1,5 +1,5 @@
 # services/ml_service/simulation_engine.py
-# VIT Sports Intelligence — Beast Mode Simulation Engine
+# Value Intelligence Trust (VIT) — Beast Mode Simulation Engine
 # 3-Tier Synthetic Match Generator
 # Tier 1: Base (Poisson + noise)         — 60% of total
 # Tier 2: Context (form, fatigue)        — 30% of total

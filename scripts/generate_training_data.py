@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VIT Sports Intelligence Network — Training Data Generator
+Value Intelligence Trust (VIT) — Training Data Generator
 ==========================================================
 Generates synthetic but realistic historical football match data for
 model training when real match data is unavailable or insufficient.
@@ -223,7 +223,7 @@ def generate_dataset(n_samples: int, seed: int = 42) -> pd.DataFrame:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="VIT Network Training Data Generator")
+    parser = argparse.ArgumentParser(description="Value Intelligence Trust (VIT) Training Data Generator")
     parser.add_argument("--samples", type=int, default=5000, help="Number of synthetic samples to generate")
     parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT), help="Output CSV path")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")

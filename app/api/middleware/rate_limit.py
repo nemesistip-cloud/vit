@@ -1,5 +1,5 @@
 # app/api/middleware/rate_limit.py
-# VIT Sports Intelligence — Rate Limiting Middleware
+# Value Intelligence Trust (VIT) — Rate Limiting Middleware
 # G02: Redis sliding window (REDIS_URL) with in-memory deque fallback.
 # SEC-07: idle buckets evicted after 2× the window to prevent unbounded growth.
 

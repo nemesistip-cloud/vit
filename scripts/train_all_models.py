@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VIT Sports Intelligence Network — Direct Model Training Script
+Value Intelligence Trust (VIT) — Direct Model Training Script
 Trains all 13 ensemble models + 3 market models directly,
 bypassing the HTTP API layer for maximum speed and reliability.
 
@@ -219,7 +219,7 @@ async def main():
 
     print()
     print("╔══════════════════════════════════════════════════════════╗")
-    print("║  VIT Sports Intelligence — Full Model Training Pipeline  ║")
+    print("║  Value Intelligence Trust (VIT) — Model Training Pipeline ║")
     print("╚══════════════════════════════════════════════════════════╝")
     print()
 

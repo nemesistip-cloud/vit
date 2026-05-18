@@ -1,5 +1,5 @@
 # app/services/alerts.py
-# VIT Sports Intelligence Network — v2.1.0
+# Value Intelligence Trust (VIT) — v2.1.0
 # Fix: Model count now displayed (was always 0/0)
 # Fix: Probabilities now match-specific (was always 36.3%)
 # Fix: Edge, stake, confidence all populated correctly
@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from enum import Enum
 
-from app.config import APP_VERSION
+from app.config import APP_VERSION, APP_NAME, APP_SHORT_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -357,7 +357,7 @@ class TelegramAlert:
             extra_lines.append(dq_line)
         if alert.app_url and alert.match_id:
             link = f"{alert.app_url.rstrip('/')}/matches/{alert.match_id}"
-            extra_lines.append(f'<b>🔗 Open:</b> <a href="{link}">view in VIT</a>')
+            extra_lines.append(f'<b>🔗 Open:</b> <a href="{link}">view in {APP_SHORT_NAME}</a>')
         extra_block = "\n".join(extra_lines)
         if extra_block:
             extra_block = "\n\n" + extra_block
@@ -366,7 +366,7 @@ class TelegramAlert:
         if header_line:
             header_block = f"\n{header_line}"
 
-        message = f"""<b>🎯 VIT BET ANALYSIS</b>
+        message = f"""<b>🎯 {APP_SHORT_NAME} BET ANALYSIS</b>
 ━━━━━━━━━━━━━━━━━━━━━
 
 <b>⚽ Match:</b> {alert.home_team} vs {alert.away_team}{header_block}
@@ -384,7 +384,7 @@ class TelegramAlert:
 <b>📊 Models:</b> {model_str}{extra_block}
 
 ━━━━━━━━━━━━━━━━━━━━━
-<i>VIT Sports Intelligence v{VERSION}</i>"""
+<i>{APP_NAME} v{VERSION}</i>"""
 
         priority = AlertPriority.BET if has_edge else AlertPriority.INFO
         return await self.send_message(message.strip(), priority)
@@ -401,7 +401,7 @@ class TelegramAlert:
         roi = stats.get("roi", 0)
         perf_emoji = "📈🚀" if roi > 0.05 else ("📈" if roi > 0 else ("📉" if roi > -0.05 else "📉💀"))
 
-        message = f"""<b>📊 VIT DAILY REPORT</b>
+        message = f"""<b>📊 {APP_SHORT_NAME} DAILY REPORT</b>
 ━━━━━━━━━━━━━━━━━━━━━
 
 <b>📅 Date:</b> {date}
@@ -424,7 +424,7 @@ class TelegramAlert:
             for edge in top_edges[:3]:
                 message += f"• {edge.get('home_team')} vs {edge.get('away_team')}: {edge.get('edge', 0):.2%} edge\n"
 
-        message += f"\n<i>VIT Sports Intelligence v{VERSION}</i>"
+        message += f"\n<i>{APP_NAME} v{VERSION}</i>"
         return await self.send_message(message.strip())
 
     # ------------------------------------------------------------------
@@ -488,7 +488,7 @@ class TelegramAlert:
         return await self.send_message(message.strip())
 
     async def send_startup_message(self) -> bool:
-        message = f"""<b>🚀 VIT NETWORK STARTED</b>
+        message = f"""<b>🚀 {APP_SHORT_NAME} NETWORK STARTED</b>
 ━━━━━━━━━━━━━━━━━━━━━
 
 <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -500,7 +500,7 @@ class TelegramAlert:
         return await self.send_message(message.strip())
 
     async def send_shutdown_message(self) -> bool:
-        message = f"""<b>🛑 VIT NETWORK SHUTDOWN</b>
+        message = f"""<b>🛑 {APP_SHORT_NAME} NETWORK SHUTDOWN</b>
 ━━━━━━━━━━━━━━━━━━━━━
 
 <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}

@@ -1,1 +1,1 @@
-"""app/iot — IoT data ingestion layer for VIT Sports Intelligence Network."""
+"""app/iot — IoT data ingestion layer for Value Intelligence Trust (VIT)."""

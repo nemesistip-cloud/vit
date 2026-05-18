@@ -1,8 +1,10 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Home, AlertTriangle } from "lucide-react";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 export default function NotFound() {
+  const { data: config } = usePublicConfig();
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background px-4">
       <div className="text-center max-w-md space-y-6">
@@ -16,7 +18,7 @@ export default function NotFound() {
           <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Error 404</p>
           <h1 className="text-3xl font-bold font-mono tracking-tight">PAGE_NOT_FOUND</h1>
           <p className="text-sm text-muted-foreground font-mono leading-relaxed">
-            The requested route does not exist in the VIT Sports Intelligence Network.
+            The requested route does not exist in the {config?.platform.name || "VIT"} Network.
             Check the URL or navigate back to the dashboard.
           </p>
         </div>

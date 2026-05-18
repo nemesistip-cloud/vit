@@ -23,7 +23,7 @@ from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/auth/2fa", tags=["2fa"])
 
-APP_NAME = "VIT Network"
+from app.config import APP_SHORT_NAME
 
 
 def _get_qr_data_url(provisioning_uri: str) -> str:
@@ -67,7 +67,7 @@ async def setup_2fa(
 
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
-    uri = totp.provisioning_uri(name=user.email, issuer_name=APP_NAME)
+    uri = totp.provisioning_uri(name=user.email, issuer_name=APP_SHORT_NAME)
     qr = _get_qr_data_url(uri)
 
     try:

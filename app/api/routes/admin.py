@@ -1,5 +1,5 @@
 # app/api/routes/admin.py
-# VIT Sports Intelligence Network — v2.2.0 + v2.3.0
+# Value Intelligence Trust (VIT) — v2.2.0 + v2.3.0
 #
 # v2.2.0 New Endpoints:
 #   GET  /admin/models/status          — per-model status + error message
@@ -1709,10 +1709,11 @@ async def send_accumulator_to_telegram(body: SendAccumulatorRequest, api_key: Op
             f"(conf: {leg['confidence']:.0%})\n"
         )
 
+    from app.config import APP_NAME, APP_SHORT_NAME
     adj_edge = acc.get("adjusted_edge", 0)
     edge_emoji = "🔥🔥🔥" if adj_edge > 0.05 else ("🔥🔥" if adj_edge > 0.03 else "🔥")
 
-    message = f"""<b>🎰 VIT ACCUMULATOR</b>
+    message = f"""<b>🎰 {APP_SHORT_NAME} ACCUMULATOR</b>
 ━━━━━━━━━━━━━━━━━━━━━
 
 <b>🏆 {acc.get('n_legs', len(legs))}-Leg Accumulator</b>
@@ -1727,7 +1728,7 @@ async def send_accumulator_to_telegram(body: SendAccumulatorRequest, api_key: Op
 
 {f'<i>{body.channel_note}</i>' if body.channel_note else ''}
 ━━━━━━━━━━━━━━━━━━━━━
-<i>VIT Sports Intelligence v{VERSION}</i>"""
+<i>{APP_NAME} v{VERSION}</i>"""
 
     from app.services.alerts import AlertPriority
     success = await telegram_alerts.send_message(message.strip(), AlertPriority.BET)

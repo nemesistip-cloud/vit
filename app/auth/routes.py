@@ -454,7 +454,7 @@ async def me(
 class TotpSetupResponse(BaseModel):
     secret: str
     qr_code: str  # data-URI PNG
-    issuer: str = "VIT Sports Intelligence"
+    issuer: str = "VIT"
 
 
 class TotpVerifyRequest(BaseModel):
@@ -494,6 +494,7 @@ async def totp_setup(
     import qrcode
     import base64
     import io
+    from app.config import APP_SHORT_NAME
 
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -511,7 +512,7 @@ async def totp_setup(
     await db.commit()
 
     totp = pyotp.TOTP(secret)
-    uri = totp.provisioning_uri(name=user.email, issuer_name="VIT Sports Intelligence")
+    uri = totp.provisioning_uri(name=user.email, issuer_name=APP_SHORT_NAME)
 
     # Render QR to PNG, encode as data-URI
     try:

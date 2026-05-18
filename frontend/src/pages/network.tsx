@@ -10,6 +10,7 @@ import {
   Key, Network, RefreshCw, Shield, TrendingUp, User, Zap,
 } from "lucide-react";
 import { apiGet } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -175,6 +176,7 @@ function DIDRow({ identity }: { identity: DIDIdentity }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function NetworkPage() {
+  const { data: config } = usePublicConfig();
   const { data: stats, isLoading: statsLoading, refetch } = useQuery<NetworkStats>({
     queryKey: ["network-stats"],
     queryFn: () => apiGet<NetworkStats>("/api/network/stats"),
@@ -208,7 +210,7 @@ export default function NetworkPage() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Network className="h-8 w-8 text-primary" />
-            VIT Network
+            {config?.platform.name || "VIT"} Network
           </h1>
           <p className="text-muted-foreground mt-1">
             Decentralized node registry, DID identity layer, and network growth metrics

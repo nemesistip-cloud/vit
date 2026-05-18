@@ -148,6 +148,7 @@ async def send_test_notification(
     prefs = await NotificationService.get_or_create_prefs(db, current_user.id)
     results: dict[str, str] = {}
 
+    from app.config import APP_NAME
     # Always create an in-app notification
     await NotificationService.create(
         db,
@@ -155,7 +156,7 @@ async def send_test_notification(
         ntype=NotificationType.SYSTEM,
         context={},
         title="Test Notification",
-        body="This is a test notification from VIT Sports Intelligence Network.",
+        body=f"This is a test notification from {APP_NAME}.",
     )
     results["in_app"] = "sent"
 

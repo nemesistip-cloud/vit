@@ -42,7 +42,7 @@ const CURRENCY_BG: Record<string, string> = {
   VITCoin: "bg-secondary/10 border-secondary/20",
 };
 
-const PIE_COLORS = ["#00f5ff", "#ffd700", "#a855f7", "#3b82f6", "#14b8a6"];
+const PIE_COLORS = ["#1E6BFF", "#00C896", "#D4AF37", "#a855f7", "#C0C7D1"];
 
 const STATUS_BADGE: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
@@ -103,24 +103,27 @@ function SparklineChart({ data }: { data: { price_usd: number; calculated_at: st
   const min = rawMin - padding;
   const max = rawMax + padding;
   const trend = chartData[chartData.length - 1].v >= chartData[0].v;
+  // Brand colors for trend
+  const color = trend ? "#D4AF37" : "#ef4444";
+
   return (
     <ResponsiveContainer width="100%" height={64}>
       <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="vitGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={trend ? "#ffd700" : "#ef4444"} stopOpacity={0.3} />
-            <stop offset="95%" stopColor={trend ? "#ffd700" : "#ef4444"} stopOpacity={0} />
+            <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+            <stop offset="95%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
         <ReTooltip
-          contentStyle={{ background: "#0a0a0a", border: "1px solid #1a1a2e", fontFamily: "monospace", fontSize: 10 }}
+          contentStyle={{ background: "#050505", border: "1px solid #1E6BFF33", fontFamily: "monospace", fontSize: 10 }}
           formatter={(v: number) => [`$${v.toFixed(4)}`, "VIT"]}
           labelFormatter={(l) => l}
         />
         <Area
           type="monotone"
           dataKey="v"
-          stroke={trend ? "#ffd700" : "#ef4444"}
+          stroke={color}
           strokeWidth={1.5}
           fill="url(#vitGrad)"
           dot={false}
@@ -456,7 +459,7 @@ export default function WalletPage() {
         amount: parseFloat(depositAmount),
         method: depositMethod,
       });
-      if (result.payment_link && !result.payment_link.includes("paystack.com/pay/vit-sports")) {
+      if (result.payment_link && !result.payment_link.includes("paystack.com/pay/vit-")) {
         window.open(result.payment_link, "_blank");
         toast.success("Redirecting to payment gateway…");
       } else {

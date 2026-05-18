@@ -1,5 +1,5 @@
 # app/api/routes/predict.py
-# VIT Sports Intelligence Network — v2.1.0
+# Value Intelligence Trust (VIT) — v2.1.0
 # Fix: Full prediction data passed to BetAlert (models_used, all probs, all odds)
 # Fix: Alert sent on ANY prediction (not just >3% edge) so Telegram shows status
 # Fix: Models count and data source included in response

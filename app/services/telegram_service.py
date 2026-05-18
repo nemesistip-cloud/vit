@@ -22,6 +22,7 @@ import secrets
 from typing import Optional
 
 import httpx
+from app.config import APP_NAME, APP_SHORT_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ async def send_notification_telegram(
     text = (
         f"{icon} <b>{title}</b>\n\n"
         f"{body}\n\n"
-        f"<i>VIT Sports Intelligence Network</i>"
+        f"<i>{APP_NAME}</i>"
     )
     return await send_user_message(chat_id, text)
 
@@ -129,9 +130,9 @@ async def send_test_telegram(chat_id: str) -> bool:
     """Send a test DM to verify the Telegram link is working."""
     return await send_user_message(
         chat_id,
-        "🔔 <b>Test Notification — VIT Network</b>\n\n"
+        f"🔔 <b>Test Notification — {APP_SHORT_NAME}</b>\n\n"
         "Your Telegram notifications are working correctly.\n\n"
-        "<i>VIT Sports Intelligence Network</i>",
+        f"<i>{APP_NAME}</i>",
     )
 
 
@@ -159,8 +160,8 @@ async def process_webhook_update(update: dict) -> Optional[int]:
         # No code — welcome message
         await send_user_message(
             chat_id,
-            "👋 <b>Welcome to VIT Sports Intelligence!</b>\n\n"
-            "To link your account, visit your notification settings in the VIT app "
+            f"👋 <b>Welcome to {APP_NAME}!</b>\n\n"
+            f"To link your account, visit your notification settings in the {APP_SHORT_NAME} app "
             "and click <b>Link Telegram</b> to get your personalised link.",
         )
         return None
@@ -170,7 +171,7 @@ async def process_webhook_update(update: dict) -> Optional[int]:
         await send_user_message(
             chat_id,
             "❌ <b>Link code expired or invalid.</b>\n\n"
-            "Please generate a new link from your VIT notification settings.",
+            f"Please generate a new link from your {APP_SHORT_NAME} notification settings.",
         )
         return None
 
@@ -182,7 +183,7 @@ async def process_webhook_update(update: dict) -> Optional[int]:
     await send_user_message(
         chat_id,
         "✅ <b>Telegram linked successfully!</b>\n\n"
-        "You'll now receive VIT notifications directly here.\n\n"
-        "<i>VIT Sports Intelligence Network</i>",
+        f"You'll now receive {APP_SHORT_NAME} notifications directly here.\n\n"
+        f"<i>{APP_NAME}</i>",
     )
     return user_id

@@ -158,10 +158,12 @@ export default function AuthPage() {
             <div>
               <h1 className="text-4xl font-bold font-mono tracking-tight leading-tight mb-4">
                 Institutional-grade<br />
-                <span className="vit-gradient-text">Sports Intelligence</span>
+                <span className="vit-gradient-text leading-[1.1]">
+                  {publicCfg?.platform.name === "VIT" ? "Value Intelligence Trust" : (publicCfg?.platform.name || "Intelligence")}
+                </span>
               </h1>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-                {publicCfg?.platform.model_count ?? 13} AI models working in ensemble to give you a measurable edge in every prediction.
+                {publicCfg?.platform.tagline || "Where Value, Intelligence, and Trust Converge"}
               </p>
             </div>
 
@@ -179,7 +181,7 @@ export default function AuthPage() {
 
           {/* Footer note */}
           <p className="text-[10px] font-mono text-muted-foreground/40">
-            © {new Date().getFullYear()} VIT Network · Blockchain Verified
+            © {new Date().getFullYear()} {publicCfg?.platform.name || "VIT"} Network · Blockchain Verified
           </p>
         </div>
 

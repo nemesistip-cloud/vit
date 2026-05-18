@@ -43,8 +43,9 @@ def generate_training_prompt(
         f"  - {feat}: {cov}" for feat, cov in feature_detail.items()
     )
     models_block = "\n".join(f"  - {m}" for m in models)
+    from app.config import APP_NAME
 
-    prompt = f"""# VIT Sports Intelligence — AI Training Guide
+    prompt = f"""# {APP_NAME} — AI Training Guide
 
 ## Dataset Profile
 - **Records**: {n:,}

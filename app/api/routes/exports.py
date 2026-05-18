@@ -103,10 +103,11 @@ async def export_predictions_pdf(
         )
         rows_raw = preds.all()
 
+        from app.config import APP_SHORT_NAME
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 10, "VIT Network - Prediction History", new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.cell(0, 10, f"{APP_SHORT_NAME} Network - Prediction History", new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.set_font("Helvetica", size=9)
         pdf.cell(0, 6, f"User: {current_user.username}   Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC", new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.ln(4)

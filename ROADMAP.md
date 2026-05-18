@@ -1,7 +1,7 @@
-# VIT Sports Intelligence Network — System Roadmap
-**Version:** 6.0.0  
-**Last updated:** 2026-05-13  
-**Purpose:** Handoff document for the next agent. Read this before doing any work.
+# Value Intelligence Trust (VIT) — System Roadmap
+**Version:** 7.0.0
+**Last updated:** 2026-05-18
+**Purpose:** Handoff document for the next agent. Rebranding to VIT Ecosystem complete.
 
 ---
 
@@ -20,7 +20,7 @@
 | Chain | VIT-Chain sovereign hash-linked ledger (`vit_chain_ledger.db`, PoW difficulty=4) |
 | Startup | `bash scripts/start_fullstack.sh` → uvicorn port 8000 + Vite port 5000 |
 
-**Health check:** `GET /health` → `{"status":"ok","version":"6.0.0","models_loaded":13,"agents":{"total":22,"running":22}}`
+**Health check:** `GET /health` → `{"status":"ok","version":"7.0.0","models_loaded":13,"agents":{"total":22,"running":22}}`
 
 ---
 
@@ -130,6 +130,13 @@ The `results_settler.py` settlement loop was previously crashing for all 21 matc
 ---
 
 ## 5. Completed Work
+
+### Session 5 — Rebranding to Value Intelligence Trust (VIT)
+- **Visual Identity**: Deployed new palette (#050505, #1E6BFF, #00C896, #C0C7D1) and Space Grotesk typography.
+- **Brand Assets**: Created and integrated programmatic `BrandLogo` with "triangular_neural_v" symbolism.
+- **Centralization**: All brand strings (Name, Tagline, Mission) moved to `app/config.py` and exposed via API.
+- **System-wide Integration**: Rebranded 50+ frontend pages and all backend services (Email, Telegram, Alerts).
+- **Core Narrative**: Shifted from sports-only focus to "Programmable Trust" and "Value, Intelligence, and Trust" ecosystem.
 
 ### Session 1 — Initial setup
 - Puter.js multi-account panel (`ai-sources.tsx`, `puter-ai.ts`)

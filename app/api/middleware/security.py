@@ -1,4 +1,4 @@
-"""Security headers middleware — VIT Sports Intelligence Network."""
+"""Security headers middleware — Value Intelligence Trust (VIT)."""
 
 import os
 from starlette.middleware.base import BaseHTTPMiddleware

@@ -2,6 +2,7 @@ import { AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 interface GamblingAgeDisclaimerProps {
   isOpen?: boolean;
@@ -24,6 +25,7 @@ export function GamblingAgeDisclaimer({
 }: GamblingAgeDisclaimerProps) {
   const [open, setOpen] = useState(isOpen);
   const [dismissed, setDismissed] = useState(false);
+  const { data: config } = usePublicConfig();
 
   // Check localStorage to prevent showing multiple times
   useEffect(() => {
@@ -127,7 +129,7 @@ export function GamblingAgeDisclaimer({
 
         {/* Footer disclaimer */}
         <p className="text-xs text-muted-foreground text-center">
-          By using VIT Sports Intelligence, you agree to our{" "}
+          By using our platform, you agree to our{" "}
           <a href="/terms" className="text-amber-300 hover:underline">
             Terms of Service
           </a>

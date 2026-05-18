@@ -109,6 +109,7 @@ class AgentCoordinator:
             # ── VIT Oracle Node ──────────────────────────────────────────
             "oracle-node":              OracleNodeAgent(),
             # ── VIT Network Guardian (DID + node registry) ───────────────
+            # Rebranded to Value Intelligence Trust (VIT)
             "network-guardian":         NetworkGuardianAgent(),
         }
         self._tasks: List[asyncio.Task] = []
