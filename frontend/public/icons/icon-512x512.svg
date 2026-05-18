@@ -1,16 +1,55 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="180" height="180" rx="36" fill="#0F1117"/>
-  <rect width="180" height="180" rx="36" fill="url(#grad)"/>
-  <path d="M62 54h56v46c0 15.5-12.5 28-28 28s-28-12.5-28-28V54z" fill="#FF3C00" opacity="0.9"/>
-  <path d="M62 68H50c0 14 8 22 12 24" stroke="#FF3C00" stroke-width="5" stroke-linecap="round" fill="none"/>
-  <path d="M118 68h12c0 14-8 22-12 24" stroke="#FF3C00" stroke-width="5" stroke-linecap="round" fill="none"/>
-  <rect x="84" y="130" width="12" height="16" fill="#FF3C00" rx="2"/>
-  <rect x="70" y="144" width="40" height="8" fill="#FF3C00" rx="4"/>
-  <path d="M90 68l4 10h11l-9 6.5 3.5 10.5L90 88l-9.5 7 3.5-10.5L75 78h11z" fill="white" opacity="0.9"/>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="grad" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#1a0800"/>
-      <stop offset="100%" stop-color="#0F1117"/>
+    <linearGradient id="bg5" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#060812"/>
+      <stop offset="100%" stop-color="#020408"/>
     </linearGradient>
+    <linearGradient id="vg5" x1="110" y1="52" x2="400" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#00F5FF"/>
+      <stop offset="55%"  stop-color="#1E6BFF"/>
+      <stop offset="100%" stop-color="#0033CC"/>
+    </linearGradient>
+    <filter id="glow5" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="12" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="apex5" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="18" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <radialGradient id="bg-glow5" cx="50%" cy="62%" r="42%">
+      <stop offset="0%"   stop-color="#00F5FF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#00F5FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="apex-halo5" cx="50%" cy="90%" r="22%">
+      <stop offset="0%"   stop-color="#00F5FF" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#00F5FF" stop-opacity="0"/>
+    </radialGradient>
   </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg5)"/>
+  <ellipse cx="256" cy="320" rx="176" ry="130" fill="url(#bg-glow5)"/>
+  <ellipse cx="256" cy="448" rx="90" ry="52" fill="url(#apex-halo5)"/>
+  <path d="M256 52 L36 448 L476 448 Z" stroke="url(#vg5)" stroke-width="8" stroke-opacity="0.28" fill="none"/>
+  <path d="M256 106 L64 420 L448 420 Z" stroke="url(#vg5)" stroke-width="5" stroke-opacity="0.5" fill="none"/>
+  <line x1="110" y1="132" x2="400" y2="132" stroke="#00F5FF" stroke-width="4" stroke-opacity="0.3"/>
+  <line x1="110" y1="132" x2="256" y2="440" stroke="url(#vg5)" stroke-width="32" stroke-linecap="round" filter="url(#glow5)"/>
+  <line x1="400" y1="132" x2="256" y2="440" stroke="url(#vg5)" stroke-width="32" stroke-linecap="round" filter="url(#glow5)"/>
+  <line x1="176" y1="176" x2="256" y2="362" stroke="#00F5FF" stroke-width="13" stroke-linecap="round" stroke-opacity="0.85" filter="url(#glow5)"/>
+  <line x1="336" y1="176" x2="256" y2="362" stroke="#00F5FF" stroke-width="13" stroke-linecap="round" stroke-opacity="0.85" filter="url(#glow5)"/>
+  <circle cx="153"  cy="224" r="10"  fill="#00F5FF" fill-opacity="0.75"/>
+  <circle cx="188"  cy="284" r="7.5" fill="#00F5FF" fill-opacity="0.5"/>
+  <circle cx="222"  cy="344" r="10"  fill="#00F5FF" fill-opacity="0.75"/>
+  <circle cx="359"  cy="224" r="10"  fill="#00F5FF" fill-opacity="0.75"/>
+  <circle cx="324"  cy="284" r="7.5" fill="#00F5FF" fill-opacity="0.5"/>
+  <circle cx="290"  cy="344" r="10"  fill="#00F5FF" fill-opacity="0.75"/>
+  <circle cx="110" cy="132" r="20" fill="none" stroke="#00F5FF" stroke-width="8"/>
+  <circle cx="110" cy="132" r="10" fill="#00F5FF"/>
+  <line x1="36"  y1="132" x2="90"  y2="132" stroke="#00F5FF" stroke-width="5" stroke-opacity="0.4"/>
+  <circle cx="36"  cy="132" r="9" fill="#00F5FF" fill-opacity="0.5"/>
+  <circle cx="400" cy="132" r="20" fill="none" stroke="#00F5FF" stroke-width="8"/>
+  <circle cx="400" cy="132" r="10" fill="#00F5FF"/>
+  <line x1="420" y1="132" x2="476" y2="132" stroke="#00F5FF" stroke-width="5" stroke-opacity="0.4"/>
+  <circle cx="476" cy="132" r="9" fill="#00F5FF" fill-opacity="0.5"/>
+  <circle cx="256" cy="440" r="29" fill="none" stroke="#00F5FF" stroke-width="10" filter="url(#apex5)"/>
+  <circle cx="256" cy="440" r="15" fill="#00F5FF" filter="url(#apex5)"/>
 </svg>

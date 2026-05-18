@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
-  Trophy, Zap, TrendingUp, Shield, BarChart2, Brain,
+  Zap, TrendingUp, Shield, BarChart2, Brain,
   ArrowRight, Check, Star, ChevronRight, Activity,
-  Users, Coins, Globe
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import { usePublicConfig } from "@/lib/usePublicConfig";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type LandingTickerItem = { match: string; edge: string; outcome: string; confidence: number };
 type LandingTestimonial = { user: string; role: string; stars: number; text: string };
@@ -139,14 +140,7 @@ export default function LandingPage() {
       {/* ── Nav ─────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary/10 border border-primary/30 rounded-lg flex items-center justify-center">
-              <Trophy className="w-4 h-4 text-primary" />
-            </div>
-            <span className="font-bold font-mono tracking-tight text-foreground">
-              VIT<span className="text-primary">_OS</span>
-            </span>
-          </div>
+          <BrandLogo size={30} withWordmark />
           <div className="hidden md:flex items-center gap-8 text-sm font-mono text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
             <a href="#ai" className="hover:text-foreground transition-colors">AI Engine</a>
@@ -180,7 +174,7 @@ export default function LandingPage() {
         <div className="relative max-w-4xl mx-auto text-center">
           <Badge className="mb-6 font-mono text-xs border-primary/30 bg-primary/10 text-primary px-4 py-1.5">
             <Activity className="w-3 h-3 mr-1.5 inline animate-pulse" />
-            12 AI Models · Live Predictions · Blockchain Verified
+            {modelCount} AI Models · Live Predictions · Blockchain Verified
           </Badge>
 
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold font-mono tracking-tight leading-tight mb-6">
@@ -439,8 +433,8 @@ export default function LandingPage() {
       <footer className="border-t border-border/50 py-8 px-4 md:px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs font-mono text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-primary" />
-            <span>VIT Sports Intelligence Network</span>
+            <BrandLogo size={18} iconOnly />
+            <span>VIT Sports Intelligence Network · Value · Intelligence · Trust</span>
           </div>
           <div className="flex gap-4">
             <Link href="/privacy"><span className="cursor-pointer hover:text-primary">Privacy Policy</span></Link>

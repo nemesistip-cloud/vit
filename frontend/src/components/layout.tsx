@@ -192,14 +192,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ── Mobile top bar ──────────────────────────────── */}
       <div className="lg:hidden flex items-center justify-between px-4 py-2.5 border-b border-border/50 sticky top-0 z-40 bg-background/95 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-primary/20 to-purple-500/20 border border-primary/25">
-            <Zap className="w-3.5 h-3.5 text-primary" />
-          </div>
-          <span className="font-bold font-mono text-sm tracking-tight">
-            VIT<span className="vit-gradient-text">_OS</span>
-          </span>
-        </div>
+        <BrandLogo size={26} withWordmark />
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-8 w-8" aria-label="Toggle theme">
             {theme === "dark" ? <Sun className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4 text-blue-400" />}
@@ -223,15 +216,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="absolute left-0 top-0 h-full w-72 flex flex-col shadow-2xl vit-animate-slide-down"
             style={{ background: "var(--vit-gradient-sidebar)" }}>
             <div className="flex items-center justify-between p-4 border-b border-white/5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary/25 to-purple-500/25 border border-primary/30 flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <div className="font-bold font-mono text-sm tracking-tight">VIT<span className="text-primary">_OS</span></div>
-                  <div className="text-[9px] font-mono text-muted-foreground/60 tracking-widest uppercase">Sports Intelligence</div>
-                </div>
-              </div>
+              <BrandLogo size={30} withWordmark />
               <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} className="h-8 w-8">
                 <X className="w-4 h-4" />
               </Button>
