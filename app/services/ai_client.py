@@ -171,16 +171,17 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
 
 
 async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str | None:
-    api_key = os.getenv("CLAUDE_API_KEY", "").strip()
+    api_key = (os.getenv("AI_INTEGRATIONS_ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")).strip()
     if not api_key:
         return None
-    if len(api_key) < 20:
+    if len(api_key) < 10:
         logger.debug("[ai-client] claude: key too short — skipping (configure a real key to enable)")
         return None
     if not _provider_available("claude"):
         return None
 
-    url = "https://api.anthropic.com/v1/messages"
+    base_url = os.getenv("AI_INTEGRATIONS_ANTHROPIC_BASE_URL", "").rstrip("/")
+    url = f"{base_url}/messages" if base_url else "https://api.anthropic.com/v1/messages"
     for model in _CLAUDE_MODELS:
         try:
             async with httpx.AsyncClient(timeout=30) as client:
@@ -223,16 +224,17 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
 
 
 async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str | None:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    api_key = (os.getenv("AI_INTEGRATIONS_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")).strip()
     if not api_key:
         return None
-    if len(api_key) < 20:
+    if len(api_key) < 10:
         logger.debug("[ai-client] openai: key too short — skipping (configure a real key to enable)")
         return None
     if not _provider_available("openai"):
         return None
 
-    url = "https://api.openai.com/v1/chat/completions"
+    base_url = os.getenv("AI_INTEGRATIONS_OPENAI_BASE_URL", "").rstrip("/")
+    url = f"{base_url}/chat/completions" if base_url else "https://api.openai.com/v1/chat/completions"
     for model in _OPENAI_MODELS:
         try:
             async with httpx.AsyncClient(timeout=30) as client:

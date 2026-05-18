@@ -135,3 +135,5 @@ stripe
 tenacity
 uvicorn[standard]
 xgboost
+openai
+anthropic
