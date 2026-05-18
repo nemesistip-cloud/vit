@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Production startup — FastAPI only (uvicorn on port 5000).
+# Production startup — FastAPI only (uvicorn on port $PORT).
 # The built frontend (frontend/dist) is served directly by FastAPI's StaticFiles mount.
 # This script is used by Replit deployment; never run Vite in production.
+#
+# NOTE: Single worker only — the app has background agents, WebSocket connections,
+# and in-memory state (rate limiter, Elo store) that must live in one process.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT="${PORT:-5000}"
-WORKERS="${WEB_CONCURRENCY:-2}"
 
-# v4.10 — activate trained .pkl weights in production
+# Activate trained .pkl weights / algorithmic ensemble in production
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
+export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-true}"
 
 echo "[production] Running database schema setup..."
 python - <<'PYEOF'
@@ -43,6 +46,8 @@ async def ensure_schema():
         import app.modules.subchain.models
         import app.modules.agent_registry.models
         import app.modules.storage_verification.models
+        import app.modules.identity.models
+        import app.modules.kyc.models
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             # PostgreSQL-safe column additions
@@ -62,14 +67,10 @@ async def ensure_schema():
 asyncio.run(ensure_schema())
 PYEOF
 
-echo "[production] Starting VIT backend with gunicorn on port ${PORT} (workers=${WORKERS})..."
-exec gunicorn main:app \
-    --bind "0.0.0.0:${PORT}" \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --workers "${WORKERS}" \
-    --timeout 120 \
-    --graceful-timeout 30 \
-    --keep-alive 5 \
-    --access-logfile - \
-    --error-logfile - \
+echo "[production] Starting VIT Sports Intelligence Network on port ${PORT}..."
+exec python -m uvicorn main:app \
+    --host 0.0.0.0 \
+    --port "${PORT}" \
+    --workers 1 \
+    --timeout-keep-alive 75 \
     --log-level info
