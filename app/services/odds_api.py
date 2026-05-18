@@ -250,10 +250,10 @@ class OddsAPIClient:
         "ucl":                      "soccer_uefa_champs_league",
         "europa_league":            "soccer_uefa_europa_league",
         "uel":                      "soccer_uefa_europa_league",
-        "eredivisie":               "soccer_eredivisie",
-        "netherlands_eredivisie":   "soccer_eredivisie",
-        "primeira_liga":            "soccer_primeira_liga",
-        "portugal_primeira_liga":   "soccer_primeira_liga",
+        "eredivisie":               "soccer_netherlands_eredivisie",
+        "netherlands_eredivisie":   "soccer_netherlands_eredivisie",
+        "primeira_liga":            "soccer_portugal_primeira_liga",
+        "portugal_primeira_liga":   "soccer_portugal_primeira_liga",
         "belgian_pro_league":       "soccer_belgium_first_div",
         "jupiler_pro_league":       "soccer_belgium_first_div",
         "austria_bundesliga":       "soccer_austria_bundesliga",
@@ -353,6 +353,10 @@ class OddsAPIClient:
                 return {}
             elif e.response is not None and e.response.status_code == 429:
                 logger.warning("Odds API rate limit exceeded")
+                return {}
+            elif e.response is not None and e.response.status_code == 404:
+                logger.debug(f"Odds API sport key not available: {endpoint}")
+                return {}
             raise
 
     # ── Public API ───────────────────────────────────────────────────
