@@ -50,8 +50,25 @@ def _ml_cache_enabled() -> bool:
     return os.getenv("ML_MODEL_CACHE_ENABLED", "true").lower() == "true"
 
 _TOTAL_MODEL_SPECS    = 13
-_HOME_ADVANTAGE_BIAS  = 0.042   # global fallback — overridden per league below
+
+# Lazily import dynamic constants to avoid circular dependency
+def _get_ha_bias() -> float:
+    try:
+        from app.config import HOME_ADVANTAGE_BIAS
+        return HOME_ADVANTAGE_BIAS
+    except Exception:
+        return 0.042
+
+def _get_max_goals() -> int:
+    try:
+        from app.config import ML_MAX_GOALS
+        return ML_MAX_GOALS
+    except Exception:
+        return 8
+
+_HOME_ADVANTAGE_BIAS  = _get_ha_bias()
 _MAX_STAKE            = 0.05
+_CS_MAX_GOALS_DYNAMIC = _get_max_goals()
 _ELO_DEFAULT          = 1500.0
 _ELO_K_FACTOR         = 32.0
 
@@ -138,11 +155,13 @@ def _poisson_pmf(k: int, lam: float) -> float:
     return math.exp(-lam) * (lam ** k) / math.factorial(k)
 
 
-def _score_matrix_probs(lam_h: float, lam_a: float, max_goals: int = 8) -> Tuple[float, float, float]:
+def _score_matrix_probs(lam_h: float, lam_a: float, max_goals: Optional[int] = None) -> Tuple[float, float, float]:
     """
     Exact 1X2 probabilities from independent Poisson score matrix.
     More accurate than the approximation used in v2.
     """
+    if max_goals is None:
+        max_goals = _CS_MAX_GOALS_DYNAMIC
     ph = pd = pa = 0.0
     for g in range(max_goals + 1):
         p_h_g = _poisson_pmf(g, lam_h)
@@ -233,7 +252,7 @@ AH_LINES: Tuple[float, ...] = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 
 # Maximum number of goals per side considered when building the score-prob
 # matrix. 6×6 = 49 cells covers >99.9 % of football match probability mass.
-_CS_MAX_GOALS: int = 6
+_CS_MAX_GOALS: int = _CS_MAX_GOALS_DYNAMIC
 
 # League-specific average total goals per game (both teams combined).
 # Used to correct the over/under lambda when no form data is available.

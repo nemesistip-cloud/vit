@@ -30,6 +30,22 @@ _BONUS_VIT = 50.0
 _DEPOSIT_COMMISSION_PCT = Decimal("0.10")      # 10% of fiat deposit credited in VITCoin
 _SUBSCRIPTION_COMMISSION_PCT = Decimal("0.10") # 10% of subscription value in VITCoin
 
+async def _get_referral_config(db: AsyncSession) -> dict:
+    """Load referral rewards from PlatformConfig."""
+    from app.modules.wallet.models import PlatformConfig
+    res = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "referral_config"))
+    cfg = res.scalar_one_or_none()
+
+    defaults = {
+        "bonus_vit": 50.0,
+        "deposit_commission_pct": 0.10,
+        "subscription_commission_pct": 0.10
+    }
+
+    if cfg and isinstance(cfg.value, dict):
+        return {**defaults, **cfg.value}
+    return defaults
+
 
 async def process_deposit_commission(
     db: AsyncSession,
@@ -49,7 +65,9 @@ async def process_deposit_commission(
         if not use:
             return
 
-        commission = deposit_amount_usd * _DEPOSIT_COMMISSION_PCT
+        cfg = await _get_referral_config(db)
+        pct = Decimal(str(cfg["deposit_commission_pct"]))
+        commission = deposit_amount_usd * pct
         if commission <= 0:
             return
 
@@ -87,7 +105,9 @@ async def process_subscription_commission(
         if not use:
             return
 
-        commission = plan_value_usd * _SUBSCRIPTION_COMMISSION_PCT
+        cfg = await _get_referral_config(db)
+        pct = Decimal(str(cfg["subscription_commission_pct"]))
+        commission = plan_value_usd * pct
         if commission <= 0:
             return
 
@@ -152,10 +172,13 @@ async def apply_referral_bonus(
         "[referral] Applying code '%s': referrer_id=%d referee_id=%d",
         clean_code, code_rec.user_id, current_user.id,
     )
+    cfg = await _get_referral_config(db)
+    bonus_val = cfg["bonus_vit"]
+
     use = ReferralUse(
         referrer_id=code_rec.user_id,
         referee_id=current_user.id,
-        bonus_amount=_BONUS_VIT,
+        bonus_amount=bonus_val,
         bonus_paid=False,
     )
     db.add(use)
@@ -170,7 +193,7 @@ async def apply_referral_bonus(
             wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == uid))
             wallet = wallet_res.scalar_one_or_none()
             if wallet:
-                wallet.vitcoin_balance += Decimal(str(_BONUS_VIT))
+                wallet.vitcoin_balance += Decimal(str(bonus_val))
                 updated += 1
 
         if updated == 2:
