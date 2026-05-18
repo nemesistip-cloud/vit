@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Shield, Clock, Brain, TrendingUp } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 interface VITComponents {
   value: number;
@@ -21,7 +22,7 @@ interface VITScoreCardProps {
 }
 
 const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; glow: string }> = {
-  ELITE:     { label: "ELITE",     color: "text-yellow-300",        bg: "bg-yellow-400/10",  border: "border-yellow-400/40",  glow: "shadow-yellow-400/20" },
+  ELITE:     { label: "ELITE",     color: "text-yellow-400",        bg: "bg-yellow-400/10",  border: "border-yellow-400/40",  glow: "shadow-yellow-400/20" },
   STRONG:    { label: "STRONG",    color: "text-emerald-400",       bg: "bg-emerald-500/10", border: "border-emerald-500/40", glow: "shadow-emerald-400/20" },
   SOLID:     { label: "SOLID",     color: "text-blue-400",          bg: "bg-blue-500/10",    border: "border-blue-500/40",    glow: "shadow-blue-400/20" },
   WATCHLIST: { label: "WATCHLIST", color: "text-amber-400",         bg: "bg-amber-500/10",   border: "border-amber-500/40",   glow: "shadow-amber-400/10" },
@@ -74,7 +75,7 @@ export function VITScoreCard({
     return (
       <div className={cn("flex items-center gap-2", className)}>
         <div className={cn("rounded-lg border px-2.5 py-1 flex items-center gap-2", tier.bg, tier.border)}>
-          <Shield className={cn("w-3 h-3", tier.color)} />
+          <BrandLogo iconOnly size={14} />
           <span className={cn("font-mono text-xs font-bold", tier.color)}>VIT {score}</span>
           <span className={cn("font-mono text-[9px] uppercase", tier.color)}>{tier.label}</span>
         </div>
@@ -90,9 +91,9 @@ export function VITScoreCard({
       className
     )}>
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", tier.bg, tier.border, "border")}>
-            <Shield className={cn("w-4 h-4", tier.color)} />
+        <div className="flex items-center gap-3">
+          <div className={cn("flex items-center justify-center")}>
+            <BrandLogo size={32} />
           </div>
           <div>
             <div className="font-mono text-xs font-bold uppercase tracking-wider text-muted-foreground">VIT Score v3</div>
@@ -166,10 +167,10 @@ export function VITTierBadge({ tier, score }: { tier: string; score: number }) {
   const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.SKIP;
   return (
     <span className={cn(
-      "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider",
+      "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider",
       cfg.bg, cfg.border, cfg.color
     )}>
-      <Shield className="w-2.5 h-2.5" />
+      <BrandLogo iconOnly size={10} />
       VIT {Math.round(score)} · {cfg.label}
     </span>
   );

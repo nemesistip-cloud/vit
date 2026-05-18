@@ -9,8 +9,9 @@ import { apiPost } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowRight, Eye, EyeOff, Lock, Gift, Zap, Brain, Shield, Coins, TrendingUp, BarChart2 } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, Gift, Brain, Shield, Coins, TrendingUp, BarChart2 } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
+import { BrandLogo } from "@/components/BrandLogo";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { WelcomeModal, OnboardingTour } from "@/components/onboarding";
@@ -34,11 +35,11 @@ export default function AuthPage() {
   const { data: publicCfg } = usePublicConfig();
 
   const STATS = [
-    { icon: Brain,     label: `${publicCfg?.platform.model_count ?? 13} AI Models`,    color: "text-cyan-400"   },
-    { icon: TrendingUp, label: "CLV Tracking",                                          color: "text-yellow-400" },
-    { icon: Shield,    label: "Blockchain Verified",                                    color: "text-purple-400" },
-    { icon: Coins,     label: `${publicCfg?.platform.welcome_bonus_vit ?? 100} VIT Bonus`, color: "text-amber-400" },
-    { icon: BarChart2, label: "Bankroll Management",                                    color: "text-emerald-400"},
+    { icon: Brain,     label: `${publicCfg?.platform.model_count ?? 13} AI Models`,    color: "text-primary"     },
+    { icon: TrendingUp, label: "CLV Tracking",                                          color: "text-primary"     },
+    { icon: Shield,    label: "Blockchain Verified",                                    color: "text-emerald-400" },
+    { icon: Coins,     label: `${publicCfg?.platform.welcome_bonus_vit ?? 100} VIT Bonus`, color: "text-primary"     },
+    { icon: BarChart2, label: "Bankroll Management",                                    color: "text-emerald-400" },
   ];
 
   const { login: setAuthToken, loginWithGoogle } = useAuth();
@@ -150,14 +151,7 @@ export default function AuthPage() {
         {/* ── Left panel (desktop) ──────────────────────── */}
         <div className="hidden lg:flex flex-col justify-between w-5/12 relative p-12 border-r border-white/5">
           {/* Logo */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center vit-glow-cyan-s">
-              <Zap className="w-4 h-4 text-primary" />
-            </div>
-            <span className="font-bold font-mono tracking-tight text-sm">
-              VIT<span className="text-primary">_OS</span>
-            </span>
-          </div>
+          <BrandLogo withWordmark size={32} />
 
           {/* Main content */}
           <div className="space-y-8">
@@ -193,11 +187,8 @@ export default function AuthPage() {
         <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-10 relative">
 
           {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-10 lg:hidden">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center">
-              <Zap className="w-4 h-4 text-primary" />
-            </div>
-            <span className="font-bold font-mono text-sm">VIT<span className="text-primary">_OS</span></span>
+          <div className="mb-10 lg:hidden">
+            <BrandLogo withWordmark size={32} />
           </div>
 
           <div className="w-full max-w-sm">
