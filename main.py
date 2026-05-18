@@ -1896,6 +1896,12 @@ from app.api.routes.bankroll import router as bankroll_router
 app.include_router(model_perf_router)
 app.include_router(bankroll_router)
 
+# Prophecy Branch — Academy, AI Core, AI Upload
+from app.modules.academy.routes import router as academy_router
+from app.modules.ai_core.routes import router as ai_core_router
+app.include_router(academy_router)
+app.include_router(ai_core_router)
+
 
 def _format_count(value: int) -> str:
     if value >= 1_000_000:

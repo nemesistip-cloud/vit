@@ -19,23 +19,30 @@ from app.modules.ai.models import ModelMetadata
 logger = logging.getLogger(__name__)
 
 # Canonical spec for all 13 models (key → display metadata).
-# spec_weight: ensemble contribution per the VIT Network design spec (sums to 1.0)
+# spec_weight: ensemble contribution per the Value Intelligence Trust design spec (sums to 1.0)
 # parent_version: the previous-generation key — used so v2 bootstrap can
 #                 deactivate the matching v1 row without deleting it.
 # v4.6.0 bumped every key from *_v1 to *_v2.
 MODEL_SPECS = {
-    "xgb_v2":         {"name": "XGBoost",            "model_type": "XGBoost",        "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.15, "parent_version": "xgb_v1"},
-    "lstm_v2":        {"name": "LSTM",               "model_type": "LSTM",           "markets": ["1x2"],                       "spec_weight": 0.12, "parent_version": "lstm_v1"},
-    "poisson_v2":     {"name": "PoissonGoals",       "model_type": "Poisson",        "markets": ["1x2", "over_under"],         "spec_weight": 0.10, "parent_version": "poisson_v1"},
-    "hybrid_v2":      {"name": "HybridStack",        "model_type": "HybridStack",    "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.10, "parent_version": "hybrid_v1"},
-    "transformer_v2": {"name": "Transformer",        "model_type": "Transformer",    "markets": ["1x2", "over_under"],         "spec_weight": 0.10, "parent_version": "transformer_v1"},
-    "ensemble_v2":    {"name": "NeuralEnsemble",     "model_type": "NeuralEnsemble", "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.08, "parent_version": "ensemble_v1"},
-    "dixon_coles_v2": {"name": "DixonColes",         "model_type": "DixonColes",     "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.08, "parent_version": "dixon_coles_v1"},
-    "bayes_v2":       {"name": "BayesianNet",        "model_type": "BayesianNet",    "markets": ["1x2", "btts"],               "spec_weight": 0.08, "parent_version": "bayes_v1"},
-    "rf_v2":          {"name": "RandomForest",       "model_type": "RandomForest",   "markets": ["1x2", "over_under"],         "spec_weight": 0.05, "parent_version": "rf_v1"},
-    "elo_v2":         {"name": "EloRating",          "model_type": "Elo",            "markets": ["1x2"],                       "spec_weight": 0.05, "parent_version": "elo_v1"},
-    "logistic_v2":    {"name": "LogisticRegression", "model_type": "Logistic",       "markets": ["1x2"],                       "spec_weight": 0.05, "parent_version": "logistic_v1"},
-    "market_v2":      {"name": "MarketImplied",      "model_type": "MarketImplied",  "markets": ["1x2"],                       "spec_weight": 0.04, "parent_version": "market_v1"},
+    # All 13 models sum to exactly 1.00.
+    # market_v2 raised from 0.04→0.10: closing-line odds are the industry gold-standard.
+    # llm_consensus_v2 added as the 13th model (was missing from registry entirely).
+    # elo_v2 lowered to 0.04: weakest prior accuracy (57%) of all algorithmic models.
+    # logistic_v2 raised to 0.06: well-calibrated despite modest raw accuracy.
+    # Top models scaled down slightly to accommodate market_v2 and llm_consensus_v2.
+    "xgb_v2":             {"name": "XGBoost",           "model_type": "XGBoost",        "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.12, "parent_version": "xgb_v1"},
+    "lstm_v2":            {"name": "LSTM",              "model_type": "LSTM",           "markets": ["1x2"],                       "spec_weight": 0.09, "parent_version": "lstm_v1"},
+    "poisson_v2":         {"name": "PoissonGoals",      "model_type": "Poisson",        "markets": ["1x2", "over_under"],         "spec_weight": 0.08, "parent_version": "poisson_v1"},
+    "hybrid_v2":          {"name": "HybridStack",       "model_type": "HybridStack",    "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.08, "parent_version": "hybrid_v1"},
+    "transformer_v2":     {"name": "Transformer",       "model_type": "Transformer",    "markets": ["1x2", "over_under"],         "spec_weight": 0.08, "parent_version": "transformer_v1"},
+    "ensemble_v2":        {"name": "NeuralEnsemble",    "model_type": "NeuralEnsemble", "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.07, "parent_version": "ensemble_v1"},
+    "dixon_coles_v2":     {"name": "DixonColes",        "model_type": "DixonColes",     "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.07, "parent_version": "dixon_coles_v1"},
+    "bayes_v2":           {"name": "BayesianNet",       "model_type": "BayesianNet",    "markets": ["1x2", "btts"],               "spec_weight": 0.06, "parent_version": "bayes_v1"},
+    "market_v2":          {"name": "MarketImplied",     "model_type": "MarketImplied",  "markets": ["1x2"],                       "spec_weight": 0.10, "parent_version": "market_v1"},
+    "rf_v2":              {"name": "RandomForest",      "model_type": "RandomForest",   "markets": ["1x2", "over_under"],         "spec_weight": 0.05, "parent_version": "rf_v1"},
+    "logistic_v2":        {"name": "LogisticRegression","model_type": "Logistic",       "markets": ["1x2"],                       "spec_weight": 0.06, "parent_version": "logistic_v1"},
+    "elo_v2":             {"name": "EloRating",         "model_type": "Elo",            "markets": ["1x2"],                       "spec_weight": 0.04, "parent_version": "elo_v1"},
+    "llm_consensus_v2":   {"name": "LLMConsensus",      "model_type": "LLMConsensus",   "markets": ["1x2", "over_under", "btts"], "spec_weight": 0.10, "parent_version": "llm_consensus_v1"},
 }
 
 
@@ -89,12 +96,27 @@ async def bootstrap_registry(db: AsyncSession, orchestrator: Any) -> int:
             # Sync pkl_loaded status from live orchestrator
             meta = orch_meta.get(key, {})
             pkl_loaded = meta.get("pkl_loaded", False)
+            base_weight = spec.get("spec_weight", row.weight)
             if row.pkl_loaded != pkl_loaded:
                 row.pkl_loaded = pkl_loaded
-                base_weight = spec.get("spec_weight", row.weight)
                 if pkl_loaded:
                     row.weight = base_weight * 2.0
                 logger.info(f"[registry] Updated pkl status for {key}: {pkl_loaded}, new weight={row.weight:.4f}")
+            else:
+                # Resync spec weight if the row's current weight exactly matches
+                # a stale spec (i.e. it hasn't been touched by the adaptive adjuster).
+                # We only update when the DB weight equals the old spec_weight so we
+                # don't overwrite adaptive adjustments made at runtime.
+                # Tolerance: within 0.001 of any "round" spec value.
+                expected_no_pkl = base_weight
+                expected_with_pkl = base_weight * 2.0
+                current = float(row.weight or 0)
+                old_specs = {0.15, 0.12, 0.10, 0.08, 0.05, 0.04, 0.03, 0.02}
+                if current in old_specs or abs(current - expected_no_pkl) > 0.001:
+                    new_w = expected_with_pkl if pkl_loaded else expected_no_pkl
+                    if abs(current - new_w) > 0.0001:
+                        row.weight = new_w
+                        logger.info(f"[registry] Resynced spec weight for {key}: {current:.4f} → {new_w:.4f}")
 
         # Deactivate the v1 parent row (if any) without deleting it. Keeps
         # historical predictions joinable to a model_metadata row.

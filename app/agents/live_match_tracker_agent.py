@@ -148,13 +148,10 @@ class LiveMatchTrackerAgent(BaseAgent):
                     "home": home_score, "away": away_score, "minute": minute,
                 }
 
-        # Trigger settlement check for any newly finished matches (best-effort)
-        if matches_updated > 0 or score_changes > 0:
-            try:
-                from app.services.results_settler import settle_results
-                await settle_results(days_back=1)
-            except Exception as exc:
-                logger.debug("[live-tracker] settlement pass error (non-fatal): %s", exc)
+        # NOTE: Settlement is handled by two dedicated loops in main.py:
+        #   • live_match_tracker_loop  → calls settle_completed_db_matches() (DB-only, fast)
+        #   • auto_settle_loop         → calls settle_results() (API-backed, every N minutes)
+        # Calling settle_results() here too would cause triple-settlement of predictions.
 
         logger.info(
             "[live-tracker] %d live matches, %d score changes, %d goals",

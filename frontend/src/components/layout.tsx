@@ -9,12 +9,13 @@ import {
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
   Sparkles, Brain, Zap, Radio, Network, DatabaseZap, FlaskConical,
   Map, Fingerprint, BadgeCheck, Bot, Vault, Star, ShieldAlert, FileCode2,
-  ChevronRight,
+  ChevronRight, Smartphone, Sword, MessageSquare,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
 import { EcosystemTicker } from "./ecosystem-ticker";
 import { Badge } from "./ui/badge";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type NavItem  = { name: string; href: string; icon: typeof Home };
 type NavGroup = { name: string; items: NavItem[] };
@@ -23,11 +24,13 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "Bet",
     items: [
-      { name: "Dashboard",   href: "/dashboard",   icon: Home },
-      { name: "Matches",     href: "/matches",     icon: Activity },
-      { name: "Predictions", href: "/predictions", icon: CheckSquare },
-      { name: "Accumulator", href: "/accumulator", icon: Layers },
-      { name: "Odds Intel",  href: "/odds",        icon: TrendingUp },
+      { name: "Dashboard",      href: "/dashboard",          icon: Home },
+      { name: "Matches",        href: "/matches",            icon: Activity },
+      { name: "Value Intel",    href: "/value-intelligence", icon: Shield },
+      { name: "Predictions",    href: "/predictions",        icon: CheckSquare },
+      { name: "Quality Feed",   href: "/quality-feed",       icon: Target },
+      { name: "Accumulator",    href: "/accumulator",        icon: Layers },
+      { name: "Odds Intel",     href: "/odds",               icon: TrendingUp },
     ],
   },
   {
@@ -44,13 +47,19 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "Pro",
     items: [
-      { name: "AI Assistant",  href: "/assistant",   icon: Sparkles },
-      { name: "Training",      href: "/training",    icon: BookOpen },
-      { name: "Analytics",     href: "/analytics",   icon: BarChart2 },
-      { name: "Intel Reports", href: "/reports",     icon: Radio },
-      { name: "Research",      href: "/research",    icon: FlaskConical },
-      { name: "Marketplace",   href: "/marketplace", icon: ShoppingBag },
-      { name: "Validators",    href: "/validators",  icon: ShieldCheck },
+      { name: "AI Assistant",   href: "/assistant",        icon: Sparkles },
+      { name: "Training",       href: "/training",         icon: BookOpen },
+      { name: "Analytics",      href: "/analytics",        icon: BarChart2 },
+      { name: "Intel Reports",  href: "/reports",          icon: Radio },
+      { name: "Research",       href: "/research",         icon: FlaskConical },
+      { name: "Stadium Mode",   href: "/stadium",          icon: Map },
+      { name: "VIT IQ Test",    href: "/iq-test",          icon: Brain },
+      { name: "Oracle's Mic",   href: "/oracle-mic",       icon: Radio },
+      { name: "Debate Arena",   href: "/debates",          icon: Sword },
+      { name: "Bet Rooms",      href: "/rooms",            icon: MessageSquare },
+      { name: "Prophecy Chain", href: "/prophecy",         icon: Sparkles },
+      { name: "Marketplace",    href: "/marketplace",      icon: ShoppingBag },
+      { name: "Validators",     href: "/validators",       icon: ShieldCheck },
     ],
   },
   {
@@ -71,10 +80,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "You",
     items: [
-      { name: "My Identity",  href: "/identity",     icon: Fingerprint },
-      { name: "KYC Verify",   href: "/kyc",          icon: BadgeCheck },
-      { name: "Subscription", href: "/subscription", icon: CreditCard },
-      { name: "Settings",     href: "/settings",     icon: Settings },
+      { name: "My Identity",      href: "/identity",        icon: Fingerprint },
+      { name: "KYC Verify",       href: "/kyc",             icon: BadgeCheck },
+      { name: "Discipline Coach", href: "/discipline-coach",icon: Brain },
+      { name: "My Wrapped",       href: "/wrapped",         icon: Smartphone },
+      { name: "Subscription",     href: "/subscription",    icon: CreditCard },
+      { name: "Settings",         href: "/settings",        icon: Settings },
     ],
   },
 ];
@@ -250,14 +261,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-4 py-4 border-b border-white/5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary/25 to-purple-500/25 border border-primary/30 flex items-center justify-center vit-glow-cyan-s">
-            <Zap className="w-4 h-4 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold font-mono text-sm tracking-tight leading-none">VIT<span className="text-primary">_OS</span></div>
-            <div className="text-[9px] font-mono text-muted-foreground/50 tracking-widest uppercase mt-0.5">Sports Intelligence</div>
-          </div>
-          <div className="flex items-center gap-0.5 flex-shrink-0">
+          <BrandLogo size={32} withWordmark />
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
             <span className="vit-live-dot" style={{ width: 5, height: 5 }} />
           </div>
         </div>

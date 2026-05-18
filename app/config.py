@@ -42,6 +42,14 @@ def _get_secure_secret_key() -> str:
 # ── Application version (single source of truth) ──────────────────────
 APP_VERSION: str = "5.0.0"
 
+# ── Application branding ──────────────────────────────────────────────
+APP_NAME: str       = get_env("APP_NAME",       "Value Intelligence Trust (VIT)")
+APP_SHORT_NAME: str = get_env("APP_SHORT_NAME", "VIT")
+APP_TAGLINE: str    = get_env("APP_TAGLINE",    "Where Value, Intelligence, and Trust Converge")
+ADMIN_EMAIL: str    = get_env("ADMIN_EMAIL",    "admin@vit.network")
+SUPPORT_EMAIL: str  = get_env("SUPPORT_EMAIL",  "support@vit.network")
+LEGAL_EMAIL: str    = get_env("LEGAL_EMAIL",    "legal@vit.network")
+
 # ── Prediction / bankroll constants (override via env vars) ────────────
 MAX_STAKE: float          = float(get_env("MAX_STAKE",           "0.05"))
 MIN_EDGE_THRESHOLD: float = float(get_env("MIN_EDGE_THRESHOLD",  "0.02"))
@@ -78,7 +86,7 @@ def print_config_status() -> None:
     settle_mode  = "Football-Data.org (live)" if football_key else "TheSportsDB (live, free)"
 
     print(f"\n{'='*55}")
-    print(f"  VIT Sports Intelligence Network v{APP_VERSION}")
+    print(f"  {APP_NAME} v{APP_VERSION}")
     print(f"{'='*55}")
     print(f"  {'✅' if jwt_from_env else '⚠️ '} JWT/Secret Key:     {'Configured (Replit Secret)' if jwt_from_env else 'EPHEMERAL DEV KEY — add JWT_SECRET_KEY'}")
     print(f"  {'✅' if get_env('DATABASE_URL') else '✅'} Database:           Configured")

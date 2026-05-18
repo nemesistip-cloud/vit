@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -151,7 +151,7 @@ async def record_agent_task(
     else:
         agent.failed_tasks += 1
     agent.total_earned_vit += vit_earned
-    agent.last_active_at = datetime.utcnow()
+    agent.last_active_at = datetime.now(timezone.utc)
 
     if agent.total_tasks > 0:
         agent.accuracy_rate = Decimal(str(agent.successful_tasks / agent.total_tasks))
@@ -189,8 +189,8 @@ async def issue_credential(
         credential_hash=cred_hash,
         issued_by=issued_by,
         status=CredentialStatus.VALID,
-        issued_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(days=valid_days),
+        issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=valid_days),
     )
     db.add(cred)
     await db.commit()

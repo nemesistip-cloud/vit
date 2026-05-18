@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { GamblingAgeDisclaimer } from "@/components/gambling-age-disclaimer";
 import { wagmiConfig } from "@/lib/web3";
 
 // Eager — first-paint surfaces (landing + auth) and the tiny info page used for legal routes.
@@ -57,9 +58,20 @@ const SecurityLayerPage   = lazy(() => import("@/pages/security"));
 const RoadmapPage         = lazy(() => import("@/pages/roadmap"));
 const IdentityPage        = lazy(() => import("@/pages/identity"));
 const KYCPage             = lazy(() => import("@/pages/kyc"));
-const IDLookupPage        = lazy(() => import("@/pages/id-lookup"));
-const ModelPerformancePage = lazy(() => import("@/pages/model-performance"));
-const BankrollPage        = lazy(() => import("@/pages/bankroll"));
+const IDLookupPage          = lazy(() => import("@/pages/id-lookup"));
+const ModelPerformancePage  = lazy(() => import("@/pages/model-performance"));
+const BankrollPage          = lazy(() => import("@/pages/bankroll"));
+const AIUploadPage          = lazy(() => import("@/pages/ai-upload"));
+const StadiumModePage       = lazy(() => import("@/pages/stadium-mode"));
+const IQTestPage            = lazy(() => import("@/pages/iq-test"));
+const OraclesMicPage        = lazy(() => import("@/pages/oracle-mic"));
+const PredictionWrappedPage = lazy(() => import("@/pages/wrapped"));
+const DisciplineCoachPage   = lazy(() => import("@/pages/discipline-coach"));
+const QualityFeedPage       = lazy(() => import("@/pages/quality-feed"));
+const DebateMarketsPage     = lazy(() => import("@/pages/debate-markets"));
+const BetRoomsPage          = lazy(() => import("@/pages/bet-rooms"));
+const ProphecyChainPage     = lazy(() => import("@/pages/prophecy-chain"));
+const ValueIntelligencePage = lazy(() => import("@/pages/value-intelligence"));
 
 function RouteFallback() {
   return (
@@ -243,6 +255,39 @@ function Router() {
       <Route path="/bankroll">
         <Layout><ProtectedRoute component={BankrollPage} /></Layout>
       </Route>
+      <Route path="/ai-upload">
+        <Layout><ProtectedRoute component={AIUploadPage} /></Layout>
+      </Route>
+      <Route path="/stadium">
+        <Layout><ProtectedRoute component={StadiumModePage} /></Layout>
+      </Route>
+      <Route path="/iq-test">
+        <Layout><ProtectedRoute component={IQTestPage} /></Layout>
+      </Route>
+      <Route path="/oracle-mic">
+        <Layout><ProtectedRoute component={OraclesMicPage} /></Layout>
+      </Route>
+      <Route path="/wrapped">
+        <Layout><ProtectedRoute component={PredictionWrappedPage} /></Layout>
+      </Route>
+      <Route path="/discipline-coach">
+        <Layout><ProtectedRoute component={DisciplineCoachPage} /></Layout>
+      </Route>
+      <Route path="/quality-feed">
+        <Layout><ProtectedRoute component={QualityFeedPage} /></Layout>
+      </Route>
+      <Route path="/debates">
+        <Layout><ProtectedRoute component={DebateMarketsPage} /></Layout>
+      </Route>
+      <Route path="/rooms">
+        <Layout><ProtectedRoute component={BetRoomsPage} /></Layout>
+      </Route>
+      <Route path="/prophecy">
+        <Layout><ProtectedRoute component={ProphecyChainPage} /></Layout>
+      </Route>
+      <Route path="/value-intelligence">
+        <Layout><ProtectedRoute component={ValueIntelligencePage} /></Layout>
+      </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/verify-email" component={VerifyEmailPage} />
@@ -262,6 +307,7 @@ function App() {
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <AuthProvider>
+                <GamblingAgeDisclaimer />
                 <ErrorBoundary>
                   <Router />
                 </ErrorBoundary>

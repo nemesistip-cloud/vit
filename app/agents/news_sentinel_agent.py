@@ -177,6 +177,7 @@ class NewsSentinelAgent(BaseAgent):
         from app.db.models import AgentInsight
         from app.iot.processor import store_and_broadcast
         from app.services.vit_intelligence import get_team_form
+        from app.services.sentiment_analysis import analyze_market_sentiment
 
         scraper = InjuryScraper()
         try:
@@ -234,10 +235,14 @@ class NewsSentinelAgent(BaseAgent):
                     })
                 try:
                     text = raw.strip()
-                    if text.startswith("```"):
-                        text = text.split("```")[1]
+                    fence_match = __import__('re').search(r"```(?:json)?\s*([\s\S]*?)```", text)
+                    if fence_match:
+                        text = fence_match.group(1).strip()
+                    elif text.startswith("```"):
+                        text = text[3:]
                         if text.startswith("json"):
                             text = text[4:]
+                        text = text.rstrip("`").strip()
                     parsed = _json.loads(text.strip())
                     content    = parsed.get("summary", raw[:300])
                     confidence = float(parsed.get("confidence", 0.65))
@@ -273,6 +278,11 @@ class NewsSentinelAgent(BaseAgent):
                         "injuries": len(injuries),
                     },
                 )
+
+                # --- Market Sentiment Analysis (Phase 2) ---
+                news_texts = [content] + [i.get('injury', '') for i in injuries]
+                sentiment = await analyze_market_sentiment(news_texts, target_team=team)
+                meta["market_sentiment"] = sentiment
 
                 teams_analyzed.append(team)
                 insights_stored += 1
@@ -353,6 +363,10 @@ class NewsSentinelAgent(BaseAgent):
                         "source":   "vit_scie",
                     },
                 )
+
+                # --- Market Sentiment Analysis (Phase 2) ---
+                sentiment = await analyze_market_sentiment([content], target_team=team)
+                meta["market_sentiment"] = sentiment
 
                 teams_analyzed.append(team)
                 insights_stored += 1
