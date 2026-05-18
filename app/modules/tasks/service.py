@@ -234,12 +234,13 @@ class TaskService:
             completion = UserTaskCompletion(
                 user_id=user_id,
                 task_id=task_id,
-                required_progress=task.required_count
+                current_progress=0,
+                required_progress=task.required_count or 1
             )
             db.add(completion)
 
-        # Update progress
-        completion.current_progress += progress_increment
+        # Update progress — guard against None before DB flush applies column default
+        completion.current_progress = (completion.current_progress or 0) + progress_increment
         completion.updated_at = datetime.utcnow()
 
         # Check if completed
