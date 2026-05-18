@@ -18,11 +18,11 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icons/*.svg"],
       manifest: {
-        name: "VIT Sports Intelligence Network",
-        short_name: "VIT Sports",
-        description: "AI-Powered Sports Prediction Ecosystem",
-        theme_color: "#09090b",
-        background_color: "#09090b",
+        name: "Value Intelligence Trust",
+        short_name: "VIT",
+        description: "Where Value, Intelligence, and Trust Converge.",
+        theme_color: "#050505",
+        background_color: "#050505",
         display: "standalone",
         icons: [
           {

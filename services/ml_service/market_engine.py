@@ -1,5 +1,5 @@
 # services/ml_service/market_engine.py
-# VIT Sports Intelligence — Market Engine
+# Value Intelligence Trust (VIT) — Market Engine
 # Simulates bookmaker behavior: margins, bias, line movement
 # Used for self-play training and hybrid loss computation
 

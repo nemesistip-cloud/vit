@@ -1,13 +1,13 @@
-# VIT Sports Intelligence Network — White Paper
-**Version:** 1.0.0
-**Date:** May 2024
-**Status:** Draft
+# Value Intelligence Trust (VIT) — White Paper
+**Version:** 7.0.0
+**Date:** May 2026
+**Status:** Final Rebrand
 
 ---
 
 ## 1. Introduction
 
-The VIT Sports Intelligence Network is a next-generation decentralized platform designed to revolutionize sports prediction markets through high-frequency AI-driven analysis and cryptographic transparency. By utilizing an autonomous swarm of 22 specialized agents and a dedicated sovereign ledger (VIT-Chain), VIT bridges the gap between complex machine learning and accessible, verifiable sports intelligence.
+The VIT Ecosystem is a next-generation decentralized platform designed to build intelligent systems where value, trust, and merit become programmable. By utilizing an autonomous swarm of 22 specialized agents and a dedicated sovereign ledger (VIT-Chain), VIT bridges the gap between complex machine learning and accessible, verifiable infrastructure for a digital civilization.
 
 ## 2. System Architecture
 

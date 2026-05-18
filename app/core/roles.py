@@ -1,4 +1,4 @@
-# app/core/roles.py — VIT Network RBAC Role & Permission Definitions
+# app/core/roles.py — Value Intelligence Trust (VIT) RBAC Role & Permission Definitions
 from enum import Enum
 from typing import List
 

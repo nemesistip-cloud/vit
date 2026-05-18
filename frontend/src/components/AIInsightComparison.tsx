@@ -12,11 +12,11 @@ import {
 import { analyzeMatchWithPuter, isPuterAvailable, MatchAnalysis } from "@/lib/puter-ai";
 
 const AI_PROVIDERS = {
-  gemini:        { name: "Gemini",              color: "hsl(var(--primary))",   icon: Sparkles     },
-  claude:        { name: "Claude",              color: "hsl(262 83% 58%)",      icon: BrainCircuit },
-  grok:          { name: "Grok",                color: "hsl(var(--secondary))", icon: Zap           },
-  puter:         { name: "Puter",               color: "hsl(173 80% 50%)",      icon: Bot           },
-  deterministic: { name: "VIT Statistical Engine", color: "hsl(220 70% 60%)", icon: BarChart2     },
+  gemini:        { name: "Gemini",              color: "#1E6BFF", icon: Sparkles     },
+  claude:        { name: "Claude",              color: "#a855f7", icon: BrainCircuit },
+  grok:          { name: "Grok",                color: "#D4AF37", icon: Zap           },
+  puter:         { name: "Puter",               color: "#00C896", icon: Bot           },
+  deterministic: { name: "VIT Statistical Engine", color: "#C0C7D1", icon: BarChart2     },
 } as const;
 
 type Provider = keyof typeof AI_PROVIDERS;

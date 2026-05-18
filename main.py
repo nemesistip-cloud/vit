@@ -1,4 +1,4 @@
-# main.py — VIT Sports Intelligence Network v7.0.0
+# main.py — Value Intelligence Trust (VIT) v7.0.0
 # Full Integration: AI + Wallet + Blockchain + Training
 
 import asyncio
@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, func
 
 from fastapi.middleware.gzip import GZipMiddleware
-from app.config import get_env, APP_VERSION, print_config_status
+from app.config import get_env, APP_VERSION, APP_NAME, APP_SHORT_NAME, print_config_status
 from app.core.errors import AppError, error_response
 from app.db.database import get_db
 import app.db.models  # ensure all models registered (incl. EmailToken, TokenBlocklist)
@@ -603,7 +603,7 @@ async def lifespan(app: FastAPI):
     from app.core.logging_config import configure_logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
     print_config_status()
-    print(f"🚀 VIT Network v{APP_VERSION} starting...")
+    print(f"🚀 {APP_NAME} v{APP_VERSION} starting...")
 
     try:
         from app.db.database import engine
@@ -1397,7 +1397,7 @@ async def lifespan(app: FastAPI):
             {
                 "category_name": "Social",
                 "title": "Refer a Friend",
-                "description": "Invite a friend to join VIT Sports Intelligence Network using your referral link.",
+                "description": f"Invite a friend to join {APP_SHORT_NAME} using your referral link.",
                 "short_description": "Refer 1 friend",
                 "task_type": TaskType.PROGRESS.value,
                 "required_count": 1,
@@ -1697,7 +1697,7 @@ async def lifespan(app: FastAPI):
 # ============================================
 
 app = FastAPI(
-    title="VIT Sports Intelligence Network",
+    title=APP_NAME,
     version=APP_VERSION,
     lifespan=lifespan,
 )
@@ -1944,7 +1944,7 @@ app.include_router(identity_router)
 # KYC — offline rule-based identity verification
 app.include_router(kyc_router)
 
-# VIT Network — Node Registry and Growth Metrics
+# Value Intelligence Trust (VIT) — Node Registry and Growth Metrics
 app.include_router(network_router)
 
 # VIT Quant Engine — Phase 2
@@ -2435,7 +2435,7 @@ else:
     @app.get("/", include_in_schema=False)
     async def root_fallback():
         return {
-            "name": "VIT Sports Intelligence Network",
+            "name": APP_NAME,
             "version": APP_VERSION,
             "status": "live — frontend not built",
         }

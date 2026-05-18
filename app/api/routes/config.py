@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import APP_VERSION
+from app.config import APP_VERSION, APP_NAME, APP_TAGLINE, SUPPORT_EMAIL, LEGAL_EMAIL
 from app.db.database import get_db
 from app.db.models import Match
 from app.modules.wallet.models import PlatformConfig
@@ -196,6 +196,10 @@ async def _build_config(db: AsyncSession) -> Dict[str, Any]:
             "vit_usd":        vit_usd,
         },
         "platform": {
+            "name":               APP_NAME,
+            "tagline":            APP_TAGLINE,
+            "support_email":      SUPPORT_EMAIL,
+            "legal_email":        LEGAL_EMAIL,
             "welcome_bonus_vit":  welcome_bonus_vit,
             "model_count":        model_count,
             "version":            APP_VERSION,

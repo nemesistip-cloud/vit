@@ -14,6 +14,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { Redirect } from "wouter";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -4954,6 +4955,7 @@ function AdminHealthPills() {
 
 export default function AdminPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { data: config } = usePublicConfig();
   const [activeTab, setActiveTab] = useState("dashboard");
 
   if (!user) return <Redirect to="/login" />;
@@ -5042,7 +5044,7 @@ export default function AdminPage() {
               <div className="font-bold text-foreground text-base leading-tight tracking-wide">
                 ADMIN <span className="text-cyan-400">CONTROL CENTER</span>
               </div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-widest">VIT Sports Intelligence Network</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest">{config?.platform.name || "VIT"} Intelligence Network</div>
             </div>
           </div>
 

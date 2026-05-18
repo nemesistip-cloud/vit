@@ -1,5 +1,5 @@
 # app/api/routes/training.py
-# VIT Sports Intelligence Network — v3.0.0 (Beast Mode)
+# Value Intelligence Trust (VIT) — v3.0.0 (Beast Mode)
 # Training Pipeline: trigger retraining, simulation engine, bootstrap training,
 #                    hybrid loss, edge memory, self-play, continuous learning
 

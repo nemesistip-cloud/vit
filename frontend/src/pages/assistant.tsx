@@ -11,6 +11,7 @@ import {
   type AssistantTurn,
 } from "@/api-client";
 import { toast } from "sonner";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import {
   isPuterAvailable,
   puterChat,
@@ -44,6 +45,7 @@ export default function AssistantPage() {
 
   const status = useAssistantStatus();
   const chat   = useAssistantChat();
+  const { data: config } = usePublicConfig();
 
   const puter = isPuterAvailable();
   // Use server_configured (has actual LLM API keys) — not just available (always true)
@@ -155,7 +157,7 @@ export default function AssistantPage() {
             AI Assistant
           </h1>
           <p className="text-sm text-muted-foreground font-mono mt-1">
-            Conversational copilot for the VIT Sports Intelligence Network.
+            Conversational copilot for the {config?.platform.name || "VIT"} Network.
           </p>
         </div>
 
@@ -254,7 +256,7 @@ export default function AssistantPage() {
                   <p className="font-mono font-semibold text-sm">
                     {currentMode.free
                       ? `Free ${currentMode.label} AI — no API key required.`
-                      : "Ask me anything about VIT Sports."}
+                      : `Ask me anything about ${config?.platform.name || "VIT"}.`}
                   </p>
                   <p className="font-mono text-xs text-muted-foreground">
                     {currentMode.free
@@ -305,7 +307,7 @@ export default function AssistantPage() {
               rows={1}
               placeholder={
                 isReady
-                  ? `Ask ${currentMode.label} anything about VIT Sports…`
+                  ? `Ask ${currentMode.label} anything about ${config?.platform.name || "VIT"}…`
                   : mode === "gemini" && !backendReady
                   ? "Switch to Claude or Grok for free unlimited AI…"
                   : "Puter AI loading…"

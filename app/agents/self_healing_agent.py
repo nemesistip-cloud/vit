@@ -50,8 +50,9 @@ async def _diagnose(snapshot: dict) -> Optional[Dict[str, Any]]:
 
     logs_text = "\n".join(logs)
     snapshot_text = json.dumps(snapshot, indent=2, default=str)
+    from app.config import APP_NAME
     prompt = f"""
-    You are a Platform Reliability Engineer for the VIT Sports Intelligence Network.
+    You are a Platform Reliability Engineer for {APP_NAME}.
     Analyze this system health snapshot and recent logs to diagnose the root cause of the issues.
 
     Health Snapshot:

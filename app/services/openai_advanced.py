@@ -408,10 +408,11 @@ async def analyze_governance_proposal(
 
     Returns: recommendation, risk assessment, stakeholder impact, vote guidance.
     """
+    from app.config import APP_NAME, APP_SHORT_NAME
     votes_str = json.dumps(current_votes or {})
-    supply_str = f"Total VIT supply: {token_supply:,.0f}" if token_supply else ""
+    supply_str = f"Total {APP_SHORT_NAME} supply: {token_supply:,.0f}" if token_supply else ""
 
-    prompt = f"""You are a blockchain DAO governance analyst for VIT Sports Intelligence Network.
+    prompt = f"""You are a blockchain DAO governance analyst for {APP_NAME}.
 
 Proposal #{proposal_id}: {title}
 Proposer: {proposer}

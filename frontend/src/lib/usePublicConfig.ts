@@ -31,6 +31,10 @@ export interface PublicConfig {
     vit_usd: number;
   };
   platform: {
+    name: string;
+    tagline: string;
+    support_email: string;
+    legal_email: string;
     welcome_bonus_vit: number;
     model_count: number;
     version: string;

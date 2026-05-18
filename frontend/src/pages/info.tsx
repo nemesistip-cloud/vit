@@ -3,20 +3,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Mail, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
-const content: Record<string, { title: string; subtitle: string; sections: { heading: string; body: string }[] }> = {
-  about: {
-    title: "About Value Intelligence Trust (VIT)",
-    subtitle: "A world where intelligence coordinates economies more efficiently than corruption, manipulation, or chaos.",
-    sections: [
-      { heading: "Mission", body: "To build intelligent systems where value, trust, and merit become programmable." },
-      { heading: "Vision", body: "A world where intelligence coordinates economies more efficiently than corruption, manipulation, or chaos." },
-      { heading: "Ecosystem", body: "Value Intelligence Trust (VIT) is an integrated ecosystem of AI, Blockchain, and programmable merit. From the VIT Chain to the VIT Intelligence layer, we build the infrastructure for a digital civilization based on merit and verifiable trust." },
-    ],
-  },
-  terms: {
-    title: "Terms & Conditions",
-    subtitle: "Rules for using VIT Sports Intelligence Network.",
+const content = (config: any) => {
+  const name = config?.platform.name || "Value Intelligence Trust (VIT)";
+  const support = config?.platform.support_email || "support@vit.network";
+  const legal = config?.platform.legal_email || "legal@vit.network";
+
+  return {
+    about: {
+      title: `About ${name}`,
+      subtitle: config?.platform.tagline || "A world where intelligence coordinates economies more efficiently than corruption, manipulation, or chaos.",
+      sections: [
+        { heading: "Mission", body: "To build intelligent systems where value, trust, and merit become programmable." },
+        { heading: "Vision", body: "A world where intelligence coordinates economies more efficiently than corruption, manipulation, or chaos." },
+        { heading: "Ecosystem", body: `${name} is an integrated ecosystem of AI, Blockchain, and programmable merit. From the VIT Chain to the VIT Intelligence layer, we build the infrastructure for a digital civilization based on merit and verifiable trust.` },
+      ],
+    },
+    terms: {
+      title: "Terms & Conditions",
+      subtitle: `Rules for using ${name}.`,
     sections: [
       { heading: "Eligibility", body: "You are responsible for complying with local laws and must not use the platform where sports prediction, token rewards, or related services are restricted." },
       { heading: "No guaranteed outcomes", body: "Predictions, odds intelligence, and model outputs are informational only. VIT does not guarantee profit, accuracy, or betting outcomes." },
@@ -35,19 +41,23 @@ const content: Record<string, { title: string; subtitle: string; sections: { hea
       { heading: "User choices", body: "Users can update account settings, request support, and should avoid uploading sensitive personal information inside model artifacts." },
     ],
   },
-  contact: {
-    title: "Contact",
-    subtitle: "Reach the VIT team for marketplace, account, legal, or partnership support.",
-    sections: [
-      { heading: "Support", body: "For account, wallet, prediction, or marketplace issues, contact support@vit.network with your username and a clear description of the issue." },
-      { heading: "Legal", body: "For legal, compliance, or takedown notices, contact legal@vit.network and include the affected listing, content, or account details." },
-      { heading: "Developers", body: "For model onboarding or API questions, use the Developer section in the app and include your intended system model slot and package format." },
-    ],
-  },
+    contact: {
+      title: "Contact",
+      subtitle: `Reach the ${config?.platform.name || "VIT"} team for marketplace, account, legal, or partnership support.`,
+      sections: [
+        { heading: "Support", body: `For account, wallet, prediction, or marketplace issues, contact ${support} with your username and a clear description of the issue.` },
+        { heading: "Legal", body: `For legal, compliance, or takedown notices, contact ${legal} and include the affected listing, content, or account details.` },
+        { heading: "Developers", body: "For model onboarding or API questions, use the Developer section in the app and include your intended system model slot and package format." },
+      ],
+    },
+  };
 };
 
-export default function InfoPage({ type }: { type: keyof typeof content }) {
-  const page = content[type] ?? content.about;
+export default function InfoPage({ type }: { type: string }) {
+  const { data: config } = usePublicConfig();
+  const pageContent = content(config);
+  const page = (pageContent as any)[type] ?? pageContent.about;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border/60 px-4 py-4">

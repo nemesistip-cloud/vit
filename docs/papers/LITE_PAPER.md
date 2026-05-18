@@ -1,13 +1,13 @@
-# VIT Sports Intelligence Network — Lite Paper
-**Version:** 1.0.0
-**Date:** May 2024
-**Status:** Draft
+# Value Intelligence Trust (VIT) — Lite Paper
+**Version:** 7.0.0
+**Date:** May 2026
+**Status:** Final Rebrand
 
 ---
 
 ## 1. Executive Summary
 
-VIT (Versatile Intelligence Tool) is a decentralized Sports Intelligence Network designed to bring transparency, accountability, and institutional-grade analytics to the global sports betting market. By combining a swarm of 22 autonomous AI agents with a sovereign, hash-linked ledger (VIT-Chain), VIT provides verifiable, high-accuracy predictions and bankroll management tools for the modern sports bettor.
+VIT (Value Intelligence Trust) is an integrated ecosystem of AI, Blockchain, and autonomous infrastructure designed to coordinate economies more efficiently than corruption, manipulation, or chaos. By combining a swarm of 22 autonomous AI agents with a sovereign, hash-linked ledger (VIT-Chain), VIT provides a programmable foundation for value, trust, and merit in the digital age.
 
 ## 2. The Problem
 

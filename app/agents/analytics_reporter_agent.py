@@ -19,6 +19,7 @@ from typing import Any, Dict
 
 from app.agents.base import BaseAgent
 from app.services.ai_client import call_ai, call_ai_with_provider
+from app.config import APP_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ def _daily_prompt(stats: dict, date_str: str, is_weekly: bool) -> str:
     window = "7 days" if is_weekly else "24 hours"
 
     return (
-        f"You are the analytics director for VIT Sports Intelligence Network.\n\n"
+        f"You are the analytics director for {APP_NAME}.\n\n"
         f"{report_type} — {date_str} (last {window})\n\n"
         f"Platform Metrics:\n"
         f"  Active users ({window}): {stats.get('active_users', 0)}\n"
@@ -194,7 +195,7 @@ def _template_brief(stats: dict, date_str: str, is_weekly: bool) -> str:
     window = "7-day" if is_weekly else "24-hour"
 
     lines = [
-        f"VIT Sports Intelligence Network — {label} [{date_str}]",
+        f"{APP_NAME} — {label} [{date_str}]",
         "",
         f"Platform Health ({window} window):",
         f"  • Active users: {stats.get('active_users', 0)} | Total users: {stats.get('total_users', 0)}",

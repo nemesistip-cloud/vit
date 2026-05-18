@@ -14,18 +14,18 @@ const wcProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | un
 const connectors = [
   injected({ shimDisconnect: true }),
   coinbaseWallet({
-    appName: "VIT Sports Intelligence",
-    appLogoUrl: "https://vitcoin.network/logo.png",
+    appName: "VIT",
+    appLogoUrl: "https://vit.network/logo.png",
   }),
   ...(wcProjectId
     ? [
         walletConnect({
           projectId: wcProjectId,
           metadata: {
-            name: "VIT Sports Intelligence",
-            description: "AI-native sports prediction and analytics platform",
-            url: "https://vitcoin.network",
-            icons: ["https://vitcoin.network/logo.png"],
+            name: "Value Intelligence Trust",
+            description: "To build intelligent systems where value, trust, and merit become programmable.",
+            url: "https://vit.network",
+            icons: ["https://vit.network/logo.png"],
           },
         }),
       ]

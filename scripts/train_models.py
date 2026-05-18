@@ -1,5 +1,5 @@
 """
-scripts/train_models.py — VIT Sports Intelligence Network
+scripts/train_models.py — Value Intelligence Trust (VIT)
 
 Train ensemble models (Logistic Regression, Random Forest, XGBoost, Gradient Boosting)
 using historical match data from the database or CSV files. Saves .pkl files to /models/
@@ -312,7 +312,7 @@ def train_and_save(entry, X, y):
 
 async def main(args):
     logger.info("=" * 58)
-    logger.info("  VIT Sports Intelligence — Model Training")
+    logger.info("  Value Intelligence Trust (VIT) — Model Training")
     logger.info("=" * 58)
 
     all_rows, is_dict = [], False

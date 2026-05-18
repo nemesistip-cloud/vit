@@ -50,7 +50,7 @@ class MatchContext:
 
 class DataLoader:
     """
-    Async data loader for VIT Network.
+    Async data loader for Value Intelligence Trust (VIT).
 
     Features:
         - Parallel fetching from multiple sources

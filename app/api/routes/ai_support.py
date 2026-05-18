@@ -136,9 +136,10 @@ async def _gather_user_context(db: AsyncSession, user: User) -> dict:
 
 def _build_support_prompt(question: str, user_context: dict) -> str:
     import json
+    from app.config import APP_NAME
     ctx_str = json.dumps(user_context, indent=2, default=str)
     return (
-        f"You are the AI support agent for VIT Sports Intelligence Network.\n"
+        f"You are the AI support agent for {APP_NAME}.\n"
         f"Answer the user's question using ONLY the provided account context — "
         f"do not make up information not present in the context.\n"
         f"Be helpful, concise, and empathetic. If you cannot answer from the context, "
