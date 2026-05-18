@@ -171,17 +171,16 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
 
 
 async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str | None:
-    api_key = (os.getenv("AI_INTEGRATIONS_ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")).strip()
+    api_key = (os.getenv("CLAUDE_API_KEY") or os.getenv("ANTHROPIC_API_KEY", "")).strip()
     if not api_key:
         return None
-    if len(api_key) < 10:
+    if len(api_key) < 20:
         logger.debug("[ai-client] claude: key too short — skipping (configure a real key to enable)")
         return None
     if not _provider_available("claude"):
         return None
 
-    base_url = os.getenv("AI_INTEGRATIONS_ANTHROPIC_BASE_URL", "").rstrip("/")
-    url = f"{base_url}/messages" if base_url else "https://api.anthropic.com/v1/messages"
+    url = "https://api.anthropic.com/v1/messages"
     for model in _CLAUDE_MODELS:
         try:
             async with httpx.AsyncClient(timeout=30) as client:
@@ -419,11 +418,14 @@ def provider_status() -> dict[str, dict]:
         v = os.getenv(env_var, "").strip()
         return len(v) >= min_len
 
+    def _any_key_valid(*env_vars: str, min_len: int = 10) -> bool:
+        return any(len(os.getenv(v, "").strip()) >= min_len for v in env_vars)
+
     keys = {
-        "gemini": _key_valid("GEMINI_API_KEY"),
-        "claude": _key_valid("CLAUDE_API_KEY"),
-        "openai": _key_valid("OPENAI_API_KEY"),
-        "grok":   _key_valid("XAI_API_KEY"),
+        "gemini": _any_key_valid("GEMINI_API_KEY"),
+        "claude": _any_key_valid("CLAUDE_API_KEY", "ANTHROPIC_API_KEY", min_len=20),
+        "openai": _any_key_valid("AI_INTEGRATIONS_OPENAI_API_KEY", "OPENAI_API_KEY"),
+        "grok":   _any_key_valid("XAI_API_KEY"),
     }
     result = {}
     for name, has_key in keys.items():
