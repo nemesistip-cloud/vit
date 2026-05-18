@@ -80,6 +80,7 @@ export default defineConfig({
       "/oracle": { target: "http://localhost:8000", bypass: htmlBypass },
       "/webhook": { target: "http://localhost:8000", bypass: htmlBypass },
       "/config": { target: "http://localhost:8000", bypass: htmlBypass },
+      "/iot": { target: "http://localhost:8000", bypass: htmlBypass },
       "/ws": { target: "ws://localhost:8000", ws: true },
     },
   },

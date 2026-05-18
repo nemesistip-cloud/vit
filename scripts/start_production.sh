@@ -9,10 +9,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT="${PORT:-5000}"
+APP_VERSION="5.0.0"
 
-# Activate trained .pkl weights / algorithmic ensemble in production
+# Signal to app that we are in production — triggers full model loading,
+# disables ephemeral JWT key warnings, and activates all 13 ensemble models.
+# Works on Replit (REPLIT_DEPLOYMENT is set automatically) AND on Render/VPS.
+export ENVIRONMENT="${ENVIRONMENT:-production}"
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
 export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-true}"
+
+echo "[production] VIT Sports Intelligence Network v${APP_VERSION}"
+echo "[production] Environment: ${ENVIRONMENT} | Port: ${PORT}"
 
 echo "[production] Running database schema setup..."
 python - <<'PYEOF'
@@ -60,6 +67,8 @@ async def ensure_schema():
             await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0')
             await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0')
             await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0')
+            await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT')
+            await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT')
         print('[production] Database schema ready')
     except Exception as e:
         print(f'[production] DB schema warning: {e}')

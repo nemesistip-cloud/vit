@@ -6,14 +6,14 @@ stack = "BEST_EFFORT_FALLBACK"
 [userenv]
 
 [userenv.shared]
-APP_VERSION = "4.6.0"
+APP_VERSION = "5.0.0"
 ENVIRONMENT = "development"
 PORT = "5000"
 CORS_ALLOWED_ORIGINS = "*"
 AUTH_ENABLED = "true"
 USE_REAL_ML_MODELS = "true"
 ML_MODEL_CACHE_ENABLED = "true"
-BLOCKCHAIN_ENABLED = "true "
+BLOCKCHAIN_ENABLED = "true"
 ADMIN_EMAIL = "admin@vit.network"
 ADMIN_USERNAME = "vit_admin"
 ENABLE_SCRAPING = "true"
