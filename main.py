@@ -806,792 +806,800 @@ async def lifespan(app: FastAPI):
     except Exception as _rec_e:
         print(f"⚠️  Training job reconciliation skipped: {_rec_e}")
 
-    # BACKFILL MATCH FINGERPRINTS (idempotent, only fills NULLs)
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.data.match_dedup import backfill_fingerprints
-        async with AsyncSessionLocal() as _db:
-            updated = await backfill_fingerprints(_db)
-        if updated:
-            print(f"✅ Backfilled fingerprints on {updated} matches")
-    except Exception as _e:
-        print(f"⚠️  Match fingerprint backfill skipped: {_e}")
+    # ============================================
+    # ASYNC BACKGROUND INITIALIZATION
+    # ============================================
+    async def run_background_init():
+        """Move heavy seeding and backfilling out of the main lifespan path to prevent Render timeouts."""
+        await asyncio.sleep(5)  # Let the app start first
+        print("🛠️ Starting background initialization...")
 
-    # SEED PLATFORM CONFIG DEFAULTS
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.wallet.models import PlatformConfig
-        from sqlalchemy import select as _select
+        # BACKFILL MATCH FINGERPRINTS (idempotent, only fills NULLs)
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.data.match_dedup import backfill_fingerprints
+            async with AsyncSessionLocal() as _db:
+                updated = await backfill_fingerprints(_db)
+            if updated:
+                print(f"✅ Backfilled fingerprints on {updated} matches")
+        except Exception as _e:
+            print(f"⚠️  Match fingerprint backfill skipped: {_e}")
 
-        _default_configs = [
-            ("fee_rates", {"deposit": 0.01, "withdrawal": 0.02, "conversion": 0.005}, "Platform fee rates"),
-            ("vitcoin_min_stake", {"amount": 10, "validator_min": 100}, "Minimum VITCoin stake amounts"),
-            ("withdrawal_limits", {"daily_usd": 1000, "daily_ngn": 500000, "daily_usdt": 1000}, "Daily withdrawal limits"),
-            ("deposit_limits", {"min_usd": 1, "min_ngn": 500, "max_usd": 10000}, "Deposit limits"),
-            ("vitcoin_supply", {"initial": 1000000, "burned": 0, "reserved": 100000}, "VITCoin supply parameters"),
-            ("platform_treasury", {"address": "vit_treasury_001"}, "Platform treasury wallet reference"),
-            ("exchange_rates", {"usd_ngn": 1580, "usd_pi": 0.5, "usd_usdt": 1.0}, "Fiat/crypto exchange rates"),
-            ("vitcoin_price_formula", {"window_days": 30, "method": "revenue_backed"}, "VITCoin price calculation parameters"),
-            ("vitcoin_price_floor", {"amount": "0.10"}, "Minimum VITCoin price in USD"),
-            ("exchange_rates_usd",
-             {"NGN": 0.000633, "USD": 1.0, "USDT": 1.0, "PI": 0.314159, "VITCoin": 0.10},
-             "Per-currency rate to 1 USD (used by the conversion engine)"),
-            ("conversion_fee_pct", {"value": 0.5}, "Currency conversion fee percentage"),
-            ("withdrawal_fee_pct", {"value": 1.0}, "Withdrawal fee percentage (1.0 = 1% of withdrawal amount)"),
-        ]
-        async with AsyncSessionLocal() as _db:
-            for key, value, desc in _default_configs:
-                existing = (await _db.execute(_select(PlatformConfig).where(PlatformConfig.key == key))).scalar_one_or_none()
-                if not existing:
-                    _db.add(PlatformConfig(key=key, value=value, description=desc))
-                elif key == "vitcoin_price_floor":
-                    # One-shot heal: drop legacy $1.00 floor that disagreed with
-                    # the conversion engine's $0.10 default.
-                    try:
-                        from decimal import Decimal as _D
-                        cur = _D(str((existing.value or {}).get("amount", "0.10")))
-                        if cur >= _D("1.00"):
-                            existing.value = value
-                    except Exception:
-                        pass
-            await _db.commit()
-        print("✅ PlatformConfig defaults seeded")
-    except Exception as _e:
-        print(f"⚠️  PlatformConfig seeding failed: {_e}")
+        # SEED PLATFORM CONFIG DEFAULTS
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.wallet.models import PlatformConfig
+            from sqlalchemy import select as _select
 
-    # SEED DEFAULT ADMIN ACCOUNT
-    try:
-        import os as _os
-        from app.db.database import AsyncSessionLocal
-        from app.db.models import User as _User
-        from app.auth.jwt_utils import hash_password
-        from sqlalchemy import select as _select
-
-        _admin_email = _os.environ.get("ADMIN_EMAIL", "admin@vit.network")
-        _admin_pass = _os.environ.get("ADMIN_PASSWORD")
-        _admin_user = _os.environ.get("ADMIN_USERNAME", "vit_admin")
-
-        async with AsyncSessionLocal() as _db:
-            _exists = (await _db.execute(_select(_User).where(_User.email == _admin_email))).scalar_one_or_none()
-            if not _exists:
-                if not _admin_pass:
-                    print("⚠️  Default admin creation skipped: set ADMIN_PASSWORD or register the first user")
-                else:
-                    _db.add(_User(
-                        email=_admin_email,
-                        username=_admin_user,
-                        hashed_password=hash_password(_admin_pass),
-                        role="admin",
-                        admin_role="super_admin",
-                        subscription_tier="elite",
-                        is_active=True,
-                    ))
-                    await _db.commit()
-                    print(f"✅ Default admin created: {_admin_email}")
-            else:
-                # Ensure existing admin has admin_role and subscription_tier set
-                if not _exists.admin_role:
-                    _exists.admin_role = "super_admin"
-                if not _exists.subscription_tier:
-                    _exists.subscription_tier = "elite"
+            _default_configs = [
+                ("fee_rates", {"deposit": 0.01, "withdrawal": 0.02, "conversion": 0.005}, "Platform fee rates"),
+                ("vitcoin_min_stake", {"amount": 10, "validator_min": 100}, "Minimum VITCoin stake amounts"),
+                ("withdrawal_limits", {"daily_usd": 1000, "daily_ngn": 500000, "daily_usdt": 1000}, "Daily withdrawal limits"),
+                ("deposit_limits", {"min_usd": 1, "min_ngn": 500, "max_usd": 10000}, "Deposit limits"),
+                ("vitcoin_supply", {"initial": 1000000, "burned": 0, "reserved": 100000}, "VITCoin supply parameters"),
+                ("platform_treasury", {"address": "vit_treasury_001"}, "Platform treasury wallet reference"),
+                ("exchange_rates", {"usd_ngn": 1580, "usd_pi": 0.5, "usd_usdt": 1.0}, "Fiat/crypto exchange rates"),
+                ("vitcoin_price_formula", {"window_days": 30, "method": "revenue_backed"}, "VITCoin price calculation parameters"),
+                ("vitcoin_price_floor", {"amount": "0.10"}, "Minimum VITCoin price in USD"),
+                ("exchange_rates_usd",
+                 {"NGN": 0.000633, "USD": 1.0, "USDT": 1.0, "PI": 0.314159, "VITCoin": 0.10},
+                 "Per-currency rate to 1 USD (used by the conversion engine)"),
+                ("conversion_fee_pct", {"value": 0.5}, "Currency conversion fee percentage"),
+                ("withdrawal_fee_pct", {"value": 1.0}, "Withdrawal fee percentage (1.0 = 1% of withdrawal amount)"),
+            ]
+            async with AsyncSessionLocal() as _db:
+                for key, value, desc in _default_configs:
+                    existing = (await _db.execute(_select(PlatformConfig).where(PlatformConfig.key == key))).scalar_one_or_none()
+                    if not existing:
+                        _db.add(PlatformConfig(key=key, value=value, description=desc))
+                    elif key == "vitcoin_price_floor":
+                        # One-shot heal: drop legacy $1.00 floor that disagreed with
+                        # the conversion engine's $0.10 default.
+                        try:
+                            from decimal import Decimal as _D
+                            cur = _D(str((existing.value or {}).get("amount", "0.10")))
+                            if cur >= _D("1.00"):
+                                existing.value = value
+                        except Exception:
+                            pass
                 await _db.commit()
-                print(f"✅ Admin account found: {_admin_email}")
-    except Exception as _e:
-        print(f"⚠️  Admin seeding failed: {_e}")
+            print("✅ PlatformConfig defaults seeded")
+        except Exception as _e:
+            print(f"⚠️  PlatformConfig seeding failed: {_e}")
 
-    # SEED SUBSCRIPTION PLANS
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.db.models import SubscriptionPlan
-        from sqlalchemy import select as _select
+        # SEED DEFAULT ADMIN ACCOUNT
+        try:
+            import os as _os
+            from app.db.database import AsyncSessionLocal
+            from app.db.models import User as _User
+            from app.auth.jwt_utils import hash_password
+            from sqlalchemy import select as _select
 
-        _plans = [
-            {
-                "name": "free",
-                "display_name": "Free",
-                "price_monthly": 0.0,
-                "price_yearly": 0.0,
-                "prediction_limit": 5,
-                "features": {
-                    "predictions": True,
-                    "basic_history": True,
-                    "advanced_analytics": False,
-                    "ai_insights": False,
-                    "accumulator_builder": False,
-                    "model_breakdown": False,
-                    "telegram_alerts": False,
-                    "bankroll_tools": False,
-                    "csv_upload": False,
-                    "priority_support": False,
-                },
-            },
-            {
-                "name": "pro",
-                "display_name": "Pro",
-                "price_monthly": 49.0,
-                "price_yearly": 490.0,
-                "prediction_limit": 100,
-                "features": {
-                    "predictions": True,
-                    "basic_history": True,
-                    "advanced_analytics": True,
-                    "ai_insights": True,
-                    "accumulator_builder": True,
-                    "model_breakdown": True,
-                    "telegram_alerts": True,
-                    "bankroll_tools": True,
-                    "csv_upload": False,
-                    "priority_support": False,
-                },
-            },
-            {
-                "name": "elite",
-                "display_name": "Elite",
-                "price_monthly": 199.0,
-                "price_yearly": 1990.0,
-                "prediction_limit": 1000,
-                "features": {
-                    "predictions": True,
-                    "basic_history": True,
-                    "advanced_analytics": True,
-                    "ai_insights": True,
-                    "accumulator_builder": True,
-                    "model_breakdown": True,
-                    "telegram_alerts": True,
-                    "bankroll_tools": True,
-                    "csv_upload": True,
-                    "priority_support": True,
-                    "validator_eligibility": True,
-                    "revenue_share": True,
-                },
-            },
-        ]
+            _admin_email = _os.environ.get("ADMIN_EMAIL", "admin@vit.network")
+            _admin_pass = _os.environ.get("ADMIN_PASSWORD")
+            _admin_user = _os.environ.get("ADMIN_USERNAME", "vit_admin")
 
-        async with AsyncSessionLocal() as _db:
-            _count = (await _db.execute(_select(func.count()).select_from(SubscriptionPlan))).scalar()
-            if _count == 0:
-                for _p in _plans:
-                    _db.add(SubscriptionPlan(
-                        name=_p["name"],
-                        display_name=_p["display_name"],
-                        price_monthly=_p["price_monthly"],
-                        price_yearly=_p["price_yearly"],
-                        prediction_limit=_p["prediction_limit"],
-                        features=_p["features"],
-                        is_active=True,
-                    ))
-                await _db.commit()
-                print("✅ Subscription plans seeded (Free / Pro / Elite)")
-            else:
-                print(f"✅ Subscription plans: {_count} already seeded")
-    except Exception as _e:
-        print(f"⚠️  Subscription plan seeding failed: {_e}")
-
-    # SEED WALLET SUBSCRIPTION PLANS
-    try:
-        from decimal import Decimal as _Decimal
-        from app.db.database import AsyncSessionLocal
-        from app.modules.wallet.models import WalletSubscriptionPlan as _WalletPlan
-        from sqlalchemy import select as _select, func as _func
-
-        _wallet_plans = [
-            {
-                "name": "Viewer",
-                "description": "Basic access — view predictions and match data",
-                "features": ["View predictions", "Match history", "Public leaderboard"],
-                "price_ngn": _Decimal("0"), "price_usd": _Decimal("0"),
-                "price_usdt": _Decimal("0"), "price_pi": _Decimal("0"),
-                "price_vitcoin": _Decimal("0"), "duration_days": 30,
-            },
-            {
-                "name": "Analyst",
-                "description": "Advanced analytics and AI insights",
-                "features": ["All Viewer features", "Advanced analytics", "AI insights", "Accumulator builder", "Model breakdown", "Telegram alerts"],
-                "price_ngn": _Decimal("75000"), "price_usd": _Decimal("49"),
-                "price_usdt": _Decimal("49"), "price_pi": _Decimal("155"),
-                "price_vitcoin": _Decimal("490"), "duration_days": 30,
-            },
-            {
-                "name": "Pro",
-                "description": "Full access to all 5 prediction markets",
-                "features": ["All Analyst features", "Over/Under markets", "BTTS", "Asian handicap", "Bankroll tools", "Priority support"],
-                "price_ngn": _Decimal("150000"), "price_usd": _Decimal("99"),
-                "price_usdt": _Decimal("99"), "price_pi": _Decimal("315"),
-                "price_vitcoin": _Decimal("990"), "duration_days": 30,
-            },
-            {
-                "name": "Validator",
-                "description": "Unlimited predictions, validator rewards and governance",
-                "features": ["All Pro features", "Unlimited predictions", "Submit predictions", "Validator pool rewards", "Governance voting", "CSV upload"],
-                "price_ngn": _Decimal("300000"), "price_usd": _Decimal("199"),
-                "price_usdt": _Decimal("199"), "price_pi": _Decimal("633"),
-                "price_vitcoin": _Decimal("1990"), "duration_days": 30,
-            },
-        ]
-
-        async with AsyncSessionLocal() as _db:
-            _count = (await _db.execute(_select(_func.count()).select_from(_WalletPlan))).scalar()
-            if _count == 0:
-                for _wp in _wallet_plans:
-                    _db.add(_WalletPlan(**_wp))
-                await _db.commit()
-                print(f"✅ Wallet subscription plans seeded ({len(_wallet_plans)} plans)")
-            else:
-                print(f"✅ Wallet subscription plans: {_count} already seeded")
-    except Exception as _e:
-        print(f"⚠️  Wallet subscription plan seeding failed: {_e}")
-
-    # BACKFILL WALLETS FOR EXISTING USERS
-    try:
-        import uuid as _uuid
-        from decimal import Decimal as _Decimal
-        from app.db.database import AsyncSessionLocal
-        from app.db.models import User as _User
-        from app.modules.wallet.models import Wallet as _Wallet
-        from sqlalchemy import select as _select
-
-        async with AsyncSessionLocal() as _db:
-            _users = (await _db.execute(_select(_User))).scalars().all()
-            _created = 0
-            for _u in _users:
-                _existing_wallet = (await _db.execute(
-                    _select(_Wallet).where(_Wallet.user_id == _u.id)
-                )).scalar_one_or_none()
-                if not _existing_wallet:
-                    _db.add(_Wallet(
-                        id=str(_uuid.uuid4()),
-                        user_id=_u.id,
-                        vitcoin_balance=_Decimal("100.00000000"),
-                    ))
-                    _created += 1
-            if _created:
-                await _db.commit()
-                print(f"✅ Wallets backfilled for {_created} existing user(s)")
-    except Exception as _e:
-        print(f"⚠️  Wallet backfill failed: {_e}")
-
-    # ENFORCE ADMIN_PASSWORD — if ADMIN_PASSWORD env var is set, update any admin
-    # whose password does not meet the current strength requirements.
-    # Legacy hardcoded password strings have been removed from source code.
-    # Set ADMIN_PASSWORD in your environment to rotate all admin credentials.
-    try:
-        import os as _os
-        from app.db.database import AsyncSessionLocal
-        from app.db.models import User as _User
-        from app.auth.jwt_utils import hash_password, verify_password
-        from sqlalchemy import select as _select
-        import re as _re
-
-        _secure_pass = _os.environ.get("ADMIN_PASSWORD", "")
-
-        if _secure_pass:
-            _strength_ok = (
-                len(_secure_pass) >= 10
-                and _re.search(r"[A-Z]", _secure_pass)
-                and _re.search(r"[0-9]", _secure_pass)
-                and _re.search(r"[^A-Za-z0-9]", _secure_pass)
-            )
-            if not _strength_ok:
-                print("⚠️  ADMIN_PASSWORD does not meet strength requirements (10+ chars, uppercase, digit, special)")
-            else:
-                async with AsyncSessionLocal() as _db:
-                    _admins = (await _db.execute(_select(_User).where(_User.role == "admin"))).scalars().all()
-                    _updated = 0
-                    for _admin in _admins:
-                        # Rotate if the stored hash no longer matches ADMIN_PASSWORD
-                        # (handles both legacy weak hashes and any out-of-sync passwords)
-                        if not verify_password(_secure_pass, _admin.hashed_password):
-                            _admin.hashed_password = hash_password(_secure_pass)
-                            _updated += 1
-                    if _updated:
-                        await _db.commit()
-                        print(f"✅ Rotated {_updated} admin account(s) to use ADMIN_PASSWORD from environment")
+            async with AsyncSessionLocal() as _db:
+                _exists = (await _db.execute(_select(_User).where(_User.email == _admin_email))).scalar_one_or_none()
+                if not _exists:
+                    if not _admin_pass:
+                        print("⚠️  Default admin creation skipped: set ADMIN_PASSWORD or register the first user")
                     else:
-                        print("✅ Admin password already matches ADMIN_PASSWORD")
-    except Exception as _e:
-        print(f"⚠️  Admin password check failed: {_e}")
+                        _db.add(_User(
+                            email=_admin_email,
+                            username=_admin_user,
+                            hashed_password=hash_password(_admin_pass),
+                            role="admin",
+                            admin_role="super_admin",
+                            subscription_tier="elite",
+                            is_active=True,
+                        ))
+                        await _db.commit()
+                        print(f"✅ Default admin created: {_admin_email}")
+                else:
+                    # Ensure existing admin has admin_role and subscription_tier set
+                    if not _exists.admin_role:
+                        _exists.admin_role = "super_admin"
+                    if not _exists.subscription_tier:
+                        _exists.subscription_tier = "elite"
+                    await _db.commit()
+                    print(f"✅ Admin account found: {_admin_email}")
+        except Exception as _e:
+            print(f"⚠️  Admin seeding failed: {_e}")
 
-    # SEED VITCOIN INITIAL PRICE — ensure price history exists
-    try:
-        from decimal import Decimal as _Decimal
-        from app.db.database import AsyncSessionLocal
-        from app.modules.wallet.models import VITCoinPriceHistory
-        from sqlalchemy import select as _select, func as _func
+        # SEED SUBSCRIPTION PLANS
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.db.models import SubscriptionPlan
+            from sqlalchemy import select as _select
 
-        async with AsyncSessionLocal() as _db:
-            _price_count = (await _db.execute(_select(_func.count()).select_from(VITCoinPriceHistory))).scalar()
-            if _price_count == 0:
-                _db.add(VITCoinPriceHistory(
-                    price_usd=_Decimal("0.10"),
-                    circulating_supply=_Decimal("1000000"),
-                    rolling_revenue_usd=_Decimal("0"),
-                ))
-                await _db.commit()
-                print("✅ VITCoin initial price seeded: $0.10 USD")
-            else:
-                # One-shot heal: previous seed used $1.00 which disagreed with the
-                # conversion engine's default ($0.10). Realign so the displayed
-                # price matches what users actually receive on conversion.
-                from app.modules.wallet.models import PlatformConfig as _PC2
-                _floor_row = (await _db.execute(
-                    _select(_PC2).where(_PC2.key == "vitcoin_price_floor")
-                )).scalar_one_or_none()
-                _floor_amt = _Decimal("0.10")
-                if _floor_row and isinstance(_floor_row.value, dict):
+            _plans = [
+                {
+                    "name": "free",
+                    "display_name": "Free",
+                    "price_monthly": 0.0,
+                    "price_yearly": 0.0,
+                    "prediction_limit": 5,
+                    "features": {
+                        "predictions": True,
+                        "basic_history": True,
+                        "advanced_analytics": False,
+                        "ai_insights": False,
+                        "accumulator_builder": False,
+                        "model_breakdown": False,
+                        "telegram_alerts": False,
+                        "bankroll_tools": False,
+                        "csv_upload": False,
+                        "priority_support": False,
+                    },
+                },
+                {
+                    "name": "pro",
+                    "display_name": "Pro",
+                    "price_monthly": 49.0,
+                    "price_yearly": 490.0,
+                    "prediction_limit": 100,
+                    "features": {
+                        "predictions": True,
+                        "basic_history": True,
+                        "advanced_analytics": True,
+                        "ai_insights": True,
+                        "accumulator_builder": True,
+                        "model_breakdown": True,
+                        "telegram_alerts": True,
+                        "bankroll_tools": True,
+                        "csv_upload": False,
+                        "priority_support": False,
+                    },
+                },
+                {
+                    "name": "elite",
+                    "display_name": "Elite",
+                    "price_monthly": 199.0,
+                    "price_yearly": 1990.0,
+                    "prediction_limit": 1000,
+                    "features": {
+                        "predictions": True,
+                        "basic_history": True,
+                        "advanced_analytics": True,
+                        "ai_insights": True,
+                        "accumulator_builder": True,
+                        "model_breakdown": True,
+                        "telegram_alerts": True,
+                        "bankroll_tools": True,
+                        "csv_upload": True,
+                        "priority_support": True,
+                        "validator_eligibility": True,
+                        "revenue_share": True,
+                    },
+                },
+            ]
+
+            async with AsyncSessionLocal() as _db:
+                _count = (await _db.execute(_select(func.count()).select_from(SubscriptionPlan))).scalar()
+                if _count == 0:
+                    for _p in _plans:
+                        _db.add(SubscriptionPlan(
+                            name=_p["name"],
+                            display_name=_p["display_name"],
+                            price_monthly=_p["price_monthly"],
+                            price_yearly=_p["price_yearly"],
+                            prediction_limit=_p["prediction_limit"],
+                            features=_p["features"],
+                            is_active=True,
+                        ))
+                    await _db.commit()
+                    print("✅ Subscription plans seeded (Free / Pro / Elite)")
+                else:
+                    print(f"✅ Subscription plans: {_count} already seeded")
+        except Exception as _e:
+            print(f"⚠️  Subscription plan seeding failed: {_e}")
+
+        # SEED WALLET SUBSCRIPTION PLANS
+        try:
+            from decimal import Decimal as _Decimal
+            from app.db.database import AsyncSessionLocal
+            from app.modules.wallet.models import WalletSubscriptionPlan as _WalletPlan
+            from sqlalchemy import select as _select, func as _func
+
+            _wallet_plans = [
+                {
+                    "name": "Viewer",
+                    "description": "Basic access — view predictions and match data",
+                    "features": ["View predictions", "Match history", "Public leaderboard"],
+                    "price_ngn": _Decimal("0"), "price_usd": _Decimal("0"),
+                    "price_usdt": _Decimal("0"), "price_pi": _Decimal("0"),
+                    "price_vitcoin": _Decimal("0"), "duration_days": 30,
+                },
+                {
+                    "name": "Analyst",
+                    "description": "Advanced analytics and AI insights",
+                    "features": ["All Viewer features", "Advanced analytics", "AI insights", "Accumulator builder", "Model breakdown", "Telegram alerts"],
+                    "price_ngn": _Decimal("75000"), "price_usd": _Decimal("49"),
+                    "price_usdt": _Decimal("49"), "price_pi": _Decimal("155"),
+                    "price_vitcoin": _Decimal("490"), "duration_days": 30,
+                },
+                {
+                    "name": "Pro",
+                    "description": "Full access to all 5 prediction markets",
+                    "features": ["All Analyst features", "Over/Under markets", "BTTS", "Asian handicap", "Bankroll tools", "Priority support"],
+                    "price_ngn": _Decimal("150000"), "price_usd": _Decimal("99"),
+                    "price_usdt": _Decimal("99"), "price_pi": _Decimal("315"),
+                    "price_vitcoin": _Decimal("990"), "duration_days": 30,
+                },
+                {
+                    "name": "Validator",
+                    "description": "Unlimited predictions, validator rewards and governance",
+                    "features": ["All Pro features", "Unlimited predictions", "Submit predictions", "Validator pool rewards", "Governance voting", "CSV upload"],
+                    "price_ngn": _Decimal("300000"), "price_usd": _Decimal("199"),
+                    "price_usdt": _Decimal("199"), "price_pi": _Decimal("633"),
+                    "price_vitcoin": _Decimal("1990"), "duration_days": 30,
+                },
+            ]
+
+            async with AsyncSessionLocal() as _db:
+                _count = (await _db.execute(_select(_func.count()).select_from(_WalletPlan))).scalar()
+                if _count == 0:
+                    for _wp in _wallet_plans:
+                        _db.add(_WalletPlan(**_wp))
+                    await _db.commit()
+                    print(f"✅ Wallet subscription plans seeded ({len(_wallet_plans)} plans)")
+                else:
+                    print(f"✅ Wallet subscription plans: {_count} already seeded")
+        except Exception as _e:
+            print(f"⚠️  Wallet subscription plan seeding failed: {_e}")
+
+        # BACKFILL WALLETS FOR EXISTING USERS
+        try:
+            import uuid as _uuid
+            from decimal import Decimal as _Decimal
+            from app.db.database import AsyncSessionLocal
+            from app.db.models import User as _User
+            from app.modules.wallet.models import Wallet as _Wallet
+            from sqlalchemy import select as _select
+
+            async with AsyncSessionLocal() as _db:
+                _users = (await _db.execute(_select(_User))).scalars().all()
+                _created = 0
+                for _u in _users:
+                    _existing_wallet = (await _db.execute(
+                        _select(_Wallet).where(_Wallet.user_id == _u.id)
+                    )).scalar_one_or_none()
+                    if not _existing_wallet:
+                        _db.add(_Wallet(
+                            id=str(_uuid.uuid4()),
+                            user_id=_u.id,
+                            vitcoin_balance=_Decimal("100.00000000"),
+                        ))
+                        _created += 1
+                if _created:
+                    await _db.commit()
+                    print(f"✅ Wallets backfilled for {_created} existing user(s)")
+        except Exception as _e:
+            print(f"⚠️  Wallet backfill failed: {_e}")
+
+        # ENFORCE ADMIN_PASSWORD — if ADMIN_PASSWORD env var is set, update any admin
+        # whose password does not meet the current strength requirements.
+        # Legacy hardcoded password strings have been removed from source code.
+        # Set ADMIN_PASSWORD in your environment to rotate all admin credentials.
+        try:
+            import os as _os
+            from app.db.database import AsyncSessionLocal
+            from app.db.models import User as _User
+            from app.auth.jwt_utils import hash_password, verify_password
+            from sqlalchemy import select as _select
+            import re as _re
+
+            _secure_pass = _os.environ.get("ADMIN_PASSWORD", "")
+
+            if _secure_pass:
+                _strength_ok = (
+                    len(_secure_pass) >= 10
+                    and _re.search(r"[A-Z]", _secure_pass)
+                    and _re.search(r"[0-9]", _secure_pass)
+                    and _re.search(r"[^A-Za-z0-9]", _secure_pass)
+                )
+                if not _strength_ok:
+                    print("⚠️  ADMIN_PASSWORD does not meet strength requirements (10+ chars, uppercase, digit, special)")
+                else:
+                    async with AsyncSessionLocal() as _db:
+                        _admins = (await _db.execute(_select(_User).where(_User.role == "admin"))).scalars().all()
+                        _updated = 0
+                        for _admin in _admins:
+                            # Rotate if the stored hash no longer matches ADMIN_PASSWORD
+                            # (handles both legacy weak hashes and any out-of-sync passwords)
+                            if not verify_password(_secure_pass, _admin.hashed_password):
+                                _admin.hashed_password = hash_password(_secure_pass)
+                                _updated += 1
+                        if _updated:
+                            await _db.commit()
+                            print(f"✅ Rotated {_updated} admin account(s) to use ADMIN_PASSWORD from environment")
+                        else:
+                            print("✅ Admin password already matches ADMIN_PASSWORD")
+        except Exception as _e:
+            print(f"⚠️  Admin password check failed: {_e}")
+
+        # SEED VITCOIN INITIAL PRICE — ensure price history exists
+        try:
+            from decimal import Decimal as _Decimal
+            from app.db.database import AsyncSessionLocal
+            from app.modules.wallet.models import VITCoinPriceHistory
+            from sqlalchemy import select as _select, func as _func
+
+            async with AsyncSessionLocal() as _db:
+                _price_count = (await _db.execute(_select(_func.count()).select_from(VITCoinPriceHistory))).scalar()
+                if _price_count == 0:
+                    _db.add(VITCoinPriceHistory(
+                        price_usd=_Decimal("0.10"),
+                        circulating_supply=_Decimal("1000000"),
+                        rolling_revenue_usd=_Decimal("0"),
+                    ))
+                    await _db.commit()
+                    print("✅ VITCoin initial price seeded: $0.10 USD")
+                else:
+                    # One-shot heal: previous seed used $1.00 which disagreed with the
+                    # conversion engine's default ($0.10). Realign so the displayed
+                    # price matches what users actually receive on conversion.
+                    from app.modules.wallet.models import PlatformConfig as _PC2
+                    _floor_row = (await _db.execute(
+                        _select(_PC2).where(_PC2.key == "vitcoin_price_floor")
+                    )).scalar_one_or_none()
+                    _floor_amt = _Decimal("0.10")
+                    if _floor_row and isinstance(_floor_row.value, dict):
+                        try:
+                            _floor_amt = _Decimal(str(_floor_row.value.get("amount", "0.10")))
+                        except Exception:
+                            pass
+                    from sqlalchemy import update as _update
+                    _stale = (await _db.execute(
+                        _select(_func.count()).select_from(VITCoinPriceHistory).where(
+                            VITCoinPriceHistory.price_usd >= _Decimal("1.00")
+                        )
+                    )).scalar() or 0
+                    if _stale > 0 and _floor_amt < _Decimal("1.00"):
+                        await _db.execute(
+                            _update(VITCoinPriceHistory)
+                            .where(VITCoinPriceHistory.price_usd >= _Decimal("1.00"))
+                            .values(price_usd=_floor_amt)
+                        )
+                        await _db.commit()
+                        print(f"✅ VITCoin price history: realigned {_stale} stale row(s) to ${_floor_amt}")
+                    else:
+                        print(f"✅ VITCoin price history: {_price_count} record(s) present")
+        except Exception as _e:
+            print(f"⚠️  VITCoin price seeding failed: {_e}")
+
+        # SEED FIXTURES — TheSportsDB (free, no auth) → synthetic fallback only if network fails
+        try:
+            from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+            from app.db.database import AsyncSessionLocal
+            from app.db.models import Match as _Match, Prediction as _Prediction
+            from sqlalchemy import select as _select, func as _func, delete as _delete
+
+            async with AsyncSessionLocal() as _db:
+                # Purge ALL synthetic rows immediately so we never serve fake data
+                _synth_matches = (await _db.execute(_select(_Match).where(_Match.source == "synthetic"))).scalars().all()
+                if _synth_matches:
+                    _synth_ids = [m.id for m in _synth_matches]
                     try:
-                        _floor_amt = _Decimal(str(_floor_row.value.get("amount", "0.10")))
+                        await _db.execute(_delete(_Prediction).where(_Prediction.match_id.in_(_synth_ids)))
                     except Exception:
                         pass
-                from sqlalchemy import update as _update
-                _stale = (await _db.execute(
-                    _select(_func.count()).select_from(VITCoinPriceHistory).where(
-                        VITCoinPriceHistory.price_usd >= _Decimal("1.00")
-                    )
-                )).scalar() or 0
-                if _stale > 0 and _floor_amt < _Decimal("1.00"):
-                    await _db.execute(
-                        _update(VITCoinPriceHistory)
-                        .where(VITCoinPriceHistory.price_usd >= _Decimal("1.00"))
-                        .values(price_usd=_floor_amt)
-                    )
+                    try:
+                        from app.db.models import AgentInsight as _AI
+                        await _db.execute(_delete(_AI))
+                    except Exception:
+                        pass
+                    await _db.execute(_delete(_Match).where(_Match.source == "synthetic"))
                     await _db.commit()
-                    print(f"✅ VITCoin price history: realigned {_stale} stale row(s) to ${_floor_amt}")
-                else:
-                    print(f"✅ VITCoin price history: {_price_count} record(s) present")
-    except Exception as _e:
-        print(f"⚠️  VITCoin price seeding failed: {_e}")
+                    print(f"🗑️  Purged {len(_synth_ids)} synthetic matches — loading real data...")
 
-    # SEED FIXTURES — TheSportsDB (free, no auth) → synthetic fallback only if network fails
-    try:
-        from datetime import datetime as _dt, timedelta as _td, timezone as _tz
-        from app.db.database import AsyncSessionLocal
-        from app.db.models import Match as _Match, Prediction as _Prediction
-        from sqlalchemy import select as _select, func as _func, delete as _delete
+                _match_count = (await _db.execute(_select(_func.count()).select_from(_Match))).scalar()
+                if _match_count == 0:
+                    _football_key = os.getenv("FOOTBALL_DATA_API_KEY", "").strip()
+                    _now = _dt.now(_tz.utc)
+                    _added = 0
 
-        async with AsyncSessionLocal() as _db:
-            # Purge ALL synthetic rows immediately so we never serve fake data
-            _synth_matches = (await _db.execute(_select(_Match).where(_Match.source == "synthetic"))).scalars().all()
-            if _synth_matches:
-                _synth_ids = [m.id for m in _synth_matches]
-                try:
-                    await _db.execute(_delete(_Prediction).where(_Prediction.match_id.in_(_synth_ids)))
-                except Exception:
-                    pass
-                try:
-                    from app.db.models import AgentInsight as _AI
-                    await _db.execute(_delete(_AI))
-                except Exception:
-                    pass
-                await _db.execute(_delete(_Match).where(_Match.source == "synthetic"))
-                await _db.commit()
-                print(f"🗑️  Purged {len(_synth_ids)} synthetic matches — loading real data...")
+                    # Try TheSportsDB (free, no auth required)
+                    try:
+                        from app.services.sportsdb_api import fetch_all_real_fixtures
+                        from app.data.match_dedup import compute_fingerprint as _cfp, find_existing_match as _fem
+                        _real = await fetch_all_real_fixtures()
+                        _all_events = _real.get("past", []) + _real.get("upcoming", [])
+                        for _ev in _all_events:
+                            _ht = _ev["home_team"]
+                            _at = _ev["away_team"]
+                            _lk = _ev["league"]
+                            _ko_raw = _ev.get("kickoff_time")
+                            _ko = _ko_raw.replace(tzinfo=None) if _ko_raw and _ko_raw.tzinfo else _ko_raw
+                            _ext = _ev.get("external_id") or None
+                            _fp  = _cfp(_ht, _at, _ko, _lk)
+                            _dup = await _fem(_db, _ht, _at, _ko, _lk)
+                            if _dup:
+                                continue
+                            _db.add(_Match(
+                                external_id    = _ext,
+                                home_team      = _ht,
+                                away_team      = _at,
+                                league         = _lk,
+                                kickoff_time   = _ko,
+                                status         = _ev.get("status", "upcoming"),
+                                source         = "sportsdb",
+                                fingerprint    = _fp,
+                                home_goals     = _ev.get("home_goals"),
+                                away_goals     = _ev.get("away_goals"),
+                                actual_outcome = _ev.get("actual_outcome"),
+                            ))
+                            _added += 1
+                        if _added > 0:
+                            await _db.commit()
+                    except Exception as _sdb_e:
+                        print(f"⚠️  TheSportsDB seed error: {_sdb_e}")
 
-            _match_count = (await _db.execute(_select(_func.count()).select_from(_Match))).scalar()
-            if _match_count == 0:
-                _football_key = os.getenv("FOOTBALL_DATA_API_KEY", "").strip()
-                _now = _dt.now(_tz.utc)
-                _added = 0
-
-                # Try TheSportsDB (free, no auth required)
-                try:
-                    from app.services.sportsdb_api import fetch_all_real_fixtures
-                    from app.data.match_dedup import compute_fingerprint as _cfp, find_existing_match as _fem
-                    _real = await fetch_all_real_fixtures()
-                    _all_events = _real.get("past", []) + _real.get("upcoming", [])
-                    for _ev in _all_events:
-                        _ht = _ev["home_team"]
-                        _at = _ev["away_team"]
-                        _lk = _ev["league"]
-                        _ko_raw = _ev.get("kickoff_time")
-                        _ko = _ko_raw.replace(tzinfo=None) if _ko_raw and _ko_raw.tzinfo else _ko_raw
-                        _ext = _ev.get("external_id") or None
-                        _fp  = _cfp(_ht, _at, _ko, _lk)
-                        _dup = await _fem(_db, _ht, _at, _ko, _lk)
-                        if _dup:
-                            continue
-                        _db.add(_Match(
-                            external_id    = _ext,
-                            home_team      = _ht,
-                            away_team      = _at,
-                            league         = _lk,
-                            kickoff_time   = _ko,
-                            status         = _ev.get("status", "upcoming"),
-                            source         = "sportsdb",
-                            fingerprint    = _fp,
-                            home_goals     = _ev.get("home_goals"),
-                            away_goals     = _ev.get("away_goals"),
-                            actual_outcome = _ev.get("actual_outcome"),
-                        ))
-                        _added += 1
                     if _added > 0:
-                        await _db.commit()
-                except Exception as _sdb_e:
-                    print(f"⚠️  TheSportsDB seed error: {_sdb_e}")
-
-                if _added > 0:
-                    print(f"✅ Fixtures seeded: {_added} real matches from TheSportsDB")
+                        print(f"✅ Fixtures seeded: {_added} real matches from TheSportsDB")
+                    else:
+                        print("⚠️  TheSportsDB returned 0 fixtures at startup — fixture-gap agent will retry")
                 else:
-                    print("⚠️  TheSportsDB returned 0 fixtures at startup — fixture-gap agent will retry")
-            else:
-                print(f"✅ Matches: {_match_count} fixture(s) already in database")
-    except Exception as _e:
-        print(f"⚠️  Fixture seeding failed: {_e}")
+                    print(f"✅ Matches: {_match_count} fixture(s) already in database")
+        except Exception as _e:
+            print(f"⚠️  Fixture seeding failed: {_e}")
 
-    # SERVICES
-    orchestrator = get_orchestrator()
-    if orchestrator:
-        print(f"✅ ML Models: {orchestrator.num_models_ready()} ready")
+        # E1 — Bootstrap model registry
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.ai.registry import bootstrap_registry
+            async with AsyncSessionLocal() as _db:
+                inserted = await bootstrap_registry(_db, orchestrator)
+                print(f"✅ AI Model Registry: {inserted} new entries bootstrapped")
+        except Exception as _e:
+            print(f"⚠️  AI Registry bootstrap failed: {_e}")
 
-    # E1 — Bootstrap model registry
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.ai.registry import bootstrap_registry
-        async with AsyncSessionLocal() as _db:
-            inserted = await bootstrap_registry(_db, orchestrator)
-            print(f"✅ AI Model Registry: {inserted} new entries bootstrapped")
-    except Exception as _e:
-        print(f"⚠️  AI Registry bootstrap failed: {_e}")
+        # Seed system marketplace listings (idempotent)
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.marketplace.service import seed_system_listings
+            async with AsyncSessionLocal() as _db:
+                _seeded = await seed_system_listings(_db, admin_id=1)
+                if _seeded:
+                    print(f"✅ Marketplace: {_seeded} system model(s) seeded")
+                else:
+                    print("✅ Marketplace: all 12 system models present")
+        except Exception as _e:
+            print(f"⚠️  Marketplace system seed failed: {_e}")
 
-    # Seed system marketplace listings (idempotent)
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.marketplace.service import seed_system_listings
-        async with AsyncSessionLocal() as _db:
-            _seeded = await seed_system_listings(_db, admin_id=1)
-            if _seeded:
-                print(f"✅ Marketplace: {_seeded} system model(s) seeded")
-            else:
-                print("✅ Marketplace: all 12 system models present")
-    except Exception as _e:
-        print(f"⚠️  Marketplace system seed failed: {_e}")
+        # VIT Cloud — Smart Contract Engine bootstrap
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.smart_contracts.service import bootstrap_builtin_contracts
+            async with AsyncSessionLocal() as _db:
+                _n = await bootstrap_builtin_contracts(_db)
+                print(f"✅ Smart Contracts: {_n} built-in contracts deployed" if _n else "✅ Smart Contracts: all built-in contracts present")
+        except Exception as _e:
+            print(f"⚠️  Smart Contract bootstrap failed: {_e}")
 
-    # VIT Cloud — Smart Contract Engine bootstrap
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.smart_contracts.service import bootstrap_builtin_contracts
-        async with AsyncSessionLocal() as _db:
-            _n = await bootstrap_builtin_contracts(_db)
-            print(f"✅ Smart Contracts: {_n} built-in contracts deployed" if _n else "✅ Smart Contracts: all built-in contracts present")
-    except Exception as _e:
-        print(f"⚠️  Smart Contract bootstrap failed: {_e}")
+        # VIT Cloud — Treasury pools bootstrap
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.treasury.service import bootstrap_treasury_pools
+            async with AsyncSessionLocal() as _db:
+                _n = await bootstrap_treasury_pools(_db)
+                print(f"✅ Treasury: {_n} pools bootstrapped" if _n else "✅ Treasury: all 8 pools present")
+        except Exception as _e:
+            print(f"⚠️  Treasury bootstrap failed: {_e}")
 
-    # VIT Cloud — Treasury pools bootstrap
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.treasury.service import bootstrap_treasury_pools
-        async with AsyncSessionLocal() as _db:
-            _n = await bootstrap_treasury_pools(_db)
-            print(f"✅ Treasury: {_n} pools bootstrapped" if _n else "✅ Treasury: all 8 pools present")
-    except Exception as _e:
-        print(f"⚠️  Treasury bootstrap failed: {_e}")
+        # VIT Cloud — AI Model Attestation Registry bootstrap
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.ai_verification.service import bootstrap_model_registry
+            async with AsyncSessionLocal() as _db:
+                _n = await bootstrap_model_registry(_db)
+                print(f"✅ AI Verification: {_n} model attestations registered" if _n else "✅ AI Verification: all models registered")
+        except Exception as _e:
+            print(f"⚠️  AI Verification bootstrap failed: {_e}")
 
-    # VIT Cloud — AI Model Attestation Registry bootstrap
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.ai_verification.service import bootstrap_model_registry
-        async with AsyncSessionLocal() as _db:
-            _n = await bootstrap_model_registry(_db)
-            print(f"✅ AI Verification: {_n} model attestations registered" if _n else "✅ AI Verification: all models registered")
-    except Exception as _e:
-        print(f"⚠️  AI Verification bootstrap failed: {_e}")
+        # VIT Cloud — Sub-Chain Architecture bootstrap
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.subchain.service import bootstrap_subchains
+            async with AsyncSessionLocal() as _db:
+                _n = await bootstrap_subchains(_db)
+                print(f"✅ Sub-Chains: {_n} sub-chains initialized" if _n else "✅ Sub-Chains: all 8 sub-chains active")
+        except Exception as _e:
+            print(f"⚠️  Sub-Chain bootstrap failed: {_e}")
 
-    # VIT Cloud — Sub-Chain Architecture bootstrap
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.subchain.service import bootstrap_subchains
-        async with AsyncSessionLocal() as _db:
-            _n = await bootstrap_subchains(_db)
-            print(f"✅ Sub-Chains: {_n} sub-chains initialized" if _n else "✅ Sub-Chains: all 8 sub-chains active")
-    except Exception as _e:
-        print(f"⚠️  Sub-Chain bootstrap failed: {_e}")
+        # VIT Cloud — AI Agent Registry bootstrap
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.agent_registry.service import bootstrap_agent_registry
+            async with AsyncSessionLocal() as _db:
+                _n = await bootstrap_agent_registry(_db)
+                print(f"✅ Agent Registry: {_n} built-in agents registered" if _n else "✅ Agent Registry: all built-in agents present")
+        except Exception as _e:
+            print(f"⚠️  Agent Registry bootstrap failed: {_e}")
 
-    # VIT Cloud — AI Agent Registry bootstrap
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.agent_registry.service import bootstrap_agent_registry
-        async with AsyncSessionLocal() as _db:
-            _n = await bootstrap_agent_registry(_db)
-            print(f"✅ Agent Registry: {_n} built-in agents registered" if _n else "✅ Agent Registry: all built-in agents present")
-    except Exception as _e:
-        print(f"⚠️  Agent Registry bootstrap failed: {_e}")
+        # SEED GAMIFICATION TASKS (P1-A)
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.tasks.models import TaskCategory, Task, TaskType, TaskStatus
+            from sqlalchemy import select as _select, func as _func
 
-    # SEED GAMIFICATION TASKS (P1-A)
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.tasks.models import TaskCategory, Task, TaskType, TaskStatus
-        from sqlalchemy import select as _select, func as _func
+            _task_categories = [
+                {"name": "Prediction", "description": "Tasks related to making and reviewing football predictions", "icon": "target", "color": "blue", "sort_order": 1},
+                {"name": "Social", "description": "Community and referral tasks to grow the VIT network", "icon": "users", "color": "green", "sort_order": 2},
+                {"name": "Learning", "description": "Educational tasks to improve your sports intelligence", "icon": "book-open", "color": "purple", "sort_order": 3},
+            ]
+            _task_definitions = [
+                # Prediction tasks
+                {
+                    "category_name": "Prediction",
+                    "title": "Make Your First Prediction",
+                    "description": "Submit your first football match prediction using the VIT AI engine.",
+                    "short_description": "Submit a prediction",
+                    "task_type": TaskType.ONE_TIME.value,
+                    "required_count": 1,
+                    "vit_reward": 10,
+                    "xp_reward": 50,
+                    "icon": "zap",
+                    "color": "blue",
+                    "sort_order": 1,
+                    "is_featured": True,
+                    "action_url": "/predict",
+                    "action_label": "Predict Now",
+                },
+                {
+                    "category_name": "Prediction",
+                    "title": "Daily Prediction Streak",
+                    "description": "Make at least one prediction every day to maintain your streak and earn daily VIT rewards.",
+                    "short_description": "Predict daily",
+                    "task_type": TaskType.DAILY.value,
+                    "required_count": 1,
+                    "max_completions": 365,
+                    "reset_period_days": 1,
+                    "vit_reward": 5,
+                    "xp_reward": 20,
+                    "icon": "flame",
+                    "color": "orange",
+                    "sort_order": 2,
+                    "is_featured": True,
+                    "action_url": "/predict",
+                    "action_label": "Predict Today",
+                },
+                {
+                    "category_name": "Prediction",
+                    "title": "Prediction Veteran",
+                    "description": "Accumulate 50 total predictions across any matches to prove your dedication to sports intelligence.",
+                    "short_description": "50 total predictions",
+                    "task_type": TaskType.PROGRESS.value,
+                    "required_count": 50,
+                    "vit_reward": 100,
+                    "xp_reward": 500,
+                    "icon": "trophy",
+                    "color": "yellow",
+                    "sort_order": 3,
+                    "action_url": "/predict",
+                    "action_label": "Predict Now",
+                },
+                # Social tasks
+                {
+                    "category_name": "Social",
+                    "title": "Complete Your Profile",
+                    "description": "Add your username and complete your account profile to unlock full platform features.",
+                    "short_description": "Complete profile",
+                    "task_type": TaskType.ONE_TIME.value,
+                    "required_count": 1,
+                    "vit_reward": 15,
+                    "xp_reward": 75,
+                    "icon": "user-check",
+                    "color": "green",
+                    "sort_order": 1,
+                    "is_featured": True,
+                    "action_url": "/profile",
+                    "action_label": "Edit Profile",
+                },
+                {
+                    "category_name": "Social",
+                    "title": "Refer a Friend",
+                    "description": f"Invite a friend to join {APP_SHORT_NAME} using your referral link.",
+                    "short_description": "Refer 1 friend",
+                    "task_type": TaskType.PROGRESS.value,
+                    "required_count": 1,
+                    "max_completions": 50,
+                    "vit_reward": 25,
+                    "xp_reward": 100,
+                    "icon": "share-2",
+                    "color": "teal",
+                    "sort_order": 2,
+                    "action_url": "/referral",
+                    "action_label": "Get Referral Link",
+                },
+                # Learning tasks
+                {
+                    "category_name": "Learning",
+                    "title": "Explore the AI Engine",
+                    "description": "Visit the AI Engine dashboard to understand how VIT's 13-model ensemble generates predictions.",
+                    "short_description": "Visit AI Engine",
+                    "task_type": TaskType.ONE_TIME.value,
+                    "required_count": 1,
+                    "vit_reward": 5,
+                    "xp_reward": 25,
+                    "icon": "cpu",
+                    "color": "purple",
+                    "sort_order": 1,
+                    "action_url": "/ai-engine",
+                    "action_label": "Explore AI Engine",
+                },
+                {
+                    "category_name": "Learning",
+                    "title": "Check the Research Terminal",
+                    "description": "Run a backtest or EV scan in the Research Terminal to sharpen your edge.",
+                    "short_description": "Use Research Terminal",
+                    "task_type": TaskType.ONE_TIME.value,
+                    "required_count": 1,
+                    "vit_reward": 10,
+                    "xp_reward": 50,
+                    "icon": "bar-chart-2",
+                    "color": "indigo",
+                    "sort_order": 2,
+                    "action_url": "/research",
+                    "action_label": "Open Research",
+                },
+                {
+                    "category_name": "Learning",
+                    "title": "Weekly Learning Badge",
+                    "description": "Visit the platform and review at least one AI insight report each week.",
+                    "short_description": "Weekly engagement",
+                    "task_type": TaskType.WEEKLY.value,
+                    "required_count": 1,
+                    "max_completions": 52,
+                    "reset_period_days": 7,
+                    "vit_reward": 8,
+                    "xp_reward": 40,
+                    "icon": "award",
+                    "color": "pink",
+                    "sort_order": 3,
+                    "action_url": "/dashboard",
+                    "action_label": "View Dashboard",
+                },
+            ]
 
-        _task_categories = [
-            {"name": "Prediction", "description": "Tasks related to making and reviewing football predictions", "icon": "target", "color": "blue", "sort_order": 1},
-            {"name": "Social", "description": "Community and referral tasks to grow the VIT network", "icon": "users", "color": "green", "sort_order": 2},
-            {"name": "Learning", "description": "Educational tasks to improve your sports intelligence", "icon": "book-open", "color": "purple", "sort_order": 3},
-        ]
-        _task_definitions = [
-            # Prediction tasks
-            {
-                "category_name": "Prediction",
-                "title": "Make Your First Prediction",
-                "description": "Submit your first football match prediction using the VIT AI engine.",
-                "short_description": "Submit a prediction",
-                "task_type": TaskType.ONE_TIME.value,
-                "required_count": 1,
-                "vit_reward": 10,
-                "xp_reward": 50,
-                "icon": "zap",
-                "color": "blue",
-                "sort_order": 1,
-                "is_featured": True,
-                "action_url": "/predict",
-                "action_label": "Predict Now",
-            },
-            {
-                "category_name": "Prediction",
-                "title": "Daily Prediction Streak",
-                "description": "Make at least one prediction every day to maintain your streak and earn daily VIT rewards.",
-                "short_description": "Predict daily",
-                "task_type": TaskType.DAILY.value,
-                "required_count": 1,
-                "max_completions": 365,
-                "reset_period_days": 1,
-                "vit_reward": 5,
-                "xp_reward": 20,
-                "icon": "flame",
-                "color": "orange",
-                "sort_order": 2,
-                "is_featured": True,
-                "action_url": "/predict",
-                "action_label": "Predict Today",
-            },
-            {
-                "category_name": "Prediction",
-                "title": "Prediction Veteran",
-                "description": "Accumulate 50 total predictions across any matches to prove your dedication to sports intelligence.",
-                "short_description": "50 total predictions",
-                "task_type": TaskType.PROGRESS.value,
-                "required_count": 50,
-                "vit_reward": 100,
-                "xp_reward": 500,
-                "icon": "trophy",
-                "color": "yellow",
-                "sort_order": 3,
-                "action_url": "/predict",
-                "action_label": "Predict Now",
-            },
-            # Social tasks
-            {
-                "category_name": "Social",
-                "title": "Complete Your Profile",
-                "description": "Add your username and complete your account profile to unlock full platform features.",
-                "short_description": "Complete profile",
-                "task_type": TaskType.ONE_TIME.value,
-                "required_count": 1,
-                "vit_reward": 15,
-                "xp_reward": 75,
-                "icon": "user-check",
-                "color": "green",
-                "sort_order": 1,
-                "is_featured": True,
-                "action_url": "/profile",
-                "action_label": "Edit Profile",
-            },
-            {
-                "category_name": "Social",
-                "title": "Refer a Friend",
-                "description": f"Invite a friend to join {APP_SHORT_NAME} using your referral link.",
-                "short_description": "Refer 1 friend",
-                "task_type": TaskType.PROGRESS.value,
-                "required_count": 1,
-                "max_completions": 50,
-                "vit_reward": 25,
-                "xp_reward": 100,
-                "icon": "share-2",
-                "color": "teal",
-                "sort_order": 2,
-                "action_url": "/referral",
-                "action_label": "Get Referral Link",
-            },
-            # Learning tasks
-            {
-                "category_name": "Learning",
-                "title": "Explore the AI Engine",
-                "description": "Visit the AI Engine dashboard to understand how VIT's 13-model ensemble generates predictions.",
-                "short_description": "Visit AI Engine",
-                "task_type": TaskType.ONE_TIME.value,
-                "required_count": 1,
-                "vit_reward": 5,
-                "xp_reward": 25,
-                "icon": "cpu",
-                "color": "purple",
-                "sort_order": 1,
-                "action_url": "/ai-engine",
-                "action_label": "Explore AI Engine",
-            },
-            {
-                "category_name": "Learning",
-                "title": "Check the Research Terminal",
-                "description": "Run a backtest or EV scan in the Research Terminal to sharpen your edge.",
-                "short_description": "Use Research Terminal",
-                "task_type": TaskType.ONE_TIME.value,
-                "required_count": 1,
-                "vit_reward": 10,
-                "xp_reward": 50,
-                "icon": "bar-chart-2",
-                "color": "indigo",
-                "sort_order": 2,
-                "action_url": "/research",
-                "action_label": "Open Research",
-            },
-            {
-                "category_name": "Learning",
-                "title": "Weekly Learning Badge",
-                "description": "Visit the platform and review at least one AI insight report each week.",
-                "short_description": "Weekly engagement",
-                "task_type": TaskType.WEEKLY.value,
-                "required_count": 1,
-                "max_completions": 52,
-                "reset_period_days": 7,
-                "vit_reward": 8,
-                "xp_reward": 40,
-                "icon": "award",
-                "color": "pink",
-                "sort_order": 3,
-                "action_url": "/dashboard",
-                "action_label": "View Dashboard",
-            },
-        ]
+            async with AsyncSessionLocal() as _db:
+                _cat_count = (await _db.execute(_select(_func.count()).select_from(TaskCategory))).scalar()
+                if _cat_count == 0:
+                    _admin_user = (await _db.execute(_select(__import__('app.db.models', fromlist=['User']).User).where(
+                        __import__('app.db.models', fromlist=['User']).User.role == "admin"
+                    ))).scalar_one_or_none()
+                    if not _admin_user:
+                        print("⚠️  Gamification task seeding skipped: no admin user exists yet (will retry on next startup)")
+                        raise RuntimeError("no admin user yet")
+                    _admin_id = _admin_user.id
 
-        async with AsyncSessionLocal() as _db:
-            _cat_count = (await _db.execute(_select(_func.count()).select_from(TaskCategory))).scalar()
-            if _cat_count == 0:
-                _admin_user = (await _db.execute(_select(__import__('app.db.models', fromlist=['User']).User).where(
-                    __import__('app.db.models', fromlist=['User']).User.role == "admin"
-                ))).scalar_one_or_none()
-                if not _admin_user:
-                    print("⚠️  Gamification task seeding skipped: no admin user exists yet (will retry on next startup)")
-                    raise RuntimeError("no admin user yet")
-                _admin_id = _admin_user.id
+                    _cat_map = {}
+                    for _cat in _task_categories:
+                        _c = TaskCategory(
+                            name=_cat["name"],
+                            description=_cat["description"],
+                            icon=_cat["icon"],
+                            color=_cat["color"],
+                            sort_order=_cat["sort_order"],
+                            is_active=True,
+                        )
+                        _db.add(_c)
+                        await _db.flush()
+                        _cat_map[_cat["name"]] = _c.id
 
-                _cat_map = {}
-                for _cat in _task_categories:
-                    _c = TaskCategory(
-                        name=_cat["name"],
-                        description=_cat["description"],
-                        icon=_cat["icon"],
-                        color=_cat["color"],
-                        sort_order=_cat["sort_order"],
-                        is_active=True,
-                    )
-                    _db.add(_c)
-                    await _db.flush()
-                    _cat_map[_cat["name"]] = _c.id
+                    for _td in _task_definitions:
+                        _db.add(Task(
+                            category_id=_cat_map[_td["category_name"]],
+                            title=_td["title"],
+                            description=_td["description"],
+                            short_description=_td.get("short_description"),
+                            task_type=_td["task_type"],
+                            status=TaskStatus.ACTIVE.value,
+                            required_count=_td.get("required_count", 1),
+                            max_completions=_td.get("max_completions", 1),
+                            reset_period_days=_td.get("reset_period_days"),
+                            vit_reward=_td.get("vit_reward", 0),
+                            xp_reward=_td.get("xp_reward", 0),
+                            icon=_td.get("icon"),
+                            color=_td.get("color"),
+                            sort_order=_td.get("sort_order", 0),
+                            is_featured=_td.get("is_featured", False),
+                            action_url=_td.get("action_url"),
+                            action_label=_td.get("action_label"),
+                            created_by=_admin_id,
+                        ))
 
-                for _td in _task_definitions:
-                    _db.add(Task(
-                        category_id=_cat_map[_td["category_name"]],
-                        title=_td["title"],
-                        description=_td["description"],
-                        short_description=_td.get("short_description"),
-                        task_type=_td["task_type"],
-                        status=TaskStatus.ACTIVE.value,
-                        required_count=_td.get("required_count", 1),
-                        max_completions=_td.get("max_completions", 1),
-                        reset_period_days=_td.get("reset_period_days"),
-                        vit_reward=_td.get("vit_reward", 0),
-                        xp_reward=_td.get("xp_reward", 0),
-                        icon=_td.get("icon"),
-                        color=_td.get("color"),
-                        sort_order=_td.get("sort_order", 0),
-                        is_featured=_td.get("is_featured", False),
-                        action_url=_td.get("action_url"),
-                        action_label=_td.get("action_label"),
-                        created_by=_admin_id,
-                    ))
-
-                await _db.commit()
-                print(f"✅ Gamification tasks seeded: {len(_task_categories)} categories, {len(_task_definitions)} tasks")
-            else:
-                _task_count = (await _db.execute(_select(_func.count()).select_from(Task))).scalar()
-                print(f"✅ Gamification tasks: {_cat_count} categories, {_task_count} tasks present")
-    except Exception as _e:
-        print(f"⚠️  Gamification task seeding failed: {_e}")
-
-    # SEED DEFAULT VALIDATOR PROFILE FOR ADMIN (P2-D)
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.blockchain.models import ValidatorProfile, ValidatorStatus
-        from app.db.models import User as _User
-        from sqlalchemy import select as _select
-        import uuid as _uuid_mod
-        from decimal import Decimal as _Decimal
-
-        async with AsyncSessionLocal() as _db:
-            _admin_res = await _db.execute(_select(_User).where(_User.role == "admin").limit(1))
-            _admin = _admin_res.scalar_one_or_none()
-            if _admin:
-                _existing_vp_res = await _db.execute(
-                    _select(ValidatorProfile).where(ValidatorProfile.user_id == _admin.id).limit(1)
-                )
-                _existing_vp = _existing_vp_res.scalar_one_or_none()
-                if not _existing_vp:
-                    _db.add(ValidatorProfile(
-                        id=str(_uuid_mod.uuid4()),
-                        user_id=_admin.id,
-                        stake_amount=_Decimal("1000.00000000"),
-                        trust_score=_Decimal("0.9500"),
-                        status=ValidatorStatus.ACTIVE.value,
-                        total_predictions=0,
-                        accurate_predictions=0,
-                        influence_score=_Decimal("100.00000000"),
-                    ))
                     await _db.commit()
-                    print("✅ Validator profile seeded for admin")
+                    print(f"✅ Gamification tasks seeded: {len(_task_categories)} categories, {len(_task_definitions)} tasks")
                 else:
-                    print("✅ Validator profile: admin already registered")
-    except Exception as _e:
-        print(f"⚠️  Validator profile seeding failed: {_e}")
+                    _task_count = (await _db.execute(_select(_func.count()).select_from(Task))).scalar()
+                    print(f"✅ Gamification tasks: {_cat_count} categories, {_task_count} tasks present")
+        except Exception as _e:
+            print(f"⚠️  Gamification task seeding failed: {_e}")
 
-    # CLV BACKFILL — rebuild any missing CLV rows for already-settled predictions (P2-B)
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.services.clv_backfill import backfill_missing_clv
-        async with AsyncSessionLocal() as _db:
-            _clv = await backfill_missing_clv(_db, limit=500)
-            if _clv["created"] or _clv["updated"]:
-                print(f"✅ CLV backfill: {_clv['created']} created, {_clv['updated']} updated, {_clv['missing_closing_odds']} missing odds")
-            else:
-                print(f"✅ CLV: {_clv['skipped']} rows already populated (no backfill needed)")
-    except Exception as _e:
-        print(f"⚠️  CLV backfill failed: {_e}")
+        # SEED DEFAULT VALIDATOR PROFILE FOR ADMIN (P2-D)
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.modules.blockchain.models import ValidatorProfile, ValidatorStatus
+            from app.db.models import User as _User
+            from sqlalchemy import select as _select
+            import uuid as _uuid_mod
+            from decimal import Decimal as _Decimal
 
-    # Phase 3a / B-1 — HISTORICAL MATCH BACKFILL (TheSportsDB free API)
-    # Guard: only run if matches table has < 100 rows (avoid re-running on every restart)
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.services.sportsdb_api import backfill_historical_matches
-        async with AsyncSessionLocal() as _db:
-            from sqlalchemy import func as _bf_func, select as _bf_select
-            from app.db.models import Match as _BFMatch
-            _bf_count = (await _db.execute(_bf_select(_bf_func.count()).select_from(_BFMatch))).scalar() or 0
-            if _bf_count < 100:
-                _hist = await backfill_historical_matches(_db, months=int(get_env("BOOTSTRAP_MATCH_MONTHS", "12")))
-                print(f"✅ Historical backfill: {_hist['inserted']} inserted, {_hist['updated']} updated, {_hist['skipped']} skipped ({_hist['total_fetched']} fetched)")
-            else:
-                print(f"✅ Historical backfill: skipped — already have {_bf_count} fixtures in DB")
-    except Exception as _e:
-        print(f"⚠️  Historical match backfill skipped: {_e}")
+            async with AsyncSessionLocal() as _db:
+                _admin_res = await _db.execute(_select(_User).where(_User.role == "admin").limit(1))
+                _admin = _admin_res.scalar_one_or_none()
+                if _admin:
+                    _existing_vp_res = await _db.execute(
+                        _select(ValidatorProfile).where(ValidatorProfile.user_id == _admin.id).limit(1)
+                    )
+                    _existing_vp = _existing_vp_res.scalar_one_or_none()
+                    if not _existing_vp:
+                        _db.add(ValidatorProfile(
+                            id=str(_uuid_mod.uuid4()),
+                            user_id=_admin.id,
+                            stake_amount=_Decimal("1000.00000000"),
+                            trust_score=_Decimal("0.9500"),
+                            status=ValidatorStatus.ACTIVE.value,
+                            total_predictions=0,
+                            accurate_predictions=0,
+                            influence_score=_Decimal("100.00000000"),
+                        ))
+                        await _db.commit()
+                        print("✅ Validator profile seeded for admin")
+                    else:
+                        print("✅ Validator profile: admin already registered")
+        except Exception as _e:
+            print(f"⚠️  Validator profile seeding failed: {_e}")
 
-    # Phase 3a-2 — SEED PREDICTIONS FOR HISTORICAL MATCHES
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.services.prediction_seeder import seed_predictions_for_historical
-        async with AsyncSessionLocal() as _db:
-            _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=300)
-            if _seed.get("seeded", 0) > 0:
-                print(f"✅ Prediction seeder: {_seed['seeded']} predictions seeded across {_seed['matches_checked']} historical matches")
-            else:
-                print(f"✅ Prediction seeder: {_seed.get('skipped', 0)} matches already have predictions (no seeding needed)")
-    except Exception as _e:
-        print(f"⚠️  Prediction seeder skipped: {_e}")
+        # CLV BACKFILL — rebuild any missing CLV rows for already-settled predictions (P2-B)
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.services.clv_backfill import backfill_missing_clv
+            async with AsyncSessionLocal() as _db:
+                _clv = await backfill_missing_clv(_db, limit=500)
+                if _clv["created"] or _clv["updated"]:
+                    print(f"✅ CLV backfill: {_clv['created']} created, {_clv['updated']} updated, {_clv['missing_closing_odds']} missing odds")
+                else:
+                    print(f"✅ CLV: {_clv['skipped']} rows already populated (no backfill needed)")
+        except Exception as _e:
+            print(f"⚠️  CLV backfill failed: {_e}")
+
+        # Phase 3a / B-1 — HISTORICAL MATCH BACKFILL (TheSportsDB free API)
+        # Guard: only run if matches table has < 100 rows (avoid re-running on every restart)
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.services.sportsdb_api import backfill_historical_matches
+            async with AsyncSessionLocal() as _db:
+                from sqlalchemy import func as _bf_func, select as _bf_select
+                from app.db.models import Match as _BFMatch
+                _bf_count = (await _db.execute(_bf_select(_bf_func.count()).select_from(_BFMatch))).scalar() or 0
+                if _bf_count < 100:
+                    _hist = await backfill_historical_matches(_db, months=int(get_env("BOOTSTRAP_MATCH_MONTHS", "12")))
+                    print(f"✅ Historical backfill: {_hist['inserted']} inserted, {_hist['updated']} updated, {_hist['skipped']} skipped ({_hist['total_fetched']} fetched)")
+                else:
+                    print(f"✅ Historical backfill: skipped — already have {_bf_count} fixtures in DB")
+        except Exception as _e:
+            print(f"⚠️  Historical match backfill skipped: {_e}")
+
+        # Phase 3a-2 — SEED PREDICTIONS FOR HISTORICAL MATCHES
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.services.prediction_seeder import seed_predictions_for_historical
+            async with AsyncSessionLocal() as _db:
+                _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=300)
+                if _seed.get("seeded", 0) > 0:
+                    print(f"✅ Prediction seeder: {_seed['seeded']} predictions seeded across {_seed['matches_checked']} historical matches")
+                else:
+                    print(f"✅ Prediction seeder: {_seed.get('skipped', 0)} matches already have predictions (no seeding needed)")
+        except Exception as _e:
+            print(f"⚠️  Prediction seeder skipped: {_e}")
+
+        print("🏁 Background initialization complete.")
+
+    # Start the background initialization task without awaiting it
+    asyncio.create_task(run_background_init())
 
     alerts = get_telegram_alerts()
     if alerts and alerts.enabled:

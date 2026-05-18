@@ -5,7 +5,12 @@
 
 import { toast } from "sonner";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+// Render host property might not include the protocol.
+// Ensure API_BASE is a valid absolute URL if it doesn't start with / or http
+const rawApiUrl = import.meta.env.VITE_API_URL || "";
+const API_BASE = (rawApiUrl && !rawApiUrl.startsWith("http") && !rawApiUrl.startsWith("/"))
+  ? `https://${rawApiUrl}`
+  : rawApiUrl;
 
 let _pendingRefresh: Promise<string | null> | null = null;
 

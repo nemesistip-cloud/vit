@@ -16,7 +16,10 @@ import {
   Globe, Users, Trophy, ShieldCheck, Filter,
 } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const rawApiUrl = import.meta.env.VITE_API_URL || "";
+const API_BASE = (rawApiUrl && !rawApiUrl.startsWith("http") && !rawApiUrl.startsWith("/"))
+  ? `https://${rawApiUrl}`
+  : rawApiUrl;
 
 function StatCard({ label, value, sub, icon: Icon, color = "text-primary" }: {
   label: string; value: string | number; sub?: string;

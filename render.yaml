@@ -5,7 +5,7 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    startCommand: gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
@@ -22,8 +22,6 @@ services:
         value: production
       - key: AUTH_ENABLED
         value: "true"
-      - key: PORT
-        value: 8000
 
   # Frontend Static Site
   - type: static
