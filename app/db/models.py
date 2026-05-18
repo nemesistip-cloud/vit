@@ -601,8 +601,14 @@ Index('idx_ai_signal_cache_match', AISignalCache.match_id)
 from app.modules.wallet.models import Wallet as _Wallet, WalletTransaction as _WTx  # noqa: F401, E402
 from app.modules.notifications.models import Notification as _Notif, NotificationPreference as _NotifPref  # noqa: F401, E402
 from app.modules.trust.models import UserTrustScore as _UTS, FraudFlag as _FF, RiskEvent as _RE  # noqa: F401, E402
-# Import tasks models directly (not via __init__ which would pull in TaskService →
-# app.core.dependencies and create a circular import). Importing the models module
-# alone is safe and registers UserTaskCompletion so the User.task_completions
-# relationship can resolve in all contexts (standalone scripts, tests, production).
-from app.modules.tasks import models as _tasks_models  # noqa: F401, E402
+# Import tasks models to register UserTaskCompletion with SQLAlchemy so the
+# User.task_completions relationship resolves in all contexts. The unused
+# get_orchestrator import has been removed from tasks/service.py, so there
+# is no longer a circular dependency through this path.
+from app.modules.tasks.models import (  # noqa: F401, E402
+    Task as _Task,
+    TaskCategory as _TaskCategory,
+    UserTaskCompletion as _UserTaskCompletion,
+    TaskType as _TaskType,
+    TaskStatus as _TaskStatus,
+)

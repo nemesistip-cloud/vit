@@ -12,7 +12,6 @@ from sqlalchemy.orm import selectinload
 from app.modules.tasks.models import Task, TaskCategory, UserTaskCompletion, TaskType, TaskStatus
 from app.db.models import User
 from app.modules.wallet.services import WalletService
-from app.core.dependencies import get_orchestrator
 
 logger = logging.getLogger(__name__)
 
