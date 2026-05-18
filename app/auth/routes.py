@@ -137,11 +137,26 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()  # assigns user.id without committing
 
-    # Auto-create wallet with 100 VITCoin onboarding bonus
+    # Auto-create wallet with configurable onboarding bonus (default 100)
+    from app.modules.wallet.models import PlatformConfig
+    bonus_row = (await db.execute(
+        select(PlatformConfig).where(PlatformConfig.key == "welcome_bonus_vit")
+    )).scalar_one_or_none()
+
+    welcome_bonus = Decimal("100.00000000")
+    if bonus_row and bonus_row.value:
+        try:
+            if isinstance(bonus_row.value, dict):
+                welcome_bonus = Decimal(str(bonus_row.value.get("amount", bonus_row.value.get("value", 100))))
+            else:
+                welcome_bonus = Decimal(str(bonus_row.value))
+        except Exception:
+            welcome_bonus = Decimal("100.00000000")
+
     wallet = Wallet(
         id=str(uuid.uuid4()),
         user_id=user.id,
-        vitcoin_balance=Decimal("100.00000000"),
+        vitcoin_balance=welcome_bonus,
     )
     db.add(wallet)
 
