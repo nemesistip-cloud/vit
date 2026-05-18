@@ -20,11 +20,14 @@ def get_env(name: str, default: str = "") -> str:
 def _get_secure_secret_key() -> str:
     """Resolve JWT signing secret from Replit Secrets / env only.
 
-    File-based fallback (.vit_jwt_secret) was removed in v4.10.0; secrets
-    must live in Replit Secrets. In dev, an ephemeral key is generated and
-    a loud warning is printed so the dev knows tokens won't survive restart.
+    Checks JWT_SECRET_KEY, SECRET_KEY, and SESSION_SECRET (Replit-managed).
+    In dev, an ephemeral key is generated and a warning is printed.
     """
-    configured = get_env("JWT_SECRET_KEY") or get_env("SECRET_KEY")
+    configured = (
+        get_env("JWT_SECRET_KEY")
+        or get_env("SECRET_KEY")
+        or get_env("SESSION_SECRET")
+    )
     if configured:
         return configured
     if get_env("REPLIT_DEPLOYMENT") or get_env("ENVIRONMENT").lower() == "production":
@@ -81,7 +84,7 @@ MAX_PREDICTIONS_PER_DAY: int = int(get_env("MAX_PREDICTIONS_PER_DAY", "20"))
 
 def print_config_status() -> None:
     """Print a concise config status banner on startup."""
-    jwt_from_env = bool(get_env("JWT_SECRET_KEY") or get_env("SECRET_KEY"))
+    jwt_from_env = bool(get_env("JWT_SECRET_KEY") or get_env("SECRET_KEY") or get_env("SESSION_SECRET"))
     football_key = FOOTBALL_DATA_API_KEY
     settle_mode  = "Football-Data.org (live)" if football_key else "TheSportsDB (live, free)"
 
