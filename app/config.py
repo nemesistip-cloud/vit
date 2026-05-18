@@ -78,6 +78,10 @@ RESEND_API_KEY: str        = get_env("RESEND_API_KEY",        "")
 THESPORTSDB_API_KEY: str   = get_env("THESPORTSDB_API_KEY",   "3")
 MAX_PREDICTIONS_PER_DAY: int = int(get_env("MAX_PREDICTIONS_PER_DAY", "20"))
 
+# ── ML / Model constants ───────────────────────────────────────────────
+HOME_ADVANTAGE_BIAS: float = float(get_env("HOME_ADVANTAGE_BIAS", "0.042"))
+ML_MAX_GOALS: int           = int(get_env("ML_MAX_GOALS",           "10"))
+
 
 def print_config_status() -> None:
     """Print a concise config status banner on startup."""

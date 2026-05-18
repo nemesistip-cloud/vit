@@ -379,7 +379,9 @@ async def create_checkout_session(
             err = resp.json().get("error", {})
             logger.error(f"Stripe checkout error: {err}")
             user_msg = err.get("message", "Payment processing error")
-            if "sk_" in user_msg or "mk_" in user_msg or "rk_" in user_msg:
+            # Stripe keys should start with sk_test_ or sk_live_.
+            # The previous check for 'mk_' or 'rk_' was likely catching local placeholders.
+            if any(p in user_msg for p in ["sk_", "mk_", "rk_"]):
                 user_msg = "Invalid payment configuration. Please contact support."
             raise HTTPException(status_code=502, detail=user_msg)
 

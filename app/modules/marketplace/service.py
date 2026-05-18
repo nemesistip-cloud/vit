@@ -27,6 +27,22 @@ logger = logging.getLogger(__name__)
 PROTOCOL_FEE = Decimal("0.15")       # 15 % to protocol treasury
 DEFAULT_LISTING_FEE = Decimal("5.0") # VITCoin fee to create a marketplace listing
 
+async def _get_marketplace_config(db: AsyncSession) -> dict:
+    """Load marketplace fees from PlatformConfig."""
+    from app.modules.wallet.models import PlatformConfig
+    res = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "marketplace_config"))
+    cfg = res.scalar_one_or_none()
+
+    defaults = {
+        "protocol_fee": 0.15,
+        "listing_fee": 5.0,
+        "staker_revenue_pct": 0.05
+    }
+
+    if cfg and isinstance(cfg.value, dict):
+        return {**defaults, **cfg.value}
+    return defaults
+
 _ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 _MODELS_DIR = os.path.join(_ROOT_DIR, "models", "marketplace")
 
@@ -73,20 +89,9 @@ async def create_listing(
     listing_fee = Decimal("0")
 
     if charge_listing_fee:
-        # Load configured fee from PlatformConfig
-        try:
-            from app.modules.wallet.models import PlatformConfig as _PC
-            cfg_result = await db.execute(
-                select(_PC).where(_PC.key == "marketplace_listing_fee")
-            )
-            cfg = cfg_result.scalar_one_or_none()
-            listing_fee = _get_listing_fee(
-                float(cfg.value.get("value", DEFAULT_LISTING_FEE)) if cfg and isinstance(cfg.value, dict)
-                else (float(cfg.value) if cfg else None)
-            )
-        except Exception as _e:
-            logger.debug(f"Could not read marketplace_listing_fee config: {_e}")
-            listing_fee = DEFAULT_LISTING_FEE
+        # Load dynamic marketplace config
+        m_cfg = await _get_marketplace_config(db)
+        listing_fee = Decimal(str(m_cfg["listing_fee"]))
 
         # Debit listing fee from creator's wallet
         from app.modules.wallet.services import WalletService
@@ -469,8 +474,12 @@ async def call_model(
     if listing.creator_id == caller_id:
         raise ValueError("Creators cannot call their own listed models")
 
+    # Load dynamic marketplace config
+    m_cfg = await _get_marketplace_config(db)
+    fee_pct = Decimal(str(m_cfg["protocol_fee"]))
+
     price        = listing.price_per_call
-    protocol_cut = (price * PROTOCOL_FEE).quantize(Decimal("0.00000001"))
+    protocol_cut = (price * fee_pct).quantize(Decimal("0.00000001"))
     creator_cut  = price - protocol_cut
 
     # ── Debit caller ──────────────────────────────────────────────────────────
@@ -953,7 +962,10 @@ async def distribute_staker_earnings(
     Distribute STAKER_REVENUE_PCT of a call's revenue to active stakers
     proportional to their stake size.  Called from call_model().
     """
-    pool = (call_revenue * STAKER_REVENUE_PCT).quantize(Decimal("0.00000001"))
+    m_cfg = await _get_marketplace_config(db)
+    staker_pct = Decimal(str(m_cfg["staker_revenue_pct"]))
+
+    pool = (call_revenue * staker_pct).quantize(Decimal("0.00000001"))
     if pool <= 0:
         return
 

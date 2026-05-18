@@ -105,11 +105,23 @@ _MARKET_BY_PREDICTION = {
 
 logger = logging.getLogger(__name__)
 
-_PLATFORM_FEE_PCT = Decimal("0.02")
-_VALIDATOR_SHARE = Decimal("0.40")
-_TREASURY_SHARE = Decimal("0.30")
-_BURN_SHARE = Decimal("0.20")
-_AI_SHARE = Decimal("0.10")
+async def _get_settlement_config(db: AsyncSession) -> dict:
+    """Load settlement percentages from PlatformConfig."""
+    from app.modules.wallet.models import PlatformConfig
+    res = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "settlement_config"))
+    cfg = res.scalar_one_or_none()
+
+    defaults = {
+        "platform_fee": 0.02,
+        "validator_share": 0.40,
+        "treasury_share": 0.30,
+        "burn_share": 0.20,
+        "ai_share": 0.10
+    }
+
+    if cfg and isinstance(cfg.value, dict):
+        return {**defaults, **cfg.value}
+    return defaults
 
 
 async def settle_match(match_id: int, oracle_result: str, db: AsyncSession) -> MatchSettlement:
@@ -184,17 +196,21 @@ async def settle_match(match_id: int, oracle_result: str, db: AsyncSession) -> M
     refundable_stakes = [s for s in stakes if not _market_resolvable(s) and not _is_ah_push(s)]
     settled_stakes = [s for s in stakes if _market_resolvable(s) and not _is_ah_push(s)]
 
+    # Load dynamic settlement config
+    s_cfg = await _get_settlement_config(db)
+    fee_pct = Decimal(str(s_cfg["platform_fee"]))
+
     total_pool = sum(s.stake_amount for s in settled_stakes) or Decimal("0")
-    platform_fee = total_pool * _PLATFORM_FEE_PCT
+    platform_fee = total_pool * fee_pct
     net_pool = total_pool - platform_fee
 
     winning_stakes = [s for s in settled_stakes if _is_winner(s)]
     winning_pool = sum(s.stake_amount for s in winning_stakes) or Decimal("0")
 
-    validator_fund = platform_fee * _VALIDATOR_SHARE
-    treasury_fund = platform_fee * _TREASURY_SHARE
-    burn_amount = platform_fee * _BURN_SHARE
-    ai_fund = platform_fee * _AI_SHARE
+    validator_fund = platform_fee * Decimal(str(s_cfg["validator_share"]))
+    treasury_fund = platform_fee * Decimal(str(s_cfg["treasury_share"]))
+    burn_amount = platform_fee * Decimal(str(s_cfg["burn_share"]))
+    ai_fund = platform_fee * Decimal(str(s_cfg["ai_share"]))
 
     # Batch-load all involved wallets up front (fixes N+1)
     user_ids = list({s.user_id for s in stakes})
