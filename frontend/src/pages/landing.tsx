@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
-  Trophy, Zap, TrendingUp, Shield, BarChart2, Brain,
+  Trophy, TrendingUp, Shield, BarChart2, Brain,
   ArrowRight, Check, Star, ChevronRight, Activity,
-  Users, Coins, Globe, Lock, Sparkles
+  Users, Coins, Globe, Lock, Sparkles, Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/BrandLogo";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
@@ -36,11 +37,11 @@ const buildFeatures = (modelCount: number) => [
   {
     icon: Brain,
     title: `${modelCount}-Model AI Ensemble`,
-    desc: `Random Forest, LSTM, XGBoost and ${Math.max(modelCount - 3, 0)} more models vote on every prediction. No black boxes.`,
-    color: "text-cyan-400",
-    border: "border-cyan-500/20",
-    bg: "bg-cyan-500/5",
-    glow: "hover:border-cyan-500/40 hover:shadow-[0_0_20px_rgba(0,245,255,0.08)]",
+    desc: `Neural networks and ${Math.max(modelCount - 1, 0)} more models vote on every prediction. Programmable trust at scale.`,
+    color: "text-primary",
+    border: "border-primary/20",
+    bg: "bg-primary/5",
+    glow: "hover:border-primary/40 hover:shadow-[0_0_20px_rgba(30,107,255,0.08)]",
   },
   {
     icon: TrendingUp,
@@ -148,14 +149,7 @@ export default function LandingPage() {
       {/* ── Nav ─────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-background/95">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-primary/10 border border-primary/30 rounded-lg flex items-center justify-center vit-glow-cyan-s">
-              <Zap className="w-4 h-4 text-primary" />
-            </div>
-            <span className="font-bold font-mono tracking-tight">
-              VIT<span className="text-primary">_OS</span>
-            </span>
-          </div>
+          <BrandLogo withWordmark size={32} />
           <div className="hidden md:flex items-center gap-8 text-xs font-mono text-muted-foreground uppercase tracking-widest">
             <a href="#features" className="hover:text-primary transition-colors">Features</a>
             <a href="#ai" className="hover:text-primary transition-colors">AI Engine</a>
@@ -190,17 +184,17 @@ export default function LandingPage() {
         <div className="relative max-w-5xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full border border-primary/25 bg-primary/8 text-xs font-mono text-primary">
             <span className="vit-live-dot" style={{ width: 5, height: 5 }} />
-            {modelCount} AI Models · Live Predictions · Blockchain Verified
+            Value Intelligence Trust · {modelCount} AI Models · Live Predictions
           </div>
 
           <h1 className="text-5xl md:text-6xl lg:text-8xl font-bold font-mono tracking-tight leading-[0.95] mb-8">
-            <span className="block text-foreground">Institutional-Grade</span>
-            <span className="block vit-gradient-text mt-2">Sports Intelligence</span>
+            <span className="block text-foreground">Value. Intelligence.</span>
+            <span className="block vit-gradient-text mt-2">Trust Converged.</span>
           </h1>
 
           <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-12 leading-relaxed">
-            A {modelCount}-model AI ensemble analyses every match with machine learning precision.
-            Real edge. Real transparency. Real results.
+            Where Value, Intelligence, and Trust converge. A world where intelligence coordinates economies
+            more efficiently than chaos. Programmable merit for the future economy.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-16">
@@ -488,8 +482,8 @@ export default function LandingPage() {
       <footer className="border-t border-white/5 py-10 px-4 md:px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-5 text-xs font-mono text-muted-foreground/60">
           <div className="flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-primary" />
-            <span className="text-muted-foreground">VIT Sports Intelligence Network</span>
+            <BrandLogo iconOnly size={16} />
+            <span className="text-muted-foreground">Value Intelligence Trust (VIT) Network</span>
           </div>
           <div className="flex gap-6">
             <Link href="/privacy"><span className="cursor-pointer hover:text-primary transition-colors">Privacy</span></Link>

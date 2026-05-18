@@ -1,16 +1,17 @@
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Mail, ShieldCheck, Trophy } from "lucide-react";
+import { Mail, ShieldCheck } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const content: Record<string, { title: string; subtitle: string; sections: { heading: string; body: string }[] }> = {
   about: {
-    title: "About VIT Sports Intelligence Network",
-    subtitle: "A sports intelligence platform combining ML predictions, analyst training, VITCoin incentives, and transparent marketplace economics.",
+    title: "About Value Intelligence Trust (VIT)",
+    subtitle: "A world where intelligence coordinates economies more efficiently than corruption, manipulation, or chaos.",
     sections: [
-      { heading: "Mission", body: "VIT helps sports analysts, developers, and validators collaborate around measurable prediction intelligence instead of opaque tips or unverifiable claims." },
-      { heading: "Platform", body: "The network includes a multi-model AI prediction ensemble, analyst training workflows, marketplace listings, wallet rewards, governance, and safety controls." },
-      { heading: "Marketplace", body: "Developers can submit model packages for review, and approved models can earn VITCoin when used or trained through supported platform flows." },
+      { heading: "Mission", body: "To build intelligent systems where value, trust, and merit become programmable." },
+      { heading: "Vision", body: "A world where intelligence coordinates economies more efficiently than corruption, manipulation, or chaos." },
+      { heading: "Ecosystem", body: "Value Intelligence Trust (VIT) is an integrated ecosystem of AI, Blockchain, and programmable merit. From the VIT Chain to the VIT Intelligence layer, we build the infrastructure for a digital civilization based on merit and verifiable trust." },
     ],
   },
   terms: {
@@ -52,9 +53,7 @@ export default function InfoPage({ type }: { type: keyof typeof content }) {
       <header className="border-b border-border/60 px-4 py-4">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/">
-            <span className="flex cursor-pointer items-center gap-2 font-mono font-bold">
-              <Trophy className="h-5 w-5 text-primary" /> VIT Network
-            </span>
+            <BrandLogo withWordmark size={32} className="cursor-pointer" />
           </Link>
           <Link href="/login"><Button size="sm">Open App</Button></Link>
         </div>

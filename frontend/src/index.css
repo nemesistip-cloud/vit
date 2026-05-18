@@ -76,59 +76,60 @@
   --elevate-1: rgba(255,255,255, .03);
   --elevate-2: rgba(255,255,255, .07);
 
-  /* ── Deep space background ───── */
-  --background: 240 14% 3%;
-  --foreground: 220 15% 95%;
-  --border:     240 12% 11%;
+  /* ── Deep space background (Deep Black #050505) ───── */
+  --background: 0 0% 2%;
+  --foreground: 215 16% 79%;
+  --border:     215 12% 10%;
 
   /* ── Cards ───────────────────── */
-  --card:            240 12% 5%;
-  --card-foreground: 220 15% 95%;
-  --card-border:     240 12% 10%;
+  --card:            0 0% 3%;
+  --card-foreground: 215 16% 79%;
+  --card-border:     215 12% 8%;
 
   /* ── Sidebar (deeper than bg) ── */
-  --sidebar:                   240 16% 4%;
-  --sidebar-foreground:        220 15% 88%;
-  --sidebar-border:            240 12% 9%;
-  --sidebar-primary:           183 100% 50%;
-  --sidebar-primary-foreground:240 10% 4%;
-  --sidebar-accent:            240 12% 9%;
-  --sidebar-accent-foreground: 220 15% 88%;
-  --sidebar-ring:              183 100% 50%;
+  --sidebar:                   0 0% 1%;
+  --sidebar-foreground:        215 16% 70%;
+  --sidebar-border:            215 12% 6%;
+  --sidebar-primary:           219 100% 56%;
+  --sidebar-primary-foreground:215 16% 98%;
+  --sidebar-accent:            215 12% 6%;
+  --sidebar-accent-foreground: 215 16% 90%;
+  --sidebar-ring:              219 100% 56%;
 
-  --popover:            240 12% 5%;
-  --popover-foreground: 220 15% 95%;
-  --popover-border:     240 12% 10%;
+  --popover:            0 0% 3%;
+  --popover-foreground: 215 16% 79%;
+  --popover-border:     215 12% 8%;
 
-  /* ── Neon Cyan primary ───────── */
-  --primary:            183 100% 50%;
-  --primary-foreground: 240 10% 4%;
+  /* ── Neural Blue primary (#1E6BFF) ───────── */
+  --primary:            219 100% 56%;
+  --primary-foreground: 215 16% 98%;
 
-  /* ── Gold secondary (VITCoin) ── */
-  --secondary:            51 100% 50%;
-  --secondary-foreground: 240 10% 4%;
+  /* ── Emerald Green secondary (#00C896) ── */
+  --secondary:            165 100% 39%;
+  --secondary-foreground: 0 0% 2%;
 
-  --muted:            240 12% 10%;
-  --muted-foreground: 240 6% 58%;
+  --muted:            215 12% 8%;
+  --muted-foreground: 215 10% 50%;
 
-  --accent:            240 12% 13%;
-  --accent-foreground: 220 15% 95%;
+  /* ── Accent (Electric Silver / Emerald) ── */
+  --accent:            165 100% 39%;
+  --accent-foreground: 0 0% 2%;
 
   --destructive:            0 84% 60%;
   --destructive-foreground: 0 0% 98%;
 
-  --input: 240 12% 13%;
-  --ring:  183 100% 50%;
+  --input: 215 12% 10%;
+  --ring:  219 100% 56%;
 
   /* ── Chart palette ───────────── */
-  --chart-1: 183 100% 50%;
-  --chart-2:  51 100% 50%;
-  --chart-3: 280  80% 60%;
-  --chart-4: 340  70% 50%;
-  --chart-5: 140  70% 50%;
+  --chart-1: 219 100% 56%;
+  --chart-2: 165 100% 39%;
+  --chart-3: 51  100% 50%;
+  --chart-4: 280  80% 60%;
+  --chart-5: 340  70% 50%;
 
   /* ── Typography & radius ─────── */
-  --app-font-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
+  --app-font-sans:  'Space Grotesk', 'Inter', 'Satoshi', ui-sans-serif, system-ui, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono:  'Space Mono', ui-monospace, SFMono-Regular, monospace;
   --radius: 0.375rem;

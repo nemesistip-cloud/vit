@@ -1,51 +1,57 @@
 /* ============================================================
-   VIT Sports Intelligence Network — Design Tokens v2
-   Institutional-Grade Design System
+   VIT Sports Intelligence Network — Design Tokens v3
+   Value Intelligence Trust (VIT) — Institutional-Grade Design System
    ============================================================ */
 
 :root {
   /* ── Brand Colors ─────────────────────────────────────────── */
-  --vit-brand-cyan:         #00f5ff;
-  --vit-brand-cyan-dim:     #00c8d4;
-  --vit-brand-cyan-muted:   rgba(0, 245, 255, 0.12);
-  --vit-brand-cyan-glow:    rgba(0, 245, 255, 0.35);
-  --vit-brand-cyan-border:  rgba(0, 245, 255, 0.25);
+  /* New VIT Brand Identity */
+  --vit-brand-black:        #050505;
+  --vit-brand-blue:         #1E6BFF; /* Neural Blue */
+  --vit-brand-green:        #00C896; /* Emerald Green */
+  --vit-brand-silver:       #C0C7D1; /* Electric Silver */
+  --vit-brand-gold:         #D4AF37; /* Premium Gold Variation */
 
-  --vit-brand-gold:         #ffd700;
-  --vit-brand-gold-dim:     #d4a800;
-  --vit-brand-gold-muted:   rgba(255, 215, 0, 0.12);
-  --vit-brand-gold-glow:    rgba(255, 215, 0, 0.30);
-  --vit-brand-gold-border:  rgba(255, 215, 0, 0.25);
+  /* Legacy aliases/mappings for compatibility */
+  --vit-brand-cyan:         var(--vit-brand-blue);
+  --vit-brand-cyan-dim:     #1656D4;
+  --vit-brand-cyan-muted:   rgba(30, 107, 255, 0.12);
+  --vit-brand-cyan-glow:    rgba(30, 107, 255, 0.35);
+  --vit-brand-cyan-border:  rgba(30, 107, 255, 0.25);
 
-  --vit-brand-purple:       #a855f7;
-  --vit-brand-purple-dim:   #8b3cf7;
-  --vit-brand-purple-muted: rgba(168, 85, 247, 0.12);
-  --vit-brand-purple-border:rgba(168, 85, 247, 0.25);
+  --vit-brand-gold-dim:     #B5962E;
+  --vit-brand-gold-muted:   rgba(212, 175, 55, 0.12);
+  --vit-brand-gold-glow:    rgba(212, 175, 55, 0.30);
+  --vit-brand-gold-border:  rgba(212, 175, 55, 0.25);
 
-  --vit-brand-green:        #22c55e;
-  --vit-brand-green-muted:  rgba(34, 197, 94, 0.12);
-  --vit-brand-green-border: rgba(34, 197, 94, 0.25);
+  --vit-brand-green-muted:  rgba(0, 200, 150, 0.12);
+  --vit-brand-green-border: rgba(0, 200, 150, 0.25);
 
-  --vit-brand-red:          #ef4444;
+  --vit-brand-purple:       #7C3AED;
+  --vit-brand-purple-dim:   #6D28D9;
+  --vit-brand-purple-muted: rgba(124, 58, 237, 0.12);
+  --vit-brand-purple-border:rgba(124, 58, 237, 0.25);
+
+  --vit-brand-red:          #EF4444;
   --vit-brand-red-muted:    rgba(239, 68, 68, 0.12);
 
-  --vit-brand-orange:       #f97316;
+  --vit-brand-orange:       #F97316;
   --vit-brand-orange-muted: rgba(249, 115, 22, 0.12);
 
-  /* ── Deep Space Grays ─────────────────────────────────────── */
-  --vit-gray-950:  #03030a;
-  --vit-gray-900:  #080812;
-  --vit-gray-850:  #0d0d1a;
-  --vit-gray-800:  #121224;
-  --vit-gray-750:  #18182e;
-  --vit-gray-700:  #1e1e38;
-  --vit-gray-600:  #2a2a4a;
-  --vit-gray-500:  #3a3a60;
-  --vit-gray-400:  #5a5a90;
-  --vit-gray-300:  #8080b0;
-  --vit-gray-200:  #b0b0d0;
-  --vit-gray-100:  #d8d8ec;
-  --vit-gray-50:   #ededf8;
+  /* ── Deep Space Grays (Optimized for Deep Black #050505) ───── */
+  --vit-gray-950:  #050505;
+  --vit-gray-900:  #0A0A0F;
+  --vit-gray-850:  #101018;
+  --vit-gray-800:  #161622;
+  --vit-gray-750:  #1C1C2C;
+  --vit-gray-700:  #222236;
+  --vit-gray-600:  #2E2E48;
+  --vit-gray-500:  #3E3E5E;
+  --vit-gray-400:  #5E5E8E;
+  --vit-gray-300:  #8E8EAE;
+  --vit-gray-200:  #BEBECD;
+  --vit-gray-100:  #DEDEEB;
+  --vit-gray-50:   #F0F0F8;
 
   /* ── Typography Scale (Perfect Fourth — 1.333 ratio) ─────── */
   --vit-text-2xs:  0.563rem;
@@ -57,7 +63,7 @@
   --vit-text-2xl:  3.157rem;
   --vit-text-3xl:  4.209rem;
 
-  --vit-font-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
+  --vit-font-sans:  'Space Grotesk', 'Inter', 'Satoshi', ui-sans-serif, system-ui, sans-serif;
   --vit-font-mono:  'Space Mono', ui-monospace, SFMono-Regular, monospace;
   --vit-font-serif: Georgia, serif;
 
@@ -90,12 +96,12 @@
   --vit-shadow-lg:  0 10px 40px rgba(0,0,0,0.7), 0 4px 8px rgba(0,0,0,0.5);
   --vit-shadow-xl:  0 20px 60px rgba(0,0,0,0.8), 0 8px 16px rgba(0,0,0,0.6);
 
-  --vit-shadow-cyan-glow:   0 0 20px rgba(0,245,255,0.28), 0 0 60px rgba(0,245,255,0.10);
-  --vit-shadow-cyan-soft:   0 0 12px rgba(0,245,255,0.18), 0 0 30px rgba(0,245,255,0.07);
-  --vit-shadow-gold-glow:   0 0 20px rgba(255,215,0,0.22), 0 0 60px rgba(255,215,0,0.08);
-  --vit-shadow-gold-soft:   0 0 12px rgba(255,215,0,0.15), 0 0 30px rgba(255,215,0,0.05);
-  --vit-shadow-purple-glow: 0 0 20px rgba(168,85,247,0.22), 0 0 60px rgba(168,85,247,0.08);
-  --vit-shadow-green-glow:  0 0 15px rgba(34,197,94,0.22), 0 0 40px rgba(34,197,94,0.08);
+  --vit-shadow-cyan-glow:   0 0 20px rgba(30,107,255,0.28), 0 0 60px rgba(30,107,255,0.10);
+  --vit-shadow-cyan-soft:   0 0 12px rgba(30,107,255,0.18), 0 0 30px rgba(30,107,255,0.07);
+  --vit-shadow-gold-glow:   0 0 20px rgba(212,175,55,0.22), 0 0 60px rgba(212,175,55,0.08);
+  --vit-shadow-gold-soft:   0 0 12px rgba(212,175,55,0.15), 0 0 30px rgba(212,175,55,0.05);
+  --vit-shadow-purple-glow: 0 0 20px rgba(124,58,237,0.22), 0 0 60px rgba(124,58,237,0.08);
+  --vit-shadow-green-glow:  0 0 15px rgba(0,200,150,0.22), 0 0 40px rgba(0,200,150,0.08);
   --vit-shadow-red-glow:    0 0 15px rgba(239,68,68,0.22);
 
   /* ── Animation Durations ──────────────────────────────────── */
@@ -122,30 +128,30 @@
   --vit-z-top:      999;
 
   /* ── Glassmorphism ────────────────────────────────────────── */
-  --vit-glass-bg:         rgba(8, 8, 18, 0.65);
+  --vit-glass-bg:         rgba(5, 5, 5, 0.65);
   --vit-glass-border:     rgba(255, 255, 255, 0.06);
   --vit-glass-blur:       16px;
-  --vit-glass-premium-bg: rgba(5, 5, 15, 0.80);
+  --vit-glass-premium-bg: rgba(5, 5, 5, 0.80);
 
   /* ── Gradients ────────────────────────────────────────────── */
-  --vit-gradient-brand:    linear-gradient(135deg, var(--vit-brand-cyan) 0%, var(--vit-brand-purple) 100%);
-  --vit-gradient-brand-r:  linear-gradient(135deg, var(--vit-brand-purple) 0%, var(--vit-brand-cyan) 100%);
+  --vit-gradient-brand:    linear-gradient(135deg, var(--vit-brand-blue) 0%, var(--vit-brand-green) 100%);
+  --vit-gradient-brand-r:  linear-gradient(135deg, var(--vit-brand-green) 0%, var(--vit-brand-blue) 100%);
   --vit-gradient-gold:     linear-gradient(135deg, var(--vit-brand-gold) 0%, var(--vit-brand-orange) 100%);
   --vit-gradient-dark:     linear-gradient(180deg, var(--vit-gray-900) 0%, var(--vit-gray-950) 100%);
   --vit-gradient-surface:  linear-gradient(180deg, var(--vit-gray-800) 0%, var(--vit-gray-850) 100%);
-  --vit-gradient-cyber:    linear-gradient(135deg, rgba(0,245,255,0.08) 0%, rgba(168,85,247,0.08) 100%);
-  --vit-gradient-sidebar:  linear-gradient(180deg, #09091a 0%, #060612 100%);
+  --vit-gradient-cyber:    linear-gradient(135deg, rgba(30,107,255,0.08) 0%, rgba(0,200,150,0.08) 100%);
+  --vit-gradient-sidebar:  linear-gradient(180deg, #050505 0%, #0A0A0F 100%);
 }
 
 /* ── Utility Classes ──────────────────────────────────────────── */
 
 .vit-glass {
-  background: rgba(8, 8, 18, 0.92);
+  background: rgba(5, 5, 5, 0.92);
   border: 1px solid var(--vit-glass-border);
 }
 
 .vit-glass-premium {
-  background: rgba(5, 5, 15, 0.96);
+  background: rgba(5, 5, 5, 0.96);
   border: 1px solid rgba(255,255,255,0.08);
 }
 
@@ -170,12 +176,10 @@
   background-clip: text;
 }
 .vit-gradient-text-cyber {
-  background: linear-gradient(90deg, var(--vit-brand-cyan), var(--vit-brand-purple));
+  background: linear-gradient(90deg, var(--vit-brand-blue), var(--vit-brand-green));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  /* Removed background-position animation — it forces CPU repaints every frame
-     and causes visible flicker when composited alongside other animated layers. */
 }
 
 /* ── Gradient Border (via background-clip) ───────────────────── */
@@ -206,34 +210,34 @@
   transition: box-shadow 0.3s ease;
 }
 .vit-border-glow:hover {
-  box-shadow: 0 0 0 1px rgba(0,245,255,0.4), var(--vit-shadow-cyan-glow);
+  box-shadow: 0 0 0 1px rgba(30,107,255,0.4), var(--vit-shadow-cyan-glow);
 }
 
 /* ── Card variants ───────────────────────────────────────────── */
 .vit-card {
-  background: rgba(12, 12, 24, 0.95);
+  background: rgba(10, 10, 15, 0.95);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--vit-radius-lg);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .vit-card:hover {
-  border-color: rgba(0,245,255,0.15);
-  box-shadow: 0 0 24px rgba(0,245,255,0.06);
+  border-color: rgba(30,107,255,0.15);
+  box-shadow: 0 0 24px rgba(30,107,255,0.06);
 }
 
 .vit-card-gold {
-  background: linear-gradient(135deg, rgba(255,215,0,0.04) 0%, rgba(12,12,24,0.9) 60%);
-  border: 1px solid rgba(255,215,0,0.15);
+  background: linear-gradient(135deg, rgba(212,175,55,0.04) 0%, rgba(10,10,15,0.9) 60%);
+  border: 1px solid rgba(212,175,55,0.15);
 }
 
 .vit-card-cyan {
-  background: linear-gradient(135deg, rgba(0,245,255,0.05) 0%, rgba(12,12,24,0.9) 60%);
-  border: 1px solid rgba(0,245,255,0.15);
+  background: linear-gradient(135deg, rgba(30,107,255,0.05) 0%, rgba(10,10,15,0.9) 60%);
+  border: 1px solid rgba(30,107,255,0.15);
 }
 
 .vit-card-purple {
-  background: linear-gradient(135deg, rgba(168,85,247,0.05) 0%, rgba(12,12,24,0.9) 60%);
-  border: 1px solid rgba(168,85,247,0.15);
+  background: linear-gradient(135deg, rgba(124,58,237,0.05) 0%, rgba(10,10,15,0.9) 60%);
+  border: 1px solid rgba(124,58,237,0.15);
 }
 
 /* ── Status indicators ───────────────────────────────────────── */
@@ -241,8 +245,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 0 0 rgba(34,197,94,0.4);
+  background: #00C896;
+  box-shadow: 0 0 0 0 rgba(0,200,150,0.4);
   animation: vit-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
@@ -338,13 +342,9 @@
 }
 
 /* ── Ticker tape ──────────────────────────────────────────────── */
-/* Force an explicit GPU compositor boundary on the wrapper so the      */
-/* translateX animation on the child cannot paint outside its container */
-/* on Android Chrome (causes full-page horizontal scan-line artifacts). */
 .vit-ticker-wrap {
   overflow: hidden;
   white-space: nowrap;
-  /* Create an isolated stacking context + compositor layer */
   transform: translateZ(0);
   isolation: isolate;
   contain: layout paint;
@@ -352,7 +352,6 @@
 .vit-ticker-content {
   display: inline-flex;
   animation: vit-ticker 35s linear infinite;
-  /* Promote to its own dedicated GPU layer so paint stays inside wrap */
   will-change: transform;
 }
 .vit-ticker-content:hover {
@@ -360,28 +359,15 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   MOBILE GPU COMPOSITOR FIX — Android Chrome scan-line artifact
-   ────────────────────────────────────────────────────────────────────────────
-   Root cause: Any CSS animation that runs on the GPU (transform, opacity,
-   background-position) creates a compositor layer. On Android Chrome, when
-   two or more compositor layers overlap, their paint regions bleed across
-   the ENTIRE viewport as horizontal scan-lines.
-
-   Every class below either (a) runs an infinite animation, (b) promotes an
-   element to a GPU layer via will-change or translateZ(0), or (c) applies
-   backdrop-filter which forces a separate composited layer. All are killed
-   at ≤1279px so the page renders on the CPU rasteriser with no layer splits.
+   MOBILE GPU COMPOSITOR FIX
    ════════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 1279px) {
-
-  /* ── 1. Ticker: stop animation + remove GPU force-compositing layer ───────── */
   .vit-ticker-content {
     animation: none !important;
     will-change: auto !important;
     transform: none !important;
   }
   .vit-ticker-wrap {
-    /* No animation running → no need for isolated GPU layer */
     transform: none !important;
     isolation: auto !important;
     contain: none !important;
@@ -391,61 +377,29 @@
     scrollbar-width: none;
   }
   .vit-ticker-wrap::-webkit-scrollbar { display: none; }
-
-  /* ── 2. Live indicator: static dot — no scale/opacity animation ──────────── */
   .vit-live-dot {
     animation: none !important;
     box-shadow: none !important;
   }
-
-  /* ── 2b. Glow box-shadows: remove large spread values that trigger layer promotion ── */
-  .vit-glow-cyan,
-  .vit-glow-cyan-s,
-  .vit-glow-gold,
-  .vit-glow-gold-s,
-  .vit-glow-purple,
-  .vit-glow-green,
-  .vit-border-glow,
-  .vit-border-glow:hover {
+  .vit-glow-cyan, .vit-glow-cyan-s, .vit-glow-gold, .vit-glow-gold-s, .vit-glow-purple, .vit-glow-green, .vit-border-glow, .vit-border-glow:hover {
     box-shadow: none !important;
   }
-
-  /* ── 3. Shimmer skeleton: static gradient — no background-position sweep ─── */
   .vit-shimmer {
     animation: none !important;
     background: var(--vit-gray-800) !important;
   }
-
-  /* ── 4. All one-shot entry animations: already forwarded → remove layer ───── */
-  .vit-animate-slide-up,
-  .vit-animate-slide-down,
-  .vit-animate-slide-left,
-  .vit-animate-fade-in,
-  .vit-animate-scale-in,
-  .vit-animate-celebrate,
-  .vit-animate-count-up {
+  .vit-animate-slide-up, .vit-animate-slide-down, .vit-animate-slide-left, .vit-animate-fade-in, .vit-animate-scale-in, .vit-animate-celebrate, .vit-animate-count-up {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
-
-  /* ── 5. Tailwind infinite animations (animate-pulse, -bounce, -ping, -spin) ─ */
-  /*    These import from tw-animate-css and all create infinite GPU layers.      */
-  /*    Skeleton loaders become static on mobile — acceptable tradeoff.           */
   .animate-pulse  { animation: none !important; }
   .animate-bounce { animation: none !important; }
   .animate-ping   { animation: none !important; }
   .animate-spin   { animation: none !important; }
-
-  /* ── 6. vit-border-gradient pseudo-element: remove GPU force-layer ────────── */
-  /*    The ::before mask trick does not need translateZ — it has no animation.   */
-  .vit-border-gradient::before,
-  .vit-border-gradient-gold::before {
+  .vit-border-gradient::before, .vit-border-gradient-gold::before {
     transform: none !important;
   }
-
-  /* ── 7. Backdrop-filter: kills a whole-page composited surface on Android ─── */
-  /*    Tailwind stores blur values in CSS custom properties; reset all of them.  */
   * {
     --tw-backdrop-blur: ;
     --tw-backdrop-brightness: ;
@@ -459,57 +413,39 @@
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
-
-  /* ── 8. Global will-change flush: no element may hint GPU promotion ─────────── */
-  * {
-    will-change: auto !important;
-  }
-
-  /* ── 9. Kill all CSS transitions — any animated transform/opacity creates a  ── */
-  /*    compositor layer for its duration. On mobile touch there are no hover     */
-  /*    states anyway, so instant transitions are imperceptible.                  */
+  * { will-change: auto !important; }
   *, *::before, *::after {
     transition-duration: 0s !important;
     transition-delay: 0s !important;
   }
-
-  /* ── 10. Kill all CSS filter — filter forces an isolated composited surface ── */
-  /*     on the GPU regardless of animation state.                               */
   *, *::before, *::after {
     filter: none !important;
     -webkit-filter: none !important;
   }
-
-  /* ── 11. Kill large box-shadows — spread > 8px can trigger layer promotion ── */
-  /*     on Android Chrome. Keep borders and subtle shadows; remove glows.       */
   .shadow-xl, .shadow-2xl, .shadow-lg {
     box-shadow: none !important;
   }
 }
 
-/* ── Page containment — prevents glow / compositing layers bleeding across pages */
+/* ── Page containment ── */
 .vit-page-container {
   isolation: isolate;
   contain: layout style;
   overflow: clip;
 }
 
-/* ── Hero / decorative section containment ───────────────────── */
-/* Isolates absolute-positioned glow orbs and background decorations
-   so their stacking contexts cannot bleed into adjacent sections.   */
 .vit-section-contained {
   isolation: isolate;
   contain: paint;
   overflow: hidden;
 }
 
-/* ── Custom scrollbar ─────────────────────────────────────────── */
+/* ── Custom scrollbar ── */
 .vit-scrollbar::-webkit-scrollbar       { width: 4px; height: 4px; }
 .vit-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .vit-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
-.vit-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,245,255,0.2); }
+.vit-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(30,107,255,0.2); }
 
-/* Apply globally */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.08) transparent;
@@ -517,16 +453,16 @@
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,245,255,0.2); }
+::-webkit-scrollbar-thumb:hover { background: rgba(30,107,255,0.2); }
 
-/* ── Number/metric highlight ──────────────────────────────────── */
+/* ── Number/metric highlight ── */
 .vit-metric {
   font-family: var(--vit-font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 
-/* ── Separator with label ─────────────────────────────────────── */
+/* ── Separator with label ── */
 .vit-section-label {
   font-family: var(--vit-font-mono);
   font-size: 0.625rem;

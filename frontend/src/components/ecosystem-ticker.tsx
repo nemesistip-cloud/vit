@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import { useRealtimeTicker } from "@/hooks/useRealtimeTicker";
-import { TrendingUp, TrendingDown, Activity, Users, Cpu, Zap, Globe, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, Users, Cpu, Zap, Globe, DollarSign, Shield } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 interface TickerItem {
   id: string;
@@ -81,15 +82,15 @@ export function EcosystemTicker() {
       value: `$${vitPrice.toFixed(4)}`,
       change: `${Math.abs(change24h).toFixed(2)}%`,
       up: change24h >= 0,
-      icon: <DollarSign className="w-3 h-3" />,
-      color: "text-yellow-400",
+      icon: <BrandLogo iconOnly size={12} />,
+      color: "text-primary",
     },
     {
       id: "users",
       label: "Users",
       value: totalUsers.toLocaleString(),
       icon: <Users className="w-3 h-3" />,
-      color: "text-blue-400",
+      color: "text-muted-foreground",
     },
     {
       id: "active",
@@ -102,22 +103,22 @@ export function EcosystemTicker() {
       id: "validators",
       label: "Validators",
       value: validators.toLocaleString(),
-      icon: <Globe className="w-3 h-3" />,
-      color: "text-cyan-400",
+      icon: <Shield className="w-3 h-3" />,
+      color: "text-primary",
     },
     {
       id: "staked",
       label: "Staked VIT",
       value: staked >= 1_000_000 ? `${(staked / 1_000_000).toFixed(2)}M` : staked.toLocaleString(),
-      icon: <Zap className="w-3 h-3" />,
-      color: "text-yellow-300",
+      icon: <BrandLogo iconOnly size={12} />,
+      color: "text-emerald-400",
     },
     {
       id: "predictions",
       label: "Predictions",
       value: totalPreds.toLocaleString(),
       icon: <Cpu className="w-3 h-3" />,
-      color: "text-purple-400",
+      color: "text-muted-foreground",
     },
     {
       id: "accuracy",
