@@ -803,24 +803,10 @@ async def lifespan(app: FastAPI):
         from app.db.database import AsyncSessionLocal
         from app.modules.wallet.models import PlatformConfig
         from sqlalchemy import select as _select
+        from app.core.seeding import PLATFORM_CONFIG_DEFAULTS
 
-        _default_configs = [
-            ("fee_rates", {"deposit": 0.01, "withdrawal": 0.02, "conversion": 0.005}, "Platform fee rates"),
-            ("vitcoin_min_stake", {"amount": 10, "validator_min": 100}, "Minimum VITCoin stake amounts"),
-            ("withdrawal_limits", {"daily_usd": 1000, "daily_ngn": 500000, "daily_usdt": 1000}, "Daily withdrawal limits"),
-            ("deposit_limits", {"min_usd": 1, "min_ngn": 500, "max_usd": 10000}, "Deposit limits"),
-            ("vitcoin_supply", {"initial": 1000000, "burned": 0, "reserved": 100000}, "VITCoin supply parameters"),
-            ("platform_treasury", {"address": "vit_treasury_001"}, "Platform treasury wallet reference"),
-            ("exchange_rates", {"usd_ngn": 1580, "usd_pi": 0.5, "usd_usdt": 1.0}, "Fiat/crypto exchange rates"),
-            ("vitcoin_price_formula", {"window_days": 30, "method": "revenue_backed"}, "VITCoin price calculation parameters"),
-            ("vitcoin_price_floor", {"amount": "0.10"}, "Minimum VITCoin price in USD"),
-            ("exchange_rates_usd",
-             {"NGN": 0.000633, "USD": 1.0, "USDT": 1.0, "PI": 0.314159, "VITCoin": 0.10},
-             "Per-currency rate to 1 USD (used by the conversion engine)"),
-            ("conversion_fee_pct", {"value": 0.5}, "Currency conversion fee percentage"),
-        ]
         async with AsyncSessionLocal() as _db:
-            for key, value, desc in _default_configs:
+            for key, value, desc in PLATFORM_CONFIG_DEFAULTS:
                 existing = (await _db.execute(_select(PlatformConfig).where(PlatformConfig.key == key))).scalar_one_or_none()
                 if not existing:
                     _db.add(PlatformConfig(key=key, value=value, description=desc))
@@ -884,73 +870,12 @@ async def lifespan(app: FastAPI):
         from app.db.database import AsyncSessionLocal
         from app.db.models import SubscriptionPlan
         from sqlalchemy import select as _select
-
-        _plans = [
-            {
-                "name": "free",
-                "display_name": "Free",
-                "price_monthly": 0.0,
-                "price_yearly": 0.0,
-                "prediction_limit": 5,
-                "features": {
-                    "predictions": True,
-                    "basic_history": True,
-                    "advanced_analytics": False,
-                    "ai_insights": False,
-                    "accumulator_builder": False,
-                    "model_breakdown": False,
-                    "telegram_alerts": False,
-                    "bankroll_tools": False,
-                    "csv_upload": False,
-                    "priority_support": False,
-                },
-            },
-            {
-                "name": "pro",
-                "display_name": "Pro",
-                "price_monthly": 49.0,
-                "price_yearly": 490.0,
-                "prediction_limit": 100,
-                "features": {
-                    "predictions": True,
-                    "basic_history": True,
-                    "advanced_analytics": True,
-                    "ai_insights": True,
-                    "accumulator_builder": True,
-                    "model_breakdown": True,
-                    "telegram_alerts": True,
-                    "bankroll_tools": True,
-                    "csv_upload": False,
-                    "priority_support": False,
-                },
-            },
-            {
-                "name": "elite",
-                "display_name": "Elite",
-                "price_monthly": 199.0,
-                "price_yearly": 1990.0,
-                "prediction_limit": 1000,
-                "features": {
-                    "predictions": True,
-                    "basic_history": True,
-                    "advanced_analytics": True,
-                    "ai_insights": True,
-                    "accumulator_builder": True,
-                    "model_breakdown": True,
-                    "telegram_alerts": True,
-                    "bankroll_tools": True,
-                    "csv_upload": True,
-                    "priority_support": True,
-                    "validator_eligibility": True,
-                    "revenue_share": True,
-                },
-            },
-        ]
+        from app.core.seeding import SUBSCRIPTION_PLANS
 
         async with AsyncSessionLocal() as _db:
             _count = (await _db.execute(_select(func.count()).select_from(SubscriptionPlan))).scalar()
             if _count == 0:
-                for _p in _plans:
+                for _p in SUBSCRIPTION_PLANS:
                     _db.add(SubscriptionPlan(
                         name=_p["name"],
                         display_name=_p["display_name"],
@@ -1214,6 +1139,19 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  Marketplace system seed failed: {_e}")
 
+    # Seed Prophecy Chapters (idempotent)
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.prophecy_chain.services.seeder import seed_prophecy_chapters
+        async with AsyncSessionLocal() as _db:
+            _seeded = await seed_prophecy_chapters(_db)
+            if _seeded:
+                print(f"✅ Prophecy: {_seeded} chapters seeded")
+            else:
+                print("✅ Prophecy: all chapters present")
+    except Exception as _e:
+        print(f"⚠️  Prophecy seeding failed: {_e}")
+
     # VIT Cloud — Smart Contract Engine bootstrap
     try:
         from app.db.database import AsyncSessionLocal
@@ -1267,147 +1205,9 @@ async def lifespan(app: FastAPI):
     # SEED GAMIFICATION TASKS (P1-A)
     try:
         from app.db.database import AsyncSessionLocal
-        from app.modules.tasks.models import TaskCategory, Task, TaskType, TaskStatus
+        from app.modules.tasks.models import TaskCategory, Task, TaskStatus
         from sqlalchemy import select as _select, func as _func
-
-        _task_categories = [
-            {"name": "Prediction", "description": "Tasks related to making and reviewing football predictions", "icon": "target", "color": "blue", "sort_order": 1},
-            {"name": "Social", "description": "Community and referral tasks to grow the VIT network", "icon": "users", "color": "green", "sort_order": 2},
-            {"name": "Learning", "description": "Educational tasks to improve your sports intelligence", "icon": "book-open", "color": "purple", "sort_order": 3},
-        ]
-        _task_definitions = [
-            # Prediction tasks
-            {
-                "category_name": "Prediction",
-                "title": "Make Your First Prediction",
-                "description": "Submit your first football match prediction using the VIT AI engine.",
-                "short_description": "Submit a prediction",
-                "task_type": TaskType.ONE_TIME.value,
-                "required_count": 1,
-                "vit_reward": 10,
-                "xp_reward": 50,
-                "icon": "zap",
-                "color": "blue",
-                "sort_order": 1,
-                "is_featured": True,
-                "action_url": "/predict",
-                "action_label": "Predict Now",
-            },
-            {
-                "category_name": "Prediction",
-                "title": "Daily Prediction Streak",
-                "description": "Make at least one prediction every day to maintain your streak and earn daily VIT rewards.",
-                "short_description": "Predict daily",
-                "task_type": TaskType.DAILY.value,
-                "required_count": 1,
-                "max_completions": 365,
-                "reset_period_days": 1,
-                "vit_reward": 5,
-                "xp_reward": 20,
-                "icon": "flame",
-                "color": "orange",
-                "sort_order": 2,
-                "is_featured": True,
-                "action_url": "/predict",
-                "action_label": "Predict Today",
-            },
-            {
-                "category_name": "Prediction",
-                "title": "Prediction Veteran",
-                "description": "Accumulate 50 total predictions across any matches to prove your dedication to sports intelligence.",
-                "short_description": "50 total predictions",
-                "task_type": TaskType.PROGRESS.value,
-                "required_count": 50,
-                "vit_reward": 100,
-                "xp_reward": 500,
-                "icon": "trophy",
-                "color": "yellow",
-                "sort_order": 3,
-                "action_url": "/predict",
-                "action_label": "Predict Now",
-            },
-            # Social tasks
-            {
-                "category_name": "Social",
-                "title": "Complete Your Profile",
-                "description": "Add your username and complete your account profile to unlock full platform features.",
-                "short_description": "Complete profile",
-                "task_type": TaskType.ONE_TIME.value,
-                "required_count": 1,
-                "vit_reward": 15,
-                "xp_reward": 75,
-                "icon": "user-check",
-                "color": "green",
-                "sort_order": 1,
-                "is_featured": True,
-                "action_url": "/profile",
-                "action_label": "Edit Profile",
-            },
-            {
-                "category_name": "Social",
-                "title": "Refer a Friend",
-                "description": "Invite a friend to join VIT Sports Intelligence Network using your referral link.",
-                "short_description": "Refer 1 friend",
-                "task_type": TaskType.PROGRESS.value,
-                "required_count": 1,
-                "max_completions": 50,
-                "vit_reward": 25,
-                "xp_reward": 100,
-                "icon": "share-2",
-                "color": "teal",
-                "sort_order": 2,
-                "action_url": "/referral",
-                "action_label": "Get Referral Link",
-            },
-            # Learning tasks
-            {
-                "category_name": "Learning",
-                "title": "Explore the AI Engine",
-                "description": "Visit the AI Engine dashboard to understand how VIT's 13-model ensemble generates predictions.",
-                "short_description": "Visit AI Engine",
-                "task_type": TaskType.ONE_TIME.value,
-                "required_count": 1,
-                "vit_reward": 5,
-                "xp_reward": 25,
-                "icon": "cpu",
-                "color": "purple",
-                "sort_order": 1,
-                "action_url": "/ai-engine",
-                "action_label": "Explore AI Engine",
-            },
-            {
-                "category_name": "Learning",
-                "title": "Check the Research Terminal",
-                "description": "Run a backtest or EV scan in the Research Terminal to sharpen your edge.",
-                "short_description": "Use Research Terminal",
-                "task_type": TaskType.ONE_TIME.value,
-                "required_count": 1,
-                "vit_reward": 10,
-                "xp_reward": 50,
-                "icon": "bar-chart-2",
-                "color": "indigo",
-                "sort_order": 2,
-                "action_url": "/research",
-                "action_label": "Open Research",
-            },
-            {
-                "category_name": "Learning",
-                "title": "Weekly Learning Badge",
-                "description": "Visit the platform and review at least one AI insight report each week.",
-                "short_description": "Weekly engagement",
-                "task_type": TaskType.WEEKLY.value,
-                "required_count": 1,
-                "max_completions": 52,
-                "reset_period_days": 7,
-                "vit_reward": 8,
-                "xp_reward": 40,
-                "icon": "award",
-                "color": "pink",
-                "sort_order": 3,
-                "action_url": "/dashboard",
-                "action_label": "View Dashboard",
-            },
-        ]
+        from app.core.seeding import TASK_CATEGORIES, TASK_DEFINITIONS
 
         async with AsyncSessionLocal() as _db:
             _cat_count = (await _db.execute(_select(_func.count()).select_from(TaskCategory))).scalar()
@@ -1418,7 +1218,7 @@ async def lifespan(app: FastAPI):
                 _admin_id = _admin_user.id if _admin_user else 1
 
                 _cat_map = {}
-                for _cat in _task_categories:
+                for _cat in TASK_CATEGORIES:
                     _c = TaskCategory(
                         name=_cat["name"],
                         description=_cat["description"],
@@ -1431,7 +1231,7 @@ async def lifespan(app: FastAPI):
                     await _db.flush()
                     _cat_map[_cat["name"]] = _c.id
 
-                for _td in _task_definitions:
+                for _td in TASK_DEFINITIONS:
                     _db.add(Task(
                         category_id=_cat_map[_td["category_name"]],
                         title=_td["title"],
@@ -1915,11 +1715,13 @@ from app.api.routes.bankroll import router as bankroll_router
 app.include_router(model_perf_router)
 app.include_router(bankroll_router)
 
-# Prophecy Branch — Academy, AI Core, AI Upload
+# Prophecy Branch — Academy, AI Core, AI Upload, Prophecy Chain
 from app.modules.academy.routes import router as academy_router
 from app.modules.ai_core.routes import router as ai_core_router
+from app.modules.prophecy_chain.routes import router as prophecy_router
 app.include_router(academy_router)
 app.include_router(ai_core_router)
+app.include_router(prophecy_router)
 
 
 def _format_count(value: int) -> str:

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func, or_
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Any
 import logging
 import os
 
@@ -14,7 +14,8 @@ from app.services.cache import cache
 router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
 
-LEAGUE_DISPLAY_NAMES = {
+# Default hardcoded configuration used only as fallback
+DEFAULT_LEAGUE_DISPLAY_NAMES = {
     "premier_league": "Premier League",
     "la_liga": "La Liga",
     "bundesliga": "Bundesliga",
@@ -29,7 +30,7 @@ LEAGUE_DISPLAY_NAMES = {
     "uel": "Europa League",
 }
 
-COMPETITIONS = {
+DEFAULT_COMPETITIONS = {
     "premier_league": "PL",
     "la_liga": "PD",
     "bundesliga": "BL1",
@@ -62,13 +63,18 @@ DEFAULT_MARKETS = [
 ]
 
 
-def _fmt_league(league: str) -> str:
-    return LEAGUE_DISPLAY_NAMES.get(league, league.replace("_", " ").title() if league else "Unknown")
+async def _load_config(db: AsyncSession, key: str, default: Any, expected_type: type = dict) -> Any:
+    row = (await db.execute(select(PlatformConfig).where(PlatformConfig.key == key))).scalar_one_or_none()
+    val = row.value if row else default
+    return val if isinstance(val, expected_type) else default
+
+
+def _fmt_league_with_map(league: str, mapping: dict) -> str:
+    return mapping.get(league, league.replace("_", " ").title() if league else "Unknown")
 
 
 async def _load_markets(db: AsyncSession) -> list:
-    row = (await db.execute(select(PlatformConfig).where(PlatformConfig.key == "markets_config"))).scalar_one_or_none()
-    return row.value if row and isinstance(row.value, list) else DEFAULT_MARKETS
+    return await _load_config(db, "markets_config", DEFAULT_MARKETS, expected_type=list)
 
 
 def _active_market_ids(markets: Optional[list]) -> set:
@@ -144,7 +150,7 @@ def _secondary_market_probs(home_prob: Optional[float], draw_prob: Optional[floa
     }
 
 
-def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[list] = None) -> dict:
+def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[list] = None, league_map: dict = None) -> dict:
     odds_home = m.opening_odds_home or m.closing_odds_home
     odds_draw = m.opening_odds_draw or m.closing_odds_draw
     odds_away = m.opening_odds_away or m.closing_odds_away
@@ -179,7 +185,7 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         "external_id": m.external_id,
         "home_team": m.home_team,
         "away_team": m.away_team,
-        "league": _fmt_league(m.league) if m.league else "Unknown",
+        "league": _fmt_league_with_map(m.league, league_map or {}) if m.league else "Unknown",
         "league_key": m.league or "unknown",
         "kickoff_time": m.kickoff_time.isoformat() if m.kickoff_time else None,
         "status": m.status or "upcoming",
@@ -262,7 +268,7 @@ async def get_upcoming_matches(
     result = {
         "count": len(matches),
         "enabled_markets": markets,
-        "matches": [_fmt_match(m, preds_map.get(m.id), markets) for m in matches],
+        "matches": [_fmt_match(m, preds_map.get(m.id), markets, league_map) for m in matches],
     }
     await cache.set(_cache_key, result, ttl=15)
     return result
@@ -312,7 +318,7 @@ async def explore_matches(
         if conf < min_confidence or edge_val < min_edge:
             continue
 
-        formatted.append(_fmt_match(m, pred, markets))
+        formatted.append(_fmt_match(m, pred, markets, league_map))
 
     return {"count": len(formatted), "enabled_markets": markets, "matches": formatted[:limit]}
 
@@ -336,7 +342,7 @@ async def get_live_matches(db: AsyncSession = Depends(get_db)):
     return {
         "count": len(matches),
         "enabled_markets": markets,
-        "matches": [_fmt_match(m, None, markets) for m in matches],
+        "matches": [_fmt_match(m, None, markets, league_map) for m in matches],
     }
 
 
@@ -380,7 +386,7 @@ async def get_recent_matches(
         if m.id in seen:
             continue
         seen.add(m.id)
-        formatted.append(_fmt_match(m, pred, markets))
+        formatted.append(_fmt_match(m, pred, markets, league_map))
 
     return {"count": len(formatted), "enabled_markets": markets, "matches": formatted}
 
@@ -410,7 +416,7 @@ async def get_completed_matches(
         if m.id in seen:
             continue
         seen.add(m.id)
-        formatted.append(_fmt_match(m, pred, markets))
+        formatted.append(_fmt_match(m, pred, markets, league_map))
 
     return {"count": len(formatted), "enabled_markets": markets, "matches": formatted}
 
@@ -424,7 +430,7 @@ async def list_leagues(db: AsyncSession = Depends(get_db)):
     keys = [row[0] for row in result.all()]
     return {
         "leagues": [
-            {"key": k, "display": _fmt_league(k)}
+            {"key": k, "display": await _fmt_league(db, k)}
             for k in sorted(keys)
         ]
     }
@@ -517,9 +523,10 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     preds = pred_q.scalars().all()
     latest_pred = preds[0] if preds else None
     markets = await _load_markets(db)
+    league_map = await _load_config(db, "league_display_names", DEFAULT_LEAGUE_DISPLAY_NAMES)
     model_insights = latest_pred.model_insights if latest_pred and isinstance(latest_pred.model_insights, list) else []
     model_weights = latest_pred.model_weights if latest_pred and isinstance(latest_pred.model_weights, dict) else {}
-    latest = _fmt_match(match, latest_pred, markets)
+    latest = _fmt_match(match, latest_pred, markets, league_map)
     h = latest.get("home_prob") or 0
     d = latest.get("draw_prob") or 0
     a = latest.get("away_prob") or 0
@@ -599,19 +606,21 @@ async def sync_fixtures(
     skipped_dedup = 0
     rate_limited_leagues: list[str] = []
 
-    if not football_key:
-        return {
-            "stored": 0,
-            "skipped_existing": 0,
-            "source": "none",
-            "message": "FOOTBALL_DATA_API_KEY not configured. "
-                       "No synthetic fallback (ENABLE_SYNTHETIC_FIXTURES is off).",
-            "synthetic_fallback_enabled": allow_synthetic,
-        }
+    async with AsyncSessionLocal() as db:
+        competitions = await _load_config(db, "competitions_config", DEFAULT_COMPETITIONS)
 
-    async with httpx.AsyncClient(timeout=20) as client:
-        async with AsyncSessionLocal() as db:
-            for league, code in COMPETITIONS.items():
+        if not football_key:
+            return {
+                "stored": 0,
+                "skipped_existing": 0,
+                "source": "none",
+                "message": "FOOTBALL_DATA_API_KEY not configured. "
+                           "No synthetic fallback (ENABLE_SYNTHETIC_FIXTURES is off).",
+                "synthetic_fallback_enabled": allow_synthetic,
+            }
+
+        async with httpx.AsyncClient(timeout=20) as client:
+            for league, code in competitions.items():
                 try:
                     r = await client.get(
                         f"https://api.football-data.org/v4/competitions/{code}/matches",
