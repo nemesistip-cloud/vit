@@ -76,7 +76,23 @@ STRIPE_SECRET_KEY: str     = get_env("STRIPE_SECRET_KEY",     "")
 CLAUDE_API_KEY: str        = get_env("CLAUDE_API_KEY",        "")
 GEMINI_API_KEY: str        = get_env("GEMINI_API_KEY",        "")
 OPENAI_API_KEY: str        = get_env("OPENAI_API_KEY",        "")
-REDIS_URL: str             = get_env("REDIS_URL",             "")
+def _clean_redis_url(raw: str) -> str:
+    """Extract a valid redis(s):// or unix:// URL from the raw env value.
+
+    Handles cases where the secret was accidentally set to the full
+    redis-cli invocation, e.g. ``redis-cli -u redis://user:pass@host:port``
+    instead of just ``redis://user:pass@host:port``.
+    """
+    import re as _re
+    if not raw:
+        return ""
+    raw = raw.strip()
+    m = _re.search(r"(rediss?://\S+|unix://\S+)", raw)
+    if m:
+        return m.group(1)
+    return raw
+
+REDIS_URL: str             = _clean_redis_url(get_env("REDIS_URL", ""))
 RESEND_API_KEY: str        = get_env("RESEND_API_KEY",        "")
 THESPORTSDB_API_KEY: str   = get_env("THESPORTSDB_API_KEY",   "3")
 MAX_PREDICTIONS_PER_DAY: int = int(get_env("MAX_PREDICTIONS_PER_DAY", "20"))

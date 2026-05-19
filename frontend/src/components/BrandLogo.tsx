@@ -10,9 +10,10 @@ interface BrandLogoProps {
 }
 
 /**
- * VIT Brand Logo — Neural Delta Mark
- * Delta triangle = Value, Intelligence, Trust convergence point.
- * Three neural nodes (V·I·T) connected by a circuit lattice.
+ * VIT Brand Logo — Hexagonal AI Core Mark v2
+ * Hex frame = institutional precision. Inner delta = direction + edge.
+ * Six circuit nodes = the 6-layer model stack.
+ * Central pulse = live AI inference engine.
  */
 export const BrandLogo: React.FC<BrandLogoProps> = ({
   className,
@@ -21,9 +22,12 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   variant = 'primary',
   iconOnly = false
 }) => {
-  const primary = variant === 'premium' ? '#D4AF37' : '#00C8FF';
-  const accent  = variant === 'premium' ? '#F0D060' : '#00F5C8';
-  const id      = `vit-grad-${variant}`;
+  const cyan    = variant === 'premium' ? '#D4AF37' : '#00C8FF';
+  const teal    = variant === 'premium' ? '#F0D060' : '#00F5C8';
+  const purple  = variant === 'premium' ? '#C8A030' : '#7C3AED';
+  const id      = `vit-${variant}`;
+  const glowId  = `vit-glow-${variant}`;
+  const hexId   = `vit-hex-${variant}`;
 
   const logoIcon = (
     <svg
@@ -32,60 +36,134 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="flex-shrink-0 transition-transform duration-300 hover:scale-110"
+      className="flex-shrink-0"
+      aria-label="VIT Sports Intelligence Logo"
     >
       <defs>
-        <radialGradient id={id} cx="50%" cy="60%" r="55%">
-          <stop offset="0%"   stopColor={primary} stopOpacity="0.18" />
-          <stop offset="100%" stopColor={primary} stopOpacity="0"    />
+        {/* Core radial gradient */}
+        <radialGradient id={id} cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor={cyan}   stopOpacity="0.25" />
+          <stop offset="60%"  stopColor={teal}   stopOpacity="0.08" />
+          <stop offset="100%" stopColor={purple} stopOpacity="0"    />
         </radialGradient>
-        <filter id="glow-node">
-          <feGaussianBlur stdDeviation="2" result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+
+        {/* Hex face fill */}
+        <linearGradient id={hexId} x1="20" y1="10" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor={cyan}   stopOpacity="0.14" />
+          <stop offset="100%" stopColor={purple} stopOpacity="0.08" />
+        </linearGradient>
+
+        {/* Glow filter */}
+        <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
         </filter>
+
+        {/* Strong inner glow */}
+        <filter id={`${glowId}-strong`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+
+        <clipPath id={`${id}-clip`}>
+          <polygon points="50,6 88,28 88,72 50,94 12,72 12,28" />
+        </clipPath>
       </defs>
 
-      {/* Ambient glow */}
-      <circle cx="50" cy="54" r="44" fill={`url(#${id})`} />
+      {/* ── Ambient field ── */}
+      <circle cx="50" cy="50" r="46" fill={`url(#${id})`} />
 
-      {/* ── Outer Delta (upward-pointing triangle) ── */}
+      {/* ── Hex outer ring (faint) ── */}
       <polygon
-        points="50,12 16,72 84,72"
-        stroke={primary}
-        strokeWidth="2.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
+        points="50,5 89,27.5 89,72.5 50,95 11,72.5 11,27.5"
+        stroke={cyan}
+        strokeWidth="1"
         fill="none"
-        opacity="0.85"
+        opacity="0.18"
       />
 
-      {/* ── Inner circuit crossbar ── */}
-      <line x1="33" y1="42" x2="67" y2="42"
-        stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
+      {/* ── Hex face ── */}
+      <polygon
+        points="50,12 83,31 83,69 50,88 17,69 17,31"
+        stroke={cyan}
+        strokeWidth="1.5"
+        fill={`url(#${hexId})`}
+        opacity="0.9"
+        strokeLinejoin="round"
+      />
 
-      {/* ── Dashed neural axes from center ── */}
-      <line x1="50" y1="50" x2="50" y2="14"
-        stroke={primary} strokeWidth="1" strokeDasharray="2 4" strokeLinecap="round" opacity="0.35" />
-      <line x1="50" y1="50" x2="18" y2="70"
-        stroke={primary} strokeWidth="1" strokeDasharray="2 4" strokeLinecap="round" opacity="0.35" />
-      <line x1="50" y1="50" x2="82" y2="70"
-        stroke={primary} strokeWidth="1" strokeDasharray="2 4" strokeLinecap="round" opacity="0.35" />
+      {/* ── Six circuit nodes at hex vertices ── */}
+      {[
+        { cx: 50, cy: 12 },
+        { cx: 83, cy: 31 },
+        { cx: 83, cy: 69 },
+        { cx: 50, cy: 88 },
+        { cx: 17, cy: 69 },
+        { cx: 17, cy: 31 },
+      ].map(({ cx, cy }, i) => (
+        <g key={i} filter={`url(#${glowId})`}>
+          <circle cx={cx} cy={cy} r="3.8" fill={i === 0 ? teal : cyan} opacity={i === 0 ? 1 : 0.7} />
+          <circle cx={cx} cy={cy} r="1.8" fill="#fff" opacity={i === 0 ? 0.9 : 0.5} />
+        </g>
+      ))}
 
-      {/* ── V·I·T vertex nodes ── */}
-      {/* Top — V */}
-      <circle cx="50" cy="12" r="5.5" fill={primary} filter="url(#glow-node)" />
-      {/* Bottom-left — I */}
-      <circle cx="16" cy="72" r="4.5" fill={primary} opacity="0.9" />
-      {/* Bottom-right — T */}
-      <circle cx="84" cy="72" r="4.5" fill={primary} opacity="0.9" />
+      {/* ── Inner delta triangle (Value · Intelligence · Trust) ── */}
+      <polygon
+        points="50,24 68,56 32,56"
+        stroke={teal}
+        strokeWidth="2"
+        strokeLinejoin="round"
+        fill="none"
+        opacity="0.85"
+        filter={`url(#${glowId})`}
+      />
 
-      {/* ── Mid-arm relay nodes ── */}
-      <circle cx="33" cy="42" r="3" fill={accent} opacity="0.85" />
-      <circle cx="67" cy="42" r="3" fill={accent} opacity="0.85" />
+      {/* ── Delta interior fill gradient ── */}
+      <polygon
+        points="50,24 68,56 32,56"
+        fill={teal}
+        opacity="0.07"
+      />
 
-      {/* ── Central AI core (pulsing) ── */}
-      <circle cx="50" cy="50" r="5.5" fill={accent} filter="url(#glow-node)" className="animate-pulse" />
-      <circle cx="50" cy="50" r="2.5" fill="#fff" opacity="0.7" />
+      {/* ── V·I·T vertex indicators on delta ── */}
+      <circle cx="50" cy="24" r="3.2" fill={teal} filter={`url(#${glowId})`} opacity="0.9" />
+      <circle cx="68" cy="56" r="2.8" fill={cyan}  filter={`url(#${glowId})`} opacity="0.85" />
+      <circle cx="32" cy="56" r="2.8" fill={cyan}  filter={`url(#${glowId})`} opacity="0.85" />
+
+      {/* ── Circuit crossbar across delta mid ── */}
+      <line x1="35" y1="41" x2="65" y2="41"
+        stroke={cyan} strokeWidth="1" strokeDasharray="2.5 3" strokeLinecap="round" opacity="0.4" />
+
+      {/* ── Radial spokes from centre to hex midpoints (faint data lines) ── */}
+      {[
+        [50, 50, 50, 12], [50, 50, 83, 31], [50, 50, 83, 69],
+        [50, 50, 50, 88], [50, 50, 17, 69], [50, 50, 17, 31],
+      ].map(([x1, y1, x2, y2], i) => (
+        <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke={i % 2 === 0 ? cyan : purple}
+          strokeWidth="0.7" strokeDasharray="1.5 5"
+          strokeLinecap="round" opacity="0.22" />
+      ))}
+
+      {/* ── Central AI core ── */}
+      <circle cx="50" cy="50" r="7.5"
+        fill={teal} opacity="0.15"
+        filter={`url(#${glowId}-strong)`}
+        className="animate-pulse"
+      />
+      <circle cx="50" cy="50" r="5"
+        fill={teal} opacity="0.9"
+        filter={`url(#${glowId})`}
+      />
+      <circle cx="50" cy="50" r="2.5"
+        fill="#fff" opacity="0.85"
+      />
     </svg>
   );
 
@@ -96,15 +174,15 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       {logoIcon}
       {withWordmark && (
         <div className="flex flex-col leading-tight select-none">
-          <div className="flex items-baseline">
-            <span className="font-bold text-xl tracking-tight font-sans text-foreground">VIT</span>
+          <div className="flex items-baseline gap-0.5">
+            <span className="font-black text-lg tracking-tight font-mono text-foreground">VIT</span>
             <span className={cn(
-              "font-black text-xl tracking-tighter font-sans",
+              "font-black text-lg tracking-tighter font-mono",
               variant === 'premium' ? "text-[#D4AF37]" : "text-primary"
             )}>_OS</span>
           </div>
-          <span className="text-[8px] uppercase tracking-[0.25em] text-muted-foreground/60 font-mono -mt-0.5 whitespace-nowrap">
-            Value · Intelligence · Trust
+          <span className="text-[7.5px] uppercase tracking-[0.22em] text-muted-foreground/55 font-mono -mt-0.5 whitespace-nowrap">
+            Intelligence · Edge · Trust
           </span>
         </div>
       )}

@@ -2826,7 +2826,7 @@ async def system_health():
         except Exception:
             db_ok = False
 
-    redis_url = get_env("REDIS_URL", "")
+    from app.config import REDIS_URL as redis_url
     redis_ok = None
     if redis_url:
         redis_ok = False

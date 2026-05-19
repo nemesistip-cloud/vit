@@ -4,7 +4,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-REDIS_URL = os.getenv("REDIS_URL", "")
+def _clean_redis_url(raw: str) -> str:
+    import re as _re
+    if not raw:
+        return ""
+    raw = raw.strip()
+    m = _re.search(r"(rediss?://\S+|unix://\S+)", raw)
+    return m.group(1) if m else raw
+
+REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))
 
 _celery_available = False
 celery_app = None

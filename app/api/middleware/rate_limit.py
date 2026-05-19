@@ -51,7 +51,7 @@ def _get_redis():
     if _redis_checked:
         return _redis_client
     _redis_checked = True
-    redis_url = os.getenv("REDIS_URL", "")
+    from app.config import REDIS_URL as redis_url
     if not redis_url:
         return None
     try:
