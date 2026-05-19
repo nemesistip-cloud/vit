@@ -1,4 +1,4 @@
-import { Trophy, Star, Flame, Medal, Award, TrendingUp, Crown, Zap } from "lucide-react";
+import { Star, Flame, Medal, Award, TrendingUp, Crown, Zap, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,7 @@ interface LevelConfig {
 export const LEVELS: LevelConfig[] = [
   { label: "Novice",  minXP: 0,    maxXP: 100,  color: "text-muted-foreground", bgColor: "bg-muted/30",        icon: Star,      glow: "" },
   { label: "Analyst", minXP: 100,  maxXP: 500,  color: "text-blue-400",         bgColor: "bg-blue-500/10",     icon: TrendingUp, glow: "" },
-  { label: "Pro",     minXP: 500,  maxXP: 2000, color: "text-primary",          bgColor: "bg-primary/10",      icon: Trophy,    glow: "vit-glow-cyan" },
+  { label: "Pro",     minXP: 500,  maxXP: 2000, color: "text-primary",          bgColor: "bg-primary/10",      icon: Target,    glow: "vit-glow-cyan" },
   { label: "Elite",   minXP: 2000, maxXP: 5000, color: "text-secondary",        bgColor: "bg-secondary/10",    icon: Crown,     glow: "vit-glow-gold" },
   { label: "Legend",  minXP: 5000, maxXP: 9999, color: "text-purple-400",       bgColor: "bg-purple-500/10",   icon: Zap,       glow: "vit-glow-purple" },
 ];

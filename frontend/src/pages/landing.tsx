@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import {
   Zap, TrendingUp, Shield, BarChart2, Brain,
   ArrowRight, Check, Star, ChevronRight, Activity,
-  Users, Coins, Globe, Trophy
+  Users, Coins, Globe
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
@@ -141,9 +141,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary/10 border border-primary/30 rounded-lg flex items-center justify-center">
-              <Trophy className="w-4 h-4 text-primary" />
-            </div>
+            <BrandLogo size={30} />
             <span className="font-bold font-mono tracking-tight text-foreground">
               VIT<span className="text-primary">_OS</span>
             </span>
@@ -440,7 +438,7 @@ export default function LandingPage() {
       <footer className="border-t border-border/50 py-8 px-4 md:px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs font-mono text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-primary" />
+            <BrandLogo size={18} />
             <span>VIT Sports Intelligence Network</span>
           </div>
           <div className="flex gap-4">

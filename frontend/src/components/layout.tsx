@@ -5,7 +5,7 @@ import { useTheme } from "@/lib/theme";
 import {
   Activity, BarChart2, BookOpen, CheckSquare, Coins, Code2,
   CreditCard, Gift, Home, Lock, LogOut, Menu, ShieldCheck,
-  ShoppingBag, Shield, ArrowLeftRight, Trophy, Vote, X,
+  ShoppingBag, Shield, ArrowLeftRight, Medal, Vote, X,
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
   Sparkles, Brain, Zap, Radio, Network, DatabaseZap, FlaskConical,
   Map, Fingerprint, BadgeCheck, Bot, Vault, Star, ShieldAlert, FileCode2,
@@ -40,7 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Tasks",       href: "/tasks",       icon: Target },
       { name: "Offers",      href: "/earn",        icon: Zap },
       { name: "Merit",       href: "/merit",       icon: Star },
-      { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
+      { name: "Leaderboard", href: "/leaderboard", icon: Medal },
       { name: "Referral",    href: "/referral",    icon: Gift },
     ],
   },

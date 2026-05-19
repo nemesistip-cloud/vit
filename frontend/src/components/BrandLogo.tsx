@@ -10,9 +10,9 @@ interface BrandLogoProps {
 }
 
 /**
- * VIT Brand Logo Component
- * Implements the "triangular_neural_v" symbolic minimal style.
- * V = Value, I = Intelligence, Trust = T
+ * VIT Brand Logo — Neural Delta Mark
+ * Delta triangle = Value, Intelligence, Trust convergence point.
+ * Three neural nodes (V·I·T) connected by a circuit lattice.
  */
 export const BrandLogo: React.FC<BrandLogoProps> = ({
   className,
@@ -21,8 +21,9 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   variant = 'primary',
   iconOnly = false
 }) => {
-  const primaryColor = variant === 'premium' ? '#D4AF37' : '#1E6BFF'; // Neural Blue
-  const accentColor = variant === 'premium' ? '#D4AF37' : '#00C896'; // Emerald Green
+  const primary = variant === 'premium' ? '#D4AF37' : '#00C8FF';
+  const accent  = variant === 'premium' ? '#F0D060' : '#00F5C8';
+  const id      = `vit-grad-${variant}`;
 
   const logoIcon = (
     <svg
@@ -33,81 +34,77 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       xmlns="http://www.w3.org/2000/svg"
       className="flex-shrink-0 transition-transform duration-300 hover:scale-110"
     >
-      {/* Background Glow */}
       <defs>
-        <radialGradient id="logoGlow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-          <stop offset="0%" stopColor={primaryColor} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={primaryColor} stopOpacity="0" />
+        <radialGradient id={id} cx="50%" cy="60%" r="55%">
+          <stop offset="0%"   stopColor={primary} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={primary} stopOpacity="0"    />
         </radialGradient>
+        <filter id="glow-node">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
       </defs>
-      <circle cx="50" cy="50" r="45" fill="url(#logoGlow)" />
 
-      {/* Triangular Neural V Structure */}
-      {/* Unity Triangle (muted) */}
-      <path
-        d="M50 20L20 75L80 75Z"
-        stroke={primaryColor}
-        strokeWidth="1"
-        strokeOpacity="0.1"
-      />
+      {/* Ambient glow */}
+      <circle cx="50" cy="54" r="44" fill={`url(#${id})`} />
 
-      {/* The Core 'V' (Value & Trust) */}
-      <path
-        d="M25 30L50 85L75 30"
-        stroke={primaryColor}
-        strokeWidth="8"
-        strokeLinecap="round"
+      {/* ── Outer Delta (upward-pointing triangle) ── */}
+      <polygon
+        points="50,12 16,72 84,72"
+        stroke={primary}
+        strokeWidth="2.5"
         strokeLinejoin="round"
-        className="vit-glow-cyan-s"
-      />
-
-      {/* Intelligence Axis (Center Line) */}
-      <path
-        d="M50 85V40"
-        stroke={accentColor}
-        strokeWidth="4"
-        strokeDasharray="2 4"
         strokeLinecap="round"
+        fill="none"
+        opacity="0.85"
       />
 
-      {/* Neural Nodes (Blockchain/AI Connectivity) */}
-      {/* Base Node */}
-      <circle cx="50" cy="85" r="6" fill={accentColor} className="animate-pulse" />
+      {/* ── Inner circuit crossbar ── */}
+      <line x1="33" y1="42" x2="67" y2="42"
+        stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
 
-      {/* Top Nodes */}
-      <circle cx="25" cy="30" r="5" fill={primaryColor} />
-      <circle cx="75" cy="30" r="5" fill={primaryColor} />
+      {/* ── Dashed neural axes from center ── */}
+      <line x1="50" y1="50" x2="50" y2="14"
+        stroke={primary} strokeWidth="1" strokeDasharray="2 4" strokeLinecap="round" opacity="0.35" />
+      <line x1="50" y1="50" x2="18" y2="70"
+        stroke={primary} strokeWidth="1" strokeDasharray="2 4" strokeLinecap="round" opacity="0.35" />
+      <line x1="50" y1="50" x2="82" y2="70"
+        stroke={primary} strokeWidth="1" strokeDasharray="2 4" strokeLinecap="round" opacity="0.35" />
 
-      {/* Intelligence Node */}
-      <circle cx="50" cy="40" r="4" fill={accentColor} />
+      {/* ── V·I·T vertex nodes ── */}
+      {/* Top — V */}
+      <circle cx="50" cy="12" r="5.5" fill={primary} filter="url(#glow-node)" />
+      {/* Bottom-left — I */}
+      <circle cx="16" cy="72" r="4.5" fill={primary} opacity="0.9" />
+      {/* Bottom-right — T */}
+      <circle cx="84" cy="72" r="4.5" fill={primary} opacity="0.9" />
 
-      {/* Blockchain Chain Elements (subtle connections) */}
-      <circle cx="37.5" cy="57.5" r="2" fill={primaryColor} fillOpacity="0.4" />
-      <circle cx="62.5" cy="57.5" r="2" fill={primaryColor} fillOpacity="0.4" />
+      {/* ── Mid-arm relay nodes ── */}
+      <circle cx="33" cy="42" r="3" fill={accent} opacity="0.85" />
+      <circle cx="67" cy="42" r="3" fill={accent} opacity="0.85" />
+
+      {/* ── Central AI core (pulsing) ── */}
+      <circle cx="50" cy="50" r="5.5" fill={accent} filter="url(#glow-node)" className="animate-pulse" />
+      <circle cx="50" cy="50" r="2.5" fill="#fff" opacity="0.7" />
     </svg>
   );
 
   if (iconOnly) return logoIcon;
 
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex items-center gap-2.5", className)}>
       {logoIcon}
-
       {withWordmark && (
         <div className="flex flex-col leading-tight select-none">
           <div className="flex items-baseline">
-            <span className="font-bold text-xl tracking-tight font-sans text-foreground">
-              VIT
-            </span>
+            <span className="font-bold text-xl tracking-tight font-sans text-foreground">VIT</span>
             <span className={cn(
               "font-black text-xl tracking-tighter font-sans",
               variant === 'premium' ? "text-[#D4AF37]" : "text-primary"
-            )}>
-              _OS
-            </span>
+            )}>_OS</span>
           </div>
           <span className="text-[8px] uppercase tracking-[0.25em] text-muted-foreground/60 font-mono -mt-0.5 whitespace-nowrap">
-            Value Intelligence Trust
+            Value · Intelligence · Trust
           </span>
         </div>
       )}
