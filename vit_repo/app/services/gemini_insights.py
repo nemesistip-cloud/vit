@@ -1,0 +1,141 @@
+"""app/services/gemini_insights.py — Gemini match insights via shared AI cascade.
+
+Uses call_ai() cascade (Gemini→Claude→OpenAI→Grok→Puter) instead of an
+isolated httpx client so every insight request benefits from full failover.
+
+Analyst roles baked into the prompt:
+  • Tactical Analyst  — assesses team dynamics and match setup
+  • Value Analyst     — evaluates edge vs. market price
+  • Risk Analyst      — flags volatility and confidence level
+  • Model Interpreter — translates ensemble probabilities into narrative
+"""
+
+import json
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+_EMPTY = {
+    "available": False,
+    "summary": None,
+    "key_factors": [],
+    "value_assessment": None,
+    "recommendation": None,
+    "risk_level": None,
+    "insight_tags": [],
+    "error": None,
+}
+
+
+def _no_key() -> dict:
+    return {**_EMPTY, "error": "No AI provider available — check provider keys"}
+
+
+def _build_prompt(
+    home_team, away_team, league, home_prob, draw_prob, away_prob,
+    over_25_prob, btts_prob, bet_side, edge, entry_odds, confidence
+) -> str:
+    league_label = league.replace("_", " ").title()
+    ou_line   = f"- Over 2.5 Goals probability: {over_25_prob * 100:.1f}%" if over_25_prob is not None else ""
+    btts_line = f"- Both Teams to Score probability: {btts_prob * 100:.1f}%" if btts_prob is not None else ""
+    odds_str  = f"{entry_odds:.2f}" if entry_odds else "N/A"
+    bet_label = (bet_side or "none").upper()
+    edge_pct  = edge * 100
+
+    return f"""You are a senior football intelligence analyst. Apply four lenses:
+1. TACTICAL: structural advantage, formation matchups
+2. VALUE: does the ML edge justify the bet?
+3. RISK: confidence level and invalidation scenarios
+4. MODEL: key signals from the 13-model ML ensemble
+
+Match: {home_team} vs {away_team} | {league_label}
+ML Ensemble: Home {home_prob*100:.1f}% | Draw {draw_prob*100:.1f}% | Away {away_prob*100:.1f}%
+{ou_line}
+{btts_line}
+Value signal: {bet_label} @ {odds_str} | Edge {edge_pct:.2f}% | Confidence {confidence*100:.0f}%
+
+Respond ONLY with valid JSON (no markdown):
+{{
+  "home_prob": 0.00,
+  "draw_prob": 0.00,
+  "away_prob": 0.00,
+  "confidence": 0.00,
+  "summary": "3-sentence multi-role tactical analysis",
+  "key_factors": ["factor 1", "factor 2", "factor 3", "factor 4"],
+  "value_assessment": "1-2 sentences on bet value",
+  "recommendation": "BUY|SELL|HOLD with brief reason",
+  "risk_level": "LOW",
+  "insight_tags": ["tag1", "tag2", "tag3"]
+}}
+
+Probabilities must sum to 1.0. risk_level: LOW | MEDIUM | HIGH."""
+
+
+async def generate_match_insights(
+    home_team: str,
+    away_team: str,
+    league: str,
+    home_prob: float,
+    draw_prob: float,
+    away_prob: float,
+    over_25_prob: Optional[float] = None,
+    btts_prob: Optional[float] = None,
+    bet_side: Optional[str] = None,
+    edge: float = 0.0,
+    entry_odds: Optional[float] = None,
+    confidence: float = 0.5,
+) -> dict:
+    from app.services.ai_client import call_ai_with_provider
+
+    prompt = _build_prompt(
+        home_team, away_team, league, home_prob, draw_prob, away_prob,
+        over_25_prob, btts_prob, bet_side, edge, entry_odds, confidence
+    )
+
+    result = await call_ai_with_provider(prompt, max_tokens=700, temperature=0.3, preferred="gemini")
+    if result is None:
+        return _no_key()
+
+    raw, provider = result
+    try:
+        text = raw.strip()
+        if text.startswith("```"):
+            parts = text.split("```")
+            text = parts[1] if len(parts) > 1 else text
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+        parsed = json.loads(text)
+        hp = float(parsed.get("home_prob", home_prob))
+        dp = float(parsed.get("draw_prob", draw_prob))
+        ap = float(parsed.get("away_prob", away_prob))
+        total = hp + dp + ap
+        if total > 0 and abs(total - 1.0) > 0.01:
+            hp /= total; dp /= total; ap /= total
+        return {
+            "available": True,
+            "source": provider,
+            "home_prob": round(hp, 4),
+            "draw_prob": round(dp, 4),
+            "away_prob": round(ap, 4),
+            "confidence": float(parsed.get("confidence", confidence)),
+            "summary": parsed.get("summary", ""),
+            "key_factors": parsed.get("key_factors", []),
+            "value_assessment": parsed.get("value_assessment", ""),
+            "recommendation": parsed.get("recommendation", ""),
+            "risk_level": parsed.get("risk_level", "MEDIUM"),
+            "insight_tags": parsed.get("insight_tags", []),
+            "error": None,
+        }
+    except json.JSONDecodeError:
+        return {
+            "available": True, "source": provider,
+            "home_prob": home_prob, "draw_prob": draw_prob, "away_prob": away_prob,
+            "confidence": confidence, "summary": raw[:400],
+            "key_factors": [], "value_assessment": "", "recommendation": "",
+            "risk_level": "MEDIUM", "insight_tags": [], "error": None,
+        }
+    except Exception as exc:
+        logger.error("gemini_insights error: %s", exc)
+        return {**_no_key(), "error": str(exc)}

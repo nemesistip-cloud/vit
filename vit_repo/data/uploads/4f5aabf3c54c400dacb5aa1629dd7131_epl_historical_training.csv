@@ -1,0 +1,102 @@
+home_team,away_team,home_goals,away_goals,actual_outcome,league,date,season,B365H,B365D,B365A
+Manchester City,Arsenal,3,1,H,EPL,2023-08-13,2023/24,1.57,4.20,6.00
+Liverpool,Chelsea,1,1,D,EPL,2023-08-13,2023/24,1.80,3.75,4.75
+Manchester United,Wolverhampton,1,0,H,EPL,2023-08-14,2023/24,1.65,3.90,5.50
+Newcastle,Aston Villa,5,1,H,EPL,2023-08-12,2023/24,2.10,3.60,3.60
+Tottenham,Brentford,2,2,D,EPL,2023-08-13,2023/24,1.72,3.80,5.00
+Brighton,Luton,4,1,H,EPL,2023-08-12,2023/24,1.55,4.00,6.50
+West Ham,Chelsea,3,1,H,EPL,2023-08-20,2023/24,3.00,3.50,2.37
+Arsenal,Nottm Forest,2,1,H,EPL,2023-08-12,2023/24,1.40,5.00,8.00
+Everton,Fulham,0,1,A,EPL,2023-08-12,2023/24,2.40,3.40,3.10
+Burnley,Manchester City,0,3,A,EPL,2023-08-11,2023/24,9.00,5.00,1.33
+Liverpool,Bournemouth,3,1,H,EPL,2023-08-19,2023/24,1.30,6.00,11.00
+Manchester City,Newcastle,1,0,H,EPL,2023-08-19,2023/24,1.45,4.50,7.50
+Arsenal,Crystal Palace,1,0,H,EPL,2023-08-21,2023/24,1.45,4.50,7.50
+Tottenham,Manchester United,2,0,H,EPL,2023-08-19,2023/24,2.30,3.40,3.25
+Chelsea,Luton,3,0,H,EPL,2023-08-25,2023/24,1.40,5.00,8.00
+Aston Villa,Everton,4,0,H,EPL,2023-08-26,2023/24,1.65,3.75,5.50
+Brighton,West Ham,1,3,A,EPL,2023-08-26,2023/24,1.80,3.60,4.75
+Nottm Forest,Sheffield United,2,1,H,EPL,2023-08-18,2023/24,2.10,3.40,3.75
+Brentford,Tottenham,2,2,D,EPL,2023-08-26,2023/24,3.10,3.40,2.30
+Fulham,Arsenal,0,2,A,EPL,2023-08-26,2023/24,5.50,4.25,1.65
+Manchester City,Fulham,5,1,H,EPL,2022-09-03,2022/23,1.35,5.50,9.50
+Arsenal,Manchester United,3,1,H,EPL,2023-01-22,2022/23,2.00,3.60,4.00
+Liverpool,Manchester City,1,0,H,EPL,2023-04-01,2022/23,2.75,3.50,2.62
+Chelsea,Tottenham,0,0,D,EPL,2023-02-26,2022/23,2.10,3.50,3.80
+Newcastle,Tottenham,6,1,H,EPL,2023-04-23,2022/23,2.25,3.50,3.30
+Manchester United,Liverpool,0,7,A,EPL,2023-03-05,2022/23,2.62,3.25,2.87
+Arsenal,Chelsea,3,1,H,EPL,2023-04-29,2022/23,1.62,4.20,5.50
+Manchester City,Arsenal,4,1,H,EPL,2023-04-26,2022/23,1.44,4.75,8.00
+Leicester,Liverpool,0,2,A,EPL,2023-04-15,2022/23,5.25,4.20,1.65
+West Ham,Aston Villa,2,1,H,EPL,2023-03-18,2022/23,2.20,3.50,3.50
+Arsenal,Everton,4,0,H,EPL,2022-09-04,2022/23,1.33,5.75,10.00
+Liverpool,Crystal Palace,1,0,H,EPL,2022-08-15,2022/23,1.35,5.50,10.00
+Manchester City,Bournemouth,4,0,H,EPL,2022-08-13,2022/23,1.20,7.00,17.00
+Tottenham,Southampton,4,1,H,EPL,2022-08-06,2022/23,1.53,4.25,7.00
+Chelsea,Tottenham,2,2,D,EPL,2022-08-14,2022/23,2.00,3.60,4.00
+Manchester United,Brighton,1,2,A,EPL,2022-08-07,2022/23,2.10,3.60,3.75
+Newcastle,Nottm Forest,2,0,H,EPL,2022-08-06,2022/23,1.80,3.80,4.75
+Leicester,Brentford,2,2,D,EPL,2022-08-13,2022/23,2.50,3.50,3.10
+Aston Villa,Everton,2,1,H,EPL,2022-08-13,2022/23,1.80,3.70,4.75
+West Ham,Manchester City,0,2,A,EPL,2022-08-07,2022/23,5.00,4.00,1.75
+Arsenal,Brentford,3,0,H,EPL,2021-08-13,2021/22,1.50,4.50,7.00
+Liverpool,Burnley,2,0,H,EPL,2021-08-21,2021/22,1.25,6.50,14.00
+Manchester City,Norwich,5,0,H,EPL,2021-08-21,2021/22,1.15,9.00,21.00
+Chelsea,Arsenal,2,0,H,EPL,2021-08-22,2021/22,1.80,3.80,4.75
+Manchester United,Wolves,1,0,H,EPL,2021-08-29,2021/22,1.60,4.00,6.00
+Leicester,Manchester City,0,1,A,EPL,2021-11-06,2021/22,4.33,4.00,1.83
+Tottenham,Manchester United,0,3,A,EPL,2021-10-30,2021/22,2.30,3.40,3.30
+Everton,Liverpool,2,2,D,EPL,2021-12-01,2021/22,4.33,3.75,1.91
+Arsenal,Manchester City,1,2,A,EPL,2021-08-28,2021/22,4.00,3.75,2.00
+Chelsea,Manchester City,0,1,A,EPL,2021-09-25,2021/22,2.87,3.40,2.62
+Brentford,Arsenal,2,0,H,EPL,2021-09-18,2021/22,3.75,3.50,2.10
+Liverpool,Manchester United,5,0,H,EPL,2021-10-24,2021/22,1.53,4.50,7.00
+Newcastle,Leicester,4,0,H,EPL,2021-09-17,2021/22,3.10,3.40,2.40
+Norwich,Watford,1,3,A,EPL,2021-09-18,2021/22,2.10,3.40,3.75
+Burnley,Leeds,1,1,D,EPL,2021-08-29,2021/22,2.62,3.30,2.87
+West Ham,Crystal Palace,2,1,H,EPL,2021-08-28,2021/22,1.75,3.80,5.25
+Aston Villa,Brentford,1,1,D,EPL,2021-09-18,2021/22,1.80,3.60,4.75
+Southampton,West Ham,0,0,D,EPL,2021-09-11,2021/22,2.75,3.30,2.75
+Brighton,Crystal Palace,1,1,D,EPL,2021-09-27,2021/22,1.95,3.50,4.50
+Watford,Chelsea,0,2,A,EPL,2021-10-01,2021/22,5.75,4.20,1.65
+Manchester City,Liverpool,2,2,D,EPL,2021-10-03,2021/22,2.10,3.60,3.80
+Arsenal,Crystal Palace,2,2,D,EPL,2021-10-18,2021/22,1.53,4.25,7.00
+Wolves,Aston Villa,2,3,A,EPL,2021-11-20,2021/22,2.62,3.40,2.87
+Leeds,Leicester,1,1,D,EPL,2021-11-27,2021/22,3.50,3.50,2.25
+Chelsea,Leeds,3,2,H,EPL,2021-11-11,2021/22,1.44,5.00,8.00
+Arsenal,Watford,1,0,H,EPL,2021-11-07,2021/22,1.35,5.25,10.00
+Manchester United,Manchester City,0,2,A,EPL,2021-11-06,2021/22,3.10,3.50,2.40
+Liverpool,Arsenal,4,0,H,EPL,2021-11-20,2021/22,1.53,4.50,7.00
+Brighton,Leeds,2,0,H,EPL,2021-11-27,2021/22,1.80,3.75,5.00
+Tottenham,Brentford,2,0,H,EPL,2021-12-02,2021/22,1.57,4.00,6.50
+Manchester City,West Ham,2,1,H,EPL,2021-11-28,2021/22,1.35,5.25,10.00
+Chelsea,Manchester United,1,1,D,EPL,2021-11-28,2021/22,2.00,3.60,4.00
+Everton,Arsenal,2,1,H,EPL,2021-12-06,2021/22,4.33,3.75,1.91
+Newcastle,Burnley,1,0,H,EPL,2021-12-04,2021/22,2.50,3.30,3.10
+Southampton,Leicester,2,2,D,EPL,2021-10-16,2021/22,3.60,3.50,2.25
+Crystal Palace,Wolves,2,0,H,EPL,2021-11-27,2021/22,2.75,3.30,2.87
+Aston Villa,Manchester City,0,2,A,EPL,2021-12-01,2021/22,6.50,4.50,1.57
+Liverpool,Southampton,4,0,H,EPL,2021-11-27,2021/22,1.33,5.75,11.00
+Manchester City,Everton,3,1,H,EPL,2021-11-21,2021/22,1.30,5.75,12.00
+Arsenal,Newcastle,2,0,H,EPL,2022-01-18,2021/22,1.45,4.75,8.00
+Chelsea,Tottenham,2,0,H,EPL,2022-01-23,2021/22,1.80,3.80,5.00
+Leicester,Tottenham,2,3,A,EPL,2022-05-01,2021/22,3.10,3.50,2.40
+Liverpool,Everton,4,1,H,EPL,2022-04-24,2021/22,1.30,6.00,12.00
+Manchester City,Chelsea,2,0,H,EPL,2022-03-05,2021/22,1.72,4.00,5.50
+Arsenal,Southampton,5,0,H,EPL,2022-04-16,2021/22,1.35,5.25,9.50
+Manchester United,Arsenal,1,3,A,EPL,2022-04-23,2021/22,2.62,3.40,2.87
+Liverpool,Wolves,2,0,H,EPL,2022-03-19,2021/22,1.30,6.00,12.00
+Tottenham,Arsenal,3,0,H,EPL,2022-05-12,2021/22,2.40,3.30,3.20
+Manchester City,Wolverhampton,5,1,H,EPL,2022-05-11,2021/22,1.25,6.50,14.00
+Chelsea,Wolves,2,2,D,EPL,2022-03-05,2021/22,1.57,4.25,6.50
+Leicester,Brentford,2,1,H,EPL,2022-03-12,2021/22,2.10,3.50,3.75
+Arsenal,Leeds,4,1,H,EPL,2022-04-09,2021/22,1.35,5.50,9.50
+West Ham,Burnley,1,0,H,EPL,2022-03-05,2021/22,1.65,4.00,5.50
+Brighton,Manchester United,4,0,H,EPL,2022-05-07,2021/22,3.20,3.40,2.40
+Everton,Brentford,3,2,H,EPL,2022-04-20,2021/22,1.87,3.75,4.33
+Crystal Palace,Manchester City,2,0,H,EPL,2022-03-14,2021/22,8.50,5.25,1.40
+Watford,Everton,0,0,D,EPL,2022-04-23,2021/22,3.40,3.50,2.20
+Southampton,Norwich,4,1,H,EPL,2022-03-05,2021/22,1.65,3.90,5.50
+Leeds,Crystal Palace,0,1,A,EPL,2022-01-29,2021/22,2.25,3.50,3.40
+Newcastle,Everton,3,1,H,EPL,2022-04-07,2021/22,1.83,3.75,4.33
+Brentford,West Ham,0,2,A,EPL,2022-04-10,2021/22,3.00,3.40,2.50

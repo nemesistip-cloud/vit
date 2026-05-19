@@ -1,0 +1,33 @@
+{
+  "package_id": "user_1_aec8f267",
+  "system_model_slot": "poisson_goals_v1",
+  "primary_file": "rf_v1.pkl",
+  "supported_extensions": [
+    ".bin",
+    ".csv",
+    ".h5",
+    ".joblib",
+    ".json",
+    ".md",
+    ".npy",
+    ".npz",
+    ".onnx",
+    ".pkl",
+    ".pt",
+    ".pth",
+    ".py",
+    ".pyd",
+    ".txt",
+    ".yaml",
+    ".yml"
+  ],
+  "files": [
+    {
+      "filename": "rf_v1.pkl",
+      "size_bytes": 5077198,
+      "sha256": "8f7be9e9a91e04a7de1b1eb006c02be087752743538bc76c59ac524fb62dbd11",
+      "primary": true
+    }
+  ],
+  "execution_status": "binary_loadable"
+}
