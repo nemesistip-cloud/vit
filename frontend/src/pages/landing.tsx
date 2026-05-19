@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
-  Trophy, Zap, TrendingUp, Shield, BarChart2, Brain,
+  Zap, TrendingUp, Shield, BarChart2, Brain,
   ArrowRight, Check, Star, ChevronRight, Activity,
   Users, Coins, Globe
 } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";

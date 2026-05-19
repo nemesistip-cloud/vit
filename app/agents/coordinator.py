@@ -43,8 +43,8 @@ def get_coordinator() -> "AgentCoordinator":
         # Wrap SwarmOrchestrator so callers that use AgentCoordinator-style
         # attribute access (e.g. coordinator._agents) still work.
         return swarm  # type: ignore[return-value]
-    except RuntimeError:
-        pass  # swarm not yet initialised — fall back below
+    except (RuntimeError, ModuleNotFoundError, ImportError):
+        pass  # swarm not yet initialised or module missing — fall back below
 
     # ── Legacy AgentCoordinator fallback ───────────────────────────────
     if _GLOBAL_COORDINATOR is None:

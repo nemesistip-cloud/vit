@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Trophy, ArrowRight, Sparkles, Eye, EyeOff, Shield, Brain, Coins, Gift, Lock } from "lucide-react";
+import { ArrowRight, Sparkles, Eye, EyeOff, Shield, Brain, Coins, Gift, Lock } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { WelcomeModal, OnboardingTour } from "@/components/onboarding";
@@ -170,8 +171,8 @@ export default function AuthPage() {
           <div className="absolute bottom-1/4 right-1/3 w-48 h-48 bg-purple-500/8 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative max-w-xs text-center">
-            <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 rounded-2xl flex items-center justify-center mx-auto mb-8 vit-glow-cyan">
-              <Trophy className="w-10 h-10 text-primary" />
+            <div className="flex justify-center mb-8">
+              <BrandLogo size={80} withWordmark={false} />
             </div>
             <h1 className="text-3xl font-bold font-mono tracking-tight mb-3">
               VIT<span className="text-primary">_OS</span>
@@ -194,10 +195,7 @@ export default function AuthPage() {
         <div className="flex-1 flex items-center justify-center p-4 md:p-8 relative">
           {/* Mobile header */}
           <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 lg:hidden">
-            <div className="w-10 h-10 bg-primary/10 border border-primary/30 rounded-xl flex items-center justify-center">
-              <Trophy className="w-5 h-5 text-primary" />
-            </div>
-            <span className="font-bold font-mono text-sm">VIT<span className="text-primary">_OS</span></span>
+            <BrandLogo size={36} withWordmark={true} />
           </div>
 
           <div className="w-full max-w-sm mt-16 lg:mt-0">
