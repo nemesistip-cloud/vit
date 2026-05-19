@@ -1611,14 +1611,14 @@ async def lifespan(app: FastAPI):
             print(f"[backfill] auto-retrain skipped (will run on next retrain-trigger cycle): {_re}")
 
     async def sync_upcoming_loop():
-        """B-1: Refresh upcoming fixtures from TheSportsDB every 3 hours (18 leagues, 90 days ahead)."""
+        """B-1: Refresh upcoming fixtures from TheSportsDB every 3 hours (18 leagues, 60 days ahead)."""
         await asyncio.sleep(30)  # initial delay — let DB settle first
         while True:
             try:
                 from app.db.database import AsyncSessionLocal
                 from app.services.sportsdb_api import sync_upcoming_fixtures
                 async with AsyncSessionLocal() as _db:
-                    _res = await sync_upcoming_fixtures(_db, days_ahead=90)
+                    _res = await sync_upcoming_fixtures(_db, days_ahead=60)
                     total_new = _res["inserted"]
                     if total_new > 0:
                         print(

@@ -364,7 +364,7 @@ async def fetch_all_real_fixtures() -> Dict[str, List[Dict]]:
     """
     Fetch a combined set of real fixtures:
       - past: recently settled matches (for model accuracy tracking)
-      - upcoming: season schedule (90 days) + next events per league + day-by-day for next 21 days
+      - upcoming: season schedule + next events per league + day-by-day for next 14 days
     Returns {"past": [...], "upcoming": [...]}
     """
     past_task = fetch_past_events()

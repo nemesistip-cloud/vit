@@ -1,6 +1,7 @@
 aiohttp
 aiosqlite
 alembic
+anthropic
 asyncpg
 bcrypt
 beautifulsoup4
@@ -9,6 +10,7 @@ cryptography
 email-validator>=2.0
 fastapi
 fpdf2
+google-auth
 greenlet
 gunicorn
 httpx
@@ -16,6 +18,7 @@ itsdangerous
 joblib
 lxml
 numpy
+openai
 pandas
 passlib[bcrypt]
 pillow
@@ -38,8 +41,5 @@ stripe
 tenacity
 torch
 uvicorn[standard]
-xgboost
-openai
-anthropic
-google-auth
 web3
+xgboost

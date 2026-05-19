@@ -72,6 +72,7 @@ const DebateMarketsPage     = lazy(() => import("@/pages/debate-markets"));
 const BetRoomsPage          = lazy(() => import("@/pages/bet-rooms"));
 const ProphecyChainPage     = lazy(() => import("@/pages/prophecy-chain"));
 const ValueIntelligencePage = lazy(() => import("@/pages/value-intelligence"));
+const WatchlistPage         = lazy(() => import("@/pages/watchlist"));
 
 function RouteFallback() {
   return (
@@ -281,6 +282,9 @@ function Router() {
       </Route>
       <Route path="/rooms">
         <Layout><ProtectedRoute component={BetRoomsPage} /></Layout>
+      </Route>
+      <Route path="/watchlist">
+        <Layout><ProtectedRoute component={WatchlistPage} /></Layout>
       </Route>
       <Route path="/prophecy">
         <Layout><ProtectedRoute component={ProphecyChainPage} /></Layout>
