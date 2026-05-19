@@ -771,7 +771,7 @@ async def economy_dashboard(db: AsyncSession = Depends(get_db)):
 async def chain_status(_: User = Depends(get_current_user)):
     """
     Returns real-time connectivity info for the Base L2 network.
-    Requires BASE_RPC_URL env var (defaults to https://mainnet.base.org).
+    Uses the robust web3-powered base_chain service.
     """
     from app.services.base_chain import get_chain_status
     return await get_chain_status()
@@ -780,16 +780,18 @@ async def chain_status(_: User = Depends(get_current_user)):
 @router.get("/chain-balance/{address}", summary="VITCoin ERC-20 balance on Base L2")
 async def chain_balance(address: str, _: User = Depends(get_current_user)):
     """Returns ERC-20 VITCoin balance for a wallet address on Base L2."""
-    from app.services.base_chain import get_token_balance
-    balance_hex = await get_token_balance(address)
-    if balance_hex is None:
-        raise HTTPException(
-            status_code=503,
-            detail="VIT_CONTRACT_ADDRESS not deployed or BASE_RPC_URL unreachable.",
-        )
-    try:
-        balance_wei = int(balance_hex, 16)
-        balance_token = balance_wei / 10**18
-    except Exception:
-        balance_token = 0.0
-    return {"address": address, "balance": balance_token, "balance_hex": balance_hex}
+    from app.services.base_chain import get_vitcoin_balance, get_eth_balance
+
+    # Run requests in parallel to avoid sequential blocking
+    import asyncio
+    vit_bal, eth_bal = await asyncio.gather(
+        get_vitcoin_balance(address),
+        get_eth_balance(address)
+    )
+
+    return {
+        "address": address,
+        "vit_balance": vit_bal,
+        "eth_balance": eth_bal,
+        "status": "connected" if eth_bal >= 0 else "error"
+    }
