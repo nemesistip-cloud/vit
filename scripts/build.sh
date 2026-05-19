@@ -63,6 +63,10 @@ async def ensure_schema():
         import app.modules.storage_verification.models
         import app.modules.identity.models
         import app.modules.kyc.models
+        import app.modules.prophecy_chain.models
+        import app.modules.academy.models
+        import app.modules.ai_core.models
+        import app.modules.quant.models
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             if conn.dialect.name == 'sqlite':

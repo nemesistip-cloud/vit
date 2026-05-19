@@ -44,3 +44,4 @@ xgboost
 openai
 anthropic
 google-auth
+web3==7.6.0

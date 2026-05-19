@@ -39,6 +39,8 @@ services:
         value: admin@vit.network
       - key: ADMIN_USERNAME
         value: vit_admin
+      - key: BASE_CHAIN_ID
+        value: "8453"
       # Secrets — set these in the Render dashboard, never commit values here
       - key: JWT_SECRET_KEY
         sync: false
@@ -70,6 +72,8 @@ services:
         sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
       - key: PAYSTACK_SECRET_KEY
         sync: false
       - key: FOOTBALL_DATA_API_KEY
@@ -77,7 +81,18 @@ services:
       - key: THESPORTSDB_API_KEY
         sync: false
       - key: REDIS_URL
+        fromService:
+          type: redis
+          name: vit-redis
+          property: connectionString
+      - key: VITE_WALLETCONNECT_PROJECT_ID
         sync: false
+
+  - type: redis
+    name: vit-redis
+    region: oregon
+    plan: free
+    ipAllowList: [] # Internal access only
 
 databases:
   - name: vit-postgres

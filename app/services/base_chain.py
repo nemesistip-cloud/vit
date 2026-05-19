@@ -1,97 +1,128 @@
-# app/services/base_chain.py
-# G06: Base L2 chain connection code (without real ETH deploy).
-# Provides chain-status checks and stub transaction helpers.
-# Set BASE_RPC_URL env var (e.g. https://mainnet.base.org or a testnet URL).
-
-from __future__ import annotations
-
-import logging
+"""Base L2 (chain_id=8453) connection for VITCoin on-chain operations (Async)."""
 import os
-import time
+import logging
 from typing import Optional
+from web3 import AsyncWeb3, AsyncHTTPProvider
+from web3.middleware import async_geth_poa_middleware
 
 log = logging.getLogger(__name__)
 
-BASE_RPC_URL    = os.getenv("BASE_RPC_URL", "https://mainnet.base.org")
-BASE_CHAIN_ID   = int(os.getenv("BASE_CHAIN_ID", "8453"))      # 84532 = Base Sepolia
-CONTRACT_ADDR   = os.getenv("VIT_CONTRACT_ADDRESS", "")        # ERC-20 once deployed
+BASE_RPC_URL = os.getenv("BASE_RPC_URL", "https://mainnet.base.org")
+BASE_CHAIN_ID = int(os.getenv("BASE_CHAIN_ID", "8453"))
+VITCOIN_CONTRACT_ADDRESS = os.getenv("VIT_CONTRACT_ADDRESS", "")
 
+_w3 = None
 
-# ── Lightweight JSON-RPC helper (no web3 dependency required) ─────────────────
+def get_w3() -> AsyncWeb3:
+    """Returns a memoized AsyncWeb3 instance connected to Base L2."""
+    global _w3
+    if _w3 is None:
+        _w3 = AsyncWeb3(AsyncHTTPProvider(BASE_RPC_URL))
+        # inject POA middleware for compatibility with some L2 nodes
+        _w3.middleware_onion.inject(async_geth_poa_middleware, layer=0)
+    return _w3
 
-async def _rpc(method: str, params: list) -> dict:
-    import httpx
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
-    async with httpx.AsyncClient(timeout=5) as client:
-        resp = await client.post(BASE_RPC_URL, json=payload)
-        resp.raise_for_status()
-        return resp.json()
+async def is_connected() -> bool:
+    """Checks if the Web3 provider is reachable (async)."""
+    try:
+        return await get_w3().is_connected()
+    except Exception as e:
+        log.warning(f"[base_chain] Connection check failed: {e}")
+        return False
 
+async def get_block_number() -> Optional[int]:
+    """Returns the current block number from the chain (async)."""
+    try:
+        w3 = get_w3()
+        if await w3.is_connected():
+            return await w3.eth.block_number
+        return None
+    except Exception:
+        return None
 
-# ── Public helpers ────────────────────────────────────────────────────────────
+async def get_eth_balance(address: str) -> float:
+    """Returns ETH balance in ether (not wei) (async)."""
+    try:
+        w3 = get_w3()
+        if not w3.is_address(address):
+            return 0.0
+        bal_wei = await w3.eth.get_balance(w3.to_checksum_address(address))
+        return float(w3.from_wei(bal_wei, 'ether'))
+    except Exception as e:
+        log.warning(f"[base_chain] Failed to get ETH balance for {address}: {e}")
+        return 0.0
+
+# ── VITCoin ERC-20 Support ──────────────────────────────────────────────────
+
+VITCOIN_ABI = [
+    {"inputs":[{"name":"account","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+    {"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},
+    {"inputs":[],"name":"totalSupply","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+    {"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"stateMutability":"view","type":"function"},
+    {"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"stateMutability":"view","type":"function"},
+]
+
+def get_vitcoin_contract():
+    """Returns the VITCoin contract instance if the address is configured."""
+    if not VITCOIN_CONTRACT_ADDRESS:
+        return None
+    try:
+        w3 = get_w3()
+        return w3.eth.contract(
+            address=w3.to_checksum_address(VITCOIN_CONTRACT_ADDRESS),
+            abi=VITCOIN_ABI
+        )
+    except Exception as e:
+        log.error(f"[base_chain] Failed to initialize contract: {e}")
+        return None
+
+async def get_vitcoin_balance(wallet_address: str) -> float:
+    """Returns VITCoin ERC-20 balance for the given wallet address (async)."""
+    contract = get_vitcoin_contract()
+    if not contract:
+        return 0.0
+    try:
+        w3 = get_w3()
+        if not w3.is_address(wallet_address):
+            return 0.0
+        # Contract calls are async in AsyncWeb3
+        raw_bal = await contract.functions.balanceOf(w3.to_checksum_address(wallet_address)).call()
+        decimals = await contract.functions.decimals().call()
+        return float(raw_bal) / (10 ** decimals)
+    except Exception as e:
+        log.warning(f"[base_chain] Failed to get VIT balance for {wallet_address}: {e}")
+        return 0.0
 
 async def get_chain_status() -> dict:
-    """
-    Returns basic chain health: block number, chain-id, latency.
-    Safe to call even if RPC is unreachable — returns error details.
-    """
-    t0 = time.monotonic()
-    try:
-        block_resp   = await _rpc("eth_blockNumber", [])
-        chainid_resp = await _rpc("eth_chainId",    [])
-        latency_ms   = int((time.monotonic() - t0) * 1000)
+    """Compatibility helper for the /chain-status route (async)."""
+    w3 = get_w3()
+    connected = await w3.is_connected()
+    block = await w3.eth.block_number if connected else None
 
-        block_hex    = block_resp.get("result", "0x0")
-        chain_hex    = chainid_resp.get("result", "0x0")
-        block_number = int(block_hex, 16)
-        chain_id     = int(chain_hex, 16)
+    chain_id = None
+    if connected:
+        try:
+            chain_id = await w3.eth.chain_id
+        except Exception:
+            pass
 
-        return {
-            "connected":       True,
-            "rpc_url":         BASE_RPC_URL,
-            "chain_id":        chain_id,
-            "chain_id_ok":     chain_id == BASE_CHAIN_ID,
-            "block_number":    block_number,
-            "latency_ms":      latency_ms,
-            "contract_address": CONTRACT_ADDR or None,
-        }
-    except Exception as exc:
-        log.warning("[base_chain] RPC unreachable: %s", exc)
-        return {
-            "connected":        False,
-            "rpc_url":          BASE_RPC_URL,
-            "chain_id":         BASE_CHAIN_ID,
-            "chain_id_ok":      False,
-            "block_number":     None,
-            "latency_ms":       None,
-            "contract_address": CONTRACT_ADDR or None,
-            "error":            str(exc),
-        }
-
+    return {
+        "connected": connected,
+        "rpc_url": BASE_RPC_URL,
+        "chain_id": chain_id or BASE_CHAIN_ID,
+        "chain_id_ok": chain_id == BASE_CHAIN_ID if chain_id else False,
+        "block_number": block,
+        "contract_address": VITCOIN_CONTRACT_ADDRESS or None,
+    }
 
 async def get_token_balance(address: str) -> Optional[str]:
-    """
-    Returns VITCoin ERC-20 balance for address (hex string).
-    Returns None if contract not deployed or RPC unreachable.
-    """
-    if not CONTRACT_ADDR:
+    """Compatibility helper for existing routes — returns hex string or None (async)."""
+    contract = get_vitcoin_contract()
+    if not contract:
         return None
-    # balanceOf(address) selector = 0x70a08231
-    padded = address.lower().replace("0x", "").zfill(64)
-    data   = f"0x70a08231{padded}"
     try:
-        result = await _rpc("eth_call", [{"to": CONTRACT_ADDR, "data": data}, "latest"])
-        return result.get("result")
-    except Exception as exc:
-        log.warning("[base_chain] balanceOf error: %s", exc)
-        return None
-
-
-async def estimate_gas(from_addr: str, to_addr: str, data: str = "0x") -> Optional[int]:
-    """Estimate gas for a transaction. Returns None on failure."""
-    try:
-        result = await _rpc("eth_estimateGas", [{"from": from_addr, "to": to_addr, "data": data}])
-        return int(result["result"], 16)
-    except Exception as exc:
-        log.warning("[base_chain] estimateGas error: %s", exc)
+        w3 = get_w3()
+        raw_bal = await contract.functions.balanceOf(w3.to_checksum_address(address)).call()
+        return hex(raw_bal)
+    except Exception:
         return None
