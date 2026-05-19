@@ -6,6 +6,10 @@ import json
 import os
 import sys
 
+# Force CPU — avoids CUDA OOM / build failures on CPU-only hosts
+torch.set_default_device("cpu")
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+
 # Add project root to sys.path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if project_root not in sys.path:

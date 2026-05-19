@@ -2,14 +2,19 @@
 
 TheSportsDB API (free key '3') — no auth required.
 Endpoints used:
-  eventsnextleague.php?id={league_id}   → next scheduled event per league
-  eventspastleague.php?id={league_id}   → most recent finished event per league
-  eventsday.php?d={YYYY-MM-DD}&s=Soccer → all soccer events on a date
+  eventsnextleague.php?id={league_id}      → next scheduled event per league
+  eventspastleague.php?id={league_id}      → most recent finished event per league
+  eventsday.php?d={YYYY-MM-DD}&s=Soccer    → all soccer events on a date
+  eventsseason.php?id={league_id}&s={yr}   → full season schedule per league  ← NEW
 
-Leagues supported:
+Leagues supported (extended):
   Premier League (4328), La Liga (4335), Bundesliga (4331),
   Serie A (4332), Ligue 1 (4334), Champions League (4346),
-  Eredivisie (4337), Primeira Liga (4344)
+  Europa League (4375), Eredivisie (4337), Primeira Liga (4344),
+  Championship (4329), Scottish Premiership (4330),
+  Belgian Pro League (4397), MLS (4346 alt / 4399),
+  Liga MX (4350), Brasileirão (4351), Argentine Primera (4406),
+  Süper Lig (4347), Ekstraklasa (4422), Jupiler (4397)
 """
 from __future__ import annotations
 
@@ -25,14 +30,50 @@ logger = logging.getLogger(__name__)
 BASE = "https://www.thesportsdb.com/api/v1/json/3"
 
 LEAGUES: Dict[str, int] = {
-    "premier_league":   4328,
-    "la_liga":          4335,
-    "bundesliga":       4331,
-    "serie_a":          4332,
-    "ligue_1":          4334,
-    "champions_league": 4346,
-    "eredivisie":       4337,
-    "primeira_liga":    4344,
+    # Top 5 European leagues
+    "premier_league":       4328,
+    "la_liga":              4335,
+    "bundesliga":           4331,
+    "serie_a":              4332,
+    "ligue_1":              4334,
+    # European club competitions
+    "champions_league":     4346,
+    "europa_league":        4375,
+    # Other top European leagues
+    "eredivisie":           4337,
+    "primeira_liga":        4344,
+    "championship":         4329,
+    "scottish_premiership": 4330,
+    "belgian_pro_league":   4397,
+    "super_lig":            4347,
+    "ekstraklasa":          4422,
+    # Americas
+    "mls":                  4399,
+    "liga_mx":              4350,
+    "brasileirao":          4351,
+    "argentine_primera":    4406,
+}
+
+# Human-readable names used for league slug → display name mapping
+LEAGUE_DISPLAY: Dict[str, str] = {
+    "premier_league":       "Premier League",
+    "la_liga":              "La Liga",
+    "bundesliga":           "Bundesliga",
+    "serie_a":              "Serie A",
+    "ligue_1":              "Ligue 1",
+    "champions_league":     "Champions League",
+    "europa_league":        "Europa League",
+    "eredivisie":           "Eredivisie",
+    "primeira_liga":        "Primeira Liga",
+    "championship":         "Championship",
+    "scottish_premiership": "Scottish Premiership",
+    "belgian_pro_league":   "Belgian Pro League",
+    "super_lig":            "Süper Lig",
+    "ekstraklasa":          "Ekstraklasa",
+    "mls":                  "MLS",
+    "liga_mx":              "Liga MX",
+    "brasileirao":          "Brasileirão",
+    "argentine_primera":    "Argentine Primera División",
 }
 
 
@@ -95,31 +136,63 @@ def _map_event(ev: Dict) -> Optional[Dict]:
 
 def _league_slug(name: str) -> str:
     n = name.lower()
-    if "premier" in n:
+    if "premier league" in n and "scotland" not in n:
         return "premier_league"
-    if "la liga" in n or "primera" in n and "spain" in n:
+    if "la liga" in n or ("primera" in n and "spain" in n):
         return "la_liga"
     if "bundesliga" in n:
         return "bundesliga"
-    if "serie a" in n:
+    if "serie a" in n and "brazil" not in n:
         return "serie_a"
     if "ligue 1" in n:
         return "ligue_1"
-    if "champions" in n:
+    if "champions league" in n or "uefa champions" in n:
         return "champions_league"
+    if "europa league" in n or "uefa europa" in n:
+        return "europa_league"
     if "eredivisie" in n:
         return "eredivisie"
-    if "primeira" in n:
+    if "primeira liga" in n or "portuguese" in n:
         return "primeira_liga"
+    if "championship" in n and "scotland" not in n:
+        return "championship"
+    if "scottish" in n or ("premier" in n and "scotland" in n):
+        return "scottish_premiership"
+    if "belgian" in n or "jupiler" in n or "pro league" in n:
+        return "belgian_pro_league"
+    if "süper lig" in n or "super lig" in n or "turkish" in n:
+        return "super_lig"
+    if "ekstraklasa" in n or "polish" in n:
+        return "ekstraklasa"
+    if "major league soccer" in n or " mls" in n:
+        return "mls"
+    if "liga mx" in n or "mexican" in n:
+        return "liga_mx"
+    if "brasileirão" in n or "brasileiro" in n or "brazil" in n:
+        return "brasileirao"
+    if "argentine" in n or "primera división" in n:
+        return "argentine_primera"
     return name.lower().replace(" ", "_")
 
 
-async def _fetch(path: str, timeout: int = 10) -> List[Dict]:
-    """GET a TheSportsDB endpoint and return the first non-None events/results list."""
+async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
+    """GET a TheSportsDB endpoint and return the first non-None events/results list.
+
+    Returns [] immediately on rate-limit (429) or any error — callers should
+    handle absence of data gracefully. The background sync loop retries naturally
+    every 3 hours, so inline retries are not needed and would block startup.
+    """
     url = f"{BASE}/{path}"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             r = await client.get(url)
+            if r.status_code == 429:
+                retry_after = r.headers.get("retry-after", "?")
+                logger.warning(
+                    "[sportsdb] rate-limited (429) on %s (retry-after=%s) — skipping",
+                    path, retry_after,
+                )
+                return []
             r.raise_for_status()
             data = r.json()
             for key in ("events", "results"):
@@ -127,6 +200,9 @@ async def _fetch(path: str, timeout: int = 10) -> List[Dict]:
                 if evs:
                     return evs
             return []
+    except httpx.TimeoutException:
+        logger.debug("[sportsdb] timeout on %s", path)
+        return []
     except Exception as exc:
         logger.debug("[sportsdb] fetch %s failed: %s", path, exc)
         return []
@@ -174,21 +250,113 @@ async def fetch_events_by_date(target: date) -> List[Dict]:
     return events
 
 
-async def fetch_upcoming_range(days: int = 14) -> List[Dict]:
-    """Fetch soccer events for the next N days via day-by-day queries."""
+async def fetch_upcoming_range(days: int = 60) -> List[Dict]:
+    """Fetch soccer events for the next N days via day-by-day queries.
+
+    Runs date requests in batches of 10 to avoid hammering the free API.
+    """
     today = datetime.now(timezone.utc).date()
-    tasks = [fetch_events_by_date(today + timedelta(days=i)) for i in range(1, days + 1)]
-    daily = await asyncio.gather(*tasks, return_exceptions=True)
+    dates = [today + timedelta(days=i) for i in range(1, days + 1)]
+
+    # Batch in groups of 10 concurrent requests
+    batch_size = 10
     events: List[Dict] = []
     seen: set = set()
-    for day_evs in daily:
-        if isinstance(day_evs, list):
-            for ev in day_evs:
-                key = (ev["home_team"], ev["away_team"], str(ev.get("kickoff_time", "")))
-                if key not in seen:
-                    seen.add(key)
-                    events.append(ev)
+
+    for start in range(0, len(dates), batch_size):
+        batch = dates[start: start + batch_size]
+        tasks = [fetch_events_by_date(d) for d in batch]
+        daily = await asyncio.gather(*tasks, return_exceptions=True)
+        for day_evs in daily:
+            if isinstance(day_evs, list):
+                for ev in day_evs:
+                    key = (ev["home_team"], ev["away_team"], str(ev.get("kickoff_time", "")))
+                    if key not in seen:
+                        seen.add(key)
+                        events.append(ev)
+        # Small pause between batches to be polite to the free API
+        if start + batch_size < len(dates):
+            await asyncio.sleep(0.5)
+
     logger.info("[sportsdb] fetch_upcoming_range(%dd): %d events", days, len(events))
+    return events
+
+
+def _current_seasons() -> List[str]:
+    """Return the current and upcoming season strings to try (e.g. '2025-2026', '2025')."""
+    now = datetime.now(timezone.utc)
+    year = now.year
+    # Football seasons can be single-year (Americas) or split-year (Europe)
+    return [
+        f"{year}-{year + 1}",   # e.g. 2025-2026 (European split season)
+        f"{year - 1}-{year}",   # e.g. 2024-2025 (still running)
+        str(year),              # e.g. 2025 (Americas / single-year season)
+    ]
+
+
+async def _fetch_season_for_league(league_slug: str, league_id: int) -> List[Dict]:
+    """Fetch the full season schedule for one league, trying multiple season strings."""
+    seasons = _current_seasons()
+    for season in seasons:
+        evs = await _fetch(f"eventsseason.php?id={league_id}&s={season}", timeout=20)
+        if evs:
+            mapped = []
+            for ev in evs:
+                m = _map_event(ev)
+                if m:
+                    # Ensure league slug is set correctly
+                    if not m.get("league") or m["league"] == "unknown":
+                        m["league"] = league_slug
+                    mapped.append(m)
+            if mapped:
+                logger.info(
+                    "[sportsdb] season %s %s: %d fixtures", season, league_slug, len(mapped)
+                )
+                return mapped
+    return []
+
+
+async def fetch_season_fixtures(days_ahead: int = 90) -> List[Dict]:
+    """Fetch the full current-season schedule for all tracked leagues in parallel.
+
+    Filters to only upcoming fixtures within `days_ahead` days.
+    This is the most efficient way to get a large batch of future fixtures.
+    Returns deduplicated upcoming events.
+    """
+    now = datetime.now(timezone.utc)
+    cutoff = now + timedelta(days=days_ahead)
+
+    tasks = [
+        _fetch_season_for_league(slug, lid)
+        for slug, lid in LEAGUES.items()
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    events: List[Dict] = []
+    seen: set = set()
+
+    for league_evs in results:
+        if not isinstance(league_evs, list):
+            continue
+        for ev in league_evs:
+            ko = ev.get("kickoff_time")
+            if not ko:
+                continue
+            # Keep only upcoming fixtures within the window
+            if ev.get("status") == "settled":
+                continue
+            ko_utc = ko if ko.tzinfo else ko.replace(tzinfo=timezone.utc)
+            if ko_utc < now or ko_utc > cutoff:
+                continue
+            key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ko}"
+            if key not in seen:
+                seen.add(key)
+                events.append(ev)
+
+    logger.info(
+        "[sportsdb] fetch_season_fixtures(days_ahead=%d): %d upcoming fixtures across %d leagues",
+        days_ahead, len(events), len(LEAGUES),
+    )
     return events
 
 
@@ -196,7 +364,7 @@ async def fetch_all_real_fixtures() -> Dict[str, List[Dict]]:
     """
     Fetch a combined set of real fixtures:
       - past: recently settled matches (for model accuracy tracking)
-      - upcoming: next scheduled matches per league + day-by-day for next 14 days
+      - upcoming: season schedule + next events per league + day-by-day for next 14 days
     Returns {"past": [...], "upcoming": [...]}
     """
     past_task = fetch_past_events()
@@ -223,11 +391,10 @@ async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
     Used for: ML training data, CLV backfill, model accuracy tracking.
     """
     today = datetime.now(timezone.utc).date()
-    # Build date list (chunked to avoid hammering the API)
     dates = [today - timedelta(days=i) for i in range(1, days_back + 1)]
 
-    # Fetch in chunks of 7 days concurrently to be polite to the free API
-    chunk_size = 7
+    # Fetch in chunks of 5 days concurrently to respect free-tier rate limits
+    chunk_size = 5
     all_events: List[Dict] = []
     seen: set = set()
 
@@ -245,8 +412,8 @@ async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
                 if key not in seen:
                     seen.add(key)
                     all_events.append(ev)
-        # Small pause between chunks
-        await asyncio.sleep(0.3)
+        # Slightly longer pause to stay within free-tier rate limits
+        await asyncio.sleep(0.8)
 
     logger.info("[sportsdb] fetch_historical_range(%dd): %d settled events", days_back, len(all_events))
     return all_events
@@ -263,20 +430,47 @@ async def backfill_historical_matches(db, months: int = 12) -> Dict:
     return await sync_and_insert_historical(db, days_back=days_back)
 
 
-async def sync_upcoming_fixtures(db, days_ahead: int = 14) -> Dict:
+async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
     """
-    Fetch next N days of fixtures from TheSportsDB and upsert as Match rows
-    with status='upcoming'. Returns {inserted, updated, skipped}.
+    Fetch upcoming fixtures for the next N days and upsert as Match rows.
+
+    Strategy (in order):
+    1. Season schedule fetch — pulls the full current-season calendar for all
+       leagues in one round-trip per league. Best coverage for far-future dates.
+    2. Day-by-day range scan — catches matches not yet in the season schedule
+       (e.g. cup replays, rescheduled games).
+
+    Returns {inserted, updated, skipped, total_fetched}.
     """
     from sqlalchemy import select
     from app.db.models import Match
 
-    events = await fetch_upcoming_range(days=days_ahead)
+    # --- Phase 1: season schedule ---
+    season_events = await fetch_season_fixtures(days_ahead=days_ahead)
+
+    # --- Phase 2: day-by-day range (up to 30 days) ---
+    range_days = min(days_ahead, 30)
+    range_events = await fetch_upcoming_range(days=range_days)
+
+    # Merge, deduplicated by external_id then by home/away/date
+    seen_keys: set = set()
+    all_events: List[Dict] = []
+    for ev in season_events + range_events:
+        key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ev.get('kickoff_time', '')}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            all_events.append(ev)
+
+    logger.info(
+        "[sportsdb] sync_upcoming: %d season + %d range = %d unique events to process",
+        len(season_events), len(range_events), len(all_events),
+    )
+
     inserted = 0
     updated = 0
     skipped = 0
 
-    for ev in events:
+    for ev in all_events:
         home = ev["home_team"]
         away = ev["away_team"]
         kickoff = ev.get("kickoff_time")
@@ -301,7 +495,22 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 14) -> Dict:
                 existing = res.scalar_one_or_none()
 
             if existing:
-                skipped += 1
+                # Backfill external_id if missing
+                changed = False
+                if ext_id and not existing.external_id:
+                    existing.external_id = ext_id
+                    changed = True
+                # Update kickoff if it changed (rescheduled match)
+                if ko_naive and existing.kickoff_time and abs(
+                    (existing.kickoff_time - ko_naive).total_seconds()
+                ) > 300:
+                    existing.kickoff_time = ko_naive
+                    changed = True
+                if changed:
+                    await db.commit()
+                    updated += 1
+                else:
+                    skipped += 1
             else:
                 match = Match(
                     external_id=ext_id,
@@ -323,9 +532,9 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 14) -> Dict:
 
     logger.info(
         "[sportsdb] sync_upcoming_fixtures done: inserted=%d updated=%d skipped=%d total=%d",
-        inserted, updated, skipped, len(events),
+        inserted, updated, skipped, len(all_events),
     )
-    return {"inserted": inserted, "updated": updated, "skipped": skipped, "total_fetched": len(events)}
+    return {"inserted": inserted, "updated": updated, "skipped": skipped, "total_fetched": len(all_events)}
 
 
 async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
@@ -334,9 +543,6 @@ async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
     Returns stats: {inserted, updated, skipped, total_fetched}
     """
     from sqlalchemy import select
-    from app.db.database import Base
-
-    # Import Match model lazily to avoid circular imports
     from app.db.models import Match
 
     events = await fetch_historical_range(days_back=days_back)
@@ -351,17 +557,14 @@ async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
         away = ev["away_team"]
         kickoff = ev.get("kickoff_time")
 
-        # Skip if no kickoff
         if not kickoff:
             skipped += 1
             continue
 
-        # Dedup fingerprint
         date_str = kickoff.strftime("%Y-%m-%d") if kickoff else "unknown"
         fingerprint = f"{date_str}::{home.lower()}::{away.lower()}::{ev.get('league', '')}"
 
         try:
-            # Try external_id match first, then fingerprint
             existing = None
             if ext_id:
                 res = await db.execute(select(Match).where(Match.external_id == ext_id))
@@ -371,7 +574,6 @@ async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
                 existing = res.scalar_one_or_none()
 
             if existing:
-                # Update outcome if now settled
                 changed = False
                 if ev.get("actual_outcome") and not existing.actual_outcome:
                     existing.actual_outcome = ev["actual_outcome"]

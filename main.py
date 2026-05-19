@@ -1059,12 +1059,14 @@ async def lifespan(app: FastAPI):
                     _admins = (await _db.execute(_select(_User).where(_User.role == "admin"))).scalars().all()
                     _updated = 0
                     for _admin in _admins:
-                        if _is_weak(_admin.hashed_password):
+                        if not verify_password(_secure_pass, _admin.hashed_password):
                             _admin.hashed_password = hash_password(_secure_pass)
                             _updated += 1
                     if _updated:
                         await _db.commit()
-                        print(f"✅ Rotated {_updated} admin account(s) to use ADMIN_PASSWORD from environment")
+                        print(f"✅ Synced {_updated} admin account(s) to current ADMIN_PASSWORD from environment")
+                    else:
+                        print("✅ Admin password already up to date")
     except Exception as _e:
         print(f"⚠️  Admin password check failed: {_e}")
 
@@ -1528,35 +1530,13 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  CLV backfill failed: {_e}")
 
-    # Phase 3a / B-1 — HISTORICAL MATCH BACKFILL (TheSportsDB free API)
-    # Guard: only run if matches table has < 100 rows (avoid re-running on every restart)
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.services.sportsdb_api import backfill_historical_matches
-        async with AsyncSessionLocal() as _db:
-            from sqlalchemy import func as _bf_func, select as _bf_select
-            from app.db.models import Match as _BFMatch
-            _bf_count = (await _db.execute(_bf_select(_bf_func.count()).select_from(_BFMatch))).scalar() or 0
-            if _bf_count < 100:
-                _hist = await backfill_historical_matches(_db, months=int(get_env("BOOTSTRAP_MATCH_MONTHS", "12")))
-                print(f"✅ Historical backfill: {_hist['inserted']} inserted, {_hist['updated']} updated, {_hist['skipped']} skipped ({_hist['total_fetched']} fetched)")
-            else:
-                print(f"✅ Historical backfill: skipped — already have {_bf_count} fixtures in DB")
-    except Exception as _e:
-        print(f"⚠️  Historical match backfill skipped: {_e}")
+    # Phase 3a / B-1 — HISTORICAL MATCH BACKFILL
+    # Runs in the background after server starts to avoid blocking port open.
+    # Guard: only run if matches table has < 100 rows.
+    print("⏳ Historical backfill: scheduled as background task (non-blocking)")
 
-    # Phase 3a-2 — SEED PREDICTIONS FOR HISTORICAL MATCHES
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.services.prediction_seeder import seed_predictions_for_historical
-        async with AsyncSessionLocal() as _db:
-            _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=300)
-            if _seed.get("seeded", 0) > 0:
-                print(f"✅ Prediction seeder: {_seed['seeded']} predictions seeded across {_seed['matches_checked']} historical matches")
-            else:
-                print(f"✅ Prediction seeder: {_seed.get('skipped', 0)} matches already have predictions (no seeding needed)")
-    except Exception as _e:
-        print(f"⚠️  Prediction seeder skipped: {_e}")
+    # Phase 3a-2 — SEED PREDICTIONS FOR HISTORICAL MATCHES (also background)
+    print("⏳ Prediction seeder: scheduled as background task (non-blocking)")
 
     alerts = get_telegram_alerts()
     if alerts and alerts.enabled:
@@ -1576,20 +1556,65 @@ async def lifespan(app: FastAPI):
     supervisor.start()
     app.state.background_supervisor = supervisor
 
+    async def historical_backfill_task():
+        """Run historical backfill + prediction seeder once after server starts (non-blocking)."""
+        await asyncio.sleep(60)  # give the server time to fully start first
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.services.sportsdb_api import backfill_historical_matches
+            from sqlalchemy import func as _bf_func, select as _bf_select
+            from app.db.models import Match as _BFMatch
+            async with AsyncSessionLocal() as _db:
+                _bf_count = (await _db.execute(_bf_select(_bf_func.count()).select_from(_BFMatch))).scalar() or 0
+                if _bf_count < 100:
+                    print(f"[backfill] starting historical match backfill (current count={_bf_count})...")
+                    _hist = await backfill_historical_matches(_db, months=int(get_env("BOOTSTRAP_MATCH_MONTHS", "3")))
+                    print(
+                        f"[backfill] done: inserted={_hist['inserted']} updated={_hist['updated']} "
+                        f"skipped={_hist['skipped']} fetched={_hist['total_fetched']}"
+                    )
+                else:
+                    print(f"[backfill] skipped — already have {_bf_count} fixtures in DB")
+        except Exception as _be:
+            print(f"[backfill] historical backfill error: {_be}")
+
+        # Prediction seeder runs after backfill completes
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.services.prediction_seeder import seed_predictions_for_historical
+            async with AsyncSessionLocal() as _db:
+                _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=300)
+                if _seed.get("seeded", 0) > 0:
+                    print(f"[backfill] prediction seeder: {_seed['seeded']} predictions seeded")
+                else:
+                    print(f"[backfill] prediction seeder: {_seed.get('skipped', 0)} matches already seeded")
+        except Exception as _pe:
+            print(f"[backfill] prediction seeder error: {_pe}")
+
     async def sync_upcoming_loop():
-        """B-1: Refresh upcoming fixtures from TheSportsDB every 6 hours."""
-        await asyncio.sleep(300)  # initial delay — let DB settle first
+        """B-1: Refresh upcoming fixtures from TheSportsDB every 3 hours (18 leagues, 60 days ahead)."""
+        await asyncio.sleep(120)  # initial delay — let DB settle first
         while True:
             try:
                 from app.db.database import AsyncSessionLocal
                 from app.services.sportsdb_api import sync_upcoming_fixtures
                 async with AsyncSessionLocal() as _db:
-                    _res = await sync_upcoming_fixtures(_db, days_ahead=14)
-                    if _res["inserted"] > 0:
-                        print(f"[fixture-sync] {_res['inserted']} new upcoming fixtures added from TheSportsDB")
+                    _res = await sync_upcoming_fixtures(_db, days_ahead=60)
+                    total_new = _res["inserted"]
+                    if total_new > 0:
+                        print(
+                            f"[fixture-sync] +{total_new} new fixtures "
+                            f"(fetched={_res['total_fetched']}, updated={_res['updated']})"
+                        )
+                    else:
+                        print(
+                            f"[fixture-sync] No new fixtures "
+                            f"(fetched={_res['total_fetched']}, "
+                            f"updated={_res['updated']}, skipped={_res['skipped']})"
+                        )
             except Exception as _se:
                 print(f"[fixture-sync] ERROR: {_se}")
-            await asyncio.sleep(6 * 3600)
+            await asyncio.sleep(3 * 3600)  # every 3 hours
 
     from app.services.exchange_rate import start_rate_refresh_loop
     tasks = [
@@ -1600,6 +1625,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(subscription_expiry_loop(), name="subscription-expiry"),
         asyncio.create_task(start_rate_refresh_loop(), name="exchange-rate-oracle"),
         asyncio.create_task(sync_upcoming_loop(), name="fixture-sync"),
+        asyncio.create_task(historical_backfill_task(), name="historical-backfill"),
     ]
 
     # ── Autonomous performance agents ─────────────────────────────────────

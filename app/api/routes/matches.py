@@ -15,16 +15,25 @@ router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
 
 LEAGUE_DISPLAY_NAMES = {
-    "premier_league": "Premier League",
-    "la_liga": "La Liga",
-    "bundesliga": "Bundesliga",
-    "serie_a": "Serie A",
-    "ligue_1": "Ligue 1",
-    "eredivisie": "Eredivisie",
-    "primeira_liga": "Primeira Liga",
-    "championship": "Championship",
+    "premier_league":       "Premier League",
+    "la_liga":              "La Liga",
+    "bundesliga":           "Bundesliga",
+    "serie_a":              "Serie A",
+    "ligue_1":              "Ligue 1",
+    "champions_league":     "Champions League",
+    "europa_league":        "Europa League",
+    "eredivisie":           "Eredivisie",
+    "primeira_liga":        "Primeira Liga",
+    "championship":         "Championship",
     "scottish_premiership": "Scottish Premiership",
-    "belgian_pro_league": "Belgian Pro League",
+    "belgian_pro_league":   "Belgian Pro League",
+    "super_lig":            "Süper Lig",
+    "ekstraklasa":          "Ekstraklasa",
+    "mls":                  "MLS",
+    "liga_mx":              "Liga MX",
+    "brasileirao":          "Brasileirão",
+    "argentine_primera":    "Argentine Primera División",
+    # legacy aliases
     "ucl": "Champions League",
     "uel": "Europa League",
 }
@@ -581,135 +590,140 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/sync")
 async def sync_fixtures(
-    days: int = Query(default=14, ge=1, le=30),
+    days: int = Query(default=60, ge=1, le=90),
 ):
     """
-    Fetch and store upcoming fixtures from Football-Data API.
+    Fetch and store upcoming fixtures.
 
-    Behaviour:
-    - If FOOTBALL_DATA_API_KEY is set, fetch from the API.
-    - Each fixture is deduplicated by stable fingerprint
-      (date::home::away::league) AND by external_id, so manually-uploaded
-      or seeded matches are never overwritten by the API.
-    - Synthetic fallback fixtures are NEVER generated unless
-      ENABLE_SYNTHETIC_FIXTURES=true is set explicitly.
-    - On rate-limit (429) or no API key, the route returns a clean
-      response so the operator can act, instead of fabricating data.
+    Strategy (two-phase, always runs both):
+    1. Football-Data.org  — used when FOOTBALL_DATA_API_KEY is set; covers the
+       top 8 European leagues up to `days` ahead.
+    2. TheSportsDB        — free, no key required; covers 18 leagues via season
+       schedule + day-by-day scan. Runs regardless of Football-Data status so
+       the database always gets populated.
+
+    Deduplication: external_id first, then date::home::away::league fingerprint.
+    Manually-uploaded or seeded fixtures are never overwritten.
     """
     import httpx
     from app.data.match_dedup import compute_fingerprint, find_existing_match
+    from app.services.sportsdb_api import sync_upcoming_fixtures as _sdb_sync
 
     football_key = os.getenv("FOOTBALL_DATA_API_KEY", "").strip()
-    allow_synthetic = os.getenv("ENABLE_SYNTHETIC_FIXTURES", "false").lower() == "true"
     now = datetime.now(timezone.utc)
     tomorrow = now + timedelta(days=1)
     date_from = tomorrow.strftime("%Y-%m-%d")
     date_to = (now + timedelta(days=days)).strftime("%Y-%m-%d")
 
-    stored = 0
+    stored_fd = 0
     skipped_existing = 0
     skipped_dedup = 0
     rate_limited_leagues: list[str] = []
+    fd_source_used = False
 
-    if not football_key:
-        return {
-            "stored": 0,
-            "skipped_existing": 0,
-            "source": "none",
-            "message": "FOOTBALL_DATA_API_KEY not configured. "
-                       "No synthetic fallback (ENABLE_SYNTHETIC_FIXTURES is off).",
-            "synthetic_fallback_enabled": allow_synthetic,
-        }
+    # ── Phase 1: Football-Data.org ──────────────────────────────────────────
+    if football_key:
+        fd_source_used = True
+        async with httpx.AsyncClient(timeout=20) as client:
+            async with AsyncSessionLocal() as db:
+                for league, code in COMPETITIONS.items():
+                    try:
+                        r = await client.get(
+                            f"https://api.football-data.org/v4/competitions/{code}/matches",
+                            headers={"X-Auth-Token": football_key},
+                            params={"status": "SCHEDULED", "dateFrom": date_from, "dateTo": date_to},
+                        )
+                        if r.status_code == 200:
+                            for m in r.json().get("matches", []):
+                                ext_id = str(m.get("id", ""))
+                                kickoff_str = m.get("utcDate", "")
+                                try:
+                                    kickoff = datetime.fromisoformat(
+                                        kickoff_str.replace("Z", "+00:00")
+                                    ).replace(tzinfo=None)
+                                except Exception:
+                                    continue
+                                home_team = m["homeTeam"]["name"]
+                                away_team = m["awayTeam"]["name"]
 
-    async with httpx.AsyncClient(timeout=20) as client:
-        async with AsyncSessionLocal() as db:
-            for league, code in COMPETITIONS.items():
+                                existing = (await db.execute(
+                                    select(Match).where(Match.external_id == ext_id)
+                                )).scalar_one_or_none()
+                                if existing:
+                                    skipped_existing += 1
+                                    continue
+                                existing_fp = await find_existing_match(
+                                    db, home_team, away_team, kickoff, league
+                                )
+                                if existing_fp:
+                                    if not existing_fp.external_id:
+                                        existing_fp.external_id = ext_id
+                                    skipped_dedup += 1
+                                    continue
+                                odds_data = m.get("odds", {})
+                                db.add(Match(
+                                    external_id=ext_id,
+                                    home_team=home_team,
+                                    away_team=away_team,
+                                    league=league,
+                                    kickoff_time=kickoff,
+                                    status="upcoming",
+                                    source="footballdata",
+                                    fingerprint=compute_fingerprint(
+                                        home_team, away_team, kickoff, league
+                                    ),
+                                    opening_odds_home=odds_data.get("homeWin"),
+                                    opening_odds_draw=odds_data.get("draw"),
+                                    opening_odds_away=odds_data.get("awayWin"),
+                                ))
+                                stored_fd += 1
+                        elif r.status_code == 429:
+                            logger.warning(f"Rate limit hit for {league}")
+                            rate_limited_leagues.append(league)
+                    except Exception as e:
+                        logger.error(f"Sync failed for {league}: [{type(e).__name__}] {e!r}")
                 try:
-                    r = await client.get(
-                        f"https://api.football-data.org/v4/competitions/{code}/matches",
-                        headers={"X-Auth-Token": football_key},
-                        params={"status": "SCHEDULED", "dateFrom": date_from, "dateTo": date_to},
-                    )
-                    if r.status_code == 200:
-                        for m in r.json().get("matches", []):
-                            ext_id = str(m.get("id", ""))
-                            kickoff_str = m.get("utcDate", "")
-                            try:
-                                kickoff = datetime.fromisoformat(kickoff_str.replace("Z", "+00:00")).replace(tzinfo=None)
-                            except Exception:
-                                continue
-                            home_team = m["homeTeam"]["name"]
-                            away_team = m["awayTeam"]["name"]
-
-                            # Dedup by external_id first
-                            existing = (await db.execute(
-                                select(Match).where(Match.external_id == ext_id)
-                            )).scalar_one_or_none()
-                            if existing:
-                                skipped_existing += 1
-                                continue
-                            # Dedup by cross-source fingerprint (don't overwrite
-                            # manually-uploaded or seeded fixtures)
-                            existing_fp = await find_existing_match(
-                                db, home_team, away_team, kickoff, league
-                            )
-                            if existing_fp:
-                                # Backfill external_id only — keep original source
-                                if not existing_fp.external_id:
-                                    existing_fp.external_id = ext_id
-                                skipped_dedup += 1
-                                continue
-                            odds_data = m.get("odds", {})
-                            db.add(Match(
-                                external_id=ext_id,
-                                home_team=home_team,
-                                away_team=away_team,
-                                league=league,
-                                kickoff_time=kickoff,
-                                status="upcoming",
-                                source="footballdata",
-                                fingerprint=compute_fingerprint(home_team, away_team, kickoff, league),
-                                opening_odds_home=odds_data.get("homeWin"),
-                                opening_odds_draw=odds_data.get("draw"),
-                                opening_odds_away=odds_data.get("awayWin"),
-                            ))
-                            stored += 1
-                    elif r.status_code == 429:
-                        logger.warning(f"Rate limit hit for {league}")
-                        rate_limited_leagues.append(league)
+                    await db.commit()
                 except Exception as e:
-                    logger.error(
-                        f"Sync failed for {league}: [{type(e).__name__}] {e!r}"
-                    )
-                    # Continue with other leagues rather than aborting the whole sync
-            try:
-                await db.commit()
-            except Exception as e:
-                await db.rollback()
-                logger.error(f"DB commit failed during sync: {e}")
-                raise HTTPException(status_code=500, detail=f"DB commit failed: {e}")
+                    await db.rollback()
+                    logger.error(f"DB commit failed during Football-Data sync: {e}")
 
+    # ── Phase 2: TheSportsDB (always runs) ──────────────────────────────────
+    sdb_result: dict = {"inserted": 0, "updated": 0, "skipped": 0, "total_fetched": 0}
+    try:
+        async with AsyncSessionLocal() as sdb_db:
+            sdb_result = await _sdb_sync(sdb_db, days_ahead=days)
+    except Exception as sdb_err:
+        logger.error(f"TheSportsDB sync error: {sdb_err}")
+
+    # ── Summary ─────────────────────────────────────────────────────────────
     from sqlalchemy import func as _func
     async with AsyncSessionLocal() as _db:
-        _existing_count = (await _db.execute(select(_func.count(Match.id)))).scalar_one()
+        _existing_count = (
+            await _db.execute(select(_func.count(Match.id)))
+        ).scalar_one()
 
-    if stored == 0:
-        msg = (f"No new fixtures in window {date_from} → {date_to}. "
-               f"{_existing_count} fixtures already in database. "
-               f"{skipped_existing} duplicates by external_id, "
-               f"{skipped_dedup} duplicates by fingerprint.")
-        source_label = "existing"
-    else:
-        msg = f"Synced {stored} new fixtures from Football-Data API"
-        source_label = "footballdata"
+    total_new = stored_fd + sdb_result["inserted"]
+    sources_used = []
+    if fd_source_used:
+        sources_used.append("football-data.org")
+    sources_used.append("thesportsdb")
 
     return {
-        "stored": stored,
-        "skipped_existing": skipped_existing,
+        "stored": total_new,
+        "football_data_new": stored_fd,
+        "sportsdb_new": sdb_result["inserted"],
+        "sportsdb_updated": sdb_result["updated"],
+        "sportsdb_fetched": sdb_result["total_fetched"],
+        "skipped_existing": skipped_existing + sdb_result["skipped"],
         "skipped_dedup": skipped_dedup,
         "rate_limited_leagues": rate_limited_leagues,
-        "source": source_label,
+        "sources": sources_used,
         "existing_total": _existing_count,
         "window": f"{date_from} → {date_to}",
-        "message": msg,
+        "message": (
+            f"Synced {total_new} new fixtures "
+            f"({stored_fd} from Football-Data, {sdb_result['inserted']} from TheSportsDB). "
+            f"{_existing_count} total fixtures in database."
+        ),
     }

@@ -192,7 +192,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background flex flex-col lg:flex-row">
 
       {/* ── Mobile top bar ──────────────────────────────── */}
-      <div className="lg:hidden flex items-center justify-between px-4 py-2.5 border-b border-border/50 sticky top-0 z-40 bg-background/95 backdrop-blur-md">
+      <div className="lg:hidden flex items-center justify-between px-4 py-2.5 border-b border-border/50 sticky top-0 z-40 bg-background">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-primary/20 to-purple-500/20 border border-primary/25">
             <Zap className="w-3.5 h-3.5 text-primary" />
@@ -220,7 +220,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* ── Mobile slide-over drawer ─────────────────────── */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <div className="absolute inset-0 bg-black/75" onClick={() => setMobileOpen(false)} />
           <div className="absolute left-0 top-0 h-full w-72 flex flex-col shadow-2xl vit-animate-slide-down"
             style={{ background: "var(--vit-gradient-sidebar)" }}>
             <div className="flex items-center justify-between p-4 border-b border-white/5">
