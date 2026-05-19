@@ -81,10 +81,10 @@ _ALWAYS_OPEN = (
 
 # Only enforce auth on these API route prefixes
 _PROTECTED_PREFIXES = (
-    "/analytics", "/history", "/predict", "/result",
-    "/training", "/ai", "/odds", "/ai-feed", "/admin",
-    "/audit", "/subscription/my-plan", "/subscription/upgrade",
-    "/subscription/admin",
+    "/api/analytics", "/api/predict", "/api/result",
+    "/api/training", "/api/ai", "/api/odds", "/api/ai-feed", "/api/admin",
+    "/api/audit", "/api/subscription/my-plan", "/api/subscription/upgrade",
+    "/api/subscription/admin", "/api/history/ticket",
 )
 
 

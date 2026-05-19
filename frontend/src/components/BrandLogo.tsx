@@ -155,7 +155,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       <circle cx="50" cy="50" r="7.5"
         fill={teal} opacity="0.15"
         filter={`url(#${glowId}-strong)`}
-        className="animate-pulse"
       />
       <circle cx="50" cy="50" r="5"
         fill={teal} opacity="0.9"

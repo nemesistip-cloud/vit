@@ -13,7 +13,7 @@ from app.db.models import Match, Prediction, CLVEntry
 from app.api.middleware.auth import verify_api_key
 from app.api.deps import get_optional_user
 
-router = APIRouter(prefix="/history", tags=["history"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(prefix="/history", tags=["history"])
 
 CERTIFIED_EDGE_THRESHOLD = 0.05
 HIGH_CONFIDENCE_EDGE_THRESHOLD = 0.02
@@ -82,7 +82,6 @@ async def get_history(
                     "When false (default), restrict to the authenticated user."
     ),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(verify_api_key),
     optional_user=Depends(get_optional_user),
 ):
     uid: int | None = getattr(optional_user, "id", None)

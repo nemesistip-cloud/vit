@@ -225,7 +225,7 @@ function KPICard({
   iconBg: string;
 }) {
   return (
-    <div className={`rounded-xl border ${borderClass} bg-card/40 backdrop-blur p-4 space-y-3 hover:bg-card/60 transition-colors`}>
+    <div className={`rounded-xl border ${borderClass} bg-card p-4 space-y-3 hover:bg-card/80 transition-colors`}>
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{label}</span>
         <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center`}>
@@ -420,7 +420,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 space-y-5">
 
           {/* Performance metrics */}
-          <Card className="bg-card/40 backdrop-blur border-border/50">
+          <Card className="bg-card border-border/50">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -499,7 +499,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* AI Ensemble */}
-          <Card className="bg-card/40 backdrop-blur border-border/50">
+          <Card className="bg-card border-border/50">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -521,7 +521,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Top Opportunities */}
-          <Card className="bg-card/40 backdrop-blur border-border/50">
+          <Card className="bg-card border-border/50">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -556,7 +556,7 @@ export default function DashboardPage() {
           />
 
           {/* Activity log */}
-          <Card className="bg-card/40 backdrop-blur border-border/50">
+          <Card className="bg-card border-border/50">
             <CardHeader className="pb-3">
               <CardTitle className="font-mono text-sm flex items-center gap-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />

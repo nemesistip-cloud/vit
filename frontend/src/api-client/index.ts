@@ -22,10 +22,10 @@ export const API = {
   matchesRecent: "/api/matches/recent",
   matchesCompleted: "/api/matches/completed",
   match: (id: string) => `/api/matches/${id}`,
-  predictions: "/history",
-  ticketMarkets: "/history/ticket/markets",
-  ticketCandidates: "/history/ticket/candidates",
-  ticketBuild: "/history/ticket/build",
+  predictions: "/api/history",
+  ticketMarkets: "/api/history/ticket/markets",
+  ticketCandidates: "/api/history/ticket/candidates",
+  ticketBuild: "/api/history/ticket/build",
   analyticsMyStats: "/analytics/my",
   training: {
     // Real ML training pipeline (app/api/routes/training.py, prefix `/training`)

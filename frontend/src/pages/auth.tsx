@@ -192,8 +192,6 @@ export default function AuthPage() {
             backgroundSize: '40px 40px',
             maskImage: 'radial-gradient(ellipse at center, black, transparent 70%)',
           }} />
-          <div className="absolute top-1/4 left-1/3 w-64 h-64 bg-primary/8 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-1/4 right-1/3 w-48 h-48 bg-purple-500/8 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative max-w-xs text-center">
             <div className="flex justify-center mb-8">
@@ -207,7 +205,7 @@ export default function AuthPage() {
             </p>
             <div className="space-y-3 text-left">
               {FEATURE_ITEMS.map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border/30 bg-card/30 backdrop-blur">
+                <div key={text} className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border/30 bg-card/30">
                   <Icon className="w-4 h-4 text-primary flex-shrink-0" />
                   <span className="text-sm font-mono text-muted-foreground">{text}</span>
                 </div>
@@ -224,7 +222,7 @@ export default function AuthPage() {
           </div>
 
           <div className="w-full max-w-sm mt-16 lg:mt-0">
-            <Card className="border-border/60 bg-card/60 backdrop-blur-md shadow-2xl">
+            <Card className="border-border/60 bg-card shadow-2xl">
               <Tabs defaultValue="login" className="w-full">
                 <CardHeader className="pb-0 pt-6 px-6">
                   <TabsList className="grid w-full grid-cols-2 bg-background/60 border border-border/50">
