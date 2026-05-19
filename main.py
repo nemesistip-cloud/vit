@@ -1566,15 +1566,25 @@ async def lifespan(app: FastAPI):
             from app.db.models import Match as _BFMatch
             async with AsyncSessionLocal() as _db:
                 _bf_count = (await _db.execute(_bf_select(_bf_func.count()).select_from(_BFMatch))).scalar() or 0
-                if _bf_count < 100:
-                    print(f"[backfill] starting historical match backfill (current count={_bf_count})...")
-                    _hist = await backfill_historical_matches(_db, months=int(get_env("BOOTSTRAP_MATCH_MONTHS", "3")))
+                _bf_months = int(get_env("BOOTSTRAP_MATCH_MONTHS", "6"))
+                _bf_settled = (await _db.execute(
+                    _bf_select(_bf_func.count()).select_from(_BFMatch).where(
+                        _BFMatch.actual_outcome.isnot(None)
+                    )
+                )).scalar() or 0
+                # Run backfill if: few total fixtures OR very few settled (training-ready) ones
+                if _bf_count < 500 or _bf_settled < 200:
+                    print(
+                        f"[backfill] starting historical match backfill "
+                        f"(total={_bf_count}, settled={_bf_settled}, months={_bf_months})..."
+                    )
+                    _hist = await backfill_historical_matches(_db, months=_bf_months)
                     print(
                         f"[backfill] done: inserted={_hist['inserted']} updated={_hist['updated']} "
                         f"skipped={_hist['skipped']} fetched={_hist['total_fetched']}"
                     )
                 else:
-                    print(f"[backfill] skipped — already have {_bf_count} fixtures in DB")
+                    print(f"[backfill] skipped — already have {_bf_count} fixtures ({_bf_settled} settled) in DB")
         except Exception as _be:
             print(f"[backfill] historical backfill error: {_be}")
 
@@ -1583,7 +1593,7 @@ async def lifespan(app: FastAPI):
             from app.db.database import AsyncSessionLocal
             from app.services.prediction_seeder import seed_predictions_for_historical
             async with AsyncSessionLocal() as _db:
-                _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=300)
+                _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=500)
                 if _seed.get("seeded", 0) > 0:
                     print(f"[backfill] prediction seeder: {_seed['seeded']} predictions seeded")
                 else:
@@ -1591,15 +1601,24 @@ async def lifespan(app: FastAPI):
         except Exception as _pe:
             print(f"[backfill] prediction seeder error: {_pe}")
 
+        # Auto-trigger model retraining so the ensemble learns from new data
+        try:
+            from app.api.routes.training import start_admin_training_request, TrainingConfig
+            _retrain_cfg = TrainingConfig(target_model_keys=None, force_retrain=True)
+            _retrain_result = await start_admin_training_request(_retrain_cfg, created_by="backfill-autoretrain")
+            print(f"[backfill] auto-retraining started: job_id={_retrain_result.get('job_id')} — models will hot-reload on completion")
+        except Exception as _re:
+            print(f"[backfill] auto-retrain skipped (will run on next retrain-trigger cycle): {_re}")
+
     async def sync_upcoming_loop():
-        """B-1: Refresh upcoming fixtures from TheSportsDB every 3 hours (18 leagues, 60 days ahead)."""
-        await asyncio.sleep(120)  # initial delay — let DB settle first
+        """B-1: Refresh upcoming fixtures from TheSportsDB every 3 hours (18 leagues, 90 days ahead)."""
+        await asyncio.sleep(30)  # initial delay — let DB settle first
         while True:
             try:
                 from app.db.database import AsyncSessionLocal
                 from app.services.sportsdb_api import sync_upcoming_fixtures
                 async with AsyncSessionLocal() as _db:
-                    _res = await sync_upcoming_fixtures(_db, days_ahead=60)
+                    _res = await sync_upcoming_fixtures(_db, days_ahead=90)
                     total_new = _res["inserted"]
                     if total_new > 0:
                         print(

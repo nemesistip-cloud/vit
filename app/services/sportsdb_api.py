@@ -364,23 +364,32 @@ async def fetch_all_real_fixtures() -> Dict[str, List[Dict]]:
     """
     Fetch a combined set of real fixtures:
       - past: recently settled matches (for model accuracy tracking)
-      - upcoming: season schedule + next events per league + day-by-day for next 14 days
+      - upcoming: season schedule (90 days) + next events per league + day-by-day for next 21 days
     Returns {"past": [...], "upcoming": [...]}
     """
     past_task = fetch_past_events()
     next_task = fetch_next_events()
-    range_task = fetch_upcoming_range(days=14)
+    range_task = fetch_upcoming_range(days=21)
+    season_task = fetch_season_fixtures(days_ahead=90)
 
-    past, nxt, rng = await asyncio.gather(past_task, next_task, range_task)
+    past, nxt, rng, season = await asyncio.gather(
+        past_task, next_task, range_task, season_task
+    )
 
     seen_upcoming: set = set()
     upcoming: List[Dict] = []
-    for ev in (nxt + rng):
-        key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}"
+    # Season fixtures first (broadest coverage), then day-by-day, then per-league next
+    for ev in (season + rng + nxt):
+        key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ev.get('kickoff_time', '')}"
         if key not in seen_upcoming:
             seen_upcoming.add(key)
             upcoming.append(ev)
 
+    logger.info(
+        "[sportsdb] fetch_all_real_fixtures: %d past + %d upcoming "
+        "(season=%d, range=%d, next=%d)",
+        len(past), len(upcoming), len(season), len(rng), len(nxt),
+    )
     return {"past": past, "upcoming": upcoming}
 
 

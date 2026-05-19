@@ -226,7 +226,7 @@ MAX_PREDICTIONS_PER_DAY: int = int(get_env("MAX_PREDICTIONS_PER_DAY", "20"))
 PYTORCH_DEVICE: str = get_env("PYTORCH_DEVICE", "cpu")
 
 # Number of months of historical fixtures to backfill on first startup.
-BOOTSTRAP_MATCH_MONTHS: int = int(get_env("BOOTSTRAP_MATCH_MONTHS", "3"))
+BOOTSTRAP_MATCH_MONTHS: int = int(get_env("BOOTSTRAP_MATCH_MONTHS", "6"))
 
 
 # ══════════════════════════════════════════════════════════════════════════════

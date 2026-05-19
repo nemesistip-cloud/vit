@@ -590,7 +590,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/sync")
 async def sync_fixtures(
-    days: int = Query(default=60, ge=1, le=90),
+    days: int = Query(default=90, ge=1, le=90),
 ):
     """
     Fetch and store upcoming fixtures.
