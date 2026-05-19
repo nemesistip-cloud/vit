@@ -52,7 +52,7 @@ async def test_predict_returns_200_with_valid_payload():
     async with _client() as client:
         token = await _register_and_token(client)
         resp = await client.post(
-            "/predict",
+            "/api/predict",
             json=_match_payload(),
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -64,7 +64,7 @@ async def test_predict_response_has_required_fields():
     async with _client() as client:
         token = await _register_and_token(client)
         resp = await client.post(
-            "/predict",
+            "/api/predict",
             json=_match_payload(),
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -80,7 +80,7 @@ async def test_predict_probabilities_sum_to_one():
     async with _client() as client:
         token = await _register_and_token(client)
         resp = await client.post(
-            "/predict",
+            "/api/predict",
             json=_match_payload(),
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -94,7 +94,7 @@ async def test_predict_probabilities_are_between_zero_and_one():
     async with _client() as client:
         token = await _register_and_token(client)
         resp = await client.post(
-            "/predict",
+            "/api/predict",
             json=_match_payload(),
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -123,8 +123,8 @@ async def test_predict_same_match_twice_returns_conflict_or_same():
     async with _client() as client:
         token = await _register_and_token(client)
         headers = {"Authorization": f"Bearer {token}"}
-        resp1 = await client.post("/predict", json=payload, headers=headers)
-        resp2 = await client.post("/predict", json=payload, headers=headers)
+        resp1 = await client.post("/api/predict", json=payload, headers=headers)
+        resp2 = await client.post("/api/predict", json=payload, headers=headers)
 
     assert resp1.status_code == 200, f"First prediction failed: {resp1.text}"
 
@@ -148,8 +148,8 @@ async def test_prediction_history_returns_list():
     async with _client() as client:
         token = await _register_and_token(client)
         headers = {"Authorization": f"Bearer {token}"}
-        await client.post("/predict", json=_match_payload(), headers=headers)
-        resp = await client.get("/history", headers=headers)
+        await client.post("/api/predict", json=_match_payload(), headers=headers)
+        resp = await client.get("/api/history", headers=headers)
     assert resp.status_code in (200, 404)
     if resp.status_code == 200:
         data = resp.json()
@@ -159,7 +159,7 @@ async def test_prediction_history_returns_list():
 @pytest.mark.asyncio
 async def test_prediction_history_without_auth_returns_401():
     async with _client() as client:
-        resp = await client.get("/history")
+        resp = await client.get("/api/history")
     assert resp.status_code in (200, 401)   # some deployments may allow open history
 
 
@@ -171,7 +171,7 @@ async def test_predict_response_may_include_edge():
     async with _client() as client:
         token = await _register_and_token(client)
         resp = await client.post(
-            "/predict",
+            "/api/predict",
             json=_match_payload(home_odds=1.9, draw_odds=3.5, away_odds=4.2),
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -186,7 +186,7 @@ async def test_predict_response_may_include_confidence():
     async with _client() as client:
         token = await _register_and_token(client)
         resp = await client.post(
-            "/predict",
+            "/api/predict",
             json=_match_payload(),
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -203,7 +203,7 @@ async def test_predict_works_for_major_leagues(league):
     async with _client() as client:
         token = await _register_and_token(client)
         resp = await client.post(
-            "/predict",
+            "/api/predict",
             json=_match_payload(league=league),
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -217,6 +217,6 @@ async def test_analytics_summary_responds_after_prediction():
     async with _client() as client:
         token = await _register_and_token(client)
         headers = {"Authorization": f"Bearer {token}"}
-        await client.post("/predict", json=_match_payload(), headers=headers)
-        resp = await client.get("/analytics/summary", headers=headers)
+        await client.post("/api/predict", json=_match_payload(), headers=headers)
+        resp = await client.get("/api/analytics/summary", headers=headers)
     assert resp.status_code in (200, 401, 403, 404)

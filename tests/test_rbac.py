@@ -36,7 +36,7 @@ async def _register(client, *, password="RbacTest123!", role_suffix=""):
 async def test_admin_stats_blocked_for_unauthenticated():
     """Without credentials, admin/stats must be blocked (requires admin JWT)."""
     async with _client() as client:
-        resp = await client.get("/admin/stats")
+        resp = await client.get("/api/admin/stats")
     # AUTH_ENABLED=false bypasses middleware but FastAPI's Depends(get_current_admin)
     # still enforces role — unauthenticated request should get 401
     assert resp.status_code in (401, 403), (
@@ -51,7 +51,7 @@ async def test_admin_stats_blocked_for_regular_user():
     async with _client() as client:
         token, _ = await _register(client, role_suffix="user")
         resp = await client.get(
-            "/admin/stats",
+            "/api/admin/stats",
             headers={"Authorization": f"Bearer {token}"},
         )
     assert resp.status_code in (401, 403), (
@@ -64,7 +64,7 @@ async def test_admin_users_list_blocked_for_regular_user():
     async with _client() as client:
         token, _ = await _register(client, role_suffix="user2")
         resp = await client.get(
-            "/admin/users",
+            "/api/admin/users",
             headers={"Authorization": f"Bearer {token}"},
         )
     assert resp.status_code in (401, 403, 404), (
@@ -78,7 +78,7 @@ async def test_admin_api_keys_blocked_for_regular_user():
     async with _client() as client:
         token, _ = await _register(client, role_suffix="user3")
         resp = await client.get(
-            "/admin/api-keys",
+            "/api/admin/api-keys",
             headers={"Authorization": f"Bearer {token}"},
         )
     assert resp.status_code in (401, 403, 404, 422), (
@@ -128,7 +128,7 @@ async def test_user_cannot_self_promote_to_admin():
     async with _client() as client:
         token, user_id = await _register(client, role_suffix="escalate")
         resp = await client.put(
-            f"/admin/users/{user_id}",
+            f"/api/admin/users/{user_id}",
             headers={"Authorization": f"Bearer {token}"},
             json={"role": "admin"},
         )
@@ -138,7 +138,7 @@ async def test_user_cannot_self_promote_to_admin():
 @pytest.mark.asyncio
 async def test_unauthenticated_cannot_access_subscription_routes():
     async with _client() as client:
-        resp = await client.post("/subscription/upgrade", json={"plan": "elite"})
+        resp = await client.post("/api/subscription/upgrade", json={"plan": "elite"})
     assert resp.status_code in (401, 403, 404, 422)
 
 
@@ -188,9 +188,9 @@ async def test_free_user_gets_valid_auth_me_response():
 async def test_admin_routes_require_admin_role():
     """Routes under /admin must reject non-admin JWT tokens with 403."""
     admin_routes = [
-        ("GET", "/admin/stats"),
-        ("GET", "/admin/users"),
-        ("GET", "/admin/api-keys"),
+        ("GET", "/api/admin/stats"),
+        ("GET", "/api/admin/users"),
+        ("GET", "/api/admin/api-keys"),
     ]
     async with _client() as client:
         token, _ = await _register(client, role_suffix="norole")
@@ -222,7 +222,7 @@ async def test_wallet_admin_overview_requires_admin():
 async def test_prediction_endpoint_requires_auth_or_api_key():
     """POST /predict without credentials should be rejected or succeed (AUTH_ENABLED=false in test env)."""
     async with _client() as client:
-        resp = await client.post("/predict", json={
+        resp = await client.post("/api/predict", json={
             "home_team": "Arsenal_rbac_test",
             "away_team": "Chelsea_rbac_test",
             "kickoff_time": "2026-06-01T15:00:00",

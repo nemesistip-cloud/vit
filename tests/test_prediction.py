@@ -30,7 +30,7 @@ def _match_payload(home="Arsenal", away="Chelsea"):
 @pytest.mark.asyncio
 async def test_predict_returns_probabilities():
     async with _client() as client:
-        resp = await client.post("/predict", json=_match_payload())
+        resp = await client.post("/api/predict", json=_match_payload())
     assert resp.status_code == 200
     data = resp.json()
     assert "home_prob" in data
@@ -41,7 +41,7 @@ async def test_predict_returns_probabilities():
 @pytest.mark.asyncio
 async def test_predict_probabilities_sum_to_one():
     async with _client() as client:
-        resp = await client.post("/predict", json=_match_payload())
+        resp = await client.post("/api/predict", json=_match_payload())
     assert resp.status_code == 200
     data = resp.json()
     total = data["home_prob"] + data["draw_prob"] + data["away_prob"]
@@ -51,7 +51,7 @@ async def test_predict_probabilities_sum_to_one():
 @pytest.mark.asyncio
 async def test_predict_includes_confidence():
     async with _client() as client:
-        resp = await client.post("/predict", json=_match_payload())
+        resp = await client.post("/api/predict", json=_match_payload())
     assert resp.status_code == 200
     data = resp.json()
     assert "confidence" in data
@@ -61,7 +61,7 @@ async def test_predict_includes_confidence():
 @pytest.mark.asyncio
 async def test_predict_includes_model_info():
     async with _client() as client:
-        resp = await client.post("/predict", json=_match_payload())
+        resp = await client.post("/api/predict", json=_match_payload())
     assert resp.status_code == 200
     data = resp.json()
     assert "models_used" in data or "model" in data or "recommended_bet" in data
@@ -70,7 +70,7 @@ async def test_predict_includes_model_info():
 @pytest.mark.asyncio
 async def test_predict_missing_required_field_returns_422():
     async with _client() as client:
-        resp = await client.post("/predict", json={
+        resp = await client.post("/api/predict", json={
             "away_team": "Chelsea",
             "league": "Premier League",
             "kickoff_time": datetime.now(timezone.utc).isoformat(),
@@ -83,8 +83,8 @@ async def test_predict_idempotent_on_same_match():
     """First prediction succeeds; posting the same match again is handled gracefully."""
     payload = _match_payload("Liverpool", "ManCity")
     async with _client() as client:
-        r1 = await client.post("/predict", json=payload)
-        r2 = await client.post("/predict", json=payload)
+        r1 = await client.post("/api/predict", json=payload)
+        r2 = await client.post("/api/predict", json=payload)
     assert r1.status_code == 200
     assert r2.status_code in (200, 409)
 
@@ -95,7 +95,7 @@ async def test_predict_with_extreme_odds():
     payload = _match_payload("Barca", "Atletico")
     payload["market_odds"] = {"home": 1.10, "draw": 8.00, "away": 20.0}
     async with _client() as client:
-        resp = await client.post("/predict", json=payload)
+        resp = await client.post("/api/predict", json=payload)
     assert resp.status_code in (200, 429)
     if resp.status_code == 200:
         data = resp.json()

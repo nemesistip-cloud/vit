@@ -41,8 +41,11 @@ def test_notifications_websocket_connects_and_pongs(monkeypatch):
     monkeypatch.setattr(NotificationService, "unread_count", fake_unread_count)
     monkeypatch.setattr(NotificationService, "mark_read", fake_mark_read)
 
+    from app.auth.jwt_utils import create_access_token
+    token = create_access_token({"sub": "1", "role": "user"})
+
     client = TestClient(app)
-    with client.websocket_connect("/api/notifications/ws/1") as websocket:
+    with client.websocket_connect(f"/api/notifications/ws/1?token={token}") as websocket:
         assert websocket.receive_json() == {"action": "connected", "unread_count": 0}
         websocket.send_json({"action": "ping"})
         assert websocket.receive_json() == {"action": "pong"}

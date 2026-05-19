@@ -31,21 +31,21 @@ async def _make_token(client):
 @pytest.mark.asyncio
 async def test_analytics_dashboard_responds():
     async with _client() as client:
-        resp = await client.get("/analytics/dashboard")
+        resp = await client.get("/api/analytics/dashboard")
     assert resp.status_code in (200, 401, 403, 404)
 
 
 @pytest.mark.asyncio
 async def test_analytics_clv_responds():
     async with _client() as client:
-        resp = await client.get("/analytics/clv")
+        resp = await client.get("/api/analytics/clv")
     assert resp.status_code in (200, 401, 403, 404)
 
 
 @pytest.mark.asyncio
 async def test_analytics_edges_responds():
     async with _client() as client:
-        resp = await client.get("/analytics/edges")
+        resp = await client.get("/api/analytics/edges")
     assert resp.status_code in (200, 401, 403, 404)
 
 
@@ -54,14 +54,14 @@ async def test_analytics_edges_responds():
 @pytest.mark.asyncio
 async def test_history_endpoint_responds():
     async with _client() as client:
-        resp = await client.get("/history")
+        resp = await client.get("/api/history")
     assert resp.status_code in (200, 401, 403, 404)
 
 
 @pytest.mark.asyncio
 async def test_results_endpoint_responds():
     async with _client() as client:
-        resp = await client.get("/results")
+        resp = await client.get("/api/results")
     assert resp.status_code in (200, 401, 403, 404)
 
 
@@ -70,7 +70,7 @@ async def test_results_endpoint_responds():
 @pytest.mark.asyncio
 async def test_subscription_plans_listing():
     async with _client() as client:
-        resp = await client.get("/subscription/plans")
+        resp = await client.get("/api/subscription/plans")
     assert resp.status_code in (200, 404)
 
 
@@ -79,7 +79,7 @@ async def test_subscription_plans_listing():
 @pytest.mark.asyncio
 async def test_odds_endpoint_responds():
     async with _client() as client:
-        resp = await client.get("/odds/compare")
+        resp = await client.get("/api/odds/compare")
     assert resp.status_code in (200, 401, 403, 404, 422, 503)
 
 
@@ -90,7 +90,7 @@ async def test_admin_status_with_admin_token():
     async with _client() as client:
         token = await _make_token(client)
         resp = await client.get(
-            "/admin/status",
+            "/api/admin/status",
             headers={"Authorization": f"Bearer {token}"},
         )
     assert resp.status_code in (200, 403, 404)
@@ -101,7 +101,7 @@ async def test_admin_models_status():
     async with _client() as client:
         token = await _make_token(client)
         resp = await client.get(
-            "/admin/models/status",
+            "/api/admin/models/status",
             headers={"Authorization": f"Bearer {token}"},
         )
     assert resp.status_code in (200, 403, 404)
@@ -128,14 +128,14 @@ async def test_wallet_plans_public():
 @pytest.mark.asyncio
 async def test_ai_predictions_list():
     async with _client() as client:
-        resp = await client.get("/ai/predictions")
+        resp = await client.get("/api/ai/predictions")
     assert resp.status_code in (200, 401, 403, 404)
 
 
 @pytest.mark.asyncio
 async def test_ai_models_list():
     async with _client() as client:
-        resp = await client.get("/ai/models")
+        resp = await client.get("/api/ai/models")
     assert resp.status_code in (200, 401, 403, 404)
 
 
@@ -144,14 +144,14 @@ async def test_ai_models_list():
 @pytest.mark.asyncio
 async def test_governance_proposals_list():
     async with _client() as client:
-        resp = await client.get("/governance/proposals")
+        resp = await client.get("/api/governance/proposals")
     assert resp.status_code in (200, 401, 403, 404)
 
 
 @pytest.mark.asyncio
 async def test_marketplace_listings():
     async with _client() as client:
-        resp = await client.get("/marketplace/listings")
+        resp = await client.get("/api/marketplace/listings")
     assert resp.status_code in (200, 401, 403, 404)
 
 
@@ -160,7 +160,7 @@ async def test_marketplace_listings():
 @pytest.mark.asyncio
 async def test_training_guide_steps():
     async with _client() as client:
-        resp = await client.get("/training/guide/steps")
+        resp = await client.get("/api/training/guide/steps")
     assert resp.status_code in (200, 401, 403, 404)
 
 
@@ -171,7 +171,7 @@ async def test_audit_log_endpoint():
     async with _client() as client:
         token = await _make_token(client)
         resp = await client.get(
-            "/audit/log",
+            "/api/audit/log",
             headers={"Authorization": f"Bearer {token}"},
         )
     assert resp.status_code in (200, 403, 404)
@@ -182,7 +182,7 @@ async def test_audit_log_endpoint():
 @pytest.mark.asyncio
 async def test_pipeline_status():
     async with _client() as client:
-        resp = await client.get("/pipeline/status")
+        resp = await client.get("/api/pipeline/status")
     assert resp.status_code in (200, 401, 403, 404)
 
 
