@@ -281,7 +281,11 @@ class NewsSentinelAgent(BaseAgent):
 
                 # --- Market Sentiment Analysis (Phase 2) ---
                 news_texts = [content] + [i.get('injury', '') for i in injuries]
-                sentiment = await analyze_market_sentiment(news_texts, target_team=team)
+                # NewsSentinel focuses on single team news, so we map it to home_team for sentiment context
+                sentiment = await analyze_market_sentiment(
+                    match_id=0, home_team=team, away_team="Opposition",
+                    news_snippets=news_texts
+                )
                 meta["market_sentiment"] = sentiment
 
                 teams_analyzed.append(team)
@@ -365,7 +369,10 @@ class NewsSentinelAgent(BaseAgent):
                 )
 
                 # --- Market Sentiment Analysis (Phase 2) ---
-                sentiment = await analyze_market_sentiment([content], target_team=team)
+                sentiment = await analyze_market_sentiment(
+                    match_id=0, home_team=team, away_team="Opposition",
+                    news_snippets=[content]
+                )
                 meta["market_sentiment"] = sentiment
 
                 teams_analyzed.append(team)

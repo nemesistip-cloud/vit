@@ -47,6 +47,7 @@ import app.modules.security.models          # register Security Layer models
 import app.modules.subchain.models          # register Sub-Chain Architecture models
 import app.modules.agent_registry.models    # register AI Agent Registry models
 import app.modules.storage_verification.models  # register Storage Verification models
+import app.modules.prophecy_chain.models  # register Prophecy Chain models
 
 # ===== CORE ROUTES =====
 from app.api.routes import (
@@ -612,6 +613,11 @@ async def lifespan(app: FastAPI):
             await conn.run_sync(ReferralUse.__table__.create, checkfirst=True)
             dialect = conn.dialect.name
             if dialect == "sqlite":
+                # Create Prophecy Chain tables for SQLite
+                from app.modules.prophecy_chain.models import ProphecyChapter, UserProphecyProgress
+                await conn.run_sync(ProphecyChapter.__table__.create, checkfirst=True)
+                await conn.run_sync(UserProphecyProgress.__table__.create, checkfirst=True)
+
                 cols = (await conn.execute(text("PRAGMA table_info(predictions)"))).fetchall()
                 col_names = {row[1] for row in cols}
                 if "user_id" not in col_names:
@@ -1463,6 +1469,19 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"⚠️  Gamification task seeding failed: {_e}")
 
+    # SEED PROPHECY CHAPTERS
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.prophecy_chain.services.seeder import seed_prophecy_chapters
+        async with AsyncSessionLocal() as _db:
+            _n = await seed_prophecy_chapters(_db)
+            if _n:
+                print(f"✅ Prophecy Chain: {_n} chapters seeded")
+            else:
+                print("✅ Prophecy Chain: chapters already present")
+    except Exception as _e:
+        print(f"⚠️  Prophecy Chain seeding failed: {_e}")
+
     # SEED DEFAULT VALIDATOR PROFILE FOR ADMIN (P2-D)
     try:
         from app.db.database import AsyncSessionLocal
@@ -1764,20 +1783,20 @@ async def unhandled_error_handler(request: Request, exc: Exception):
 # ============================================
 
 # Core
-app.include_router(predict.router)
-app.include_router(result.router)
-app.include_router(history.router)
-app.include_router(matches_route.router)
-app.include_router(admin.router)
-app.include_router(training_route.router)
-app.include_router(analytics_route.router)
-app.include_router(odds_route.router)
-app.include_router(ai_feed.router)
-app.include_router(ai_route.router)
-app.include_router(subscription_route.router)
-app.include_router(audit_route.router)
-app.include_router(config_route.router)
-app.include_router(ai_assistant_route.router)
+app.include_router(predict.router, prefix="/api")
+app.include_router(result.router, prefix="/api")
+app.include_router(history.router, prefix="/api")
+app.include_router(matches_route.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
+app.include_router(training_route.router, prefix="/api")
+app.include_router(analytics_route.router, prefix="/api")
+app.include_router(odds_route.router, prefix="/api")
+app.include_router(ai_feed.router, prefix="/api")
+app.include_router(ai_route.router, prefix="/api")
+app.include_router(subscription_route.router, prefix="/api")
+app.include_router(audit_route.router, prefix="/api")
+app.include_router(config_route.router, prefix="/api")
+app.include_router(ai_assistant_route.router, prefix="/api")
 
 # Auth (JWT)
 app.include_router(auth_router)
@@ -1812,15 +1831,15 @@ app.include_router(tasks_router)
 
 # Admin task management — /admin/tasks (wraps tasks module with admin-form field mapping)
 from app.api.routes.admin_tasks import router as admin_tasks_router
-app.include_router(admin_tasks_router)
+app.include_router(admin_tasks_router, prefix="/api")
 
 # Reward Postback Routes
 app.include_router(postbacks_router)
-app.include_router(admin_rewards_router)
+app.include_router(admin_rewards_router, prefix="/api")
 app.include_router(rewards_router)
 app.include_router(admin_ai_sources_router, prefix="/api")
-app.include_router(model_breakdown_router)
-app.include_router(admin_clv_router)
+app.include_router(model_breakdown_router, prefix="/api")
+app.include_router(admin_clv_router, prefix="/api")
 
 # Marketplace (Module G)
 app.include_router(marketplace_router)
@@ -1844,7 +1863,7 @@ app.include_router(referral_router)
 app.include_router(leaderboard_router)
 app.include_router(exports_router)
 app.include_router(agents_router, prefix="/api")
-app.include_router(iot_router)
+app.include_router(iot_router, prefix="/api")
 
 # AI Support Agent (Item 7 — data-aware customer support)
 from app.api.routes.ai_support import router as ai_support_router
@@ -1923,8 +1942,11 @@ app.include_router(bankroll_router)
 # Prophecy Branch — Academy, AI Core, AI Upload
 from app.modules.academy.routes import router as academy_router
 from app.modules.ai_core.routes import router as ai_core_router
+from app.modules.prophecy_chain.routes import router as prophecy_chain_router
+
 app.include_router(academy_router)
 app.include_router(ai_core_router)
+app.include_router(prophecy_chain_router, prefix="/api")
 
 
 def _format_count(value: int) -> str:
