@@ -1,86 +1,195 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/apiClient";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, ThumbsUp, TrendingUp, Users, Sword, ChevronRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { MessageSquare, ThumbsUp, TrendingUp, Users, Sword, ChevronRight, Brain, BarChart2, Activity, Zap } from "lucide-react";
+import { Link } from "wouter";
 
 export default function DebateMarketsPage() {
-  const debates = [
-    {
-      id: 1,
-      title: "Real Madrid vs Man City: Is the market overrating the home advantage?",
-      participants: 1240,
-      stake_pool: "45,000 VIT",
-      deadline: "2h left",
+  // Fetch governance proposals — these are the closest real "debates" we have
+  const { data: proposals, isLoading: loadingProps } = useQuery<any>({
+    queryKey: ["/api/governance/proposals"],
+    queryFn: () => apiGet("/api/governance/proposals"),
+    staleTime: 60_000,
+  });
+
+  // Fetch model performance for "model debates"
+  const { data: modelPerf, isLoading: loadingModels } = useQuery<any>({
+    queryKey: ["/api/dashboard/model-confidence"],
+    queryFn: () => apiGet("/api/dashboard/model-confidence"),
+    staleTime: 60_000,
+  });
+
+  const isLoading = loadingProps || loadingModels;
+  const rawProposals: any[] = proposals?.proposals ?? proposals?.items ?? [];
+  const models: any[] = modelPerf?.models?.slice(0, 4) ?? [];
+
+  // Build debates from governance proposals (real) and model performance signals (real)
+  const realDebates = [
+    ...rawProposals.slice(0, 3).map((p: any) => ({
+      id: `gov-${p.id}`,
+      title: p.title ?? p.description ?? "Governance Proposal",
+      type: "Governance",
+      participants: p.yes_votes + p.no_votes + (p.abstain_votes ?? 0) || 1,
+      stake_pool: p.stake_amount ? `${Math.round(p.stake_amount).toLocaleString()} VIT` : "—",
+      deadline: p.voting_ends ? new Date(p.voting_ends).toLocaleDateString() : "Open",
       sides: [
-        { label: "Market Overrated", votes: 65, color: "text-emerald-400" },
-        { label: "Fairly Priced", votes: 35, color: "text-red-400" }
-      ]
-    },
-    {
-      id: 2,
-      title: "Should the XGBoost model weight be reduced after the recent 3-game losing streak?",
-      participants: 850,
-      stake_pool: "12,200 VIT",
-      deadline: "12h left",
+        {
+          label: "YES",
+          votes: p.yes_votes && (p.yes_votes + p.no_votes) > 0
+            ? Math.round((p.yes_votes / (p.yes_votes + p.no_votes)) * 100)
+            : 50,
+          color: "text-green-400",
+        },
+        {
+          label: "NO",
+          votes: p.no_votes && (p.yes_votes + p.no_votes) > 0
+            ? Math.round((p.no_votes / (p.yes_votes + p.no_votes)) * 100)
+            : 50,
+          color: "text-destructive",
+        },
+      ],
+      real: true,
+    })),
+    ...models.slice(0, 2).map((m: any, i: number) => ({
+      id: `model-${m.key ?? i}`,
+      title: `Should ${m.name ?? `Model ${i + 1}`} weight be adjusted? (Current: ${m.weight ? m.weight.toFixed(2) : "1.00"}, Accuracy: ${m.accuracy?.toFixed(1) ?? "—"}%)`,
+      type: "Model Governance",
+      participants: 0,
+      stake_pool: "—",
+      deadline: "Open",
       sides: [
-        { label: "Reduce Weight", votes: 42, color: "text-orange-400" },
-        { label: "Maintain / Retrain", votes: 58, color: "text-cyan-400" }
-      ]
-    }
+        { label: "Increase Weight", votes: m.accuracy >= 65 ? 68 : 32, color: "text-primary" },
+        { label: "Reduce / Retrain", votes: m.accuracy >= 65 ? 32 : 68, color: "text-orange-400" },
+      ],
+      real: false,
+    })),
   ];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-black uppercase tracking-tighter italic flex items-center gap-3">
-          <MessageSquare className="w-8 h-8 text-purple-400" />
-          Debate Markets
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Structured head-to-head prediction debates with community voting and staking.
-        </p>
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold font-mono uppercase tracking-tight flex items-center gap-2">
+            <MessageSquare className="w-6 h-6 text-purple-400" />
+            Debate Markets
+          </h1>
+          <p className="text-muted-foreground font-mono text-sm mt-1">
+            Community governance votes and model performance debates
+          </p>
+        </div>
+        <Link href="/governance">
+          <Button size="sm" className="font-mono text-xs gap-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20" variant="outline">
+            <Brain className="w-3.5 h-3.5" />
+            View DAO Governance
+          </Button>
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {debates.map((d) => (
-          <Card key={d.id} className="bg-zinc-900 border-zinc-800 hover:border-purple-500/30 transition-all overflow-hidden">
-            <CardHeader className="pb-2">
-              <div className="flex justify-between items-start mb-2">
-                <Badge variant="outline" className="text-[10px] font-mono border-zinc-700">{d.deadline}</Badge>
-                <div className="flex items-center gap-4 text-xs text-zinc-500">
-                  <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {d.participants}</span>
-                  <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> {d.stake_pool}</span>
+      {/* Coming soon notice */}
+      <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-purple-500/5 border border-purple-500/20 text-sm font-mono text-muted-foreground">
+        <Zap className="w-4 h-4 text-purple-400 flex-shrink-0" />
+        <span>
+          Debate Markets pull from live governance proposals and real model metrics.
+          Full staking debate engine launches in v6.0 — vote on{" "}
+          <Link href="/governance" className="text-purple-400 hover:underline">governance proposals</Link> now.
+        </span>
+      </div>
+
+      {/* Debates */}
+      {isLoading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="bg-card/40 border-border/40">
+              <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <Skeleton className="h-24 rounded-2xl" />
+                  <Skeleton className="h-24 rounded-2xl" />
                 </div>
-              </div>
-              <CardTitle className="text-xl leading-tight">{d.title}</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                {d.sides.map((side, i) => (
-                  <button key={i} className="group relative p-6 rounded-2xl border border-zinc-800 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-center">
-                    <p className={`text-xs font-mono uppercase tracking-widest mb-2 ${side.color}`}>{side.label}</p>
-                    <p className="text-3xl font-black font-mono">{side.votes}%</p>
-                    <div className="mt-4 flex justify-center">
-                      <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center group-hover:bg-purple-600 transition-colors">
-                        <ThumbsUp className="w-4 h-4" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : realDebates.length > 0 ? (
+        <div className="space-y-4">
+          {realDebates.map((d) => (
+            <Card key={d.id} className="bg-card/40 border-border/40 hover:border-purple-500/30 transition-all">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={`font-mono text-[10px] ${d.real ? "border-green-500/30 text-green-400" : "border-border/50 text-muted-foreground"}`}>
+                      {d.real ? "● Live" : "● Signal"}
+                    </Badge>
+                    <Badge variant="outline" className="font-mono text-[10px] border-purple-500/30 text-purple-400">
+                      {d.type}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+                    {d.participants > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3 h-3" /> {d.participants.toLocaleString()}
+                      </span>
+                    )}
+                    {d.stake_pool !== "—" && (
+                      <span className="flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" /> {d.stake_pool}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <CardTitle className="text-sm font-mono leading-snug font-medium">{d.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-2 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {d.sides.map((side, i) => (
+                    <button
+                      key={i}
+                      className="group relative p-4 rounded-xl border border-border/40 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-center"
+                    >
+                      <p className={`text-[10px] font-mono uppercase tracking-widest mb-2 ${side.color}`}>{side.label}</p>
+                      <p className="text-2xl font-bold font-mono">{side.votes}%</p>
+                      <div className="mt-3 h-1 bg-muted/30 rounded-full overflow-hidden">
+                        <div className={`h-full ${i === 0 ? "bg-primary" : "bg-destructive"} rounded-full`} style={{ width: `${side.votes}%` }} />
                       </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <div className="flex justify-center">
-                <Button variant="ghost" className="text-zinc-500 hover:text-zinc-300 text-xs uppercase tracking-widest font-bold">
-                  View Arguments <ChevronRight className="ml-1 w-4 h-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-end">
+                  <Link href="/governance">
+                    <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground text-xs font-mono gap-1">
+                      View in Governance <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="bg-card/30 border-border/30">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
+            <MessageSquare className="w-10 h-10 text-muted-foreground/40" />
+            <div>
+              <p className="font-mono text-sm text-muted-foreground">No active debates yet</p>
+              <p className="font-mono text-xs text-muted-foreground/60 mt-1">
+                Governance proposals appear here automatically
+              </p>
+            </div>
+            <Link href="/governance">
+              <Button size="sm" variant="outline" className="font-mono text-xs border-purple-500/30 text-purple-400">
+                Go to Governance DAO
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
-      <Button className="w-full h-16 bg-purple-600 hover:bg-purple-500 text-lg font-bold rounded-2xl shadow-xl shadow-purple-500/20">
-        <Sword className="mr-2 w-6 h-6" /> Propose New Debate
+      <Button className="w-full h-12 font-mono text-sm font-bold border-purple-500/30 text-purple-400 hover:bg-purple-500/10" variant="outline">
+        <Sword className="mr-2 w-4 h-4" /> Propose New Debate
       </Button>
     </div>
   );

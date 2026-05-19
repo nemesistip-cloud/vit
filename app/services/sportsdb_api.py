@@ -209,32 +209,42 @@ async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
 
 
 async def fetch_next_events() -> List[Dict]:
-    """Fetch the next scheduled event for every tracked league (parallel)."""
-    tasks = [_fetch(f"eventsnextleague.php?id={lid}") for lid in LEAGUES.values()]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    """Fetch the next scheduled events for every tracked league — SEQUENTIALLY.
+
+    Uses eventsnextleague.php which specifically returns upcoming (future) fixtures.
+    Sequential with 2s delays to respect the free-tier rate limit.
+    """
     events: List[Dict] = []
-    for evs in results:
-        if isinstance(evs, list):
-            for ev in evs:
-                mapped = _map_event(ev)
-                if mapped:
-                    events.append(mapped)
-    logger.info("[sportsdb] fetch_next_events: %d events", len(events))
+    league_items = list(LEAGUES.items())
+    for i, (slug, lid) in enumerate(league_items):
+        evs = await _fetch(f"eventsnextleague.php?id={lid}")
+        for ev in evs:
+            mapped = _map_event(ev)
+            if mapped:
+                if not mapped.get("league") or mapped["league"] == "unknown":
+                    mapped["league"] = slug
+                events.append(mapped)
+        if i < len(league_items) - 1:
+            await asyncio.sleep(2.0)
+    logger.info("[sportsdb] fetch_next_events: %d events across %d leagues", len(events), len(LEAGUES))
     return events
 
 
 async def fetch_past_events() -> List[Dict]:
-    """Fetch the most recently finished event for every tracked league (parallel)."""
-    tasks = [_fetch(f"eventspastleague.php?id={lid}") for lid in LEAGUES.values()]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    """Fetch the most recently finished event for every tracked league — SEQUENTIALLY."""
     events: List[Dict] = []
-    for evs in results:
-        if isinstance(evs, list):
-            for ev in evs:
-                mapped = _map_event(ev)
-                if mapped and mapped["status"] == "settled":
-                    events.append(mapped)
-    logger.info("[sportsdb] fetch_past_events: %d events", len(events))
+    league_items = list(LEAGUES.items())
+    for i, (slug, lid) in enumerate(league_items):
+        evs = await _fetch(f"eventspastleague.php?id={lid}")
+        for ev in evs:
+            mapped = _map_event(ev)
+            if mapped and mapped["status"] == "settled":
+                if not mapped.get("league") or mapped["league"] == "unknown":
+                    mapped["league"] = slug
+                events.append(mapped)
+        if i < len(league_items) - 1:
+            await asyncio.sleep(2.0)
+    logger.info("[sportsdb] fetch_past_events: %d events across %d leagues", len(events), len(LEAGUES))
     return events
 
 
@@ -258,8 +268,8 @@ async def fetch_upcoming_range(days: int = 60) -> List[Dict]:
     today = datetime.now(timezone.utc).date()
     dates = [today + timedelta(days=i) for i in range(1, days + 1)]
 
-    # Batch in groups of 10 concurrent requests
-    batch_size = 10
+    # Batch in groups of 3 concurrent requests — free-tier is rate-limited
+    batch_size = 3
     events: List[Dict] = []
     seen: set = set()
 
@@ -274,9 +284,9 @@ async def fetch_upcoming_range(days: int = 60) -> List[Dict]:
                     if key not in seen:
                         seen.add(key)
                         events.append(ev)
-        # Small pause between batches to be polite to the free API
+        # 2-second pause between each batch to respect free-tier rate limits
         if start + batch_size < len(dates):
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(2.0)
 
     logger.info("[sportsdb] fetch_upcoming_range(%dd): %d events", days, len(events))
     return events
@@ -317,32 +327,30 @@ async def _fetch_season_for_league(league_slug: str, league_id: int) -> List[Dic
 
 
 async def fetch_season_fixtures(days_ahead: int = 90) -> List[Dict]:
-    """Fetch the full current-season schedule for all tracked leagues in parallel.
+    """Fetch the full current-season schedule for all tracked leagues SEQUENTIALLY.
 
+    Sequential (not parallel) to avoid 429 rate limits on the free API tier.
     Filters to only upcoming fixtures within `days_ahead` days.
-    This is the most efficient way to get a large batch of future fixtures.
     Returns deduplicated upcoming events.
     """
     now = datetime.now(timezone.utc)
     cutoff = now + timedelta(days=days_ahead)
 
-    tasks = [
-        _fetch_season_for_league(slug, lid)
-        for slug, lid in LEAGUES.items()
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
     events: List[Dict] = []
     seen: set = set()
 
-    for league_evs in results:
-        if not isinstance(league_evs, list):
-            continue
+    league_items = list(LEAGUES.items())
+    for i, (slug, lid) in enumerate(league_items):
+        try:
+            league_evs = await _fetch_season_for_league(slug, lid)
+        except Exception as exc:
+            logger.warning("[sportsdb] season fetch error for %s: %s", slug, exc)
+            league_evs = []
+
         for ev in league_evs:
             ko = ev.get("kickoff_time")
             if not ko:
                 continue
-            # Keep only upcoming fixtures within the window
             if ev.get("status") == "settled":
                 continue
             ko_utc = ko if ko.tzinfo else ko.replace(tzinfo=timezone.utc)
@@ -353,6 +361,10 @@ async def fetch_season_fixtures(days_ahead: int = 90) -> List[Dict]:
                 seen.add(key)
                 events.append(ev)
 
+        # Throttle between each league to stay within free-tier rate limits
+        if i < len(league_items) - 1:
+            await asyncio.sleep(1.5)
+
     logger.info(
         "[sportsdb] fetch_season_fixtures(days_ahead=%d): %d upcoming fixtures across %d leagues",
         days_ahead, len(events), len(LEAGUES),
@@ -362,33 +374,20 @@ async def fetch_season_fixtures(days_ahead: int = 90) -> List[Dict]:
 
 async def fetch_all_real_fixtures() -> Dict[str, List[Dict]]:
     """
-    Fetch a combined set of real fixtures:
-      - past: recently settled matches (for model accuracy tracking)
-      - upcoming: season schedule + next events per league + day-by-day for next 14 days
+    Fetch a combined set of real fixtures (sequential, rate-limit safe):
+      - past: recently settled matches per league (eventspastleague)
+      - upcoming: next scheduled matches per league (eventsnextleague)
+    Both are fetched sequentially with 2s delays between each league.
     Returns {"past": [...], "upcoming": [...]}
     """
-    past_task = fetch_past_events()
-    next_task = fetch_next_events()
-    range_task = fetch_upcoming_range(days=21)
-    season_task = fetch_season_fixtures(days_ahead=90)
-
-    past, nxt, rng, season = await asyncio.gather(
-        past_task, next_task, range_task, season_task
-    )
-
-    seen_upcoming: set = set()
-    upcoming: List[Dict] = []
-    # Season fixtures first (broadest coverage), then day-by-day, then per-league next
-    for ev in (season + rng + nxt):
-        key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ev.get('kickoff_time', '')}"
-        if key not in seen_upcoming:
-            seen_upcoming.add(key)
-            upcoming.append(ev)
+    # Past events first (sequential)
+    past = await fetch_past_events()
+    # Then upcoming (sequential, reuses same throttling)
+    upcoming = await fetch_next_events()
 
     logger.info(
-        "[sportsdb] fetch_all_real_fixtures: %d past + %d upcoming "
-        "(season=%d, range=%d, next=%d)",
-        len(past), len(upcoming), len(season), len(rng), len(nxt),
+        "[sportsdb] fetch_all_real_fixtures: %d past + %d upcoming",
+        len(past), len(upcoming),
     )
     return {"past": past, "upcoming": upcoming}
 
@@ -402,8 +401,9 @@ async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
     today = datetime.now(timezone.utc).date()
     dates = [today - timedelta(days=i) for i in range(1, days_back + 1)]
 
-    # Fetch in chunks of 5 days concurrently to respect free-tier rate limits
-    chunk_size = 5
+    # Fetch in chunks of 2 days concurrently — free-tier allows ~1 req/sec
+    # Larger batches cause 429s. Increase sleep between chunks for safety.
+    chunk_size = 2
     all_events: List[Dict] = []
     seen: set = set()
 
@@ -421,8 +421,9 @@ async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
                 if key not in seen:
                     seen.add(key)
                     all_events.append(ev)
-        # Slightly longer pause to stay within free-tier rate limits
-        await asyncio.sleep(0.8)
+        # 3-second pause between each 2-day chunk to stay within free-tier limits
+        if chunk_start + chunk_size < len(dates):
+            await asyncio.sleep(3.0)
 
     logger.info("[sportsdb] fetch_historical_range(%dd): %d settled events", days_back, len(all_events))
     return all_events
@@ -454,25 +455,28 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
     from sqlalchemy import select
     from app.db.models import Match
 
-    # --- Phase 1: season schedule ---
-    season_events = await fetch_season_fixtures(days_ahead=days_ahead)
+    # --- Primary: fetch next events per league (upcoming-specific endpoint) ---
+    next_events = await fetch_next_events()
 
-    # --- Phase 2: day-by-day range (up to 30 days) ---
-    range_days = min(days_ahead, 30)
-    range_events = await fetch_upcoming_range(days=range_days)
+    # --- Fallback: day-by-day range only when next-events data is sparse ---
+    range_events: List[Dict] = []
+    if len(next_events) < 5:
+        range_days = min(days_ahead, 14)
+        logger.info("[sportsdb] next_events sparse (%d), falling back to day-by-day (%dd)", len(next_events), range_days)
+        range_events = await fetch_upcoming_range(days=range_days)
 
     # Merge, deduplicated by external_id then by home/away/date
     seen_keys: set = set()
     all_events: List[Dict] = []
-    for ev in season_events + range_events:
+    for ev in next_events + range_events:
         key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ev.get('kickoff_time', '')}"
         if key not in seen_keys:
             seen_keys.add(key)
             all_events.append(ev)
 
     logger.info(
-        "[sportsdb] sync_upcoming: %d season + %d range = %d unique events to process",
-        len(season_events), len(range_events), len(all_events),
+        "[sportsdb] sync_upcoming: %d next + %d range = %d unique events to process",
+        len(next_events), len(range_events), len(all_events),
     )
 
     inserted = 0

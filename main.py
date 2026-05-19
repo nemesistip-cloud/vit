@@ -2040,20 +2040,38 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
         .join(Prediction, Match.id == Prediction.match_id)
         .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
         .order_by(Prediction.timestamp.desc())
-        .limit(10)
+        .limit(20)
     )).all()
     ticker = []
+    seen_ticker: set = set()
     for match, prediction, clv in prediction_rows:
+        key = f"{match.home_team}|{match.away_team}"
+        if key in seen_ticker:
+            continue
+        seen_ticker.add(key)
         edge = prediction.vig_free_edge if prediction.vig_free_edge is not None else prediction.raw_edge
         confidence = prediction.confidence or prediction.consensus_prob or 0
         if confidence <= 1:
             confidence *= 100
+        # Determine outcome: prefer CLV entry, then match actual_outcome + bet_side match
+        outcome = "PENDING"
+        if clv and clv.bet_outcome:
+            outcome = clv.bet_outcome.upper()
+        elif match.actual_outcome and prediction.bet_side:
+            if match.actual_outcome == prediction.bet_side:
+                outcome = "WIN"
+            elif match.actual_outcome in ("home", "away", "draw") and prediction.bet_side in ("home", "away", "draw"):
+                outcome = "LOSS"
+        elif match.status in ("settled", "finished", "ft") and match.actual_outcome:
+            outcome = "SETTLED"
         ticker.append({
             "match": f"{match.home_team} vs {match.away_team}",
             "edge": f"{edge * 100:+.1f}%" if edge is not None else "—",
-            "outcome": (clv.bet_outcome or "pending").upper() if clv else "PENDING",
+            "outcome": outcome,
             "confidence": round(confidence),
         })
+        if len(ticker) >= 12:
+            break
 
     review_rows = (await db.execute(
         select(ModelRating, AIModelListing)

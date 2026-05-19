@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { format } from "date-fns";
-import { Activity, BrainCircuit, TrendingUp, Zap, Brain, ChevronDown, ChevronUp, Database, Globe, Upload, FileSpreadsheet } from "lucide-react";
+import { format, formatDistanceToNow, isPast, differenceInMinutes, differenceInSeconds } from "date-fns";
+import {
+  Activity, BrainCircuit, TrendingUp, Zap, Brain, ChevronDown, ChevronUp,
+  Clock, Star, Target, ShieldCheck, BarChart2, Radio
+} from "lucide-react";
 import type { Match } from "@/api-client/schemas";
 import { PredictionFlow } from "@/components/PredictionFlow";
 
@@ -17,6 +20,7 @@ const SOURCE_META: Record<string, { label: string; cls: string; title: string }>
   api_football:   { label: "API",    cls: "border-primary/40 text-primary",          title: "Synced from API-Football" },
   odds_api:       { label: "API",    cls: "border-cyan-500/40 text-cyan-400",        title: "Synced from Odds API" },
   sportmonks:     { label: "API",    cls: "border-primary/40 text-primary",          title: "Synced from Sportmonks API" },
+  sportsdb:       { label: "Live",   cls: "border-green-500/40 text-green-400",      title: "Synced from TheSportsDB" },
   seed:           { label: "Seed",   cls: "border-muted/40 text-muted-foreground",   title: "Seeded fixture" },
   synthetic:      { label: "Synth",  cls: "border-orange-500/40 text-orange-400",   title: "Synthetically generated fixture" },
   unknown:        { label: "?",      cls: "border-muted/30 text-muted-foreground/50", title: "Unknown source" },
@@ -35,6 +39,98 @@ function SourceBadge({ source }: { source?: string }) {
   );
 }
 
+// ── Match quality grade ───────────────────────────────────────────────
+
+function getQualityGrade(confidence: number, modelConsensus?: any) {
+  const agrPct = modelConsensus?.agreement_pct ?? 0;
+  const score = confidence * 0.6 + (agrPct / 100) * 0.4;
+  if (score >= 0.75) return { grade: "A", color: "text-green-400", bg: "bg-green-400/10 border-green-400/30", label: "High Quality" };
+  if (score >= 0.65) return { grade: "B", color: "text-primary", bg: "bg-primary/10 border-primary/30", label: "Good Quality" };
+  if (score >= 0.55) return { grade: "C", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", label: "Fair Quality" };
+  return { grade: "D", color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/30", label: "Low Quality" };
+}
+
+// ── Countdown timer ───────────────────────────────────────────────────
+
+function CountdownTimer({ kickoff }: { kickoff: string }) {
+  const [remaining, setRemaining] = useState("");
+
+  useEffect(() => {
+    const update = () => {
+      const ko = new Date(kickoff);
+      const now = new Date();
+      const diffSecs = differenceInSeconds(ko, now);
+      if (diffSecs <= 0) {
+        setRemaining("");
+        return;
+      }
+      const h = Math.floor(diffSecs / 3600);
+      const m = Math.floor((diffSecs % 3600) / 60);
+      const s = diffSecs % 60;
+      if (h > 0) setRemaining(`${h}h ${m}m`);
+      else if (m > 0) setRemaining(`${m}m ${s}s`);
+      else setRemaining(`${s}s`);
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [kickoff]);
+
+  if (!remaining) return null;
+  return (
+    <span className="flex items-center gap-1 text-yellow-400 font-mono text-[10px] font-bold">
+      <Clock className="w-3 h-3" />
+      {remaining}
+    </span>
+  );
+}
+
+// ── Live match minute estimator ───────────────────────────────────────
+
+function LiveMinute({ kickoff }: { kickoff: string }) {
+  const [minute, setMinute] = useState(0);
+
+  useEffect(() => {
+    const update = () => {
+      const ko = new Date(kickoff);
+      const mins = differenceInMinutes(new Date(), ko);
+      setMinute(Math.min(Math.max(mins, 1), 90));
+    };
+    update();
+    const id = setInterval(update, 60_000);
+    return () => clearInterval(id);
+  }, [kickoff]);
+
+  return (
+    <span className="flex items-center gap-1 text-green-400 font-mono text-xs font-bold animate-pulse">
+      <Radio className="w-3 h-3" />
+      {minute}&apos;
+    </span>
+  );
+}
+
+// ── Probability bar ───────────────────────────────────────────────────
+
+function ProbBar({ label, prob, color = "bg-primary", teamName }: {
+  label: string; prob: number; color?: string; teamName?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1 text-center px-2 py-2.5">
+      <div className="text-[9px] font-mono text-muted-foreground uppercase tracking-wide">{label}</div>
+      <div className="text-xl font-bold font-mono text-primary leading-none">{(prob * 100).toFixed(0)}%</div>
+      {teamName && <div className="text-[9px] font-mono text-muted-foreground/70 truncate">{teamName}</div>}
+      <div className="h-0.5 w-full bg-muted/30 rounded-full mt-1 overflow-hidden">
+        <div
+          className={`h-full ${color} rounded-full transition-all duration-700`}
+          style={{ width: `${Math.max(4, prob * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Confidence meter ──────────────────────────────────────────────────
+
 function ConfidenceMeter({ confidence, risk }: { confidence: number; risk: number }) {
   const riskLevel = risk > 0.7 ? "HIGH" : risk > 0.4 ? "MED" : "LOW";
   const riskColor = riskLevel === "HIGH" ? "text-destructive" : riskLevel === "MED" ? "text-yellow-400" : "text-primary";
@@ -46,7 +142,7 @@ function ConfidenceMeter({ confidence, risk }: { confidence: number; risk: numbe
         <span className="text-muted-foreground w-20 uppercase">Confidence</span>
         <div className="flex-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
           <div
-            className="h-full bg-primary rounded-full transition-all"
+            className="h-full bg-gradient-to-r from-primary to-cyan-400 rounded-full transition-all duration-700"
             style={{ width: `${Math.max(0, Math.min(100, confidence * 100))}%` }}
           />
         </div>
@@ -64,6 +160,8 @@ function ConfidenceMeter({ confidence, risk }: { confidence: number; risk: numbe
     </div>
   );
 }
+
+// ── AI Insight Panel ─────────────────────────────────────────────────
 
 function AIInsightPanel({ match }: { match: any }) {
   const confidence = match.confidence ?? match.avg_1x2_confidence ?? 0.65;
@@ -203,15 +301,45 @@ function AIInsightPanel({ match }: { match: any }) {
   );
 }
 
+// ── Main PremiumMatchCard ─────────────────────────────────────────────
+
 export function PremiumMatchCard({ match }: { match: Match & { [key: string]: any } }) {
   const [showPredict, setShowPredict] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
+
   const confidence = match.confidence ?? match.avg_1x2_confidence ?? 0.65;
   const risk = Math.max(0, 1 - confidence);
   const homeProb = match.home_prob ?? match.model_consensus_probs?.home ?? 0;
   const drawProb = match.draw_prob ?? match.model_consensus_probs?.draw ?? 0;
   const awayProb = match.away_prob ?? match.model_consensus_probs?.away ?? 0;
   const isSettled = !!match.actual_outcome;
+
+  // Detect live: explicit status OR kickoff in last 2.5h and not settled
+  const kickoffMs = match.kickoff_time ? new Date(match.kickoff_time).getTime() : NaN;
+  const nowMs = Date.now();
+  const isLiveByTime = Number.isFinite(kickoffMs) && !isSettled && kickoffMs <= nowMs && nowMs - kickoffMs <= 2.5 * 3600 * 1000;
+  const statusRaw = String(match.status ?? "").toLowerCase();
+  const isLive = statusRaw === "live" || statusRaw === "in_play" || statusRaw === "playing" || isLiveByTime;
+  const isUpcoming = !isSettled && !isLive && Number.isFinite(kickoffMs) && kickoffMs > nowMs;
+
+  const quality = getQualityGrade(confidence, match.model_consensus);
+
+  // Odds from bookmaker data
+  const homeOdds = match.odds?.home_win ?? match.home_odds;
+  const drawOdds = match.odds?.draw ?? match.draw_odds;
+  const awayOdds = match.odds?.away_win ?? match.away_odds;
+  const hasOdds = homeOdds != null && awayOdds != null;
+
+  // Score display
+  const liveScore = isLive && match.home_goals != null && match.away_goals != null
+    ? `${match.home_goals} - ${match.away_goals}`
+    : null;
+
+  // Outcome colour for settled
+  const outcomeColor = match.actual_outcome === "home" ? "text-primary"
+    : match.actual_outcome === "away" ? "text-orange-400"
+    : match.actual_outcome === "draw" ? "text-yellow-400"
+    : "text-muted-foreground";
 
   return (
     <>
@@ -239,79 +367,157 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
         onClose={() => setShowPredict(false)}
       />
 
-      <Card className="bg-card/50 backdrop-blur border-border hover:border-primary/50 transition-all duration-200 group hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(0,255,255,0.08)] h-full flex flex-col">
+      <Card className={`
+        bg-card/50 backdrop-blur border-border h-full flex flex-col
+        transition-all duration-200 group
+        hover:-translate-y-0.5
+        ${isLive
+          ? "border-green-500/40 hover:border-green-400/60 hover:shadow-[0_4px_24px_rgba(74,222,128,0.12)]"
+          : "hover:border-primary/50 hover:shadow-[0_4px_20px_rgba(0,245,255,0.08)]"
+        }
+      `}>
         <CardContent className="p-0 flex flex-col h-full">
           <Link href={`/matches/${match.match_id}`} className="flex flex-col flex-1">
-            {/* Header */}
+
+            {/* ── LIVE top bar ────────────────────────────── */}
+            {isLive && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-green-500/10 border-b border-green-500/20">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_6px_rgba(74,222,128,0.8)]" />
+                  <span className="text-[10px] font-mono font-bold text-green-400 uppercase tracking-wider">Live</span>
+                  <LiveMinute kickoff={match.kickoff_time} />
+                </div>
+                {liveScore && (
+                  <span className="font-mono font-bold text-base text-green-400 tabular-nums">
+                    {liveScore}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* ── Header ──────────────────────────────────── */}
             <div className="p-4 border-b border-border/50">
               <div className="flex justify-between items-start mb-3">
-                <Badge variant="outline" className="font-mono text-xs border-primary/20 text-muted-foreground">
+                <Badge variant="outline" className="font-mono text-[10px] border-primary/20 text-muted-foreground max-w-[140px] truncate">
                   {match.league?.replace(/_/g, " ")}
                 </Badge>
-                <div className="flex gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  {/* Quality grade */}
+                  <span className={`inline-flex items-center border rounded px-1.5 py-0.5 text-[9px] font-mono font-bold leading-none ${quality.bg} ${quality.color}`}
+                    title={quality.label}>
+                    {quality.grade}
+                  </span>
                   {match.bet_side && (
                     <Badge className="font-mono text-[10px] uppercase bg-primary/10 text-primary border border-primary/20">
                       {match.bet_side}
                     </Badge>
                   )}
-                  <Badge variant={isSettled ? "secondary" : "outline"} className="font-mono text-[10px]">
-                    {isSettled ? "SETTLED" : match.status === "live" ? "LIVE" : "UPCOMING"}
-                  </Badge>
+                  {isSettled ? (
+                    <Badge variant="secondary" className={`font-mono text-[10px] ${outcomeColor}`}>
+                      {match.actual_outcome?.toUpperCase() ?? "SETTLED"}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className={`font-mono text-[10px] ${isLive ? "border-green-500/40 text-green-400" : ""}`}>
+                      {isLive ? "LIVE" : "UPCOMING"}
+                    </Badge>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-base truncate leading-tight">{match.home_team}</p>
-                  <p className="text-sm text-muted-foreground truncate mt-0.5">vs {match.away_team}</p>
+
+              {/* ── Teams block ─────────────────────────── */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0 space-y-1">
+                  <p className="font-bold text-sm truncate leading-tight">{match.home_team}</p>
+                  <p className="text-xs text-muted-foreground font-mono">vs</p>
+                  <p className="font-bold text-sm truncate leading-tight">{match.away_team}</p>
                 </div>
-                {match.ft_score ? (
-                  <div className="font-mono font-bold text-xl text-primary bg-primary/10 px-3 py-1.5 rounded border border-primary/20 ml-3">
-                    {match.ft_score}
-                  </div>
-                ) : match.entry_odds ? (
-                  <div className="text-right ml-3">
-                    <div className="font-mono font-bold text-primary">{Number(match.entry_odds).toFixed(2)}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono">odds</div>
-                  </div>
-                ) : null}
+
+                {/* Score / Odds / Countdown */}
+                <div className="flex flex-col items-end gap-1 ml-2 flex-shrink-0">
+                  {isSettled && match.ft_score ? (
+                    <div className={`font-mono font-bold text-2xl bg-primary/10 px-3 py-1.5 rounded border border-primary/20 text-primary`}>
+                      {match.ft_score}
+                    </div>
+                  ) : isLive && liveScore ? (
+                    <div className="font-mono font-bold text-2xl bg-green-500/10 px-3 py-1.5 rounded border border-green-500/30 text-green-400">
+                      {liveScore}
+                    </div>
+                  ) : hasOdds ? (
+                    <div className="flex flex-col gap-0.5 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-[9px] font-mono text-muted-foreground">H</span>
+                        <span className="font-mono font-bold text-sm text-primary">{Number(homeOdds).toFixed(2)}</span>
+                      </div>
+                      {drawOdds != null && (
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="text-[9px] font-mono text-muted-foreground">D</span>
+                          <span className="font-mono font-bold text-sm text-yellow-400">{Number(drawOdds).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-[9px] font-mono text-muted-foreground">A</span>
+                        <span className="font-mono font-bold text-sm text-orange-400">{Number(awayOdds).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ) : match.entry_odds ? (
+                    <div className="text-right">
+                      <div className="font-mono font-bold text-primary">{Number(match.entry_odds).toFixed(2)}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">odds</div>
+                    </div>
+                  ) : null}
+
+                  {isUpcoming && (
+                    <CountdownTimer kickoff={match.kickoff_time} />
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Probability row */}
-            <div className="grid grid-cols-3 gap-px bg-border/30 flex-1">
-              {[
-                { label: "Home", prob: homeProb },
-                { label: "Draw", prob: drawProb },
-                { label: "Away", prob: awayProb },
-              ].map(({ label, prob }) => (
-                <div key={label} className="bg-card/30 p-3 text-center">
-                  <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">{label}</div>
-                  <div className="text-lg font-bold font-mono text-primary">{(prob * 100).toFixed(0)}%</div>
-                </div>
-              ))}
+            {/* ── Probability row ──────────────────────── */}
+            <div className="grid grid-cols-3 gap-px bg-border/30">
+              <ProbBar label="Home" prob={homeProb} color="bg-primary" teamName={homeProb >= awayProb && homeProb >= drawProb ? match.home_team : undefined} />
+              <ProbBar label="Draw" prob={drawProb} color="bg-yellow-400" />
+              <ProbBar label="Away" prob={awayProb} color="bg-orange-500" teamName={awayProb > homeProb && awayProb > drawProb ? match.away_team : undefined} />
             </div>
 
-            {/* Confidence + risk meters */}
-            <div className="p-4 border-t border-border/50">
+            {/* ── Confidence + risk meters ──────────────── */}
+            <div className="p-4 border-t border-border/50 bg-card/20">
               <ConfidenceMeter confidence={confidence} risk={risk} />
-              <div className="grid grid-cols-3 gap-2 mt-3 text-[10px] font-mono text-muted-foreground">
-                <div>O2.5 <span className="text-foreground">{match.over_25_prob != null ? `${(match.over_25_prob * 100).toFixed(0)}%` : "—"}</span></div>
-                <div>BTTS <span className="text-foreground">{match.btts_prob != null ? `${(match.btts_prob * 100).toFixed(0)}%` : "—"}</span></div>
-                <div>Stake <span className="text-foreground">{match.recommended_stake != null ? `${(match.recommended_stake * 100).toFixed(1)}%` : "—"}</span></div>
+
+              {/* Quick stats */}
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="text-center">
+                  <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">O2.5</div>
+                  <div className={`text-xs font-mono font-bold ${match.over_25_prob != null && match.over_25_prob > 0.5 ? "text-green-400" : "text-foreground"}`}>
+                    {match.over_25_prob != null ? `${(match.over_25_prob * 100).toFixed(0)}%` : "—"}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">BTTS</div>
+                  <div className={`text-xs font-mono font-bold ${match.btts_prob != null && match.btts_prob > 0.5 ? "text-green-400" : "text-foreground"}`}>
+                    {match.btts_prob != null ? `${(match.btts_prob * 100).toFixed(0)}%` : "—"}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">Kelly</div>
+                  <div className="text-xs font-mono font-bold text-foreground">
+                    {match.recommended_stake != null ? `${(match.recommended_stake * 100).toFixed(1)}%` : "—"}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Footer */}
+            {/* ── Footer ──────────────────────────────── */}
             <div className="px-4 pb-3 flex justify-between items-center text-xs font-mono text-muted-foreground border-t border-border/30 pt-2">
               <span className="flex items-center gap-1.5">
                 <Activity className="w-3 h-3" />
-                {format(new Date(match.kickoff_time), "MMM dd HH:mm")}
+                {match.kickoff_time ? format(new Date(match.kickoff_time), "MMM dd HH:mm") : "—"}
                 <SourceBadge source={(match as any).source} />
               </span>
               {match.edge != null && (
-                <span className={`flex items-center gap-1 font-bold ${match.edge > 0 ? "text-primary" : "text-destructive"}`}>
+                <span className={`flex items-center gap-1 font-bold ${match.edge > 0.03 ? "text-green-400" : match.edge > 0 ? "text-primary" : "text-destructive"}`}>
                   <TrendingUp className="w-3 h-3" />
-                  {(match.edge * 100).toFixed(1)}% edge
+                  {(match.edge * 100).toFixed(1)}%
                 </span>
               )}
               <span className="flex items-center gap-1 text-primary/60 group-hover:text-primary transition-colors">
@@ -321,8 +527,8 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
             </div>
           </Link>
 
+          {/* ── Action row ──────────────────────────────── */}
           <div className="px-4 pb-4 pt-0 space-y-2">
-            {/* AI Insights toggle */}
             <button
               className="w-full flex items-center justify-between text-xs font-mono text-muted-foreground hover:text-foreground transition-colors py-1 border-t border-border/20 pt-2"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowInsights((s) => !s); }}
@@ -330,9 +536,13 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
               <span className="flex items-center gap-1.5">
                 <Brain className="w-3 h-3 text-primary/70" />
                 AI Insights
+                {match.bet_side && (
+                  <span className="text-[9px] text-primary/60 font-mono">· {match.bet_side.toUpperCase()}</span>
+                )}
               </span>
               {showInsights ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
+
             {showInsights && (
               <div className="bg-background/40 border border-border/30 rounded-md p-3">
                 <AIInsightPanel match={match} />
