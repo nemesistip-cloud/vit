@@ -64,7 +64,7 @@ def _build_accumulators(candidates: List[dict]) -> List[dict]:
             edge = prob - (1.0 / odds)
             penalty = _correlation_penalty(legs)
             adj_edge = edge - penalty
-            avg_conf = sum(l.get("confidence", 0.5) for l in legs) / len(legs)
+            avg_conf = sum(l.get("confidence", 0.5) for l in legs) / len(legs) if legs else 0.5
             b = odds - 1
             kelly = max(0, (b * prob - (1 - prob)) / b) if b > 0 else 0
 

@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, Optional
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
@@ -129,7 +129,7 @@ class BankrollManager:
             total_bets=self.bankroll.total_bets,
             winning_bets=self.bankroll.winning_bets,
             losing_bets=self.bankroll.losing_bets,
-            updated_at=datetime.utcnow()
+            updated_at=datetime.now(timezone.utc)
         )
         self.db.add(state)
         await self.db.commit()

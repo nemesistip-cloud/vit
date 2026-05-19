@@ -190,15 +190,19 @@ FOOTBALL_DATA_API_KEY: str = get_env("FOOTBALL_DATA_API_KEY", "")
 THE_ODDS_API_KEY: str      = get_env("THE_ODDS_API_KEY", "") or get_env("ODDS_API_KEY", "")
 
 # Paystack — NGN (Nigerian Naira) payment gateway for African users
-PAYSTACK_SECRET_KEY: str   = get_env("PAYSTACK_SECRET_KEY", "")
+PAYSTACK_SECRET_KEY: str     = get_env("PAYSTACK_SECRET_KEY", "")
+PAYSTACK_WEBHOOK_SECRET: str = get_env("PAYSTACK_WEBHOOK_SECRET", "")
 
 # Stripe — USD/international subscription payments
-STRIPE_SECRET_KEY: str     = get_env("STRIPE_SECRET_KEY", "")
+STRIPE_SECRET_KEY: str        = get_env("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET: str    = get_env("STRIPE_WEBHOOK_SECRET", "")
 
 # AI providers — cascade: Gemini → Claude → OpenAI → Grok → Puter (browser-side)
-CLAUDE_API_KEY: str        = get_env("CLAUDE_API_KEY",  "")
+CLAUDE_API_KEY: str        = get_env("CLAUDE_API_KEY",  "") or get_env("ANTHROPIC_API_KEY", "")
+ANTHROPIC_API_KEY: str     = CLAUDE_API_KEY
 GEMINI_API_KEY: str        = get_env("GEMINI_API_KEY",  "")
 OPENAI_API_KEY: str        = get_env("OPENAI_API_KEY",  "")
+XAI_API_KEY: str           = get_env("XAI_API_KEY",     "")
 
 # Redis — optional; enables distributed rate limiting, caching, and Celery tasks.
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.
@@ -206,6 +210,8 @@ REDIS_URL: str             = _clean_redis_url(get_env("REDIS_URL", ""))
 
 # Resend.com — transactional email (welcome, password reset, alerts)
 RESEND_API_KEY: str        = get_env("RESEND_API_KEY", "")
+TELEGRAM_BOT_TOKEN: str    = get_env("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID: str      = get_env("TELEGRAM_CHAT_ID", "")
 
 # TheSportsDB — free fixture source (fallback when Football-Data.org is unavailable)
 # Default key "3" is the public demo key; replace with a paid key for production.

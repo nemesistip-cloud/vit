@@ -17,7 +17,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ async def run_training_subprocess(model_names: list[str] | None = None) -> dict:
     Returns a dict with keys: status, returncode, stdout_tail, started_at, finished_at.
     Non-zero returncode means the training script itself failed — logs are preserved.
     """
-    started_at = datetime.utcnow().isoformat()
+    started_at = datetime.now(timezone.utc).isoformat()
     cmd = [PYTHON, str(TRAIN_SCRIPT)]
 
     logger.info("[retrain] Starting training subprocess: %s", " ".join(cmd))
@@ -56,7 +56,7 @@ async def run_training_subprocess(model_names: list[str] | None = None) -> dict:
             logger.info("[retrain-out] %s", line)
 
         await proc.wait()
-        finished_at = datetime.utcnow().isoformat()
+        finished_at = datetime.now(timezone.utc).isoformat()
         tail = "\n".join(lines[-20:]) if lines else "(no output)"
 
         if proc.returncode == 0:
@@ -87,7 +87,7 @@ async def run_training_subprocess(model_names: list[str] | None = None) -> dict:
             "returncode": -1,
             "error": str(exc),
             "started_at": started_at,
-            "finished_at": datetime.utcnow().isoformat(),
+            "finished_at": datetime.now(timezone.utc).isoformat(),
             "models": model_names or ["all"],
         }
 
@@ -115,7 +115,7 @@ try:
     @shared_task(name="check_model_drift_task")
     def check_model_drift_task():
         logger.info("[retrain-celery] Drift check task received")
-        return {"drift_detected": False, "timestamp": datetime.utcnow().isoformat()}
+        return {"drift_detected": False, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 except ImportError:
     # No Celery installed — provide a compatible shim so existing callers

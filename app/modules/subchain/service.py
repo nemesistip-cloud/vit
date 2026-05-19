@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -175,7 +175,7 @@ async def relay_message(
 
     msg.status = MessageStatus.RELAYED
     msg.relay_proof = relay_proof or ("0x" + hashlib.sha3_256(f"relay:{message_id}:{secrets.token_hex(8)}".encode()).hexdigest())
-    msg.relayed_at = datetime.utcnow()
+    msg.relayed_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(msg)
     return msg
@@ -186,7 +186,7 @@ async def confirm_message(db: AsyncSession, message_id: int) -> CrossChainMessag
     if not msg:
         raise ValueError("Message not found")
     msg.status = MessageStatus.CONFIRMED
-    msg.confirmed_at = datetime.utcnow()
+    msg.confirmed_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(msg)
     return msg

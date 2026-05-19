@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -139,7 +139,7 @@ async def allocate_from_pool(
         reason=reason,
         status=AllocationStatus.RELEASED,
         tx_hash=tx_hash,
-        released_at=datetime.utcnow(),
+        released_at=datetime.now(timezone.utc),
     )
     db.add(alloc)
     await db.commit()
@@ -208,7 +208,7 @@ async def review_grant(
     if approved:
         proposal.status = ProposalStatus.APPROVED
         proposal.approved_amount = approved_amount or proposal.requested_amount
-        proposal.approved_at = datetime.utcnow()
+        proposal.approved_at = datetime.now(timezone.utc)
     else:
         proposal.status = ProposalStatus.REJECTED
 
@@ -237,7 +237,7 @@ async def execute_grant(db: AsyncSession, proposal_id: int) -> TreasuryAllocatio
         grant_id=proposal.id,
     )
     proposal.status = ProposalStatus.EXECUTED
-    proposal.executed_at = datetime.utcnow()
+    proposal.executed_at = datetime.now(timezone.utc)
     await db.commit()
     return alloc
 

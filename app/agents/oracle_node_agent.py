@@ -82,7 +82,7 @@ class OracleNodeAgent(BaseAgent):
                             home_score=match.home_goals or 0,
                             away_score=match.away_goals or 0,
                             result=match.actual_outcome,
-                            submitted_at=datetime.utcnow(),
+                            submitted_at=datetime.now(timezone.utc),
                         )
                         db.add(oracle_rec)
                         await db.flush()

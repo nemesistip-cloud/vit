@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -111,7 +111,7 @@ async def evaluate_sybil_risk(
     profile.anomaly_score = score
     risk = _risk_level(score)
     profile.risk_level = risk
-    profile.last_evaluated_at = datetime.utcnow()
+    profile.last_evaluated_at = datetime.now(timezone.utc)
 
     if risk in (SybilRisk.HIGH, SybilRisk.FLAGGED):
         await create_fraud_alert(
@@ -162,7 +162,7 @@ async def resolve_fraud_alert(
     alert.resolved = True
     alert.resolved_by = resolved_by
     alert.resolution_action = action
-    alert.resolved_at = datetime.utcnow()
+    alert.resolved_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(alert)
     return alert
@@ -185,7 +185,7 @@ async def propose_multisig(
         required_signers=required_signers,
         threshold=threshold,
         proposer_user_id=proposer_user_id,
-        expires_at=datetime.utcnow() + timedelta(hours=ttl_hours),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=ttl_hours),
     )
     db.add(op)
     await db.commit()
@@ -204,7 +204,7 @@ async def sign_multisig(
         raise ValueError("Operation not found")
     if op.status == MultiSigStatus.EXECUTED:
         raise ValueError("Already executed")
-    if op.expires_at and op.expires_at < datetime.utcnow():
+    if op.expires_at and op.expires_at < datetime.now(timezone.utc):
         op.status = MultiSigStatus.EXPIRED
         await db.commit()
         raise ValueError("Operation expired")
@@ -271,7 +271,7 @@ async def freeze_wallet(
         frozen_by=frozen_by,
         fraud_alert_id=fraud_alert_id,
         frozen_amount=frozen_amount,
-        auto_lift_at=datetime.utcnow() + timedelta(hours=auto_lift_hours)
+        auto_lift_at=datetime.now(timezone.utc) + timedelta(hours=auto_lift_hours)
         if auto_lift_hours
         else None,
     )
@@ -293,7 +293,7 @@ async def lift_freeze(
     freeze.status = FreezeStatus.LIFTED
     freeze.lifted_by = lifted_by
     freeze.lift_notes = notes
-    freeze.lifted_at = datetime.utcnow()
+    freeze.lifted_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(freeze)
     return freeze
@@ -307,7 +307,7 @@ async def check_rate_limit(
     window_minutes: int = 1,
     max_calls: int = 60,
 ) -> dict:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     window_start = now - timedelta(minutes=window_minutes)
 
     q = select(func.sum(RateLimitLedger.call_count)).where(

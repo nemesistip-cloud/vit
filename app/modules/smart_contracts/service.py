@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -51,7 +51,7 @@ async def bootstrap_builtin_contracts(db: AsyncSession) -> int:
                 abi=BUILTIN_ABIS[name],
                 rules={k: str(v) if isinstance(v, Decimal) else v
                        for k, v in BUILTIN_RULES.get(name, {}).items()},
-                state={"initialized_at": datetime.utcnow().isoformat()},
+                state={"initialized_at": datetime.now(timezone.utc).isoformat()},
                 is_builtin=True,
                 description=f"VIT built-in {name} contract",
                 version="1.0.0",
@@ -79,7 +79,7 @@ async def deploy_contract(
         raise ValueError(f"Contract '{name}' already deployed at {existing.address}")
 
     address = "0x" + hashlib.sha3_256(
-        f"{name}:{secrets.token_hex(16)}:{datetime.utcnow().isoformat()}".encode()
+        f"{name}:{secrets.token_hex(16)}:{datetime.now(timezone.utc).isoformat()}".encode()
     ).hexdigest()[:40]
 
     contract = SmartContract(
@@ -263,10 +263,10 @@ async def execute_upgrade(db: AsyncSession, upgrade_id: int) -> SmartContract:
     contract.abi = upgrade.new_abi
     contract.rules = upgrade.new_rules
     contract.version = upgrade.to_version
-    contract.updated_at = datetime.utcnow()
+    contract.updated_at = datetime.now(timezone.utc)
     upgrade.approved = True
     upgrade.executed = True
-    upgrade.executed_at = datetime.utcnow()
+    upgrade.executed_at = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(contract)

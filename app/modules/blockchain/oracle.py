@@ -6,7 +6,7 @@ agreement before triggering settlement. Disputes are flagged for admin.
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -86,7 +86,7 @@ async def oracle_stats(db: AsyncSession = Depends(get_db)):
         "consensus_rate_pct": consensus_rate,
         "sources": list(source_map.values()),
         "recent": recent,
-        "snapshot_at": datetime.utcnow().isoformat(),
+        "snapshot_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -129,7 +129,7 @@ async def submit_oracle_result(
         home_score=body.home_score,
         away_score=body.away_score,
         result=outcome,
-        submitted_at=datetime.utcnow(),
+        submitted_at=datetime.now(timezone.utc),
     )
     db.add(oracle_rec)
     await db.flush()

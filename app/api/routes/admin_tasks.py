@@ -10,7 +10,7 @@ This router exposes an admin-friendly wrapper at /admin/tasks with:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -189,7 +189,7 @@ async def create_admin_task(
         max_completions=request.max_completions or 1,
         requirements=requirements,
         status=status,
-        updated_at=datetime.utcnow(),
+        updated_at=datetime.now(timezone.utc),
     )
     return _task_to_admin(task)
 

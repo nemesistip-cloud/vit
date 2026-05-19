@@ -215,7 +215,7 @@ async def get_ticket_candidates(
     )
 
     if only_upcoming:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         q = q.where(Match.kickoff_time > now, Match.actual_outcome.is_(None))
 
     result = await db.execute(q.order_by(Prediction.timestamp.desc()).limit(500))
@@ -362,7 +362,7 @@ async def build_ticket(body: TicketBuildRequest):
         kelly = max(0.0, (b * p - q) / b) if b > 0 else 0.0
         kelly = min(kelly, 0.03)  # cap accumulator stakes at 3% of bankroll
 
-        avg_confidence = sum((leg.confidence or leg.probability) for leg in legs) / len(legs)
+        avg_confidence = sum((leg.confidence or leg.probability) for leg in legs) / len(legs) if legs else 0.0
 
         if adjusted_edge < body.min_combined_edge:
             continue

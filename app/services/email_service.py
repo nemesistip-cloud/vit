@@ -156,7 +156,10 @@ async def _send_via_smtp(to: str, subject: str, html: str) -> bool:
         msg["To"] = to
         msg.attach(_mt.MIMEText(html, "html"))
 
-        port = int(os.getenv("SMTP_PORT", "587"))
+        try:
+            port = int(os.getenv("SMTP_PORT", "587"))
+        except (ValueError, TypeError):
+            port = 587
         user = os.getenv("SMTP_USER", "")
         passwd = os.getenv("SMTP_PASS", "")
 

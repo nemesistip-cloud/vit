@@ -13,7 +13,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, Header
@@ -22,11 +22,15 @@ from sqlalchemy import select
 
 from app.db.database import AsyncSessionLocal
 from app.modules.wallet.models import WalletTransaction, Wallet
+from app.config import PAYSTACK_WEBHOOK_SECRET as _PAYSTACK_WEBHOOK_SECRET
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 logger = logging.getLogger(__name__)
 
-USDT_MIN_CONFIRMATIONS  = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
+try:
+    USDT_MIN_CONFIRMATIONS = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
+except (ValueError, TypeError):
+    USDT_MIN_CONFIRMATIONS = 3
 
 
 async def _credit_wallet_by_reference(reference: str) -> bool:
@@ -48,7 +52,7 @@ async def _credit_wallet_by_reference(reference: str) -> bool:
         current = getattr(wallet, balance_attr, 0) or 0
         setattr(wallet, balance_attr, current + tx.amount)
         tx.status = "confirmed"
-        tx.processed_at = datetime.utcnow()
+        tx.processed_at = datetime.now(timezone.utc)
         await db.commit()
         logger.info(f"Webhook credited {tx.amount} {tx.currency} to wallet {tx.wallet_id} (ref={reference})")
         return True
@@ -74,7 +78,7 @@ async def _activate_subscription(user_id: int, plan: str, billing: str) -> bool:
 
             # Also update/create a UserSubscription record for API-key-based gating
             from app.db.models import UserSubscription
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             days = 365 if billing == "yearly" else 30
             # Use a stable hash of user_id as the "api_key" for webhook-activated subs
             import hashlib
@@ -175,7 +179,7 @@ async def _mark_withdrawal_processed(reference: str) -> bool:
         if not tx:
             return False
         tx.status = "confirmed"
-        tx.processed_at = datetime.utcnow()
+        tx.processed_at = datetime.now(timezone.utc)
         await db.commit()
         return True
 
@@ -186,7 +190,7 @@ async def _mark_withdrawal_processed(reference: str) -> bool:
 async def paystack_webhook(request: Request):
     body = await request.body()
     signature = request.headers.get("x-paystack-signature", "")
-    secret = os.getenv("PAYSTACK_WEBHOOK_SECRET", "")
+    secret = _PAYSTACK_WEBHOOK_SECRET or os.getenv("PAYSTACK_WEBHOOK_SECRET", "")
 
     if secret:
         computed = hmac.new(secret.encode(), body, hashlib.sha512).hexdigest()
@@ -315,7 +319,10 @@ class USDTWebhookBody(BaseModel):
 
 @router.post("/usdt")
 async def usdt_webhook(body: USDTWebhookBody):
-    min_conf = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
+    try:
+        min_conf = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
+    except (ValueError, TypeError):
+        min_conf = USDT_MIN_CONFIRMATIONS
     if body.confirmations < min_conf:
         return {
             "status": "waiting_confirmations",

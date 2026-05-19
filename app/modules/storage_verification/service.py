@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -59,7 +59,7 @@ async def register_content(
         ref_type=ref_type,
         ref_id=ref_id,
         is_public=is_public,
-        registered_at=datetime.utcnow(),
+        registered_at=datetime.now(timezone.utc),
     )
     db.add(entry)
     await db.commit()
@@ -96,13 +96,13 @@ async def submit_storage_proof(
         proof_hash=proof_hash,
         stake_locked=stake_locked,
         status=StorageProofStatus.ANCHORED,
-        submitted_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(days=validity_days),
+        submitted_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=validity_days),
     )
     db.add(proof)
 
     content.replication_factor += 1
-    content.last_verified_at = datetime.utcnow()
+    content.last_verified_at = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(proof)
@@ -129,7 +129,7 @@ async def issue_challenge(
         challenger_user_id=challenger_user_id,
         challenge_nonce=nonce,
         expected_response_hash=expected,
-        response_deadline=datetime.utcnow() + timedelta(hours=response_hours),
+        response_deadline=datetime.now(timezone.utc) + timedelta(hours=response_hours),
     )
     db.add(challenge)
     proof.status = StorageProofStatus.CHALLENGED
@@ -148,26 +148,26 @@ async def respond_to_challenge(
         raise ValueError("Challenge not found")
     if challenge.status != ChallengeStatus.OPEN:
         raise ValueError("Challenge not open")
-    if datetime.utcnow() > challenge.response_deadline:
+    if datetime.now(timezone.utc) > challenge.response_deadline:
         challenge.status = ChallengeStatus.EXPIRED
         await db.commit()
         raise ValueError("Challenge deadline passed")
 
     response_hash = _sha3(f"{challenge.challenge_nonce}:{response_data}")
     challenge.actual_response_hash = response_hash
-    challenge.responded_at = datetime.utcnow()
+    challenge.responded_at = datetime.now(timezone.utc)
 
     valid = response_hash == challenge.expected_response_hash
     challenge.status = (
         ChallengeStatus.RESOLVED_VALID if valid else ChallengeStatus.RESOLVED_INVALID
     )
-    challenge.resolved_at = datetime.utcnow()
+    challenge.resolved_at = datetime.now(timezone.utc)
 
     proof = await db.get(StorageProof, challenge.proof_id)
     if proof:
         if valid:
             proof.status = StorageProofStatus.VERIFIED
-            proof.verified_at = datetime.utcnow()
+            proof.verified_at = datetime.now(timezone.utc)
             reward = proof.stake_locked * Decimal("0.1")
             proof.reward_earned = reward
         else:
@@ -206,7 +206,7 @@ async def attest_availability(
         existing.available = available
         existing.latency_ms = latency_ms
         existing.signature = signature
-        existing.attested_at = datetime.utcnow()
+        existing.attested_at = datetime.now(timezone.utc)
         await db.commit()
         await db.refresh(existing)
         return existing

@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -108,7 +108,7 @@ def _compute_tx_hash(contract_address: str, method: str, params: dict, nonce: in
         "method": method,
         "params": params,
         "nonce": nonce,
-        "ts": datetime.utcnow().isoformat(),
+        "ts": datetime.now(timezone.utc).isoformat(),
         "salt": secrets.token_hex(8),
     }, sort_keys=True, default=str)
     return "0x" + hashlib.sha3_256(raw.encode()).hexdigest()
@@ -302,7 +302,7 @@ def _exec_staking(method: str, params: dict, state: dict, rules: dict, addr: str
         stakes[stake_id] = {
             "validator": validator, "amount": str(amount),
             "lock_days": lock_days, "apy": str(apy), "active": True,
-            "staked_at": datetime.utcnow().isoformat(),
+            "staked_at": datetime.now(timezone.utc).isoformat(),
         }
         events.append({"name": "Staked", "topic": _compute_event_topic("Staked", addr),
                        "data": {"stake_id": stake_id, "amount": str(amount), "validator": validator}})
@@ -409,7 +409,7 @@ def _exec_governance(method: str, params: dict, state: dict, rules: dict, addr: 
             "proposer": caller,
             "votes_for": 0, "votes_against": 0,
             "status": "active",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         events.append({"name": "Proposed", "topic": _compute_event_topic("Proposed", addr),
                        "data": {"proposal_id": prop_id, "title": params.get("title")}})

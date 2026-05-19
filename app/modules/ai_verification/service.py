@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -89,7 +89,7 @@ async def anchor_inference(
     if not model:
         raise ValueError(f"Model {model_id} not registered")
 
-    ts = datetime.utcnow().isoformat()
+    ts = datetime.now(timezone.utc).isoformat()
     input_hash = _hash_input(input_data)
     output_hash = _hash_output(output_data)
     proof_hash = _compute_proof_hash(input_hash, output_hash, model_id, ts)
@@ -106,7 +106,7 @@ async def anchor_inference(
         input_summary=input_summary,
         output_summary=output_summary,
         status=VerificationStatus.ANCHORED,
-        anchored_at=datetime.utcnow(),
+        anchored_at=datetime.now(timezone.utc),
         block_number=0,
     )
     db.add(proof)
@@ -130,7 +130,7 @@ async def verify_proof(
 
     proof.status = VerificationStatus.VERIFIED
     proof.verified_by_user_id = verifier_user_id
-    proof.verified_at = datetime.utcnow()
+    proof.verified_at = datetime.now(timezone.utc)
 
     model = await db.get(AIModelAttestation, proof.model_attestation_id)
     if model:
@@ -188,7 +188,7 @@ async def resolve_dispute(
     dispute.resolver_user_id = resolver_user_id
     dispute.resolution_notes = resolution_notes
     dispute.stake_slashed = slash_amount
-    dispute.resolved_at = datetime.utcnow()
+    dispute.resolved_at = datetime.now(timezone.utc)
 
     proof = await db.get(InferenceProof, dispute.proof_id)
     if proof:

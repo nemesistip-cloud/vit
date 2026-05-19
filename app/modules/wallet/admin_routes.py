@@ -1,5 +1,5 @@
 # app/modules/wallet/admin_routes.py
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -64,7 +64,7 @@ async def approve_withdrawal(
     req.status = "processed"
     req.reviewed_by = user.id
     req.review_note = note
-    req.processed_at = datetime.utcnow()
+    req.processed_at = datetime.now(timezone.utc)
     await db.commit()
     return {"status": "processed"}
 

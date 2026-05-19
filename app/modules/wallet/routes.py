@@ -275,7 +275,7 @@ async def initiate_deposit(
         "reference": ref,
         "payment_link": fallback_link,
         "gateway_error": gateway_error,
-        "expires_at": (datetime.utcnow() + timedelta(hours=1)).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "currency": request.currency,
         "amount": request.amount,
         "method": request.method,
@@ -327,7 +327,7 @@ async def verify_deposit(
         if tx:
             tx.status = "confirmed"
             tx.amount = verified_amount
-            tx.processed_at = datetime.utcnow()
+            tx.processed_at = datetime.now(timezone.utc)
         else:
             import uuid as _uuid
             db.add(_WalletTx(
@@ -408,7 +408,7 @@ async def submit_kyc(
 
     from app.modules.wallet.models import Wallet as _Wallet
     from app.db.models import User as _User
-    from datetime import datetime as _dt
+    from datetime import datetime as _dt, timezone as _tz
 
     result = await db.execute(select(_Wallet).where(_Wallet.user_id == current_user.id))
     wallet = result.scalar_one_or_none()
@@ -442,7 +442,7 @@ async def submit_kyc(
         if hasattr(db_user, "kyc_status"):
             db_user.kyc_status = "pending"
         if hasattr(db_user, "kyc_submitted_at"):
-            db_user.kyc_submitted_at = _dt.utcnow()
+            db_user.kyc_submitted_at = _dt.now(_tz.utc)
 
     await db.commit()
 
@@ -719,7 +719,7 @@ async def export_statement_csv(
         ])
     output.seek(0)
 
-    filename = f"vit_statement_{current_user.username}_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    filename = f"vit_statement_{current_user.username}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -752,7 +752,7 @@ async def get_exchange_rates(db: AsyncSession = Depends(get_db)):
         },
         "ngn_per_usd": ngn_rate,
         "vit_price_usd": vit_usd,
-        "updated_at": __import__("datetime").datetime.utcnow().isoformat(),
+        "updated_at": __import__("datetime").datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -924,7 +924,7 @@ async def get_vitcoin_price_history(
 ):
     """Return VITCoin price history for the last N days (for sparkline charts)."""
     from datetime import timezone as _tz
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     result = await db.execute(
         select(VITCoinPriceHistory)
         .where(VITCoinPriceHistory.calculated_at >= cutoff)

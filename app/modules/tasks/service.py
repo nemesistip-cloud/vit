@@ -1,7 +1,7 @@
 """Task system service layer — handles task creation, completion, and rewards."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
 
@@ -81,7 +81,7 @@ class TaskService:
             query = query.where(Task.is_featured == True)
 
         # Filter out expired tasks
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         query = query.where(or_(Task.expires_at.is_(None), Task.expires_at > now))
 
         query = query.order_by(Task.sort_order, Task.created_at.desc()).limit(limit)
@@ -170,7 +170,7 @@ class TaskService:
             if hasattr(task, key):
                 setattr(task, key, value)
 
-        task.updated_at = datetime.utcnow()
+        task.updated_at = datetime.now(timezone.utc)
         await db.commit()
         await db.refresh(task)
         return task
@@ -240,7 +240,7 @@ class TaskService:
 
         # Update progress — guard against None before DB flush applies column default
         completion.current_progress = (completion.current_progress or 0) + progress_increment
-        completion.updated_at = datetime.utcnow()
+        completion.updated_at = datetime.now(timezone.utc)
 
         # Check if completed
         if (completion.current_progress >= completion.required_progress and
@@ -278,7 +278,7 @@ class TaskService:
         # Mark as completed
         completion.is_completed = True
         completion.completed_count += 1
-        completion.last_completed_at = datetime.utcnow()
+        completion.last_completed_at = datetime.now(timezone.utc)
         completion.total_vit_earned += earned_vit
         completion.total_xp_earned += task.xp_reward
 
@@ -308,14 +308,14 @@ class TaskService:
             user = result.scalar_one_or_none()
             if user:
                 user.total_xp += task.xp_reward
-                user.updated_at = datetime.utcnow()
+                user.updated_at = datetime.now(timezone.utc)
 
                 # Check for XP-based task completion
                 await TaskService.check_xp_based_tasks(db, completion.user_id)
 
         # Set next reset time for recurring tasks
         if task.task_type in [TaskType.DAILY.value, TaskType.WEEKLY.value, TaskType.MONTHLY.value]:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             if task.task_type == TaskType.DAILY.value:
                 completion.next_reset_at = now + timedelta(days=1)
             elif task.task_type == TaskType.WEEKLY.value:
@@ -336,7 +336,7 @@ class TaskService:
     @staticmethod
     async def reset_expired_tasks(db: AsyncSession) -> int:
         """Reset progress for tasks that have reached their reset time."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         result = await db.execute(
             select(UserTaskCompletion)
             .where(

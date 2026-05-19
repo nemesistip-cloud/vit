@@ -1140,9 +1140,9 @@ async def _run_simulation(job_id: str, config: SimulateConfig):
 
         def _progress_cb(done: int, total_: int):
             job["matches_generated"] = done
-            job["progress_pct"] = round(done / total_ * 100, 1)
+            job["progress_pct"] = round(done / total_ * 100, 1) if total_ > 0 else 0.0
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         stats = await loop.run_in_executor(
             None,
             lambda: engine.generate_to_file(_SIM_JSONL, chunk_size=chunk_size, progress_cb=_progress_cb)
