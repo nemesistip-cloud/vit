@@ -2,6 +2,9 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  company_name?: string | null;
+  phone?: string | null;
+  google_id?: string | null;
   role: string;
   admin_role?: string | null;
   subscription_tier: string;

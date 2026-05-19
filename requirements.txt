@@ -43,3 +43,4 @@ uvicorn[standard]==0.34.0
 xgboost
 openai
 anthropic
+google-auth
