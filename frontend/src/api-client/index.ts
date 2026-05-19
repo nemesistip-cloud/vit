@@ -10,6 +10,7 @@ export type { User, Match, Prediction, Wallet, Transaction, Validator, TrainingJ
 export const API = {
   me: "/auth/me",
   login: "/auth/login",
+  google: "/auth/google",
   register: "/auth/register",
   dashboard: {
     summary: "/api/dashboard/summary",
@@ -188,8 +189,14 @@ export function useLogin() {
 }
 
 export function useRegister() {
-  return useMutation<AuthResponse, Error, { data: { username: string; email: string; password: string; referral_code?: string } }>({
+  return useMutation<AuthResponse, Error, { data: { username: string; email: string; password: string; company_name?: string; phone?: string; referral_code?: string } }>({
     mutationFn: ({ data }) => apiPost<AuthResponse>(API.register, data),
+  });
+}
+
+export function useGoogleLogin() {
+  return useMutation<AuthResponse, Error, { id_token: string }>({
+    mutationFn: (data) => apiPost<AuthResponse>(API.google, data),
   });
 }
 

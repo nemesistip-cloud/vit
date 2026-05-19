@@ -966,6 +966,10 @@ async def lifespan(app: FastAPI):
                 print("✅ Subscription plans seeded (Free / Pro / Elite)")
             else:
                 print(f"✅ Subscription plans: {_count} already seeded")
+
+            # Seed wallet-based plans (Free / Analyst / Pro / Elite)
+            from app.modules.wallet.services import WalletService
+            await WalletService.seed_wallet_subscription_plans(_db)
     except Exception as _e:
         print(f"⚠️  Subscription plan seeding failed: {_e}")
 
@@ -979,6 +983,21 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import select as _select
 
         async with AsyncSessionLocal() as _db:
+            # Fetch welcome bonus config
+            from app.modules.wallet.models import PlatformConfig as _PC
+            _bonus_row = (await _db.execute(
+                _select(_PC).where(_PC.key == "welcome_bonus_vit")
+            )).scalar_one_or_none()
+            _welcome_bonus = _Decimal("100.00000000")
+            if _bonus_row and _bonus_row.value:
+                try:
+                    if isinstance(_bonus_row.value, dict):
+                        _welcome_bonus = _Decimal(str(_bonus_row.value.get("amount", _bonus_row.value.get("value", 100))))
+                    else:
+                        _welcome_bonus = _Decimal(str(_bonus_row.value))
+                except Exception:
+                    pass
+
             _users = (await _db.execute(_select(_User))).scalars().all()
             _created = 0
             for _u in _users:
@@ -989,7 +1008,7 @@ async def lifespan(app: FastAPI):
                     _db.add(_Wallet(
                         id=str(_uuid.uuid4()),
                         user_id=_u.id,
-                        vitcoin_balance=_Decimal("100.00000000"),
+                        vitcoin_balance=_welcome_bonus,
                     ))
                     _created += 1
             if _created:

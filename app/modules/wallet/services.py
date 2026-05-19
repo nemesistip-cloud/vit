@@ -321,6 +321,73 @@ class WalletService:
         result = await self.db.execute(query)
         return total, result.scalars().all()
 
+    @staticmethod
+    async def seed_wallet_subscription_plans(db: AsyncSession):
+        """
+        Idempotently seed multi-currency wallet-based subscription plans.
+        Tiers matched to core subscription definitions.
+        """
+        from app.modules.wallet.models import WalletSubscriptionPlan as _Plan
+        from sqlalchemy import select as _select
+
+        # Free, Analyst, Pro, Elite tiers
+        _plans = [
+            {
+                "name": "free",
+                "description": "Basic platform access",
+                "price_usd": Decimal("0.00"),
+                "price_vitcoin": Decimal("0.00"),
+                "duration_days": 30,
+                "features": ["1x2_markets"],
+            },
+            {
+                "name": "analyst",
+                "description": "Professional analytics & API access",
+                "price_usd": Decimal("49.00"),
+                "price_vitcoin": Decimal("500.00"),
+                "duration_days": 30,
+                "features": ["1x2_markets", "over_under", "api_access", "ai_insights"],
+            },
+            {
+                "name": "pro",
+                "description": "Advanced tools for serious bettors",
+                "price_usd": Decimal("99.00"),
+                "price_vitcoin": Decimal("1000.00"),
+                "duration_days": 30,
+                "features": ["all_markets", "accumulator_builder", "priority_support"],
+            },
+            {
+                "name": "elite",
+                "description": "Full platform access and validator eligibility",
+                "price_usd": Decimal("199.00"),
+                "price_vitcoin": Decimal("2000.00"),
+                "duration_days": 30,
+                "features": ["unlimited_predictions", "validator_rewards", "governance"],
+            }
+        ]
+
+        inserted = 0
+        for p in _plans:
+            existing = (await db.execute(
+                _select(_Plan).where(_Plan.name == p["name"])
+            )).scalar_one_or_none()
+
+            if not existing:
+                db.add(_Plan(
+                    name=p["name"],
+                    description=p["description"],
+                    price_usd=p["price_usd"],
+                    price_vitcoin=p["price_vitcoin"],
+                    duration_days=p["duration_days"],
+                    features=p["features"],
+                    is_active=True
+                ))
+                inserted += 1
+
+        if inserted > 0:
+            await db.commit()
+            logger.info(f"Seeded {inserted} wallet subscription plans")
+
 
 class WithdrawalService:
     """Withdrawal request handling."""

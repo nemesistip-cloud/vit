@@ -396,7 +396,10 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     username = Column(String(100), unique=True, nullable=False, index=True)
-    hashed_password = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=True)
+    company_name = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    google_id = Column(String(255), unique=True, nullable=True, index=True)
     role = Column(String(20), default="user")  # user, admin, validator
     # RBAC extensions
     admin_role = Column(String(20), nullable=True)          # super_admin, admin, auditor, support

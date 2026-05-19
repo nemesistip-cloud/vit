@@ -31,6 +31,8 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     username: str
     password: str
+    company_name: str | None = None
+    phone: str | None = None
     referral_code: str | None = None
 
     @field_validator("password")
@@ -89,6 +91,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+
+
 # ── Helpers ───────────────────────────────────────────────────────────
 
 def _is_first_user() -> bool:
@@ -130,6 +136,8 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         email=body.email.lower(),
         username=body.username,
         hashed_password=hash_password(body.password),
+        company_name=body.company_name,
+        phone=body.phone,
         role="admin" if is_first else "user",
         is_active=True,
         is_verified=False,
@@ -137,11 +145,26 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()  # assigns user.id without committing
 
-    # Auto-create wallet with 100 VITCoin onboarding bonus
+    # Auto-create wallet with configurable onboarding bonus (default 100)
+    from app.modules.wallet.models import PlatformConfig
+    bonus_row = (await db.execute(
+        select(PlatformConfig).where(PlatformConfig.key == "welcome_bonus_vit")
+    )).scalar_one_or_none()
+
+    welcome_bonus = Decimal("100.00000000")
+    if bonus_row and bonus_row.value:
+        try:
+            if isinstance(bonus_row.value, dict):
+                welcome_bonus = Decimal(str(bonus_row.value.get("amount", bonus_row.value.get("value", 100))))
+            else:
+                welcome_bonus = Decimal(str(bonus_row.value))
+        except Exception:
+            welcome_bonus = Decimal("100.00000000")
+
     wallet = Wallet(
         id=str(uuid.uuid4()),
         user_id=user.id,
-        vitcoin_balance=Decimal("100.00000000"),
+        vitcoin_balance=welcome_bonus,
     )
     db.add(wallet)
 
@@ -286,6 +309,108 @@ async def complete_login_2fa(body: Complete2FARequest, db: AsyncSession = Depend
         username=user.username,
         role=user.role,
     )
+
+
+@router.post("/google", response_model=TokenResponse)
+async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_db)):
+    """Authenticate a user using a Google ID token."""
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not google_client_id:
+        # Fallback to check if we can at least verify without specific client ID
+        # but usually it's required for security.
+        logger.warning("GOOGLE_CLIENT_ID not set in environment")
+
+    try:
+        # Verify the ID token
+        idinfo = id_token.verify_oauth2_token(
+            body.id_token, google_requests.Request(), google_client_id
+        )
+
+        if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
+            raise ValueError("Wrong issuer.")
+
+        email = idinfo["email"].lower()
+        google_id = idinfo["sub"]
+        name = idinfo.get("name", email.split("@")[0])
+
+        # Check if user exists by google_id
+        result = await db.execute(select(User).where(User.google_id == google_id))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            # Check if user exists by email (link accounts)
+            result = await db.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+            if user:
+                user.google_id = google_id
+                await db.commit()
+            else:
+                # Register new user
+                from sqlalchemy import func as _func
+                is_first = ((await db.execute(select(_func.count(User.id)))).scalar() or 0) == 0
+
+                user = User(
+                    email=email,
+                    username=name,
+                    google_id=google_id,
+                    role="admin" if is_first else "user",
+                    is_active=True,
+                    is_verified=True,  # Google emails are pre-verified
+                )
+                db.add(user)
+                await db.flush()
+
+                # Create wallet
+                from app.modules.wallet.models import PlatformConfig
+                bonus_row = (await db.execute(
+                    select(PlatformConfig).where(PlatformConfig.key == "welcome_bonus_vit")
+                )).scalar_one_or_none()
+
+                welcome_bonus = Decimal("100.00000000")
+                if bonus_row and bonus_row.value:
+                    try:
+                        if isinstance(bonus_row.value, dict):
+                            welcome_bonus = Decimal(str(bonus_row.value.get("amount", 100)))
+                        else:
+                            welcome_bonus = Decimal(str(bonus_row.value))
+                    except Exception:
+                        pass
+
+                from app.modules.wallet.models import Wallet
+                wallet = Wallet(
+                    id=str(uuid.uuid4()),
+                    user_id=user.id,
+                    vitcoin_balance=welcome_bonus,
+                )
+                db.add(wallet)
+                await db.commit()
+
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account is deactivated")
+
+        user.last_login = datetime.now(timezone.utc)
+        await db.commit()
+
+        access_token = create_access_token({"sub": str(user.id), "role": user.role})
+        refresh_token = create_refresh_token({"sub": str(user.id)})
+        await _write_audit(db, "user.login.google", user.email, "auth", str(user.id))
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
+    except Exception as e:
+        logger.error(f"Google login error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error during Google login")
 
 
 @router.post("/refresh", response_model=TokenResponse)
