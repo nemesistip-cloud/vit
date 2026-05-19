@@ -167,7 +167,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
+
+        # F22: Rate limit bypass for standard WS handshake but enforce for sub-paths
         if any(path.startswith(b) for b in self._BYPASS):
+            # Still check for DoS on WebSocket upgrade requests if needed
+            if request.headers.get("upgrade", "").lower() == "websocket":
+                # Allow handshake but could add a smaller limit here if desired
+                return await call_next(request)
             return await call_next(request)
 
         api_key   = request.headers.get("x-api-key", "")

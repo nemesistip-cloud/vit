@@ -140,7 +140,9 @@ def _verify_key(api_key: Optional[str] = None):
 # API KEY MANAGEMENT
 # ======================================================================
 
-_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".env")
+# F23: Robust .env path resolution
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+_ENV_PATH = os.path.join(_BASE_DIR, ".env")
 
 # Registry of every configurable key exposed through the admin UI
 _KEY_REGISTRY = [

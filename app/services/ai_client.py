@@ -456,3 +456,23 @@ def provider_status() -> dict[str, dict]:
 
     result["puter"] = puter_status()
     return result
+
+
+async def verify_provider(name: str) -> bool:
+    """F20: Active health probe for AI providers.
+
+    Performs a minimal 'Hello' call to verify API key validity.
+    """
+    prompt = "Hello. Reply with 'ok' and nothing else."
+    try:
+        if name == "gemini":
+            return await _try_gemini(prompt, 5, 0.1) is not None
+        if name == "claude":
+            return await _try_claude(prompt, 5, 0.1) is not None
+        if name == "openai":
+            return await _try_openai(prompt, 5, 0.1) is not None
+        if name == "grok":
+            return await _try_grok(prompt, 5, 0.1) is not None
+        return False
+    except Exception:
+        return False

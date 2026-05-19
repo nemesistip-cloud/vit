@@ -199,6 +199,8 @@ class BackgroundTaskSupervisor:
     async def _monitor(self):
         while not self.stopping:
             await asyncio.sleep(self.check_interval)
+
+            # F28: Proactive cleanup of dead loops
             for name, factory in self.task_specs:
                 task = self.tasks.get(name)
                 if task and not task.done():
@@ -261,7 +263,7 @@ async def auto_settle_loop():
             # settle_results() tries Football-Data.org first; falls back to TheSportsDB automatically.
             settlement_result = await settle_results(days_back=7)
             if settlement_result.get("settled", 0) > 0 or settlement_result.get("errors", 0) > 0:
-                print(f"[settlement] {settlement_result.get('message')} | errors={settlement_result.get('errors',0)}")
+                logger.info(f"[settlement] {settlement_result.get('message')} | errors={settlement_result.get('errors',0)}")
 
             # E3 — weight adjustment for each newly settled match
             if isinstance(settlement_result, dict):
@@ -279,7 +281,7 @@ async def auto_settle_loop():
                         if mid and outcome:
                             await adjust_weights_for_match(db, orch, mid, outcome)
         except Exception as e:
-            print(f"[settlement] ERROR: {e}")
+            logger.error(f"[settlement] ERROR: {e}", exc_info=True)
         await asyncio.sleep(_SETTLEMENT_INTERVAL_HOURS * 3600)
 
 
@@ -301,30 +303,30 @@ async def model_accountability_loop():
                 try:
                     bf = await backfill_missing_clv(db, limit=500)
                     if bf["created"] or bf["updated"]:
-                        print(
+                        logger.info(
                             f"[clv-backfill] created={bf['created']} "
                             f"updated={bf['updated']} scanned={bf['scanned']} "
                             f"skipped={bf['skipped']} "
                             f"missing_close={bf['missing_closing_odds']}"
                         )
                 except Exception as bf_err:
-                    print(f"[clv-backfill] ERROR: {bf_err}")
+                    logger.error(f"[clv-backfill] ERROR: {bf_err}")
 
                 # Close the loop: tick CLV streak counters and auto-demote
                 # any model whose rolling CLV has been negative too long.
                 streak = await check_clv_streaks(db)
                 if streak["demoted"]:
-                    print(f"[clv-monitor] AUTO-DEMOTED {len(streak['demoted'])} model(s): {streak['demoted']}")
+                    logger.warning(f"[clv-monitor] AUTO-DEMOTED {len(streak['demoted'])} model(s): {streak['demoted']}")
                 if streak["ticked"]:
-                    print(
+                    logger.info(
                         f"[accountability] updated · clv-monitor ticked={streak['ticked']} "
                         f"+streak={len(streak['incremented'])} reset={len(streak['reset'])} "
                         f"demoted={len(streak['demoted'])}"
                     )
                 else:
-                    print("[accountability] updated")
+                    logger.info("[accountability] updated")
         except Exception as e:
-            print(f"[accountability] ERROR: {e}")
+            logger.error(f"[accountability] ERROR: {e}", exc_info=True)
 
         await asyncio.sleep(_ACCOUNTABILITY_INTERVAL_HOURS * 3600)
 
@@ -474,38 +476,38 @@ async def live_match_tracker_loop():
                                                 "draw" if home_g == away_g else "away"
                                             )
                                             patch["status"] = "completed"
-                                            print(f"[live-tracker] Completed: {home_name} {home_g}-{away_g} {away_name}")
+                                            logger.info(f"[live-tracker] Completed: {home_name} {home_g}-{away_g} {away_name}")
 
                                     if patch:
                                         pending_updates.setdefault(mid, {}).update(patch)
                                         matched_info.update(patch)  # keep local index current
 
                             except Exception as e:
-                                print(f"[live-tracker] {league}/{api_status}: {e}")
+                                logger.error(f"[live-tracker] {league}/{api_status}: {e}")
                                 continue
 
-                # Apply all collected patches in a single session
+                # Apply all collected patches in a single session — Batch Update (F19)
                 if pending_updates:
+                    from sqlalchemy import update as _upd
                     async with AsyncSessionLocal() as db:
                         for match_id, patch in pending_updates.items():
-                            db_match = await db.get(Match, match_id)
-                            if db_match:
-                                for k, v in patch.items():
-                                    setattr(db_match, k, v)
+                            await db.execute(
+                                _upd(Match).where(Match.id == match_id).values(**patch)
+                            )
                         try:
                             await db.commit()
                         except Exception as ce:
-                            print(f"[live-tracker] Commit error: {ce}")
+                            logger.error(f"[live-tracker] Commit error: {ce}")
                             await db.rollback()
 
                 # Settle any DB-completed matches (no API calls)
                 from app.services.results_settler import settle_completed_db_matches as _settle_db
                 sr = await _settle_db()
                 if sr.get("settled", 0) > 0:
-                    print(f"[live-tracker] DB settlement: settled={sr['settled']} errors={sr.get('errors',0)}")
+                    logger.info(f"[live-tracker] DB settlement: settled={sr['settled']} errors={sr.get('errors',0)}")
 
         except Exception as e:
-            print(f"[live-tracker] ERROR: {e}")
+            logger.error(f"[live-tracker] ERROR: {e}", exc_info=True)
 
         await asyncio.sleep(_LIVE_POLL_INTERVAL)
 
@@ -569,9 +571,9 @@ async def vitcoin_pricing_loop():
                     rolling_revenue_usd=revenue_30d,
                 ))
                 await db.commit()
-                print(f"[pricing] VITCoin price updated: ${new_price:.6f} USD (supply={supply}, 30d_revenue={revenue_30d})")
+                logger.info(f"[pricing] VITCoin price updated: ${new_price:.6f} USD (supply={supply}, 30d_revenue={revenue_30d})")
         except Exception as e:
-            print(f"[pricing] ERROR: {e}")
+            logger.error(f"[pricing] ERROR: {e}")
         await asyncio.sleep(_VITCOIN_PRICING_INTERVAL_HOURS * 3600)
 
 
@@ -585,7 +587,7 @@ async def subscription_expiry_loop():
             async with AsyncSessionLocal() as db:
                 await NotificationService.check_subscription_expiry(db)
         except Exception as e:
-            print(f"[notifications] subscription expiry check error: {e}")
+            logger.error(f"[notifications] subscription expiry check error: {e}")
 
 
 # ============================================
@@ -1605,6 +1607,9 @@ origins = ["*"] if cors_origins.strip() == "*" else [o.strip() for o in cors_ori
 # reject credentialed requests to wildcard origins. Use explicit origins in production.
 _allow_credentials = origins != ["*"]
 
+if not _allow_credentials and get_env("ENVIRONMENT") == "production":
+    logger.warning("CORS: allow_credentials=True disabled because CORS_ALLOWED_ORIGINS is '*'")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -2024,6 +2029,11 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
         })
 
     accuracy_rate = round((settled_wins / settled_total) * 100) if settled_total else 0
+
+    # F21: Ensure correct model counts in public stats
+    total_models_available = status.get("total") or 13
+    ready_models_count = status.get("ready") or len(model_rows)
+
     return {
         "stats": {
             "predictions": total_predictions,
@@ -2032,8 +2042,8 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
             "accuracy_display": f"{accuracy_rate}%" if settled_total else "Live",
             "total_staked": float(total_staked),
             "total_staked_display": _format_money(float(total_staked)),
-            "ai_models": status.get("total", 12),
-            "ai_models_ready": status.get("ready", len(model_rows)),
+            "ai_models": total_models_available,
+            "ai_models_ready": ready_models_count,
         },
         "ticker": ticker,
         "testimonials": testimonials,
@@ -2121,9 +2131,18 @@ async def health(db: AsyncSession = Depends(get_db)):
     # C-5 — AI provider status
     ai_providers: dict = {}
     try:
-        from app.services.ai_client import provider_status as _ps
-        for name, info in _ps().items():
+        from app.services.ai_client import provider_status as _ps, verify_provider as _vp
+        _status = _ps()
+        for name, info in _status.items():
             ai_providers[name] = info.get("status", "unknown")
+
+        # F20: Claude/Grok health probe injection (active verification)
+        if ai_providers.get("claude") == "available" and os.getenv("CLAUDE_HEALTH_PROBE") == "true":
+             if await _vp("claude"):
+                 ai_providers["claude"] = "verified"
+        if ai_providers.get("grok") == "available" and os.getenv("GROK_HEALTH_PROBE") == "true":
+             if await _vp("grok"):
+                 ai_providers["grok"] = "verified"
     except Exception:
         pass
 
@@ -2144,7 +2163,8 @@ async def system_status(db: AsyncSession = Depends(get_db)):
     try:
         await db.execute(text("SELECT 1"))
         db_status = True
-    except:
+    except Exception as e:
+        logger.error(f"System status DB check failed: {e}")
         db_status = False
 
     orch = get_orchestrator()

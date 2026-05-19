@@ -16,7 +16,9 @@ import {
   Globe, Users, Trophy, ShieldCheck, Filter,
 } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+// F25: Ensure VITE_API_URL robustness (handling Render bare hostnames)
+const rawUrl = import.meta.env.VITE_API_URL || "";
+const API_BASE = (rawUrl && !rawUrl.startsWith('http')) ? `https://${rawUrl}` : rawUrl;
 
 function StatCard({ label, value, sub, icon: Icon, color = "text-primary" }: {
   label: string; value: string | number; sub?: string;

@@ -38,7 +38,7 @@ export const wagmiConfig = createConfig({
   connectors,
   transports: {
     [base.id]:        http(import.meta.env.VITE_BASE_RPC_URL || "https://mainnet.base.org"),
-    [baseSepolia.id]: http("https://sepolia.base.org"),
+    [baseSepolia.id]: http(import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org"),
   },
 });
 

@@ -154,15 +154,18 @@ async def _build_config(db: AsyncSession) -> Dict[str, Any]:
         })
     leagues.sort(key=lambda x: x["label"])
 
-    # Model count — pulled from the AI orchestrator if possible.
-    model_count = 12
+    # Model count — pulled from the AI orchestrator if possible. (F21)
+    model_count = 13
     try:
         from app.modules.ai.orchestrator import ENSEMBLE_MODELS  # type: ignore
         model_count = len(ENSEMBLE_MODELS)
     except Exception:
         try:
-            from app.modules.ai.orchestrator import get_orchestrator
-            model_count = len(getattr(get_orchestrator(), "models", []) or []) or model_count
+            from app.core.dependencies import get_orchestrator
+            orch = get_orchestrator()
+            if orch:
+                # Orchestrator status returns the real total count
+                model_count = orch.get_model_status().get("total") or 13
         except Exception:
             pass
 

@@ -56,8 +56,10 @@ async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, 
             allowed, reason = await bill_api_call(db, key_record.id, user_id, plan)
             return allowed, reason, user_id, plan
     except Exception as exc:
-        logger.error("Developer API key auth error: %s — allowing request", exc)
-        return True, "auth_error", None, "free"
+        logger.error("Developer API key auth error: %s", exc)
+        # Fail-closed in production, allow in dev for robustness
+        is_prod = os.getenv("ENVIRONMENT") == "production"
+        return not is_prod, "auth_error", None, "free"
 
 
 def auth_enabled() -> bool:
