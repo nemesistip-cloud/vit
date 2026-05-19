@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import {
   Zap, TrendingUp, Shield, BarChart2, Brain,
   ArrowRight, Check, Star, ChevronRight, Activity,
-  Users, Coins, Globe
+  Users, Coins, Globe, Trophy
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
