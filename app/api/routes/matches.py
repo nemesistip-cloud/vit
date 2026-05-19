@@ -524,6 +524,13 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     d = latest.get("draw_prob") or 0
     a = latest.get("away_prob") or 0
 
+    # Extract stored quality and confidence data from model_weights JSON
+    match_quality_rating = model_weights.get("match_quality_rating") or None
+    market_confidence    = model_weights.get("market_confidence") or None
+    home_advantage_bias  = model_weights.get("home_advantage_bias") or None
+    model_agreement_pct  = model_weights.get("model_agreement_pct") or None
+    ensemble_diversity   = model_weights.get("ensemble_diversity") or None
+
     return {
         "match": latest,
         "predictions_count": len(preds),
@@ -551,7 +558,12 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
             "models_used": len(model_insights),
             "weights": model_weights,
             "source": latest.get("market_prob_source"),
+            "model_agreement_pct": model_agreement_pct,
+            "ensemble_diversity":  ensemble_diversity,
         },
+        "match_quality_rating": match_quality_rating,
+        "market_confidence":    market_confidence,
+        "home_advantage_bias":  home_advantage_bias,
         "consensus_breakdown": {
             "home": h,
             "draw": d,

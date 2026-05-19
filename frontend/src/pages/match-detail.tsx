@@ -12,9 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { BrainCircuit, ShieldCheck, ChevronLeft, Zap, Coins, TrendingUp, Target, BarChart2, Radio, Hash, Grid3x3 } from "lucide-react";
+import { BrainCircuit, ShieldCheck, ChevronLeft, Zap, Coins, TrendingUp, Target, BarChart2, Radio, Hash, Grid3x3, Star } from "lucide-react";
 import { format } from "date-fns";
 import { Progress } from "@/components/ui/progress";
+
+const gradeColor = (grade: string) => {
+  if (grade === "A") return "text-emerald-400 border-emerald-400/40 bg-emerald-400/10";
+  if (grade === "B") return "text-primary border-primary/40 bg-primary/10";
+  if (grade === "C") return "text-yellow-400 border-yellow-400/40 bg-yellow-400/10";
+  return "text-muted-foreground border-border bg-background/40";
+};
 
 const CS_LINES = [
   "1-0","2-0","2-1","3-0","3-1","3-2",
@@ -81,6 +88,9 @@ export default function MatchDetailPage() {
   const consensusBreakdown = (match as any).consensus_breakdown;
   const recentForm = (match as any).recent_form;
   const headToHead = (match as any).head_to_head;
+  const matchQuality: { score: number; grade: string; label: string; home_advantage_bias?: number; components?: Record<string, number> } | null
+    = (match as any).match_quality_rating ?? null;
+  const marketConf: Record<string, number> | null = (match as any).market_confidence ?? null;
 
   const handleStake = async () => {
     if (!selectedSide) {
@@ -198,35 +208,77 @@ export default function MatchDetailPage() {
                 </div>
               </div>
 
-              {/* Extended Market Probabilities */}
+              {/* Match Quality Rating */}
+              {matchQuality && (
+                <div className={`rounded-lg border p-3 ${gradeColor(matchQuality.grade)}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-mono text-[10px] uppercase flex items-center gap-1">
+                      <Star className="w-3 h-3" /> Match Quality Rating
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-mono text-lg font-bold`}>{matchQuality.score}</span>
+                      <Badge variant="outline" className={`font-mono text-xs font-bold ${gradeColor(matchQuality.grade)}`}>
+                        {matchQuality.grade} — {matchQuality.label}
+                      </Badge>
+                    </div>
+                  </div>
+                  <Progress
+                    value={matchQuality.score}
+                    className="h-1.5 bg-muted/30"
+                  />
+                  {matchQuality.components && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-1 mt-2">
+                      {Object.entries(matchQuality.components).map(([k, v]) => (
+                        <div key={k} className="text-center">
+                          <div className="font-mono text-[9px] uppercase opacity-70">{k.replace(/_/g, " ")}</div>
+                          <div className="font-mono text-xs font-bold">{v.toFixed(1)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Extended Market Probabilities with per-market confidence */}
               <div>
                 <div className="font-mono text-[10px] text-muted-foreground uppercase mb-2 flex items-center gap-1">
                   <Target className="w-3 h-3" /> Market Probabilities
+                  {marketConf && <span className="ml-auto text-[9px] opacity-60">+ conf.</span>}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
                   {[
-                    { label: "Over 2.5", val: match.over_25_prob },
-                    { label: "Under 2.5", val: match.under_25_prob ?? (match.over_25_prob != null ? 1 - match.over_25_prob : null) },
-                    { label: "Over 1.5", val: (match as any).over_15_prob },
-                    { label: "Over 3.5", val: (match as any).over_35_prob },
-                    { label: "BTTS Yes", val: match.btts_prob },
-                    { label: "BTTS No",  val: match.no_btts_prob ?? (match.btts_prob != null ? 1 - match.btts_prob : null) },
+                    { label: "Over 2.5", val: match.over_25_prob, confKey: "over_under" },
+                    { label: "Under 2.5", val: match.under_25_prob ?? (match.over_25_prob != null ? 1 - match.over_25_prob : null), confKey: "over_under" },
+                    { label: "Over 1.5", val: (match as any).over_15_prob, confKey: "over_under" },
+                    { label: "Over 3.5", val: (match as any).over_35_prob, confKey: "over_under" },
+                    { label: "BTTS Yes", val: match.btts_prob, confKey: "btts" },
+                    { label: "BTTS No",  val: match.no_btts_prob ?? (match.btts_prob != null ? 1 - match.btts_prob : null), confKey: "btts" },
                     {
                       label: "DNB Home",
                       val: (match as any).dnb_home_prob
                         ?? (homeProb + awayProb > 0 ? homeProb / (homeProb + awayProb) : null),
+                      confKey: "1x2",
                     },
                     {
                       label: "DNB Away",
                       val: (match as any).dnb_away_prob
                         ?? (homeProb + awayProb > 0 ? awayProb / (homeProb + awayProb) : null),
+                      confKey: "1x2",
                     },
-                  ].map(({ label, val }) => (
-                    <div key={label} className="rounded-lg border border-border bg-background/40 p-2">
-                      <div className="font-mono text-[10px] text-muted-foreground uppercase">{label}</div>
-                      <div className="font-mono text-base font-bold">{val != null ? `${(val * 100).toFixed(1)}%` : "—"}</div>
-                    </div>
-                  ))}
+                  ].map(({ label, val, confKey }) => {
+                    const conf = marketConf?.[confKey];
+                    return (
+                      <div key={label} className="rounded-lg border border-border bg-background/40 p-2">
+                        <div className="font-mono text-[10px] text-muted-foreground uppercase">{label}</div>
+                        <div className="font-mono text-base font-bold">{val != null ? `${(val * 100).toFixed(1)}%` : "—"}</div>
+                        {conf != null && (
+                          <div className="font-mono text-[9px] text-muted-foreground/70 mt-0.5">
+                            {(conf * 100).toFixed(0)}% conf.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 {match.recommended_stake != null && (
                   <div className="mt-3 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 font-mono text-xs">
@@ -244,6 +296,27 @@ export default function MatchDetailPage() {
                   <span className="text-primary">{(confidence * 100).toFixed(1)}%</span>
                 </div>
                 <Progress value={confidence * 100} className="h-2 bg-muted [&>div]:bg-primary" />
+                {marketConf && (
+                  <div className="grid grid-cols-5 gap-1 mt-2">
+                    {[
+                      { key: "1x2", label: "1X2" },
+                      { key: "over_under", label: "O/U" },
+                      { key: "btts", label: "BTTS" },
+                      { key: "asian_hcp", label: "AH" },
+                      { key: "correct_score", label: "CS" },
+                    ].map(({ key, label }) => {
+                      const val = marketConf[key];
+                      return (
+                        <div key={key} className="text-center">
+                          <div className="font-mono text-[9px] text-muted-foreground uppercase">{label}</div>
+                          <div className="font-mono text-xs font-bold text-primary">
+                            {val != null ? `${(val * 100).toFixed(0)}%` : "—"}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {match.bet_side && (

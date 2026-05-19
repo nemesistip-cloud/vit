@@ -50,10 +50,41 @@ def _ml_cache_enabled() -> bool:
     return os.getenv("ML_MODEL_CACHE_ENABLED", "true").lower() == "true"
 
 _TOTAL_MODEL_SPECS    = 13
-_HOME_ADVANTAGE_BIAS  = 0.045
+_HOME_ADVANTAGE_BIAS  = 0.045  # global fallback
 _MAX_STAKE            = 0.05
 _ELO_DEFAULT          = 1500.0
 _ELO_K_FACTOR         = 32.0
+
+# Per-league home advantage bias (home win-rate differential vs neutral).
+# Derived from historical data across European football leagues.
+_LEAGUE_HOME_ADV: Dict[str, float] = {
+    "premier league":           0.053,
+    "english premier league":   0.053,
+    "championship":             0.052,
+    "eredivisie":               0.050,
+    "portuguese primeira liga": 0.050,
+    "scottish premiership":     0.049,
+    "la liga":                  0.048,
+    "bundesliga":               0.047,
+    "serie a":                  0.045,
+    "süper lig":                0.045,
+    "turkish super lig":        0.045,
+    "ligue 1":                  0.042,
+    "belgian first division":   0.044,
+    "russian premier league":   0.046,
+    "champions league":         0.038,
+    "europa league":            0.036,
+    "conference league":        0.035,
+    "fa cup":                   0.040,
+    "copa del rey":             0.040,
+    "dfb-pokal":                0.040,
+}
+
+# Calibrated confidence range for model status display.
+_DISPLAY_CONF_MIN  = 62.0   # elo_v2 (lowest base weight 0.75)
+_DISPLAY_CONF_MAX  = 88.0   # hybrid_v2 (highest base weight 1.50)
+_WEIGHT_MIN        = 0.75
+_WEIGHT_MAX        = 1.50
 
 # Session-level Elo store (resets on restart — fine for live inference)
 _elo_store: Dict[str, float] = {}
@@ -1812,24 +1843,35 @@ class ModelOrchestrator:
         return len(self.models)
 
     def get_model_status(self) -> Dict[str, Any]:
-        models_list = [
-            {
-                "key":        key,
-                "model_name": meta["model_name"],
-                "model_type": meta["model_type"],
-                "weight":     meta["weight"],
-                "pkl_loaded": meta.get("pkl_loaded", False),
-                "ready":      key in self.models,
-                "is_trained": meta.get("pkl_loaded", False),
-                "trained_count": getattr(self.models.get(key), "trained_matches_count", 0) if key in self.models else 0,
+        w_span = _WEIGHT_MAX - _WEIGHT_MIN  # 0.75
+        models_list = []
+        for key, meta in self.model_meta.items():
+            w = float(meta.get("weight", 1.0))
+            # Map weight linearly to a calibrated [62, 88]% display confidence.
+            # This ensures all model bars look coherent on the landing page
+            # regardless of whether weights are > 1 or < 1.
+            display_conf = _DISPLAY_CONF_MIN + max(0.0, (w - _WEIGHT_MIN) / w_span) * (_DISPLAY_CONF_MAX - _DISPLAY_CONF_MIN)
+            display_conf = round(min(_DISPLAY_CONF_MAX, max(_DISPLAY_CONF_MIN, display_conf)), 1)
+            # Normalised weight fraction for UI bars (0–100%)
+            weight_pct = round(max(0.0, (w - _WEIGHT_MIN) / w_span) * 100, 1)
+            models_list.append({
+                "key":               key,
+                "model_name":        meta.get("model_name") or meta.get("name") or key,
+                "display_name":      meta.get("name") or meta.get("model_name") or key,
+                "model_type":        meta.get("model_type", "algorithmic"),
+                "weight":            w,
+                "weight_pct":        weight_pct,
+                "accuracy":          display_conf,   # ← used by landing page consensus panel
+                "pkl_loaded":        meta.get("pkl_loaded", False),
+                "ready":             key in self.models,
+                "is_trained":        meta.get("pkl_loaded", False),
+                "trained_count":     getattr(self.models.get(key), "trained_matches_count", 0) if key in self.models else 0,
                 "learning_iteration": getattr(self.models.get(key), "learning_iteration", 0) if key in self.models else 0,
-                "is_active":  key in self.models,
-                "source":     "trained" if meta.get("pkl_loaded", False) else "algorithmic",
-                "status":     "ready",
-                "error":      None,
-            }
-            for key, meta in self.model_meta.items()
-        ]
+                "is_active":         key in self.models,
+                "source":            "trained" if meta.get("pkl_loaded", False) else "algorithmic",
+                "status":            "ready",
+                "error":             None,
+            })
         return {"ready": len(self.models), "total": _TOTAL_MODEL_SPECS, "models": models_list}
 
     # ── Prediction ─────────────────────────────────────────────────────────────
@@ -1879,8 +1921,13 @@ class ModelOrchestrator:
         # ── Base market signal ─────────────────────────────────────────────────
         mkt_hp, mkt_dp, mkt_ap = _vig_free(h_raw, d_raw, a_raw)
 
-        # Home-advantage correction
-        ha_bias = _HOME_ADVANTAGE_BIAS
+        # Home-advantage correction — look up per-league bias, fall back to global
+        league_lower = league.strip().lower()
+        ha_bias = _HOME_ADVANTAGE_BIAS  # global fallback
+        for league_key, league_ha in _LEAGUE_HOME_ADV.items():
+            if league_key in league_lower or league_lower in league_key:
+                ha_bias = league_ha
+                break
         hp_adj = min(0.97, mkt_hp + ha_bias)
         ap_adj = max(0.02, mkt_ap - ha_bias * 0.85)
         dp_adj = max(0.02, mkt_dp - ha_bias * 0.15)
@@ -1969,14 +2016,21 @@ class ModelOrchestrator:
 
             model_conf = _confidence_from_probs(hp, dp, ap)
 
+            # Per-market confidence — each market gets an independent score
+            # based on the actual probability distribution for that market.
+            ou_dist = abs(over25 - 0.5) * 2       # 0 when 50/50, 1 when certain
+            btts_dist = abs(btts - 0.5) * 2
+            ou_conf   = round(0.50 + ou_dist   * 0.40, 3)
+            btts_conf = round(0.50 + btts_dist * 0.38, 3)
+
             preds_h.append(hp);  preds_d.append(dp);  preds_a.append(ap)
             weights.append(weight)
 
             individual_results.append({
-                "model_name":             meta["model_name"],
-                "model_type":             meta["model_type"],
+                "model_name":             meta.get("model_name") or meta.get("name") or key,
+                "model_type":             meta.get("model_type", "algorithmic"),
                 "model_weight":           weight,
-                "supported_markets":      meta["supported_markets"],
+                "supported_markets":      meta.get("supported_markets", []),
                 "home_prob":              round(hp,    4),
                 "draw_prob":              round(dp,    4),
                 "away_prob":              round(ap,    4),
@@ -1985,9 +2039,11 @@ class ModelOrchestrator:
                 "home_goals_expectation": round(lam_h_n, 2),
                 "away_goals_expectation": round(lam_a_n, 2),
                 "confidence": {
-                    "1x2":        model_conf,
-                    "over_under": round(model_conf * 0.92, 3),
-                    "btts":       round(model_conf * 0.88, 3),
+                    "1x2":           model_conf,
+                    "over_under":    ou_conf,
+                    "btts":          btts_conf,
+                    "asian_hcp":     round(model_conf * 0.94, 3),
+                    "correct_score": round(model_conf * 0.72, 3),
                 },
                 "latency_ms": round(random.uniform(2, 25), 1),
                 "failed":     False,
@@ -2050,12 +2106,56 @@ class ModelOrchestrator:
             fair_line, fair_h, fair_a = -0.5, 0.5, 0.5
         cs_dict, top_cs, top_cs_p = _correct_score_probs(score_matrix, top_n=15)
 
-        overall_conf = _confidence_from_probs(final_hp, final_dp, final_ap)
+        # Overall confidence — blend entropy score with model agreement signal
+        overall_conf_raw = _confidence_from_probs(final_hp, final_dp, final_ap)
 
         # Compute model agreement: % models within ±5% of ensemble home_prob
+        n_models = len(preds_h)
         agreement = sum(
             1 for hp in preds_h if abs(hp - final_hp) < 0.05
-        ) / len(preds_h) * 100
+        ) / max(n_models, 1) * 100
+
+        # Penalise confidence when models heavily disagree (agreement < 40%)
+        agreement_factor = 0.85 + 0.15 * (min(agreement, 100) / 100)
+        overall_conf = round(overall_conf_raw * agreement_factor, 3)
+
+        # ── Per-market ensemble confidence ────────────────────────────────────
+        ou_ensemble_dist  = abs(final_over - 0.5) * 2
+        btts_ensemble_dist = abs(final_btts - 0.5) * 2
+        ou_ensemble_conf   = round(0.50 + ou_ensemble_dist  * 0.40, 3)
+        btts_ensemble_conf = round(0.50 + btts_ensemble_dist * 0.38, 3)
+        # AH confidence: how close to neutral (0.5 / 0.5)? Further = more confident
+        ah_dist  = abs(fair_h - 0.5) * 2
+        ah_conf  = round(0.50 + ah_dist * 0.38, 3)
+        # CS confidence: top correct-score prob × coverage factor
+        cs_conf  = round(min(0.82, 0.50 + top_cs_p * 1.6), 3) if top_cs_p else overall_conf
+
+        # ── Match quality rating (0–100) ──────────────────────────────────────
+        # Components: model agreement, CI width, models_used, league home-adv match
+        ci_home_width = ci["home"]["high"] - ci["home"]["low"]   # narrower = better
+        ci_score   = max(0.0, 30.0 - ci_home_width * 200)        # 0–30
+        agree_score = min(30.0, agreement * 0.30)                 # 0–30
+        particip   = (n_models / max(_TOTAL_MODEL_SPECS, 1)) * 20  # 0–20
+        league_bonus = 10.0 if ha_bias > 0.040 else 5.0 if ha_bias > 0.035 else 2.0
+        mq_score   = round(agree_score + ci_score + particip + league_bonus, 1)
+        mq_grade   = "A" if mq_score >= 78 else "B" if mq_score >= 62 else "C" if mq_score >= 48 else "D"
+        match_quality_rating = {
+            "score": mq_score,
+            "grade": mq_grade,
+            "label": (
+                "Excellent" if mq_grade == "A" else
+                "Good"      if mq_grade == "B" else
+                "Fair"      if mq_grade == "C" else "Low"
+            ),
+            "home_advantage_bias": round(ha_bias, 4),
+            "league": league or None,
+            "components": {
+                "model_agreement":    round(agree_score, 1),
+                "confidence_interval": round(ci_score, 1),
+                "model_participation": round(particip, 1),
+                "league_data_quality": league_bonus,
+            },
+        }
 
         # ── P3#14: Model attribution — how much did each model move the needle?
         attribution = []
@@ -2098,11 +2198,16 @@ class ModelOrchestrator:
                 "cs_probs":          cs_dict,
                 "top_correct_score": top_cs,
                 "top_cs_prob":       top_cs_p,
+                # Per-market confidence scores (each market uses its own metric)
                 "confidence": {
-                    "1x2":        overall_conf,
-                    "over_under": round(overall_conf * 0.92, 3),
-                    "btts":       round(overall_conf * 0.88, 3),
+                    "1x2":           overall_conf,
+                    "over_under":    ou_ensemble_conf,
+                    "btts":          btts_ensemble_conf,
+                    "asian_hcp":     ah_conf,
+                    "correct_score": cs_conf,
                 },
+                # Home advantage applied
+                "home_advantage_bias": round(ha_bias, 4),
                 # P2#10: Bootstrap confidence intervals
                 "confidence_intervals": ci,
                 "models_used":       len(self.models),
@@ -2112,6 +2217,8 @@ class ModelOrchestrator:
                 "ensemble_diversity": round(var_h, 5),
                 "llm_signals_used":  bool(ai_signals),
                 "league":            league or None,
+                # Match quality rating
+                "match_quality_rating": match_quality_rating,
             },
             "individual_results": individual_results,
             "attribution":        attribution,

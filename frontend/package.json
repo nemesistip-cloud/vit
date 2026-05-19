@@ -1,5 +1,5 @@
 {
-  "name": "vit-sports-frontend",
+  "name": "@workspace/vit-sports",
   "version": "0.0.0",
   "private": true,
   "type": "module",

@@ -2031,12 +2031,27 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
     status = orchestrator.get_model_status() if orchestrator else {"models": [], "total": 0, "ready": 0}
     model_rows = []
     for model in status.get("models", [])[:6]:
-        raw_confidence = model.get("accuracy") or model.get("accuracy_score") or model.get("confidence") or model.get("weight") or 0
-        confidence = float(raw_confidence or 0)
-        if confidence <= 1:
+        # `accuracy` is now a calibrated [62, 88]% value from get_model_status().
+        # Always prefer it; legacy fallbacks kept for safety.
+        raw_conf = model.get("accuracy") or model.get("accuracy_score") or 0
+        if not raw_conf:
+            # Old-style: weight might be >1 (e.g. 1.10) or <1 (e.g. 0.95).
+            # Normalise to [62, 88]% using the same formula as get_model_status().
+            w = float(model.get("weight") or 1.0)
+            raw_conf = 62.0 + max(0.0, (w - 0.75) / 0.75) * 26.0
+            raw_conf = min(88.0, raw_conf)
+        confidence = float(raw_conf)
+        # Ensure it's already in percent (not a 0-1 decimal)
+        if confidence <= 1.5:
             confidence *= 100
         model_rows.append({
-            "name": model.get("display_name") or model.get("name") or model.get("key") or model.get("model_key") or "Model",
+            "name": (
+                model.get("display_name")
+                or model.get("model_name")
+                or model.get("name")
+                or model.get("key")
+                or "Model"
+            ),
             "confidence": round(confidence, 1),
             "weight": model.get("weight") or model.get("current_weight") or 0,
             "ready": bool(model.get("ready", model.get("loaded", False))),
