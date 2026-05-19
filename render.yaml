@@ -1,0 +1,84 @@
+services:
+  - type: web
+    name: vit-sports-intelligence
+    runtime: python
+    region: oregon
+    plan: standard
+
+    buildCommand: bash scripts/build.sh
+    startCommand: bash scripts/start_production.sh
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PORT
+        value: "5000"
+      - key: USE_REAL_ML_MODELS
+        value: "true"
+      - key: ML_MODEL_CACHE_ENABLED
+        value: "true"
+      - key: BLOCKCHAIN_ENABLED
+        value: "true"
+      - key: AUTH_ENABLED
+        value: "true"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "*"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: MAX_STAKE
+        value: "0.05"
+      - key: MIN_EDGE_THRESHOLD
+        value: "0.02"
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "30"
+      - key: ADMIN_EMAIL
+        value: admin@vit.network
+      - key: ADMIN_USERNAME
+        value: vit_admin
+      # Secrets — set these in the Render dashboard, never commit values here
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vit-postgres
+          property: connectionString
+      - key: VIT_DATABASE_URL
+        fromDatabase:
+          name: vit-postgres
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      - key: ODDS_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+      - key: THESPORTSDB_API_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+databases:
+  - name: vit-postgres
+    plan: free

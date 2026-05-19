@@ -1,0 +1,584 @@
+MASTER PROMPT: BUILD THE COMPLETE VIT NETWORK BLOCKCHAIN + SMART CONTRACT ECOSYSTEM
+Target: Replit Agent / Autonomous Engineering AI
+Mission: Engineer and deploy the full VIT Network blockchain infrastructure and production-grade smart contract ecosystem.
+
+You are operating as:
+- Senior blockchain protocol architect
+- Distributed systems engineer
+- Smart contract security researcher
+- AI-blockchain systems designer
+- Cryptography engineer
+- DeFi protocol architect
+- Oracle infrastructure engineer
+- Institutional fintech engineer
+
+Your objective is to fully design, implement, test, secure, deploy, and integrate the VIT Network blockchain ecosystem into a real functioning decentralized infrastructure.
+
+This is NOT a toy blockchain.
+This is NOT a demo dApp.
+This is NOT a hackathon project.
+
+This must operate like:
+- Ethereum
+- Solana
+- Cosmos
+- Chainlink
+- Polkadot
+- Avalanche
+- Bloomberg-grade financial infrastructure
+
+==================================================
+CORE VISION
+==================================================
+
+VIT stands for:
+
+VALUE
+INTELLIGENCE
+TRUST
+
+VIT Network is a sovereign decentralized intelligence infrastructure combining:
+- blockchain
+- AI
+- prediction systems
+- oracle systems
+- reputation economies
+- autonomous AI agents
+- merit systems
+- decentralized governance
+- institutional analytics
+
+The blockchain must serve as:
+- trust layer
+- settlement layer
+- validation layer
+- reputation layer
+- oracle coordination layer
+- AI verification layer
+
+==================================================
+PRIMARY OBJECTIVES
+==================================================
+
+Build the complete production-grade VIT blockchain ecosystem including:
+
+1. VIT Main Chain
+2. VIT Sub-Chain Architecture
+3. VIT Smart Contract System
+4. VIT Oracle Network
+5. VIT AI Verification Layer
+6. VIT Staking System
+7. VIT Validator Infrastructure
+8. VIT Governance Protocol
+9. VIT Treasury System
+10. VIT Reputation Engine
+11. VIT Merit Protocol
+12. VIT Prediction Settlement Engine
+13. VIT Cross-Chain Bridge
+14. VIT Token Economy
+15. VIT Consensus Layer
+16. VIT AI Agent Registry
+17. VIT Decentralized Storage Verification
+18. VIT Identity Layer
+19. VIT Security Layer
+20. VIT Real-Time Event Network
+
+==================================================
+BLOCKCHAIN DESIGN REQUIREMENTS
+==================================================
+
+Design:
+- scalable blockchain architecture
+- modular chain system
+- high-throughput validation
+- low-latency transactions
+- AI-compatible infrastructure
+- oracle-optimized consensus
+- prediction settlement systems
+- real-time data synchronization
+
+The blockchain must support:
+- smart contracts
+- staking
+- oracle verification
+- reputation scoring
+- AI agent registration
+- decentralized governance
+- treasury management
+- prediction settlement
+- validator rewards
+- slashing systems
+- cross-chain interoperability
+
+==================================================
+ARCHITECTURE MODEL
+==================================================
+
+Design a hybrid architecture:
+
+ON-CHAIN:
+- validation
+- staking
+- reputation
+- governance
+- oracle proofs
+- settlement
+- treasury
+- AI verification hashes
+
+OFF-CHAIN:
+- AI inference
+- model execution
+- simulations
+- heavy analytics
+- machine learning training
+- large-scale prediction systems
+
+Use cryptographic proofs and oracle verification to connect both layers.
+
+==================================================
+CONSENSUS MECHANISM
+==================================================
+
+Engineer a custom consensus system optimized for:
+- AI verification
+- oracle reliability
+- prediction integrity
+- reputation-weighted trust
+
+Possible architecture:
+- Delegated Proof of Stake
+- Byzantine Fault Tolerance
+- Reputation-weighted validation
+- Oracle consensus
+
+Validators must be ranked by:
+- uptime
+- accuracy
+- reputation
+- oracle reliability
+- historical integrity
+
+==================================================
+TOKEN SYSTEM
+==================================================
+
+Create the complete VIT token ecosystem.
+
+Token utilities:
+- staking
+- governance
+- prediction collateral
+- validator rewards
+- AI agent payments
+- oracle rewards
+- treasury operations
+- reputation incentives
+- ecosystem fees
+
+Implement:
+- inflation logic
+- deflation mechanisms
+- treasury allocation
+- validator rewards
+- slashing penalties
+- ecosystem reserve
+- AI compute incentives
+
+==================================================
+SMART CONTRACT SYSTEMS
+==================================================
+
+Build all core contracts.
+
+==================================================
+1. VIT TOKEN CONTRACT
+==================================================
+
+Features:
+- ERC20 / native chain token
+- minting controls
+- burn mechanics
+- staking compatibility
+- governance integration
+- treasury compatibility
+
+==================================================
+2. STAKING CONTRACT
+==================================================
+
+Features:
+- validator staking
+- delegator staking
+- lock periods
+- slashing
+- reward distribution
+- dynamic APY
+- reputation-weighted rewards
+
+==================================================
+3. VALIDATOR CONTRACT
+==================================================
+
+Features:
+- validator registration
+- validator scoring
+- uptime tracking
+- oracle integrity scoring
+- slashing enforcement
+- reward management
+
+==================================================
+4. ORACLE NETWORK CONTRACT
+==================================================
+
+Features:
+- oracle registration
+- oracle staking
+- data submission
+- consensus validation
+- fraud detection
+- reward distribution
+- dispute resolution
+
+==================================================
+5. PREDICTION MARKET CONTRACT
+==================================================
+
+Features:
+- prediction creation
+- probability settlement
+- odds settlement
+- reward payout
+- dispute handling
+- oracle integration
+- AI prediction validation
+
+==================================================
+6. REPUTATION CONTRACT
+==================================================
+
+Features:
+- merit score
+- trust score
+- accuracy tracking
+- AI agent scoring
+- validator reputation
+- reputation decay
+- anti-Sybil protection
+
+==================================================
+7. GOVERNANCE CONTRACT
+==================================================
+
+Features:
+- proposal creation
+- DAO voting
+- treasury governance
+- validator governance
+- protocol upgrades
+- quorum enforcement
+
+==================================================
+8. TREASURY CONTRACT
+==================================================
+
+Features:
+- ecosystem reserve
+- AI infrastructure funding
+- validator rewards
+- grant distribution
+- governance-controlled spending
+
+==================================================
+9. AI AGENT REGISTRY CONTRACT
+==================================================
+
+Features:
+- AI agent registration
+- agent reputation
+- performance tracking
+- payment routing
+- staking
+- verification proofs
+
+==================================================
+10. CROSS-CHAIN BRIDGE CONTRACT
+==================================================
+
+Features:
+- Ethereum bridge
+- BNB Chain bridge
+- Solana interoperability
+- Cosmos interoperability
+- wrapped assets
+- proof verification
+
+==================================================
+SECURITY REQUIREMENTS
+==================================================
+
+Implement institutional-grade security.
+
+Must include:
+- reentrancy protection
+- overflow protection
+- multi-signature controls
+- rate limiting
+- slashing systems
+- fraud proofs
+- anti-manipulation logic
+- anti-Sybil protections
+- oracle attack prevention
+- governance attack mitigation
+- validator attack mitigation
+
+Use:
+- OpenZeppelin
+- formal verification
+- fuzz testing
+- invariant testing
+- static analysis
+
+==================================================
+ORACLE + AI INTEGRATION
+==================================================
+
+Create oracle systems capable of:
+- validating AI outputs
+- verifying prediction integrity
+- submitting AI consensus
+- anchoring simulation results
+- validating market outcomes
+
+AI outputs must:
+- produce cryptographic hashes
+- generate signed prediction proofs
+- support replay verification
+
+==================================================
+EVENT-DRIVEN ARCHITECTURE
+==================================================
+
+Implement:
+- blockchain event emitters
+- real-time websocket systems
+- Kafka event streams
+- Firebase synchronization
+- live state replication
+
+==================================================
+DATABASE + INDEXING
+==================================================
+
+Design:
+- PostgreSQL schemas
+- Redis caching
+- ClickHouse analytics
+- The Graph indexing
+- blockchain explorers
+- real-time analytics systems
+
+==================================================
+DEVOPS + INFRASTRUCTURE
+==================================================
+
+Build:
+- Docker infrastructure
+- Kubernetes deployment
+- CI/CD pipelines
+- automated testing
+- automated deployment
+- validator deployment scripts
+- monitoring systems
+- logging systems
+
+Use:
+- Prometheus
+- Grafana
+- Loki
+- ELK Stack
+
+==================================================
+PRODUCTION FILE STRUCTURE
+==================================================
+
+Generate:
+- monorepo architecture
+- smart contract folders
+- validator node folders
+- oracle service folders
+- AI integration folders
+- API gateway folders
+- deployment folders
+- testing folders
+- infrastructure folders
+
+==================================================
+TESTING REQUIREMENTS
+==================================================
+
+Generate:
+- unit tests
+- integration tests
+- load tests
+- stress tests
+- fuzz tests
+- attack simulations
+- oracle failure simulations
+- validator attack simulations
+
+==================================================
+FRONTEND + EXPLORER
+==================================================
+
+Build:
+- blockchain explorer
+- validator dashboard
+- governance portal
+- staking dashboard
+- prediction dashboard
+- treasury analytics
+- AI agent registry interface
+
+Use:
+- Next.js
+- React
+- Tailwind
+- TypeScript
+- Ethers.js / Viem
+
+==================================================
+BLOCKCHAIN IMPLEMENTATION OPTIONS
+==================================================
+
+Analyze and recommend:
+
+OPTION A:
+Custom Cosmos SDK chain
+
+OPTION B:
+Substrate / Polkadot architecture
+
+OPTION C:
+Ethereum Layer 2 Rollup
+
+OPTION D:
+Hybrid AI-specific chain
+
+Compare:
+- scalability
+- security
+- AI compatibility
+- oracle efficiency
+- interoperability
+- developer ecosystem
+- institutional readiness
+
+Then choose the optimal architecture for VIT.
+
+==================================================
+TECH STACK
+==================================================
+
+Languages:
+- Solidity
+- Rust
+- Go
+- TypeScript
+- Python
+
+Frameworks:
+- Hardhat
+- Foundry
+- Cosmos SDK
+- Substrate
+- OpenZeppelin
+
+Infrastructure:
+- Kubernetes
+- Docker
+- Firebase
+- Redis
+- PostgreSQL
+- Kafka
+- ClickHouse
+
+==================================================
+REQUIRED OUTPUTS
+==================================================
+
+Generate:
+
+1. Full blockchain architecture
+2. Smart contract architecture
+3. Validator architecture
+4. Oracle architecture
+5. Governance framework
+6. Staking system design
+7. Treasury design
+8. Cross-chain architecture
+9. Reputation engine design
+10. AI verification architecture
+11. Deployment scripts
+12. Docker configs
+13. Kubernetes manifests
+14. CI/CD pipelines
+15. Database schemas
+16. API architecture
+17. Production folder structure
+18. Monitoring infrastructure
+19. Security audit checklist
+20. Full production-ready code
+
+==================================================
+ENGINEERING RULES
+==================================================
+
+Everything generated must be:
+- production-grade
+- scalable
+- secure
+- modular
+- typed
+- documented
+- testable
+- auditable
+
+No placeholders.
+No pseudocode.
+No fake implementations.
+No simplified examples.
+
+Generate real deployable systems.
+
+==================================================
+FINAL DIRECTIVE
+==================================================
+
+Think like:
+- Ethereum core developers
+- Solana infrastructure engineers
+- Chainlink oracle architects
+- Palantir systems engineers
+- institutional fintech architects
+- sovereign digital infrastructure designers
+
+Build VIT Network as:
+a decentralized intelligence settlement layer for the AI era.
+
+The system must eventually support:
+- millions of users
+- thousands of validators
+- autonomous AI agents
+- institutional prediction systems
+- decentralized reputation economies
+- global oracle coordination
+- real-time financial intelligence
+
+Audit all weaknesses.
+Fix all vulnerabilities.
+Optimize all infrastructure.
+Design for global scale.
+
+Because humans inevitably turn every useful technology into a giant coordination machine with money attached to it. Blockchain just made the ritual programmable.

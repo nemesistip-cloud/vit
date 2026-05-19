@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { db } from '@/lib/firebase';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { apiGet } from '@/lib/apiClient';
 
 export interface TickerData {
   vit_price?: number;
@@ -10,17 +11,41 @@ export interface TickerData {
   total_staked_vit?: number;
   total_predictions?: number;
   accuracy_rate?: number;
-  last_updated?: any;
+  last_updated?: string | number | Date;
 }
 
 export function useRealtimeTicker() {
   const [data, setData] = useState<TickerData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!db) {
-      setLoading(false);
+    // F4: REST Fallback if Firebase not configured
+    if (!isFirebaseConfigured || !db) {
+      const fetchFallback = async () => {
+        try {
+          const res = await apiGet<any>('/api/dashboard/summary');
+          const sys = await apiGet<any>('/system/status');
+          const price = await apiGet<any>('/api/dashboard/vitcoin-price');
+
+          setData({
+            vit_price: price?.price_usd,
+            change_24h: price?.change_24h,
+            total_users: sys?.total_users,
+            active_users_30d: sys?.active_users_30d,
+            active_validators: sys?.active_validators,
+            total_staked_vit: sys?.total_staked_vit,
+            total_predictions: res?.total_predictions,
+            accuracy_rate: res?.accuracy_rate,
+            last_updated: new Date().toISOString()
+          });
+          setLoading(false);
+        } catch (err: any) {
+          setError(err);
+          setLoading(false);
+        }
+      };
+      fetchFallback();
       return;
     }
 

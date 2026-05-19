@@ -59,7 +59,7 @@ export default function PredictionWrappedPage() {
             exit={{ opacity: 0, x: -20 }}
             className={`w-full h-full bg-gradient-to-b ${data[slide].color} border border-border/50 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center space-y-8 shadow-2xl overflow-hidden relative`}
           >
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
+            <div className="absolute inset-0 bg-zinc-950/20 opacity-20" />
 
             <div className="relative z-10">
               <div className="mb-6 p-6 bg-white/5 rounded-full backdrop-blur-xl inline-block">

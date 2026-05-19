@@ -12,8 +12,10 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
+// F1: Fix Firebase TS robustness and credential detection
 const isFirebaseConfigured = !!(
   firebaseConfig.apiKey &&
+  firebaseConfig.apiKey.length > 10 &&
   firebaseConfig.authDomain &&
   firebaseConfig.projectId
 );

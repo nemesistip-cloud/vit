@@ -96,9 +96,15 @@ class ModelTunerAgent(BaseAgent):
             # Try to parse JSON from response
             try:
                 # Basic cleanup in case LLM adds markdown blocks
-                clean_json = response.strip().replace("```json", "").replace("```", "")
+                clean_json = response.strip()
+                if "```json" in clean_json:
+                    clean_json = clean_json.split("```json")[1].split("```")[0].strip()
+                elif "```" in clean_json:
+                    clean_json = clean_json.split("```")[1].split("```")[0].strip()
+
                 return json.loads(clean_json)
-            except:
+            except (json.JSONDecodeError, IndexError, Exception) as parse_err:
+                logger.warning(f"Failed to parse AI tuning response as JSON: {parse_err}")
                 return {"summary": response, "adjustments": []}
         except Exception as e:
             logger.error(f"Failed to get tuning suggestions: {e}")

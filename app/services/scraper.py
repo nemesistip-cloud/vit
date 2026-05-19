@@ -261,26 +261,13 @@ class InjuryScraper:
         else:
             return "fit"
 
-    # Cache: (injuries_list, fetched_at timestamp)
-    _injuries_cache: tuple = ([], 0.0)
-    _INJURIES_TTL: int = 1800  # 30 minutes
-
     async def fetch_all_injuries(self) -> List[Dict]:
         """Fetch injuries from multiple sources and deduplicate.
-
-        Results are cached for 30 minutes so repeated pipeline cycles across
-        different leagues do not re-scrape Transfermarkt each time.
 
         Dead sources (premierinjuries.com, physioroom.com, fantasyfootballfix.com) have
         been retired — they consistently return 404. Transfermarkt is used instead, which
         works reliably without requiring authentication.
         """
-        import time
-        cached, fetched_at = self.__class__._injuries_cache
-        if cached and (time.monotonic() - fetched_at) < self.__class__._INJURIES_TTL:
-            logger.debug(f"Returning cached injuries ({len(cached)} entries)")
-            return cached
-
         tasks = [
             self.fetch_injuries_transfermarkt("premier-league"),
             self.fetch_injuries_transfermarkt("primera-division"),  # La Liga
@@ -304,7 +291,6 @@ class InjuryScraper:
                     all_injuries.append(injury)
 
         logger.info(f"Total unique injuries: {len(all_injuries)}")
-        self.__class__._injuries_cache = (all_injuries, time.monotonic())
         return all_injuries
 
     async def close(self):

@@ -1,15 +1,27 @@
 import { useEffect, useState } from 'react';
-import { db } from '@/lib/firebase';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
 import type { Match } from '@/api-client/schemas';
+import { apiGet } from '@/lib/apiClient';
 
 export function useRealtimeMatches(limitCount: number = 50) {
   const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!db) {
-      setLoading(false);
+    // F3: REST Fallback if Firebase not configured
+    if (!isFirebaseConfigured || !db) {
+      const fetchFallback = async () => {
+        try {
+          const data = await apiGet<Match[]>(`/api/matches?limit=${limitCount}`);
+          setMatches(data);
+          setLoading(false);
+        } catch (err: any) {
+          setError(err);
+          setLoading(false);
+        }
+      };
+      fetchFallback();
       return;
     }
 

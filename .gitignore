@@ -17,3 +17,5 @@ frontend/.vite/
 Thumbs.db
 models/*.pkl
 backend/models/trained/*.pkl
+
+.git.backup.*
