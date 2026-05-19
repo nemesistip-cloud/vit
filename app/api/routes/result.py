@@ -99,7 +99,7 @@ async def update_result(
             total_profit += profit
             settled_count += 1
 
-    # Phase 5: fire RL reward accumulator after the transaction commits
+    # Phase 5: fire RL reward accumulator and Prophecy Chain evaluation after transaction commits
     rl_summary: dict = {}
     try:
         rl_summary = await process_settlement_rewards(
@@ -107,6 +107,14 @@ async def update_result(
         )
     except Exception as _rl_e:
         logger.warning("RL reward hook failed (non-fatal): %s", _rl_e)
+
+    try:
+        from app.modules.prophecy_chain.engine.progression import ProgressionEngine
+        user_ids = {p.user_id for p in predictions if p.user_id}
+        for uid in user_ids:
+            await ProgressionEngine.evaluate_user_progress(db, uid, trigger=f"match_settlement:{match_id}")
+    except Exception as _pe_e:
+        logger.warning("Prophecy progression evaluation failed (non-fatal): %s", _pe_e)
 
     return {
         "match_id": match_id,
