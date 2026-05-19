@@ -50,34 +50,39 @@ def _ml_cache_enabled() -> bool:
     return os.getenv("ML_MODEL_CACHE_ENABLED", "true").lower() == "true"
 
 _TOTAL_MODEL_SPECS    = 13
-_HOME_ADVANTAGE_BIAS  = 0.045  # global fallback
+# Residual home-advantage correction applied ON TOP of vig-free market probs.
+# Markets already price in home advantage; this is the RESIDUAL edge the model
+# captures beyond what bookmakers reflect (~1-2% based on academic literature).
+# Setting this too high double-counts the bias already baked into the odds.
+_HOME_ADVANTAGE_BIAS  = 0.014  # global fallback (reduced from 0.045)
 _MAX_STAKE            = 0.05
 _ELO_DEFAULT          = 1500.0
 _ELO_K_FACTOR         = 32.0
 
-# Per-league home advantage bias (home win-rate differential vs neutral).
-# Derived from historical data across European football leagues.
+# Per-league residual home-advantage over market (not the full raw home-advantage).
+# Markets are efficient and capture 70-80% of true home advantage; these values
+# represent the remaining signal the ensemble can exploit.
 _LEAGUE_HOME_ADV: Dict[str, float] = {
-    "premier league":           0.053,
-    "english premier league":   0.053,
-    "championship":             0.052,
-    "eredivisie":               0.050,
-    "portuguese primeira liga": 0.050,
-    "scottish premiership":     0.049,
-    "la liga":                  0.048,
-    "bundesliga":               0.047,
-    "serie a":                  0.045,
-    "süper lig":                0.045,
-    "turkish super lig":        0.045,
-    "ligue 1":                  0.042,
-    "belgian first division":   0.044,
-    "russian premier league":   0.046,
-    "champions league":         0.038,
-    "europa league":            0.036,
-    "conference league":        0.035,
-    "fa cup":                   0.040,
-    "copa del rey":             0.040,
-    "dfb-pokal":                0.040,
+    "premier league":           0.016,
+    "english premier league":   0.016,
+    "championship":             0.015,
+    "eredivisie":               0.015,
+    "portuguese primeira liga": 0.015,
+    "scottish premiership":     0.014,
+    "la liga":                  0.014,
+    "bundesliga":               0.014,
+    "serie a":                  0.013,
+    "süper lig":                0.013,
+    "turkish super lig":        0.013,
+    "ligue 1":                  0.012,
+    "belgian first division":   0.013,
+    "russian premier league":   0.014,
+    "champions league":         0.011,
+    "europa league":            0.010,
+    "conference league":        0.010,
+    "fa cup":                   0.012,
+    "copa del rey":             0.012,
+    "dfb-pokal":                0.012,
 }
 
 # Calibrated confidence range for model status display.
@@ -1905,18 +1910,81 @@ class ModelOrchestrator:
         # P0#1 / P1#4: AI signals from AISignalCache (pre-fetched by E2 orchestrator)
         ai_signals = features.get("ai_signals") or {}
 
-        # P1#4: wire AI signals into the LLM consensus model before the loop
+        # Real-time web context (injected by predict route via web_search service)
+        web_context_text: str = features.get("web_context_text") or ""
+
+        # P1#4: wire AI signals AND web context into the LLM consensus model before the loop
         llm_model = self.models.get("llm_consensus_v1")
-        if llm_model is not None and ai_signals:
-            llm_model._ai_signals = ai_signals
-            # Boost weight by average LLM provider accuracy if available
-            llm_accuracy = float(ai_signals.get("ai_avg_confidence", 0.5))
-            base_llm_w = self.model_meta.get("llm_consensus_v1", {}).get("weight", 1.25)
-            boosted_w = round(base_llm_w * (0.7 + llm_accuracy * 0.6), 4)
-            self.model_meta["llm_consensus_v1"]["weight"] = min(2.5, boosted_w)
+        if llm_model is not None:
+            if ai_signals:
+                llm_model._ai_signals = ai_signals
+                # Boost weight by average LLM provider accuracy if available
+                llm_accuracy = float(ai_signals.get("ai_avg_confidence", 0.5))
+                base_llm_w = self.model_meta.get("llm_consensus_v1", {}).get("weight", 1.25)
+                boosted_w = round(base_llm_w * (0.7 + llm_accuracy * 0.6), 4)
+                self.model_meta["llm_consensus_v1"]["weight"] = min(2.5, boosted_w)
+            # Pass web context so the LLM model can incorporate real-time intelligence
+            if web_context_text:
+                llm_model._web_context = web_context_text
 
         # P1#5: per-league weight multipliers (populated by weight_adjuster after settlement)
         league = str(features.get("league") or "").lower()
+
+        # ── Real-time AI call using web context ───────────────────────────────
+        # If real-time web intelligence is available (fetched by predict route),
+        # make a live AI call to get probability estimates informed by current news.
+        # Result is injected into the LLM consensus model as ai_signals.
+        if web_context_text and llm_model is not None and not ai_signals:
+            try:
+                import asyncio as _asyncio
+                from app.services.ai_client import call_ai as _call_ai
+                import json as _json_orch
+
+                _mkt = features.get("market_odds", {})
+                _mh = float(_mkt.get("home", 2.30))
+                _md = float(_mkt.get("draw", 3.30))
+                _ma = float(_mkt.get("away", 3.10))
+
+                _ai_prompt = (
+                    f"You are an expert football analyst. Predict the match outcome probabilities for:\n"
+                    f"  {home_team} (Home)  vs  {away_team} (Away)  — {league}\n\n"
+                    f"Current bookmaker odds (decimal): Home={_mh}, Draw={_md}, Away={_ma}\n\n"
+                    f"{web_context_text}\n\n"
+                    f"Based on the market odds AND the real-time intelligence above, provide your "
+                    f"probability estimates. Market odds already imply home={round(1/_mh,3)}, "
+                    f"draw={round(1/_md,3)}, away={round(1/_ma,3)} (vig-free). Adjust these based "
+                    f"on the news context.\n\n"
+                    f"Return ONLY a JSON object (no markdown):\n"
+                    f'{{"home": 0.000, "draw": 0.000, "away": 0.000, "confidence": 0.00}}'
+                )
+                _ai_raw = await _call_ai(_ai_prompt, max_tokens=120, temperature=0.1)
+                if _ai_raw:
+                    _clean = _ai_raw.strip()
+                    if "```" in _clean:
+                        import re as _re
+                        _m = _re.search(r"```(?:json)?\s*([\s\S]*?)```", _clean)
+                        _clean = _m.group(1).strip() if _m else _clean
+                    _parsed = _json_orch.loads(_clean)
+                    _ah = float(_parsed.get("home", 0))
+                    _ad = float(_parsed.get("draw", 0))
+                    _aa = float(_parsed.get("away", 0))
+                    _conf = float(_parsed.get("confidence", 0.65))
+                    if _ah > 0.01 and _ad > 0.01 and _aa > 0.01:
+                        _tot = _ah + _ad + _aa
+                        llm_model._ai_signals = {
+                            "ai_weighted_home": round(_ah / _tot, 4),
+                            "ai_weighted_draw": round(_ad / _tot, 4),
+                            "ai_weighted_away": round(_aa / _tot, 4),
+                            "ai_avg_confidence": min(0.95, max(0.50, _conf)),
+                            "source": "live_ai_web_context",
+                        }
+                        logger.info(
+                            "[orchestrator] live AI call succeeded for %s vs %s: "
+                            "H=%.3f D=%.3f A=%.3f",
+                            home_team, away_team, _ah / _tot, _ad / _tot, _aa / _tot,
+                        )
+            except Exception as _ai_exc:
+                logger.debug("[orchestrator] live AI call failed: %s", _ai_exc)
 
         # ── Base market signal ─────────────────────────────────────────────────
         mkt_hp, mkt_dp, mkt_ap = _vig_free(h_raw, d_raw, a_raw)
@@ -2068,18 +2136,25 @@ class ModelOrchestrator:
         if total_w <= 0:
             total_w = 1.0
 
-        raw_hp = sum(preds_h[i] * weights[i] for i in range(len(weights))) / total_w
-        raw_dp = sum(preds_d[i] * weights[i] for i in range(len(weights))) / total_w
-        raw_ap = sum(preds_a[i] * weights[i] for i in range(len(weights))) / total_w
+        n_preds = len(weights)
+        raw_hp = sum(preds_h[i] * weights[i] for i in range(n_preds)) / total_w
+        raw_dp = sum(preds_d[i] * weights[i] for i in range(n_preds)) / total_w
+        raw_ap = sum(preds_a[i] * weights[i] for i in range(n_preds)) / total_w
 
-        # Variance-based diversity penalty
-        mean_h = raw_hp
-        var_h = sum((preds_h[i] - mean_h) ** 2 * weights[i] for i in range(len(weights))) / total_w
-        diversity_factor = max(0.85, 1.0 - var_h * 4)  # slight shrinkage toward mean
-
-        final_hp, final_dp, final_ap = _normalise(raw_hp * diversity_factor,
-                                                   raw_dp,
-                                                   raw_ap * diversity_factor)
+        # Symmetric variance-based diversity penalty.
+        # Compute variance for ALL three outcomes so shrinkage is balanced —
+        # the old code only penalised H/A, inflating draw after normalisation.
+        var_h = sum((preds_h[i] - raw_hp) ** 2 * weights[i] for i in range(n_preds)) / total_w
+        var_d = sum((preds_d[i] - raw_dp) ** 2 * weights[i] for i in range(n_preds)) / total_w
+        var_a = sum((preds_a[i] - raw_ap) ** 2 * weights[i] for i in range(n_preds)) / total_w
+        avg_var = (var_h + var_d + var_a) / 3.0
+        # Bayesian shrinkage toward uniform (1/3) when models strongly disagree.
+        # Factor ∈ [0.88, 1.0]: confident ensemble → no shrinkage; high variance → shrink toward 1/3.
+        diversity_factor = max(0.88, 1.0 - avg_var * 3.0)
+        final_hp = raw_hp * diversity_factor + (1.0 - diversity_factor) / 3.0
+        final_dp = raw_dp * diversity_factor + (1.0 - diversity_factor) / 3.0
+        final_ap = raw_ap * diversity_factor + (1.0 - diversity_factor) / 3.0
+        final_hp, final_dp, final_ap = _normalise(final_hp, final_dp, final_ap)
 
         # ── P2#10: Bootstrap confidence intervals (90%) ───────────────────────
         try:

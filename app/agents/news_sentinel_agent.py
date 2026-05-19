@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 from app.agents.base import BaseAgent
@@ -35,22 +35,28 @@ logger = logging.getLogger(__name__)
 MAX_TEAMS_PER_CYCLE = 3
 
 
-def _build_news_prompt(team: str, injuries: List[Dict]) -> str:
+def _build_news_prompt(team: str, injuries: List[Dict], web_snippets: Optional[List[str]] = None) -> str:
     injury_lines = "\n".join(
         f"- {inj.get('player_name', 'Unknown')} ({inj.get('injury', 'injury')}, "
         f"status: {inj.get('status', 'unknown')})"
         for inj in injuries[:6]
     )
-    return f"""You are a football injury analyst. Assess the impact of the following absences on {team}.
+    web_section = ""
+    if web_snippets:
+        snippet_text = "\n".join(f"  • {s[:180]}" for s in web_snippets[:3])
+        web_section = f"\n\nReal-time web intelligence (recent search results):\n{snippet_text}"
+    return f"""You are a football injury analyst with access to current web information. Assess the impact of the following absences on {team}.
 
 Current absences for {team}:
-{injury_lines}
+{injury_lines}{web_section}
+
+Use both the injury list and any web intelligence above to produce a thorough assessment.
 
 Return ONLY a JSON object (no markdown fences):
 {{
   "team": "{team}",
   "severity": "LOW|MEDIUM|HIGH|CRITICAL",
-  "summary": "2-sentence impact assessment",
+  "summary": "2-sentence impact assessment incorporating current news",
   "key_positions_affected": ["position1", "position2"],
   "betting_implication": "1 sentence on how this shifts the team's match odds",
   "confidence": 0.0
@@ -205,7 +211,14 @@ class NewsSentinelAgent(BaseAgent):
             teams_analyzed: List[str] = []
 
             for team, injuries in high_impact_teams:
-                prompt = _build_news_prompt(team, injuries)
+                # Enrich prompt with real-time web search snippets
+                _web_snippets: List[str] = []
+                try:
+                    from app.services.web_search import fetch_team_news
+                    _web_snippets = await fetch_team_news(team)
+                except Exception:
+                    pass
+                prompt = _build_news_prompt(team, injuries, web_snippets=_web_snippets)
                 _ai_result = await call_ai_with_provider(prompt)
                 _provider_used = "scie"
 
