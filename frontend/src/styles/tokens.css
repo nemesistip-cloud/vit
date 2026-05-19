@@ -96,13 +96,13 @@
   --vit-shadow-lg:  0 10px 40px rgba(0,0,0,0.7), 0 4px 8px rgba(0,0,0,0.5);
   --vit-shadow-xl:  0 20px 60px rgba(0,0,0,0.8), 0 8px 16px rgba(0,0,0,0.6);
 
-  --vit-shadow-cyan-glow:   0 0 20px rgba(30,107,255,0.28), 0 0 60px rgba(30,107,255,0.10);
-  --vit-shadow-cyan-soft:   0 0 12px rgba(30,107,255,0.18), 0 0 30px rgba(30,107,255,0.07);
-  --vit-shadow-gold-glow:   0 0 20px rgba(212,175,55,0.22), 0 0 60px rgba(212,175,55,0.08);
-  --vit-shadow-gold-soft:   0 0 12px rgba(212,175,55,0.15), 0 0 30px rgba(212,175,55,0.05);
-  --vit-shadow-purple-glow: 0 0 20px rgba(124,58,237,0.22), 0 0 60px rgba(124,58,237,0.08);
-  --vit-shadow-green-glow:  0 0 15px rgba(0,200,150,0.22), 0 0 40px rgba(0,200,150,0.08);
-  --vit-shadow-red-glow:    0 0 15px rgba(239,68,68,0.22);
+  --vit-shadow-cyan-glow:   none;
+  --vit-shadow-cyan-soft:   none;
+  --vit-shadow-gold-glow:   none;
+  --vit-shadow-gold-soft:   none;
+  --vit-shadow-purple-glow: none;
+  --vit-shadow-green-glow:  none;
+  --vit-shadow-red-glow:    none;
 
   /* ── Animation Durations ──────────────────────────────────── */
   --vit-duration-fast:    150ms;
@@ -155,12 +155,12 @@
   border: 1px solid rgba(255,255,255,0.08);
 }
 
-.vit-glow-cyan   { box-shadow: var(--vit-shadow-cyan-glow); }
-.vit-glow-cyan-s { box-shadow: var(--vit-shadow-cyan-soft); }
-.vit-glow-gold   { box-shadow: var(--vit-shadow-gold-glow); }
-.vit-glow-gold-s { box-shadow: var(--vit-shadow-gold-soft); }
-.vit-glow-purple { box-shadow: var(--vit-shadow-purple-glow); }
-.vit-glow-green  { box-shadow: var(--vit-shadow-green-glow); }
+.vit-glow-cyan   { box-shadow: none; }
+.vit-glow-cyan-s { box-shadow: none; }
+.vit-glow-gold   { box-shadow: none; }
+.vit-glow-gold-s { box-shadow: none; }
+.vit-glow-purple { box-shadow: none; }
+.vit-glow-green  { box-shadow: none; }
 
 /* ── Gradient Text ───────────────────────────────────────────── */
 .vit-gradient-text {
@@ -206,11 +206,11 @@
 
 /* ── Animated border glow ────────────────────────────────────── */
 .vit-border-glow {
-  box-shadow: 0 0 0 1px var(--vit-brand-cyan-border), var(--vit-shadow-cyan-soft);
-  transition: box-shadow 0.3s ease;
+  box-shadow: 0 0 0 1px var(--vit-brand-cyan-border);
+  transition: border-color 0.3s ease;
 }
 .vit-border-glow:hover {
-  box-shadow: 0 0 0 1px rgba(30,107,255,0.4), var(--vit-shadow-cyan-glow);
+  border-color: rgba(30,107,255,0.4);
 }
 
 /* ── Card variants ───────────────────────────────────────────── */
@@ -359,8 +359,18 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   MOBILE GPU COMPOSITOR FIX
+   PERFORMANCE OPTIMIZATION — GLOW REMOVAL
    ════════════════════════════════════════════════════════════════════════════ */
+.vit-glow-cyan, .vit-glow-cyan-s, .vit-glow-gold, .vit-glow-gold-s, .vit-glow-purple, .vit-glow-green, .vit-border-glow {
+  box-shadow: none !important;
+}
+
+/* Minimize heavy filter usage across the board */
+.backdrop-blur, .backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-lg, .backdrop-blur-xl, .backdrop-blur-2xl, .backdrop-blur-3xl {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 @media (max-width: 1279px) {
   .vit-ticker-content {
     animation: none !important;
@@ -381,9 +391,6 @@
     animation: none !important;
     box-shadow: none !important;
   }
-  .vit-glow-cyan, .vit-glow-cyan-s, .vit-glow-gold, .vit-glow-gold-s, .vit-glow-purple, .vit-glow-green, .vit-border-glow, .vit-border-glow:hover {
-    box-shadow: none !important;
-  }
   .vit-shimmer {
     animation: none !important;
     background: var(--vit-gray-800) !important;
@@ -399,31 +406,6 @@
   .animate-spin   { animation: none !important; }
   .vit-border-gradient::before, .vit-border-gradient-gold::before {
     transform: none !important;
-  }
-  * {
-    --tw-backdrop-blur: ;
-    --tw-backdrop-brightness: ;
-    --tw-backdrop-contrast: ;
-    --tw-backdrop-grayscale: ;
-    --tw-backdrop-hue-rotate: ;
-    --tw-backdrop-invert: ;
-    --tw-backdrop-opacity: ;
-    --tw-backdrop-saturate: ;
-    --tw-backdrop-sepia: ;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-  * { will-change: auto !important; }
-  *, *::before, *::after {
-    transition-duration: 0s !important;
-    transition-delay: 0s !important;
-  }
-  *, *::before, *::after {
-    filter: none !important;
-    -webkit-filter: none !important;
-  }
-  .shadow-xl, .shadow-2xl, .shadow-lg {
-    box-shadow: none !important;
   }
 }
 

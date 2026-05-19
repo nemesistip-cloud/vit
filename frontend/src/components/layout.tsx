@@ -37,6 +37,7 @@ const NAV_GROUPS: NavGroup[] = [
     name: "Earn",
     items: [
       { name: "Wallet",      href: "/wallet",      icon: Coins },
+      { name: "Watchlist",   href: "/watchlist",   icon: Activity },
       { name: "Tasks",       href: "/tasks",       icon: Target },
       { name: "Offers",      href: "/earn",        icon: Zap },
       { name: "Merit",       href: "/merit",       icon: Star },
@@ -306,11 +307,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* ── Mobile Bottom Navigation ─────────────────────── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40"
         style={{ background: "rgba(8,8,18,0.96)", backdropFilter: "blur(20px)" }}>
-        <div className="grid grid-cols-5 h-[60px]">
+        <div className="flex justify-around items-center h-[60px] max-w-lg mx-auto">
           {MOBILE_BOTTOM_NAV.map((item) => {
             const isActive = location === item.href || location.startsWith(item.href + "/");
             return (
-              <Link key={item.name} href={item.href}>
+              <Link key={item.name} href={item.href} className="flex-1">
                 <span className={`relative flex flex-col items-center justify-center h-full gap-1 transition-all cursor-pointer ${
                   isActive ? "text-primary" : "text-muted-foreground/60 hover:text-muted-foreground"
                 }`}>
@@ -318,7 +319,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(0,245,255,0.6)]" />
                   )}
                   <item.icon className={`w-4.5 h-4.5 transition-transform ${isActive ? "scale-110" : ""}`} style={{ width: 18, height: 18 }} />
-                  <span className="text-[9px] font-mono uppercase tracking-wide">{item.name}</span>
+                  <span className="text-[9px] font-mono uppercase tracking-wide text-center">{item.name}</span>
                 </span>
               </Link>
             );

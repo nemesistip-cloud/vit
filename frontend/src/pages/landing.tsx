@@ -222,11 +222,13 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link href="/login">
-              <Button variant="ghost" size="sm" className="font-mono text-xs">Sign In</Button>
+              <Button variant="ghost" size="sm" className="font-mono text-xs px-3">Sign In</Button>
             </Link>
             <Link href="/register">
-              <Button size="sm" className="font-mono text-xs gap-1">
-                Start Predicting <ArrowRight className="w-3 h-3" />
+              <Button size="sm" className="font-mono text-xs gap-1 px-4">
+                <span className="hidden sm:inline">Start Predicting</span>
+                <span className="sm:hidden">Start</span>
+                <ArrowRight className="w-3 h-3" />
               </Button>
             </Link>
           </div>
@@ -264,15 +266,15 @@ export default function LandingPage() {
             Real edge. Real transparency. Real results.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12">
-            <Link href="/register">
-              <Button size="lg" className="font-mono gap-2 px-8 h-12 text-base shadow-lg vit-glow-cyan">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12 w-full max-w-md mx-auto px-4">
+            <Link href="/register" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto font-mono gap-2 px-8 h-12 text-base shadow-lg vit-glow-cyan">
                 Start Predicting Free
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
-            <Link href="/login">
-              <Button size="lg" variant="outline" className="font-mono gap-2 px-8 h-12 text-base border-border/60">
+            <Link href="/login" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto font-mono gap-2 px-8 h-12 text-base border-border/60">
                 Sign In
               </Button>
             </Link>

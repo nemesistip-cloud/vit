@@ -53,23 +53,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
           <stop offset="100%" stopColor={purple} stopOpacity="0.08" />
         </linearGradient>
 
-        {/* Glow filter */}
-        <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="2.5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-
-        {/* Strong inner glow */}
-        <filter id={`${glowId}-strong`} x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="3.5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
 
         <clipPath id={`${id}-clip`}>
           <polygon points="50,6 88,28 88,72 50,94 12,72 12,28" />
@@ -107,7 +90,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
         { cx: 17, cy: 69 },
         { cx: 17, cy: 31 },
       ].map(({ cx, cy }, i) => (
-        <g key={i} filter={`url(#${glowId})`}>
+        <g key={i}>
           <circle cx={cx} cy={cy} r="3.8" fill={i === 0 ? teal : cyan} opacity={i === 0 ? 1 : 0.7} />
           <circle cx={cx} cy={cy} r="1.8" fill="#fff" opacity={i === 0 ? 0.9 : 0.5} />
         </g>
@@ -121,7 +104,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
         strokeLinejoin="round"
         fill="none"
         opacity="0.85"
-        filter={`url(#${glowId})`}
       />
 
       {/* ── Delta interior fill gradient ── */}
@@ -132,9 +114,9 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       />
 
       {/* ── V·I·T vertex indicators on delta ── */}
-      <circle cx="50" cy="24" r="3.2" fill={teal} filter={`url(#${glowId})`} opacity="0.9" />
-      <circle cx="68" cy="56" r="2.8" fill={cyan}  filter={`url(#${glowId})`} opacity="0.85" />
-      <circle cx="32" cy="56" r="2.8" fill={cyan}  filter={`url(#${glowId})`} opacity="0.85" />
+      <circle cx="50" cy="24" r="3.2" fill={teal} opacity="0.9" />
+      <circle cx="68" cy="56" r="2.8" fill={cyan} opacity="0.85" />
+      <circle cx="32" cy="56" r="2.8" fill={cyan} opacity="0.85" />
 
       {/* ── Circuit crossbar across delta mid ── */}
       <line x1="35" y1="41" x2="65" y2="41"
@@ -154,12 +136,10 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       {/* ── Central AI core ── */}
       <circle cx="50" cy="50" r="7.5"
         fill={teal} opacity="0.15"
-        filter={`url(#${glowId}-strong)`}
         className="animate-pulse"
       />
       <circle cx="50" cy="50" r="5"
         fill={teal} opacity="0.9"
-        filter={`url(#${glowId})`}
       />
       <circle cx="50" cy="50" r="2.5"
         fill="#fff" opacity="0.85"
