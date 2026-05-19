@@ -114,7 +114,7 @@ async def test_refresh_garbage_token_returns_401():
 async def test_predict_missing_required_fields_returns_422():
     async with _client() as client:
         token = await _make_token(client)
-        resp = await client.post("/predict", json={
+        resp = await client.post("/api/predict", json={
             "home_team": "Arsenal",
             # missing away_team, kickoff_time, etc.
         }, headers={"Authorization": f"Bearer {token}"})
@@ -127,7 +127,7 @@ async def test_predict_invalid_odds_returns_error():
     If a prior identical match exists, the app returns 409 (conflict)."""
     async with _client() as client:
         token = await _make_token(client)
-        resp = await client.post("/predict", json={
+        resp = await client.post("/api/predict", json={
             "home_team": "Arsenal",
             "away_team": "Chelsea",
             "kickoff_time": "2026-05-01T15:00:00",
@@ -146,7 +146,7 @@ async def test_predict_malformed_json_returns_422():
     async with _client() as client:
         token = await _make_token(client)
         resp = await client.post(
-            "/predict",
+            "/api/predict",
             content=b"not json at all }{",
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         )
@@ -203,7 +203,7 @@ async def test_post_to_get_only_endpoint_returns_405():
 @pytest.mark.asyncio
 async def test_delete_to_readonly_endpoint():
     async with _client() as client:
-        resp = await client.delete("/history")
+        resp = await client.delete("/api/history")
     assert resp.status_code in (404, 405)
 
 

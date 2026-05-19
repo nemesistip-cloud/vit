@@ -81,7 +81,7 @@ class PredictionResponse(BaseModel):
     raw_edge: Optional[float]
     normalized_edge: Optional[float]
     vig_free_edge: Optional[float]
-    model_weights: Dict[str, float]
+    model_weights: Dict[str, Any]
     model_insights: List[ModelInsight]
     neural_consensus_score: float
     intelligence_rating: str
