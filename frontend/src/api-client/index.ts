@@ -17,11 +17,11 @@ export const API = {
     vitcoinPrice: "/api/dashboard/vitcoin-price",
     recentActivity: "/api/dashboard/recent-activity",
   },
-  matches: "/matches/upcoming",
-  matchesExplore: "/matches/explore",
-  matchesRecent: "/matches/recent",
-  matchesCompleted: "/matches/completed",
-  match: (id: string) => `/matches/${id}`,
+  matches: "/api/matches/upcoming",
+  matchesExplore: "/api/matches/explore",
+  matchesRecent: "/api/matches/recent",
+  matchesCompleted: "/api/matches/completed",
+  match: (id: string) => `/api/matches/${id}`,
   predictions: "/history",
   ticketMarkets: "/history/ticket/markets",
   ticketCandidates: "/history/ticket/candidates",
@@ -237,7 +237,7 @@ export function useSyncFixtures() {
   const queryClient = useQueryClient();
   return useMutation<{ stored: number; skipped_existing: number; source: string; message: string }, Error, { days?: number }>({
     mutationFn: ({ days = 14 } = {}) =>
-      apiPost<any>(`/matches/sync?days=${days}`, {}),
+      apiPost<any>(`/api/matches/sync?days=${days}`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [API.matches] });
       queryClient.invalidateQueries({ queryKey: ["matches-recent"] });
@@ -248,7 +248,7 @@ export function useSyncFixtures() {
 export function useListLeagues() {
   return useQuery<{ leagues: { key: string; display: string }[] }>({
     queryKey: ["matches-leagues"],
-    queryFn: () => apiGet<{ leagues: { key: string; display: string }[] }>("/matches/leagues/list"),
+    queryFn: () => apiGet<{ leagues: { key: string; display: string }[] }>("/api/matches/leagues/list"),
     staleTime: 5 * 60_000,
   });
 }

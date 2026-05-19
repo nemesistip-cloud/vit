@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import os
+
+# Force CPU — avoids CUDA errors on CPU-only hosts
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 class MatchOutcomeNN(nn.Module):
     """

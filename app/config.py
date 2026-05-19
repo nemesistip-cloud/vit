@@ -215,6 +215,10 @@ THESPORTSDB_API_KEY: str   = get_env("THESPORTSDB_API_KEY", "3")
 # Enforced in-memory by app/core/rate_limit.py (resets on restart).
 MAX_PREDICTIONS_PER_DAY: int = int(get_env("MAX_PREDICTIONS_PER_DAY", "20"))
 
+# PyTorch device — force CPU to avoid CUDA errors on CPU-only hosts.
+# Set PYTORCH_DEVICE=cuda in the environment only if a GPU is confirmed available.
+PYTORCH_DEVICE: str = get_env("PYTORCH_DEVICE", "cpu")
+
 # Number of months of historical fixtures to backfill on first startup.
 BOOTSTRAP_MATCH_MONTHS: int = int(get_env("BOOTSTRAP_MATCH_MONTHS", "3"))
 
