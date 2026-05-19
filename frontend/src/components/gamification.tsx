@@ -1,4 +1,4 @@
-import { Star, Flame, Medal, Award, TrendingUp, Crown, Zap, Target } from "lucide-react";
+import { Star, Flame, Medal, Award, TrendingUp, Crown, Zap, Target, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
