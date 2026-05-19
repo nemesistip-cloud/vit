@@ -157,7 +157,14 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
                     return None
                 resp.raise_for_status()
                 data = resp.json()
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                candidates = data.get("candidates") or []
+                if not candidates:
+                    logger.warning("[ai-client] gemini/%s empty candidates in response", model)
+                    continue
+                parts = (candidates[0].get("content") or {}).get("parts") or []
+                text = parts[0].get("text", "") if parts else ""
+                if not text:
+                    continue
                 logger.debug("[ai-client] gemini/%s responded (%d chars)", model, len(text))
                 return text
         except httpx.HTTPStatusError as e:
@@ -171,7 +178,11 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
 
 
 async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str | None:
-    api_key = (os.getenv("CLAUDE_API_KEY") or os.getenv("ANTHROPIC_API_KEY", "")).strip()
+    api_key = (
+        os.getenv("AI_INTEGRATIONS_ANTHROPIC_API_KEY")
+        or os.getenv("CLAUDE_API_KEY")
+        or os.getenv("ANTHROPIC_API_KEY", "")
+    ).strip()
     if not api_key:
         return None
     if len(api_key) < 20:
@@ -180,7 +191,11 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
     if not _provider_available("claude"):
         return None
 
+    # Anthropic requires temperature in [0.0, 1.0]
+    clamped_temp = max(0.0, min(1.0, temperature))
+
     url = "https://api.anthropic.com/v1/messages"
+    _400_count = 0
     for model in _CLAUDE_MODELS:
         try:
             async with httpx.AsyncClient(timeout=30) as client:
@@ -194,12 +209,21 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
                     json={
                         "model": model,
                         "max_tokens": max_tokens,
-                        "temperature": temperature,
+                        "temperature": clamped_temp,
                         "messages": [{"role": "user", "content": prompt}],
                     },
                 )
                 if resp.status_code == 404:
                     continue
+                if resp.status_code == 400:
+                    body = resp.text[:300]
+                    logger.warning("[ai-client] claude/%s HTTP 400 — %s", model, body)
+                    _400_count += 1
+                    continue
+                if resp.status_code in (401, 403):
+                    logger.warning("[ai-client] claude/%s HTTP %d — marking provider failed", model, resp.status_code)
+                    _mark_provider_failed("claude", resp.status_code)
+                    return None
                 if resp.status_code == 429:
                     _mark_rate_limited("claude", resp.headers.get("Retry-After"))
                     return None
@@ -208,17 +232,23 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
                     return None
                 resp.raise_for_status()
                 data = resp.json()
-                text = data["content"][0]["text"]
+                content_blocks = data.get("content") or []
+                text = content_blocks[0].get("text", "") if content_blocks else ""
+                if not text:
+                    logger.warning("[ai-client] claude/%s empty content in response", model)
+                    continue
                 logger.debug("[ai-client] claude/%s responded (%d chars)", model, len(text))
                 return text
         except httpx.HTTPStatusError as e:
             sc = e.response.status_code
             logger.warning("[ai-client] claude/%s HTTP %d", model, sc)
-            if sc in (400, 401, 403):
+            if sc in (401, 403):
                 _mark_provider_failed("claude", sc)
-                break
+                return None
         except Exception as e:
             logger.warning("[ai-client] claude/%s error: %s", model, e)
+    if _400_count == len(_CLAUDE_MODELS):
+        _mark_provider_failed("claude", 400)
     return None
 
 
@@ -256,7 +286,11 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
                     _mark_rate_limited("openai", resp.headers.get("Retry-After"))
                     return None
                 resp.raise_for_status()
-                text = resp.json()["choices"][0]["message"]["content"]
+                choices = resp.json().get("choices") or []
+                text = (choices[0].get("message") or {}).get("content", "") if choices else ""
+                if not text:
+                    logger.warning("[ai-client] openai/%s empty choices in response", model)
+                    continue
                 logger.debug("[ai-client] openai/%s responded (%d chars)", model, len(text))
                 return text
         except httpx.HTTPStatusError as e:
@@ -302,15 +336,22 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
                     _mark_rate_limited("grok", resp.headers.get("Retry-After"))
                     return None
                 resp.raise_for_status()
-                text = resp.json()["choices"][0]["message"]["content"]
+                choices = resp.json().get("choices") or []
+                text = (choices[0].get("message") or {}).get("content", "") if choices else ""
+                if not text:
+                    logger.warning("[ai-client] grok/%s empty choices in response", model)
+                    continue
                 logger.debug("[ai-client] grok/%s responded (%d chars)", model, len(text))
                 return text
         except httpx.HTTPStatusError as e:
             sc = e.response.status_code
-            logger.warning("[ai-client] grok/%s HTTP %d", model, sc)
-            if sc in (400, 401, 403):
+            body = e.response.text[:200]
+            logger.warning("[ai-client] grok/%s HTTP %d — %s", model, sc, body)
+            if sc in (401, 403):
                 _mark_provider_failed("grok", sc)
-                break
+                return None
+            if sc == 400:
+                continue
         except Exception as e:
             logger.warning("[ai-client] grok/%s error: %s", model, e)
     return None

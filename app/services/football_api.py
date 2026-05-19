@@ -160,6 +160,13 @@ class FootballDataClient:
                     "Renew your API subscription at football-data.org to restore live data."
                 )
                 return {}
+            elif e.response.status_code == 400:
+                logger.debug(
+                    "Football Data API returned 400 for %s — competition may not be "
+                    "available on this API tier; skipping.",
+                    endpoint,
+                )
+                return {}
             elif e.response.status_code == 404:
                 logger.warning(f"Endpoint not found: {endpoint}")
                 return {}

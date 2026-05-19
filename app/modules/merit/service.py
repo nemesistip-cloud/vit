@@ -139,7 +139,9 @@ async def apply_inactivity_decay(db: AsyncSession, user_id: int) -> MeritScore |
 
     now = datetime.now(timezone.utc)
     last = ms.last_activity_at or ms.created_at
-    days_inactive = (now - last).days
+    if last is not None and last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    days_inactive = (now - last).days if last else 0
 
     if days_inactive < DECAY_THRESHOLD_DAYS:
         return ms

@@ -50,7 +50,7 @@ class MatchRepository:
         result = await self.db.execute(
             select(Match)
             .where(Match.status == "scheduled")
-            .where(Match.kickoff_time > datetime.now(timezone.utc))
+            .where(Match.kickoff_time > datetime.now(timezone.utc).replace(tzinfo=None))
             .order_by(Match.kickoff_time)
             .limit(limit)
         )

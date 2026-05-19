@@ -79,7 +79,11 @@ def _make_prediction(match: Match, seed_idx: int, win_bias: float = 0.60) -> Opt
         settled_profit = round(-recommended_stake, 4)
 
     kickoff = match.kickoff_time
-    pred_time = kickoff - timedelta(hours=random.uniform(1, 48)) if kickoff else datetime.now(timezone.utc) - timedelta(days=random.randint(1, 90))
+    if kickoff:
+        naive_base = kickoff if kickoff.tzinfo is None else kickoff.replace(tzinfo=None)
+        pred_time = (naive_base - timedelta(hours=random.uniform(1, 48))).replace(tzinfo=timezone.utc)
+    else:
+        pred_time = datetime.now(timezone.utc) - timedelta(days=random.randint(1, 90))
 
     req_hash = _seed_hash(match.id, seed_idx)
 

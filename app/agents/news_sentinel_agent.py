@@ -100,14 +100,14 @@ async def _get_notable_teams_from_db(db, n: int = 6) -> List[Dict]:
     from app.db.models import Match
 
     now    = datetime.now(timezone.utc)
-    cutoff = now - timedelta(days=14)
+    cutoff_naive = now.replace(tzinfo=None) - timedelta(days=14)
 
     try:
         rows = (await db.execute(
             select(Match)
             .where(
                 Match.status == "settled",
-                Match.kickoff_time >= cutoff,
+                Match.kickoff_time >= cutoff_naive,
                 Match.actual_outcome.is_not(None),
             )
             .order_by(Match.kickoff_time.desc())

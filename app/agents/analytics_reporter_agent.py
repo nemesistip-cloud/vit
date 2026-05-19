@@ -30,7 +30,9 @@ async def _gather_metrics(db_session, window_hours: int = 24) -> dict:
     from app.modules.wallet.models import WalletTransaction, WalletUserSubscription, WithdrawalRequest
 
     now = datetime.now(timezone.utc)
+    now_naive = now.replace(tzinfo=None)
     cutoff = now - timedelta(hours=window_hours)
+    cutoff_naive = now_naive - timedelta(hours=window_hours)
     week_ago = now - timedelta(days=7)
     stats: Dict[str, Any] = {"window_hours": window_hours}
 
@@ -134,7 +136,7 @@ async def _gather_metrics(db_session, window_hours: int = 24) -> dict:
             select(func.count(Match.id))
             .where(
                 Match.status.in_(["scheduled", "upcoming"]),
-                Match.kickoff_time >= now,
+                Match.kickoff_time >= now_naive,
             )
         )
     )

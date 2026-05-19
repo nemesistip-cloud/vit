@@ -248,7 +248,17 @@ def _parse_ai_json(raw: str, home_default=0.34, draw_default=0.33, away_default=
     obj = re.search(r"\{[\s\S]*\}", text)
     if obj:
         text = obj.group(0)
-    parsed = json.loads(text)
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return {
+            "home_prob": home_default,
+            "draw_prob": draw_default,
+            "away_prob": away_default,
+            "confidence": 0.5,
+            "reason": "AI response could not be parsed",
+            "raw_content": raw,
+        }
     h = max(0.0, float(parsed.get("home_prob", home_default)))
     d = max(0.0, float(parsed.get("draw_prob", draw_default)))
     a = max(0.0, float(parsed.get("away_prob", away_default)))

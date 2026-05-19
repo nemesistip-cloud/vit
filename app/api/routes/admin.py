@@ -867,7 +867,7 @@ async def add_manual_match(body: ManualMatchRequest, api_key: Optional[str] = Qu
     try:
         kickoff_dt = datetime.fromisoformat(body.kickoff_time.replace("Z", "+00:00")).replace(tzinfo=None)
     except Exception:
-        kickoff_dt = datetime.now(timezone.utc)
+        kickoff_dt = datetime.now(timezone.utc).replace(tzinfo=None)
 
     from app.data.match_dedup import compute_fingerprint, find_existing_match
 
@@ -1119,8 +1119,9 @@ async def upload_csv_fixtures(
                 hour, minute = int(t_parts[0]), int(t_parts[1]) if len(t_parts) > 1 else 0
                 year = datetime.now(timezone.utc).year
                 dt = datetime(year, mon, day, hour, minute)
+                now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
                 # If that date is already >30 days in the past, try next year
-                if (dt - datetime.now(timezone.utc)).days < -30:
+                if (dt - now_naive).days < -30:
                     dt = datetime(year + 1, mon, day, hour, minute)
                 return dt
         except Exception:
@@ -3843,7 +3844,7 @@ async def fixture_health(
     from sqlalchemy import func as _f, and_ as _and, or_ as _or
     from app.db.models import Match as _M
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # ── 1. Unsettled past fixtures ────────────────────────────────────
     unsettled_q = await db.execute(
