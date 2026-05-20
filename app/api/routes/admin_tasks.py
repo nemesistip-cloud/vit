@@ -252,3 +252,110 @@ async def reset_expired_admin_tasks(
     _require_admin(current_user)
     reset_count = await TaskService.reset_expired_tasks(db)
     return {"reset_count": reset_count}
+
+
+# ── Category management ────────────────────────────────────────────────────────
+
+class AdminCategoryRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    sort_order: int = 0
+    is_active: bool = True
+
+
+def _cat_to_dict(c: TaskCategory) -> Dict[str, Any]:
+    return {
+        "id": c.id,
+        "name": c.name,
+        "description": c.description,
+        "icon": c.icon,
+        "color": c.color,
+        "sort_order": c.sort_order,
+        "is_active": c.is_active,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    }
+
+
+@router.get("/categories")
+async def list_admin_categories(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    _require_admin(current_user)
+    result = await db.execute(
+        select(TaskCategory).order_by(TaskCategory.sort_order, TaskCategory.name)
+    )
+    return [_cat_to_dict(c) for c in result.scalars().all()]
+
+
+@router.post("/categories")
+async def create_admin_category(
+    request: AdminCategoryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_admin(current_user)
+    existing = await db.execute(select(TaskCategory).where(TaskCategory.name == request.name))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Category with this name already exists")
+    cat = TaskCategory(
+        name=request.name,
+        description=request.description,
+        icon=request.icon,
+        color=request.color,
+        sort_order=request.sort_order,
+        is_active=request.is_active,
+    )
+    db.add(cat)
+    await db.commit()
+    await db.refresh(cat)
+    return _cat_to_dict(cat)
+
+
+@router.put("/categories/{category_id}")
+async def update_admin_category(
+    category_id: int,
+    request: AdminCategoryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_admin(current_user)
+    result = await db.execute(select(TaskCategory).where(TaskCategory.id == category_id))
+    cat = result.scalar_one_or_none()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+    cat.name = request.name
+    cat.description = request.description
+    cat.icon = request.icon
+    cat.color = request.color
+    cat.sort_order = request.sort_order
+    cat.is_active = request.is_active
+    await db.commit()
+    await db.refresh(cat)
+    return _cat_to_dict(cat)
+
+
+@router.delete("/categories/{category_id}")
+async def delete_admin_category(
+    category_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_admin(current_user)
+    task_count_result = await db.execute(
+        select(func.count(Task.id)).where(Task.category_id == category_id)
+    )
+    task_count = task_count_result.scalar() or 0
+    if task_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete category: {task_count} task(s) assigned to it. Reassign or delete them first.",
+        )
+    from sqlalchemy import delete as sa_delete
+    result = await db.execute(sa_delete(TaskCategory).where(TaskCategory.id == category_id))
+    await db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"success": True}

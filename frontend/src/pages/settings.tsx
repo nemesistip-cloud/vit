@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost } from "@/lib/apiClient";
+import { apiGet, apiPost, apiPatch } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import {
   Shield, Mail, Lock, Key, CheckCircle, AlertCircle,
   QrCode, Eye, EyeOff, Sun, Moon, AlertTriangle,
+  Bell, BellOff, MessageCircle, Link2, Link2Off, Send,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 
@@ -24,6 +25,322 @@ interface TotpSetup {
   qr_code: string;
   provisioning_uri: string;
   instructions: string;
+}
+
+interface NotificationPreferences {
+  prediction_alerts: boolean;
+  match_results: boolean;
+  wallet_activity: boolean;
+  validator_rewards: boolean;
+  subscription_expiry: boolean;
+  email_enabled: boolean;
+  telegram_enabled: boolean;
+  in_app_enabled: boolean;
+  telegram_chat_id: string | null;
+  telegram_linked: boolean;
+}
+
+interface TelegramLinkInfo {
+  bot_username: string;
+  link_url: string;
+  code: string;
+  expires_in: number;
+  already_linked: boolean;
+}
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div>
+        <p className="font-mono text-sm">{label}</p>
+        {description && <p className="text-xs text-muted-foreground font-mono">{description}</p>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+          checked ? "bg-primary" : "bg-muted"
+        } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+            checked ? "translate-x-4" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+function NotificationsCard() {
+  const qc = useQueryClient();
+  const [manualChatId, setManualChatId] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
+
+  const { data: prefs, isLoading } = useQuery<NotificationPreferences>({
+    queryKey: ["notification-preferences"],
+    queryFn: () => apiGet("/api/notifications/preferences"),
+    staleTime: 30_000,
+  });
+
+  const updatePrefsMutation = useMutation({
+    mutationFn: (updates: Partial<NotificationPreferences>) =>
+      apiPatch("/api/notifications/preferences", updates),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notification-preferences"] }),
+    onError: (err: any) => toast.error(err.message ?? "Failed to save preferences"),
+  });
+
+  const linkInfoMutation = useMutation({
+    mutationFn: () => apiGet<TelegramLinkInfo>("/api/notifications/telegram/link-info"),
+    onSuccess: (data) => {
+      window.open(data.link_url, "_blank", "noopener,noreferrer");
+      toast.info("Telegram link opened! Click 'Start' in the bot to complete linking.", {
+        duration: 8000,
+      });
+    },
+    onError: (err: any) => toast.error(err.message ?? "Telegram not configured on this server"),
+  });
+
+  const manualLinkMutation = useMutation({
+    mutationFn: (chat_id: string) =>
+      apiPost("/api/notifications/telegram/link-manual", { chat_id }),
+    onSuccess: () => {
+      toast.success("Telegram linked! Check your Telegram for a confirmation message.");
+      setManualChatId("");
+      setShowManualInput(false);
+      qc.invalidateQueries({ queryKey: ["notification-preferences"] });
+    },
+    onError: (err: any) => toast.error(err.message ?? "Could not link Telegram"),
+  });
+
+  const unlinkMutation = useMutation({
+    mutationFn: () => apiPost("/api/notifications/telegram/unlink"),
+    onSuccess: () => {
+      toast.success("Telegram unlinked.");
+      qc.invalidateQueries({ queryKey: ["notification-preferences"] });
+    },
+    onError: (err: any) => toast.error(err.message ?? "Failed to unlink"),
+  });
+
+  const testMutation = useMutation({
+    mutationFn: () => apiPost<{ results: Record<string, string> }>("/api/notifications/test"),
+    onSuccess: (data) => {
+      const lines = Object.entries(data.results)
+        .map(([ch, status]) => `${ch}: ${status}`)
+        .join(" · ");
+      toast.success(`Test sent — ${lines}`, { duration: 6000 });
+    },
+    onError: (err: any) => toast.error(err.message ?? "Test failed"),
+  });
+
+  const toggle = (key: keyof NotificationPreferences) => (val: boolean) => {
+    updatePrefsMutation.mutate({ [key]: val });
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-border/50">
+        <CardContent className="pt-6">
+          <p className="text-xs text-muted-foreground font-mono">Loading preferences…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const p = prefs;
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-mono flex items-center gap-2">
+          <Bell className="w-4 h-4 text-muted-foreground" />
+          Notifications
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto font-mono text-xs h-7 gap-1.5"
+            onClick={() => testMutation.mutate()}
+            disabled={testMutation.isPending}
+          >
+            <Send className="w-3 h-3" />
+            {testMutation.isPending ? "Sending…" : "Send Test"}
+          </Button>
+        </CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Control which alerts you receive and via which channels.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Channel toggles */}
+        <div>
+          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider mb-2">Channels</p>
+          <div className="divide-y divide-border/30">
+            <ToggleRow
+              label="In-App"
+              description="Notification bell inside the platform"
+              checked={p?.in_app_enabled ?? true}
+              onChange={toggle("in_app_enabled")}
+              disabled={updatePrefsMutation.isPending}
+            />
+            <ToggleRow
+              label="Email"
+              description="Alerts sent to your account email"
+              checked={p?.email_enabled ?? true}
+              onChange={toggle("email_enabled")}
+              disabled={updatePrefsMutation.isPending}
+            />
+            <ToggleRow
+              label="Telegram"
+              description="DMs via your linked Telegram account"
+              checked={p?.telegram_enabled ?? false}
+              onChange={toggle("telegram_enabled")}
+              disabled={updatePrefsMutation.isPending || !p?.telegram_linked}
+            />
+          </div>
+        </div>
+
+        {/* Alert type toggles */}
+        <div>
+          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider mb-2">Alert Types</p>
+          <div className="divide-y divide-border/30">
+            <ToggleRow
+              label="Prediction Alerts"
+              description="AI prediction ready notifications"
+              checked={p?.prediction_alerts ?? true}
+              onChange={toggle("prediction_alerts")}
+              disabled={updatePrefsMutation.isPending}
+            />
+            <ToggleRow
+              label="Match Results"
+              description="When tracked matches are settled"
+              checked={p?.match_results ?? true}
+              onChange={toggle("match_results")}
+              disabled={updatePrefsMutation.isPending}
+            />
+            <ToggleRow
+              label="Wallet Activity"
+              description="Deposits, withdrawals, and VIT transfers"
+              checked={p?.wallet_activity ?? true}
+              onChange={toggle("wallet_activity")}
+              disabled={updatePrefsMutation.isPending}
+            />
+            <ToggleRow
+              label="Validator Rewards"
+              description="Staking and validator reward payouts"
+              checked={p?.validator_rewards ?? true}
+              onChange={toggle("validator_rewards")}
+              disabled={updatePrefsMutation.isPending}
+            />
+            <ToggleRow
+              label="Subscription Expiry"
+              description="Reminders before your subscription ends"
+              checked={p?.subscription_expiry ?? true}
+              onChange={toggle("subscription_expiry")}
+              disabled={updatePrefsMutation.isPending}
+            />
+          </div>
+        </div>
+
+        {/* Telegram linking */}
+        <div className="pt-1">
+          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider mb-3">Telegram</p>
+          {p?.telegram_linked ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-mono text-green-300">Telegram linked</p>
+                  <p className="text-xs text-muted-foreground font-mono truncate">
+                    Chat ID: {p.telegram_chat_id}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="font-mono text-xs text-destructive hover:text-destructive gap-1.5 flex-shrink-0"
+                  onClick={() => unlinkMutation.mutate()}
+                  disabled={unlinkMutation.isPending}
+                >
+                  <Link2Off className="w-3.5 h-3.5" />
+                  Unlink
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 p-3 bg-muted/20 border border-border/50 rounded-lg">
+                <MessageCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <p className="text-xs font-mono text-muted-foreground flex-1">
+                  Link your Telegram to receive DM alerts from the VIT bot.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-mono gap-1.5"
+                  onClick={() => linkInfoMutation.mutate()}
+                  disabled={linkInfoMutation.isPending}
+                >
+                  <Link2 className="w-3.5 h-3.5" />
+                  {linkInfoMutation.isPending ? "Opening…" : "Link via Bot"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="font-mono text-xs"
+                  onClick={() => setShowManualInput(!showManualInput)}
+                >
+                  Manual
+                </Button>
+              </div>
+              {showManualInput && (
+                <div className="space-y-2">
+                  <Label className="font-mono text-xs text-muted-foreground">
+                    Enter your Telegram Chat ID (find it via @userinfobot)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g. 123456789"
+                      value={manualChatId}
+                      onChange={(e) => setManualChatId(e.target.value.trim())}
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      className="font-mono"
+                      onClick={() => manualLinkMutation.mutate(manualChatId)}
+                      disabled={!manualChatId || manualLinkMutation.isPending}
+                    >
+                      {manualLinkMutation.isPending ? "Linking…" : "Link"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    A confirmation DM will be sent to verify your chat ID.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function SettingsPage() {
@@ -142,6 +459,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Notifications */}
+      <NotificationsCard />
 
       {/* Email verification */}
       <Card className="border-border/50">

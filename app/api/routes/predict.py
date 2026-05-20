@@ -803,29 +803,14 @@ async def predict(
             calibration_note = "Strong consensus signal"
 
         # --- Task System Integration ---
-        # Trigger task progress updates for authenticated users
+        # Dispatch trigger events for prediction-related tasks (slug-based, no hardcoded IDs)
         if current_user and current_user.id:
             try:
                 from app.modules.tasks.service import TaskService
-
-                # Update "Make Your First Prediction" task
-                await TaskService.update_task_progress(
-                    db, current_user.id, 2, 1  # Task ID 2: "Make Your First Prediction"
-                )
-
-                # Update "Daily Predictions" task (if user has progress on it)
-                await TaskService.update_task_progress(
-                    db, current_user.id, 4, 1  # Task ID 4: "Daily Predictions"
-                )
-
-                # Update "Weekly Streaker" task
-                await TaskService.update_task_progress(
-                    db, current_user.id, 5, 1  # Task ID 5: "Weekly Streaker"
-                )
-
-                logger.info(f"Task progress updated for user {current_user.id} after prediction")
+                await TaskService.dispatch_trigger(db, current_user.id, "prediction", increment=1)
+                logger.info(f"Task trigger 'prediction' dispatched for user {current_user.id}")
             except Exception as e:
-                logger.warning(f"Task progress update failed (non-fatal): {e}")
+                logger.warning(f"Task trigger dispatch failed (non-fatal): {e}")
 
         # --- CLV tracking ---
         # Record for ALL predictions that have a bet_side + valid odds (not just edge bets),

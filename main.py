@@ -602,6 +602,15 @@ async def lifespan(app: FastAPI):
     print_config_status()
     print(f"🚀 VIT Network v{APP_VERSION} starting...")
 
+    # ── Bootstrap: create ALL tables defined across every model module ─────────
+    try:
+        from app.db.database import engine, Base
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("✅ Database: all tables created/verified")
+    except Exception as _cre:
+        print(f"⚠️  Database create_all failed: {_cre}")
+
     try:
         from app.db.database import engine
         from app.modules.wallet.models import PlatformSecret
@@ -1281,12 +1290,16 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import select as _select, func as _func
 
         _task_categories = [
-            {"name": "Prediction", "description": "Tasks related to making and reviewing football predictions", "icon": "target", "color": "blue", "sort_order": 1},
-            {"name": "Social", "description": "Community and referral tasks to grow the VIT network", "icon": "users", "color": "green", "sort_order": 2},
-            {"name": "Learning", "description": "Educational tasks to improve your sports intelligence", "icon": "book-open", "color": "purple", "sort_order": 3},
+            {"name": "Prediction",  "description": "Tasks related to making and reviewing football predictions",        "icon": "target",       "color": "blue",   "sort_order": 1},
+            {"name": "Social",      "description": "Community and referral tasks to grow the VIT network",             "icon": "users",        "color": "green",  "sort_order": 2},
+            {"name": "Learning",    "description": "Educational tasks to improve your sports intelligence",            "icon": "book-open",    "color": "purple", "sort_order": 3},
+            {"name": "Platform",    "description": "Platform setup tasks that unlock VIT features and integrations",   "icon": "settings",     "color": "cyan",   "sort_order": 4},
+            {"name": "Enterprise",  "description": "Advanced milestones for power users and institutional participants","icon": "briefcase",    "color": "gold",   "sort_order": 5},
+            {"name": "Analytics",   "description": "Quant and research tasks to sharpen your analytical edge",        "icon": "bar-chart-2",  "color": "indigo", "sort_order": 6},
+            {"name": "Daily",       "description": "Daily recurring challenges that refresh every 24 hours",          "icon": "calendar",     "color": "orange", "sort_order": 7},
         ]
         _task_definitions = [
-            # Prediction tasks
+            # Prediction tasks (trigger_type="prediction" wires dispatch_trigger)
             {
                 "category_name": "Prediction",
                 "title": "Make Your First Prediction",
@@ -1300,6 +1313,7 @@ async def lifespan(app: FastAPI):
                 "color": "blue",
                 "sort_order": 1,
                 "is_featured": True,
+                "requirements": {"trigger_type": "prediction"},
                 "action_url": "/predict",
                 "action_label": "Predict Now",
             },
@@ -1318,6 +1332,7 @@ async def lifespan(app: FastAPI):
                 "color": "orange",
                 "sort_order": 2,
                 "is_featured": True,
+                "requirements": {"trigger_type": "prediction"},
                 "action_url": "/predict",
                 "action_label": "Predict Today",
             },
@@ -1333,6 +1348,7 @@ async def lifespan(app: FastAPI):
                 "icon": "trophy",
                 "color": "yellow",
                 "sort_order": 3,
+                "requirements": {"trigger_type": "prediction"},
                 "action_url": "/predict",
                 "action_label": "Predict Now",
             },
@@ -1366,6 +1382,7 @@ async def lifespan(app: FastAPI):
                 "icon": "share-2",
                 "color": "teal",
                 "sort_order": 2,
+                "requirements": {"trigger_type": "referral"},
                 "action_url": "/referral",
                 "action_label": "Get Referral Link",
             },
@@ -1417,18 +1434,265 @@ async def lifespan(app: FastAPI):
                 "action_url": "/dashboard",
                 "action_label": "View Dashboard",
             },
+            # Platform tasks
+            {
+                "category_name": "Platform",
+                "title": "Link Telegram Notifications",
+                "description": "Connect your Telegram account to receive real-time DM alerts from the VIT bot.",
+                "short_description": "Link Telegram",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 20,
+                "xp_reward": 100,
+                "icon": "message-circle",
+                "color": "cyan",
+                "sort_order": 1,
+                "is_featured": True,
+                "requirements": {"trigger_type": "telegram_linked"},
+                "action_url": "/settings",
+                "action_label": "Go to Settings",
+            },
+            {
+                "category_name": "Platform",
+                "title": "Complete KYC Verification",
+                "description": "Verify your identity to unlock higher staking limits and premium platform features.",
+                "short_description": "Pass KYC",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 50,
+                "xp_reward": 250,
+                "icon": "shield-check",
+                "color": "cyan",
+                "sort_order": 2,
+                "is_featured": True,
+                "requirements": {"trigger_type": "kyc_approved"},
+                "action_url": "/kyc",
+                "action_label": "Start KYC",
+            },
+            {
+                "category_name": "Platform",
+                "title": "Enable 2FA Security",
+                "description": "Activate two-factor authentication to secure your VIT account against unauthorized access.",
+                "short_description": "Enable 2FA",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 15,
+                "xp_reward": 75,
+                "icon": "key",
+                "color": "cyan",
+                "sort_order": 3,
+                "requirements": {"trigger_type": "2fa_enabled"},
+                "action_url": "/settings",
+                "action_label": "Secure Account",
+            },
+            {
+                "category_name": "Platform",
+                "title": "Stake VIT Tokens",
+                "description": "Stake at least 100 VIT tokens on the marketplace to activate your validator node.",
+                "short_description": "Stake 100 VIT",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 30,
+                "xp_reward": 150,
+                "icon": "layers",
+                "color": "cyan",
+                "sort_order": 4,
+                "requirements": {"trigger_type": "staked"},
+                "action_url": "/staking",
+                "action_label": "Stake Now",
+            },
+            # Enterprise tasks
+            {
+                "category_name": "Enterprise",
+                "title": "Century Club",
+                "description": "Reach 100 total XP — a milestone that marks you as an active member of the VIT community.",
+                "short_description": "Earn 100 XP",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 100,
+                "vit_reward": 50,
+                "xp_reward": 0,
+                "icon": "star",
+                "color": "gold",
+                "sort_order": 1,
+                "is_featured": True,
+            },
+            {
+                "category_name": "Enterprise",
+                "title": "XP Veteran",
+                "description": "Accumulate 500 XP across all tasks to unlock veteran platform privileges.",
+                "short_description": "Earn 500 XP",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 500,
+                "vit_reward": 150,
+                "xp_reward": 0,
+                "icon": "award",
+                "color": "gold",
+                "sort_order": 2,
+            },
+            {
+                "category_name": "Enterprise",
+                "title": "XP Master",
+                "description": "Reach 2,000 XP to achieve Master status on the VIT leaderboard.",
+                "short_description": "Earn 2000 XP",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 2000,
+                "vit_reward": 500,
+                "xp_reward": 0,
+                "icon": "crown",
+                "color": "gold",
+                "sort_order": 3,
+            },
+            {
+                "category_name": "Enterprise",
+                "title": "VIT Millionaire",
+                "description": "Earn a cumulative total of 1,000 VIT from task completions — true institutional-grade status.",
+                "short_description": "Earn 1000 VIT total",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1000,
+                "vit_reward": 200,
+                "xp_reward": 1000,
+                "icon": "dollar-sign",
+                "color": "gold",
+                "sort_order": 4,
+                "is_featured": True,
+            },
+            {
+                "category_name": "Enterprise",
+                "title": "Prediction Centurion",
+                "description": "Submit 100 total predictions — an institutional-grade commitment to sports intelligence.",
+                "short_description": "100 total predictions",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 100,
+                "vit_reward": 250,
+                "xp_reward": 1250,
+                "icon": "shield",
+                "color": "gold",
+                "sort_order": 5,
+                "requirements": {"trigger_type": "prediction"},
+                "action_url": "/predict",
+                "action_label": "Predict Now",
+            },
+            # Analytics tasks
+            {
+                "category_name": "Analytics",
+                "title": "Run Your First Backtest",
+                "description": "Execute a walk-forward backtest in the Research Terminal to validate a betting strategy.",
+                "short_description": "Run a backtest",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 15,
+                "xp_reward": 75,
+                "icon": "trending-up",
+                "color": "indigo",
+                "sort_order": 1,
+                "requirements": {"trigger_type": "backtest_run"},
+                "action_url": "/research",
+                "action_label": "Open Research",
+            },
+            {
+                "category_name": "Analytics",
+                "title": "Scan for Value Bets",
+                "description": "Use the EV Scanner to identify expected-value opportunities across live markets.",
+                "short_description": "Run EV scan",
+                "task_type": TaskType.ONE_TIME.value,
+                "required_count": 1,
+                "vit_reward": 10,
+                "xp_reward": 50,
+                "icon": "search",
+                "color": "indigo",
+                "sort_order": 2,
+                "requirements": {"trigger_type": "ev_scan_run"},
+                "action_url": "/research",
+                "action_label": "Open Scanner",
+            },
+            {
+                "category_name": "Analytics",
+                "title": "Weekly Quant Report",
+                "description": "Review the bankroll state and model performance dashboard at least once per week.",
+                "short_description": "Weekly analytics check",
+                "task_type": TaskType.WEEKLY.value,
+                "required_count": 1,
+                "max_completions": 52,
+                "reset_period_days": 7,
+                "vit_reward": 12,
+                "xp_reward": 60,
+                "icon": "bar-chart",
+                "color": "indigo",
+                "sort_order": 3,
+                "action_url": "/bankroll",
+                "action_label": "View Bankroll",
+            },
+            # Daily tasks
+            {
+                "category_name": "Daily",
+                "title": "Daily Login",
+                "description": "Log into VIT Sports Intelligence Network at least once a day to keep your streak active.",
+                "short_description": "Daily login",
+                "task_type": TaskType.DAILY.value,
+                "required_count": 1,
+                "max_completions": 365,
+                "reset_period_days": 1,
+                "vit_reward": 2,
+                "xp_reward": 10,
+                "icon": "sunrise",
+                "color": "orange",
+                "sort_order": 1,
+                "is_featured": True,
+                "requirements": {"trigger_type": "login"},
+                "action_url": "/dashboard",
+                "action_label": "View Dashboard",
+            },
+            {
+                "category_name": "Daily",
+                "title": "Daily Market Check",
+                "description": "Browse the upcoming matches page every day to stay on top of the fixture calendar.",
+                "short_description": "Check matches",
+                "task_type": TaskType.DAILY.value,
+                "required_count": 1,
+                "max_completions": 365,
+                "reset_period_days": 1,
+                "vit_reward": 1,
+                "xp_reward": 5,
+                "icon": "calendar-check",
+                "color": "orange",
+                "sort_order": 2,
+                "action_url": "/matches",
+                "action_label": "View Matches",
+            },
+            {
+                "category_name": "Daily",
+                "title": "Daily AI Insight",
+                "description": "Read at least one AI agent intelligence report per day to stay informed on match analytics.",
+                "short_description": "Read AI report",
+                "task_type": TaskType.DAILY.value,
+                "required_count": 1,
+                "max_completions": 365,
+                "reset_period_days": 1,
+                "vit_reward": 2,
+                "xp_reward": 10,
+                "icon": "lightbulb",
+                "color": "orange",
+                "sort_order": 3,
+                "requirements": {"trigger_type": "ai_report_viewed"},
+                "action_url": "/ai-agents",
+                "action_label": "View Reports",
+            },
         ]
 
         async with AsyncSessionLocal() as _db:
-            _cat_count = (await _db.execute(_select(_func.count()).select_from(TaskCategory))).scalar()
-            if _cat_count == 0:
-                _admin_user = (await _db.execute(_select(__import__('app.db.models', fromlist=['User']).User).where(
-                    __import__('app.db.models', fromlist=['User']).User.role == "admin"
-                ))).scalar_one_or_none()
-                _admin_id = _admin_user.id if _admin_user else 1
+            # Upsert-by-name: ensure every canonical category exists regardless of prior state
+            _admin_user = (await _db.execute(_select(__import__('app.db.models', fromlist=['User']).User).where(
+                __import__('app.db.models', fromlist=['User']).User.role == "admin"
+            ))).scalar_one_or_none()
+            _admin_id = _admin_user.id if _admin_user else 1
 
-                _cat_map = {}
-                for _cat in _task_categories:
+            _existing_cats = (await _db.execute(_select(TaskCategory))).scalars().all()
+            _existing_cat_names = {c.name for c in _existing_cats}
+            _cat_map = {c.name: c.id for c in _existing_cats}
+
+            _cats_added = 0
+            for _cat in _task_categories:
+                if _cat["name"] not in _existing_cat_names:
                     _c = TaskCategory(
                         name=_cat["name"],
                         description=_cat["description"],
@@ -1440,10 +1704,16 @@ async def lifespan(app: FastAPI):
                     _db.add(_c)
                     await _db.flush()
                     _cat_map[_cat["name"]] = _c.id
+                    _cats_added += 1
 
-                for _td in _task_definitions:
+            _existing_titles = {r[0] for r in (await _db.execute(_select(Task.title))).all()}
+            _tasks_added = 0
+            for _td in _task_definitions:
+                _cat_name = _td["category_name"]
+                if _td["title"] not in _existing_titles and _cat_name in _cat_map:
+                    _reqs = dict(_td.get("requirements", {}))
                     _db.add(Task(
-                        category_id=_cat_map[_td["category_name"]],
+                        category_id=_cat_map[_cat_name],
                         title=_td["title"],
                         description=_td["description"],
                         short_description=_td.get("short_description"),
@@ -1458,16 +1728,20 @@ async def lifespan(app: FastAPI):
                         color=_td.get("color"),
                         sort_order=_td.get("sort_order", 0),
                         is_featured=_td.get("is_featured", False),
+                        requirements=_reqs,
                         action_url=_td.get("action_url"),
                         action_label=_td.get("action_label"),
                         created_by=_admin_id,
                     ))
+                    _tasks_added += 1
 
+            if _cats_added or _tasks_added:
                 await _db.commit()
-                print(f"✅ Gamification tasks seeded: {len(_task_categories)} categories, {len(_task_definitions)} tasks")
+                print(f"✅ Gamification tasks seeded: +{_cats_added} categories, +{_tasks_added} tasks")
             else:
-                _task_count = (await _db.execute(_select(_func.count()).select_from(Task))).scalar()
-                print(f"✅ Gamification tasks: {_cat_count} categories, {_task_count} tasks present")
+                _tc = (await _db.execute(_select(_func.count()).select_from(TaskCategory))).scalar()
+                _tt = (await _db.execute(_select(_func.count()).select_from(Task))).scalar()
+                print(f"✅ Gamification tasks: {_tc} categories, {_tt} tasks present")
     except Exception as _e:
         print(f"⚠️  Gamification task seeding failed: {_e}")
 
@@ -1995,6 +2269,10 @@ from app.modules.prophecy_chain.routes import router as prophecy_chain_router
 app.include_router(academy_router)
 app.include_router(ai_core_router)
 app.include_router(prophecy_chain_router, prefix="/api")
+
+# Stripe Webhooks — subscription payment events
+from app.api.routes.stripe_webhooks import router as stripe_webhooks_router
+app.include_router(stripe_webhooks_router)
 
 
 def _format_count(value: int) -> str:

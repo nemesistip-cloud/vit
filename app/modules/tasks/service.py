@@ -363,38 +363,67 @@ class TaskService:
         return reset_count
 
     @staticmethod
+    async def get_task_by_title(db: AsyncSession, title: str) -> Optional["Task"]:
+        """Look up a task by its exact title (used for slug-style lookups)."""
+        result = await db.execute(select(Task).where(Task.title == title))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def dispatch_trigger(db: AsyncSession, user_id: int, trigger_type: str, increment: int = 1) -> None:
+        """
+        Dispatch a trigger event to all active tasks whose requirements contain
+        ``trigger_type == trigger_type``.  Called from action routes (predict,
+        stake, etc.) to advance task progress without hardcoding task IDs.
+        """
+        try:
+            result = await db.execute(
+                select(Task).where(
+                    Task.status == TaskStatus.ACTIVE.value,
+                )
+            )
+            tasks = result.scalars().all()
+            for task in tasks:
+                reqs = task.requirements or {}
+                if reqs.get("trigger_type") == trigger_type:
+                    try:
+                        await TaskService.update_task_progress(db, user_id, task.id, increment)
+                    except Exception as _te:
+                        logger.debug(f"dispatch_trigger: task {task.id} update skipped: {_te}")
+        except Exception as e:
+            logger.warning(f"dispatch_trigger({trigger_type}) failed for user {user_id}: {e}")
+
+    @staticmethod
     async def check_xp_based_tasks(db: AsyncSession, user_id: int) -> None:
-        """Check and complete XP-based tasks automatically."""
-        # Get user's current XP
-        user_result = await db.execute(
-            select(User).where(User.id == user_id)
-        )
+        """Check and complete XP-based tasks automatically (title-based lookup)."""
+        user_result = await db.execute(select(User).where(User.id == user_id))
         user = user_result.scalar_one_or_none()
         if not user:
             return
 
         current_xp = user.total_xp
 
-        # Check Century Club (100 XP)
-        if current_xp >= 100:
-            try:
-                await TaskService.update_task_progress(
-                    db, user_id, 13, 100  # Task ID 13: "Century Club"
-                )
-            except Exception as e:
-                logger.warning(f"XP task update failed for user {user_id}: {e}")
+        xp_milestones = [
+            ("Century Club", 100),
+            ("XP Veteran", 500),
+            ("XP Master", 2000),
+        ]
+        for title, threshold in xp_milestones:
+            if current_xp >= threshold:
+                task = await TaskService.get_task_by_title(db, title)
+                if task:
+                    try:
+                        await TaskService.update_task_progress(db, user_id, task.id, current_xp)
+                    except Exception as e:
+                        logger.debug(f"XP milestone '{title}' update skipped: {e}")
 
-        # Check VIT Millionaire (1000 VIT earned total)
-        # This would need to be checked when VIT is earned, not just XP
-        # For now, we'll check it here as well
         vit_stats = await TaskService.get_user_task_stats(db, user_id)
         if vit_stats["total_vit_earned"] >= 1000:
-            try:
-                await TaskService.update_task_progress(
-                    db, user_id, 14, 1000  # Task ID 14: "VIT Millionaire"
-                )
-            except Exception as e:
-                logger.warning(f"VIT task update failed for user {user_id}: {e}")
+            task = await TaskService.get_task_by_title(db, "VIT Millionaire")
+            if task:
+                try:
+                    await TaskService.update_task_progress(db, user_id, task.id, int(vit_stats["total_vit_earned"]))
+                except Exception as e:
+                    logger.debug(f"VIT Millionaire task update skipped: {e}")
 
     @staticmethod
     async def get_user_task_stats(db: AsyncSession, user_id: int) -> Dict[str, Any]:
