@@ -47,7 +47,7 @@ export function EcosystemTicker() {
 
   const { data: system } = useQuery<any>({
     queryKey: ["ticker-system"],
-    queryFn: () => apiGet("/system/status"),
+    queryFn: () => apiGet("/api/system/status"),
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
@@ -59,7 +59,7 @@ export function EcosystemTicker() {
     staleTime: 30_000,
   });
 
-  const vitPrice   = price?.price_usd ?? 0;
+  const vitPrice   = price?.price_usd ?? price?.price ?? 0;
   const change24h  = price?.change_24h ?? 0;
   const totalUsers = system?.total_users ?? 0;
   const activeUsers= system?.active_users_30d ?? 0;

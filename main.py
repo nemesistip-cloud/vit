@@ -1984,6 +1984,9 @@ from app.api.routes.bankroll import router as bankroll_router
 app.include_router(model_perf_router)
 app.include_router(bankroll_router)
 
+from app.api.routes.quality_feed import router as quality_feed_router
+app.include_router(quality_feed_router, prefix="/api")
+
 # Prophecy Branch — Academy, AI Core, AI Upload
 from app.modules.academy.routes import router as academy_router
 from app.modules.ai_core.routes import router as ai_core_router

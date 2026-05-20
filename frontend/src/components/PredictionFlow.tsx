@@ -55,7 +55,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
   const queryClient = useQueryClient();
   const { data: marketData } = useQuery<{ markets: any[] }>({
     queryKey: ["enabled-markets"],
-    queryFn: () => apiGet("/matches/markets/enabled"),
+    queryFn: () => apiGet("/api/matches/markets/enabled"),
   });
   const enabledMarkets = match.enabled_markets ?? marketData?.markets ?? [];
   // Real enabled-markets only — no invented fallback list. If the backend
@@ -64,21 +64,24 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
   const stakeMarket = enabledMarkets.find((m: any) => activeMarketIds.has(m.id));
   const minStake = Number(stakeMarket?.min_stake ?? 1);
 
-  // Real odds only. If a side's odds are missing, that side is disabled
-  // (selectedOdds becomes 0 → submit button stays disabled). We never
-  // render fabricated 2.0 / 3.3 / 3.5 numbers as if they were market prices.
-  const homeOdds = match.odds?.home ?? null;
-  const drawOdds = match.odds?.draw ?? null;
-  const awayOdds = match.odds?.away ?? null;
+  // Fair odds derived from ensemble probabilities (used when bookmaker odds unavailable)
+  const fairOdds = (prob: number | null | undefined): number | null => {
+    if (!prob || prob <= 0) return null;
+    return Math.round((1 / prob) * 100) / 100;
+  };
+
+  const homeOdds = match.odds?.home ?? fairOdds(match.home_prob ?? undefined);
+  const drawOdds = match.odds?.draw ?? fairOdds(match.draw_prob ?? undefined);
+  const awayOdds = match.odds?.away ?? fairOdds(match.away_prob ?? undefined);
 
   const oddsMap: Record<Side, number | null> = {
     home: homeOdds,
     draw: drawOdds,
     away: awayOdds,
-    over_25: match.odds?.over_25 ?? null,
-    under_25: match.odds?.under_25 ?? null,
-    btts_yes: match.odds?.btts_yes ?? null,
-    btts_no:  match.odds?.btts_no  ?? null,
+    over_25: match.odds?.over_25 ?? fairOdds(match.over_25_prob ?? undefined),
+    under_25: match.odds?.under_25 ?? fairOdds(match.under_25_prob ?? (match.over_25_prob != null ? 1 - match.over_25_prob : undefined)),
+    btts_yes: match.odds?.btts_yes ?? fairOdds(match.btts_prob ?? undefined),
+    btts_no:  match.odds?.btts_no  ?? fairOdds(match.no_btts_prob ?? (match.btts_prob != null ? 1 - match.btts_prob : undefined)),
   };
 
   // Probabilities default to null when the model hasn't run for that market —
@@ -113,7 +116,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
       if (drawOdds != null) market_odds.draw = drawOdds;
       if (awayOdds != null) market_odds.away = awayOdds;
 
-      return apiPost("/predict", {
+      return apiPost("/api/predict", {
         home_team: match.home_team,
         away_team: match.away_team,
         league: match.league,

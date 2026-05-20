@@ -10,7 +10,7 @@ import logging
 import math
 import os
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone
@@ -1068,4 +1068,144 @@ async def get_match_insights(
         "claude": None,
         "grok": None,
         "source": "gemini" if gemini_insight else "unavailable",
+    }
+
+# value-intelligence endpoint moved to /api/quality-feed/value-intelligence
+# (predict router has global verify_api_key; quality-feed is public)
+if False:
+ @router.get("/value-intelligence-disabled")
+ async def value_intelligence_placeholder(
+    min_vit: float = Query(0, ge=0),
+    tier: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_optional_user),
+ ):
+    """
+    VIT Value Intelligence Feed.
+
+    Scores every prediction by:
+      VIT = 0.35*(edge_score) + 0.30*(consensus_score) + 0.25*(confidence) + 0.10*(recency_score)
+    Returns items sorted by VIT score, with tier classification:
+      platinum ≥70 | gold ≥50 | silver ≥35 | bronze ≥20 | standard <20
+    """
+    import math
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select as sa_select
+    from app.db.models import Match
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    cutoff_old = now - timedelta(hours=48)
+
+    rows = (await db.execute(
+        sa_select(Match, Prediction)
+        .join(Prediction, Match.id == Prediction.match_id)
+        .where(
+            Match.kickoff_time >= now - timedelta(minutes=90),
+            Match.kickoff_time <= now + timedelta(days=14),
+        )
+        .order_by(Prediction.timestamp.desc())
+        .limit(500)
+    )).all()
+
+    seen: set = set()
+    scored = []
+
+    for match, pred in rows:
+        if match.id in seen:
+            continue
+        seen.add(match.id)
+
+        conf = float(pred.confidence or 0)
+        if conf > 1:
+            conf /= 100
+
+        edge = pred.vig_free_edge or pred.raw_edge or 0
+        edge = float(edge)
+
+        # Edge score: 0–100, cap at 15% edge → 100
+        edge_score = min(edge / 0.15, 1.0) * 100
+
+        # Consensus: use neural_consensus_score if present, else derive from prob spread
+        home_p = float(pred.home_prob or 0.33)
+        draw_p = float(pred.draw_prob or 0.25)
+        away_p = float(pred.away_prob or 0.33)
+        total = home_p + draw_p + away_p or 1.0
+        home_p /= total; draw_p /= total; away_p /= total
+        best_p = max(home_p, draw_p, away_p)
+        consensus_score = min((best_p - 0.33) / 0.67, 1.0) * 100
+
+        # Recency: older = lower score
+        age_h = (now - pred.timestamp).total_seconds() / 3600 if pred.timestamp else 24
+        recency_score = max(0.0, 100 - age_h * 4)
+
+        vit_score = round(
+            0.35 * edge_score
+            + 0.30 * consensus_score
+            + 0.25 * conf * 100
+            + 0.10 * recency_score,
+            1,
+        )
+
+        # Tier assignment
+        if vit_score >= 70:
+            pred_tier = "platinum"
+        elif vit_score >= 50:
+            pred_tier = "gold"
+        elif vit_score >= 35:
+            pred_tier = "silver"
+        elif vit_score >= 20:
+            pred_tier = "bronze"
+        else:
+            pred_tier = "standard"
+
+        if vit_score < min_vit:
+            continue
+        if tier and tier != "all" and pred_tier != tier:
+            continue
+
+        best_side = pred.bet_side or "home"
+        side_label = {
+            "home": match.home_team,
+            "away": match.away_team,
+            "draw": "Draw",
+        }.get(best_side, best_side.upper())
+
+        raw_odds = pred.entry_odds
+        if not raw_odds or raw_odds <= 1.0:
+            raw_odds = round(1 / max(best_p, 0.05), 2)
+
+        scored.append({
+            "id": pred.id,
+            "match_id": match.id,
+            "match": f"{match.home_team} vs {match.away_team}",
+            "league": (match.league or "").replace("_", " ").title(),
+            "side": side_label,
+            "bet_side": best_side,
+            "odds": round(raw_odds, 2),
+            "vit_score": vit_score,
+            "tier": pred_tier,
+            "edge": round(edge * 100, 2),
+            "confidence": round(conf * 100, 1),
+            "consensus": round(consensus_score, 1),
+            "home_prob": round(home_p * 100, 1),
+            "draw_prob": round(draw_p * 100, 1),
+            "away_prob": round(away_p * 100, 1),
+            "kickoff": match.kickoff_time.isoformat() if match.kickoff_time else None,
+        })
+
+        if len(scored) >= limit * 3:
+            break
+
+    scored.sort(key=lambda x: x["vit_score"], reverse=True)
+    scored = scored[:limit]
+
+    tier_counts: dict = {}
+    for s in scored:
+        tier_counts[s["tier"]] = tier_counts.get(s["tier"], 0) + 1
+
+    return {
+        "total": len(scored),
+        "tier_counts": tier_counts,
+        "predictions": scored,
     }

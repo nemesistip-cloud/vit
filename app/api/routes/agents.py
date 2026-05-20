@@ -6,23 +6,36 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.api.middleware.auth import verify_api_key
-from app.auth.dependencies import get_current_admin as _get_admin
+from app.auth.dependencies import get_current_admin as _get_admin, get_optional_user
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
 @router.get("/status")
-async def agents_status(_user=Depends(verify_api_key)):
+async def agents_status(_user=Depends(get_optional_user)):
     """Full status snapshot for all autonomous agents."""
     try:
         from app.agents.coordinator import get_coordinator
-        return get_coordinator().status()
+        coord = get_coordinator()
+        raw = coord.status()
+        # Normalise: ensure agents dict and derive aggregate counts
+        agents: dict = raw.get("agents", {})
+        counts = {"ok": 0, "running": 0, "error": 0, "idle": 0}
+        for info in agents.values():
+            s = info.get("status", "idle")
+            if s in counts:
+                counts[s] += 1
+            else:
+                counts["idle"] += 1
+        raw.setdefault("status_counts", counts)
+        raw.setdefault("agent_count", len(agents))
+        return raw
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/summary")
-async def agents_summary(_user=Depends(verify_api_key)):
+async def agents_summary(_user=Depends(get_optional_user)):
     """Lightweight one-row-per-agent health summary."""
     try:
         from app.agents.coordinator import get_coordinator
@@ -51,7 +64,7 @@ async def trigger_agent(agent_name: str, _user=Depends(verify_api_key)):
 
 
 @router.get("/providers")
-async def ai_provider_status(_user=Depends(verify_api_key)):
+async def ai_provider_status(_user=Depends(get_optional_user)):
     """Return availability, rate-limit state, and current priority order of all AI providers."""
     try:
         from app.services.ai_client import provider_status, get_provider_priority

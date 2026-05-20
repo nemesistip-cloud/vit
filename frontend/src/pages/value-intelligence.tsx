@@ -202,7 +202,7 @@ export default function ValueIntelligencePage() {
         limit: limitFilter,
       });
       if (tierFilter !== "all") params.set("tier", tierFilter);
-      return apiGet<VITFeedResponse>(`/predict/value-intelligence?${params}`);
+      return apiGet<VITFeedResponse>(`/api/quality-feed/value-intelligence?${params}`);
     },
     refetchInterval: 60_000,
   });
