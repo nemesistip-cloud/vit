@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+echo "[build] Installing Python dependencies..."
+pip install -r requirements.txt
 
 # Ensure node and npm are available
 if ! command -v node &> /dev/null; then
