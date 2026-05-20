@@ -185,6 +185,9 @@ JWT_SECRET_KEY: str = get_env("JWT_SECRET_KEY") or SECRET_KEY
 # Football-Data.org — primary fixture + live score source (requires paid plan)
 FOOTBALL_DATA_API_KEY: str = get_env("FOOTBALL_DATA_API_KEY", "")
 
+# iSportsAPI.com — robust sports data provider (primary fallback/alternative)
+ISPORTS_API_KEY: str = get_env("ISPORTS_API_KEY", "")
+
 # The Odds API — bookmaker odds feed for CLV tracking and arbitrage detection
 # Supports both var names for backward compatibility with older deployments
 THE_ODDS_API_KEY: str      = get_env("THE_ODDS_API_KEY", "") or get_env("ODDS_API_KEY", "")
@@ -244,16 +247,24 @@ def print_config_status() -> None:
     jwt_from_env = bool(get_env("JWT_SECRET_KEY") or get_env("SECRET_KEY") or get_env("SESSION_SECRET"))
 
     # Settlement mode determines where match results are fetched from:
-    # Football-Data.org (live, paid) or TheSportsDB (free, delayed)
+    # iSports (primary), Football-Data (secondary), or TheSportsDB (tertiary/free)
     football_key = FOOTBALL_DATA_API_KEY
-    settle_mode  = "Football-Data.org (live)" if football_key else "TheSportsDB (live, free)"
+    isports_key = ISPORTS_API_KEY
+
+    if isports_key:
+        settle_mode = "iSports API (primary)"
+    elif football_key:
+        settle_mode = "Football-Data.org (secondary)"
+    else:
+        settle_mode = "TheSportsDB (free/fallback)"
 
     print(f"\n{'='*55}")
     print(f"  {APP_NAME} v{APP_VERSION}")
     print(f"{'='*55}")
     print(f"  {'✅' if jwt_from_env else '⚠️ '} JWT/Secret Key:     {'Configured (Replit Secret)' if jwt_from_env else 'EPHEMERAL DEV KEY — add JWT_SECRET_KEY'}")
     print(f"  ✅ Database:           Configured")  # SQLite always works; Postgres when DATABASE_URL is set
-    print(f"  {'✅' if football_key else '❌'} Football API:       {'Configured' if football_key else 'Missing (live data disabled)'}")
+    print(f"  {'✅' if isports_key else '❌'} iSports API:        {'Configured' if isports_key else 'Missing'}")
+    print(f"  {'✅' if football_key else '❌'} Football API:       {'Configured' if football_key else 'Missing'}")
     print(f"  {'✅' if THE_ODDS_API_KEY else '❌'} Odds API:           {'Configured' if THE_ODDS_API_KEY else 'Missing (odds disabled)'}")
     print(f"  {'✅' if PAYSTACK_SECRET_KEY else '❌'} Paystack:           {'Configured' if PAYSTACK_SECRET_KEY else 'Missing (NGN payments disabled)'}")
     print(f"  {'✅' if STRIPE_SECRET_KEY else '❌'} Stripe:             {'Configured' if STRIPE_SECRET_KEY else 'Missing (USD payments disabled)'}")

@@ -18,9 +18,10 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
-from typing import Optional
+from typing import Optional, List
 
 import httpx
+from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -99,10 +100,49 @@ def _names_match(api_name: str, db_name: str) -> bool:
 
 async def fetch_finished_matches(days_back: int = 2) -> list:
     """
-    Pull FINISHED matches from Football-Data.org for the last `days_back` days.
+    Pull FINISHED matches for the last `days_back` days.
+    Priority: iSports > Football-Data.org
     Returns a list of dicts: home_team, away_team, league, kickoff, home_goals, away_goals.
     """
     import time as _time
+
+    # --- Try iSports first ---
+    isports_key = os.getenv("ISPORTS_API_KEY")
+    if isports_key:
+        try:
+            client = ISportsClient(isports_key)
+            all_results = []
+
+            # Fetch for each league in parallel
+            async def fetch_league_results(l_name, l_id):
+                try:
+                    raw_matches = await client.get_fixtures_and_results(l_id)
+                    now_ts = _time.time()
+                    cutoff_ts = now_ts - (days_back * 86400)
+                    matches = []
+                    for m in raw_matches:
+                        # status -1 is finished
+                        if str(m.get("status")) == "-1":
+                            match_ts = m.get("matchTime", 0)
+                            if match_ts >= cutoff_ts:
+                                matches.append(client.format_match_data(m, l_name))
+                    return matches
+                except Exception as e:
+                    logger.error(f"[settle] Failed fetching {l_name} from iSports: {e}")
+                    return []
+
+            tasks = [fetch_league_results(name, lid) for name, lid in ISPORTS_LEAGUE_IDS.items()]
+            results = await asyncio.gather(*tasks)
+            for res in results:
+                all_results.extend(res)
+
+            if all_results:
+                logger.info(f"[settle] Fetched {len(all_results)} finished matches from iSports API")
+                return all_results
+        except Exception as e:
+            logger.error(f"[settle] iSports fetch failed: {e}")
+
+    # --- Fallback to Football-Data.org ---
     global _KEY_PERMANENTLY_INVALID, _FORBIDDEN_LEAGUES, _FORBIDDEN_LEAGUES_RESET_AT
     global _API_UNREACHABLE, _API_UNREACHABLE_UNTIL
     key = os.getenv("FOOTBALL_DATA_API_KEY", "")
@@ -221,9 +261,41 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
 
 async def fetch_live_matches() -> list:
     """
-    Pull IN_PLAY matches from Football-Data.org right now.
+    Pull IN_PLAY matches.
+    Priority: iSports > Football-Data.org
     """
     import time as _lt
+
+    # --- Try iSports first ---
+    isports_key = os.getenv("ISPORTS_API_KEY")
+    if isports_key:
+        try:
+            client = ISportsClient(isports_key)
+            # iSports can fetch all livescores in one call
+            raw_live = await client.get_livescores()
+
+            # Filter to leagues we track and format
+            tracked_ids = {v: k for k, v in ISPORTS_LEAGUE_IDS.items()}
+            live_formatted = []
+
+            for m in raw_live:
+                l_id = m.get("leagueId")
+                if l_id in tracked_ids:
+                    formatted = client.format_match_data(m, tracked_ids[l_id])
+                    # Ensure it has the fields expected by the live tracker
+                    formatted.update({
+                        "kickoff_time": formatted["kickoff"],
+                        "home_score": formatted["home_goals"],
+                        "away_score": formatted["away_goals"],
+                        "market_odds": {}
+                    })
+                    live_formatted.append(formatted)
+
+            if live_formatted:
+                return live_formatted
+        except Exception as e:
+            logger.error(f"[live] iSports live fetch failed: {e}")
+
     global _API_UNREACHABLE, _API_UNREACHABLE_UNTIL
     key = os.getenv("FOOTBALL_DATA_API_KEY", "")
     if not key:
