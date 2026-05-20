@@ -8,6 +8,7 @@ import os
 
 from app.db.database import get_db, AsyncSessionLocal
 from app.db.models import Match, Prediction
+from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
 from app.modules.wallet.models import PlatformConfig
 from app.services.cache import cache
 
@@ -620,6 +621,63 @@ async def sync_fixtures(
     skipped_dedup = 0
     rate_limited_leagues: list[str] = []
     fd_source_used = False
+
+    # ── Phase 0: iSports API (Primary Fixture Source) ───────────────────────
+    isports_key = os.getenv("ISPORTS_API_KEY", "")
+    if isports_key:
+        try:
+            client = ISportsClient(isports_key)
+
+            async def fetch_and_process_league(l_name, l_id):
+                local_count = 0
+                try:
+                    raw_matches = await client.get_fixtures_and_results(l_id)
+                    from app.data.match_dedup import compute_fingerprint
+                    async with AsyncSessionLocal() as db_inner:
+                        for m in raw_matches:
+                            # status 0 is not started
+                            if str(m.get("status")) == "0":
+                                formatted = client.format_match_data(m, l_name)
+                                # Find or create
+                                try:
+                                    kickoff = datetime.fromisoformat(formatted["kickoff"].replace("Z", "+00:00")).replace(tzinfo=None)
+                                except Exception:
+                                    continue
+
+                                stmt = select(Match).where(
+                                    Match.home_team == formatted["home_team"],
+                                    Match.away_team == formatted["away_team"],
+                                    Match.kickoff_time >= kickoff - timedelta(hours=24),
+                                    Match.kickoff_time <= kickoff + timedelta(hours=24)
+                                )
+                                existing = (await db_inner.execute(stmt)).scalar_one_or_none()
+
+                                if not existing:
+                                    new_m = Match(
+                                        home_team=formatted["home_team"],
+                                        away_team=formatted["away_team"],
+                                        league=formatted["league"],
+                                        kickoff_time=kickoff,
+                                        status="scheduled",
+                                        source="isports",
+                                        fingerprint=compute_fingerprint(
+                                            formatted["home_team"], formatted["away_team"], kickoff, formatted["league"]
+                                        )
+                                    )
+                                    db_inner.add(new_m)
+                                    local_count += 1
+                        await db_inner.commit()
+                except Exception as le:
+                    logger.error(f"iSports sync failed for {l_name}: {le}")
+                return local_count
+
+            tasks = [fetch_and_process_league(name, lid) for name, lid in ISPORTS_LEAGUE_IDS.items()]
+            results = await asyncio.gather(*tasks)
+            stored_isports = sum(results)
+            logger.info(f"iSports Phase 0 synced {stored_isports} matches")
+            stored_fd += stored_isports # For final reporting consistency
+        except Exception as e:
+            logger.error(f"iSports Phase 0 failed: {e}")
 
     # ── Phase 1: Football-Data.org ──────────────────────────────────────────
     if football_key:
