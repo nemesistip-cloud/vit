@@ -72,17 +72,17 @@ export default function SubscriptionPage() {
 
   const { data: plansData, isLoading: loadingPlans } = useQuery({
     queryKey: ["subscription-plans"],
-    queryFn: () => apiGet<{ plans: Plan[] }>("/subscription/plans"),
+    queryFn: () => apiGet("/api/subscription/plans"),
   });
 
   const { data: myPlanData } = useQuery({
     queryKey: ["my-plan"],
-    queryFn: () => apiGet<{ plan: Plan; subscription: unknown; usage: { predictions_today: number; limit_today: number | null } }>("/subscription/my-plan"),
+    queryFn: () => apiGet("/api/subscription/my-plan"),
   });
 
   const checkoutMutation = useMutation({
     mutationFn: ({ plan, billing }: { plan: string; billing: string }) =>
-      apiPost<{ checkout_url: string; amount_usd: number }>("/subscription/create-checkout", { plan, billing }),
+      apiPost("/api/subscription/create-checkout", { plan, billing }),
     onSuccess: (data) => {
       window.location.href = data.checkout_url;
     },

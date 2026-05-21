@@ -51,12 +51,20 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd /home/runner/workspace && python3 main.py"
+args = "bash scripts/start_fullstack.sh"
 waitForPort = 5000
 
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
+
+[[ports]]
+localPort = 8000
+externalPort = 8000
 
 [nix]
 channel = "stable-25_05"

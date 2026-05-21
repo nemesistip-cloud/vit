@@ -141,28 +141,28 @@ function HealthDot({ ok, optional }: { ok: boolean; optional?: boolean }) {
 function DashboardTab() {
   const { data: stats, isLoading: sLoading } = useQuery<AdminStats>({
     queryKey: ["admin-stats"],
-    queryFn: () => apiGet("/admin/stats"),
+    queryFn: () => apiGet("/api/admin/stats"),
     refetchInterval: 30000,
   });
   const { data: health } = useQuery<SystemHealth>({
     queryKey: ["admin-health"],
-    queryFn: () => apiGet("/admin/system/health"),
+    queryFn: () => apiGet("/api/admin/system/health"),
     refetchInterval: 15000,
   });
   const qc = useQueryClient();
 
   const clearCache = useMutation({
-    mutationFn: () => apiPost("/admin/system/cache/clear", {}),
+    mutationFn: () => apiPost("/api/admin/system/cache/clear", {}),
     onSuccess: () => toast.success("Cache cleared"),
     onError: () => toast.error("Failed to clear cache"),
   });
   const backup = useMutation({
-    mutationFn: () => apiPost("/admin/system/backup", {}),
+    mutationFn: () => apiPost("/api/admin/system/backup", {}),
     onSuccess: (d: any) => toast.success(`Backup: ${d.backup}`),
     onError: () => toast.error("Backup failed"),
   });
   const fetchFixtures = useMutation({
-    mutationFn: () => apiPost("/admin/matches/fetch-fixtures?count=50&days=14", {}),
+    mutationFn: () => apiPost("/api/admin/matches/fetch-fixtures?count=50&days=14", {}),
     onSuccess: (d: any) => {
       toast.success(`Pipeline: fetched ${d.stored ?? 0} new fixtures (${d.skipped_existing ?? 0} already existed)`);
       qc.invalidateQueries({ queryKey: ["/matches/upcoming"] });
@@ -380,11 +380,11 @@ function LeaguesTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery<{ leagues: League[] }>({
     queryKey: ["admin-leagues"],
-    queryFn: () => apiGet("/admin/leagues"),
+    queryFn: () => apiGet("/api/admin/leagues"),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<League> }) => apiPut(`/admin/leagues/${id}`, body),
+    mutationFn: ({ id, body }: { id: string; body: Partial<League> }) => apiPut(`/api/admin/leagues/${id}`, body),
     onSuccess: () => { toast.success("League updated"); qc.invalidateQueries({ queryKey: ["admin-leagues"] }); },
     onError: () => toast.error("Update failed"),
   });
@@ -459,11 +459,11 @@ function MarketsTab() {
   const [editing, setEditing] = useState<Market | null>(null);
   const { data, isLoading } = useQuery<{ markets: Market[] }>({
     queryKey: ["admin-markets"],
-    queryFn: () => apiGet("/admin/markets"),
+    queryFn: () => apiGet("/api/admin/markets"),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<Market> }) => apiPut(`/admin/markets/${id}`, body),
+    mutationFn: ({ id, body }: { id: string; body: Partial<Market> }) => apiPut(`/api/admin/markets/${id}`, body),
     onSuccess: () => { toast.success("Market updated"); setEditing(null); qc.invalidateQueries({ queryKey: ["admin-markets"] }); },
     onError: () => toast.error("Update failed"),
   });
@@ -568,16 +568,16 @@ function CurrencyTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery<{ currencies: Currency[]; conversion_fees: Record<string, number>; vit_pricing: Record<string, number> }>({
     queryKey: ["admin-currency"],
-    queryFn: () => apiGet("/admin/currency"),
+    queryFn: () => apiGet("/api/admin/currency"),
   });
 
   const recalcMutation = useMutation({
-    mutationFn: () => apiPost("/admin/currency/recalculate-vit", {}),
+    mutationFn: () => apiPost("/api/admin/currency/recalculate-vit", {}),
     onSuccess: (d: any) => { toast.success(`New VIT price: $${d.new_price_usd}`); qc.invalidateQueries({ queryKey: ["admin-currency"] }); },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ code, body }: { code: string; body: Partial<Currency> }) => apiPut(`/admin/currency/${code}`, body),
+    mutationFn: ({ code, body }: { code: string; body: Partial<Currency> }) => apiPut(`/api/admin/currency/${code}`, body),
     onSuccess: () => { toast.success("Rate updated"); qc.invalidateQueries({ queryKey: ["admin-currency"] }); },
   });
 
@@ -677,11 +677,11 @@ function SubscriptionsTab() {
   const [editing, setEditing] = useState<Plan | null>(null);
   const { data, isLoading } = useQuery<{ plans: Plan[] }>({
     queryKey: ["admin-subscriptions"],
-    queryFn: () => apiGet("/admin/subscriptions"),
+    queryFn: () => apiGet("/api/admin/subscriptions"),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Partial<Plan> }) => apiPut(`/admin/subscriptions/${id}`, body),
+    mutationFn: ({ id, body }: { id: number; body: Partial<Plan> }) => apiPut(`/api/admin/subscriptions/${id}`, body),
     onSuccess: () => { toast.success("Plan updated"); setEditing(null); qc.invalidateQueries({ queryKey: ["admin-subscriptions"] }); },
   });
 
@@ -784,32 +784,32 @@ function SystemTab() {
 
   const { data: flagsData, isLoading } = useQuery<{ flags: Record<string, { value: boolean; description: string }> }>({
     queryKey: ["admin-flags"],
-    queryFn: () => apiGet("/admin/system/flags"),
+    queryFn: () => apiGet("/api/admin/system/flags"),
   });
   const { data: keysData } = useQuery<{ keys: { name: string; label: string; description: string; configured: boolean; masked: string; required: boolean; group: string; source: "replit_secret" | "database" | "unset" }[] }>({
     queryKey: ["admin-keys"],
-    queryFn: () => apiGet("/admin/api-keys"),
+    queryFn: () => apiGet("/api/admin/api-keys"),
   });
   const { data: configStatus } = useQuery<{
     services: { key: string; label: string; set: boolean; required: boolean; status: string }[];
     summary: { total: number; ok: number; warnings: number; errors: number; healthy: boolean };
   }>({
     queryKey: ["admin-config-status"],
-    queryFn: () => apiGet("/admin/config-status"),
+    queryFn: () => apiGet("/api/admin/config-status"),
     refetchInterval: 30000,
   });
 
   const flagMutation = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: boolean }) => apiPut("/admin/system/flags", { flags: { [key]: value } }),
+    mutationFn: ({ key, value }: { key: string; value: boolean }) => apiPut("/api/admin/system/flags", { flags: { [key]: value } }),
     onSuccess: () => { toast.success("Flag updated"); qc.invalidateQueries({ queryKey: ["admin-flags"] }); },
     onError: () => toast.error("Update failed"),
   });
   const cacheMutation = useMutation({
-    mutationFn: () => apiPost("/admin/system/cache/clear", {}),
+    mutationFn: () => apiPost("/api/admin/system/cache/clear", {}),
     onSuccess: () => toast.success("Cache cleared"),
   });
   const backupMutation = useMutation({
-    mutationFn: () => apiPost("/admin/system/backup", {}),
+    mutationFn: () => apiPost("/api/admin/system/backup", {}),
     onSuccess: (d: any) => toast.success(d.message),
     onError: () => toast.error("Backup failed — super_admin only"),
   });
@@ -835,7 +835,7 @@ function SystemTab() {
   });
 
   const deleteKeyMutation = useMutation({
-    mutationFn: (name: string) => apiDelete(`/admin/api-keys/${name}`),
+    mutationFn: (name: string) => apiDelete(`/api/admin/api-keys/${name}`),
     onSuccess: (_d, name) => {
       toast.success(`${name} removed from database`);
       qc.invalidateQueries({ queryKey: ["admin-keys"] });
@@ -1114,7 +1114,7 @@ function FixtureHealthCard() {
 
   const { data, isLoading, refetch, isFetching } = useQuery<FixtureHealthData>({
     queryKey: ["admin-fixture-health"],
-    queryFn: () => apiGet("/admin/fixture-health"),
+    queryFn: () => apiGet("/api/admin/fixture-health"),
     staleTime: 60_000,
   });
 
@@ -1924,19 +1924,19 @@ function UsersTab() {
 
   const { data, isLoading, isError } = useQuery<{ users: AdminUser[]; total: number }>({
     queryKey: ["admin-users", search],
-    queryFn: () => apiGet(`/admin/users?limit=100${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+    queryFn: () => apiGet(`/api/admin/users?limit=100${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     refetchInterval: 30000,
   });
 
   const banMutation = useMutation({
     mutationFn: ({ id, ban }: { id: number; ban: boolean }) =>
-      apiPost(`/admin/users/${id}/ban`, { banned: ban, reason: ban ? "Banned by admin" : "Unbanned by admin" }),
+      apiPost(`/api/admin/users/${id}/ban`, { banned: ban, reason: ban ? "Banned by admin" : "Unbanned by admin" }),
     onSuccess: (_, v) => { toast.success(v.ban ? "User banned" : "User unbanned"); qc.invalidateQueries({ queryKey: ["admin-users"] }); },
     onError: () => toast.error("Action failed"),
   });
 
   const editMutation = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Partial<AdminUser> }) => apiPut(`/admin/users/${id}`, body),
+    mutationFn: ({ id, body }: { id: number; body: Partial<AdminUser> }) => apiPut(`/api/admin/users/${id}`, body),
     onSuccess: () => { toast.success("User updated"); qc.invalidateQueries({ queryKey: ["admin-users"] }); setEditingUser(null); },
     onError: () => toast.error("Update failed"),
   });
@@ -2144,7 +2144,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
 
   const { data: job, isError } = useQuery<TrainingJobStatus>({
     queryKey: ["admin-training-job", jobId],
-    queryFn: () => apiGet<TrainingJobStatus>(`/admin/training/job/${jobId}`),
+    queryFn: () => apiGet<TrainingJobStatus>(`/api/admin/training/job/${jobId}`),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === "completed" || status === "failed" ? false : 1500;
@@ -2346,13 +2346,13 @@ function ModelsTab() {
 
   const { data: modelsData, isLoading: mLoading } = useQuery<{ models: ModelInfo[] }>({
     queryKey: ["admin-models"],
-    queryFn: () => apiGet("/admin/models/status"),
+    queryFn: () => apiGet("/api/admin/models/status"),
     refetchInterval: 30000,
   });
 
   const { data: pendingData, isLoading: pLoading } = useQuery<{ items: MarketplaceListing[]; total: number }>({
     queryKey: ["admin-marketplace-pending"],
-    queryFn: () => apiGet("/admin/marketplace/pending"),
+    queryFn: () => apiGet("/api/admin/marketplace/pending"),
     refetchInterval: 20000,
   });
 
@@ -2372,7 +2372,7 @@ function ModelsTab() {
 
   const setActiveMutation = useMutation({
     mutationFn: ({ key, is_active }: { key: string; is_active: boolean }) =>
-      apiPost("/admin/models/set-active", { key, is_active }),
+      apiPost("/api/admin/models/set-active", { key, is_active }),
     onSuccess: (d: any) => {
       toast.success(d?.message ?? "Model status updated");
       qc.invalidateQueries({ queryKey: ["admin-ai-performance"] });
@@ -2420,13 +2420,13 @@ function ModelsTab() {
   })();
 
   const reloadMutation = useMutation({
-    mutationFn: (key?: string) => apiPost("/admin/models/reload", key ? { model_key: key } : {}),
+    mutationFn: (key?: string) => apiPost("/api/admin/models/reload", key ? { model_key: key } : {}),
     onSuccess: (d: any) => { toast.success(d.message ?? "Models reloaded"); qc.invalidateQueries({ queryKey: ["admin-models"] }); },
     onError: () => toast.error("Reload failed"),
   });
 
   const trainMutation = useMutation({
-    mutationFn: (key?: string) => apiPost("/admin/models/train", {
+    mutationFn: (key?: string) => apiPost("/api/admin/models/train", {
       model_key: key,
       note: key ? `Admin requested retraining for ${key}` : "Admin requested full ensemble retraining",
     }),
@@ -3272,7 +3272,7 @@ function AuditTab() {
       if (actionFilter) p.set("action", actionFilter);
       if (actorFilter) p.set("actor", actorFilter);
       p.set("limit", "100");
-      return apiGet(`/admin/audit?${p}`);
+      return apiGet(`/api/admin/audit?${p}`);
     },
     refetchInterval: 30000,
   });
@@ -3377,17 +3377,17 @@ function TasksTab() {
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery<{ tasks: any[]; categories: any[] }>({
     queryKey: ["admin-tasks"],
-    queryFn: () => apiGet("/admin/tasks"),
+    queryFn: () => apiGet("/api/admin/tasks"),
     refetchInterval: 30000,
   });
 
   const { data: completionsData } = useQuery<{ completions: any[]; total: number }>({
     queryKey: ["admin-task-completions"],
-    queryFn: () => apiGet("/admin/tasks/completions?limit=100"),
+    queryFn: () => apiGet("/api/admin/tasks/completions?limit=100"),
   });
 
   const createMutation = useMutation({
-    mutationFn: (task: any) => apiPost("/admin/tasks", task),
+    mutationFn: (task: any) => apiPost("/api/admin/tasks", task),
     onSuccess: () => {
       toast.success("Task created");
       setNewTask({
@@ -3408,19 +3408,19 @@ function TasksTab() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => apiPut(`/admin/tasks/${id}`, body),
+    mutationFn: ({ id, body }: { id: number; body: any }) => apiPut(`/api/admin/tasks/${id}`, body),
     onSuccess: () => { toast.success("Task updated"); setEditingTask(null); qc.invalidateQueries({ queryKey: ["admin-tasks"] }); },
     onError: () => toast.error("Failed to update task"),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiDelete(`/admin/tasks/${id}`),
+    mutationFn: (id: number) => apiDelete(`/api/admin/tasks/${id}`),
     onSuccess: () => { toast.success("Task deleted"); qc.invalidateQueries({ queryKey: ["admin-tasks"] }); },
     onError: () => toast.error("Failed to delete task"),
   });
 
   const resetMutation = useMutation({
-    mutationFn: () => apiPost("/admin/tasks/reset-expired", {}),
+    mutationFn: () => apiPost("/api/admin/tasks/reset-expired", {}),
     onSuccess: () => { toast.success("Expired tasks reset"); qc.invalidateQueries({ queryKey: ["admin-task-completions"] }); },
     onError: () => toast.error("Failed to reset tasks"),
   });
@@ -4177,7 +4177,7 @@ function MLAgentsTab() {
   const triggerAgent = async (name: string) => {
     setTriggering(name);
     try {
-      await apiPost(`/admin/ml-control/trigger/${name}`);
+      await apiPost(`/api/admin/ml-control/trigger/${name}`);
       toast.success(`${name} triggered`);
       setTimeout(() => qc.invalidateQueries({ queryKey: ["ml-control-status"] }), 1500);
     } catch (e: any) {
@@ -4204,7 +4204,7 @@ function MLAgentsTab() {
     if (!cfg) return;
     setSaving(true);
     try {
-      await apiPost("/admin/ml-control/config", cfg);
+      await apiPost("/api/admin/ml-control/config", cfg);
       qc.invalidateQueries({ queryKey: ["ml-control-config"] });
       toast.success("Thresholds saved — agents will use new values on next cycle");
     } catch (e: any) {
@@ -4610,7 +4610,7 @@ function MLAgentsTab() {
 function AdminHealthPills() {
   const { data: health } = useQuery<SystemHealth>({
     queryKey: ["admin-health"],
-    queryFn: () => apiGet("/admin/system/health"),
+    queryFn: () => apiGet("/api/admin/system/health"),
     refetchInterval: 15000,
   });
 

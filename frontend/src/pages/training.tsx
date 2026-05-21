@@ -623,7 +623,7 @@ function DatasetManagement() {
       const params = new URLSearchParams({ page: String(browserPage) });
       if (browserLeague) params.set("league", browserLeague);
       if (browserSearch) params.set("search", browserSearch);
-      return apiGet<any>(`/training/dataset/browser?${params.toString()}`);
+      return apiGet<any>(`/api/training/dataset/browser?${params.toString()}`);
     },
     enabled: activeTab === "browser",
   });

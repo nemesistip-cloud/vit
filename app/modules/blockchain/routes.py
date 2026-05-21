@@ -772,9 +772,34 @@ async def chain_status(_: User = Depends(get_current_user)):
     """
     Returns real-time connectivity info for the Base L2 network.
     Uses the robust web3-powered base_chain service.
+    Returns a graceful offline response when the RPC is unreachable.
     """
-    from app.services.base_chain import get_chain_status
-    return await get_chain_status()
+    try:
+        from app.services.base_chain import get_chain_status
+        return await get_chain_status()
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "[chain-status] RPC unreachable, returning offline status: %s", exc
+        )
+        try:
+            from app.config import BASE_CHAIN_ID, BASE_RPC_URL, VITCOIN_CONTRACT_ADDRESS
+            rpc = BASE_RPC_URL
+            chain_id = BASE_CHAIN_ID
+            contract = VITCOIN_CONTRACT_ADDRESS or None
+        except Exception:
+            rpc = "https://mainnet.base.org"
+            chain_id = 8453
+            contract = None
+        return {
+            "connected": False,
+            "rpc_url": rpc,
+            "chain_id": chain_id,
+            "chain_id_ok": False,
+            "block_number": None,
+            "contract_address": contract,
+            "error": "RPC endpoint unreachable — chain features are offline",
+        }
 
 
 @router.get("/chain-balance/{address}", summary="VITCoin ERC-20 balance on Base L2")
