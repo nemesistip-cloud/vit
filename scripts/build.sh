@@ -21,11 +21,11 @@ echo "[build] NPM version: $(npm -v)"
 
 echo "[build] Installing frontend dependencies..."
 cd frontend
-# Try npm ci for faster, more reliable builds if package-lock.json exists
+# Use npm ci when package-lock.json exists, but fall back to npm install if the lockfile is out of sync.
 if [ -f "package-lock.json" ]; then
-    npm ci --prefer-offline --no-audit --no-fund
+    npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps || npm install --prefer-offline --no-audit --no-fund --legacy-peer-deps
 else
-    npm install --prefer-offline --no-audit --no-fund
+    npm install --prefer-offline --no-audit --no-fund --legacy-peer-deps
 fi
 
 echo "[build] Building frontend for production..."
