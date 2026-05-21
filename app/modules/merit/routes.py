@@ -151,3 +151,16 @@ async def trigger_decay(user_id: int, db: AsyncSession = Depends(get_db)):
 async def calculate_bonus(req: BonusCalcRequest, db: AsyncSession = Depends(get_db)):
     bonus = await compute_merit_bonus_vit(db, req.user_id, Decimal(str(req.base_reward)))
     return {"user_id": req.user_id, "base_reward": req.base_reward, "bonus_vit": float(bonus)}
+
+
+@router.get("/status")
+async def merit_status(db: AsyncSession = Depends(get_db)):
+    """Convenience endpoint returning tier info and leaderboard summary."""
+    tiers_resp = await get_tier_info()
+    leaderboard_resp = await leaderboard(limit=10, db=db)
+    dist_resp = await tier_distribution(db=db)
+    return {
+        "tiers": tiers_resp.get("tiers", []),
+        "top_leaders": leaderboard_resp.get("leaderboard", [])[:5],
+        "distribution": dist_resp.get("distribution", {}),
+    }

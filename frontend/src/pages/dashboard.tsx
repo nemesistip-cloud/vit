@@ -280,7 +280,7 @@ export default function DashboardPage() {
 
   const { data: planData } = useQuery<any>({
     queryKey: ["dashboard-plan"],
-    queryFn:  () => apiGet<any>("/subscription/my-plan"),
+    queryFn:  () => apiGet<any>("/api/subscription/my-plan"),
     refetchInterval: 300_000,
   });
 

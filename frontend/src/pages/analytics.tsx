@@ -77,31 +77,31 @@ export default function AnalyticsPage() {
 
   const { data: summary } = useQuery({
     queryKey: ["analytics-summary"],
-    queryFn: () => apiGet<any>("/analytics/summary"),
+    queryFn: () => apiGet<any>("/api/analytics/summary"),
   });
 
   const { data: system } = useQuery({
     queryKey: ["analytics-system"],
-    queryFn: () => apiGet<any>("/analytics/system"),
+    queryFn: () => apiGet<any>("/api/analytics/system"),
     refetchInterval: 60_000,
     enabled: tab === "system",
   });
 
   const { data: accuracy, isLoading: loadingAcc } = useQuery({
     queryKey: ["analytics-accuracy", dateParams],
-    queryFn: () => apiGet<any>(`/analytics/accuracy${dateParams}`),
+    queryFn: () => apiGet<any>(`/api/analytics/accuracy${dateParams}`),
     enabled: tab === "accuracy",
   });
 
   const { data: roi, isLoading: loadingRoi } = useQuery({
     queryKey: ["analytics-roi", dateParams],
-    queryFn: () => apiGet<any>(`/analytics/roi${dateParams}`),
+    queryFn: () => apiGet<any>(`/api/analytics/roi${dateParams}`),
     enabled: tab === "roi",
   });
 
   const { data: models, isLoading: loadingModels } = useQuery({
     queryKey: ["analytics-models", dateParams],
-    queryFn: () => apiGet<any>(`/analytics/model-contribution${dateParams}`),
+    queryFn: () => apiGet<any>(`/api/analytics/model-contribution${dateParams}`),
     enabled: tab === "models",
   });
 
@@ -110,19 +110,19 @@ export default function AnalyticsPage() {
 
   const { data: clv, isLoading: loadingClv } = useQuery({
     queryKey: ["analytics-clv", dateParams],
-    queryFn: () => apiGet<any>(`/analytics/clv${dateParams}`),
+    queryFn: () => apiGet<any>(`/api/analytics/clv${dateParams}`),
     enabled: tab === "clv",
   });
 
   const { data: validatorLb, isLoading: loadingVLb } = useQuery({
     queryKey: ["analytics-lb-validators", lbSort],
-    queryFn: () => apiGet<any>(`/analytics/leaderboard/validators?sort_by=${lbSort}`),
+    queryFn: () => apiGet<any>(`/api/analytics/leaderboard/validators?sort_by=${lbSort}`),
     enabled: tab === "leaderboard",
   });
 
   const { data: userLb, isLoading: loadingULb } = useQuery({
     queryKey: ["analytics-lb-users", userSort],
-    queryFn: () => apiGet<any>(`/analytics/leaderboard/users?sort_by=${userSort}`),
+    queryFn: () => apiGet<any>(`/api/analytics/leaderboard/users?sort_by=${userSort}`),
     enabled: tab === "leaderboard",
   });
 

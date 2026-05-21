@@ -285,6 +285,20 @@ BOOTSTRAP_MATCH_MONTHS: int = int(get_env("BOOTSTRAP_MATCH_MONTHS", "6"))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# BLOCKCHAIN / WEB3 CONFIGURATION
+# BASE L2 (chain_id=8453) is the default target network.
+# Override via env vars to point at a different RPC or contract.
+# ══════════════════════════════════════════════════════════════════════════════
+
+BASE_CHAIN_ID: int = get_int_env("BASE_CHAIN_ID", "8453")
+BASE_RPC_URL: str = get_env(
+    "BASE_RPC_URL",
+    "https://mainnet.base.org",
+)
+VITCOIN_CONTRACT_ADDRESS: str = get_env("VITCOIN_CONTRACT_ADDRESS", "")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # STARTUP BANNER
 # ══════════════════════════════════════════════════════════════════════════════
 

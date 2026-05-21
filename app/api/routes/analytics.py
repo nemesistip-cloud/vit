@@ -879,3 +879,23 @@ async def get_user_leaderboard(
     except Exception as e:
         logger.warning(f"user leaderboard error: {e}")
         return {"leaderboard": [], "total": 0, "sort_by": sort_key}
+
+
+# ── Compatibility aliases ──────────────────────────────────────────────────────
+# Some frontend callers use alternate names; these thin wrappers forward to the
+# canonical implementations above without duplicating any logic.
+
+@router.get("/overview")
+async def get_overview_alias(db: AsyncSession = Depends(get_db)):
+    """Alias for /summary — returns all key analytics metrics."""
+    return await get_summary(db)
+
+
+@router.get("/model-performance")
+async def get_model_performance_alias(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias for /model-contribution — per-model accuracy & weight breakdown."""
+    return await get_model_contribution(date_from=date_from, date_to=date_to, db=db)

@@ -21,7 +21,7 @@ export default function PredictionWrappedPage() {
 
   const { data: analytics, isLoading: loadingAnalytics } = useQuery<any>({
     queryKey: ["/analytics/my"],
-    queryFn: () => apiGet("/analytics/my"),
+    queryFn: () => apiGet("/api/analytics/my"),
     staleTime: 60_000,
   });
 

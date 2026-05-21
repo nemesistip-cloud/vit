@@ -43,7 +43,7 @@ export interface PublicConfig {
 export function usePublicConfig() {
   return useQuery<PublicConfig>({
     queryKey: ["public-config"],
-    queryFn: () => apiGet<PublicConfig>("/config/public"),
+    queryFn: () => apiGet<PublicConfig>("/api/config/public"),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });

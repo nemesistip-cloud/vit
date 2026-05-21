@@ -155,7 +155,7 @@ function AllMarketsTab() {
 
   const { data, isLoading, isFetching, refetch } = useQuery<any>({
     queryKey: ["all-markets", league],
-    queryFn:  () => apiGet<any>(`/odds/markets?league=${league}`),
+    queryFn:  () => apiGet<any>(`/api/odds/markets?league=${league}`),
     enabled:  !!league,
     refetchInterval: REFETCH_INTERVAL,
     staleTime: 30_000,
@@ -468,7 +468,7 @@ function OddsCompare() {
 
   const { data, isLoading, isFetching, refetch } = useQuery<any>({
     queryKey:        ["odds-compare", league],
-    queryFn:         () => apiGet<any>(`/odds/compare?league=${league}`),
+    queryFn:         () => apiGet<any>(`/api/odds/compare?league=${league}`),
     enabled:         !!league,
     refetchInterval: REFETCH_INTERVAL,
     staleTime:       30_000,
@@ -579,7 +579,7 @@ function ArbitrageScanner() {
   const { data, isLoading, isFetching, refetch } = useQuery<any>({
     queryKey:        ["arbitrage", league, minProfit, inclTotals],
     queryFn:         () =>
-      apiGet<any>(`/odds/arbitrage?league=${league}&min_profit_pct=${minProfit}&include_totals=${inclTotals}`),
+      apiGet<any>(`/api/odds/arbitrage?league=${league}&min_profit_pct=${minProfit}&include_totals=${inclTotals}`),
     enabled:         !!league,
     refetchInterval: REFETCH_INTERVAL,
     staleTime:       30_000,
@@ -733,7 +733,7 @@ function InjuryNotes() {
   });
 
   const delMutation = useMutation({
-    mutationFn: (id: string) => apiDelete(`/odds/injuries/${id}`),
+    mutationFn: (id: string) => apiDelete(`/api/odds/injuries/${id}`),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ["injuries"] }); toast.success("Note removed"); },
   });
 
