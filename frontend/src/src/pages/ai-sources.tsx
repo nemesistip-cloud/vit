@@ -13,6 +13,9 @@ import {
   MatchAnalysis,
   PuterModel,
   PUTER_CLAUDE_MODEL,
+  PUTER_GPT4O_MODEL,
+  PUTER_GEMINI_MODEL,
+  PUTER_DEEPSEEK_MODEL,
   PUTER_GROK_MODEL,
 } from "@/lib/puter-ai";
 import { toast } from "sonner";
@@ -100,10 +103,12 @@ interface SlotResult {
 type MatchResults = Partial<Record<PuterModel, SlotResult>>;
 
 const MODELS: { id: PuterModel; label: string; model: string; color: string }[] = [
-  { id: "claude", label: "Claude", model: PUTER_CLAUDE_MODEL, color: "text-purple-400" },
-  { id: "grok",   label: "Grok",   model: PUTER_GROK_MODEL,  color: "text-cyan-400"   },
+  { id: "gpt4o",   label: "GPT-4o",  model: PUTER_GPT4O_MODEL,  color: "text-emerald-400" },
+  { id: "claude",  label: "Claude",  model: PUTER_CLAUDE_MODEL, color: "text-purple-400"  },
+  { id: "gemini",  label: "Gemini",  model: PUTER_GEMINI_MODEL, color: "text-blue-400"    },
+  { id: "grok",    label: "Grok",    model: PUTER_GROK_MODEL,   color: "text-cyan-400"    },
+  { id: "deepseek", label: "DeepSeek", model: PUTER_DEEPSEEK_MODEL, color: "text-orange-400"  },
 ];
-
 // Delay between Puter calls — raised to 3.5s to stay within free tier limits
 const DELAY_MS = 3500;
 
@@ -229,6 +234,41 @@ function SlotBadge({ status }: { status: SlotStatus }) {
 
 // ─── Probability Bar ──────────────────────────────────────────────────────────
 
+
+// ─── Quantum Shard Visualization ──────────────────────────────────────────
+
+function QuantumShardMonitor({
+  tasks,
+  results
+}: {
+  tasks: { match: AISourceMatch, model: PuterModel }[],
+  results: Map<number, MatchResults>
+}) {
+  const activeShards = tasks.filter(t => {
+    const res = results.get(t.match.id)?.[t.model];
+    return res?.status === "running" || res?.status === "ingesting";
+  });
+
+  if (activeShards.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 mb-4 animate-in fade-in slide-in-from-top-2 duration-500">
+      {activeShards.map((shard, i) => (
+        <div key={`shard-${i}`} className="bg-gray-900 border border-cyan-500/30 rounded-lg p-2 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-mono text-cyan-400 uppercase tracking-tighter">Shard {i+1}</span>
+            <Zap className="w-2.5 h-2.5 text-cyan-400 animate-pulse" />
+          </div>
+          <div className="text-[10px] font-bold text-white truncate">{shard.match.home_team.split(" ")[0]}</div>
+          <div className="text-[9px] text-gray-500 uppercase">{shard.model}</div>
+          <div className="h-1 bg-gray-800 rounded-full overflow-hidden mt-1">
+            <div className="h-full bg-cyan-500 animate-progress-fast" style={{ width: "60%" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 function ProbBar({ home, draw, away }: { home: number; draw: number; away: number }) {
   return (
     <div className="flex rounded overflow-hidden h-2 w-full mt-1">
@@ -919,6 +959,8 @@ function ExistingSourcesPanel({ matchId }: { matchId: number | null }) {
 
 export default function AISourcesPage() {
   const { user, isAdmin, hasTier } = useAuth();
+  if (!user) return <Redirect to="/login" />;
+  if (!isAdmin && !hasTier("analyst")) return <Redirect to="/subscription" />;
   const qc = useQueryClient();
 
   const [selectedModels, setSelectedModels] = useState<Set<PuterModel>>(new Set(["claude", "grok"]));
@@ -927,6 +969,9 @@ export default function AISourcesPage() {
   const [progress, setProgress] = useState({ current: 0, total: 0, matchLabel: "" });
   const [focusMatchId, setFocusMatchId] = useState<number | null>(null);
   const shouldStop = useRef(false);
+  const [quantumMode, setQuantumMode] = useState(false);
+  const [concurrency, setConcurrency] = useState(3);
+  const [activeTasks, setActiveTasks] = useState<{ match: AISourceMatch, model: PuterModel }[]>([]);
 
   if (!user) return <Redirect to="/login" />;
   if (!isAdmin && !hasTier("analyst")) return <Redirect to="/subscription" />;
@@ -972,87 +1017,95 @@ export default function AISourcesPage() {
     shouldStop.current = false;
     setAgentStatus("running");
     setResults(new Map());
-    setProgress({ current: 0, total: matches.length, matchLabel: "" });
 
-    let processed = 0;
-
-    for (let i = 0; i < matches.length; i++) {
-      if (shouldStop.current) break;
-      const match = matches[i];
-
-      setProgress({
-        current: i,
-        total: matches.length,
-        matchLabel: `${match.home_team} vs ${match.away_team}`,
+    const allTasks: { match: AISourceMatch, model: PuterModel }[] = [];
+    matches.forEach(m => {
+      activeModels.forEach(mod => {
+        allTasks.push({ match: m, model: mod });
       });
+    });
 
-      for (const model of activeModels) {
-        if (shouldStop.current) break;
+    setActiveTasks(allTasks);
+    setProgress({ current: 0, total: allTasks.length, matchLabel: "Starting Quantum Sourcing..." });
 
-        updateSlot(match.id, model, { status: "running", analysis: null });
+    let completed = 0;
+    const limit = quantumMode ? concurrency : 1;
+    const taskQueue = [...allTasks];
 
-        try {
-          const analysis = await analyzeMatchWithPuter(
-            match.home_team,
-            match.away_team,
-            match.league ?? "Unknown League",
-            0.34,
-            0.33,
-            0.33,
-            model
-          );
+    const executeTask = async (task: { match: AISourceMatch, model: PuterModel }) => {
+      if (shouldStop.current) return;
+      const { match, model } = task;
 
-          updateSlot(match.id, model, { status: "ingesting", analysis });
+      updateSlot(match.id, model, { status: "running", analysis: null });
+      try {
+        const analysis = await analyzeMatchWithPuter(
+          match.home_team,
+          match.away_team,
+          match.league ?? "Unknown League",
+          0.34, 0.33, 0.33,
+          model
+        );
 
-          await apiPost("/api/admin/ai-sources/ingest", {
-            match_id: match.id,
-            source: model,
-            home_prob: analysis.home_prob,
-            draw_prob: analysis.draw_prob,
-            away_prob: analysis.away_prob,
-            confidence: analysis.confidence,
-            reason: analysis.reason,
-            raw_content: analysis.raw_content,
-          });
+        if (shouldStop.current) return;
+        updateSlot(match.id, model, { status: "ingesting", analysis });
 
-          updateSlot(match.id, model, { status: "done" });
-        } catch (e: any) {
-          const errMsg: string = e?.message || "Unknown error";
-          const isRateLimit = errMsg.toLowerCase().includes("rate limit") ||
-            errMsg.includes("429") || errMsg.toLowerCase().includes("quota");
+        await apiPost("/api/admin/ai-sources/ingest", {
+          match_id: match.id,
+          source: model,
+          home_prob: analysis.home_prob,
+          draw_prob: analysis.draw_prob,
+          away_prob: analysis.away_prob,
+          confidence: analysis.confidence,
+          reason: analysis.reason,
+          raw_content: analysis.raw_content,
+        });
 
-          updateSlot(match.id, model, { status: "failed", error: errMsg });
-
-          if (isRateLimit) {
-            toast.warning(
-              `Rate limit hit on ${model}. Switch Puter account to continue, or wait a minute.`,
-              { duration: 8000 }
-            );
-            // Extended cooldown on rate limit
-            await sleep(15000);
-          }
+        updateSlot(match.id, model, { status: "done" });
+      } catch (e: any) {
+        const errMsg: string = e?.message || "Unknown error";
+        updateSlot(match.id, model, { status: "failed", error: errMsg });
+        if (errMsg.toLowerCase().includes("rate limit")) {
+           toast.warning(`Rate limit on ${model}. Quantum shard throttled.`);
         }
-
-        if (!shouldStop.current) await sleep(DELAY_MS);
+      } finally {
+        completed++;
+        setProgress(p => ({
+          ...p,
+          current: completed,
+          matchLabel: `${task.match.home_team} vs ${task.match.away_team}`
+        }));
+        if (!shouldStop.current) {
+           await sleep(quantumMode ? 500 : DELAY_MS);
+        }
       }
+    };
 
-      processed++;
-      setProgress((p) => ({ ...p, current: processed }));
+    const worker = async () => {
+      while (taskQueue.length > 0 && !shouldStop.current) {
+        const task = taskQueue.shift();
+        if (task) await executeTask(task);
+      }
+    };
+
+    const workers = [];
+    for (let i = 0; i < limit; i++) {
+      workers.push(worker());
     }
+
+    await Promise.all(workers);
 
     setAgentStatus("done");
     qc.invalidateQueries({ queryKey: ["ai-sources"] });
-
     if (shouldStop.current) {
-      toast.info(`Stopped after ${processed}/${matches.length} matches`);
+      toast.info("Stopped Quantum Sourcing");
     } else {
-      toast.success(`AI agents complete — ${processed} matches processed`);
+      toast.success(`Quantum Sourcing Complete - ${completed} tasks processed`);
     }
-  }, [matches, activeModels]);
+  }, [matches, isPuterAvailable, activeModels, updateSlot, qc, quantumMode, concurrency]);
 
   const stopAgents = () => {
     shouldStop.current = true;
-    toast.info("Stopping after current match…");
+    toast.info("Stopping Quantum shards…");
   };
 
   const toggleModel = (m: PuterModel) => {
@@ -1108,7 +1161,7 @@ export default function AISourcesPage() {
         <div className="flex items-start gap-3">
           <Brain className="w-7 h-7 text-cyan-400 shrink-0 mt-1" />
           <div>
-            <h1 className="text-2xl font-bold">AI Sources</h1>
+            <h1 className="text-2xl font-bold">Quantum AI Sources</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               Autonomous agents query Claude & Grok via Puter (free) for every match and
               self-ingest the analysis into the prediction ensemble.
@@ -1121,7 +1174,7 @@ export default function AISourcesPage() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-white text-base">
               <Bot className="w-5 h-5 text-cyan-400" />
-              Autonomous AI Agent
+              Quantum AI Sourcing Hub
               {agentStatus === "running" && (
                 <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/40 animate-pulse ml-2">
                   Running
@@ -1169,6 +1222,38 @@ export default function AISourcesPage() {
 
             {/* Puter account panel */}
             <PuterAccountPanel />
+            {/* Quantum Mode Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-full ${quantumMode ? "bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.5)]" : "bg-gray-700"}`}>
+                  <Zap className={`w-4 h-4 ${quantumMode ? "text-black animate-pulse" : "text-gray-400"}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Next-Gen Quantum Sourcing</p>
+                  <p className="text-[11px] text-cyan-400/70">Multi-threaded shard processing • High throughput</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                {quantumMode && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-gray-500 uppercase font-bold">Shards:</span>
+                    <input
+                      type="range" min="1" max="8"
+                      value={concurrency}
+                      onChange={(e) => setConcurrency(parseInt(e.target.value))}
+                      className="w-16 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                    />
+                    <span className="text-xs font-mono text-cyan-400 w-3">{concurrency}</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setQuantumMode(!quantumMode)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${quantumMode ? "bg-cyan-500" : "bg-gray-700"}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${quantumMode ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
+              </div>
+            </div>
 
             {/* Puter warning */}
             {!puterReady && (
@@ -1196,6 +1281,8 @@ export default function AISourcesPage() {
               </div>
             )}
 
+            {/* Quantum Shard Monitor */}
+            <QuantumShardMonitor tasks={activeTasks} results={results} />
             {/* Progress bar */}
             {agentStatus === "running" && (
               <div className="space-y-1.5">
@@ -1226,7 +1313,7 @@ export default function AISourcesPage() {
                   className="bg-cyan-500 hover:bg-cyan-600 text-black font-semibold"
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  {agentStatus === "done" ? "Run Again" : "Run AI Agents"}
+                  {agentStatus === "done" ? "Run Again" : "Initialize Quantum Sourcing"}
                   {matches.length > 0 && (
                     <span className="ml-2 text-xs opacity-70">
                       {matches.length} matches × {activeModels.length} models

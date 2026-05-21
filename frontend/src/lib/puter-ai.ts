@@ -31,10 +31,14 @@ export interface MatchAnalysis {
   raw_content: string;
 }
 
-export const PUTER_CLAUDE_MODEL = "claude-sonnet-4-6";
-export const PUTER_GROK_MODEL   = "x-ai/grok-4.3";
+// Next-Gen Quantum Models available via Puter
+export const PUTER_CLAUDE_MODEL = "claude-3-5-sonnet";
+export const PUTER_GPT4O_MODEL  = "gpt-4o";
+export const PUTER_GEMINI_MODEL = "gemini-1.5-pro";
+export const PUTER_GROK_MODEL   = "grok-beta";
+export const PUTER_DEEPSEEK_MODEL = "deepseek-chat";
 
-export type PuterModel = "claude" | "grok";
+export type PuterModel = "claude" | "gpt4o" | "gemini" | "grok" | "deepseek";
 
 export function isPuterAvailable(): boolean {
   return typeof window !== "undefined" && !!window.puter;
@@ -94,11 +98,12 @@ function isRateLimitError(err: unknown): boolean {
   );
 }
 
+// Quantum Retry Logic - Enhanced for parallel execution
 async function withRetry<T>(
   fn: () => Promise<T>,
   {
-    maxAttempts = 3,
-    baseDelayMs = 5000,
+    maxAttempts = 4,
+    baseDelayMs = 12000,
     label = "puter-ai",
   }: { maxAttempts?: number; baseDelayMs?: number; label?: string } = {}
 ): Promise<T> {
@@ -109,13 +114,13 @@ async function withRetry<T>(
     } catch (err) {
       lastErr = err;
       if (isRateLimitError(err)) {
-        const delayMs = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 1000;
-        console.warn(`[${label}] rate-limit hit (attempt ${attempt}/${maxAttempts}) — retrying in ${Math.round(delayMs / 1000)}s`);
+        const delayMs = baseDelayMs * Math.pow(2.5, attempt - 1) + Math.random() * 2000;
+        console.warn(`[${label}] Quantum Shard rate-limit (attempt ${attempt}/${maxAttempts}) — cooling down for ${Math.round(delayMs / 1000)}s`);
         if (attempt < maxAttempts) {
           await new Promise((r) => setTimeout(r, delayMs));
           continue;
         }
-        throw new Error(`Rate limit exceeded after ${maxAttempts} attempts. Please wait a minute or switch Puter accounts.`);
+        throw new Error(`Quantum capacity exceeded after ${maxAttempts} attempts. Switch Puter account to reset shards.`);
       }
       throw err;
     }
@@ -126,11 +131,18 @@ async function withRetry<T>(
 export async function puterChat(
   message: string,
   history: { role: string; content: string }[] = [],
-  model: PuterModel = "claude"
+  model: PuterModel = "gpt4o"
 ): Promise<string> {
   if (!isPuterAvailable()) throw new Error("Puter not available");
 
-  const modelId = model === "grok" ? PUTER_GROK_MODEL : PUTER_CLAUDE_MODEL;
+  const modelMap: Record<PuterModel, string> = {
+    claude: PUTER_CLAUDE_MODEL,
+    gpt4o: PUTER_GPT4O_MODEL,
+    gemini: PUTER_GEMINI_MODEL,
+    grok: PUTER_GROK_MODEL,
+    deepseek: PUTER_DEEPSEEK_MODEL
+  };
+  const modelId = modelMap[model] || PUTER_GPT4O_MODEL;
 
   const messages: { role: string; content: string }[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -185,7 +197,7 @@ function buildMatchPrompt(
 
 function parseJsonSafe(raw: string): any {
   let text = raw.trim();
-  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const fenceMatch = text.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/);
   if (fenceMatch) text = fenceMatch[1].trim();
   const objMatch = text.match(/\{[\s\S]*\}/);
   if (objMatch) text = objMatch[0];
@@ -199,11 +211,19 @@ export async function analyzeMatchWithPuter(
   priorHome = 0.34,
   priorDraw = 0.33,
   priorAway = 0.33,
-  model: PuterModel = "claude"
+  model: PuterModel = "gpt4o"
 ): Promise<MatchAnalysis> {
   if (!isPuterAvailable()) throw new Error("Puter.js not available — ensure you are signed in");
 
-  const modelId = model === "grok" ? PUTER_GROK_MODEL : PUTER_CLAUDE_MODEL;
+  const modelMap: Record<PuterModel, string> = {
+    claude: PUTER_CLAUDE_MODEL,
+    gpt4o: PUTER_GPT4O_MODEL,
+    gemini: PUTER_GEMINI_MODEL,
+    grok: PUTER_GROK_MODEL,
+    deepseek: PUTER_DEEPSEEK_MODEL
+  };
+  const modelId = modelMap[model] || PUTER_GPT4O_MODEL;
+
   const prompt = buildMatchPrompt(homeTeam, awayTeam, league, priorHome, priorDraw, priorAway);
 
   const messages: { role: string; content: string }[] = [

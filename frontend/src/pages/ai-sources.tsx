@@ -109,11 +109,6 @@ const MODELS: { id: PuterModel; label: string; model: string; color: string }[] 
   { id: "grok",    label: "Grok",    model: PUTER_GROK_MODEL,   color: "text-cyan-400"    },
   { id: "deepseek", label: "DeepSeek", model: PUTER_DEEPSEEK_MODEL, color: "text-orange-400"  },
 ];
-  { id: "claude", label: "Claude", model: PUTER_CLAUDE_MODEL, color: "text-purple-400" },
-  PUTER_GPT4O_MODEL,
-  PUTER_GEMINI_MODEL,
-  PUTER_DEEPSEEK_MODEL,
-
 // Delay between Puter calls — raised to 3.5s to stay within free tier limits
 const DELAY_MS = 3500;
 
