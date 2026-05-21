@@ -15,12 +15,12 @@ fi
 
 echo "Looking up Render service ID for '$SERVICE_NAME'..."
 SERVICE_JSON=$(curl -sSf -H "Authorization: Bearer $API_KEY" "https://api.render.com/v1/services" )
-SERVICE_ID=$(echo "$SERVICE_JSON" | jq -r --arg NAME "$SERVICE_NAME" '.[] | select(.name == $NAME) | .id')
+SERVICE_ID=$(echo "$SERVICE_JSON" | jq -r --arg NAME "$SERVICE_NAME" 'map(select(.name == $NAME) | .id) + map(select(.service.name == $NAME) | .service.id) | .[0] // empty')
 
 if [ -z "$SERVICE_ID" ]; then
     echo "Error: service named '$SERVICE_NAME' not found in Render account." >&2
     echo "Available services:" >&2
-    echo "$SERVICE_JSON" | jq -r '.[] | "- " + .name + " (" + .id + ")"'
+    echo "$SERVICE_JSON" | jq -r '.[] | if has("name") then "- " + .name + " (" + .id + ")" else "- " + .service.name + " (" + .service.id + ")" end'
     exit 2
 fi
 
@@ -36,10 +36,17 @@ DEPLOY_URL="https://dashboard.render.com/web/$SERVICE_ID/deploys/$DEPLOY_ID"
 echo "Triggered deploy: $DEPLOY_ID"
 echo "View deploy in Render dashboard: $DEPLOY_URL"
 
-echo "Waiting for deploy to finish. Streaming logs (ctrl-C to exit)..."
-echo "You can also check status with: curl -H \"Authorization: Bearer $API_KEY\" https://api.render.com/v1/services/$SERVICE_ID/deploys/$DEPLOY_ID"
+echo "Checking deploy status..."
+DEPLOY_STATUS=$(curl -sSf -H "Authorization: Bearer $API_KEY" "https://api.render.com/v1/services/$SERVICE_ID/deploys/$DEPLOY_ID")
+STATUS=$(echo "$DEPLOY_STATUS" | jq -r '.status // .state // "unknown"')
+COMMIT_MSG=$(echo "$DEPLOY_STATUS" | jq -r '.commit.message // ""')
 
-# Tail the deploy logs
-curl -sSf -H "Authorization: Bearer $API_KEY" "https://api.render.com/v1/services/$SERVICE_ID/deploys/$DEPLOY_ID/logs" | jq -r '.log' || true
+echo "Deploy status: $STATUS"
+if [ -n "$COMMIT_MSG" ]; then
+    echo "Commit: $COMMIT_MSG"
+fi
+
+echo "Full deploy details:"
+echo "$DEPLOY_STATUS" | jq -r '{id, status, trigger, createdAt, startedAt, updatedAt, commit}'
 
 echo "Done. Check the dashboard for live status." 
