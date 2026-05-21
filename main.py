@@ -1,4 +1,4 @@
-# main.py — VIT Sports Intelligence Network v4.7.5
+# main.py — VIT Sports Intelligence Network v5.0.0
 # Full Integration: AI + Wallet + Blockchain + Training
 
 import asyncio
@@ -48,6 +48,7 @@ import app.modules.subchain.models          # register Sub-Chain Architecture mo
 import app.modules.agent_registry.models    # register AI Agent Registry models
 import app.modules.storage_verification.models  # register Storage Verification models
 import app.modules.prophecy_chain.models  # register Prophecy Chain models
+import app.modules.quant.models           # register Quant module models
 
 # ===== CORE ROUTES =====
 from app.api.routes import (
@@ -602,25 +603,38 @@ async def lifespan(app: FastAPI):
     print_config_status()
     print(f"🚀 VIT Network v{APP_VERSION} starting...")
 
-    _bootstrap_done = asyncio.Event()
-
-    async def _deferred_bootstrap():
-        """Run all heavy bootstrap tasks in the background after the port is open."""
-        await asyncio.sleep(2)  # yield to let uvicorn bind the port first
-
-    # ── Bootstrap: create ALL tables defined across every model module ─────────
-    # Run DB table creation immediately (fast) then defer everything else
-    _bootstrap_task = asyncio.create_task(_run_bootstrap(app, _bootstrap_done))
+    # Run DB creation + all heavy startup work in the background so the port
+    # is available immediately (health-check passes while bootstrap runs).
+    _bootstrap_task = asyncio.create_task(_run_bootstrap(app, None), name="bootstrap")
 
     yield
 
-    _bootstrap_task.cancel()
-    try:
-        await _bootstrap_task
-    except (asyncio.CancelledError, Exception):
-        pass
+    # ── Graceful shutdown ──────────────────────────────────────────────────────
+    # 1. Cancel the bootstrap task if it is still running (fast deploys / tests)
+    if not _bootstrap_task.done():
+        _bootstrap_task.cancel()
+        try:
+            await _bootstrap_task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    # 2. Stop the background-task supervisor (ETL loops, odds refresh, etc.)
+    supervisor = getattr(app.state, "background_supervisor", None)
+    if supervisor is not None:
+        try:
+            await supervisor.stop()
+        except Exception as _se:
+            logger.warning("[lifespan] supervisor stop error: %s", _se)
+
+    # 3. Stop the agent coordinator if it was started
+    coordinator = getattr(app.state, "coordinator", None)
+    if coordinator is not None:
+        try:
+            await coordinator.stop()
+        except Exception as _ce:
+            logger.warning("[lifespan] coordinator stop error: %s", _ce)
+
     print("🛑 Shutdown complete")
-    return
 
 
 async def _run_bootstrap(app, _done_event):

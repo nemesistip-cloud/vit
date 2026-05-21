@@ -50,9 +50,22 @@ router = APIRouter(
     dependencies=[Depends(get_current_admin)],
 )
 
-orchestrator = get_orchestrator()
-telegram_alerts = get_telegram_alerts()
 VERSION = APP_VERSION
+
+# These singletons are safe to call at import time — get_orchestrator() and
+# get_telegram_alerts() both return a cached instance (or None on failure).
+# Wrapping in try/except prevents any startup-order edge cases from crashing
+# the entire import, while keeping all existing `if orchestrator is None:`
+# guards intact throughout this module.
+try:
+    orchestrator = get_orchestrator()
+except Exception:
+    orchestrator = None
+
+try:
+    telegram_alerts = get_telegram_alerts()
+except Exception:
+    telegram_alerts = None
 
 
 def _marketplace_package_summary(package_id: Optional[str]) -> dict:

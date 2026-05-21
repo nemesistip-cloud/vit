@@ -79,7 +79,7 @@ services:
       - key: FOOTBALL_DATA_API_KEY
         sync: false
       - key: THESPORTSDB_API_KEY
-        sync: false
+        value: "3"
       - key: REDIS_URL
         fromService:
           type: redis

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-echo "[build] Installing Python dependencies..."
-pip install -r requirements.txt
+echo "[build] Installing Python dependencies (excluding torch to stay within disk quota)..."
+grep -v -iE '^\s*(torch|torchvision|torchaudio)\b' requirements.txt > /tmp/requirements_notorch.txt
+pip install -r /tmp/requirements_notorch.txt
 
 # Ensure node and npm are available
 if ! command -v node &> /dev/null; then

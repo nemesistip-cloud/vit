@@ -1378,10 +1378,11 @@ function CSVUploadCard() {
     mutationFn: async (f: File) => {
       const form = new FormData();
       form.append("file", f);
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
       const resp = await fetch("/admin/upload/csv", {
         method: "POST",
         body: form,
-        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ detail: resp.statusText }));
