@@ -152,7 +152,7 @@ export function GlobalSearch() {
     <div
       className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh] px-4"
       onClick={(e) => { if (e.target === e.currentTarget) close(); }}
-      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
+      style={{ background: "rgba(0,0,0,0.82)" }}
     >
       <div
         className="w-full max-w-lg rounded-xl border border-white/10 shadow-2xl overflow-hidden"

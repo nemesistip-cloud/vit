@@ -2898,23 +2898,30 @@ async def list_users(
 ):
     """List all users with filtering."""
     async with AsyncSessionLocal() as db:
-        q = _select(_User)
+        filters = []
         if search:
-            q = q.where(
+            filters.append(
                 (_User.email.ilike(f"%{search}%")) | (_User.username.ilike(f"%{search}%"))
             )
         if role:
-            q = q.where(_User.role == role)
+            filters.append(_User.role == role)
         if tier:
-            q = q.where(_User.subscription_tier == tier)
+            filters.append(_User.subscription_tier == tier)
         if status == "active":
-            q = q.where(_User.is_active == True)
+            filters.append(_User.is_active == True)
         elif status == "banned":
-            q = q.where(_User.is_banned == True)
+            filters.append(_User.is_banned == True)
         elif status == "inactive":
-            q = q.where(_User.is_active == False)
-        total = (await db.execute(_select(_func.count()).select_from(q.subquery()))).scalar() or 0
-        users = (await db.execute(q.order_by(_desc(_User.created_at)).offset(offset).limit(limit))).scalars().all()
+            filters.append(_User.is_active == False)
+
+        count_q = _select(_func.count(_User.id))
+        data_q  = _select(_User)
+        for f in filters:
+            count_q = count_q.where(f)
+            data_q  = data_q.where(f)
+
+        total = (await db.execute(count_q)).scalar() or 0
+        users = (await db.execute(data_q.order_by(_desc(_User.created_at)).offset(offset).limit(limit))).scalars().all()
 
         wallet_map = {}
         if users:

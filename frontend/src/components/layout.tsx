@@ -306,7 +306,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ── Mobile Bottom Navigation ─────────────────────── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40"
-        style={{ background: "rgba(8,8,18,0.96)", backdropFilter: "blur(20px)" }}>
+        style={{ background: "rgba(8,8,18,0.98)" }}>
         <div className="flex justify-around items-center h-[60px] max-w-lg mx-auto">
           {MOBILE_BOTTOM_NAV.map((item) => {
             const isActive = location === item.href || location.startsWith(item.href + "/");

@@ -19,6 +19,14 @@ export default defineConfig({
     },
     dedupe: ["react", "react-dom"],
   },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "use-sync-external-store",
+      "use-sync-external-store/shim",
+    ],
+  },
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,

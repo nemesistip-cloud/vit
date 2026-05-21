@@ -91,7 +91,7 @@ export function KellyCalculatorModal() {
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
-      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
+      style={{ background: "rgba(0,0,0,0.85)" }}
     >
       <div
         className="w-full max-w-sm rounded-xl border border-white/10 shadow-2xl overflow-hidden"

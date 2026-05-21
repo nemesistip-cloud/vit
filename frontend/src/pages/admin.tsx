@@ -1922,7 +1922,7 @@ function UsersTab() {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editForm, setEditForm] = useState<Partial<AdminUser>>({});
 
-  const { data, isLoading } = useQuery<{ users: AdminUser[]; total: number }>({
+  const { data, isLoading, isError } = useQuery<{ users: AdminUser[]; total: number }>({
     queryKey: ["admin-users", search],
     queryFn: () => apiGet(`/admin/users?limit=100${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     refetchInterval: 30000,
@@ -1966,6 +1966,11 @@ function UsersTab() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2">
+              <AlertTriangle className="w-8 h-8 text-red-400 opacity-60" />
+              <p className="text-sm text-gray-500 font-mono">Failed to load users — check auth &amp; server logs</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1981,6 +1986,13 @@ function UsersTab() {
                   </tr>
                 </thead>
                 <tbody>
+                  {!data?.users?.length ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-gray-600 text-sm font-mono">
+                        No users found{search ? ` matching "${search}"` : ""}
+                      </td>
+                    </tr>
+                  ) : null}
                   {data?.users?.map(u => (
                     <tr key={u.id} className="border-b border-gray-800 hover:bg-gray-800/40">
                       <td className="p-3">
@@ -2459,7 +2471,7 @@ function ModelsTab() {
           variant={activeSection === "engine" ? "default" : "outline"}
           className={activeSection === "engine" ? "bg-cyan-500 text-black" : "border-gray-600 text-gray-300"}
           onClick={() => setActiveSection("engine")}>
-          <Cpu className="w-4 h-4 mr-2" /> AI Engine ({modelsData?.models?.length ?? 0})
+          <Cpu className="w-4 h-4 mr-2" /> AI Engine ({modelsData?.models?.length ?? modelsData?.total ?? 0})
         </Button>
         <Button
           variant={activeSection === "accountability" ? "default" : "outline"}
