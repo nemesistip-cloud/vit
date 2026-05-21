@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, JSON, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.database import Base
 
 class ProphecyChapter(Base):
@@ -24,7 +24,7 @@ class ProphecyChapter(Base):
     reward_badge = Column(String(100), nullable=True)
 
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class UserProphecyProgress(Base):
     __tablename__ = "user_prophecy_progress"
@@ -39,9 +39,13 @@ class UserProphecyProgress(Base):
     total_qualified_wins = Column(Integer, default=0)
     current_accuracy = Column(Float, default=0.0)
 
-    last_evaluated_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_evaluated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     user = relationship("User", backref="prophecy_progress")
     current_chapter = relationship("ProphecyChapter")
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)

@@ -2616,7 +2616,7 @@ async def system_status(db: AsyncSession = Depends(get_db)):
     import datetime
 
     total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
-    thirty_days_ago = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+    thirty_days_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)
     active_30d = (await db.execute(
         select(func.count(User.id)).where(User.created_at >= thirty_days_ago)
     )).scalar() or 0

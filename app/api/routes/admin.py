@@ -3377,51 +3377,6 @@ async def recalculate_vit(current_user: _User = Depends(get_current_admin)):
     return {"new_price_usd": new_price, "circulating_supply": circulating, "revenue_usd": revenue, "message": "VIT price recalculated"}
 
 
-# ── 7. Subscription Plans ─────────────────────────────────────────────
-
-@router.get("/subscriptions")
-async def list_subscription_plans():
-    """List all subscription plans."""
-    async with AsyncSessionLocal() as db:
-        plans = (await db.execute(_select(_SubscriptionPlan).order_by(_SubscriptionPlan.price_monthly))).scalars().all()
-    return {
-        "plans": [
-            {
-                "id": p.id,
-                "name": p.name,
-                "display_name": p.display_name,
-                "price_monthly": p.price_monthly,
-                "price_yearly": p.price_yearly,
-                "prediction_limit": p.prediction_limit,
-                "features": p.features,
-                "is_active": p.is_active,
-                "created_at": p.created_at.isoformat() if p.created_at else None,
-            }
-            for p in plans
-        ]
-    }
-
-
-@router.put("/subscriptions/{plan_id}")
-async def update_subscription_plan(plan_id: int, body: PlanUpdateBody,
-                                    current_user: _User = Depends(get_current_admin)):
-    """Edit a subscription plan."""
-    async with AsyncSessionLocal() as db:
-        plan = (await db.execute(_select(_SubscriptionPlan).where(_SubscriptionPlan.id == plan_id))).scalar_one_or_none()
-        if not plan:
-            raise HTTPException(404, "Plan not found")
-        changed = {}
-        if body.display_name is not None:    plan.display_name = body.display_name;    changed["display_name"] = body.display_name
-        if body.price_monthly is not None:   plan.price_monthly = body.price_monthly;  changed["price_monthly"] = body.price_monthly
-        if body.price_yearly is not None:    plan.price_yearly = body.price_yearly;    changed["price_yearly"] = body.price_yearly
-        if body.prediction_limit is not None:plan.prediction_limit = body.prediction_limit; changed["prediction_limit"] = body.prediction_limit
-        if body.features is not None:        plan.features = body.features;            changed["features"] = body.features
-        if body.is_active is not None:       plan.is_active = body.is_active;          changed["is_active"] = body.is_active
-        await db.commit()
-        await _log_audit(db, "plan.update", current_user.email, "plan", plan_id, changed)
-    return {"message": "Plan updated", "changes": changed}
-
-
 # ── 8. Feature Flags ──────────────────────────────────────────────────
 
 @router.get("/system/flags")

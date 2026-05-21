@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,7 +62,7 @@ class AISourceIngestPayload(BaseModel):
     reason: Optional[str] = Field(None, max_length=500)
     raw_content: Optional[str] = Field(None, max_length=20000)
 
-    @validator("source")
+    @field_validator("source")
     def _src(cls, v: str) -> str:
         v = v.lower().strip()
         if v not in ALLOWED_SOURCES:
@@ -71,10 +71,10 @@ class AISourceIngestPayload(BaseModel):
             )
         return v
 
-    @validator("away_prob")
-    def _sum_check(cls, v, values):
-        h = values.get("home_prob", 0.0)
-        d = values.get("draw_prob", 0.0)
+    @field_validator("away_prob")
+    def _sum_check(cls, v, info):
+        h = info.data.get("home_prob", 0.0)
+        d = info.data.get("draw_prob", 0.0)
         total = (h or 0) + (d or 0) + (v or 0)
         if total <= 0:
             raise ValueError("Probabilities must sum to a positive value")

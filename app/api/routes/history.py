@@ -292,7 +292,7 @@ class TicketLeg(BaseModel):
 
 
 class TicketBuildRequest(BaseModel):
-    candidates: List[TicketLeg] = Field(..., min_items=2)
+    candidates: List[TicketLeg] = Field(..., min_length=2)
     legs: int = Field(3, ge=2, le=10, description="Number of legs in the ticket")
     top_n: int = Field(5, ge=1, le=20)
     min_combined_edge: float = Field(0.0, ge=-1.0, le=10.0)

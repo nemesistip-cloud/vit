@@ -6,6 +6,7 @@ import json
 from typing import List, Dict, Optional, Any
 
 import httpx
+import app.services.assistant_tools as assistant_tools
 from app.services.assistant_tools import GEMINI_TOOLS, TOOL_MAP
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,8 @@ async def chat(
 
                     if fn_name in TOOL_MAP:
                         try:
-                            result = await TOOL_MAP[fn_name](**args)
+                            tool_callable = getattr(assistant_tools, fn_name, TOOL_MAP[fn_name])
+                            result = await tool_callable(**args)
                             tool_responses.append({
                                 "functionResponse": {
                                     "name": fn_name,

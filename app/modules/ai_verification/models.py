@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -49,9 +49,9 @@ class AIModelAttestation(Base):
     verified_outputs: Mapped[int] = mapped_column(default=0)
     disputed_outputs: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
-    registered_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    registered_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     proofs: Mapped[list["InferenceProof"]] = relationship(
@@ -87,7 +87,7 @@ class InferenceProof(Base):
     )
     ref_match_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     ref_prediction_id: Mapped[Optional[int]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     anchored_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -118,5 +118,9 @@ class VerificationDispute(Base):
     stake_slashed: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     resolved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)

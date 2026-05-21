@@ -240,6 +240,7 @@ ISPORTS_API_KEY: str = get_env("ISPORTS_API_KEY", "")
 # The Odds API — bookmaker odds feed for CLV tracking and arbitrage detection
 # Supports both var names for backward compatibility with older deployments
 THE_ODDS_API_KEY: str      = get_env("THE_ODDS_API_KEY", "") or get_env("ODDS_API_KEY", "")
+ODDS_API_KEY: str          = THE_ODDS_API_KEY
 
 # Paystack — NGN (Nigerian Naira) payment gateway for African users
 PAYSTACK_SECRET_KEY: str     = get_env("PAYSTACK_SECRET_KEY", "")

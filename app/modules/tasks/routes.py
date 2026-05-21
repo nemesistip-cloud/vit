@@ -6,7 +6,7 @@ from typing import List, Optional
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -32,8 +32,7 @@ class TaskCategoryResponse(BaseModel):
     is_active: bool
     created_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TaskResponse(BaseModel):
@@ -58,8 +57,7 @@ class TaskResponse(BaseModel):
     action_label: Optional[str] = None
     created_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserTaskCompletionResponse(BaseModel):
@@ -75,8 +73,7 @@ class UserTaskCompletionResponse(BaseModel):
     total_vit_earned: float
     total_xp_earned: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CreateTaskCategoryRequest(BaseModel):

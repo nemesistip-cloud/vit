@@ -15,6 +15,7 @@ Key improvements over v1:
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Optional, List

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -80,9 +80,9 @@ class MeritScore(Base):
     bonus_vit_earned: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     events: Mapped[list["MeritEvent"]] = relationship(
@@ -107,6 +107,10 @@ class MeritEvent(Base):
     bonus_vit: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))
     ref_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    occurred_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    occurred_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
 
     merit_score: Mapped["MeritScore"] = relationship(back_populates="events")
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -54,7 +54,7 @@ class ContentHashRegistry(Base):
     pinned: Mapped[bool] = mapped_column(default=False)
     anchor_block: Mapped[Optional[int]] = mapped_column(nullable=True)
     anchor_tx: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
-    registered_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    registered_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     last_verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     proofs: Mapped[list["StorageProof"]] = relationship(
@@ -86,7 +86,7 @@ class StorageProof(Base):
     reward_earned: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    submitted_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    submitted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -116,8 +116,8 @@ class StorageChallenge(Base):
     slash_amount: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    response_deadline: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    issued_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    response_deadline: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    issued_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     responded_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -139,4 +139,8 @@ class DataAvailabilityAttestation(Base):
     available: Mapped[bool] = mapped_column(default=True)
     latency_ms: Mapped[Optional[int]] = mapped_column(nullable=True)
     signature: Mapped[str] = mapped_column(String(200))
-    attested_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    attested_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)

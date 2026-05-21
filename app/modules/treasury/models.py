@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -60,7 +60,7 @@ class TreasuryPool(Base):
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     allocations: Mapped[list["TreasuryAllocation"]] = relationship(
@@ -97,7 +97,7 @@ class GrantProposal(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     approved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     executed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -127,7 +127,7 @@ class TreasuryAllocation(Base):
     tx_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     released_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
 
     pool: Mapped["TreasuryPool"] = relationship(back_populates="allocations")
     grant: Mapped[Optional["GrantProposal"]] = relationship(
@@ -147,4 +147,8 @@ class TreasuryDeposit(Base):
     )
     tx_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    deposited_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    deposited_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)

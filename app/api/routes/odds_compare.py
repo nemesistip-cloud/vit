@@ -11,7 +11,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from app.config import APP_VERSION, AUTH_ENABLED, API_KEY
+from app.config import APP_VERSION, AUTH_ENABLED, API_KEY, ODDS_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -449,7 +449,7 @@ async def compare_odds(
     Multi-bookmaker 1X2 odds comparison for upcoming fixtures in a league.
     """
     _verify_key(api_key)
-    odds_key = os.getenv("ODDS_API_KEY", "") or os.getenv("THE_ODDS_API_KEY", "")
+    odds_key = ODDS_API_KEY
     if not odds_key:
         raise HTTPException(status_code=503, detail="ODDS_API_KEY not configured")
 
@@ -496,7 +496,7 @@ async def all_markets(
     - **Vig-free probabilities**: sharp market probabilities
     """
     _verify_key(api_key)
-    odds_key = os.getenv("ODDS_API_KEY", "") or os.getenv("THE_ODDS_API_KEY", "")
+    odds_key = ODDS_API_KEY
     if not odds_key:
         raise HTTPException(status_code=503, detail="ODDS_API_KEY not configured")
 
@@ -538,7 +538,7 @@ async def event_markets(
     Returns full bookmaker data plus all derived markets.
     """
     _verify_key(api_key)
-    odds_key = os.getenv("ODDS_API_KEY", "") or os.getenv("THE_ODDS_API_KEY", "")
+    odds_key = ODDS_API_KEY
     if not odds_key:
         raise HTTPException(status_code=503, detail="ODDS_API_KEY not configured")
 
@@ -589,7 +589,7 @@ async def scan_arbitrage(
     Covers 1X2 and (optionally) Over/Under markets at 1.5, 2.5, and 3.5 goals.
     """
     _verify_key(api_key)
-    odds_key = os.getenv("ODDS_API_KEY", "") or os.getenv("THE_ODDS_API_KEY", "")
+    odds_key = ODDS_API_KEY
     if not odds_key:
         raise HTTPException(status_code=503, detail="ODDS_API_KEY not configured")
 
