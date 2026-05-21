@@ -1,6 +1,5 @@
 """VIT Sports Intelligence Network - Main Application Package"""
 
-import sys
 from app.config import APP_VERSION
 
 __version__     = APP_VERSION
