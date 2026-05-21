@@ -42,13 +42,14 @@ unbounded memory growth on long-running processes.
 
 from __future__ import annotations
 
-import os
 import time
 import logging
 from collections import defaultdict, deque
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.errors import error_response
+
+from app.config import RATE_LIMIT_ENABLED, REDIS_URL
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def _rate_limiting_enabled() -> bool:
     Allows disabling rate-limiting in automated test environments without
     changing code. Default is ``true`` (rate limiting always on).
     """
-    return os.getenv("RATE_LIMIT_ENABLED", "true").lower() != "false"
+    return RATE_LIMIT_ENABLED
 
 
 # ── JWT identity extractor ─────────────────────────────────────────────────────
@@ -128,8 +129,7 @@ def _get_redis():
         return _redis_client  # Already attempted — return cached result
 
     _redis_checked = True
-    from app.config import REDIS_URL as redis_url
-    if not redis_url:
+    if not REDIS_URL:
         return None  # Redis not configured — use in-memory fallback silently
 
     try:

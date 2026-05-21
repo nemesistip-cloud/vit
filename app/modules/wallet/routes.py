@@ -155,7 +155,8 @@ async def initiate_deposit(
 ):
     """Initiate a deposit — calls Paystack/Stripe when keys are configured."""
     import uuid as _uuid
-    import os as _os
+
+    from app.config import PAYSTACK_SECRET_KEY, STRIPE_SECRET_KEY, REPLIT_DEV_DOMAIN, PUBLIC_APP_URL, REPL_SLUG
 
     service = WalletService(db)
     wallet = await service.get_or_create_wallet(current_user.id)
@@ -166,7 +167,7 @@ async def initiate_deposit(
 
     # ── Paystack (NGN) ────────────────────────────────────────────────
     if request.method == "paystack":
-        paystack_key = _os.environ.get("PAYSTACK_SECRET_KEY", "")
+        paystack_key = PAYSTACK_SECRET_KEY
         if paystack_key:
             try:
                 import httpx as _httpx
@@ -198,11 +199,12 @@ async def initiate_deposit(
 
     # ── Stripe (USD) ──────────────────────────────────────────────────
     elif request.method == "stripe":
-        stripe_key = _os.environ.get("STRIPE_SECRET_KEY", "")
+        stripe_key = STRIPE_SECRET_KEY
         if stripe_key:
             try:
                 import httpx as _httpx
                 amount_cents = int(float(request.amount) * 100)
+                app_domain = REPLIT_DEV_DOMAIN or PUBLIC_APP_URL or REPL_SLUG or "localhost"
                 async with _httpx.AsyncClient(timeout=10) as client:
                     resp = await client.post(
                         "https://api.stripe.com/v1/checkout/sessions",
@@ -215,8 +217,8 @@ async def initiate_deposit(
                             "line_items[0][quantity]": "1",
                             "mode": "payment",
                             "client_reference_id": ref,
-                            "success_url": f"https://{_os.environ.get('REPLIT_DEV_DOMAIN') or _os.environ.get('PUBLIC_APP_URL', 'localhost')}/wallet?deposit=success&ref={ref}",
-                            "cancel_url": f"https://{_os.environ.get('REPLIT_DEV_DOMAIN') or _os.environ.get('PUBLIC_APP_URL', 'localhost')}/wallet?deposit=cancelled",
+                            "success_url": f"https://{app_domain}/wallet?deposit=success&ref={ref}",
+                            "cancel_url": f"https://{app_domain}/wallet?deposit=cancelled",
                             "metadata[vit_ref]": ref,
                             "metadata[user_id]": str(current_user.id),
                         },
@@ -289,14 +291,14 @@ async def verify_deposit(
     db: AsyncSession = Depends(get_db),
 ):
     """Verify a completed deposit and credit the wallet if confirmed."""
-    import os as _os
+    from app.config import PAYSTACK_SECRET_KEY
     from app.modules.wallet.models import WalletTransaction as _WalletTx, Currency as _Currency
 
     verified_amount = None
     verified_status = "failed"
 
     # ── Verify with Paystack ──────────────────────────────────────────
-    paystack_key = _os.environ.get("PAYSTACK_SECRET_KEY", "")
+    paystack_key = PAYSTACK_SECRET_KEY
     if paystack_key:
         try:
             import httpx as _httpx

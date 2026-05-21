@@ -1,9 +1,10 @@
 import hashlib
 import hmac
 import json
-import os
 from decimal import Decimal
 from typing import Any, Dict, Optional
+
+from app.config import get_env
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -121,11 +122,11 @@ class RewardService:
 
     @staticmethod
     def _signature_header(provider: str) -> str:
-        return os.getenv(f"POSTBACK_SIGNATURE_HEADER_{provider.upper()}", "X-Signature")
+        return get_env(f"POSTBACK_SIGNATURE_HEADER_{provider.upper()}", "X-Signature")
 
     @staticmethod
     def _provider_secret(provider: str) -> Optional[str]:
-        return os.getenv(f"POSTBACK_SECRET_{provider.upper()}")
+        return get_env(f"POSTBACK_SECRET_{provider.upper()}")
 
     @staticmethod
     def _validate_signature(provider: str, signature: Optional[str], body: bytes) -> Dict[str, Any]:

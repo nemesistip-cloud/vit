@@ -47,6 +47,20 @@ def get_env(name: str, default: str = "") -> str:
     return os.getenv(name, default) or default
 
 
+def get_bool_env(name: str, default: str = "false") -> bool:
+    """Read a boolean-like env var with sane defaults."""
+    value = get_env(name, default).strip().lower()
+    return value in ("1", "true", "yes", "on")
+
+
+def get_int_env(name: str, default: str = "0") -> int:
+    """Read an integer env var with fallback for invalid values."""
+    try:
+        return int(get_env(name, default))
+    except (TypeError, ValueError):
+        return int(default)
+
+
 # ── JWT / session secret resolution ───────────────────────────────────────────
 
 def _get_secure_secret_key() -> str:
@@ -162,9 +176,44 @@ LSTM_MAX_TRAINING_SEQS: int = int(get_env("LSTM_MAX_TRAINING_SEQS", "2000"))
 # Informational only — actual binding is controlled by the start command.
 # ══════════════════════════════════════════════════════════════════════════════
 
-BACKEND_PORT: int  = int(get_env("BACKEND_PORT",  "8000"))
-FRONTEND_PORT: int = int(get_env("FRONTEND_PORT", "5000"))
+BACKEND_PORT: int  = get_int_env("BACKEND_PORT",  "8000")
+FRONTEND_PORT: int = get_int_env("FRONTEND_PORT", "5000")
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT / DEPLOYMENT
+# ══════════════════════════════════════════════════════════════════════════════
+
+ENVIRONMENT: str         = get_env("ENVIRONMENT", "development")
+REPLIT_DEPLOYMENT: bool  = bool(get_env("REPLIT_DEPLOYMENT", ""))
+REPLIT_DEV_DOMAIN: str   = get_env("REPLIT_DEV_DOMAIN", "")
+REPL_SLUG: str           = get_env("REPL_SLUG", "")
+PUBLIC_APP_URL: str      = get_env("PUBLIC_APP_URL", "")
+FRONTEND_URL: str        = get_env("FRONTEND_URL", PUBLIC_APP_URL or "")
+
+AUTH_ENABLED: bool       = get_bool_env("AUTH_ENABLED")
+RATE_LIMIT_ENABLED: bool = get_bool_env("RATE_LIMIT_ENABLED", "true")
+ENABLE_SCRAPING: bool    = get_bool_env("ENABLE_SCRAPING", "false")
+ENABLE_ODDS: bool        = get_bool_env("ENABLE_ODDS", "true")
+ENABLE_SYNTHETIC_FIXTURES: bool = get_bool_env("ENABLE_SYNTHETIC_FIXTURES", "false")
+
+ADMIN_EMAIL: str         = get_env("ADMIN_EMAIL", "admin@vit.network")
+ADMIN_USERNAME: str      = get_env("ADMIN_USERNAME", "vit_admin")
+ADMIN_PASSWORD: str      = get_env("ADMIN_PASSWORD", "")
+
+SMTP_FROM: str           = get_env("SMTP_FROM", "VIT Network <noreply@vit.network>")
+SMTP_HOST: str           = get_env("SMTP_HOST", "")
+SMTP_PORT: int           = get_int_env("SMTP_PORT", "587")
+SMTP_USER: str           = get_env("SMTP_USER", "")
+SMTP_PASS: str           = get_env("SMTP_PASS", "")
+
+API_KEY: str              = get_env("API_KEY", "")
+ORACLE_API_KEY: str       = get_env("ORACLE_API_KEY", "")
+SMILE_IDENTITY_API_KEY: str      = get_env("SMILE_IDENTITY_API_KEY", "")
+SMILE_IDENTITY_PARTNER_ID: str   = get_env("SMILE_IDENTITY_PARTNER_ID", "")
+SMILE_IDENTITY_SANDBOX: bool     = get_bool_env("SMILE_IDENTITY_SANDBOX", "false")
+TELEGRAM_BOT_USERNAME: str       = get_env("TELEGRAM_BOT_USERNAME", "VITSportsBot")
+USDT_MIN_CONFIRMATIONS: int      = get_int_env("USDT_MIN_CONFIRMATIONS", "3")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECURITY KEYS
@@ -210,6 +259,8 @@ XAI_API_KEY: str           = get_env("XAI_API_KEY",     "")
 # Redis — optional; enables distributed rate limiting, caching, and Celery tasks.
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.
 REDIS_URL: str             = _clean_redis_url(get_env("REDIS_URL", ""))
+
+DATABASE_URL: str          = get_env("VIT_DATABASE_URL", "") or get_env("DATABASE_URL", "") or "sqlite+aiosqlite:///./vit.db"
 
 # Resend.com — transactional email (welcome, password reset, alerts)
 RESEND_API_KEY: str        = get_env("RESEND_API_KEY", "")

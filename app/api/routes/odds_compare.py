@@ -3,7 +3,6 @@
 # Multi-bookmaker odds comparison, full-market view, arbitrage scanner, audit log
 
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
@@ -12,7 +11,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from app.config import APP_VERSION
+from app.config import APP_VERSION, AUTH_ENABLED, API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +83,11 @@ def _audit(action: str, details: dict):
 
 
 def _verify_key(api_key: Optional[str] = None):
-    auth_enabled = os.getenv("AUTH_ENABLED", "false").lower() == "true"
-    if not auth_enabled:
+    if not AUTH_ENABLED:
         return
     if api_key is None:
         return
-    from app.config import get_env
-    if api_key != get_env("API_KEY", ""):
+    if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Invalid admin key")
 
 

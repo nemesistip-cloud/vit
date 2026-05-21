@@ -17,9 +17,10 @@ User linking flow:
 
 import hashlib
 import logging
-import os
 import secrets
 from typing import Optional
+
+from app.config import TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME
 
 import httpx
 
@@ -61,12 +62,12 @@ def consume_link_code(code: str) -> Optional[int]:
 
 
 def get_bot_token() -> str:
-    return os.getenv("TELEGRAM_BOT_TOKEN", "")
+    return TELEGRAM_BOT_TOKEN
 
 
 def get_bot_username() -> str:
     """Return bot username from env or derive it from the token."""
-    return os.getenv("TELEGRAM_BOT_USERNAME", "VITSportsBot")
+    return TELEGRAM_BOT_USERNAME
 
 
 async def send_user_message(chat_id: str, text: str, parse_mode: str = "HTML") -> bool:

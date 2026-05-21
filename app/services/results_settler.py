@@ -15,10 +15,11 @@ Key improvements over v1:
 
 import asyncio
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Optional, List
+
+from app.config import ISPORTS_API_KEY, FOOTBALL_DATA_API_KEY
 
 import httpx
 from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
@@ -107,7 +108,7 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
     import time as _time
 
     # --- Try iSports first ---
-    isports_key = os.getenv("ISPORTS_API_KEY")
+    isports_key = ISPORTS_API_KEY
     if isports_key:
         try:
             client = ISportsClient(isports_key)
@@ -145,7 +146,7 @@ async def fetch_finished_matches(days_back: int = 2) -> list:
     # --- Fallback to Football-Data.org ---
     global _KEY_PERMANENTLY_INVALID, _FORBIDDEN_LEAGUES, _FORBIDDEN_LEAGUES_RESET_AT
     global _API_UNREACHABLE, _API_UNREACHABLE_UNTIL
-    key = os.getenv("FOOTBALL_DATA_API_KEY", "")
+    key = FOOTBALL_DATA_API_KEY
     if not key:
         logger.warning("FOOTBALL_DATA_API_KEY not set — cannot fetch finished matches")
         return []

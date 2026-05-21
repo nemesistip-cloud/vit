@@ -6,12 +6,13 @@ restarts and work correctly across multiple Uvicorn workers.
 """
 
 import hashlib
-import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+
+from app.config import FRONTEND_URL, RESEND_API_KEY, SMTP_HOST
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -110,7 +111,7 @@ async def send_verification(body: SendVerificationRequest, db: AsyncSession = De
     token = _make_token()
     await _store_token(db, user.id, "verify", token, _TOKEN_TTL_HOURS)
 
-    base_url = os.getenv("FRONTEND_URL", "").rstrip("/")
+    base_url = FRONTEND_URL.rstrip("/")
     link = f"{base_url}/verify-email?token={token}"
     await send_verification_email(
         to_email=user.email,
@@ -120,7 +121,7 @@ async def send_verification(body: SendVerificationRequest, db: AsyncSession = De
     )
 
     response: dict = {"message": "Verification email sent (check spam if not received)."}
-    if not os.getenv("RESEND_API_KEY") and not os.getenv("SMTP_HOST"):
+    if not RESEND_API_KEY and not SMTP_HOST:
         response["dev_token"] = token
         response["dev_link"] = link
     return response
@@ -166,7 +167,7 @@ async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depend
     token = _make_token()
     await _store_token(db, user.id, "reset", token, _RESET_TTL_HOURS)
 
-    base_url = os.getenv("FRONTEND_URL", "").rstrip("/")
+    base_url = FRONTEND_URL.rstrip("/")
     link = f"{base_url}/reset-password?token={token}"
     await send_password_reset_email(
         to_email=user.email,
@@ -176,7 +177,7 @@ async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depend
     )
 
     response: dict = {"message": "Password reset link sent (check spam if not received)."}
-    if not os.getenv("RESEND_API_KEY") and not os.getenv("SMTP_HOST"):
+    if not RESEND_API_KEY and not SMTP_HOST:
         response["dev_token"] = token
         response["dev_link"] = link
     return response

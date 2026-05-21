@@ -1,18 +1,12 @@
 """Base L2 (chain_id=8453) connection for VITCoin on-chain operations (Async)."""
-import os
 import logging
 from typing import Optional
 from web3 import AsyncWeb3, AsyncHTTPProvider
+
+from app.config import BASE_CHAIN_ID, BASE_RPC_URL, VITCOIN_CONTRACT_ADDRESS
 from web3.middleware import async_geth_poa_middleware
 
 log = logging.getLogger(__name__)
-
-BASE_RPC_URL = os.getenv("BASE_RPC_URL", "https://mainnet.base.org")
-try:
-    BASE_CHAIN_ID = int(os.getenv("BASE_CHAIN_ID", "8453"))
-except (ValueError, TypeError):
-    BASE_CHAIN_ID = 8453
-VITCOIN_CONTRACT_ADDRESS = os.getenv("VIT_CONTRACT_ADDRESS", "")
 
 _w3 = None
 

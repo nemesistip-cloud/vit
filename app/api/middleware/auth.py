@@ -4,17 +4,13 @@
 # G09:  vit_* developer API keys are DB-authenticated and billed per call.
 import hashlib
 import logging
-import os
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
-from dotenv import load_dotenv
+
+from app.config import API_KEY, AUTH_ENABLED, ENVIRONMENT
 from app.core.errors import error_response
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
-
-API_KEY = os.getenv("API_KEY", "")
 
 
 async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, str]:
@@ -58,18 +54,14 @@ async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, 
     except Exception as exc:
         logger.error("Developer API key auth error: %s", exc)
         # Fail-closed in production, allow in dev for robustness
-        is_prod = os.getenv("ENVIRONMENT") == "production"
+        is_prod = ENVIRONMENT == "production"
         return not is_prod, "auth_error", None, "free"
 
 
 def auth_enabled() -> bool:
-    api_key = os.getenv("API_KEY", "")
-    auth_env = os.getenv("AUTH_ENABLED", "").lower()
-    if auth_env == "true":
-        return True
-    if auth_env == "false":
-        return False
-    return api_key not in ("", "your_api_key_here")
+    if AUTH_ENABLED is not None:
+        return AUTH_ENABLED
+    return API_KEY not in ("", "your_api_key_here")
 
 
 # JWT auth routes and public endpoints — always open
@@ -171,8 +163,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Legacy env-var key
-        expected = os.getenv("API_KEY", API_KEY)
-        if api_key != expected:
+        if api_key != API_KEY:
             return error_response(
                 request=request,
                 status_code=401,
@@ -207,8 +198,7 @@ async def verify_api_key(request: Request):
             raise HTTPException(status_code=status, detail=f"Developer API key rejected: {reason}")
         return True
 
-    expected = os.getenv("API_KEY", API_KEY)
-    if api_key != expected:
+    if api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
     return True

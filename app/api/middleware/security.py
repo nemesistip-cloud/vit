@@ -1,8 +1,9 @@
 """Security headers middleware — VIT Sports Intelligence Network."""
 
-import os
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+
+from app.config import ENVIRONMENT
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -39,7 +40,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         # SEC-06: HSTS must only be set in production — setting it over HTTP poisons
         # the browser cache for a year, breaking all local development.
-        if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        if ENVIRONMENT.lower() == "production":
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains"
             )

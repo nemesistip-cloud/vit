@@ -22,15 +22,10 @@ from sqlalchemy import select
 
 from app.db.database import AsyncSessionLocal
 from app.modules.wallet.models import WalletTransaction, Wallet
-from app.config import PAYSTACK_WEBHOOK_SECRET as _PAYSTACK_WEBHOOK_SECRET
+from app.config import PAYSTACK_WEBHOOK_SECRET as _PAYSTACK_WEBHOOK_SECRET, USDT_MIN_CONFIRMATIONS
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 logger = logging.getLogger(__name__)
-
-try:
-    USDT_MIN_CONFIRMATIONS = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
-except (ValueError, TypeError):
-    USDT_MIN_CONFIRMATIONS = 3
 
 
 async def _credit_wallet_by_reference(reference: str) -> bool:

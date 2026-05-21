@@ -33,7 +33,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_env, APP_VERSION
+from app.config import get_env, APP_VERSION, AUTH_ENABLED, API_KEY
 from app.db.database import AsyncSessionLocal
 from app.db.models import Match, Prediction, SubscriptionPlan
 from app.services.market_utils import MarketUtils
@@ -139,13 +139,11 @@ COMPETITIONS = {
 
 
 def _verify_key(api_key: Optional[str] = None):
-    auth_enabled = os.getenv("AUTH_ENABLED", "false").lower() == "true"
-    if not auth_enabled:
+    if not AUTH_ENABLED:
         return
     if api_key is None:
         return
-    expected = get_env("API_KEY", "")
-    if not expected or api_key != expected:
+    if not API_KEY or api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Invalid admin key")
 
 

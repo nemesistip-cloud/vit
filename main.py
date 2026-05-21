@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, func
 
 from fastapi.middleware.gzip import GZipMiddleware
-from app.config import get_env, APP_VERSION, print_config_status
+from app.config import get_env, APP_VERSION, print_config_status, ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD
 from app.core.errors import AppError, error_response
 from app.db.database import get_db
 import app.db.models  # ensure all models registered (incl. EmailToken, TokenBlocklist)
@@ -897,15 +897,14 @@ async def _run_bootstrap(app, _done_event):
 
     # SEED DEFAULT ADMIN ACCOUNT
     try:
-        import os as _os
         from app.db.database import AsyncSessionLocal
         from app.db.models import User as _User
         from app.auth.jwt_utils import hash_password
         from sqlalchemy import select as _select
 
-        _admin_email = _os.environ.get("ADMIN_EMAIL", "admin@vit.network")
-        _admin_pass = _os.environ.get("ADMIN_PASSWORD")
-        _admin_user = _os.environ.get("ADMIN_USERNAME", "vit_admin")
+        _admin_email = ADMIN_EMAIL
+        _admin_pass = ADMIN_PASSWORD
+        _admin_user = ADMIN_USERNAME
 
         async with AsyncSessionLocal() as _db:
             _exists = (await _db.execute(_select(_User).where(_User.email == _admin_email))).scalar_one_or_none()
@@ -1076,14 +1075,13 @@ async def _run_bootstrap(app, _done_event):
     # Legacy hardcoded password strings have been removed from source code.
     # Set ADMIN_PASSWORD in your environment to rotate all admin credentials.
     try:
-        import os as _os
         from app.db.database import AsyncSessionLocal
         from app.db.models import User as _User
         from app.auth.jwt_utils import hash_password, verify_password
         from sqlalchemy import select as _select
         import re as _re
 
-        _secure_pass = _os.environ.get("ADMIN_PASSWORD", "")
+        _secure_pass = ADMIN_PASSWORD
 
         def _is_weak(hashed: str) -> bool:
             """Heuristic: short bcrypt hash cost (<= 10) = likely a legacy default."""

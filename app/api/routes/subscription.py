@@ -332,8 +332,10 @@ async def create_checkout_session(
     if body.plan not in PLANS or body.plan == "free":
         raise HTTPException(status_code=400, detail="Invalid plan for checkout")
 
+    from app.config import STRIPE_SECRET_KEY, REPLIT_DEV_DOMAIN, REPL_SLUG, PUBLIC_APP_URL
+
     plan = PLANS[body.plan]
-    stripe_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    stripe_key = STRIPE_SECRET_KEY
     if not stripe_key:
         raise HTTPException(status_code=503, detail="Payment system not configured. Contact support.")
     if not (stripe_key.startswith("sk_test_") or stripe_key.startswith("sk_live_")):
@@ -343,11 +345,8 @@ async def create_checkout_session(
     amount_cents = int(price_usd * 100)
     period_label = "year" if body.billing == "yearly" else "month"
 
-    domain = os.environ.get("REPLIT_DEV_DOMAIN") or os.environ.get("REPL_SLUG", "localhost")
-    if "replit" not in domain and "localhost" not in domain:
-        base_url = f"https://{domain}"
-    else:
-        base_url = f"https://{domain}"
+    domain = REPLIT_DEV_DOMAIN or PUBLIC_APP_URL or REPL_SLUG or "localhost"
+    base_url = f"https://{domain}"
 
     success_url = body.success_url or f"{base_url}/subscription?upgraded=true&plan={body.plan}"
     cancel_url = body.cancel_url or f"{base_url}/subscription?cancelled=true"
@@ -463,7 +462,7 @@ async def admin_set_plan(
     db: AsyncSession = Depends(get_db)
 ):
     """Admin endpoint: manually set a plan for any API key."""
-    admin_key = os.getenv("API_KEY", "")
+    from app.config import API_KEY as admin_key
     req_key = request.headers.get("x-api-key", "")
     if admin_key and req_key != admin_key:
         raise HTTPException(status_code=403, detail="Admin access required")

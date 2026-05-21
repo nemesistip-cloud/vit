@@ -1,19 +1,13 @@
 # app/db/database.py
-import os
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
-from dotenv import load_dotenv
-
-load_dotenv()
-
-_raw_url = (
-    os.getenv("VIT_DATABASE_URL")
-    or os.getenv("DATABASE_URL")
-    or "sqlite+aiosqlite:///./vit.db"
-)
 
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+from app.config import DATABASE_URL
+
+_raw_url = DATABASE_URL
 
 # Guarantee asyncpg driver — replace any sync postgres scheme and remove unsupported sslmode params
 def _make_async_url(url: str) -> str:

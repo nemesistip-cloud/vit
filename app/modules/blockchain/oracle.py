@@ -5,9 +5,10 @@ agreement before triggering settlement. Disputes are flagged for admin.
 """
 
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Optional
+
+from app.config import ORACLE_API_KEY
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
@@ -91,8 +92,7 @@ async def oracle_stats(db: AsyncSession = Depends(get_db)):
 
 
 def _require_oracle_key(x_oracle_key: str = Header(...)):
-    expected = os.getenv("ORACLE_API_KEY", "")
-    if not expected or x_oracle_key != expected:
+    if not ORACLE_API_KEY or x_oracle_key != ORACLE_API_KEY:
         raise HTTPException(403, "Invalid oracle API key")
 
 

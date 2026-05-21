@@ -8,13 +8,14 @@ Falls back to console log in dev when neither is configured.
 """
 
 import logging
-import os
 from typing import Optional
+
+from app.config import SMTP_FROM, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER, RESEND_API_KEY, APP_NAME
 
 logger = logging.getLogger(__name__)
 
-_FROM = os.getenv("SMTP_FROM", "VIT Network <noreply@vit.network>")
-_APP_NAME = "VIT Sports Intelligence"
+_FROM = SMTP_FROM
+_APP_NAME = APP_NAME
 _PRIMARY = "#00e5ff"   # brand cyan
 
 
@@ -119,7 +120,7 @@ def _build_email_html(ntype: str, title: str, body: str, username: str = "") -> 
 
 async def _send_via_resend(to: str, subject: str, html: str) -> bool:
     """Send email via Resend.com API."""
-    api_key = os.getenv("RESEND_API_KEY", "")
+    api_key = RESEND_API_KEY
     if not api_key:
         return False
     try:
@@ -142,7 +143,7 @@ async def _send_via_resend(to: str, subject: str, html: str) -> bool:
 
 async def _send_via_smtp(to: str, subject: str, html: str) -> bool:
     """Send email via SMTP."""
-    smtp_host = os.getenv("SMTP_HOST", "")
+    smtp_host = SMTP_HOST
     if not smtp_host:
         return False
     try:
@@ -156,12 +157,9 @@ async def _send_via_smtp(to: str, subject: str, html: str) -> bool:
         msg["To"] = to
         msg.attach(_mt.MIMEText(html, "html"))
 
-        try:
-            port = int(os.getenv("SMTP_PORT", "587"))
-        except (ValueError, TypeError):
-            port = 587
-        user = os.getenv("SMTP_USER", "")
-        passwd = os.getenv("SMTP_PASS", "")
+        port = SMTP_PORT
+        user = SMTP_USER
+        passwd = SMTP_PASS
 
         with smtplib.SMTP(smtp_host, port, timeout=15) as s:
             s.ehlo()
@@ -203,12 +201,12 @@ async def send_notification_email(
     subject, html = _build_email_html(ntype, title, body, username)
 
     # Try Resend first (preferred)
-    if os.getenv("RESEND_API_KEY"):
+    if RESEND_API_KEY:
         if await _send_via_resend(to_email, subject, html):
             return True
 
     # Fallback to SMTP
-    if os.getenv("SMTP_HOST"):
+    if SMTP_HOST:
         if await _send_via_smtp(to_email, subject, html):
             return True
 
@@ -269,10 +267,10 @@ async def send_verification_email(
     subject = "🔐 Verify your VIT Network email"
     html = _html_wrapper(title, body_html)
 
-    if os.getenv("RESEND_API_KEY"):
+    if RESEND_API_KEY:
         if await _send_via_resend(to_email, subject, html):
             return True
-    if os.getenv("SMTP_HOST"):
+    if SMTP_HOST:
         if await _send_via_smtp(to_email, subject, html):
             return True
 
@@ -306,10 +304,10 @@ async def send_password_reset_email(
     subject = "🔑 Reset your VIT Network password"
     html = _html_wrapper(title, body_html)
 
-    if os.getenv("RESEND_API_KEY"):
+    if RESEND_API_KEY:
         if await _send_via_resend(to_email, subject, html):
             return True
-    if os.getenv("SMTP_HOST"):
+    if SMTP_HOST:
         if await _send_via_smtp(to_email, subject, html):
             return True
 

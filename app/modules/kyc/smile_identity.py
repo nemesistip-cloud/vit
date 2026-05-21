@@ -11,9 +11,14 @@ import base64
 import hashlib
 import hmac
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
+
+from app.config import (
+    SMILE_IDENTITY_API_KEY,
+    SMILE_IDENTITY_PARTNER_ID,
+    SMILE_IDENTITY_SANDBOX,
+)
 
 import httpx
 
@@ -61,8 +66,8 @@ _DOC_TYPE_MAP: dict[str, str] = {
 
 def _is_configured() -> tuple[bool, str, str]:
     """Return (configured, api_key, partner_id)."""
-    api_key    = os.getenv("SMILE_IDENTITY_API_KEY", "").strip()
-    partner_id = os.getenv("SMILE_IDENTITY_PARTNER_ID", "").strip()
+    api_key = SMILE_IDENTITY_API_KEY.strip()
+    partner_id = SMILE_IDENTITY_PARTNER_ID.strip()
     return bool(api_key and partner_id), api_key, partner_id
 
 
@@ -91,7 +96,7 @@ async def verify_with_smile_identity(payload: dict[str, Any]) -> dict[str, Any] 
     if not configured:
         return None
 
-    sandbox = os.getenv("SMILE_IDENTITY_SANDBOX", "false").lower() in ("1", "true", "yes")
+    sandbox = SMILE_IDENTITY_SANDBOX
     url = _SANDBOX_URL if sandbox else _PRODUCTION_URL
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")

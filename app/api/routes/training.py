@@ -20,7 +20,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.config import APP_VERSION, get_env
+from app.config import APP_VERSION, AUTH_ENABLED, API_KEY, get_env
 from app.core.dependencies import get_orchestrator
 from app.db.database import AsyncSessionLocal
 from app.db.models import TrainingJob as _TrainingJobModel
@@ -237,12 +237,11 @@ def _synthetic_historical_priors(count: int) -> List[dict]:
 
 
 def _verify_key(api_key: Optional[str] = None):
-    auth_enabled = os.getenv("AUTH_ENABLED", "false").lower() == "true"
-    if not auth_enabled:
+    if not AUTH_ENABLED:
         return
     if api_key is None:
         return
-    if api_key != get_env("API_KEY", ""):
+    if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Invalid admin key")
 
 

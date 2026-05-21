@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone
 
-from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY
+from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL, GEMINI_API_KEY
 from app.db.database import get_db
 from app.db.models import Match, Prediction
 from app.schemas.schemas import MatchRequest, PredictionResponse
@@ -923,7 +923,7 @@ async def predict(
                     risk_score=risk_value,
                     top_model=top_model_name,
                     data_quality=data_quality,
-                    app_url=os.getenv("PUBLIC_APP_URL", ""),
+                    app_url=PUBLIC_APP_URL,
                 )
                 await telegram_alerts.send_bet_alert(alert)
                 logger.info(
@@ -988,7 +988,7 @@ async def get_match_insights(
     btts = float(pred.btts_prob or 0.0)
     bet_side = pred.bet_side or "home"
 
-    gemini_key = _os.getenv("GEMINI_API_KEY", "").strip()
+    gemini_key = GEMINI_API_KEY.strip()
 
     if not gemini_key:
         # ML ensemble fallback — generate rule-based insight from prediction data
