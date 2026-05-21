@@ -1,5 +1,4 @@
 # app/auth/routes.py
-import os
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -8,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 
 from app.db.database import get_db
 from app.db.models import User, AuditLog
@@ -208,8 +207,15 @@ async def login(body: LoginRequest, request: Request = None, db: AsyncSession = 
     except ValueError as exc:
         raise HTTPException(status_code=429, headers={"Retry-After": "900"}, detail=str(exc))
 
-    # ── Load user ────────────────────────────────────────────────────────
-    result = await db.execute(select(User).where(User.email == body.email.lower()))
+    # ── Load user by email or username ────────────────────────────────────
+    identifier = body.email.strip()
+    normalized = identifier.lower()
+    result = await db.execute(
+        select(User).where(
+            (func.lower(User.email) == normalized) |
+            (func.lower(User.username) == normalized)
+        )
+    )
     user = result.scalar_one_or_none()
 
     # ── SEC-10: DB-backed per-account lockout check (survives restarts) ──
@@ -316,8 +322,9 @@ async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_
     """Authenticate a user using a Google ID token."""
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
+    from app.config import GOOGLE_CLIENT_ID
 
-    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    google_client_id = GOOGLE_CLIENT_ID
     if not google_client_id:
         # Fallback to check if we can at least verify without specific client ID
         # but usually it's required for security.

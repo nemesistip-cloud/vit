@@ -20,7 +20,7 @@ import { WelcomeModal, OnboardingTour } from "@/components/onboarding";
 import { usePublicConfig } from "@/lib/usePublicConfig";
 
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  identifier: z.string().min(3, "Enter your email or username"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
@@ -67,7 +67,7 @@ export default function AuthPage() {
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { identifier: "", password: "" },
   });
 
   const registerForm = useForm<z.infer<typeof registerSchema>>({
@@ -77,7 +77,9 @@ export default function AuthPage() {
 
   const onLoginSubmit = async (data: z.infer<typeof loginSchema>) => {
     try {
-      const res = await loginMutation.mutateAsync({ data });
+      const res = await loginMutation.mutateAsync({
+        data: { email: data.identifier, password: data.password },
+      });
       // Check if 2FA is required before issuing full tokens
       if ((res as any).requires_2fa) {
         setPreAuthToken((res as any).pre_auth_token);
@@ -295,13 +297,13 @@ export default function AuthPage() {
                           <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
                             <FormField
                               control={loginForm.control}
-                              name="email"
+                              name="identifier"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="font-mono text-xs text-muted-foreground uppercase">Email</FormLabel>
+                                  <FormLabel className="font-mono text-xs text-muted-foreground uppercase">Email or username</FormLabel>
                                   <FormControl>
                                     <Input
-                                      placeholder="you@example.com"
+                                      placeholder="you@example.com or vit_admin"
                                       className="bg-background/60 font-mono border-border/60 focus-visible:ring-primary/50 h-10"
                                       {...field}
                                     />
