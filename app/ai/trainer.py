@@ -1,14 +1,17 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader, TensorDataset
+    TORCH_AVAILABLE = True
+    torch.set_default_device("cpu")
+    import os as _os
+    _os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+except ImportError:
+    TORCH_AVAILABLE = False
 import json
 import os
 import sys
-
-# Force CPU — avoids CUDA OOM / build failures on CPU-only hosts
-torch.set_default_device("cpu")
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 # Add project root to sys.path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))

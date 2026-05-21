@@ -602,6 +602,31 @@ async def lifespan(app: FastAPI):
     print_config_status()
     print(f"🚀 VIT Network v{APP_VERSION} starting...")
 
+    _bootstrap_done = asyncio.Event()
+
+    async def _deferred_bootstrap():
+        """Run all heavy bootstrap tasks in the background after the port is open."""
+        await asyncio.sleep(2)  # yield to let uvicorn bind the port first
+
+    # ── Bootstrap: create ALL tables defined across every model module ─────────
+    # Run DB table creation immediately (fast) then defer everything else
+    _bootstrap_task = asyncio.create_task(_run_bootstrap(app, _bootstrap_done))
+
+    yield
+
+    _bootstrap_task.cancel()
+    try:
+        await _bootstrap_task
+    except (asyncio.CancelledError, Exception):
+        pass
+    print("🛑 Shutdown complete")
+    return
+
+
+async def _run_bootstrap(app, _done_event):
+    """All heavy startup work runs here — after the port is already open."""
+    await asyncio.sleep(1)  # give uvicorn a moment to bind
+
     # ── Bootstrap: create ALL tables defined across every model module ─────────
     try:
         from app.db.database import engine, Base
@@ -1933,14 +1958,16 @@ async def lifespan(app: FastAPI):
     print("✅ Background services started with supervision")
     print("🌐 API running at http://localhost:5000")
 
-    yield
-
-    await supervisor.stop()
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
-
-    print("🛑 Shutdown complete")
+    # Keep running until cancelled (shutdown)
+    try:
+        await asyncio.Event().wait()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await supervisor.stop()
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # ============================================

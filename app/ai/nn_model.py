@@ -1,12 +1,19 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    nn = None
 import os
 
 # Force CPU — avoids CUDA errors on CPU-only hosts
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
-class MatchOutcomeNN(nn.Module):
+_base = (nn.Module if TORCH_AVAILABLE else object) if nn is not None else object
+
+class MatchOutcomeNN(_base):
     """
     A basic neural network for match outcome prediction.
     It takes a vector of match features and outputs probabilities for Home Win, Draw, and Away Win.
