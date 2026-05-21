@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Send, RotateCw, Bot, User as UserIcon, Zap } from "lucide-react";
+import { Sparkles, Send, RotateCw, Bot, User as UserIcon, Zap, Search, Activity, BarChart3, Database } from "lucide-react";
 import {
   useAssistantChat,
   useAssistantStatus,
@@ -20,24 +20,29 @@ import {
 } from "@/lib/puter-ai";
 
 const SUGGESTED_PROMPTS = [
-  "How does the trust score system work?",
-  "Explain CLV and why it matters for my predictions.",
-  "What's the difference between the model markets and the accumulator builder?",
-  "Walk me through how to start training a custom model.",
-  "How do I become a validator?",
+  "Find upcoming high-value matches.",
+  "Check the status of the autonomous agents.",
+  "What are the latest market trends and CLV stats?",
+  "Give me insights for match ID 1.",
+  "How does the VIT trust system work?",
 ];
+
+// Extend AssistantTurn to include thoughts
+interface ExtendedAssistantTurn extends AssistantTurn {
+  thoughts?: string[];
+}
 
 type Mode = "claude" | "grok" | "gemini";
 
 const MODES: { id: Mode; label: string; sublabel: string; free: boolean }[] = [
   { id: "claude", label: "Claude",  sublabel: PUTER_CLAUDE_MODEL,  free: true  },
   { id: "grok",   label: "Grok",    sublabel: PUTER_GROK_MODEL,    free: true  },
-  { id: "gemini", label: "Gemini",  sublabel: "gemini-1.5-flash",  free: false },
+  { id: "gemini", label: "Gemini",  sublabel: "gemini-2.0-flash",  free: false },
 ];
 
 export default function AssistantPage() {
   const [input, setInput]     = useState("");
-  const [messages, setMessages] = useState<AssistantTurn[]>([]);
+  const [messages, setMessages] = useState<ExtendedAssistantTurn[]>([]);
   const [mode, setMode]       = useState<Mode>(isPuterAvailable() ? "claude" : "gemini");
   const [puterPending, setPuterPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -60,7 +65,7 @@ export default function AssistantPage() {
     const trimmed = text.trim();
     if (!trimmed || isPending) return;
 
-    const nextHistory: AssistantTurn[] = [
+    const nextHistory: ExtendedAssistantTurn[] = [
       ...messages,
       { role: "user", content: trimmed },
     ];
@@ -87,8 +92,9 @@ export default function AssistantPage() {
       }
     } else {
       try {
-        const result = await chat.mutateAsync({ message: trimmed, history: messages });
-        setMessages((prev) => [...prev, { role: "assistant", content: result.reply }]);
+        // cast to any because the generated api-client might not know about 'thoughts' yet
+        const result = await chat.mutateAsync({ message: trimmed, history: messages.map(m => ({ role: m.role, content: m.content })) }) as any;
+        setMessages((prev) => [...prev, { role: "assistant", content: result.reply, thoughts: result.thoughts }]);
         if (result.error) toast.error(result.error);
       } catch (e: any) {
         const msg = e?.message || "Failed to reach the assistant";
@@ -126,10 +132,10 @@ export default function AssistantPage() {
         <div>
           <h1 className="text-2xl font-bold font-mono tracking-tight flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-primary" />
-            AI Assistant
+            AI Assistant <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary border-primary/30">AGENTIC</Badge>
           </h1>
           <p className="text-sm text-muted-foreground font-mono mt-1">
-            Conversational copilot for the VIT Sports Intelligence Network.
+            Agentic copilot for the VIT Sports Intelligence Network.
           </p>
         </div>
 
@@ -190,8 +196,8 @@ export default function AssistantPage() {
           Powered by{" "}
           <span className="text-primary font-semibold">{currentMode.sublabel}</span>
           {currentMode.free
-            ? " via Puter · Free & unlimited · No API key needed"
-            : " · Backend · context window: last 12 turns"}
+            ? " via Puter · Free & unlimited · No tool support"
+            : " · Backend · Full Tool Calling Support"}
         </span>
       </div>
 
@@ -204,7 +210,7 @@ export default function AssistantPage() {
           <CardDescription className="font-mono text-xs">
             {currentMode.free
               ? `${currentMode.label} · ${currentMode.sublabel} · free & unlimited`
-              : `Backend AI · ${status.data?.provider ?? "Gemini"}`}
+              : `Agentic AI · ${status.data?.provider ?? "Gemini"} · Real-time data access`}
           </CardDescription>
         </CardHeader>
 
@@ -224,12 +230,12 @@ export default function AssistantPage() {
                   <p className="font-mono font-semibold text-sm">
                     {currentMode.free
                       ? `Free ${currentMode.label} AI — no API key required.`
-                      : "Ask me anything about VIT Sports."}
+                      : "The VIT Network Agentic Copilot is active."}
                   </p>
                   <p className="font-mono text-xs text-muted-foreground">
                     {currentMode.free
-                      ? `Powered by ${currentMode.sublabel} via Puter's free tier. Ask about predictions, CLV, wallet, training, validators — anything.`
-                      : "Models, predictions, ROI/CLV, the wallet, training, validators, governance — pick a topic or type your own question."}
+                      ? `Powered by ${currentMode.sublabel} via Puter's free tier.`
+                      : "I can now autonomously fetch live matches, analyze system health, and track market trends using platform tools."}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
@@ -249,7 +255,7 @@ export default function AssistantPage() {
             )}
 
             {messages.map((m, i) => (
-              <MessageBubble key={i} role={m.role} content={m.content} />
+              <MessageBubble key={i} role={m.role} content={m.content} thoughts={m.thoughts} />
             ))}
 
             {isPending && <MessageBubble role="assistant" content="" pending />}
@@ -302,10 +308,12 @@ export default function AssistantPage() {
 function MessageBubble({
   role,
   content,
+  thoughts = [],
   pending = false,
 }: {
   role: "user" | "assistant";
   content: string;
+  thoughts?: string[];
   pending?: boolean;
 }) {
   const isUser = role === "user";
@@ -320,24 +328,50 @@ function MessageBubble({
       >
         {isUser ? <UserIcon className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
       </div>
-      <div
-        className={`max-w-[78%] rounded-lg px-3.5 py-2.5 text-sm font-mono leading-relaxed ${
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-card border border-border"
-        }`}
-      >
-        {pending ? (
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />
-            <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]" />
-            <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" />
-          </span>
-        ) : isUser ? (
-          <span className="whitespace-pre-wrap break-words">{content}</span>
-        ) : (
-          <MarkdownContent content={content} />
+      <div className="flex flex-col gap-2 max-w-[78%]">
+        {/* Thought process display */}
+        {thoughts.length > 0 && (
+          <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 space-y-2">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+              <Activity className="w-3 h-3" />
+              Internal Thinking Process
+            </p>
+            <div className="space-y-1.5">
+              {thoughts.map((t, idx) => (
+                <div key={idx} className="flex items-start gap-2 text-xs font-mono text-primary/80">
+                  <div className="mt-1 w-1 h-1 rounded-full bg-primary" />
+                  <span>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
+
+        <div
+          className={`rounded-lg px-3.5 py-2.5 text-sm font-mono leading-relaxed ${
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-card border border-border"
+          }`}
+        >
+          {pending ? (
+            <div className="space-y-3 py-1">
+               <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+                  <Search className="w-3 h-3" />
+                  <span>Analyzing VIT network data...</span>
+               </div>
+               <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" />
+              </span>
+            </div>
+          ) : isUser ? (
+            <span className="whitespace-pre-wrap break-words">{content}</span>
+          ) : (
+            <MarkdownContent content={content} />
+          )}
+        </div>
       </div>
     </div>
   );
