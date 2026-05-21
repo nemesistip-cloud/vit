@@ -324,11 +324,34 @@ _KEY_REGISTRY = [
     },
     # ── Security ───────────────────────────────────────────────────────
     {
+        "name":        "JWT_SECRET_KEY",
+        "label":       "JWT Secret Key",
+        "description": "Signs all access tokens. Must be set in production — ephemeral key resets sessions on restart",
+        "required":    True,
+        "group":       "Security",
+    },
+    {
         "name":        "API_KEY",
         "label":       "Admin API Key",
         "description": "Master key used to authenticate legacy admin endpoints",
         "required":    False,
         "group":       "Security",
+    },
+    # ── Notifications ──────────────────────────────────────────────────
+    {
+        "name":        "RESEND_API_KEY",
+        "label":       "Resend Email API Key",
+        "description": "Sends transactional emails (verification, password reset, notifications) via Resend.com",
+        "required":    False,
+        "group":       "Messaging",
+    },
+    # ── Sports Data (free tier) ────────────────────────────────────────
+    {
+        "name":        "THESPORTSDB_API_KEY",
+        "label":       "TheSportsDB API Key",
+        "description": "Fixture source — value '3' is the free-tier key, no account required",
+        "required":    False,
+        "group":       "Sports Data",
     },
 ]
 
@@ -506,15 +529,22 @@ async def get_config_status(current_user=Depends(get_current_admin)):
     """
     Returns real-time health status for every external service.
     Used by the admin Config Health strip.
+    Checks both os.environ (Replit Secrets + live-saved keys) and the DB secret store.
     """
+    # Load the set of keys currently stored encrypted in the DB
+    from app.services.secrets_manager import get_db_secret_keys
+    db_keys: set = await get_db_secret_keys()
+
     def _status(key: str, label: str, required: bool = False) -> dict:
         val = os.getenv(key, "").strip()
+        in_db = key in db_keys
+        is_set = bool(val) or in_db
         return {
             "key":      key,
             "label":    label,
-            "set":      bool(val),
+            "set":      is_set,
             "required": required,
-            "status":   "ok" if val else ("error" if required else "warning"),
+            "status":   "ok" if is_set else ("error" if required else "warning"),
         }
 
     services = [

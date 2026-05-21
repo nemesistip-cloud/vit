@@ -1930,7 +1930,7 @@ function UsersTab() {
 
   const banMutation = useMutation({
     mutationFn: ({ id, ban }: { id: number; ban: boolean }) =>
-      apiPost(`/admin/users/${id}/ban`, { ban, reason: ban ? "Banned by admin" : "Unbanned by admin" }),
+      apiPost(`/admin/users/${id}/ban`, { banned: ban, reason: ban ? "Banned by admin" : "Unbanned by admin" }),
     onSuccess: (_, v) => { toast.success(v.ban ? "User banned" : "User unbanned"); qc.invalidateQueries({ queryKey: ["admin-users"] }); },
     onError: () => toast.error("Action failed"),
   });
@@ -1986,13 +1986,6 @@ function UsersTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {!data?.users?.length ? (
-                    <tr>
-                      <td colSpan={7} className="py-10 text-center text-gray-600 text-sm font-mono">
-                        No users found{search ? ` matching "${search}"` : ""}
-                      </td>
-                    </tr>
-                  ) : null}
                   {data?.users?.map(u => (
                     <tr key={u.id} className="border-b border-gray-800 hover:bg-gray-800/40">
                       <td className="p-3">
@@ -2040,8 +2033,12 @@ function UsersTab() {
                       </td>
                     </tr>
                   ))}
-                  {!data?.users?.length && (
-                    <tr><td colSpan={7} className="text-center text-gray-500 py-8">No users found</td></tr>
+                  {!data?.users?.length && !isLoading && (
+                    <tr>
+                      <td colSpan={7} className="text-center text-gray-500 py-8 font-mono text-sm">
+                        No users found{search ? ` matching "${search}"` : ""}
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>

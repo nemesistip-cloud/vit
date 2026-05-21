@@ -76,6 +76,12 @@ services:
         sync: false
       - key: PAYSTACK_SECRET_KEY
         sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: SMILE_IDENTITY_API_KEY
+        sync: false
+      - key: SMILE_IDENTITY_PARTNER_ID
+        sync: false
       - key: FOOTBALL_DATA_API_KEY
         sync: false
       - key: THESPORTSDB_API_KEY
