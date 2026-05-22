@@ -339,7 +339,7 @@ function DashboardTab() {
               { label: "Create Backup",  icon: Database,   action: () => backup.mutate(),         cls: "from-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:border-emerald-400/60", loading: backup.isPending },
               { label: "Reload Health",  icon: Activity,   action: () => qc.invalidateQueries({ queryKey: ["admin-health"] }), cls: "from-amber-500/10 border-amber-500/20 text-amber-400 hover:border-amber-400/60",  loading: false },
               { label: "Fetch Fixtures", icon: Download,   action: () => fetchFixtures.mutate(), cls: "from-rose-500/10 border-rose-500/20 text-rose-400 hover:border-rose-400/60",         loading: fetchFixtures.isPending },
-              { label: "Sync + Seed",   icon: Zap,        action: () => syncAndSeed.mutate(),   cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",          loading: syncAndSeed.isPending },
+              { label: "Sync + Seed",   icon: RefreshCw,  action: () => syncAndSeed.mutate(),   cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",          loading: syncAndSeed.isPending },
             ].map(a => (
               <button key={a.label}
                 disabled={a.loading}

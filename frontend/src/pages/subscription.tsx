@@ -70,18 +70,25 @@ export default function SubscriptionPage() {
   const upgradedPlan = params.get("upgraded");
   const cancelledPlan = params.get("cancelled");
 
-  const { data: plansData, isLoading: loadingPlans } = useQuery({
+  const { data: plansData, isLoading: loadingPlans } = useQuery<{ plans: Plan[] }>({
     queryKey: ["subscription-plans"],
     queryFn: () => apiGet("/api/subscription/plans"),
   });
 
-  const { data: myPlanData } = useQuery({
+  const { data: myPlanData } = useQuery<{
+    plan: { name: string; display_name?: string };
+    usage: { predictions_today: number; limit_today: number | null };
+  }>({
     queryKey: ["my-plan"],
     queryFn: () => apiGet("/api/subscription/my-plan"),
   });
 
-  const checkoutMutation = useMutation({
-    mutationFn: ({ plan, billing }: { plan: string; billing: string }) =>
+  const checkoutMutation = useMutation<
+    { checkout_url: string },
+    Error,
+    { plan: string; billing: string }
+  >({
+    mutationFn: ({ plan, billing }) =>
       apiPost("/api/subscription/create-checkout", { plan, billing }),
     onSuccess: (data) => {
       window.location.href = data.checkout_url;
