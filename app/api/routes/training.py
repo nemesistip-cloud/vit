@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.api.middleware.auth import verify_api_key
 from app.config import APP_VERSION, AUTH_ENABLED, API_KEY, get_env
 from app.core.dependencies import get_orchestrator
 from app.db.database import AsyncSessionLocal
@@ -30,7 +31,7 @@ import app.modules.wallet.models
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/training", tags=["training"])
+router = APIRouter(prefix="/training", tags=["training"], dependencies=[Depends(verify_api_key)])
 
 VERSION = APP_VERSION
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))

@@ -133,14 +133,17 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
                 message="Invalid, expired, or revoked JWT token",
             )
 
-        # ── Fall back to API key ────────────────────────────────────────
-        api_key = request.headers.get("x-api-key")
+        # ── Fall back to API key or access token query string ───────────
+        api_key = request.headers.get("x-api-key") or request.query_params.get("api_key")
         if not api_key:
+            token = request.query_params.get("access_token") or request.query_params.get("token")
+            if token and await _validate_jwt(token):
+                return await call_next(request)
             return error_response(
                 request=request,
                 status_code=401,
                 code="authentication_required",
-                message="Authentication required. Provide Authorization: Bearer <token> or x-api-key header",
+                message="Authentication required. Provide Authorization: Bearer <token>, x-api-key header, or api_key/access_token query parameter",
             )
 
         # G09: Developer API keys (vit_* prefix) — DB lookup + billing
@@ -186,8 +189,11 @@ async def verify_api_key(request: Request):
             return True
         raise HTTPException(status_code=401, detail="Invalid, expired, or revoked JWT token")
 
-    api_key = request.headers.get("x-api-key")
+    api_key = request.headers.get("x-api-key") or request.query_params.get("api_key")
     if not api_key:
+        token = request.query_params.get("access_token") or request.query_params.get("token")
+        if token and await _validate_jwt(token):
+            return True
         raise HTTPException(status_code=401, detail="Missing authentication")
 
     # G09: developer keys
