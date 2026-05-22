@@ -1948,13 +1948,18 @@ async def _run_bootstrap(app, _done_event):
         # Prediction seeder runs after backfill completes
         try:
             from app.db.database import AsyncSessionLocal
-            from app.services.prediction_seeder import seed_predictions_for_historical
+            from app.services.prediction_seeder import seed_predictions_for_historical, seed_upcoming_predictions
             async with AsyncSessionLocal() as _db:
                 _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=500)
                 if _seed.get("seeded", 0) > 0:
                     print(f"[backfill] prediction seeder: {_seed['seeded']} predictions seeded")
                 else:
                     print(f"[backfill] prediction seeder: {_seed.get('skipped', 0)} matches already seeded")
+            # Also seed predictions for upcoming unseeded matches
+            async with AsyncSessionLocal() as _db2:
+                _useed = await seed_upcoming_predictions(_db2, preds_per_match=3, max_matches=500)
+                if _useed.get("seeded", 0) > 0:
+                    print(f"[backfill] upcoming seeder: {_useed['seeded']} predictions, {_useed.get('alerts_sent', 0)} alerts")
         except Exception as _pe:
             print(f"[backfill] prediction seeder error: {_pe}")
 

@@ -508,6 +508,38 @@ async def update_api_keys(body: ApiKeyUpdate, current_user=Depends(get_current_a
     }
 
 
+@router.post("/sync-fixtures")
+async def sync_fixtures_now(current_user=Depends(get_current_admin)):
+    """
+    Manually trigger a full fixture sync + upcoming prediction seed.
+    Pulls the season calendar for all leagues (up to 90 days ahead),
+    upserts new Match rows, and seeds predictions for any unseeded matches.
+    """
+    from app.db.database import AsyncSessionLocal
+    from app.services.sportsdb_api import sync_upcoming_fixtures
+    from app.services.prediction_seeder import seed_upcoming_predictions
+
+    try:
+        async with AsyncSessionLocal() as _db:
+            sync_res = await sync_upcoming_fixtures(_db, days_ahead=90)
+
+        async with AsyncSessionLocal() as _db2:
+            seed_res = await seed_upcoming_predictions(_db2, preds_per_match=3, max_matches=500)
+
+        return {
+            "status": "ok",
+            "fixtures": sync_res,
+            "predictions": seed_res,
+            "message": (
+                f"Synced {sync_res.get('inserted', 0)} new fixtures, "
+                f"seeded {seed_res.get('seeded', 0)} predictions"
+            ),
+        }
+    except Exception as exc:
+        logger.error("Manual fixture sync error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.delete("/api-keys/{key_name}")
 async def delete_api_key(key_name: str, current_user=Depends(get_current_admin)):
     """

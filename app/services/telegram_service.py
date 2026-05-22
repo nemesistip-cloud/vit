@@ -136,6 +136,163 @@ async def send_test_telegram(chat_id: str) -> bool:
     )
 
 
+async def _cmd_top5(chat_id: str) -> None:
+    """Send the top 5 high-confidence upcoming picks."""
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import Match, Prediction
+        from sqlalchemy import select, func
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)
+        cutoff = now + timedelta(days=7)
+
+        async with AsyncSessionLocal() as db:
+            res = await db.execute(
+                select(Match, Prediction)
+                .join(Prediction, Prediction.match_id == Match.id)
+                .where(
+                    Match.kickoff_time >= now,
+                    Match.kickoff_time <= cutoff,
+                    Match.actual_outcome.is_(None),
+                    Prediction.confidence >= 0.60,
+                )
+                .order_by(Prediction.confidence.desc())
+                .limit(5)
+            )
+            rows = res.all()
+
+        if not rows:
+            await send_user_message(chat_id, "📭 No high-confidence picks found for the next 7 days yet. Check back soon!")
+            return
+
+        lines = ["🏆 <b>Top 5 Picks (Next 7 Days)</b>\n"]
+        for i, (match, pred) in enumerate(rows, 1):
+            ko = match.kickoff_time.strftime("%d %b %H:%M") if match.kickoff_time else "TBD"
+            side = (pred.bet_side or "home").upper()
+            conf = f"{(pred.confidence or 0)*100:.0f}%"
+            edge = f"{(pred.raw_edge or 0)*100:+.1f}%"
+            lines.append(
+                f"{i}. <b>{match.home_team} v {match.away_team}</b>\n"
+                f"   🎯 <b>{side}</b> · {conf} conf · {edge} edge\n"
+                f"   📅 {ko}\n"
+            )
+
+        await send_user_message(chat_id, "\n".join(lines) + "\n<i>VIT Sports Intelligence</i>")
+    except Exception as exc:
+        logger.warning("[tg-cmd] top5 error: %s", exc)
+        await send_user_message(chat_id, "⚠️ Could not fetch picks right now. Try again shortly.")
+
+
+async def _cmd_stats(chat_id: str) -> None:
+    """Send platform performance stats."""
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import Match, Prediction
+        from sqlalchemy import select, func
+        from datetime import datetime, timezone, timedelta
+
+        cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
+
+        async with AsyncSessionLocal() as db:
+            total_matches = (await db.execute(select(func.count(Match.id)))).scalar() or 0
+            total_preds = (await db.execute(select(func.count(Prediction.id)))).scalar() or 0
+            settled_preds = (await db.execute(
+                select(func.count(Prediction.id)).where(Prediction.was_correct.isnot(None))
+            )).scalar() or 0
+            correct_preds = (await db.execute(
+                select(func.count(Prediction.id)).where(Prediction.was_correct == True)
+            )).scalar() or 0
+
+        acc = f"{correct_preds/settled_preds*100:.1f}%" if settled_preds else "N/A"
+        msg = (
+            "📊 <b>VIT Platform Stats</b>\n\n"
+            f"⚽ <b>Total Matches:</b> {total_matches:,}\n"
+            f"🎯 <b>Total Predictions:</b> {total_preds:,}\n"
+            f"✅ <b>Settled Predictions:</b> {settled_preds:,}\n"
+            f"📈 <b>Overall Accuracy:</b> {acc}\n\n"
+            "<i>VIT Sports Intelligence Network</i>"
+        )
+        await send_user_message(chat_id, msg)
+    except Exception as exc:
+        logger.warning("[tg-cmd] stats error: %s", exc)
+        await send_user_message(chat_id, "⚠️ Could not fetch stats right now. Try again shortly.")
+
+
+async def _cmd_predict(chat_id: str, text: str) -> None:
+    """Handle /predict <team1> vs <team2> by looking up matching fixtures."""
+    try:
+        # Parse the teams from the command text
+        parts = text.split(None, 1)
+        query = parts[1].strip() if len(parts) > 1 else ""
+
+        if not query:
+            await send_user_message(
+                chat_id,
+                "ℹ️ Usage: <code>/predict &lt;team1&gt; vs &lt;team2&gt;</code>\n"
+                "Example: <code>/predict Arsenal vs Chelsea</code>",
+            )
+            return
+
+        # Normalise "vs" separators
+        sep = " vs " if " vs " in query.lower() else (" v " if " v " in query.lower() else None)
+        if sep:
+            home_q, _, away_q = query.lower().partition(sep.lower())
+        else:
+            home_q, away_q = query.lower(), ""
+
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import Match, Prediction
+        from sqlalchemy import select, func
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+
+        async with AsyncSessionLocal() as db:
+            stmt = (
+                select(Match, Prediction)
+                .outerjoin(Prediction, Prediction.match_id == Match.id)
+                .where(Match.kickoff_time >= now)
+            )
+            if home_q:
+                stmt = stmt.where(func.lower(Match.home_team).contains(home_q.strip()))
+            if away_q:
+                stmt = stmt.where(func.lower(Match.away_team).contains(away_q.strip()))
+            stmt = stmt.order_by(Match.kickoff_time.asc()).limit(1)
+            res = await db.execute(stmt)
+            row = res.first()
+
+        if not row:
+            await send_user_message(chat_id, f"❓ No upcoming match found for <b>{query}</b>. Check the spelling or browse /top5.")
+            return
+
+        match, pred = row
+        ko = match.kickoff_time.strftime("%d %b %H:%M UTC") if match.kickoff_time else "TBD"
+        if pred:
+            side = (pred.bet_side or "home").upper()
+            conf = f"{(pred.confidence or 0)*100:.0f}%"
+            edge = f"{(pred.raw_edge or 0)*100:+.1f}%"
+            rec = (
+                f"🎯 <b>Recommendation: {side}</b>\n"
+                f"📊 Confidence: {conf}  |  Edge: {edge}\n"
+                f"🏠 Home: {(pred.home_prob or 0)*100:.0f}%  "
+                f"🤝 Draw: {(pred.draw_prob or 0)*100:.0f}%  "
+                f"✈️ Away: {(pred.away_prob or 0)*100:.0f}%"
+            )
+        else:
+            rec = "⏳ Prediction pending — check back shortly."
+
+        msg = (
+            f"⚽ <b>{match.home_team} vs {match.away_team}</b>\n"
+            f"🏆 {match.league or 'League TBD'}  |  📅 {ko}\n\n"
+            f"{rec}\n\n<i>VIT Sports Intelligence Network</i>"
+        )
+        await send_user_message(chat_id, msg)
+    except Exception as exc:
+        logger.warning("[tg-cmd] predict error: %s", exc)
+        await send_user_message(chat_id, "⚠️ Could not process prediction request. Try again shortly.")
+
+
 async def process_webhook_update(update: dict) -> Optional[int]:
     """
     Parse a Telegram webhook update.
@@ -149,6 +306,31 @@ async def process_webhook_update(update: dict) -> Optional[int]:
     text = (message.get("text") or "").strip()
     chat = message.get("chat", {})
     chat_id = str(chat.get("id", ""))
+
+    # ── Bot commands ──────────────────────────────────────────────────────
+    if text.startswith("/top5") or text.startswith("/top"):
+        await _cmd_top5(chat_id)
+        return None
+
+    if text.startswith("/stats"):
+        await _cmd_stats(chat_id)
+        return None
+
+    if text.startswith("/predict"):
+        await _cmd_predict(chat_id, text)
+        return None
+
+    if text.startswith("/help"):
+        await send_user_message(
+            chat_id,
+            "🤖 <b>VIT Bot Commands</b>\n\n"
+            "• /top5 — Today's top 5 high-confidence picks\n"
+            "• /stats — Platform performance stats\n"
+            "• /predict &lt;team1&gt; vs &lt;team2&gt; — Quick prediction request\n"
+            "• /help — Show this message\n\n"
+            "<i>VIT Sports Intelligence Network</i>",
+        )
+        return None
 
     if not text.startswith("/start"):
         return None

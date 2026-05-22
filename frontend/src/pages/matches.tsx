@@ -13,6 +13,7 @@ import { Search, Zap, Clock, RefreshCw, CalendarDays, Radio, Info, Activity } fr
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
+import { vitWS } from "@/lib/websocket";
 
 const DAY_OPTIONS = [
   { value: "3", label: "Next 3 Days" },
@@ -69,6 +70,22 @@ export default function MatchesPage() {
       setLastRefreshed(new Date());
     }, 60_000);
     return () => clearInterval(id);
+  }, [queryClient]);
+
+  // Subscribe to live score WebSocket events — trigger a lightweight refetch
+  // when the live-match-tracker agent broadcasts a score update.
+  useEffect(() => {
+    const unsub1 = vitWS.on("live_score_update", () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/matches/live"] });
+      setLastRefreshed(new Date());
+    });
+    const unsub2 = vitWS.on("match_update", () => {
+      queryClient.invalidateQueries({ predicate: (q: any) => {
+        const k = String(q.queryKey?.[0] ?? "");
+        return k.includes("/matches");
+      }});
+    });
+    return () => { unsub1(); unsub2(); };
   }, [queryClient]);
 
   const isLoading = upcomingLoading || recentLoading || completedLoading;

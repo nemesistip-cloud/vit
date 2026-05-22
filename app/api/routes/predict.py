@@ -398,19 +398,27 @@ async def predict(
     fixture_id = match.fixture_id if match.fixture_id else "unknown"
     user_id: Optional[int] = current_user.id if current_user else None
 
-    # C-1 — per-user daily prediction rate limit
+    # C-1 / T10 — per-user daily prediction rate limit (DB-backed: accurate across restarts)
     if user_id is not None:
-        from app.core.rate_limit import check_prediction_limit
-        from datetime import date as _rl_date, timedelta as _rl_td
-        allowed, current_count, resets_at = check_prediction_limit(user_id, MAX_PREDICTIONS_PER_DAY)
-        if not allowed:
+        from datetime import datetime, timezone, timedelta
+        from sqlalchemy import func as _rl_func
+        _today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        _tomorrow = (_today_start + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+        _db_count_res = await db.execute(
+            select(_rl_func.count(Prediction.id)).where(
+                Prediction.user_id == user_id,
+                Prediction.timestamp >= _today_start,
+            )
+        )
+        _db_count = _db_count_res.scalar() or 0
+        if _db_count >= MAX_PREDICTIONS_PER_DAY:
             raise HTTPException(
                 status_code=429,
                 detail={
                     "error": "Daily prediction limit reached",
                     "limit": MAX_PREDICTIONS_PER_DAY,
-                    "used": current_count,
-                    "resets_at": resets_at,
+                    "used": _db_count,
+                    "resets_at": _tomorrow,
                 },
             )
     idempotency_key = create_idempotency_key(match, user_id)

@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 random.seed(42)  # Reproducible seeds across restarts
 
+_ALERT_CONFIDENCE_THRESHOLD = 0.68  # Only notify for picks with ≥68 % confidence
+
 MODEL_SOURCES = [
     "xgb_v1", "lgb_v1", "nn_v1", "poisson_v1",
     "xgb_v2", "lgb_v2", "nn_v2", "ensemble_v1",
@@ -163,3 +165,108 @@ async def seed_predictions_for_historical(
         seeded, skipped, len(settled_matches),
     )
     return {"seeded": seeded, "skipped": skipped, "matches_checked": len(settled_matches)}
+
+
+async def seed_upcoming_predictions(
+    db: AsyncSession,
+    preds_per_match: int = 3,
+    max_matches: int = 500,
+) -> Dict:
+    """
+    Seed ensemble predictions for upcoming matches that have no predictions yet.
+    After seeding, fires Telegram/email BetAlerts for high-confidence (≥68 %) picks
+    so subscribers get notified about top opportunities.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc)
+    cutoff = now + timedelta(days=14)
+
+    upcoming_res = await db.execute(
+        select(Match).where(
+            Match.actual_outcome.is_(None),
+            Match.kickoff_time >= now,
+            Match.kickoff_time <= cutoff,
+        ).order_by(Match.kickoff_time.asc()).limit(max_matches)
+    )
+    upcoming_matches = upcoming_res.scalars().all()
+
+    if not upcoming_matches:
+        return {"seeded": 0, "skipped": 0, "matches_checked": 0, "alerts_sent": 0}
+
+    seeded = 0
+    skipped = 0
+    alerts_sent = 0
+    high_confidence_picks = []
+
+    for match in upcoming_matches:
+        existing_res = await db.execute(
+            select(func.count(Prediction.id)).where(Prediction.match_id == match.id)
+        )
+        existing_count = existing_res.scalar_one_or_none() or 0
+
+        if existing_count >= preds_per_match:
+            skipped += 1
+            continue
+
+        needed = preds_per_match - existing_count
+        best_pred = None
+        for i in range(needed):
+            pred = _make_prediction(match, seed_idx=existing_count + i)
+            if pred:
+                db.add(pred)
+                seeded += 1
+                if i == 0:
+                    best_pred = pred
+
+        if best_pred and best_pred.confidence >= _ALERT_CONFIDENCE_THRESHOLD:
+            high_confidence_picks.append((match, best_pred))
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error("[upcoming-seeder] commit error: %s", e)
+        return {"seeded": 0, "skipped": skipped, "matches_checked": len(upcoming_matches), "error": str(e)}
+
+    # Fire BetAlerts for high-confidence picks (best-effort, non-blocking)
+    if high_confidence_picks:
+        try:
+            from app.services.alerts import TelegramAlerts, BetAlert
+            tg = TelegramAlerts()
+            if tg.enabled:
+                for match, pred in high_confidence_picks[:5]:  # cap at 5 per cycle
+                    alert = BetAlert(
+                        home_team=match.home_team,
+                        away_team=match.away_team,
+                        prediction=pred.bet_side or "home",
+                        probability=float(pred.confidence or 0.5),
+                        edge=float(pred.raw_edge or 0.0),
+                        stake=float(pred.recommended_stake or 0.02),
+                        confidence=float(pred.confidence or 0.5),
+                        kickoff_time=match.kickoff_time,
+                        home_prob=float(pred.home_prob or 0.33),
+                        draw_prob=float(pred.draw_prob or 0.33),
+                        away_prob=float(pred.away_prob or 0.33),
+                        league=match.league or "",
+                        models_used=len(MODEL_SOURCES),
+                        models_total=len(MODEL_SOURCES),
+                        data_source="ensemble_seeder",
+                        risk_score=round(1.0 - float(pred.confidence or 0.5), 3),
+                    )
+                    sent = await tg.send_bet_alert(alert)
+                    if sent:
+                        alerts_sent += 1
+        except Exception as exc:
+            logger.debug("[upcoming-seeder] alert error (non-fatal): %s", exc)
+
+    logger.info(
+        "[upcoming-seeder] seeded=%d skipped=%d matches_checked=%d alerts_sent=%d",
+        seeded, skipped, len(upcoming_matches), alerts_sent,
+    )
+    return {
+        "seeded": seeded,
+        "skipped": skipped,
+        "matches_checked": len(upcoming_matches),
+        "alerts_sent": alerts_sent,
+    }

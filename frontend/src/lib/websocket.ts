@@ -17,6 +17,7 @@ type WSEvent =
   | "price_update"
   | "match_update"
   | "wallet_update"
+  | "live_score_update"
   | "system";
 
 class VITWebSocketService {

@@ -35,6 +35,7 @@ const BridgePage          = lazy(() => import("@/pages/bridge"));
 const DeveloperPage       = lazy(() => import("@/pages/developer"));
 const GovernancePage      = lazy(() => import("@/pages/governance"));
 const AccumulatorPage     = lazy(() => import("@/pages/accumulator"));
+const BacktestPage        = lazy(() => import("@/pages/backtest"));
 const OddsPage            = lazy(() => import("@/pages/odds"));
 const PaymentCallbackPage = lazy(() => import("@/pages/payment-callback"));
 const LeaderboardPage     = lazy(() => import("@/pages/leaderboard"));
@@ -189,6 +190,9 @@ function Router() {
       </Route>
       <Route path="/accumulator">
         <Layout><ProtectedRoute component={AccumulatorPage} /></Layout>
+      </Route>
+      <Route path="/backtest">
+        <Layout><ProtectedRoute component={BacktestPage} /></Layout>
       </Route>
       <Route path="/odds">
         <Layout><ProtectedRoute component={OddsPage} /></Layout>
