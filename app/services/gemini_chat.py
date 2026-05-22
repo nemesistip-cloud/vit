@@ -103,17 +103,44 @@ async def chat(
                     logger.warning("[gemini-chat] rate-limited on %s", model)
                     continue
                 if not resp.is_success:
-                    logger.warning("[gemini-chat] %s returned HTTP %d", model, resp.status_code)
+                    logger.warning(
+                        "[gemini-chat] %s returned HTTP %d: %s",
+                        model, resp.status_code, resp.text[:300],
+                    )
                     continue
                 data = resp.json()
                 active_model = model
                 break
 
             if data is None:
+                # Gemini is down — fall back to the main AI cascade (Claude / OpenAI / etc.)
+                logger.warning("[gemini-chat] all Gemini models failed, falling back to ai_client cascade")
+                try:
+                    from app.services.ai_client import call_ai
+                    system_ctx = system_text + (
+                        "\n\n(Note: Gemini is temporarily unavailable. "
+                        "You are a backup sports AI assistant — answer as helpfully as possible "
+                        "without real-time tool access.)"
+                    )
+                    fallback_prompt = f"{system_ctx}\n\nUser: {message.strip()}"
+                    fallback_reply = await call_ai(fallback_prompt, max_tokens=800)
+                    if fallback_reply:
+                        return {
+                            "available": True,
+                            "reply": fallback_reply,
+                            "error": None,
+                            "thoughts": ["Gemini unavailable — answered via backup AI provider."],
+                        }
+                except Exception as fb_err:
+                    logger.warning("[gemini-chat] fallback also failed: %s", fb_err)
+
                 return {
                     "available": False,
-                    "reply": "Gemini is not responding right now — check your API key or try again.",
-                    "error": "All Gemini models failed",
+                    "reply": (
+                        "The AI assistant is temporarily unavailable. "
+                        "All providers are either rate-limited or unreachable — please try again in a moment."
+                    ),
+                    "error": "All AI providers failed",
                     "thoughts": [],
                 }
 

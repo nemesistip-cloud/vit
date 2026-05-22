@@ -1975,7 +1975,7 @@ async def _run_bootstrap(app, _done_event):
                 from app.db.database import AsyncSessionLocal
                 from app.services.sportsdb_api import sync_upcoming_fixtures
                 async with AsyncSessionLocal() as _db:
-                    _res = await sync_upcoming_fixtures(_db, days_ahead=60)
+                    _res = await sync_upcoming_fixtures(_db, days_ahead=90)
                     total_new = _res["inserted"]
                     if total_new > 0:
                         print(

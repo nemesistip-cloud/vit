@@ -455,20 +455,26 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
     from sqlalchemy import select
     from app.db.models import Match
 
-    # --- Primary: fetch next events per league (upcoming-specific endpoint) ---
+    # --- Primary: full season calendar (best coverage for multi-week windows) ---
+    # fetch_season_fixtures calls eventsseason.php per league, which returns the
+    # complete schedule for the current season, filtered to the days_ahead window.
+    # This is the only way to get 200-500 upcoming matches reliably.
+    season_events = await fetch_season_fixtures(days_ahead=days_ahead)
+
+    # --- Supplement: next-events per league ---
+    # eventsnextleague.php catches near-term fixtures not yet in the season
+    # calendar (rescheduled games, cup matches) and is fast.
     next_events = await fetch_next_events()
 
-    # --- Fallback: day-by-day range only when next-events data is sparse ---
-    range_events: List[Dict] = []
-    if len(next_events) < 5:
-        range_days = min(days_ahead, 14)
-        logger.info("[sportsdb] next_events sparse (%d), falling back to day-by-day (%dd)", len(next_events), range_days)
-        range_events = await fetch_upcoming_range(days=range_days)
+    logger.info(
+        "[sportsdb] sync_upcoming: %d season + %d next_events before dedup",
+        len(season_events), len(next_events),
+    )
 
     # Merge, deduplicated by external_id then by home/away/date
     seen_keys: set = set()
     all_events: List[Dict] = []
-    for ev in next_events + range_events:
+    for ev in season_events + next_events:
         key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ev.get('kickoff_time', '')}"
         if key not in seen_keys:
             seen_keys.add(key)

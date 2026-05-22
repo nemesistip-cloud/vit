@@ -42,11 +42,16 @@ function SourceBadge({ source }: { source?: string }) {
 // ── Match quality grade ───────────────────────────────────────────────
 
 function getQualityGrade(confidence: number, modelConsensus?: any) {
-  const agrPct = modelConsensus?.agreement_pct ?? 0;
+  // When model_consensus is absent (predictions not yet run through the full
+  // ensemble) default agreement to 50 — a neutral baseline — so that grade is
+  // driven primarily by confidence rather than always bottoming out at D.
+  const agrPct = modelConsensus?.agreement_pct ?? 50;
   const score = confidence * 0.6 + (agrPct / 100) * 0.4;
-  if (score >= 0.75) return { grade: "A", color: "text-green-400", bg: "bg-green-400/10 border-green-400/30", label: "High Quality" };
-  if (score >= 0.65) return { grade: "B", color: "text-primary", bg: "bg-primary/10 border-primary/30", label: "Good Quality" };
-  if (score >= 0.55) return { grade: "C", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", label: "Fair Quality" };
+  // Thresholds are calibrated for football predictions where confidence
+  // typically ranges 0.45–0.75 and agreement 50–80 %.
+  if (score >= 0.70) return { grade: "A", color: "text-green-400", bg: "bg-green-400/10 border-green-400/30", label: "High Quality" };
+  if (score >= 0.58) return { grade: "B", color: "text-primary", bg: "bg-primary/10 border-primary/30", label: "Good Quality" };
+  if (score >= 0.48) return { grade: "C", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", label: "Fair Quality" };
   return { grade: "D", color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/30", label: "Low Quality" };
 }
 
