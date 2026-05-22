@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 _GEMINI_CHAT_MODELS = [
     "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
     "gemini-1.5-flash-latest",
     "gemini-1.5-flash",
 ]
@@ -89,15 +90,33 @@ async def chat(
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            # 1. Initial request to model
-            model = _GEMINI_CHAT_MODELS[0]
-            url = f"{_GEMINI_BASE}/{model}:generateContent?key={api_key}"
+            # 1. Initial request — try each model until one succeeds
+            data = None
+            active_model = None
+            for model in _GEMINI_CHAT_MODELS:
+                url = f"{_GEMINI_BASE}/{model}:generateContent?key={api_key}"
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 404:
+                    logger.debug("[gemini-chat] %s not found, trying next model", model)
+                    continue
+                if resp.status_code == 429:
+                    logger.warning("[gemini-chat] rate-limited on %s", model)
+                    continue
+                if not resp.is_success:
+                    logger.warning("[gemini-chat] %s returned HTTP %d", model, resp.status_code)
+                    continue
+                data = resp.json()
+                active_model = model
+                break
 
-            resp = await client.post(url, json=payload)
-            if not resp.is_success:
-                return {"available": False, "reply": "Model error.", "error": f"HTTP {resp.status_code}", "thoughts": []}
+            if data is None:
+                return {
+                    "available": False,
+                    "reply": "Gemini is not responding right now — check your API key or try again.",
+                    "error": "All Gemini models failed",
+                    "thoughts": [],
+                }
 
-            data = resp.json()
             candidate = data.get("candidates", [{}])[0]
             content = candidate.get("content", {})
             parts = content.get("parts", [])
@@ -109,12 +128,8 @@ async def chat(
                 if not tool_calls:
                     break
 
-                # Model wants to use tools
+                # Execute all requested tool calls
                 tool_responses = []
-                # Important: Model expect we send back EXACTLY the same content it sent us
-                # that contains the functionCall parts, then a role: "function" content.
-                # However, Gemini v1beta actually expects role: "model" for the functionCall
-                # and role: "function" for the response.
 
                 for tc in tool_calls:
                     fn_name = tc.get("name")
@@ -149,11 +164,12 @@ async def chat(
                             }
                         })
 
-                # Append tool call and its response to conversation history
-                # Ensure the model's turn is correctly typed
+                # Gemini v1beta: model turn uses role "model"; function-response
+                # turn MUST use role "user" — NOT "function" (which is invalid and
+                # causes the model to silently ignore tool results).
                 model_turn = {"role": "model", "parts": content.get("parts")}
                 contents.append(model_turn)
-                contents.append({"role": "function", "parts": tool_responses})
+                contents.append({"role": "user", "parts": tool_responses})
 
                 # Send back to Gemini
                 payload["contents"] = contents

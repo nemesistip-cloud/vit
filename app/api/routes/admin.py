@@ -197,7 +197,14 @@ _KEY_REGISTRY = [
     {
         "name":        "XAI_API_KEY",
         "label":       "xAI Grok",
-        "description": "Grok Beta — fourth AI analyst for multi-AI match insights",
+        "description": "Grok Beta — fifth AI analyst for multi-AI match insights",
+        "required":    False,
+        "group":       "AI Providers",
+    },
+    {
+        "name":        "DEEPSEEK_API_KEY",
+        "label":       "DeepSeek AI",
+        "description": "DeepSeek-V3 / R1 — fourth AI analyst (cascade slot 4 of 5). Get key at platform.deepseek.com",
         "required":    False,
         "group":       "AI Providers",
     },

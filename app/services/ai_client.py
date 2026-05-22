@@ -1,11 +1,12 @@
 """app/services/ai_client.py — Unified multi-provider AI client for backend agents.
 
 Provider cascade (tried in order until one succeeds):
-  1. Gemini   (GEMINI_API_KEY)   — gemini-2.0-flash → gemini-2.0-flash-lite → gemini-1.5-flash
-  2. Claude   (CLAUDE_API_KEY)   — claude-3-5-haiku-20241022 → claude-3-haiku-20240307
-  3. OpenAI   (OPENAI_API_KEY)   — gpt-4o-mini → gpt-3.5-turbo
-  4. xAI/Grok (XAI_API_KEY)      — grok-3-mini → grok-2-1212
-  5. Puter    (PUTER_API_KEY)    — GPT-4o-mini via puter.com (optional free tier)
+  1. Gemini   (GEMINI_API_KEY)    — gemini-2.0-flash → gemini-2.0-flash-lite → gemini-1.5-flash
+  2. Claude   (CLAUDE_API_KEY)    — claude-3-5-haiku-20241022 → claude-3-haiku-20240307
+  3. OpenAI   (OPENAI_API_KEY)    — gpt-4o-mini → gpt-3.5-turbo
+  4. DeepSeek (DEEPSEEK_API_KEY)  — deepseek-chat → deepseek-reasoner
+  5. xAI/Grok (XAI_API_KEY)       — grok-3-mini → grok-2-1212
+  6. Puter    (PUTER_API_KEY)     — GPT-4o-mini via puter.com (optional free tier)
 
 Rate-limit handling:
   - On HTTP 429: exponential backoff (2 s → 4 s → 8 s) then try next provider.
@@ -50,6 +51,10 @@ _GROK_MODELS = [
     "grok-3-mini",
     "grok-2-1212",
 ]
+_DEEPSEEK_MODELS = [
+    "deepseek-chat",      # DeepSeek-V3 — general purpose, high quality
+    "deepseek-reasoner",  # DeepSeek-R1 — chain-of-thought (fallback)
+]
 
 # ── Backoff state (module-level — shared across all agents) ────────────────────
 
@@ -59,7 +64,7 @@ _BACKOFF_SECONDS = [2, 4, 8, 16]
 
 # ── Dynamic provider priority (hot-reloadable) ─────────────────────────────────
 
-_DEFAULT_PRIORITY = ["gemini", "claude", "openai", "grok", "puter"]
+_DEFAULT_PRIORITY = ["gemini", "claude", "openai", "deepseek", "grok", "puter"]
 _provider_priority: list[str] = list(_DEFAULT_PRIORITY)
 
 
@@ -357,6 +362,67 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
     return None
 
 
+async def _try_deepseek(prompt: str, max_tokens: int, temperature: float) -> str | None:
+    """DeepSeek — OpenAI-compatible API (deepseek.com).
+
+    Uses deepseek-chat (DeepSeek-V3) as the primary model and falls back to
+    deepseek-reasoner (R1) which provides chain-of-thought analysis.
+    DeepSeek-reasoner uses a fixed temperature of 0.6 per API requirements.
+    """
+    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        return None
+    if len(api_key) < 20:
+        logger.debug("[ai-client] deepseek: key too short — skipping (configure a real key to enable)")
+        return None
+    if not _provider_available("deepseek"):
+        return None
+
+    url = "https://api.deepseek.com/v1/chat/completions"
+    for model in _DEEPSEEK_MODELS:
+        # deepseek-reasoner requires temperature in a narrow range
+        model_temp = 0.6 if model == "deepseek-reasoner" else min(temperature, 1.5)
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": max_tokens,
+                        "temperature": model_temp,
+                    },
+                )
+                if resp.status_code == 404:
+                    continue
+                if resp.status_code == 429:
+                    _mark_rate_limited("deepseek", resp.headers.get("Retry-After"))
+                    return None
+                resp.raise_for_status()
+                choices = resp.json().get("choices") or []
+                text = (choices[0].get("message") or {}).get("content", "") if choices else ""
+                if not text:
+                    logger.warning("[ai-client] deepseek/%s empty choices in response", model)
+                    continue
+                logger.debug("[ai-client] deepseek/%s responded (%d chars)", model, len(text))
+                return text
+        except httpx.HTTPStatusError as e:
+            sc = e.response.status_code
+            logger.warning("[ai-client] deepseek/%s HTTP %d", model, sc)
+            if sc in (401, 403):
+                _mark_provider_failed("deepseek", sc)
+                return None
+            if sc == 400:
+                continue
+        except Exception as e:
+            logger.warning("[ai-client] deepseek/%s error: %s", model, e)
+    return None
+
+
 async def _try_puter(prompt: str, max_tokens: int, temperature: float) -> str | None:
     """Puter AI — free tier via puter.com REST API (requires PUTER_API_KEY)."""
     from app.services.puter_ai import try_puter
@@ -384,11 +450,12 @@ async def call_ai_with_provider(
     Like call_ai() but returns (text, provider_name) on success, or None on failure.
     """
     _fn_map = {
-        "gemini": _try_gemini,
-        "claude": _try_claude,
-        "openai": _try_openai,
-        "grok":   _try_grok,
-        "puter":  _try_puter,
+        "gemini":   _try_gemini,
+        "claude":   _try_claude,
+        "openai":   _try_openai,
+        "deepseek": _try_deepseek,
+        "grok":     _try_grok,
+        "puter":    _try_puter,
     }
     providers = [(n, _fn_map[n]) for n in _provider_priority if n in _fn_map]
     if preferred and preferred in _fn_map:
@@ -415,16 +482,17 @@ async def call_ai(
     """
     Call the best available AI provider and return the text response.
 
-    Tries providers in priority order: Gemini → Claude → OpenAI → xAI/Grok → Puter.
+    Tries providers in priority order: Gemini → Claude → OpenAI → DeepSeek → Grok → Puter.
     Rate-limited providers are skipped and retried next cycle.
     Returns None if all providers are unavailable or fail.
     """
     _fn_map = {
-        "gemini": _try_gemini,
-        "claude": _try_claude,
-        "openai": _try_openai,
-        "grok":   _try_grok,
-        "puter":  _try_puter,
+        "gemini":   _try_gemini,
+        "claude":   _try_claude,
+        "openai":   _try_openai,
+        "deepseek": _try_deepseek,
+        "grok":     _try_grok,
+        "puter":    _try_puter,
     }
     providers = [(n, _fn_map[n]) for n in _provider_priority if n in _fn_map]
 
@@ -463,10 +531,11 @@ def provider_status() -> dict[str, dict]:
         return any(len(os.getenv(v, "").strip()) >= min_len for v in env_vars)
 
     keys = {
-        "gemini": _any_key_valid("GEMINI_API_KEY"),
-        "claude": _any_key_valid("CLAUDE_API_KEY", "ANTHROPIC_API_KEY", min_len=20),
-        "openai": _any_key_valid("AI_INTEGRATIONS_OPENAI_API_KEY", "OPENAI_API_KEY"),
-        "grok":   _any_key_valid("XAI_API_KEY"),
+        "gemini":   _any_key_valid("GEMINI_API_KEY",                              min_len=20),
+        "claude":   _any_key_valid("CLAUDE_API_KEY", "ANTHROPIC_API_KEY",         min_len=20),
+        "openai":   _any_key_valid("AI_INTEGRATIONS_OPENAI_API_KEY", "OPENAI_API_KEY"),
+        "deepseek": _any_key_valid("DEEPSEEK_API_KEY",                            min_len=20),
+        "grok":     _any_key_valid("XAI_API_KEY",                                 min_len=20),
     }
     result = {}
     for name, has_key in keys.items():
@@ -512,6 +581,8 @@ async def verify_provider(name: str) -> bool:
             return await _try_claude(prompt, 5, 0.1) is not None
         if name == "openai":
             return await _try_openai(prompt, 5, 0.1) is not None
+        if name == "deepseek":
+            return await _try_deepseek(prompt, 5, 0.1) is not None
         if name == "grok":
             return await _try_grok(prompt, 5, 0.1) is not None
         return False

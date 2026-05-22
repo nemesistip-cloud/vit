@@ -1853,6 +1853,52 @@ async def _run_bootstrap(app, _done_event):
     if alerts and alerts.enabled:
         await alerts.send_startup_message()
 
+    # ── Telegram webhook auto-registration ────────────────────────────────────
+    # Register the bot webhook with Telegram on every startup so the /start
+    # deep-link flow works without manual curl commands.  Skipped silently when
+    # TELEGRAM_BOT_TOKEN or a resolvable public URL is absent.
+    async def _register_telegram_webhook():
+        import httpx as _httpx
+        token = get_env("TELEGRAM_BOT_TOKEN", "").strip()
+        if not token:
+            return
+
+        # Resolve the public URL: explicit config → Replit dev domain → skip
+        pub = (
+            get_env("PUBLIC_APP_URL", "").rstrip("/")
+            or get_env("REPLIT_DEV_DOMAIN", "").strip()
+        )
+        if not pub:
+            print("⚠️  Telegram webhook: PUBLIC_APP_URL not set — skipping auto-registration")
+            return
+        if not pub.startswith("http"):
+            pub = f"https://{pub}"
+
+        webhook_url = f"{pub}/api/notifications/telegram/webhook"
+        try:
+            async with _httpx.AsyncClient(timeout=10) as _hc:
+                # Check whether webhook is already pointing at the right URL
+                info = await _hc.get(f"https://api.telegram.org/bot{token}/getWebhookInfo")
+                if info.status_code == 200:
+                    current = info.json().get("result", {}).get("url", "")
+                    if current == webhook_url:
+                        print(f"✅ Telegram webhook already set: {webhook_url}")
+                        return
+
+                # Register / update the webhook
+                reg = await _hc.post(
+                    f"https://api.telegram.org/bot{token}/setWebhook",
+                    json={"url": webhook_url, "allowed_updates": ["message", "callback_query"]},
+                )
+                if reg.status_code == 200 and reg.json().get("ok"):
+                    print(f"✅ Telegram webhook registered: {webhook_url}")
+                else:
+                    print(f"⚠️  Telegram webhook registration failed: {reg.text[:200]}")
+        except Exception as _tg_err:
+            print(f"⚠️  Telegram webhook setup error: {_tg_err}")
+
+    asyncio.create_task(_register_telegram_webhook())
+
     supervised_tasks = [
         ("etl-pipeline", etl_pipeline_loop),
         ("odds-refresh", odds_refresh_loop),
