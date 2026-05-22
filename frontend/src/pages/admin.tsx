@@ -2344,7 +2344,7 @@ function ModelsTab() {
   const [activeSection, setActiveSection] = useState<"engine" | "accountability" | "marketplace">("engine");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
-  const { data: modelsData, isLoading: mLoading } = useQuery<{ models: ModelInfo[] }>({
+  const { data: modelsData, isLoading: mLoading } = useQuery<{ models: ModelInfo[]; total?: number }>({
     queryKey: ["admin-models"],
     queryFn: () => apiGet("/api/admin/models/status"),
     refetchInterval: 30000,

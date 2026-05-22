@@ -643,7 +643,7 @@ function DatasetManagement() {
       const fd = new FormData();
       fd.append("file", f);
       fd.append("merge", String(merge));
-      return apiFormPost<any>("/training/dataset/upload", fd);
+      return apiFormPost<any>(API.training.upload, fd);
     },
     onSuccess: (data) => {
       toast.success(`Uploaded ${data.records_uploaded?.toLocaleString()} records`);

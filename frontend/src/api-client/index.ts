@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost } from "@/lib/apiClient";
+import { apiGet, apiPost, apiFormPost } from "@/lib/apiClient";
 import type {
   User, Match, Prediction, Wallet, Transaction,
   Validator, TrainingJob, DashboardSummary
@@ -39,6 +39,8 @@ export const API = {
     prompt: (id: string) => `/api/training/prompt/${id}`,
     modelPerformance: "/api/dashboard/model-confidence",
   },
+  aiAssistantChat: "/api/ai/assistant/chat",
+  aiAssistantStatus: "/api/ai/assistant/status",
   validators: "/api/blockchain/validators",
   economy: "/api/blockchain/economy",
   myValidator: "/api/blockchain/validators/my",
@@ -81,9 +83,6 @@ export const API = {
   oddsAuditLog: "/odds/audit-log",
   // AI Feed
   aiFeedConsensus: "/ai-feed/consensus",
-  // AI Assistant
-  aiAssistantChat: "/ai/assistant/chat",
-  aiAssistantStatus: "/ai/assistant/status",
   // Audit
   auditLogs: "/audit/logs",
   // Exports
@@ -490,15 +489,7 @@ export function useGetModelPerformance() {
 export function useUploadTrainingData() {
   const queryClient = useQueryClient();
   return useMutation<any, Error, FormData>({
-    mutationFn: (formData: FormData) =>
-      fetch(API.training.upload, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("vit_token")}` },
-        body: formData,
-      }).then((r) => {
-        if (!r.ok) throw new Error("Upload failed");
-        return r.json();
-      }),
+    mutationFn: (formData: FormData) => apiFormPost<any>(API.training.upload, formData),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: getListTrainingJobsQueryKey() }),
   });
 }
