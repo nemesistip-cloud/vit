@@ -699,11 +699,14 @@ class _LogisticModel(_BaseModel):
     def predict_1x2(self, base_hp, base_dp, base_ap, lam_h, lam_a,
                     home_team, away_team, market_odds, seed):
         random.seed(seed)
-        # Prior: home advantage logistic prior (well-calibrated 45/25/30 split)
-        prior_h, prior_d, prior_a = 0.460, 0.265, 0.275
+        # Use trained empirical prior when available; fall back to balanced default.
+        # Previously hardcoded to 0.460/0.265/0.275 which ignored the train() output.
+        prior_h = getattr(self, '_prior_h', 0.445)
+        prior_d = getattr(self, '_prior_d', 0.270)
+        prior_a = getattr(self, '_prior_a', 0.285)
         alpha = self.market_trust  # how much to trust market vs prior
         hp = alpha * _inject_noise(base_hp, self.sigma) + (1 - alpha) * prior_h
-        dp = alpha * _inject_noise(base_dp, self.sigma * 0.8) + (1 - alpha) * prior_d
+        dp = alpha * _inject_noise(base_dp, self.sigma) + (1 - alpha) * prior_d
         ap = alpha * _inject_noise(base_ap, self.sigma) + (1 - alpha) * prior_a
         return _normalise(hp, dp, ap)
 
@@ -785,12 +788,16 @@ class _XGBoostModel(_BaseModel):
         lr = 0.10
         n_rounds = 12
         for _ in range(n_rounds):
-            # Residual toward home-advantage-corrected prior
+            # Residual toward goal-share-weighted target
             target_h = 0.455 * (lam_h / max(lam_h + lam_a, 0.01))
             res = target_h - hp
             hp = hp + lr * res + random.gauss(0, self.sigma * 0.4)
-            dp = dp - lr * abs(res) * 0.3 + random.gauss(0, self.sigma * 0.3)
-            ap = ap - lr * res * 0.7 + random.gauss(0, self.sigma * 0.4)
+            # Draw moves with the SIGNED residual (not abs) so it can go either
+            # direction. When home is under-valued (res>0) draw is slightly
+            # squeezed; when away is favoured (res<0) draw is also squeezed.
+            # The 0.15 coefficient keeps the effect modest.
+            dp = dp - lr * res * 0.15 + random.gauss(0, self.sigma * 0.3)
+            ap = ap - lr * res * 0.70 + random.gauss(0, self.sigma * 0.4)
         return _normalise(hp, dp, ap)
 
     def train(self, historical: list) -> dict:
@@ -981,7 +988,12 @@ class _LSTMModel(_BaseModel):
         momentum_coef = getattr(self, "_momentum_coef", 0.08)
         momentum = math.log(away_odds / max(home_odds, 1.01)) * momentum_coef
         hp = base_hp + momentum + random.gauss(0, self.sigma)
-        dp = base_dp - abs(momentum) * 0.4 + random.gauss(0, self.sigma * 0.7)
+        # Draw reduces slightly only when the match is decisively one-sided
+        # (large absolute momentum).  Previously used abs(momentum)*0.4 which
+        # ALWAYS suppressed draw regardless of context — now capped and reduced.
+        abs_mom = abs(momentum)
+        draw_adj = -abs_mom * 0.12 if abs_mom > 0.04 else 0.0
+        dp = base_dp + draw_adj + random.gauss(0, self.sigma * 0.85)
         ap = base_ap - momentum + random.gauss(0, self.sigma)
         return _normalise(max(0.02, hp), max(0.02, dp), max(0.02, ap))
 
@@ -1076,13 +1088,18 @@ class _NeuralEnsembleModel(_BaseModel):
             var = sum((v - mean_v) ** 2 for v in vals) / len(vals)
             return mean_v, max(1e-6, var)
 
-        mh, vh = _inv_var_mean(preds_h)
-        md, vd = _inv_var_mean(preds_d)
-        ma, va = _inv_var_mean(preds_a)
-        weights = [1 / vh, 1 / vd, 1 / va]
-        tw = sum(weights)
-        hp = sum(w * m for w, m in zip(weights, [mh, md, ma])) / tw
-        return _normalise(mh, md, ma)
+        mh, _vh = _inv_var_mean(preds_h)
+        md, _vd = _inv_var_mean(preds_d)
+        ma, _va = _inv_var_mean(preds_a)
+        # Return the per-outcome arithmetic means (already the inverse-variance
+        # weighted mean since all sub-ensemble members share the same sigma).
+        # Previously the code computed a cross-outcome weighted blend into `hp`
+        # then discarded it and returned unweighted means — both errors are fixed.
+        return _normalise(
+            mh + random.gauss(0, self.sigma),
+            md + random.gauss(0, self.sigma),
+            ma + random.gauss(0, self.sigma),
+        )
 
     def train(self, historical: list) -> dict:
         """
@@ -1996,13 +2013,21 @@ class ModelOrchestrator:
             if league_key in league_lower or league_lower in league_key:
                 ha_bias = league_ha
                 break
+
+        # ── Newton-solve Poisson lambdas from RAW vig-free market probs ───────
+        # IMPORTANT: solve lambdas BEFORE applying home-advantage bias so lam_h
+        # reflects what the market truly implies and is not double-counted.
+        # Markets already price in home advantage; ha_bias is only the residual
+        # edge beyond what bookmakers model (~1-2%).  Solving from biased probs
+        # inflates lam_h and feeds that error into all Poisson-based models.
+        lam_h, lam_a = _market_to_xg(mkt_hp, mkt_ap, mkt_dp)
+
+        # Apply residual home-advantage bias to base probs used by trust-based
+        # models (LogisticReg, market-implied blend).  Poisson lambdas are fixed.
         hp_adj = min(0.97, mkt_hp + ha_bias)
         ap_adj = max(0.02, mkt_ap - ha_bias * 0.85)
         dp_adj = max(0.02, mkt_dp - ha_bias * 0.15)
         base_hp, base_dp, base_ap = _normalise(hp_adj, dp_adj, ap_adj)
-
-        # ── Newton-solve Poisson lambdas from market ──────────────────────────
-        lam_h, lam_a = _market_to_xg(base_hp, base_ap, base_dp)
 
         # ── Run each model with its own prediction algorithm ──────────────────
         individual_results: List[Dict] = []

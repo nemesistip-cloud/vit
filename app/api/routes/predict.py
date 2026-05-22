@@ -62,10 +62,21 @@ def create_idempotency_key(match: MatchRequest, user_id: Optional[int] = None) -
     # Include user_id so different users never share a cached prediction record.
     odds = match.market_odds or {}
     odds_sig = {k: round(float(v), 2) for k, v in odds.items() if v}
+
+    # Round kickoff to the nearest 30-minute bucket so minor timestamp variance
+    # from different API sources (e.g. 15:00:00 vs 15:00:01 or missing seconds)
+    # does not produce duplicate predictions for the same real fixture.
+    kt = match.kickoff_time
+    kickoff_bucket = kt.replace(
+        minute=(kt.minute // 30) * 30,
+        second=0,
+        microsecond=0,
+    )
+
     content = {
         "home_team":    match.home_team,
         "away_team":    match.away_team,
-        "kickoff_time": match.kickoff_time.isoformat(),
+        "kickoff_time": kickoff_bucket.isoformat(),
         "league":       match.league,
         "odds_sig":     odds_sig,
         "user_id":      user_id,
