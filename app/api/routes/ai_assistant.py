@@ -1,8 +1,4 @@
-"""app/api/routes/ai_assistant.py — In-app AI Assistant chat endpoint.
-
-Provides a conversational interface backed by Gemini that any logged-in user
-can use to ask questions about the platform, fixtures, predictions, etc.
-"""
+"""app/api/routes/ai_assistant.py — In-app AI Assistant chat endpoint."""
 
 from __future__ import annotations
 
@@ -32,6 +28,7 @@ class ChatResponse(BaseModel):
     available: bool
     reply: str
     error: Optional[str] = None
+    thoughts: List[str] = Field(default_factory=list, description="Chain of thought traces")
 
 
 @router.post("/chat", response_model=ChatResponse)

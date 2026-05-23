@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+import os
+
+script_content = r"""#!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
 echo "[build] Installing Python dependencies..."
@@ -130,3 +132,7 @@ asyncio.run(ensure_schema())
 " || echo "[build] DB schema setup skipped"
 
 echo "[build] Build complete."
+"""
+
+with open("scripts/build.sh", "w") as f:
+    f.write(script_content)
