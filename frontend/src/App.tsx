@@ -64,6 +64,7 @@ const ModelPerformancePage  = lazy(() => import("@/pages/model-performance"));
 const BankrollPage          = lazy(() => import("@/pages/bankroll"));
 const AIUploadPage          = lazy(() => import("@/pages/ai-upload"));
 const StadiumModePage       = lazy(() => import("@/pages/stadium-mode"));
+const JulesPromptPage       = lazy(() => import("@/pages/jules-prompt"));
 const IQTestPage            = lazy(() => import("@/pages/iq-test"));
 const OraclesMicPage        = lazy(() => import("@/pages/oracle-mic"));
 const PredictionWrappedPage = lazy(() => import("@/pages/wrapped"));
@@ -265,7 +266,10 @@ function Router() {
       </Route>
       <Route path="/stadium">
         <Layout><ProtectedRoute component={StadiumModePage} /></Layout>
+      </Route>jules-prompt">
+        <Layout><ProtectedRoute component={JulesPromptPage} /></Layout>
       </Route>
+      <Route path="/
       <Route path="/iq-test">
         <Layout><ProtectedRoute component={IQTestPage} /></Layout>
       </Route>
