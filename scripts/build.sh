@@ -5,31 +5,38 @@ echo "[build] Installing Python dependencies (excluding torch to stay within dis
 grep -v -iE '^\s*(torch|torchvision|torchaudio)\b' requirements.txt > /tmp/requirements_notorch.txt
 pip install -r /tmp/requirements_notorch.txt
 
-# Ensure node and npm are available
+# Ensure node is available
 if ! command -v node &> /dev/null; then
     echo "[build] Error: node is not installed." >&2
     exit 1
 fi
 
-if ! command -v npm &> /dev/null; then
-    echo "[build] Error: npm is not installed." >&2
-    exit 1
-fi
-
 echo "[build] Node version: $(node -v)"
-echo "[build] NPM version: $(npm -v)"
 
 echo "[build] Installing frontend dependencies..."
 cd frontend
-# Use npm ci when package-lock.json exists, but fall back to npm install if the lockfile is out of sync.
-if [ -f "package-lock.json" ]; then
-    npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps || npm install --prefer-offline --no-audit --no-fund --legacy-peer-deps
+# Prefer pnpm when lockfile exists, otherwise fall back to npm
+if [ -f "pnpm-lock.yaml" ] && command -v pnpm &> /dev/null; then
+    echo "[build] Using pnpm (pnpm-lock.yaml detected)"
+    pnpm install --frozen-lockfile --prefer-offline --no-audit --no-fund
+    pnpm run build
+elif [ -f "package-lock.json" ] && command -v npm &> /dev/null; then
+    echo "[build] Using npm (package-lock.json detected)"
+    npm ci --prefer-offline --no-audit --no-fund
+    npm run build
 else
-    npm install --prefer-offline --no-audit --no-fund --legacy-peer-deps
+    # Last-resort: try pnpm if available, otherwise npm install
+    if command -v pnpm &> /dev/null; then
+        pnpm install --prefer-offline --no-audit --no-fund
+        pnpm run build
+    elif command -v npm &> /dev/null; then
+        npm install --prefer-offline --no-audit --no-fund
+        npm run build
+    else
+        echo "[build] Error: neither pnpm nor npm is installed." >&2
+        exit 1
+    fi
 fi
-
-echo "[build] Building frontend for production..."
-npm run build
 cd ..
 
 echo "[build] Running database schema setup..."
