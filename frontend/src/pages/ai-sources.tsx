@@ -1259,7 +1259,7 @@ export default function AISourcesPage() {
             {!puterReady && (
               <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded p-2.5 text-xs text-amber-300">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                Puter.js not detected — ensure the CDN script is loaded and you are signed in to Puter.
+                To use the free AI Sourcing engine, you must be signed in to your Puter account.
               </div>
             )}
 
