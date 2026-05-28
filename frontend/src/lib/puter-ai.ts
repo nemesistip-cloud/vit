@@ -32,7 +32,7 @@ export interface MatchAnalysis {
 }
 
 // Next-Gen Quantum Models available via Puter
-export const PUTER_CLAUDE_MODEL = "claude-3-5-sonnet";
+export const PUTER_CLAUDE_MODEL = "claude-3.5-sonnet";
 export const PUTER_GPT4O_MODEL  = "gpt-4o";
 export const PUTER_GEMINI_MODEL = "gemini-1.5-pro";
 export const PUTER_GROK_MODEL   = "grok-beta";

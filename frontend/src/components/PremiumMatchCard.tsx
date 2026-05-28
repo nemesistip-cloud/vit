@@ -405,7 +405,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
 
       <Card className={`
         bg-card/60 backdrop-blur-md border-border/50 shadow-xl h-full flex flex-col
-        transition-all duration-300 group rounded-2xl
+        transition-all duration-300 group rounded-2xl border-border/50 shadow-xl hover:shadow-2xl bg-card/60 backdrop-blur-md
         hover:-translate-y-1.5 hover:shadow-2xl
         ${isLive
           ? "border-green-500/40 hover:border-green-400/60 hover:shadow-[0_4px_24px_rgba(74,222,128,0.12)]"
