@@ -503,8 +503,19 @@ export default function MatchDetailPage() {
               ) : (
                 <>
                   {/* Market selector tabs */}
-                  <div className="flex gap-1 bg-background/60 rounded-lg p-1 border border-border/50">
-                    {(["1x2", "goals", "ah", "cs"] as const).map((t) => (
+                  <div className="flex gap-1 bg-background/60 rounded-lg p-1 border border-border/50 flex-wrap">
+                    {(() => {
+                      const available = match.available_markets || [];
+                      const tabs = [];
+                      if (available.some(m => ["1X2", "match_winner", "moneyline"].includes(m))) tabs.push("1x2");
+                      if (available.some(m => m.includes("over_under") || m === "btts")) tabs.push("goals");
+                      if (available.some(m => m.includes("handicap") || m.includes("spread"))) tabs.push("ah");
+                      if (available.includes("correct_score") || available.includes("set_betting")) tabs.push("cs");
+
+                      // Fallback to all if available_markets is empty (for backward compatibility)
+                      const finalTabs = tabs.length > 0 ? tabs : ["1x2", "goals", "ah", "cs"];
+
+                      return finalTabs.map((t) => (
                       <button
                         key={t}
                         type="button"
@@ -517,7 +528,8 @@ export default function MatchDetailPage() {
                       >
                         {t === "1x2" ? "1X2" : t === "goals" ? "Goals" : t === "ah" ? "Asian HCP" : "Correct Score"}
                       </button>
-                    ))}
+                    ));
+                  })()}
                   </div>
 
                   {/* 1X2 panel */}

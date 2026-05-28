@@ -591,6 +591,9 @@ _MODEL_SPECS: list = [
 # Performance-based base weights per model key (before pkl boost).
 # v2 keys carry the same priors as their v1 parents — re-tuning happens after
 # we have ≥30 days of v2 prediction telemetry.
+# Models that only make sense for soccer/football
+SOCCER_ONLY_MODELS = {"poisson_v2", "dixon_coles_v2"}
+
 _MODEL_BASE_WEIGHTS: Dict[str, float] = {
     "hybrid_v2":          1.50,   # most sophisticated — stacks all signals
     "ensemble_v2":        1.40,   # neural ensemble diversity weighting
@@ -1862,7 +1865,7 @@ class ModelOrchestrator:
             return None
 
     def num_models_ready(self) -> int:
-        return len(self.models)
+        return len(active_models)
 
     def get_model_status(self) -> Dict[str, Any]:
         w_span = _WEIGHT_MAX - _WEIGHT_MIN  # 0.75
@@ -1894,11 +1897,11 @@ class ModelOrchestrator:
                 "status":            "ready",
                 "error":             None,
             })
-        return {"ready": len(self.models), "total": _TOTAL_MODEL_SPECS, "models": models_list}
+        return {"ready": len(active_models), "total": _TOTAL_MODEL_SPECS, "models": models_list}
 
     # ── Prediction ─────────────────────────────────────────────────────────────
 
-    async def predict(self, features: Dict[str, Any], match_id: str) -> Dict[str, Any]:
+    async def predict(self, features: Dict[str, Any], match_id: str, sport: str = "soccer") -> Dict[str, Any]:
         """
         Run differentiated ensemble and return calibrated probabilities.
 
@@ -2036,7 +2039,14 @@ class ModelOrchestrator:
         preds_a: List[float] = []
         weights: List[float] = []
 
-        for key, model in self.models.items():
+
+        # Filter models by sport
+        active_models = {
+            k: v for k, v in self.models.items()
+            if sport == "soccer" or k not in SOCCER_ONLY_MODELS
+        }
+
+        for key, model in active_models.items():
             meta   = self.model_meta[key]
             weight = meta["weight"]
             seed   = abs(hash(f"{key}_{match_id}")) % (2 ** 31)
@@ -2148,7 +2158,7 @@ class ModelOrchestrator:
 
         # ── P1#5: Apply per-league weight multipliers ──────────────────────────
         if league:
-            for i, key in enumerate(self.models.keys()):
+            for i, key in enumerate(active_models.keys()):
                 league_weights = self.model_meta.get(key, {}).get("league_weights", {})
                 multiplier = float(league_weights.get(league, 1.0))
                 if multiplier != 1.0:
@@ -2259,7 +2269,7 @@ class ModelOrchestrator:
 
         # ── P3#14: Model attribution — how much did each model move the needle?
         attribution = []
-        for i, key in enumerate(self.models.keys()):
+        for i, key in enumerate(active_models.keys()):
             meta_k = self.model_meta[key]
             w_frac = weights[i] / total_w if total_w > 0 else 0.0
             delta_h = round((preds_h[i] - final_hp) * w_frac, 5)
@@ -2310,7 +2320,7 @@ class ModelOrchestrator:
                 "home_advantage_bias": round(ha_bias, 4),
                 # P2#10: Bootstrap confidence intervals
                 "confidence_intervals": ci,
-                "models_used":       len(self.models),
+                "models_used":       len(active_models),
                 "models_total":      _TOTAL_MODEL_SPECS,
                 "model_agreement":   round(agreement, 1),
                 "data_source":       "differentiated_ensemble_v4",
@@ -2322,7 +2332,7 @@ class ModelOrchestrator:
             },
             "individual_results": individual_results,
             "attribution":        attribution,
-            "models_count":       len(self.models),
+            "models_count":       len(active_models),
         }
 
     def predict_with_scoreline(

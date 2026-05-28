@@ -1,3 +1,4 @@
+from app.core.markets import get_markets_for_sport
 # app/api/routes/predict.py
 # VIT Sports Intelligence Network — v2.1.0
 # Fix: Full prediction data passed to BetAlert (models_used, all probs, all odds)
@@ -303,6 +304,8 @@ def build_prediction_response(
     prediction: Prediction,
     match: Match,
     orchestrator: Optional[object] = None,
+    sport: str = "football",
+    available_markets: list[str] = None,
     data_quality: Optional[dict] = None,
     data_source: str = "neural_ensemble",
 ) -> PredictionResponse:
@@ -335,6 +338,8 @@ def build_prediction_response(
     
     return PredictionResponse(
         match_id=prediction.match_id,
+        sport=sport,
+        available_markets=available_markets or [],
         home_prob=prediction.home_prob,
         draw_prob=prediction.draw_prob,
         away_prob=prediction.away_prob,
@@ -361,7 +366,7 @@ def build_prediction_response(
         
         # Enhanced Intelligence Data
         models_used=models_used,
-        models_total=getattr(orchestrator, '_total_model_specs', models_used) if orchestrator else models_used,
+        models_total=prediction.models_total if hasattr(prediction, 'models_total') and prediction.models_total else (getattr(orchestrator, '_total_model_specs', models_used) if orchestrator else models_used),
         data_source=data_source,  # Real source from orchestrator (e.g. "differentiated_ensemble_v3")
         bet_side=prediction.bet_side,
         entry_odds=prediction.entry_odds,
@@ -403,6 +408,8 @@ async def predict(
 
     fixture_id = match.fixture_id if match.fixture_id else "unknown"
     user_id: Optional[int] = current_user.id if current_user else None
+    sport = (match.sport or "football").lower()
+    available_markets = get_markets_for_sport(sport)
 
     # C-1 / T10 — per-user daily prediction rate limit (DB-backed: accurate across restarts)
     # Admin / super_admin users are exempt from the daily limit.
@@ -478,7 +485,7 @@ async def predict(
                 logger.info(f"Returning cached prediction for hash={idempotency_key}")
                 cached_dq = dict(data_quality)
                 cached_dq["warnings"].append("served_from_cache")
-                return build_prediction_response(existing_pred, ex_match, orchestrator, cached_dq)
+                return build_prediction_response(existing_pred, ex_match, orchestrator, cached_dq, sport=sport, available_markets=available_markets)
 
         # --- Find or create match ---
         # 1. Try by external_id (fixture_id)
@@ -596,7 +603,7 @@ async def predict(
             "web_context_text":  web_context_text,       # ← formatted for AI prompts
         }
 
-        raw_result = await orchestrator.predict(features, idempotency_key)
+        raw_result = await orchestrator.predict(features, idempotency_key, sport=sport)
         pred_data  = raw_result.get("predictions", raw_result)
         result     = validate_prediction_response(pred_data, market_odds=match.market_odds)
 
@@ -963,7 +970,7 @@ async def predict(
                 logger.warning(f"Telegram alert failed (non-fatal): {e}")
 
         response = build_prediction_response(
-            prediction, db_match, orchestrator, data_quality, data_source=data_source
+            prediction, db_match, orchestrator, data_quality, data_source=data_source, sport=sport, available_markets=available_markets
         )
         response.calibration_note = calibration_note
         return response
