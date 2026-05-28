@@ -64,12 +64,12 @@ export const API = {
   subscribe: "/api/wallet/subscribe",
   vitcoinPrice: "/api/wallet/vitcoin-price",
   // Admin endpoints
-  adminCalibrationFit: "/admin/calibration/fit",
-  adminCalibrationReload: "/admin/calibration/reload",
-  adminSettleResults: "/admin/settle-results",
-  adminBackfillFtResults: "/admin/matches/backfill-ft-results",
-  adminAccumulatorPlaceBet: "/admin/accumulator/place-bet",
-  adminAccumulatorSend: "/admin/accumulator/send",
+  adminCalibrationFit: "/api/admin/calibration/fit",
+  adminCalibrationReload: "/api/admin/calibration/reload",
+  adminSettleResults: "/api/admin/settle-results",
+  adminBackfillFtResults: "/api/admin/matches/backfill-ft-results",
+  adminAccumulatorPlaceBet: "/api/admin/accumulator/place-bet",
+  adminAccumulatorSend: "/api/admin/accumulator/send",
   // Analytics endpoints
   analyticsRoi: "/analytics/roi",
   analyticsClv: "/analytics/clv",
@@ -781,7 +781,7 @@ export function useAdminFetchFixtures() {
   const queryClient = useQueryClient();
   return useMutation<{ stored: number; skipped_existing: number; errors: number; message: string }, Error, { days?: number; count?: number }>({
     mutationFn: ({ days = 7, count = 50 } = {}) =>
-      apiPost<any>(`/admin/matches/fetch-fixtures?days=${days}&count=${count}`),
+      apiPost<any>(`/api/admin/matches/fetch-fixtures?days=${days}&count=${count}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
       queryClient.invalidateQueries({ queryKey: ["matches-explore"] });
@@ -793,7 +793,7 @@ export function useAdminFetchFixtures() {
 export function useAdminFetchLive() {
   const queryClient = useQueryClient();
   return useMutation<{ live_count: number; db_updated: number }, Error, void>({
-    mutationFn: () => apiPost<any>("/admin/matches/fetch-live"),
+    mutationFn: () => apiPost<any>("/api/admin/matches/fetch-live"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
     },

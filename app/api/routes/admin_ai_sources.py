@@ -104,7 +104,7 @@ async def list_matches_for_ingest(
 ):
     """List upcoming/live matches only (no past fixtures) with AI source coverage."""
     from datetime import timedelta
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     live_cutoff = now - timedelta(hours=3)
 
     res = await db.execute(

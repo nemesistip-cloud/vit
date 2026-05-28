@@ -95,13 +95,13 @@ export default function AccumulatorPage() {
   }>({
     queryKey: ["accumulator-candidates", candFilters],
     queryFn: () => apiGet(
-      `/admin/accumulator/candidates?min_confidence=${candFilters.minConfidence}&min_edge=${candFilters.minEdge}&count=${candFilters.count}&auto_relax=true&target_min=4`
+      `/api/admin/accumulator/candidates?min_confidence=${candFilters.minConfidence}&min_edge=${candFilters.minEdge}&count=${candFilters.count}&auto_relax=true&target_min=4`
     ),
     enabled: false,
   });
 
   const generateMutation = useMutation<{ accumulators: Accumulator[] }, Error, any>({
-    mutationFn: (data) => apiPost<{ accumulators: Accumulator[] }>("/admin/accumulator/generate", data),
+    mutationFn: (data) => apiPost<{ accumulators: Accumulator[] }>("/api/admin/accumulator/generate", data),
     onSuccess: (data) => {
       setAccumulators(data.accumulators || []);
       setExpandedAcc(0);
@@ -112,7 +112,7 @@ export default function AccumulatorPage() {
 
   const placeBetMutation = useMutation<BetReceipt, Error, { accIdx: number; acc: Accumulator; stake: number; currency: string }>({
     mutationFn: ({ acc, stake, currency }) =>
-      apiPost<BetReceipt>("/admin/accumulator/place-bet", { accumulator: acc, stake, currency }),
+      apiPost<BetReceipt>("/api/admin/accumulator/place-bet", { accumulator: acc, stake, currency }),
     onSuccess: (receipt, vars) => {
       setReceipts((r) => ({ ...r, [vars.accIdx]: receipt }));
       toast.success(`✅ Bet placed! Potential payout: ${receipt.currency} ${receipt.potential_payout.toFixed(2)}`);
@@ -121,7 +121,7 @@ export default function AccumulatorPage() {
   });
 
   const sendTgMutation = useMutation<{ sent: boolean }, Error, { acc: Accumulator; idx: number }>({
-    mutationFn: ({ acc }) => apiPost<{ sent: boolean }>("/admin/accumulator/send", { accumulator: acc }),
+    mutationFn: ({ acc }) => apiPost<{ sent: boolean }>("/api/admin/accumulator/send", { accumulator: acc }),
     onSuccess: (data, vars) => {
       setSendingTg(null);
       toast.success(data.sent ? "Sent to Telegram!" : "Telegram send failed");

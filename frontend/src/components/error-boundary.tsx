@@ -35,7 +35,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     // Fire-and-forget telemetry to admin client-error endpoint
     try {
       const token = localStorage.getItem("vit_token") ?? "";
-      fetch("/admin/client-error", {
+      fetch("/api/admin/client-error", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -343,7 +343,7 @@ function ModelVersionHistory() {
     count: number;
   }>({
     queryKey: ["model-version-history"],
-    queryFn: () => apiGet("/admin/models/version-history?limit=50"),
+    queryFn: () => apiGet("/api/admin/models/version-history?limit=50"),
     enabled: expanded,
     staleTime: 60 * 1000,
   });

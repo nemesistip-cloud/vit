@@ -816,7 +816,7 @@ function SystemTab() {
   const updateKeyMutation = useMutation({
     mutationFn: ({ name, value }: { name: string; value: string }) =>
       apiPost<{ updated: Record<string, string>; errors: Record<string, string>; warnings?: Record<string, string>; message: string }>(
-        "/admin/api-keys/update",
+        "/api/admin/api-keys/update",
         { updates: { [name]: value } },
       ),
     onSuccess: (resp, vars) => {
@@ -1235,7 +1235,7 @@ function FootballDataCard() {
 
   const testMutation = useMutation({
     mutationFn: () => apiPost<{ status: string; message: string }>(
-      "/admin/data-sources/test/football_data", {}),
+      "/api/admin/data-sources/test/football_data", {}),
     onSuccess: (r) => {
       setTestResult(r);
       if (r.status === "ok") toast.success(r.message);
@@ -1250,7 +1250,7 @@ function FootballDataCard() {
 
   const fetchMutation = useMutation({
     mutationFn: () => apiPost<{ stored: number; skipped_existing?: number; message?: string }>(
-      "/admin/matches/fetch-fixtures?count=100&days=14", {}),
+      "/api/admin/matches/fetch-fixtures?count=100&days=14", {}),
     onSuccess: (d) => {
       toast.success(`Fetched ${d.stored ?? 0} new fixtures (${d.skipped_existing ?? 0} duplicates skipped)`);
       qc.invalidateQueries({ queryKey: ["matches-recent"] });
@@ -1261,7 +1261,7 @@ function FootballDataCard() {
 
   const settleMutation = useMutation({
     mutationFn: () => apiPost<{ settled: number; already_settled: number; created_new?: number; message?: string }>(
-      "/admin/settle-results?days_back=7", {}),
+      "/api/admin/settle-results?days_back=7", {}),
     onSuccess: (d) => {
       toast.success(`Settled ${d.settled ?? 0} match(es), ${d.already_settled ?? 0} already done, ${d.created_new ?? 0} new records created`);
       qc.invalidateQueries({ queryKey: ["matches-recent"] });
@@ -1271,7 +1271,7 @@ function FootballDataCard() {
 
   const backfillMutation = useMutation({
     mutationFn: () => apiPost<{ settled_real: number; simulated_local: number; skipped_real_no_api: number }>(
-      "/admin/matches/backfill-ft-results?settle_real=true&simulate_local=true&days_back=14", {}),
+      "/api/admin/matches/backfill-ft-results?settle_real=true&simulate_local=true&days_back=14", {}),
     onSuccess: (d) => {
       toast.success(`Backfill done — ${d.settled_real} from API + ${d.simulated_local} simulated, ${d.skipped_real_no_api} real matches skipped`);
       qc.invalidateQueries({ queryKey: ["matches-recent"] });
@@ -1378,8 +1378,8 @@ function CSVUploadCard() {
     mutationFn: async (f: File) => {
       const form = new FormData();
       form.append("file", f);
-      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
-      const resp = await fetch("/admin/upload/csv", {
+      const token = localStorage.getItem("vit_token") || "";
+      const resp = await fetch("/api/admin/upload/csv", {
         method: "POST",
         body: form,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -2446,14 +2446,14 @@ function ModelsTab() {
 
   const approveMutation = useMutation({
     mutationFn: ({ id, note, is_verified }: { id: number; note?: string; is_verified?: boolean }) =>
-      apiPatch(`/admin/marketplace/${id}/approve`, { note, is_verified }),
+      apiPatch(`/api/admin/marketplace/${id}/approve`, { note, is_verified }),
     onSuccess: () => { toast.success("Listing approved and is now live"); qc.invalidateQueries({ queryKey: ["admin-marketplace-pending"] }); },
     onError: () => toast.error("Approval failed"),
   });
 
   const rejectMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      apiPatch(`/admin/marketplace/${id}/reject`, { reason }),
+      apiPatch(`/api/admin/marketplace/${id}/reject`, { reason }),
     onSuccess: () => { toast.success("Listing rejected"); qc.invalidateQueries({ queryKey: ["admin-marketplace-pending"] }); },
     onError: () => toast.error("Rejection failed"),
   });
@@ -4153,13 +4153,13 @@ function MLAgentsTab() {
 
   const { data: mlStatus, isLoading } = useQuery<MLControlStatus>({
     queryKey: ["ml-control-status"],
-    queryFn:  () => apiGet<MLControlStatus>("/admin/ml-control/status"),
+    queryFn:  () => apiGet<MLControlStatus>("/api/admin/ml-control/status"),
     refetchInterval: 5000,
   });
 
   const { data: configData } = useQuery<MLAgentConfig>({
     queryKey: ["ml-control-config"],
-    queryFn:  () => apiGet<MLAgentConfig>("/admin/ml-control/config"),
+    queryFn:  () => apiGet<MLAgentConfig>("/api/admin/ml-control/config"),
   });
 
   useEffect(() => {
@@ -4189,7 +4189,7 @@ function MLAgentsTab() {
   const emergencyRetrain = async () => {
     setTriggering("emergency");
     try {
-      const r = await apiPost<{ job_id: string }>("/admin/ml-control/emergency-retrain");
+      const r = await apiPost<{ job_id: string }>("/api/admin/ml-control/emergency-retrain");
       if (r?.job_id) {
         setActiveJobId(r.job_id);
         toast.success(`Emergency retrain started — JOB_${r.job_id.slice(0, 8)}`);

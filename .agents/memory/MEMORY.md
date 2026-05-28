@@ -1,0 +1,3 @@
+- [Admin panel path prefix bug](admin-path-prefix.md) — all admin API calls in the frontend must use `/api/admin/...` — apiClient has NO auto prefix.
+- [Model breakdown double-prefix](model-breakdown-prefix.md) — router prefix + include_router prefix must not both include `/api`.
+- [DB timezone mismatch](db-timezone-naive.md) — SQLite/Postgres stores naive datetimes; Python datetime comparisons must use `.replace(tzinfo=None)`.

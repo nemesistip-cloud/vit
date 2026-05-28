@@ -25,7 +25,7 @@ from app.core.dependencies import get_orchestrator_dep
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/ai-engine",
+    prefix="/ai-engine",
     tags=["ai-engine-extended"],
     dependencies=[Depends(verify_api_key)],
 )
