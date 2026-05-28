@@ -43,7 +43,7 @@ interface PredictionFlowProps {
   onClose: () => void;
 }
 
-type Side = "home" | "draw" | "away" | "over_25" | "under_25" | "btts_yes" | "btts_no";
+type Side = string;
 
 const PRESETS = [5, 10, 25, 50, 100];
 
@@ -147,33 +147,40 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
   });
 
   const sideLabel = { home: match.home_team, draw: "Draw", away: match.away_team, over_25: "Over 2.5", under_25: "Under 2.5", btts_yes: "BTTS Yes", btts_no: "BTTS No" };
-  const marketGroups = [
-    {
-      id: "1x2",
-      title: "1X2",
-      sides: [
-        { side: "home" as Side, label: "Home" },
-        { side: "draw" as Side, label: "Draw" },
-        { side: "away" as Side, label: "Away" },
-      ],
-    },
-    {
-      id: "over_under",
-      title: "Over/Under 2.5",
-      sides: [
-        { side: "over_25" as Side, label: "Over" },
-        { side: "under_25" as Side, label: "Under" },
-      ],
-    },
-    {
-      id: "btts",
-      title: "BTTS",
-      sides: [
-        { side: "btts_yes" as Side, label: "Yes" },
-        { side: "btts_no" as Side, label: "No" },
-      ],
-    },
-  ].filter((group) => activeMarketIds.has(group.id));
+  // Build market groups from enabled markets returned by the backend.
+  // Use a flexible "startsWith" check so variants like "over_under_25"
+  // match the canonical group id "over_under".
+  const isActiveGroup = (gid: string) => {
+    if (activeMarketIds.has(gid)) return true;
+    for (const a of Array.from(activeMarketIds)) {
+      if (a.startsWith(gid)) return true;
+    }
+    return false;
+  };
+
+  const KNOWN_MARKETS: Record<string, { title: string; sides: Array<{ side: Side; label: string }> }> = {
+    "1x2": { title: "1X2", sides: [{ side: "home", label: "Home" }, { side: "draw", label: "Draw" }, { side: "away", label: "Away" }] },
+    "over_under": { title: "Over/Under 2.5", sides: [{ side: "over_25", label: "Over" }, { side: "under_25", label: "Under" }] },
+    "over_under_25": { title: "Over/Under 2.5", sides: [{ side: "over_25", label: "Over" }, { side: "under_25", label: "Under" }] },
+    "btts": { title: "BTTS", sides: [{ side: "btts_yes", label: "Yes" }, { side: "btts_no", label: "No" }] },
+    // Half-time / full-time and half-time winner markets (use conservative side keys)
+    "htft": { title: "Half Time / Full Time", sides: [{ side: "ht_ft_home_home", label: "HT H / FT H" }, { side: "ht_ft_home_away", label: "HT H / FT A" }, { side: "ht_ft_away_home", label: "HT A / FT H" }] },
+    "match_winner_ht": { title: "Half Time Result", sides: [{ side: "ht_home", label: "HT Home" }, { side: "ht_draw", label: "HT Draw" }, { side: "ht_away", label: "HT Away" }] },
+  };
+
+  const marketGroups: Array<{ id: string; title: string; sides: Array<{ side: Side; label: string }> }> = [];
+  // Add known groups when active
+  for (const gid of Object.keys(KNOWN_MARKETS)) {
+    if (isActiveGroup(gid)) marketGroups.push({ id: gid, title: KNOWN_MARKETS[gid].title, sides: KNOWN_MARKETS[gid].sides });
+  }
+
+  // Add any remaining enabled markets from backend that aren't in KNOWN_MARKETS
+  for (const m of enabledMarkets || []) {
+    if (!m || !m.id) continue;
+    if (marketGroups.find((g) => g.id === String(m.id))) continue;
+    // Fallback: binary Yes/No or show a single-odds outcome if metadata provides it
+    marketGroups.push({ id: String(m.id), title: m.name || String(m.id), sides: [{ side: `${m.id}_yes`, label: "Yes" }, { side: `${m.id}_no`, label: "No" }] });
+  }
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -275,7 +282,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               <CardContent className="p-3 space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground uppercase">Prediction</span>
-                  <span className="font-bold text-primary uppercase">{sideLabel[selectedSide]}</span>
+                  <span className="font-bold text-primary uppercase">{(sideLabel as Record<string,string>)[selectedSide as string] ?? String(selectedSide)}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground uppercase">Stake</span>
