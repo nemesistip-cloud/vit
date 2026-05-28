@@ -243,13 +243,13 @@ export default function DashboardPage() {
   const { user } = useAuth();
 
   const { data: summary, isLoading: isLoadingSummary, isError: isErrorSummary } = useQuery<any>({
-    queryKey: ["dashboard-summary"],
+    queryKey: ["ticker-summary"],
     queryFn:  () => apiGet<any>("/api/dashboard/summary"),
     refetchInterval: 30_000,
   });
 
   const { data: price, isLoading: isLoadingPrice } = useQuery<any>({
-    queryKey: ["dashboard-price"],
+    queryKey: ["ticker-price"],
     queryFn:  () => apiGet<any>("/api/dashboard/vitcoin-price"),
     refetchInterval: 60_000,
   });
@@ -261,7 +261,7 @@ export default function DashboardPage() {
   });
 
   const { data: system, isLoading: isLoadingSystem, isError: isErrorSystem } = useQuery<any>({
-    queryKey: ["dashboard-system"],
+    queryKey: ["ticker-system"],
     queryFn:  () => apiGet<any>("/api/system/status"),
     refetchInterval: 60_000,
   });
@@ -289,7 +289,7 @@ export default function DashboardPage() {
   const isLoadingCards = isLoadingSummary || isLoadingPrice;
 
   const accuracyRate = summary?.accuracy_rate ?? 0;
-  const xp = Math.floor((summary?.total_predictions ?? 0) * 10 + accuracyRate * 100);
+  const xp = summary?.xp ?? Math.floor((summary?.total_predictions ?? 0) * 10 + (summary?.wins ?? 0) * 20);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -464,7 +464,7 @@ export default function DashboardPage() {
                     },
                     {
                       label: "ROI",
-                      value: `${(summary?.roi ?? 0) >= 0 ? "+" : ""}${Number(summary?.roi ?? 0).toFixed(2)}`,
+                      value: `${(summary?.roi ?? 0) >= 0 ? "+" : ""}${Number(summary?.roi ?? 0).toFixed(2)}%`,
                       color: (summary?.roi ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400",
                       sub: "return on investment",
                     },
@@ -476,8 +476,8 @@ export default function DashboardPage() {
                     },
                     {
                       label: "Net Profit",
-                      value: `${(system?.economy?.total_profit ?? 0) >= 0 ? "+" : ""}$${Number(system?.economy?.total_profit ?? 0).toFixed(2)}`,
-                      color: (system?.economy?.total_profit ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400",
+                      value: `${(summary?.user_profit ?? 0) >= 0 ? "+" : ""}$${Number(summary?.user_profit ?? 0).toFixed(2)}`,
+                      color: (summary?.user_profit ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400",
                       sub: "USD equivalent",
                     },
                     {

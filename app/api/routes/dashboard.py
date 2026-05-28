@@ -74,6 +74,7 @@ async def get_dashboard_summary(
     settled_rows = await _settled_predictions_for_user(db, uid)
     wins, settled, streak = _wins_settled_streak(settled_rows)
     accuracy = round(wins / settled, 4) if settled > 0 else 0.0
+    xp = (total_predictions * 10 + wins * 20)
 
     # Persist the recomputed streak so badges/level cards stay consistent
     try:
@@ -86,6 +87,21 @@ async def get_dashboard_summary(
     # ROI still comes from CLVEntry (it's the only place profit is tracked)
     u_pred_sub = select(Prediction.id).where(Prediction.user_id == uid).subquery()
     roi_result = (
+        await db.execute(
+            select(func.avg(CLVEntry.profit))
+            .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
+        )
+    ).scalar() or Decimal("0")
+    roi_result = roi_result * 100  # Convert to percentage
+
+    user_profit = (
+        await db.execute(
+            select(func.sum(CLVEntry.profit))
+            .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
+        )
+    ).scalar() or Decimal("0")
+
+    user_profit = (
         await db.execute(
             select(func.sum(CLVEntry.profit))
             .where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id)))
@@ -118,6 +134,10 @@ async def get_dashboard_summary(
         "active_matches": active,
         "wallet_balance": vitcoin_balance,
         "streak": streak,
+        "xp": xp,
+        "user_profit": float(user_profit),
+        "xp": xp,
+        "user_profit": float(user_profit),
     }
 
 
@@ -331,6 +351,10 @@ async def get_leaderboard(
                 "level": level,
                 "predictions": total_preds,
                 "streak": streak,
+        "xp": xp,
+        "user_profit": float(user_profit),
+        "xp": xp,
+        "user_profit": float(user_profit),
             })
 
         leaderboard.sort(key=lambda x: x["xp"], reverse=True)
