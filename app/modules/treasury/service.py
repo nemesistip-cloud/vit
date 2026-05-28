@@ -38,20 +38,21 @@ INITIAL_POOLS: dict[PoolType, dict] = {
 async def bootstrap_treasury_pools(db: AsyncSession) -> int:
     """Create pool rows if they don't exist. Returns count created."""
     created = 0
-    for pool_type, cfg in INITIAL_POOLS.items():
-        existing = await db.scalar(
-            select(TreasuryPool).where(TreasuryPool.pool_type == pool_type)
-        )
-        if not existing:
-            pool = TreasuryPool(
-                pool_type=pool_type,
-                balance=Decimal("0"),
-                allocation_pct=cfg["allocation_pct"],
-                auto_refill=cfg["auto_refill"],
-                description=f"VIT {pool_type.value.replace('_', ' ').title()} pool",
+    with db.no_autoflush:
+        for pool_type, cfg in INITIAL_POOLS.items():
+            existing = await db.scalar(
+                select(TreasuryPool).where(TreasuryPool.pool_type == pool_type)
             )
-            db.add(pool)
-            created += 1
+            if not existing:
+                pool = TreasuryPool(
+                    pool_type=pool_type,
+                    balance=Decimal("0"),
+                    allocation_pct=cfg["allocation_pct"],
+                    auto_refill=cfg["auto_refill"],
+                    description=f"VIT {pool_type.value.replace('_', ' ').title()} pool",
+                )
+                db.add(pool)
+                created += 1
     if created:
         await db.commit()
     return created

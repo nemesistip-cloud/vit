@@ -60,7 +60,7 @@ class TreasuryPool(Base):
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
     allocations: Mapped[list["TreasuryAllocation"]] = relationship(
@@ -97,7 +97,7 @@ class GrantProposal(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     approved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     executed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -127,7 +127,7 @@ class TreasuryAllocation(Base):
     tx_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     released_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     pool: Mapped["TreasuryPool"] = relationship(back_populates="allocations")
     grant: Mapped[Optional["GrantProposal"]] = relationship(
@@ -147,8 +147,8 @@ class TreasuryDeposit(Base):
     )
     tx_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    deposited_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    deposited_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)

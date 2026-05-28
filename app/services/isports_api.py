@@ -67,7 +67,7 @@ class ISportsClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
                     self._last_request_time = time.time()
                     response = await client.get(url, params=params)
 

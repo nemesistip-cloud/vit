@@ -1993,7 +1993,7 @@ async def _run_bootstrap(app, _done_event):
 
     async def sync_upcoming_loop():
         """B-1: Refresh upcoming fixtures from TheSportsDB every 3 hours (18 leagues, 60 days ahead)."""
-        await asyncio.sleep(30)  # initial delay — let DB settle first
+        await asyncio.sleep(300)  # initial delay — let historical backfill finish first, avoid 429 cascade
         while True:
             try:
                 from app.db.database import AsyncSessionLocal

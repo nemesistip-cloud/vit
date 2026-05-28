@@ -41,23 +41,24 @@ def _did_from_agent_id(agent_id: str) -> str:
 
 async def bootstrap_agent_registry(db: AsyncSession) -> int:
     created = 0
-    for cfg in BUILTIN_AGENTS:
-        existing = await db.scalar(
-            select(AIAgentRegistration).where(AIAgentRegistration.agent_id == cfg["agent_id"])
-        )
-        if not existing:
-            did = _did_from_agent_id(cfg["agent_id"])
-            agent = AIAgentRegistration(
-                agent_id=cfg["agent_id"],
-                name=cfg["name"],
-                capabilities=json.dumps(cfg["capabilities"]),
-                did_identifier=did,
-                status=AgentStatus.ACTIVE,
-                is_builtin=True,
-                reputation_score=Decimal("75"),
+    with db.no_autoflush:
+        for cfg in BUILTIN_AGENTS:
+            existing = await db.scalar(
+                select(AIAgentRegistration).where(AIAgentRegistration.agent_id == cfg["agent_id"])
             )
-            db.add(agent)
-            created += 1
+            if not existing:
+                did = _did_from_agent_id(cfg["agent_id"])
+                agent = AIAgentRegistration(
+                    agent_id=cfg["agent_id"],
+                    name=cfg["name"],
+                    capabilities=json.dumps(cfg["capabilities"]),
+                    did_identifier=did,
+                    status=AgentStatus.ACTIVE,
+                    is_builtin=True,
+                    reputation_score=Decimal("75"),
+                )
+                db.add(agent)
+                created += 1
     if created:
         await db.commit()
     return created

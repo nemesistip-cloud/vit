@@ -24,7 +24,7 @@ class ProphecyChapter(Base):
     reward_badge = Column(String(100), nullable=True)
 
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 class UserProphecyProgress(Base):
     __tablename__ = "user_prophecy_progress"
@@ -39,8 +39,8 @@ class UserProphecyProgress(Base):
     total_qualified_wins = Column(Integer, default=0)
     current_accuracy = Column(Float, default=0.0)
 
-    last_evaluated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_evaluated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     user = relationship("User", backref="prophecy_progress")

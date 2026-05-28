@@ -39,25 +39,26 @@ def _contract_address(name: str) -> str:
 async def bootstrap_builtin_contracts(db: AsyncSession) -> int:
     """Deploy built-in contracts if they don't exist. Returns count created."""
     created = 0
-    for name in BUILTIN_CONTRACTS:
-        addr = _contract_address(name)
-        existing = await db.scalar(
-            select(SmartContract).where(SmartContract.address == addr)
-        )
-        if not existing:
-            contract = SmartContract(
-                name=name,
-                address=addr,
-                abi=BUILTIN_ABIS[name],
-                rules={k: str(v) if isinstance(v, Decimal) else v
-                       for k, v in BUILTIN_RULES.get(name, {}).items()},
-                state={"initialized_at": datetime.now(timezone.utc).isoformat()},
-                is_builtin=True,
-                description=f"VIT built-in {name} contract",
-                version="1.0.0",
+    with db.no_autoflush:
+        for name in BUILTIN_CONTRACTS:
+            addr = _contract_address(name)
+            existing = await db.scalar(
+                select(SmartContract).where(SmartContract.address == addr)
             )
-            db.add(contract)
-            created += 1
+            if not existing:
+                contract = SmartContract(
+                    name=name,
+                    address=addr,
+                    abi=BUILTIN_ABIS[name],
+                    rules={k: str(v) if isinstance(v, Decimal) else v
+                           for k, v in BUILTIN_RULES.get(name, {}).items()},
+                    state={"initialized_at": datetime.now(timezone.utc).isoformat()},
+                    is_builtin=True,
+                    description=f"VIT built-in {name} contract",
+                    version="1.0.0",
+                )
+                db.add(contract)
+                created += 1
     if created:
         await db.commit()
     return created

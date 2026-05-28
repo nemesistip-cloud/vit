@@ -76,10 +76,10 @@ class AIAgentRegistration(Base):
     )
     version: Mapped[str] = mapped_column(String(30), default="1.0.0")
     is_builtin: Mapped[bool] = mapped_column(default=False)
-    registered_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    registered_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     last_active_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
     performance_records: Mapped[list["AgentPerformanceRecord"]] = relationship(
@@ -112,7 +112,7 @@ class AgentPerformanceRecord(Base):
     )
     proof_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    recorded_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    recorded_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     agent: Mapped["AIAgentRegistration"] = relationship(
         back_populates="performance_records"
@@ -130,7 +130,7 @@ class AgentCredential(Base):
     credential_hash: Mapped[str] = mapped_column(String(66))
     issued_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     status: Mapped[CredentialStatus] = mapped_column(default=CredentialStatus.VALID)
-    issued_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    issued_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     revoked_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -152,7 +152,7 @@ class AgentPaymentRoute(Base):
     total_routed: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     agent: Mapped["AIAgentRegistration"] = relationship(
         back_populates="payment_routes"
@@ -160,4 +160,4 @@ class AgentPaymentRoute(Base):
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)

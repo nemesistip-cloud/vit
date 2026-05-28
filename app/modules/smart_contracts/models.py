@@ -47,9 +47,9 @@ class SmartContract(Base):
     vit_locked: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_builtin: Mapped[bool] = mapped_column(default=False)
-    deployed_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    deployed_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
     calls: Mapped[list["ContractCall"]] = relationship(
@@ -78,7 +78,7 @@ class ContractCall(Base):
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tx_hash: Mapped[str] = mapped_column(String(66), unique=True)
     block_number: Mapped[int] = mapped_column(default=0)
-    called_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    called_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     contract: Mapped["SmartContract"] = relationship(back_populates="calls")
 
@@ -98,7 +98,7 @@ class ContractEvent(Base):
     data: Mapped[dict] = mapped_column(JSON, default=dict)
     log_index: Mapped[int] = mapped_column(default=0)
     block_number: Mapped[int] = mapped_column(default=0)
-    emitted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    emitted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     contract: Mapped["SmartContract"] = relationship(back_populates="events")
 
@@ -121,9 +121,9 @@ class ContractUpgrade(Base):
     migration_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     approved: Mapped[bool] = mapped_column(default=False)
     executed: Mapped[bool] = mapped_column(default=False)
-    proposed_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    proposed_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     executed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)

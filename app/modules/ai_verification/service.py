@@ -48,24 +48,25 @@ def _compute_proof_hash(input_hash: str, output_hash: str, model_id: str, ts: st
 
 async def bootstrap_model_registry(db: AsyncSession) -> int:
     created = 0
-    for m in BUILTIN_MODELS:
-        existing = await db.scalar(
-            select(AIModelAttestation).where(AIModelAttestation.model_id == m["model_id"])
-        )
-        if not existing:
-            cap_hash = "0x" + hashlib.sha3_256(
-                f"{m['model_id']}:{m['version']}".encode()
-            ).hexdigest()
-            attestation = AIModelAttestation(
-                model_id=m["model_id"],
-                model_name=m["name"],
-                provider=m["provider"],
-                version=m["version"],
-                capability_hash=cap_hash,
-                is_active=True,
+    with db.no_autoflush:
+        for m in BUILTIN_MODELS:
+            existing = await db.scalar(
+                select(AIModelAttestation).where(AIModelAttestation.model_id == m["model_id"])
             )
-            db.add(attestation)
-            created += 1
+            if not existing:
+                cap_hash = "0x" + hashlib.sha3_256(
+                    f"{m['model_id']}:{m['version']}".encode()
+                ).hexdigest()
+                attestation = AIModelAttestation(
+                    model_id=m["model_id"],
+                    model_name=m["name"],
+                    provider=m["provider"],
+                    version=m["version"],
+                    capability_hash=cap_hash,
+                    is_active=True,
+                )
+                db.add(attestation)
+                created += 1
     if created:
         await db.commit()
     return created

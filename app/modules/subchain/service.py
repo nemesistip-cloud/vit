@@ -51,26 +51,27 @@ def _state_root(chain_id: str, block_number: int) -> str:
 
 async def bootstrap_subchains(db: AsyncSession) -> int:
     created = 0
-    for cfg in BUILTIN_CHAINS:
-        existing = await db.scalar(
-            select(SubChain).where(SubChain.chain_type == cfg["chain_type"])
-        )
-        if not existing:
-            genesis = _genesis_hash(cfg["chain_id"])
-            chain = SubChain(
-                chain_type=cfg["chain_type"],
-                name=cfg["name"],
-                chain_id=cfg["chain_id"],
-                status=SubChainStatus.ACTIVE,
-                tps_target=cfg["tps_target"],
-                block_time_ms=cfg["block_time_ms"],
-                genesis_hash=genesis,
-                latest_block_hash=genesis,
-                description=f"VIT {cfg['chain_type'].value} sub-chain",
-                config=json.dumps({"consensus": "vit-dpos", "finality": "bft"}),
+    with db.no_autoflush:
+        for cfg in BUILTIN_CHAINS:
+            existing = await db.scalar(
+                select(SubChain).where(SubChain.chain_type == cfg["chain_type"])
             )
-            db.add(chain)
-            created += 1
+            if not existing:
+                genesis = _genesis_hash(cfg["chain_id"])
+                chain = SubChain(
+                    chain_type=cfg["chain_type"],
+                    name=cfg["name"],
+                    chain_id=cfg["chain_id"],
+                    status=SubChainStatus.ACTIVE,
+                    tps_target=cfg["tps_target"],
+                    block_time_ms=cfg["block_time_ms"],
+                    genesis_hash=genesis,
+                    latest_block_hash=genesis,
+                    description=f"VIT {cfg['chain_type'].value} sub-chain",
+                    config=json.dumps({"consensus": "vit-dpos", "finality": "bft"}),
+                )
+                db.add(chain)
+                created += 1
     if created:
         await db.commit()
     return created

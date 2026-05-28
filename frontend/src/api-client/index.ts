@@ -26,14 +26,14 @@ export const API = {
   ticketMarkets: "/api/history/ticket/markets",
   ticketCandidates: "/api/history/ticket/candidates",
   ticketBuild: "/api/history/ticket/build",
-  analyticsMyStats: "/analytics/my",
+  analyticsMyStats: "/api/analytics/my",
   training: {
     // Real ML training pipeline (app/api/routes/training.py, prefix `/training`)
-    jobs: "/training/jobs",
-    upload: "/training/dataset/upload",
-    progress: (id: string) => `/training/progress/${id}`,
-    promote: "/training/promote",
-    rollback: "/training/rollback",
+    jobs: "/api/training/jobs",
+    upload: "/api/training/dataset/upload",
+    progress: (id: string) => `/api/training/progress/${id}`,
+    promote: "/api/training/promote",
+    rollback: "/api/training/rollback",
     // Module D dataset-scoring helper (app/modules/training/routes.py, prefix `/api/training`)
     score: "/api/training/score",
     prompt: (id: string) => `/api/training/prompt/${id}`,
@@ -73,18 +73,18 @@ export const API = {
   adminAccumulatorPlaceBet: "/api/admin/accumulator/place-bet",
   adminAccumulatorSend: "/api/admin/accumulator/send",
   // Analytics endpoints
-  analyticsRoi: "/analytics/roi",
-  analyticsClv: "/analytics/clv",
+  analyticsRoi: "/api/analytics/roi",
+  analyticsClv: "/api/analytics/clv",
   // AI endpoints
-  aiPerformance: "/ai/performance",
-  aiReport: "/ai/report",
+  aiPerformance: "/api/ai/performance",
+  aiReport: "/api/ai/report",
   // Odds endpoints
-  oddsInjuries: "/odds/injuries",
-  oddsAuditLog: "/odds/audit-log",
+  oddsInjuries: "/api/odds/injuries",
+  oddsAuditLog: "/api/odds/audit-log",
   // AI Feed
-  aiFeedConsensus: "/ai-feed/consensus",
+  aiFeedConsensus: "/api/ai-feed/consensus",
   // Audit
-  auditLogs: "/audit/logs",
+  auditLogs: "/api/audit/logs",
   // Exports
   exportPredictionsCsv: "/api/exports/predictions/csv",
   exportWalletCsv: "/api/exports/wallet/csv",
