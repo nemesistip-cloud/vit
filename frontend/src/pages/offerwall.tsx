@@ -51,6 +51,15 @@ const _DIFFICULTY_COLOUR: Record<string, string> = {
   hard: "text-red-400 border-red-400/30",
 };
 
+
+const EXTERNAL_PROVIDERS = [
+  { id:"ayet",    name:"Ayet Studios",  icon:"🎮", color:"#f59e0b", desc:"Complete offers & surveys for VITCoin",  rate:"Up to 50 VIT/offer" },
+  { id:"tapjoy",  name:"Tapjoy",        icon:"📱", color:"#10b981", desc:"Install apps and complete challenges",   rate:"Up to 30 VIT/install" },
+  { id:"revu",    name:"RevU",          icon:"📊", color:"#6366f1", desc:"Market research & consumer surveys",    rate:"5–20 VIT/survey" },
+  { id:"bitlabs", name:"BitLabs",       icon:"💡", color:"#ec4899", desc:"Premium targeted surveys",              rate:"10–40 VIT/survey" },
+  { id:"cpx",     name:"CPX Research",  icon:"🔬", color:"#06b6d4", desc:"Academic & consumer research panels",  rate:"5–25 VIT/survey" },
+];
+
 function OfferCard({
   offer,
   onClaim,
@@ -67,7 +76,7 @@ function OfferCard({
 
   return (
     <Card
-      className={`border-border/50 hover:border-primary/40 transition-colors ${
+      className={`rounded-2xl border-border/50 hover:border-primary/50 transition-all hover:shadow-xl bg-card/60 backdrop-blur-md ${
         isCompleted ? "opacity-60" : ""
       }`}
     >
@@ -126,6 +135,35 @@ function OfferCard({
             </Button>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+function ProviderCard({ provider }: { provider: typeof EXTERNAL_PROVIDERS[0] }) {
+  return (
+    <Card className="border-border/50 hover:border-primary/40 transition-all hover:shadow-lg group overflow-hidden bg-card/40 backdrop-blur-sm">
+      <CardContent className="p-4 flex items-center gap-4">
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-inner shrink-0"
+          style={{ backgroundColor: `${provider.color}20`, border: `1px solid ${provider.color}40` }}
+        >
+          {provider.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-mono font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+            {provider.name}
+          </h3>
+          <p className="text-[10px] text-muted-foreground font-mono truncate">{provider.desc}</p>
+          <div className="flex items-center gap-1.5 mt-1">
+            <Coins className="w-3 h-3 text-yellow-400" />
+            <span className="text-[10px] font-mono text-yellow-500 font-bold">{provider.rate}</span>
+          </div>
+        </div>
+        <Button size="sm" variant="outline" className="h-8 font-mono text-[10px] uppercase border-primary/20 hover:bg-primary/10">
+          Open
+        </Button>
       </CardContent>
     </Card>
   );
@@ -256,6 +294,20 @@ export default function OfferwallPage() {
       </div>
 
       {/* Offer catalog */}
+
+      {/* External Offerwalls */}
+      <div>
+        <h2 className="text-sm font-mono font-semibold mb-3 flex items-center gap-2">
+          <Zap className="w-4 h-4 text-primary" />
+          Partner Offer Walls
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {EXTERNAL_PROVIDERS.map((p) => (
+            <ProviderCard key={p.id} provider={p} />
+          ))}
+        </div>
+      </div>
+
       <div>
         <h2 className="text-sm font-mono font-semibold mb-3 flex items-center gap-2">
           <Gift className="w-4 h-4 text-primary" />

@@ -101,9 +101,32 @@ async def run_multi_ai(
     missing_sources = [source for source in sources if source not in results]
 
     if missing_sources:
-        tasks = [_call_provider(s, kwargs) for s in missing_sources]
-        results_list = await asyncio.gather(*tasks, return_exceptions=False)
-        results.update({r["source"]: r for r in results_list})
+        # Wrap each provider call in a timeout to prevent slow APIs from hanging the entire request
+        # We use a 12s timeout per provider.
+        tasks = [asyncio.wait_for(_call_provider(s, kwargs), timeout=12.0) for s in missing_sources]
+        results_list = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for i, r in enumerate(results_list):
+            requested_source = missing_sources[i]
+            if isinstance(r, asyncio.TimeoutError):
+                logger.warning(f"[multi-ai] Provider {requested_source} timed out after 12s")
+                results[requested_source] = {
+                    "available": False,
+                    "source": requested_source,
+                    "label": PROVIDER_LABELS.get(requested_source, requested_source),
+                    "error": "Request timed out after 12s",
+                }
+            elif isinstance(r, Exception):
+                logger.error(f"[multi-ai] Provider {requested_source} failed with exception: {r}")
+                results[requested_source] = {
+                    "available": False,
+                    "source": requested_source,
+                    "label": PROVIDER_LABELS.get(requested_source, requested_source),
+                    "error": str(r),
+                }
+            else:
+                # Successfully returned a result dict
+                results[requested_source] = r
 
     # ── Deterministic fallback: ensure at least one result is available ───────
     # If every LLM provider failed or is cooling down, inject the statistical
