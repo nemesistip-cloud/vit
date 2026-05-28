@@ -244,7 +244,7 @@ function DashboardTab() {
                 <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
               </div>
               <div className={`text-2xl sm:text-3xl font-bold font-mono tabular-nums ${k.valueCls}`}>
-                {sLoading ? "—" : k.value.toLocaleString()}
+                {sLoading ? "—" : (typeof k.value === "number" ? k.value.toLocaleString() : (k.value ?? "—"))}
               </div>
               <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">{k.label}</div>
             </div>
