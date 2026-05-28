@@ -84,10 +84,12 @@ export function BetSlipPanel() {
   const [open, setOpen]   = useState(false);
   const [stake, setStake] = useState("100");
 
-  // Register dispatch globally so addToBetSlip() works from anywhere
-  // (use useEffect would cause React warnings; assigning in render is safe here
-  //  because dispatch is stable across renders)
-  _dispatch = dispatch;
+  // Register dispatch globally so addToBetSlip() works from anywhere.
+  // dispatch from useReducer is referentially stable, so this runs exactly once.
+  useEffect(() => {
+    _dispatch = dispatch;
+    return () => { _dispatch = null as any; };
+  }, [dispatch]);
 
   const combinedOdds = useMemo(
     () => items.reduce((acc, i) => acc * i.odds, 1),

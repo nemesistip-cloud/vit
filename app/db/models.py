@@ -16,6 +16,9 @@ class Match(Base):
     kickoff_time = Column(DateTime, nullable=False)
     status = Column(String, default="scheduled")
 
+    # Sport type: football | basketball | tennis | cricket | american_football | baseball | ice_hockey | mma | formula1 | rugby
+    sport = Column(String(32), default="football", nullable=True, index=True)
+
     # Provenance: where this fixture came from
     # values: manual_upload | footballdata | odds_api | sportmonks | api_football
     #         | user_csv | seed | synthetic | unknown

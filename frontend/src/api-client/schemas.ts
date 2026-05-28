@@ -21,8 +21,10 @@ export interface Match {
   home_team: string;
   away_team: string;
   league: string;
+  league_key?: string;
   kickoff_time: string;
   status?: string;
+  sport?: string | null;
   home_goals?: number | null;
   away_goals?: number | null;
   home_prob?: number | null;

@@ -216,7 +216,11 @@ function JobRow({ job }: { job: TrainingJobRow }) {
   // SSE subscription for live progress on running/queued jobs
   useEffect(() => {
     if (!isRunning) return;
-    const es = new EventSource(API.training.progress(job.job_id));
+    const token = localStorage.getItem("vit_token");
+    const url = token
+      ? `${API.training.progress(job.job_id)}?access_token=${encodeURIComponent(token)}`
+      : API.training.progress(job.job_id);
+    const es = new EventSource(url);
     es.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);

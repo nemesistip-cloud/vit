@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Key, Copy, Trash2, EyeOff, Code2, Loader2, CheckCircle2, AlertCircle, BookOpen } from "lucide-react";
+import { Key, Copy, Trash2, EyeOff, Code2, Loader2, CheckCircle2, AlertCircle, BookOpen, GitBranch, GitPullRequest, GitCommit, UploadCloud, RefreshCw } from "lucide-react";
 
 interface APIKey {
   id: number;
@@ -80,7 +80,8 @@ export default function DeveloperPage() {
   const [newKeyName, setNewKeyName] = useState("");
   const [newKeyPlan, setNewKeyPlan] = useState("free");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"keys" | "usage" | "docs">("keys");
+  const [activeTab, setActiveTab] = useState<"keys" | "usage" | "docs" | "git">("keys");
+  const [commitMsg, setCommitMsg] = useState("chore: platform update via VIT dashboard");
 
   const { data: keys = [] } = useQuery<APIKey[]>({
     queryKey: ["dev-keys"],
@@ -107,6 +108,37 @@ export default function DeveloperPage() {
     queryKey: ["dev-docs"],
     queryFn: () => apiGet<DocsData>("/api/developer/docs"),
     enabled: activeTab === "docs",
+  });
+
+  interface GitStatus {
+    branch: string; dirty_files: string; remote_url: string;
+    commits_ahead: number; commits_behind: number; recent_log: string; is_clean: boolean;
+  }
+  interface GitResult { success: boolean; output: string; errors: string; }
+
+  const { data: gitStatus, refetch: refetchGit, isFetching: gitFetching } = useQuery<GitStatus>({
+    queryKey: ["dev-git-status"],
+    queryFn: () => apiGet<GitStatus>("/api/developer/git/status"),
+    enabled: activeTab === "git",
+    refetchInterval: activeTab === "git" ? 30_000 : false,
+  });
+
+  const pullMutation = useMutation({
+    mutationFn: () => apiPost<GitResult>("/api/developer/git/pull", {}),
+    onSuccess: (r) => {
+      if (r.success) toast.success("Pull succeeded"); else toast.error(r.errors || "Pull failed");
+      qc.invalidateQueries({ queryKey: ["dev-git-status"] });
+    },
+    onError: () => toast.error("Pull request failed"),
+  });
+
+  const pushMutation = useMutation({
+    mutationFn: () => apiPost<GitResult>("/api/developer/git/push", { message: commitMsg }),
+    onSuccess: (r) => {
+      if (r.success) toast.success("Push succeeded"); else toast.error(r.errors || "Push failed");
+      qc.invalidateQueries({ queryKey: ["dev-git-status"] });
+    },
+    onError: () => toast.error("Push request failed"),
   });
 
   const createMutation = useMutation({
@@ -153,6 +185,7 @@ export default function DeveloperPage() {
     { key: "keys",  label: "API Keys",      icon: Key },
     { key: "usage", label: "Usage Logs",    icon: Code2 },
     { key: "docs",  label: "Documentation", icon: BookOpen },
+    { key: "git",   label: "Git Sync",      icon: GitBranch },
   ] as const;
 
   return (
@@ -447,6 +480,145 @@ export default function DeveloperPage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Git Sync Tab ──────────────────────────────────────────────────── */}
+      {activeTab === "git" && (
+        <div className="space-y-4">
+          {/* Status card */}
+          <Card className="border border-border">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-primary" />
+                  Repository Status
+                </CardTitle>
+                <Button size="sm" variant="ghost" onClick={() => refetchGit()} disabled={gitFetching}>
+                  <RefreshCw className={`w-3.5 h-3.5 ${gitFetching ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {gitStatus ? (
+                <>
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <GitBranch className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-muted-foreground">Branch:</span>
+                      <span className="font-bold text-foreground">{gitStatus.branch}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${gitStatus.is_clean ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400"}`}>
+                        {gitStatus.is_clean ? "✓ Clean" : "⚠ Dirty"}
+                      </span>
+                    </div>
+                    {gitStatus.commits_behind > 0 && (
+                      <Badge variant="outline" className="font-mono text-xs text-yellow-400 border-yellow-500/30">
+                        {gitStatus.commits_behind} behind remote
+                      </Badge>
+                    )}
+                    {gitStatus.commits_ahead > 0 && (
+                      <Badge variant="outline" className="font-mono text-xs text-primary border-primary/30">
+                        {gitStatus.commits_ahead} ahead remote
+                      </Badge>
+                    )}
+                  </div>
+                  {gitStatus.remote_url && (
+                    <p className="text-xs text-muted-foreground font-mono truncate">{gitStatus.remote_url}</p>
+                  )}
+                  {gitStatus.dirty_files && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1 font-mono uppercase">Modified files</p>
+                      <pre className="text-xs font-mono bg-muted/30 p-2 rounded border border-border overflow-x-auto max-h-24">
+                        {gitStatus.dirty_files}
+                      </pre>
+                    </div>
+                  )}
+                  {gitStatus.recent_log && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1 font-mono uppercase flex items-center gap-1.5">
+                        <GitCommit className="w-3 h-3" />Recent commits
+                      </p>
+                      <pre className="text-xs font-mono bg-muted/30 p-2 rounded border border-border overflow-x-auto max-h-28">
+                        {gitStatus.recent_log}
+                      </pre>
+                    </div>
+                  )}
+                </>
+              ) : gitFetching ? (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm py-4 justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading git status…
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-2">Could not load git status. Ensure the repo is initialized.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pull */}
+          <Card className="border border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <GitPullRequest className="w-4 h-4 text-cyan-400" />
+                Pull from Remote
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">
+                Fetch and rebase the latest changes from the remote branch into the current branch.
+              </p>
+              <Button
+                onClick={() => pullMutation.mutate()}
+                disabled={pullMutation.isPending}
+                variant="outline"
+                className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-400 font-mono"
+              >
+                {pullMutation.isPending ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <GitPullRequest className="w-3.5 h-3.5 mr-2" />}
+                git pull --rebase
+              </Button>
+              {pullMutation.data && (
+                <pre className={`mt-3 text-xs font-mono p-2 rounded border overflow-x-auto max-h-32 ${pullMutation.data.success ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400"}`}>
+                  {pullMutation.data.output || pullMutation.data.errors || "(no output)"}
+                </pre>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Push */}
+          <Card className="border border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <UploadCloud className="w-4 h-4 text-primary" />
+                Commit &amp; Push
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Stage all changes, commit with the message below, and push to origin.
+              </p>
+              <Input
+                value={commitMsg}
+                onChange={(e) => setCommitMsg(e.target.value)}
+                placeholder="Commit message…"
+                className="font-mono text-sm"
+              />
+              <Button
+                onClick={() => pushMutation.mutate()}
+                disabled={pushMutation.isPending || !commitMsg.trim()}
+                className="font-mono"
+              >
+                {pushMutation.isPending ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5 mr-2" />}
+                Commit &amp; Push
+              </Button>
+              {pushMutation.data && (
+                <pre className={`text-xs font-mono p-2 rounded border overflow-x-auto max-h-32 ${pushMutation.data.success ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400"}`}>
+                  {pushMutation.data.output || pushMutation.data.errors || "(no output)"}
+                </pre>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -55,6 +55,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("vit:logout", handle);
   }, [setLocation]);
 
+  useEffect(() => {
+    if (user && user.id) {
+      import("@/lib/websocket").then(({ vitWS }) => {
+        vitWS.connect(user.id);
+      });
+    } else {
+      import("@/lib/websocket").then(({ vitWS }) => {
+        vitWS.disconnect();
+      });
+    }
+  }, [user]);
+
   const login = (newToken: string, refreshToken?: string) => {
     localStorage.setItem("vit_token", newToken);
     if (refreshToken) localStorage.setItem("vit_refresh_token", refreshToken);

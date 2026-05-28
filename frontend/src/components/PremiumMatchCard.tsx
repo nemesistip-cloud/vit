@@ -42,11 +42,16 @@ function SourceBadge({ source }: { source?: string }) {
 // ── Match quality grade ───────────────────────────────────────────────
 
 function getQualityGrade(confidence: number, modelConsensus?: any) {
-  const agrPct = modelConsensus?.agreement_pct ?? 0;
+  // When model_consensus is absent (predictions not yet run through the full
+  // ensemble) default agreement to 50 — a neutral baseline — so that grade is
+  // driven primarily by confidence rather than always bottoming out at D.
+  const agrPct = modelConsensus?.agreement_pct ?? 50;
   const score = confidence * 0.6 + (agrPct / 100) * 0.4;
-  if (score >= 0.75) return { grade: "A", color: "text-green-400", bg: "bg-green-400/10 border-green-400/30", label: "High Quality" };
-  if (score >= 0.65) return { grade: "B", color: "text-primary", bg: "bg-primary/10 border-primary/30", label: "Good Quality" };
-  if (score >= 0.55) return { grade: "C", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", label: "Fair Quality" };
+  // Thresholds are calibrated for football predictions where confidence
+  // typically ranges 0.45–0.75 and agreement 50–80 %.
+  if (score >= 0.70) return { grade: "A", color: "text-green-400", bg: "bg-green-400/10 border-green-400/30", label: "High Quality" };
+  if (score >= 0.58) return { grade: "B", color: "text-primary", bg: "bg-primary/10 border-primary/30", label: "Good Quality" };
+  if (score >= 0.48) return { grade: "C", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", label: "Fair Quality" };
   return { grade: "D", color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/30", label: "Low Quality" };
 }
 
@@ -122,10 +127,39 @@ function ProbBar({ label, prob, color = "bg-primary", teamName }: {
       <div className="h-0.5 w-full bg-muted/30 rounded-full mt-1 overflow-hidden">
         <div
           className={`h-full ${color} rounded-full transition-all duration-700`}
-          style={{ width: `${Math.max(4, prob * 100)}%` }}
+          style={{ width: `${Math.max(0, prob * 100)}%` }}
         />
       </div>
     </div>
+  );
+}
+
+// ── Sport label badge ─────────────────────────────────────────────────
+
+const SPORT_META: Record<string, { label: string; cls: string }> = {
+  basketball:        { label: "🏀 Basketball",        cls: "border-orange-500/40 text-orange-400" },
+  tennis:            { label: "🎾 Tennis",             cls: "border-yellow-500/40 text-yellow-400" },
+  american_football: { label: "🏈 NFL/Football",       cls: "border-red-500/40 text-red-400" },
+  baseball:          { label: "⚾ Baseball",            cls: "border-blue-400/40 text-blue-400" },
+  ice_hockey:        { label: "🏒 Ice Hockey",          cls: "border-cyan-400/40 text-cyan-400" },
+  cricket:           { label: "🏏 Cricket",             cls: "border-green-500/40 text-green-400" },
+  mma:               { label: "🥊 MMA/UFC",             cls: "border-red-600/40 text-red-500" },
+  formula1:          { label: "🏎 Formula 1",           cls: "border-red-400/40 text-red-300" },
+  rugby:             { label: "🏉 Rugby",               cls: "border-emerald-500/40 text-emerald-400" },
+};
+
+function SportBadge({ sport }: { sport?: string | null }) {
+  if (!sport || sport === "football") return null;
+  const meta = SPORT_META[sport];
+  if (!meta) return (
+    <span className="inline-flex items-center border rounded px-1.5 py-0.5 text-[9px] font-mono border-muted/40 text-muted-foreground">
+      {sport.replace(/_/g, " ")}
+    </span>
+  );
+  return (
+    <span className={`inline-flex items-center border rounded px-1.5 py-0.5 text-[9px] font-mono ${meta.cls}`}>
+      {meta.label}
+    </span>
   );
 }
 
@@ -164,7 +198,7 @@ function ConfidenceMeter({ confidence, risk }: { confidence: number; risk: numbe
 // ── AI Insight Panel ─────────────────────────────────────────────────
 
 function AIInsightPanel({ match }: { match: any }) {
-  const confidence = match.confidence ?? match.avg_1x2_confidence ?? 0.65;
+  const confidence = match.confidence ?? match.avg_1x2_confidence ?? null;
   const edge = match.edge;
   const betSide = match.bet_side;
   const overProb = match.over_25_prob;
@@ -307,8 +341,10 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
   const [showPredict, setShowPredict] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
 
-  const confidence = match.confidence ?? match.avg_1x2_confidence ?? 0.65;
-  const risk = Math.max(0, 1 - confidence);
+  const confidence = match.confidence ?? match.avg_1x2_confidence ?? null;
+  const confidenceVal = confidence ?? 0.5;
+  const risk = Math.max(0, 1 - confidenceVal);
+  const hasDraw = !match.sport || match.sport === "football";
   const homeProb = match.home_prob ?? match.model_consensus_probs?.home ?? 0;
   const drawProb = match.draw_prob ?? match.model_consensus_probs?.draw ?? 0;
   const awayProb = match.away_prob ?? match.model_consensus_probs?.away ?? 0;
@@ -322,7 +358,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
   const isLive = statusRaw === "live" || statusRaw === "in_play" || statusRaw === "playing" || isLiveByTime;
   const isUpcoming = !isSettled && !isLive && Number.isFinite(kickoffMs) && kickoffMs > nowMs;
 
-  const quality = getQualityGrade(confidence, match.model_consensus);
+  const quality = getQualityGrade(confidenceVal, match.model_consensus);
 
   // Odds from bookmaker data
   const homeOdds = match.odds?.home ?? match.home_odds;
@@ -369,8 +405,8 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
 
       <Card className={`
         bg-card/50 backdrop-blur border-border h-full flex flex-col
-        transition-all duration-200 group
-        hover:-translate-y-0.5
+        transition-all duration-300 group rounded-2xl
+        hover:-translate-y-1.5 hover:shadow-2xl
         ${isLive
           ? "border-green-500/40 hover:border-green-400/60 hover:shadow-[0_4px_24px_rgba(74,222,128,0.12)]"
           : "hover:border-primary/50 hover:shadow-[0_4px_20px_rgba(0,245,255,0.08)]"
@@ -398,9 +434,12 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
             {/* ── Header ──────────────────────────────────── */}
             <div className="p-4 border-b border-border/50">
               <div className="flex justify-between items-start mb-3">
-                <Badge variant="outline" className="font-mono text-[10px] border-primary/20 text-muted-foreground max-w-[140px] truncate">
-                  {match.league?.replace(/_/g, " ")}
-                </Badge>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Badge variant="outline" className="font-mono text-[10px] border-primary/20 text-muted-foreground max-w-[120px] truncate">
+                    {match.league?.replace(/_/g, " ")}
+                  </Badge>
+                  <SportBadge sport={(match as any).sport} />
+                </div>
                 <div className="flex items-center gap-1.5">
                   {/* Quality grade */}
                   <span className={`inline-flex items-center border rounded px-1.5 py-0.5 text-[9px] font-mono font-bold leading-none ${quality.bg} ${quality.color}`}
@@ -474,30 +513,39 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
             </div>
 
             {/* ── Probability row ──────────────────────── */}
-            <div className="grid grid-cols-3 gap-px bg-border/30">
-              <ProbBar label="Home" prob={homeProb} color="bg-primary" teamName={homeProb >= awayProb && homeProb >= drawProb ? match.home_team : undefined} />
-              <ProbBar label="Draw" prob={drawProb} color="bg-yellow-400" />
-              <ProbBar label="Away" prob={awayProb} color="bg-orange-500" teamName={awayProb > homeProb && awayProb > drawProb ? match.away_team : undefined} />
+            <div className={`grid gap-px bg-border/30 ${hasDraw ? "grid-cols-3" : "grid-cols-2"}`}>
+              <ProbBar label="Home" prob={homeProb} color="bg-primary" teamName={homeProb >= awayProb && (!hasDraw || homeProb >= drawProb) ? match.home_team : undefined} />
+              {hasDraw && <ProbBar label="Draw" prob={drawProb} color="bg-yellow-400" />}
+              <ProbBar label="Away" prob={awayProb} color="bg-orange-500" teamName={awayProb > homeProb && (!hasDraw || awayProb > drawProb) ? match.away_team : undefined} />
             </div>
 
             {/* ── Confidence + risk meters ──────────────── */}
             <div className="p-4 border-t border-border/50 bg-card/20">
-              <ConfidenceMeter confidence={confidence} risk={risk} />
+              <ConfidenceMeter confidence={confidenceVal} risk={risk} />
 
               {/* Quick stats */}
               <div className="grid grid-cols-3 gap-2 mt-3">
                 <div className="text-center">
-                  <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">O2.5</div>
+                  <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">{hasDraw ? "O2.5" : "Over"}</div>
                   <div className={`text-xs font-mono font-bold ${match.over_25_prob != null && match.over_25_prob > 0.5 ? "text-green-400" : "text-foreground"}`}>
                     {match.over_25_prob != null ? `${(match.over_25_prob * 100).toFixed(0)}%` : "—"}
                   </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">BTTS</div>
-                  <div className={`text-xs font-mono font-bold ${match.btts_prob != null && match.btts_prob > 0.5 ? "text-green-400" : "text-foreground"}`}>
-                    {match.btts_prob != null ? `${(match.btts_prob * 100).toFixed(0)}%` : "—"}
+                {hasDraw ? (
+                  <div className="text-center">
+                    <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">BTTS</div>
+                    <div className={`text-xs font-mono font-bold ${match.btts_prob != null && match.btts_prob > 0.5 ? "text-green-400" : "text-foreground"}`}>
+                      {match.btts_prob != null ? `${(match.btts_prob * 100).toFixed(0)}%` : "—"}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-center">
+                    <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">Conf</div>
+                    <div className={`text-xs font-mono font-bold ${confidence != null ? "text-primary" : "text-muted-foreground"}`}>
+                      {confidence != null ? `${(confidence * 100).toFixed(0)}%` : "—"}
+                    </div>
+                  </div>
+                )}
                 <div className="text-center">
                   <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">Kelly</div>
                   <div className="text-xs font-mono font-bold text-foreground">

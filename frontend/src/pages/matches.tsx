@@ -13,6 +13,7 @@ import { Search, Zap, Clock, RefreshCw, CalendarDays, Radio, Info, Activity } fr
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
+import { vitWS } from "@/lib/websocket";
 
 const DAY_OPTIONS = [
   { value: "3", label: "Next 3 Days" },
@@ -69,6 +70,22 @@ export default function MatchesPage() {
       setLastRefreshed(new Date());
     }, 60_000);
     return () => clearInterval(id);
+  }, [queryClient]);
+
+  // Subscribe to live score WebSocket events — trigger a lightweight refetch
+  // when the live-match-tracker agent broadcasts a score update.
+  useEffect(() => {
+    const unsub1 = vitWS.on("live_score_update", () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/matches/live"] });
+      setLastRefreshed(new Date());
+    });
+    const unsub2 = vitWS.on("match_update", () => {
+      queryClient.invalidateQueries({ predicate: (q: any) => {
+        const k = String(q.queryKey?.[0] ?? "");
+        return k.includes("/matches");
+      }});
+    });
+    return () => { unsub1(); unsub2(); };
   }, [queryClient]);
 
   const isLoading = upcomingLoading || recentLoading || completedLoading;
@@ -220,14 +237,14 @@ export default function MatchesPage() {
           <Input
             id="match-search"
             placeholder="Search teams or league…"
-            className="pl-9 font-mono bg-card/50"
+            className="pl-10 font-mono bg-card/40 border-border/40 rounded-xl h-10 shadow-sm"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <div className="flex gap-2">
           <Select value={leagueFilter} onValueChange={setLeagueFilter}>
-            <SelectTrigger className="flex-1 font-mono bg-card/50 text-xs min-w-0">
+            <SelectTrigger className="flex-1 font-mono bg-card/40 border-border/40 rounded-xl text-xs min-w-0 shadow-sm">
               <SelectValue placeholder="All Leagues" />
             </SelectTrigger>
             <SelectContent>
@@ -238,7 +255,7 @@ export default function MatchesPage() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 font-mono bg-card/50 text-xs min-w-0">
+            <SelectTrigger className="flex-1 font-mono bg-card/40 border-border/40 rounded-xl text-xs min-w-0 shadow-sm">
               <SelectValue placeholder="All Matches" />
             </SelectTrigger>
             <SelectContent>
@@ -254,7 +271,7 @@ export default function MatchesPage() {
             </SelectContent>
           </Select>
           <Select value={daysFilter} onValueChange={setDaysFilter}>
-            <SelectTrigger className="font-mono bg-card/50 text-xs w-[120px] flex-shrink-0">
+            <SelectTrigger className="font-mono bg-card/50 text-xs w-[120px] flex-shrink-0 rounded-xl bg-card/40 border-border/40 shadow-sm">
               <CalendarDays className="w-3 h-3 mr-1 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>

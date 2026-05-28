@@ -55,7 +55,7 @@ const buildFeatures = (modelCount: number) => [
   {
     icon: Gauge,
     title: "Match Quality Rating",
-    desc: "Every prediction gets a 0–100 quality grade (A–D) based on model agreement, confidence interval width, model participation rate, and league data quality.",
+    desc: "Every prediction gets a 0–100 quality grade (A–D) based on model agreement, confidence interval width, models participation rate, and league data quality.",
     color: "text-teal-400",
     bg: "bg-teal-500/10 border-teal-500/20",
     tag: "INTELLIGENCE",
@@ -256,11 +256,11 @@ export default function LandingPage() {
 
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold font-mono tracking-tight leading-tight mb-6">
             <span className="block text-foreground">Institutional-Grade</span>
-            <span className="block vit-gradient-text">Sports Intelligence</span>
+            <span className="block vit-gradient-text">Sports Intelligence Network</span>
           </h1>
 
           <p className="text-base md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            A {modelCount}-model AI ensemble analyses every match with machine learning precision.
+            A {modelCount}-model AI ensemble analyzes every match with machine learning precision.
             Real edge. Real transparency. Real results.
           </p>
 
@@ -560,7 +560,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold font-mono mb-3">Transparent Pricing</h2>
-            <p className="text-muted-foreground">Start free. Upgrade when you're ready.</p>
+            <p className="text-muted-foreground">Start free. Upgrade when you are ready to scale.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {plans.map((plan) => (
@@ -618,7 +618,7 @@ export default function LandingPage() {
             Ready to gain the edge?
           </h2>
           <p className="text-muted-foreground mb-8 text-lg">
-            Join a live network using AI to beat the market. Free to start. No credit card required.
+            Join a live network of AI models to beat the market. Free to start. No credit card required.
           </p>
           <Link href="/register">
             <Button size="lg" className="font-mono gap-2 px-10 h-14 text-lg shadow-xl vit-glow-cyan">

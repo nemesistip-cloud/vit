@@ -745,6 +745,17 @@ async def _run_bootstrap(app, _done_event):
                             await conn.execute(text(f"ALTER TABLE model_metadata ADD COLUMN {col} {ddl}"))
                 except Exception as _mm_e:
                     print(f"⚠️  model_metadata CLV column migration skipped: {_mm_e}")
+
+                # ── matches: sport column (SQLite) ────────────────────────
+                try:
+                    match_cols = (await conn.execute(text("PRAGMA table_info(matches)"))).fetchall()
+                    match_col_names = {row[1] for row in match_cols}
+                    if "sport" not in match_col_names:
+                        await conn.execute(text(
+                            "ALTER TABLE matches ADD COLUMN sport VARCHAR(32) DEFAULT 'football'"
+                        ))
+                except Exception as _sp_e:
+                    print(f"⚠️  matches sport column migration skipped: {_sp_e}")
             else:
                 await conn.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER"))
                 await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'"))
@@ -806,6 +817,14 @@ async def _run_bootstrap(app, _done_event):
                         await conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {ddl}"))
                 except Exception as _t_e:
                     print(f"⚠️  tasks action-link column migration skipped: {_t_e}")
+
+                # ── matches: sport column ─────────────────────────────────────
+                try:
+                    await conn.execute(text(
+                        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS sport VARCHAR(32) DEFAULT 'football'"
+                    ))
+                except Exception as _sp_e:
+                    print(f"⚠️  matches sport column migration skipped: {_sp_e}")
     except Exception as _e:
         print(f"⚠️  Compatibility schema update skipped: {_e}")
 
@@ -1853,6 +1872,52 @@ async def _run_bootstrap(app, _done_event):
     if alerts and alerts.enabled:
         await alerts.send_startup_message()
 
+    # ── Telegram webhook auto-registration ────────────────────────────────────
+    # Register the bot webhook with Telegram on every startup so the /start
+    # deep-link flow works without manual curl commands.  Skipped silently when
+    # TELEGRAM_BOT_TOKEN or a resolvable public URL is absent.
+    async def _register_telegram_webhook():
+        import httpx as _httpx
+        token = get_env("TELEGRAM_BOT_TOKEN", "").strip()
+        if not token:
+            return
+
+        # Resolve the public URL: explicit config → Replit dev domain → skip
+        pub = (
+            get_env("PUBLIC_APP_URL", "").rstrip("/")
+            or get_env("REPLIT_DEV_DOMAIN", "").strip()
+        )
+        if not pub:
+            print("⚠️  Telegram webhook: PUBLIC_APP_URL not set — skipping auto-registration")
+            return
+        if not pub.startswith("http"):
+            pub = f"https://{pub}"
+
+        webhook_url = f"{pub}/api/notifications/telegram/webhook"
+        try:
+            async with _httpx.AsyncClient(timeout=10) as _hc:
+                # Check whether webhook is already pointing at the right URL
+                info = await _hc.get(f"https://api.telegram.org/bot{token}/getWebhookInfo")
+                if info.status_code == 200:
+                    current = info.json().get("result", {}).get("url", "")
+                    if current == webhook_url:
+                        print(f"✅ Telegram webhook already set: {webhook_url}")
+                        return
+
+                # Register / update the webhook
+                reg = await _hc.post(
+                    f"https://api.telegram.org/bot{token}/setWebhook",
+                    json={"url": webhook_url, "allowed_updates": ["message", "callback_query"]},
+                )
+                if reg.status_code == 200 and reg.json().get("ok"):
+                    print(f"✅ Telegram webhook registered: {webhook_url}")
+                else:
+                    print(f"⚠️  Telegram webhook registration failed: {reg.text[:200]}")
+        except Exception as _tg_err:
+            print(f"⚠️  Telegram webhook setup error: {_tg_err}")
+
+    asyncio.create_task(_register_telegram_webhook())
+
     supervised_tasks = [
         ("etl-pipeline", etl_pipeline_loop),
         ("odds-refresh", odds_refresh_loop),
@@ -1902,13 +1967,18 @@ async def _run_bootstrap(app, _done_event):
         # Prediction seeder runs after backfill completes
         try:
             from app.db.database import AsyncSessionLocal
-            from app.services.prediction_seeder import seed_predictions_for_historical
+            from app.services.prediction_seeder import seed_predictions_for_historical, seed_upcoming_predictions
             async with AsyncSessionLocal() as _db:
                 _seed = await seed_predictions_for_historical(_db, preds_per_match=3, max_matches=500)
                 if _seed.get("seeded", 0) > 0:
                     print(f"[backfill] prediction seeder: {_seed['seeded']} predictions seeded")
                 else:
                     print(f"[backfill] prediction seeder: {_seed.get('skipped', 0)} matches already seeded")
+            # Also seed predictions for upcoming unseeded matches
+            async with AsyncSessionLocal() as _db2:
+                _useed = await seed_upcoming_predictions(_db2, preds_per_match=3, max_matches=500)
+                if _useed.get("seeded", 0) > 0:
+                    print(f"[backfill] upcoming seeder: {_useed['seeded']} predictions, {_useed.get('alerts_sent', 0)} alerts")
         except Exception as _pe:
             print(f"[backfill] prediction seeder error: {_pe}")
 
@@ -1929,7 +1999,7 @@ async def _run_bootstrap(app, _done_event):
                 from app.db.database import AsyncSessionLocal
                 from app.services.sportsdb_api import sync_upcoming_fixtures
                 async with AsyncSessionLocal() as _db:
-                    _res = await sync_upcoming_fixtures(_db, days_ahead=60)
+                    _res = await sync_upcoming_fixtures(_db, days_ahead=90)
                     total_new = _res["inserted"]
                     if total_new > 0:
                         print(

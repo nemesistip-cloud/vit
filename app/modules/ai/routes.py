@@ -651,6 +651,35 @@ async def get_provider_stats(db: AsyncSession = Depends(get_db)):
     return {"providers": result, "total_providers": len(result)}
 
 
+@router.post("/metrics/collect")
+async def collect_and_persist_metrics(
+    window: int = Query(50, ge=10, le=500),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_admin),
+):
+    """Admin: compute rolling-window metrics and persist into ModelMetadata rows.
+
+    This can be triggered by a cron job or called manually from the admin UI.
+    """
+    metrics = await rolling_window_accuracy(db, window=window)
+    updated = 0
+    for m in metrics:
+        # m is a RollingMetrics dataclass-like object
+        key = m.model_key
+        row = (await db.execute(select(ModelMetadata).where(ModelMetadata.key == key))).scalar_one_or_none()
+        if not row:
+            continue
+        row.accuracy_1x2 = float(m.accuracy_1x2)
+        row.log_loss = float(m.log_loss)
+        row.brier_score = float(m.brier)
+        row.predictions_total = int(m.samples)
+        # mark accuracy if available
+        row.accuracy = float(m.accuracy_1x2)
+        updated += 1
+    await db.commit()
+    return {"updated_models": updated, "window": window}
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _audit_to_dict(r: AIPredictionAudit) -> dict:

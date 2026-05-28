@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.api.middleware.auth import verify_api_key
+from app.core.errors import AppError
 from app.services.gemini_chat import chat as gemini_chat
 
 router = APIRouter(prefix="/ai/assistant", tags=["ai-assistant"])
@@ -38,7 +39,7 @@ async def assistant_chat(
 ):
     """Send a message to the AI Assistant and receive a reply."""
     if not body.message.strip():
-        raise HTTPException(status_code=422, detail="Message cannot be empty")
+        raise AppError("Message cannot be empty", status_code=422, code="invalid_message")
 
     history_dicts = [t.model_dump() for t in (body.history or [])]
     result = await gemini_chat(
@@ -51,21 +52,30 @@ async def assistant_chat(
 
 @router.get("/status")
 async def assistant_status(_user=Depends(verify_api_key)):
-    """Report whether the assistant is available (i.e. key is configured)."""
+    """Report whether the assistant is available and which provider is configured."""
     import os
     gemini_key = bool(os.getenv("GEMINI_API_KEY", "").strip())
     claude_key  = bool(
         os.getenv("CLAUDE_API_KEY", "").strip()
         or os.getenv("ANTHROPIC_API_KEY", "").strip()
     )
-    configured = gemini_key or claude_key
-    provider   = "gemini-1.5-flash" if gemini_key else ("claude-3-haiku" if claude_key else None)
+    configured_providers = []
+    if gemini_key:
+        configured_providers.append("gemini")
+    if claude_key:
+        configured_providers.append("claude")
+
+    backend_available = len(configured_providers) > 0
+    provider = "gemini-1.5-flash" if gemini_key else ("claude-3-haiku" if claude_key else "puter-claude")
+
     return {
-        "available": configured,
-        "provider": provider or "puter-claude",
+        "available": backend_available or True,
+        "backend_ai_available": backend_available,
+        "configured_providers": configured_providers,
+        "provider": provider,
         "puter_available": True,
         "message": (
-            "Assistant ready." if configured
-            else "Assistant running via Puter (free Claude). Backend AI is also available after adding GEMINI_API_KEY."
+            "Assistant ready." if backend_available
+            else "Assistant is available through Puter. Configure GEMINI_API_KEY or CLAUDE_API_KEY for backend chat support."
         ),
     }

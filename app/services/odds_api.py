@@ -280,6 +280,44 @@ class OddsAPIClient:
         "china_super_league":       "soccer_china_superleague",
         # World
         "world_cup":                "soccer_fifa_world_cup",
+        # ── Basketball ───────────────────────────────────────
+        "nba":                      "basketball_nba",
+        "basketball_nba":           "basketball_nba",
+        "euroleague":               "basketball_euroleague",
+        "nbl":                      "basketball_nbl",
+        "ncaa_basketball":          "basketball_ncaab",
+        "wnba":                     "basketball_wnba",
+        "nba_summer":               "basketball_nba",
+        # ── Tennis ───────────────────────────────────────────
+        "atp_french_open":          "tennis_atp_french_open",
+        "atp_wimbledon":            "tennis_atp_wimbledon",
+        "atp_us_open":              "tennis_atp_us_open",
+        "atp_aus_open":             "tennis_atp_aus_open",
+        "wta_french_open":          "tennis_wta_french_open",
+        "wta_wimbledon":            "tennis_wta_wimbledon",
+        "atp_tour":                 "tennis_atp_french_open",
+        # ── American Football ─────────────────────────────────
+        "nfl":                      "americanfootball_nfl",
+        "nfl_super_bowl":           "americanfootball_nfl",
+        "ncaa_football":            "americanfootball_ncaaf",
+        "cfl":                      "americanfootball_cfl",
+        # ── Baseball ─────────────────────────────────────────
+        "mlb":                      "baseball_mlb",
+        "baseball_mlb":             "baseball_mlb",
+        "npb":                      "baseball_npb",
+        # ── Ice Hockey ───────────────────────────────────────
+        "nhl":                      "icehockey_nhl",
+        "ice_hockey_nhl":           "icehockey_nhl",
+        "ahl":                      "icehockey_ahl",
+        "khl":                      "icehockey_khl",
+        # ── MMA / Combat Sports ───────────────────────────────
+        "ufc":                      "mma_ufc",
+        "mma_ufc":                  "mma_ufc",
+        "bellator":                 "mma_bellator",
+        "boxing":                   "boxing_super",
+        # ── Rugby ─────────────────────────────────────────────
+        "rugby_premiership":        "rugbyleague_nrl",
+        "nrl":                      "rugbyleague_nrl",
     }
 
     # Preferred bookmakers in reliability order

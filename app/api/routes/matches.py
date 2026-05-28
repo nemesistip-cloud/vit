@@ -194,6 +194,7 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         "kickoff_time": m.kickoff_time.isoformat() if m.kickoff_time else None,
         "status": m.status or "upcoming",
         "source": m.source or "unknown",
+        "sport": getattr(m, "sport", None) or "football",
         "odds": {
             "home": float(odds_home) if odds_home else None,
             "draw": float(odds_draw) if odds_draw else None,
@@ -228,11 +229,12 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
 @router.get("/upcoming")
 async def get_upcoming_matches(
     league: Optional[str] = Query(None),
+    sport: Optional[str] = Query(None, description="Filter by sport: football, basketball, tennis, cricket, etc."),
     days: int = Query(14, ge=1, le=60),
     limit: int = Query(100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    _cache_key = f"matches:upcoming:{league or 'all'}:{days}:{limit}"
+    _cache_key = f"matches:upcoming:{league or 'all'}:{sport or 'all'}:{days}:{limit}"
     _cached = await cache.get(_cache_key)
     if _cached is not None:
         return _cached
@@ -251,6 +253,11 @@ async def get_upcoming_matches(
     )
     if league:
         q = q.where(Match.league.ilike(f"%{league}%"))
+    if sport:
+        if sport == "football":
+            q = q.where(or_(Match.sport == "football", Match.sport.is_(None)))
+        else:
+            q = q.where(Match.sport == sport)
     q = q.order_by(Match.kickoff_time).limit(limit)
 
     result = await db.execute(q)
@@ -353,6 +360,8 @@ async def get_live_matches(db: AsyncSession = Depends(get_db)):
 @router.get("/recent")
 async def get_recent_matches(
     limit: int = Query(50, ge=1, le=200),
+    sport: Optional[str] = Query(None, description="Filter by sport type"),
+    league: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -367,6 +376,13 @@ async def get_recent_matches(
         .order_by(Match.kickoff_time.asc())
         .limit(limit)
     )
+    if sport:
+        if sport == "football":
+            q = q.where(or_(Match.sport == "football", Match.sport.is_(None)))
+        else:
+            q = q.where(Match.sport == sport)
+    if league:
+        q = q.where(Match.league.ilike(f"%{league}%"))
     result = await db.execute(q)
     rows = result.all()
     markets = await _load_markets(db)
@@ -380,6 +396,11 @@ async def get_recent_matches(
             .order_by(Match.kickoff_time.asc())
             .limit(limit)
         )
+        if sport:
+            if sport == "football":
+                q2 = q2.where(or_(Match.sport == "football", Match.sport.is_(None)))
+            else:
+                q2 = q2.where(Match.sport == sport)
         result = await db.execute(q2)
         rows = result.all()
 

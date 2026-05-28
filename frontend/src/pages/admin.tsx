@@ -172,6 +172,20 @@ function DashboardTab() {
     onError: () => toast.error("Fixture fetch failed — check Football API key in settings"),
   });
 
+  const syncAndSeed = useMutation({
+    mutationFn: () => apiPost("/api/admin/sync-fixtures", {}),
+    onSuccess: (d: any) => {
+      const f = d.fixtures ?? {};
+      const p = d.predictions ?? {};
+      toast.success(
+        `Sync complete: +${f.inserted ?? 0} fixtures, ${p.seeded ?? 0} predictions seeded, ${p.alerts_sent ?? 0} alerts sent`
+      );
+      qc.invalidateQueries({ queryKey: ["/matches/upcoming"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
+    },
+    onError: () => toast.error("Sync failed — check server logs"),
+  });
+
   const kpis = [
     {
       label: "Total Users", value: stats?.users ?? 0, icon: Users,
@@ -230,7 +244,7 @@ function DashboardTab() {
                 <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
               </div>
               <div className={`text-2xl sm:text-3xl font-bold font-mono tabular-nums ${k.valueCls}`}>
-                {sLoading ? "—" : k.value.toLocaleString()}
+                {sLoading ? "—" : (typeof k.value === "number" ? k.value.toLocaleString() : (k.value ?? "—"))}
               </div>
               <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">{k.label}</div>
             </div>
@@ -325,6 +339,7 @@ function DashboardTab() {
               { label: "Create Backup",  icon: Database,   action: () => backup.mutate(),         cls: "from-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:border-emerald-400/60", loading: backup.isPending },
               { label: "Reload Health",  icon: Activity,   action: () => qc.invalidateQueries({ queryKey: ["admin-health"] }), cls: "from-amber-500/10 border-amber-500/20 text-amber-400 hover:border-amber-400/60",  loading: false },
               { label: "Fetch Fixtures", icon: Download,   action: () => fetchFixtures.mutate(), cls: "from-rose-500/10 border-rose-500/20 text-rose-400 hover:border-rose-400/60",         loading: fetchFixtures.isPending },
+              { label: "Sync + Seed",   icon: RefreshCw,  action: () => syncAndSeed.mutate(),   cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",          loading: syncAndSeed.isPending },
             ].map(a => (
               <button key={a.label}
                 disabled={a.loading}
@@ -2344,7 +2359,7 @@ function ModelsTab() {
   const [activeSection, setActiveSection] = useState<"engine" | "accountability" | "marketplace">("engine");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
-  const { data: modelsData, isLoading: mLoading } = useQuery<{ models: ModelInfo[] }>({
+  const { data: modelsData, isLoading: mLoading } = useQuery<{ models: ModelInfo[]; total?: number }>({
     queryKey: ["admin-models"],
     queryFn: () => apiGet("/api/admin/models/status"),
     refetchInterval: 30000,

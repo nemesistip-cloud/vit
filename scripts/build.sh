@@ -1,35 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-echo "[build] Installing Python dependencies (excluding torch to stay within disk quota)..."
-grep -v -iE '^\s*(torch|torchvision|torchaudio)\b' requirements.txt > /tmp/requirements_notorch.txt
-pip install -r /tmp/requirements_notorch.txt
+echo "[build] Installing Python dependencies..."
+pip install -r requirements.txt
 
-# Ensure node and npm are available
+# Ensure node is available
 if ! command -v node &> /dev/null; then
     echo "[build] Error: node is not installed." >&2
-    exit 1
-fi
-
-if ! command -v npm &> /dev/null; then
-    echo "[build] Error: npm is not installed." >&2
-    exit 1
+    # Use return 1 in a subshell or just let it fail naturally
+    false
 fi
 
 echo "[build] Node version: $(node -v)"
-echo "[build] NPM version: $(npm -v)"
 
 echo "[build] Installing frontend dependencies..."
 cd frontend
-# Use npm ci when package-lock.json exists, but fall back to npm install if the lockfile is out of sync.
-if [ -f "package-lock.json" ]; then
-    npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps || npm install --prefer-offline --no-audit --no-fund --legacy-peer-deps
+
+# Detect lockfiles and use appropriate package manager
+if [ -f "pnpm-lock.yaml" ]; then
+    echo "[build] Using pnpm (pnpm-lock.yaml detected)"
+    # Render should have pnpm if it detected the lockfile, but let's be safe
+    pnpm install --frozen-lockfile
+elif [ -f "package-lock.json" ]; then
+    echo "[build] Using npm ci (package-lock.json detected)"
+    npm ci --prefer-offline --no-audit --no-fund
 else
-    npm install --prefer-offline --no-audit --no-fund --legacy-peer-deps
+    echo "[build] Using npm install fallback"
+    npm install --prefer-offline --no-audit --no-fund
 fi
 
 echo "[build] Building frontend for production..."
-npm run build
+if [ -f "pnpm-lock.yaml" ]; then
+    pnpm run build
+else
+    npm run build
+fi
 cd ..
 
 echo "[build] Running database schema setup..."

@@ -1,20 +1,23 @@
-"""app/services/sportsdb_api.py — TheSportsDB free-tier client for real football data.
+"""app/services/sportsdb_api.py — TheSportsDB free-tier client for multi-sport data.
 
 TheSportsDB API (free key '3') — no auth required.
 Endpoints used:
-  eventsnextleague.php?id={league_id}      → next scheduled event per league
-  eventspastleague.php?id={league_id}      → most recent finished event per league
-  eventsday.php?d={YYYY-MM-DD}&s=Soccer    → all soccer events on a date
-  eventsseason.php?id={league_id}&s={yr}   → full season schedule per league  ← NEW
+  eventsnextleague.php?id={league_id}       → next scheduled event per league
+  eventspastleague.php?id={league_id}       → most recent finished event per league
+  eventsday.php?d={YYYY-MM-DD}&s={Sport}   → all events on a date for a sport
+  eventsseason.php?id={league_id}&s={yr}   → full season schedule per league
 
-Leagues supported (extended):
-  Premier League (4328), La Liga (4335), Bundesliga (4331),
-  Serie A (4332), Ligue 1 (4334), Champions League (4346),
-  Europa League (4375), Eredivisie (4337), Primeira Liga (4344),
-  Championship (4329), Scottish Premiership (4330),
-  Belgian Pro League (4397), MLS (4346 alt / 4399),
-  Liga MX (4350), Brasileirão (4351), Argentine Primera (4406),
-  Süper Lig (4347), Ekstraklasa (4422), Jupiler (4397)
+Leagues supported:
+  Football: Premier League (4328), La Liga (4335), Bundesliga (4331), ...
+  Basketball: NBA (4387), EuroLeague (4440)
+  Tennis: ATP Tour (4934), WTA Tour (4935)
+  American Football: NFL (4391)
+  Baseball: MLB (4424)
+  Ice Hockey: NHL (4380)
+  Cricket: IPL (4484)
+  MMA: UFC (4415)
+  Formula 1 (4370)
+  Rugby: Premiership Rugby (4305)
 """
 from __future__ import annotations
 
@@ -41,6 +44,7 @@ LEAGUES: Dict[str, int] = {
     # European club competitions
     "champions_league":     4346,
     "europa_league":        4375,
+    "conference_league":    4480,
     # Other top European leagues
     "eredivisie":           4337,
     "primeira_liga":        4344,
@@ -56,6 +60,73 @@ LEAGUES: Dict[str, int] = {
     "argentine_primera":    4406,
 }
 
+# ── Multi-sport league IDs ──────────────────────────────────────────────────
+SPORT_LEAGUES: Dict[str, Dict[str, int]] = {
+    "football": LEAGUES,
+    "basketball": {
+        "nba":              4387,
+        "euroleague":       4440,
+        "nba_gleague":      4388,
+        "nbl_australia":    4415,
+    },
+    "tennis": {
+        "atp_wimbledon":        4906,
+        "atp_us_open":          4907,
+        "atp_australian_open":  4908,
+        "atp_french_open":      4909,
+        "wta_tour":             4935,
+    },
+    "american_football": {
+        "nfl":              4391,
+        "ncaa_football":    4417,
+    },
+    "baseball": {
+        "mlb":              4424,
+        "npb":              4425,
+    },
+    "ice_hockey": {
+        "nhl":              4380,
+        "khl":              4383,
+    },
+    "cricket": {
+        "ipl":              4484,
+        "big_bash":         4614,
+        "icc_world_cup":    4509,
+    },
+    "mma": {
+        "ufc":              4415,
+    },
+    "formula1": {
+        "formula_1":        4370,
+    },
+    "rugby": {
+        "premiership_rugby": 4305,
+        "super_rugby":       4306,
+        "nrl":               4382,
+    },
+}
+
+# Map every league key → sport type (for auto-classification)
+LEAGUE_SPORT_MAP: Dict[str, str] = {
+    league_key: sport
+    for sport, leagues in SPORT_LEAGUES.items()
+    for league_key in leagues
+}
+
+# TheSportsDB sport name for eventsday.php?s=... endpoint
+TSDB_SPORT_NAMES: Dict[str, str] = {
+    "football":          "Soccer",
+    "basketball":        "Basketball",
+    "tennis":            "Tennis",
+    "american_football": "American Football",
+    "baseball":          "Baseball",
+    "ice_hockey":        "Ice Hockey",
+    "cricket":           "Cricket",
+    "mma":               "MMA",
+    "formula1":          "Motorsport",
+    "rugby":             "Rugby League",
+}
+
 # Human-readable names used for league slug → display name mapping
 LEAGUE_DISPLAY: Dict[str, str] = {
     "premier_league":       "Premier League",
@@ -65,6 +136,7 @@ LEAGUE_DISPLAY: Dict[str, str] = {
     "ligue_1":              "Ligue 1",
     "champions_league":     "Champions League",
     "europa_league":        "Europa League",
+    "conference_league":    "UEFA Conference League",
     "eredivisie":           "Eredivisie",
     "primeira_liga":        "Primeira Liga",
     "championship":         "Championship",
@@ -76,6 +148,38 @@ LEAGUE_DISPLAY: Dict[str, str] = {
     "liga_mx":              "Liga MX",
     "brasileirao":          "Brasileirão",
     "argentine_primera":    "Argentine Primera División",
+    # Basketball
+    "nba":                  "NBA",
+    "euroleague":           "EuroLeague",
+    "nba_gleague":          "NBA G League",
+    "nbl_australia":        "NBL (Australia)",
+    # Tennis
+    "atp_wimbledon":        "Wimbledon",
+    "atp_us_open":          "US Open",
+    "atp_australian_open":  "Australian Open",
+    "atp_french_open":      "French Open",
+    "wta_tour":             "WTA Tour",
+    # American Football
+    "nfl":                  "NFL",
+    "ncaa_football":        "NCAA Football",
+    # Baseball
+    "mlb":                  "MLB",
+    "npb":                  "NPB (Japan)",
+    # Ice Hockey
+    "nhl":                  "NHL",
+    "khl":                  "KHL",
+    # Cricket
+    "ipl":                  "IPL",
+    "big_bash":             "Big Bash League",
+    "icc_world_cup":        "ICC World Cup",
+    # MMA
+    "ufc":                  "UFC",
+    # Formula 1
+    "formula_1":            "Formula 1",
+    # Rugby
+    "premiership_rugby":    "Premiership Rugby",
+    "super_rugby":          "Super Rugby",
+    "nrl":                  "NRL",
 }
 
 
@@ -457,20 +561,26 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
     from sqlalchemy import select
     from app.db.models import Match
 
-    # --- Primary: fetch next events per league (upcoming-specific endpoint) ---
+    # --- Primary: full season calendar (best coverage for multi-week windows) ---
+    # fetch_season_fixtures calls eventsseason.php per league, which returns the
+    # complete schedule for the current season, filtered to the days_ahead window.
+    # This is the only way to get 200-500 upcoming matches reliably.
+    season_events = await fetch_season_fixtures(days_ahead=days_ahead)
+
+    # --- Supplement: next-events per league ---
+    # eventsnextleague.php catches near-term fixtures not yet in the season
+    # calendar (rescheduled games, cup matches) and is fast.
     next_events = await fetch_next_events()
 
-    # --- Fallback: day-by-day range only when next-events data is sparse ---
-    range_events: List[Dict] = []
-    if len(next_events) < 5:
-        range_days = min(days_ahead, 14)
-        logger.info("[sportsdb] next_events sparse (%d), falling back to day-by-day (%dd)", len(next_events), range_days)
-        range_events = await fetch_upcoming_range(days=range_days)
+    logger.info(
+        "[sportsdb] sync_upcoming: %d season + %d next_events before dedup",
+        len(season_events), len(next_events),
+    )
 
     # Merge, deduplicated by external_id then by home/away/date
     seen_keys: set = set()
     all_events: List[Dict] = []
-    for ev in next_events + range_events:
+    for ev in season_events + next_events:
         key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ev.get('kickoff_time', '')}"
         if key not in seen_keys:
             seen_keys.add(key)

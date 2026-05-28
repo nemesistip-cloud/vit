@@ -254,3 +254,98 @@ async def admin_stats(
     _:  User         = Depends(get_current_admin),
 ):
     return await svc.platform_stats(db)
+
+
+# ── Git Sync endpoints ────────────────────────────────────────────────────────
+import subprocess as _subprocess
+import os as _os
+
+def _run_git(*args: str, timeout: int = 30) -> dict:
+    """Run a git command and return stdout/stderr + exit code."""
+    gh_token = _os.getenv("GH_TOKEN", "")
+    env = {**_os.environ}
+    if gh_token:
+        env["GH_TOKEN"] = gh_token
+    try:
+        result = _subprocess.run(
+            ["git"] + list(args),
+            capture_output=True, text=True, timeout=timeout, env=env
+        )
+        return {
+            "success": result.returncode == 0,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+            "exit_code": result.returncode,
+        }
+    except _subprocess.TimeoutExpired:
+        return {"success": False, "stdout": "", "stderr": "Command timed out", "exit_code": -1}
+    except Exception as exc:
+        return {"success": False, "stdout": "", "stderr": str(exc), "exit_code": -1}
+
+
+@router.get("/git/status", summary="Git: current repo status and branch info")
+async def git_status(_: User = Depends(get_current_admin)):
+    branch_r   = _run_git("rev-parse", "--abbrev-ref", "HEAD")
+    status_r   = _run_git("status", "--short")
+    remote_r   = _run_git("remote", "get-url", "origin")
+    ahead_r    = _run_git("rev-list", "HEAD..@{u}", "--count")
+    behind_r   = _run_git("rev-list", "@{u}..HEAD", "--count")
+    log_r      = _run_git("log", "--oneline", "-5")
+    return {
+        "branch":        branch_r.get("stdout", "unknown"),
+        "dirty_files":   status_r.get("stdout", ""),
+        "remote_url":    remote_r.get("stdout", ""),
+        "commits_ahead": int(ahead_r.get("stdout", "0") or 0),
+        "commits_behind": int(behind_r.get("stdout", "0") or 0),
+        "recent_log":    log_r.get("stdout", ""),
+        "is_clean":      status_r.get("stdout", "") == "",
+    }
+
+
+@router.post("/git/pull", summary="Git: pull latest changes from remote")
+async def git_pull(_: User = Depends(get_current_admin)):
+    fetch_r  = _run_git("fetch", "origin")
+    pull_r   = _run_git("pull", "--rebase", "origin",
+                        _run_git("rev-parse", "--abbrev-ref", "HEAD").get("stdout", "main"))
+    return {
+        "success": pull_r["success"],
+        "output": (fetch_r.get("stdout", "") + "\n" + pull_r.get("stdout", "")).strip(),
+        "errors": (fetch_r.get("stderr", "") + "\n" + pull_r.get("stderr", "")).strip(),
+    }
+
+
+@router.post("/git/push", summary="Git: stage all changes and push to remote")
+async def git_push(
+    payload: dict = None,
+    _: User = Depends(get_current_admin),
+):
+    msg = (payload or {}).get("message", "chore: platform update via VIT dashboard")
+    add_r    = _run_git("add", "-A")
+    commit_r = _run_git("commit", "-m", msg)
+    push_r   = _run_git("push", "origin", "HEAD")
+    output_parts = [
+        add_r.get("stdout", ""),
+        commit_r.get("stdout", commit_r.get("stderr", "")),
+        push_r.get("stdout", ""),
+    ]
+    errors_parts = [push_r.get("stderr", "")]
+    return {
+        "success": push_r["success"] or "nothing to commit" in commit_r.get("stdout", ""),
+        "output": "\n".join(p for p in output_parts if p).strip(),
+        "errors": "\n".join(p for p in errors_parts if p).strip(),
+        "committed": commit_r["success"],
+    }
+
+
+@router.get("/git/log", summary="Git: recent commit log")
+async def git_log(
+    n: int = 20,
+    _: User = Depends(get_current_admin),
+):
+    log_r = _run_git("log", "--oneline", "--decorate", f"-{n}")
+    diff_r = _run_git("diff", "--stat", "HEAD~1", "HEAD")
+    return {
+        "log":       log_r.get("stdout", ""),
+        "last_diff": diff_r.get("stdout", ""),
+        "success":   log_r["success"],
+    }
