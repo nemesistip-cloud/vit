@@ -441,7 +441,7 @@ export default function DashboardPage() {
               {isLoadingSummary ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="bg-background/40 rounded-lg p-3 border border-border/30 space-y-2">
+                    <div key={i} className="bg-background/40 rounded-xl p-3.5 border border-border/40 hover:shadow-md backdrop-blur-sm space-y-2">
                       <Skeleton className="h-2 w-20" />
                       <Skeleton className="h-6 w-16" />
                     </div>

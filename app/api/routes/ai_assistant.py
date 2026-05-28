@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from app.api.middleware.auth import verify_api_key
 from app.core.errors import AppError
 from app.services.gemini_chat import chat as gemini_chat
+from app.services.ai_client import provider_status as _ps
 
 router = APIRouter(prefix="/ai/assistant", tags=["ai-assistant"])
 
@@ -66,6 +67,10 @@ async def assistant_status(_user=Depends(verify_api_key)):
         configured_providers.append("claude")
 
     backend_available = len(configured_providers) > 0
+    ps = _ps()
+    # Ensure we include Puter in configured providers for frontend logic
+    if ps.get("puter", {}).get("configured"):
+        configured_providers.append("puter")
     provider = "gemini-1.5-flash" if gemini_key else ("claude-3-haiku" if claude_key else "puter-claude")
 
     return {
