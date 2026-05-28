@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import {
   BrainCircuit, Zap, Sparkles, RefreshCw, TrendingUp,
-  AlertTriangle, Bot, CheckCircle2, WifiOff,
+  AlertTriangle, Bot, CheckCircle2, WifiOff, Scale,
 } from "lucide-react";
 import { analyzeMatchWithPuter, isPuterAvailable, MatchAnalysis } from "@/lib/puter-ai";
 
@@ -16,6 +17,7 @@ const AI_PROVIDERS = {
   claude: { name: "Claude", color: "hsl(262 83% 58%)",      icon: BrainCircuit },
   grok:   { name: "Grok",   color: "hsl(var(--secondary))", icon: Zap           },
   puter:  { name: "Puter",  color: "hsl(173 80% 50%)",      icon: Bot           },
+  openai: { name: "GPT-4o", color: "hsl(150 60% 50%)",      icon: Sparkles      },
 } as const;
 
 type Provider = keyof typeof AI_PROVIDERS;
@@ -38,6 +40,9 @@ interface Insight {
   available?: boolean;
   error?: string | null;
   from_cache?: boolean;
+  home_prob?: number;
+  draw_prob?: number;
+  away_prob?: number;
 }
 
 interface ProviderResult extends Insight {
@@ -53,6 +58,7 @@ interface InsightsData {
   gemini?: Insight;
   claude?: Insight;
   grok?: Insight;
+  openai?: Insight;
   source?: string;
 }
 
@@ -60,6 +66,72 @@ interface PuterInsightState {
   status: "idle" | "loading" | "done" | "error";
   insight?: Insight;
   error?: string;
+}
+
+// ── Consensus Probability Component ──────────────────────────────────────────
+
+function ConsensusBars({ insights, puterInsight }: {
+  insights: (Insight | undefined)[],
+  puterInsight?: Insight
+}) {
+  const activeInsights = [...insights, puterInsight].filter(ins => ins && ins.available !== false && ins.home_prob !== undefined);
+
+  if (activeInsights.length === 0) return null;
+
+  const avg = {
+    home: activeInsights.reduce((acc, curr) => acc + (curr?.home_prob || 0), 0) / activeInsights.length,
+    draw: activeInsights.reduce((acc, curr) => acc + (curr?.draw_prob || 0), 0) / activeInsights.length,
+    away: activeInsights.reduce((acc, curr) => acc + (curr?.away_prob || 0), 0) / activeInsights.length,
+  };
+
+  return (
+    <div className="mb-6 p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Scale className="w-4 h-4 text-primary" />
+          <h3 className="font-mono text-xs uppercase font-bold tracking-wider text-primary">Multi-AI Probability Consensus</h3>
+        </div>
+        <Badge variant="outline" className="font-mono text-[10px] text-primary border-primary/30">
+          {activeInsights.length} Models Aggregated
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label: "HOME", val: avg.home, color: "bg-emerald-500" },
+          { label: "DRAW", val: avg.draw, color: "bg-amber-500" },
+          { label: "AWAY", val: avg.away, color: "bg-blue-500" },
+        ].map((item) => (
+          <div key={item.label} className="space-y-1.5">
+            <div className="flex justify-between items-end px-1">
+              <span className="text-[10px] font-mono text-muted-foreground">{item.label}</span>
+              <span className="text-sm font-mono font-bold">{(item.val * 100).toFixed(1)}%</span>
+            </div>
+            <div className="h-2 w-full bg-muted/30 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${item.color} transition-all duration-1000 ease-out`}
+                style={{ width: `${item.val * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-4 pt-1">
+        <p className="text-[9px] font-mono text-muted-foreground uppercase">Model Individual Votes:</p>
+        <div className="flex flex-wrap gap-2">
+          {activeInsights.map((ins, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: AI_PROVIDERS[ins?.provider as Provider]?.color || 'hsl(var(--primary))' }} />
+              <span className="text-[9px] font-mono text-muted-foreground/80">
+                {(ins?.home_prob || 0).toFixed(2)} / {(ins?.draw_prob || 0).toFixed(2)} / {(ins?.away_prob || 0).toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Shared filled insight card layout ────────────────────────────────────────
@@ -99,54 +171,46 @@ function FilledInsightCard({
                 {insight.risk_level}
               </Badge>
             )}
-            {insight.confidence != null && (
-              <Badge variant="outline" className="font-mono text-[10px]" style={{ borderColor: `${color}40`, color }}>
-                {(insight.confidence * 100).toFixed(0)}%
-              </Badge>
+            {insight.confidence && (
+              <div className="flex items-center gap-1 bg-muted/30 px-1.5 py-0.5 rounded border border-border/30">
+                <TrendingUp className="w-3 h-3 text-muted-foreground" />
+                <span className="text-[10px] font-mono">{(insight.confidence * 100).toFixed(0)}%</span>
+              </div>
             )}
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className={`pt-4 space-y-4 flex-1 ${fullWidth ? "grid md:grid-cols-2 gap-6 space-y-0" : ""}`}>
+      <CardContent className="pt-4 flex-1 flex flex-col space-y-4">
         {insight.summary && (
-          <div>
-            <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1.5">Analysis</p>
-            <p className="text-sm leading-relaxed">{insight.summary}</p>
+          <div className="space-y-1">
+            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-tight">Executive Summary</p>
+            <p className="text-xs leading-relaxed text-foreground/90">{insight.summary}</p>
           </div>
         )}
+
         {insight.key_factors && insight.key_factors.length > 0 && (
-          <div>
-            <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1.5">Key Factors</p>
+          <div className="space-y-2">
+            <p className="text-[10px] font-mono text-muted-foreground uppercase">Core Signals</p>
             <div className="space-y-1.5">
-              {insight.key_factors.map((f, i) => (
-                <div key={i} className="flex gap-2 text-sm p-2 rounded-md bg-muted/30" style={{ borderLeft: `2px solid ${color}` }}>
-                  <TrendingUp className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color }} />
-                  <span className="text-sm leading-snug">{f}</span>
+              {insight.key_factors.slice(0, 3).map((f, i) => (
+                <div key={i} className="flex gap-2 items-start group">
+                  <div className="mt-1.5 w-1 h-1 rounded-full bg-primary/40 shrink-0 group-hover:bg-primary/80 transition-colors" />
+                  <span className="text-[11px] leading-tight text-muted-foreground group-hover:text-foreground transition-colors">{f}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
-        {insight.value_assessment && (
-          <div>
-            <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1.5">Value Assessment</p>
-            <p className="text-sm leading-relaxed text-muted-foreground">{insight.value_assessment}</p>
-          </div>
-        )}
+
         {insight.recommendation && (
-          <div className="p-3 rounded-lg" style={{ background: `${color}08`, borderLeft: `3px solid ${color}` }}>
-            <p className="text-[10px] font-mono uppercase mb-1" style={{ color }}>Recommendation</p>
-            <p className="text-sm font-semibold">{insight.recommendation}</p>
-          </div>
-        )}
-        {insight.insight_tags && insight.insight_tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {insight.insight_tags.map((tag, i) => (
-              <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded border"
-                style={{ color, borderColor: `${color}40`, background: `${color}08` }}>
-                {tag}
-              </span>
-            ))}
+          <div className="mt-auto pt-3 border-t border-border/20">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+              <p className="text-[10px] font-mono text-emerald-500 uppercase">Strategic Verdict</p>
+            </div>
+            <p className="text-[11px] font-bold font-mono text-foreground/90">
+              {insight.recommendation}
+            </p>
           </div>
         )}
       </CardContent>
@@ -154,7 +218,94 @@ function FilledInsightCard({
   );
 }
 
-// ── Puter hero card (shown when it's the primary/only provider) ───────────────
+// ── Specific Provider Cards ──────────────────────────────────────────────────
+
+function ServerInsightCard({
+  provider,
+  insight,
+  isLoading,
+}: {
+  provider: Provider;
+  insight?: Insight;
+  isLoading: boolean;
+}) {
+  const { name, color, icon } = AI_PROVIDERS[provider];
+
+  if (isLoading) {
+    return (
+      <Card className="bg-card/30 border-dashed border-border/40 animate-pulse h-[280px]">
+        <CardHeader className="pb-3 border-b border-border/20">
+          <Skeleton className="h-5 w-24 bg-muted/20" />
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <Skeleton className="h-12 w-full bg-muted/10" />
+          <Skeleton className="h-20 w-full bg-muted/10" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!insight || insight.available === false) {
+    return (
+      <Card className="bg-muted/5 border-dashed border-border/30 h-[280px] flex flex-col items-center justify-center text-center p-6 opacity-60">
+        <AlertTriangle className="w-6 h-6 text-muted-foreground/30 mb-2" />
+        <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1">{name}</p>
+        <p className="text-[9px] font-mono text-muted-foreground/50 italic">
+          {insight?.error?.includes("limit") ? "Rate limited" : "Provider offline"}
+        </p>
+      </Card>
+    );
+  }
+
+  return <FilledInsightCard provider={name} insight={insight} color={color} icon={icon} />;
+}
+
+function PuterGridCard({
+  puterState,
+  onRun,
+  canRun,
+}: {
+  puterState: PuterInsightState;
+  onRun: () => void;
+  canRun: boolean;
+}) {
+  const { name, color, icon: Icon } = AI_PROVIDERS.puter;
+
+  if (puterState.status === "loading") {
+    return (
+      <Card className="bg-card/40 border-primary/20 animate-pulse h-[280px] flex flex-col items-center justify-center text-center">
+        <Bot className="w-8 h-8 text-primary/40 animate-bounce mb-3" />
+        <p className="text-[10px] font-mono text-primary/60 uppercase animate-pulse">Puter analyzing…</p>
+      </Card>
+    );
+  }
+
+  if (puterState.status === "done" && puterState.insight) {
+    return <FilledInsightCard provider="Puter AI" insight={puterState.insight} color={color} icon={Icon} />;
+  }
+
+  return (
+    <Card className="bg-muted/5 border-dashed border-border/40 h-[280px] flex flex-col items-center justify-center p-6 text-center group hover:bg-muted/10 transition-colors">
+      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+        <Icon className="w-5 h-5 text-primary/60" />
+      </div>
+      <h4 className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Puter.js Intelligence</h4>
+      <p className="text-[9px] font-mono text-muted-foreground/50 mb-4 px-2 italic">Client-side Claude — no server key required</p>
+      {canRun ? (
+        <Button
+          size="sm"
+          className="font-mono text-[10px] h-7 uppercase tracking-wider shadow-lg shadow-primary/10 hover:shadow-primary/20"
+          style={{ background: color, color: "#000" }}
+          onClick={onRun}
+        >
+          Analyze Free
+        </Button>
+      ) : (
+        <Badge variant="secondary" className="font-mono text-[9px] opacity-50">Browser AI Pending</Badge>
+      )}
+    </Card>
+  );
+}
 
 function PuterHeroCard({
   puterState,
@@ -169,29 +320,12 @@ function PuterHeroCard({
   homeTeam?: string;
   awayTeam?: string;
 }) {
-  const color = AI_PROVIDERS.puter.color;
-
-  if (puterState.status === "loading") {
-    return (
-      <Card className="col-span-full" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
-        <CardContent className="py-10 flex flex-col items-center gap-4">
-          <Bot className="w-8 h-8 animate-pulse" style={{ color }} />
-          <p className="font-mono text-sm" style={{ color }}>Puter AI is analyzing {homeTeam} vs {awayTeam}…</p>
-          <p className="text-xs text-muted-foreground font-mono">Free browser-side analysis via Puter.js — no API key needed</p>
-          <div className="w-full max-w-sm space-y-2">
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-5/6 mx-auto" />
-            <Skeleton className="h-3 w-4/6 mx-auto" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const { color } = AI_PROVIDERS.puter;
 
   if (puterState.status === "done" && puterState.insight) {
     return (
       <FilledInsightCard
-        provider="Puter AI · Free"
+        provider="Puter Browser AI · Claude 3.5 Sonnet"
         insight={puterState.insight}
         color={color}
         icon={Bot}
@@ -200,167 +334,48 @@ function PuterHeroCard({
     );
   }
 
-  if (puterState.status === "error") {
-    return (
-      <Card className="col-span-full" style={{ borderColor: `${color}30`, borderWidth: "1px" }}>
-        <CardContent className="py-8 flex flex-col items-center gap-3">
-          <Bot className="w-7 h-7 text-muted-foreground/40" />
-          <p className="font-mono text-xs text-muted-foreground uppercase">Puter AI — Analysis failed</p>
-          <p className="font-mono text-[10px] text-amber-500/80 text-center max-w-xs">{puterState.error}</p>
-          {canRun && (
-            <Button size="sm" variant="outline" className="font-mono text-xs mt-1" onClick={onRun}>
-              Retry Free Analysis
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // idle — show a prominent CTA
   return (
-    <Card className="col-span-full" style={{ borderColor: `${color}40`, borderWidth: "1px", background: `${color}05` }}>
-      <CardContent className="py-10 flex flex-col items-center gap-4 text-center">
-        <Bot className="w-10 h-10" style={{ color }} />
-        <div>
-          <p className="font-mono text-base font-bold" style={{ color }}>Puter AI — Free Analysis</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Server AI providers are unavailable. Get a full tactical analysis powered by
-            Claude via Puter.js — completely free, runs in your browser.
-          </p>
+    <Card className="bg-primary/5 border-primary/20 overflow-hidden relative group">
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+        <Bot size={120} />
+      </div>
+      <CardHeader className="relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Bot className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="font-mono text-sm text-primary uppercase">Browser-Side Intelligence Active</CardTitle>
+            <p className="text-[10px] font-mono text-muted-foreground">Server providers are currently unavailable</p>
+          </div>
         </div>
-        <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground font-mono">
-          {[
-            "No API key needed",
-            "Browser-side Claude",
-            "Tactical probabilities",
-            "Key factors",
-          ].map((t) => (
-            <span key={t} className="flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3 text-emerald-500" /> {t}
-            </span>
-          ))}
-        </div>
+      </CardHeader>
+      <CardContent className="relative z-10 pt-2 pb-6">
+        <p className="text-xs text-muted-foreground max-w-md mb-5 leading-relaxed">
+          I can perform a deep tactical analysis of <span className="text-foreground font-bold">{homeTeam} vs {awayTeam}</span> using
+          your browser's computing power via Puter.js. No API keys or server credits required.
+        </p>
         {canRun ? (
           <Button
-            size="lg"
-            className="font-mono gap-2 mt-2"
+            className="font-mono uppercase text-xs h-9 px-6 gap-2 shadow-xl shadow-primary/20"
             style={{ background: color, color: "#000" }}
             onClick={onRun}
+            disabled={puterState.status === "loading"}
           >
-            <Bot className="w-4 h-4" /> Analyze Free with Puter AI
+            {puterState.status === "loading" ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Processing Tactical Data…
+              </>
+            ) : (
+              <>
+                <Bot className="w-4 h-4" />
+                Analyze with Browser AI
+              </>
+            )}
           </Button>
         ) : (
-          <p className="font-mono text-[10px] text-amber-500/80">
-            Puter.js not ready — ensure you are on a supported browser
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Standard provider card (when server providers work) ──────────────────────
-
-function ServerInsightCard({
-  provider,
-  insight,
-  isLoading,
-}: {
-  provider: Exclude<Provider, "puter">;
-  insight?: Insight;
-  isLoading: boolean;
-}) {
-  const { name, color, icon: Icon } = AI_PROVIDERS[provider];
-
-  if (isLoading) {
-    return (
-      <Card className="bg-card/40 backdrop-blur border-border">
-        <CardHeader className="pb-3"><Skeleton className="h-6 w-32" /></CardHeader>
-        <CardContent className="space-y-3">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-4 w-4/5" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!insight || insight.available === false) {
-    return (
-      <Card className="bg-card/20 backdrop-blur border-border/40">
-        <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-2 p-6">
-          <Icon className="w-7 h-7 text-muted-foreground/20" />
-          <p className="font-mono text-[11px] text-muted-foreground/50 uppercase">{name}</p>
-          <p className="font-mono text-[10px] text-muted-foreground/40">Unavailable</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <FilledInsightCard provider={name} insight={insight} color={color} icon={Icon} />
-  );
-}
-
-// ── Inline puter card in grid (when mixed providers) ─────────────────────────
-
-function PuterGridCard({
-  puterState,
-  onRun,
-  canRun,
-}: {
-  puterState: PuterInsightState;
-  onRun: () => void;
-  canRun: boolean;
-}) {
-  const color = AI_PROVIDERS.puter.color;
-
-  if (puterState.status === "loading") {
-    return (
-      <Card className="bg-card/40 backdrop-blur" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
-        <CardHeader className="pb-3"><Skeleton className="h-6 w-32" style={{ background: `${color}20` }} /></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2 text-xs font-mono" style={{ color }}>
-            <Bot className="w-4 h-4 animate-pulse" /> Analyzing…
-          </div>
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (puterState.status === "done" && puterState.insight) {
-    return <FilledInsightCard provider="Puter" insight={puterState.insight} color={color} icon={Bot} />;
-  }
-
-  if (puterState.status === "error") {
-    return (
-      <Card className="bg-card/20 backdrop-blur border-border/40">
-        <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-2 p-6">
-          <Bot className="w-7 h-7 text-muted-foreground/30" />
-          <p className="font-mono text-[10px] text-amber-500/80">{puterState.error}</p>
-          {canRun && (
-            <Button size="sm" variant="outline" className="font-mono text-xs mt-1" onClick={onRun}>Retry</Button>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="bg-card/20 backdrop-blur flex flex-col" style={{ borderColor: `${color}40`, borderWidth: "1px" }}>
-      <CardContent className="flex flex-col items-center justify-center min-h-[180px] text-center gap-3 p-6">
-        <Bot className="w-7 h-7" style={{ color }} />
-        <p className="font-mono text-xs font-bold" style={{ color }}>Puter AI · Free</p>
-        <p className="font-mono text-[10px] text-muted-foreground">Browser-side Claude — no key</p>
-        {canRun ? (
-          <Button size="sm" className="font-mono text-xs" style={{ background: color, color: "#000" }} onClick={onRun}>
-            Analyze Free
-          </Button>
-        ) : (
-          <p className="font-mono text-[10px] text-amber-500/80">Puter not ready</p>
+          <p className="font-mono text-[10px] text-amber-500/80">Puter environment not initialized</p>
         )}
       </CardContent>
     </Card>
@@ -401,7 +416,7 @@ export function AIInsightComparison({
 
   const canRunPuter = isPuterAvailable() && !!homeTeam && !!awayTeam;
 
-  const serverProviders: Exclude<Provider, "puter">[] = ["gemini", "claude", "grok"];
+  const serverProviders: Exclude<Provider, "puter">[] = ["gemini", "claude", "grok", "openai"];
 
   const serverInsights = serverProviders.map((p) => resolveInsight(insights, p));
   const serverHasAny   = serverInsights.some((ins) => ins?.available !== false && ins != null);
@@ -441,9 +456,13 @@ export function AIInsightComparison({
       );
       const insight: Insight = {
         available: true,
+        provider: "puter",
         summary: analysis.reason,
         key_factors: analysis.key_factors,
         confidence: analysis.confidence,
+        home_prob: analysis.home_prob,
+        draw_prob: analysis.draw_prob,
+        away_prob: analysis.away_prob,
         risk_level: analysis.confidence >= 0.7 ? "LOW" : analysis.confidence >= 0.55 ? "MEDIUM" : "HIGH",
         recommendation: `Home ${(analysis.home_prob * 100).toFixed(0)}% · Draw ${(analysis.draw_prob * 100).toFixed(0)}% · Away ${(analysis.away_prob * 100).toFixed(0)}%`,
       };
@@ -457,33 +476,33 @@ export function AIInsightComparison({
   const isFromCache = cacheHits.length === (insights?.sources_requested?.length ?? 0) && cacheHits.length > 0;
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-border">
-      <CardHeader className="border-b border-border/50 pb-4">
+    <Card className="bg-card/50 backdrop-blur-md border-border/50 shadow-2xl rounded-2xl overflow-hidden">
+      <CardHeader className="border-b border-border/30 bg-muted/10 pb-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle className="font-mono uppercase flex items-center gap-2">
+          <CardTitle className="font-mono uppercase flex items-center gap-2 tracking-tighter">
             <Sparkles className="w-5 h-5 text-primary" />
-            Multi-AI Intelligence
+            AI Intelligence Comparison
             {allServerFailed && puterState.status !== "done" && (
-              <span className="text-[10px] font-mono font-normal text-muted-foreground border border-border/40 rounded px-1.5 py-0.5 flex items-center gap-1">
-                <WifiOff className="w-3 h-3" /> server providers offline · using Puter
-              </span>
+              <Badge variant="outline" className="text-[9px] font-mono font-normal text-muted-foreground bg-amber-500/5 flex items-center gap-1 border-amber-500/20">
+                <WifiOff className="w-3 h-3" /> server fallback active
+              </Badge>
             )}
           </CardTitle>
           <div className="flex items-center gap-2">
             {isFromCache && !isFetching && (
-              <span className="text-[9px] font-mono text-muted-foreground/60 border border-border/40 rounded px-1.5 py-0.5">
-                from cache
+              <span className="text-[9px] font-mono text-muted-foreground/60 border border-border/40 rounded-full px-2 py-0.5">
+                cached result
               </span>
             )}
             <Button
               variant="outline"
               size="sm"
-              className="font-mono text-xs h-7 px-2.5"
+              className="font-mono text-[10px] h-7 px-3 rounded-full hover:bg-primary/5 transition-colors"
               onClick={() => { autoTriggered.current = false; refetch(); }}
               disabled={isFetching}
             >
-              <RefreshCw className={`w-3 h-3 mr-1 ${isFetching ? "animate-spin" : ""}`} />
-              {isFetching ? "FETCHING…" : "REFRESH"}
+              <RefreshCw className={`w-3 h-3 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
+              {isFetching ? "SYNCING…" : "REFRESH"}
             </Button>
           </div>
         </div>
@@ -492,40 +511,30 @@ export function AIInsightComparison({
       <CardContent className="pt-6">
         {/* Error state */}
         {isError && !isLoading && (
-          <div className="text-center py-8 space-y-3">
-            <AlertTriangle className="w-8 h-8 text-amber-500/50 mx-auto" />
-            <p className="font-mono text-xs text-muted-foreground uppercase">
-              AI insights require a prediction first
-            </p>
-            <p className="font-mono text-[10px] text-muted-foreground/60">
-              Run the ML Ensemble on this match, then refresh insights
-            </p>
+          <div className="text-center py-12 space-y-4">
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-8 h-8 text-amber-500/50" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-mono text-xs text-muted-foreground uppercase font-bold">
+                Intelligence Engine Unavailable
+              </p>
+              <p className="font-mono text-[10px] text-muted-foreground/60">
+                Predictions must be generated before AI analysis can run.
+              </p>
+            </div>
             {canRunPuter && (
-              <div className="pt-2">
-                <p className="text-xs text-muted-foreground mb-2">
-                  Or get a free browser-side analysis now:
-                </p>
+              <div className="pt-4">
                 <Button
                   size="sm"
-                  className="font-mono gap-2"
+                  className="font-mono gap-2 rounded-full px-6"
                   style={{ background: AI_PROVIDERS.puter.color, color: "#000" }}
                   onClick={runPuter}
                   disabled={puterState.status === "loading"}
                 >
-                  <Bot className="w-3 h-3" />
-                  {puterState.status === "loading" ? "Analyzing…" : "Analyze Free with Puter"}
+                  <Bot className="w-4 h-4" />
+                  {puterState.status === "loading" ? "Thinking…" : "Analyze with Browser AI"}
                 </Button>
-              </div>
-            )}
-            {puterState.status === "done" && puterState.insight && (
-              <div className="mt-4">
-                <FilledInsightCard
-                  provider="Puter AI · Free"
-                  insight={puterState.insight}
-                  color={AI_PROVIDERS.puter.color}
-                  icon={Bot}
-                  fullWidth
-                />
               </div>
             )}
           </div>
@@ -543,6 +552,14 @@ export function AIInsightComparison({
               </div>
             )}
 
+            {/* Consensus Bars - New G07 feature */}
+            {!isLoading && (serverHasAny || puterState.status === "done") && (
+              <ConsensusBars
+                insights={serverInsights}
+                puterInsight={puterState.status === "done" ? puterState.insight : undefined}
+              />
+            )}
+
             {/* All server providers failed — Puter takes the full width */}
             {!isLoading && allServerFailed && (
               <div className="grid grid-cols-1 gap-4">
@@ -556,7 +573,7 @@ export function AIInsightComparison({
               </div>
             )}
 
-            {/* At least one server provider has data — normal 4-col grid */}
+            {/* At least one server provider has data — normal grid */}
             {!isLoading && serverHasAny && (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 {serverProviders.map((p) => (
@@ -571,32 +588,37 @@ export function AIInsightComparison({
               </div>
             )}
 
-            {/* Provider status footer (only when at least one provider succeeded) */}
+            {/* Provider status footer */}
             {!isLoading && (serverHasAny || puterState.status === "done") && (
-              <div className="mt-5 p-3 bg-muted/20 rounded-lg border border-border/40">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase shrink-0">Providers</p>
-                  {(["gemini", "claude", "grok", "puter"] as Provider[]).map((p) => {
-                    const { name, color, icon: Icon } = AI_PROVIDERS[p];
-                    let active = false;
-                    if (p === "puter") {
-                      active = puterState.status === "done";
-                    } else {
-                      const r = resolveInsight(insights, p);
-                      active = !!r && r.available !== false;
-                    }
-                    return (
-                      <div key={p} className="flex items-center gap-1.5">
-                        <Icon className="w-3 h-3" style={{ color: active ? color : "hsl(var(--muted-foreground))" }} />
-                        <span className="text-[10px] font-mono" style={{ color: active ? color : "hsl(var(--muted-foreground))" }}>
-                          {name}
-                        </span>
-                        <span className={`text-[9px] font-mono ${active ? "text-emerald-500" : "text-muted-foreground/40"}`}>
-                          {active ? "✓" : "—"}
-                        </span>
-                      </div>
-                    );
-                  })}
+              <div className="mt-8 p-4 bg-muted/10 rounded-2xl border border-border/30">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <p className="text-[10px] font-mono text-muted-foreground uppercase font-bold tracking-widest shrink-0">Engine Connectivity</p>
+                  <div className="flex flex-wrap gap-4">
+                    {(["gemini", "claude", "grok", "openai", "puter"] as Provider[]).map((p) => {
+                      const { name, color, icon: Icon } = AI_PROVIDERS[p];
+                      let active = false;
+                      if (p === "puter") {
+                        active = puterState.status === "done";
+                      } else {
+                        const r = resolveInsight(insights, p);
+                        active = !!r && r.available !== false;
+                      }
+                      return (
+                        <div key={p} className="flex items-center gap-2">
+                          <div
+                            className={`w-2 h-2 rounded-full transition-shadow duration-500 ${active ? 'shadow-[0_0_8px_rgba(0,0,0,0.2)]' : ''}`}
+                            style={{
+                              backgroundColor: active ? color : "hsl(var(--muted-foreground)/0.2)",
+                              boxShadow: active ? `0 0 10px ${color}40` : 'none'
+                            }}
+                          />
+                          <span className={`text-[10px] font-mono font-bold ${active ? "" : "text-muted-foreground/30"}`} style={{ color: active ? color : undefined }}>
+                            {name}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}

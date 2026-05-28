@@ -67,7 +67,7 @@ async def assistant_status(_user=Depends(verify_api_key)):
         configured_providers.append("claude")
 
     backend_available = len(configured_providers) > 0
-    ps = _ps()
+    ps = await _ps()
     # Ensure we include Puter in configured providers for frontend logic
     if ps.get("puter", {}).get("configured"):
         configured_providers.append("puter")

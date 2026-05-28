@@ -199,6 +199,13 @@ class BackgroundTaskSupervisor:
         logger.info("[supervisor] task started name=%s", name)
 
     async def _monitor(self):
+        # ENG-05: Persistent task tracking
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import BackgroundTaskStatus
+        from sqlalchemy import select, update
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+        from datetime import datetime, timezone
+
         while not self.stopping:
             await asyncio.sleep(self.check_interval)
 
@@ -2643,7 +2650,7 @@ async def health(db: AsyncSession = Depends(get_db)):
     ai_providers: dict = {}
     try:
         from app.services.ai_client import provider_status as _ps, verify_provider as _vp
-        _status = _ps()
+        _status = await _ps()
         for name, info in _status.items():
             ai_providers[name] = info.get("status", "unknown")
 

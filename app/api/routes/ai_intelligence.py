@@ -307,7 +307,7 @@ async def ai_intel_health():
     """
     try:
         from app.services.ai_client import provider_status, get_provider_priority
-        providers = provider_status()
+        providers = await provider_status()
         priority = get_provider_priority()
         available_count = sum(1 for p in providers.values() if p.get("available", False))
         return {

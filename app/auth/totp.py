@@ -64,16 +64,7 @@ async def setup_2fa(
     uri = totp.provisioning_uri(name=user.email, issuer_name=APP_NAME)
     qr = _get_qr_data_url(uri)
 
-    user_extra = getattr(user, "totp_secret_pending", None)
-    if not hasattr(user, "totp_secret_pending"):
-        from sqlalchemy import text
-        try:
-            async with db.begin_nested():
-                await db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT"))
-                await db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret_pending TEXT"))
-                await db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE"))
-        except Exception:
-            pass
+
 
     try:
         user.totp_secret_pending = secret

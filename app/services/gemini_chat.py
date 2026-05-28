@@ -47,7 +47,7 @@ def _no_key_response() -> Dict:
 
 def _build_contents(history: List[Dict[str, str]], message: str) -> List[Dict]:
     contents: List[Dict] = []
-    for turn in history[-12:]:
+    for turn in history[-10:]:
         role = "user" if turn.get("role") == "user" else "model"
         text = (turn.get("content") or "").strip()
         if not text:

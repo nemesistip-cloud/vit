@@ -1,7 +1,7 @@
 """add user contact and google fields
 
 Revision ID: 83df201f3ffa
-Revises: ce54adb1005f
+Revises: 009_consensus_alts
 Create Date: 2026-05-19 04:47:49.034855
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '83df201f3ffa'
-down_revision: Union[str, None] = 'ce54adb1005f'
+down_revision: Union[str, None] = '009_consensus_alts'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

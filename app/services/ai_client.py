@@ -25,6 +25,7 @@ import asyncio
 import logging
 import os
 import time
+from app.services.cache import cache
 from typing import Optional
 
 import httpx
@@ -64,8 +65,8 @@ _DEEPSEEK_MODELS = [
 
 # ── Backoff state (module-level — shared across all agents) ────────────────────
 
-_backoff_until: dict[str, float] = {}
-_provider_failures: dict[str, dict] = {}
+
+
 _BACKOFF_SECONDS = [2, 4, 8, 16]
 
 # ── Dynamic provider priority (hot-reloadable) ─────────────────────────────────
@@ -91,50 +92,54 @@ def set_provider_priority(order: list[str]) -> list[str]:
 
 
 def get_provider_failures() -> dict[str, dict]:
-    return dict(_provider_failures)
+    return {}  # Managed via cache
 
 
-def reset_provider_backoff(name: str | None = None) -> dict[str, float]:
-    global _backoff_until
+async def reset_provider_backoff(name: str | None = None) -> dict:
     if name:
-        cleared = {name: _backoff_until.pop(name, 0.0)}
-        _provider_failures.pop(name, None)
+        await cache.delete(f"ai_backoff:{name}")
+        await cache.delete(f"ai_failures:{name}")
+        logger.info("[ai-client] backoff+failures reset for: %s", name)
+        return {name: 0.0}
     else:
-        cleared = dict(_backoff_until)
-        _backoff_until.clear()
-        _provider_failures.clear()
-    logger.info("[ai-client] backoff+failures reset for: %s", list(cleared.keys()) or "all")
-    return cleared
+        await cache.delete_pattern("ai_backoff:*")
+        await cache.delete_pattern("ai_failures:*")
+        logger.info("[ai-client] backoff+failures reset for all")
+        return {}
 
 
-def _provider_available(name: str) -> bool:
-    return time.monotonic() >= _backoff_until.get(name, 0.0)
+async def _provider_available(name: str) -> bool:
+    until = await cache.get(f"ai_backoff:{name}")
+    if until is None:
+        return True
+    return time.monotonic() >= float(until)
 
 
 _FATAL_BACKOFF_SECONDS = 300
 
 
-def _mark_provider_failed(name: str, status_code: int) -> None:
-    _provider_failures[name] = {
+async def _mark_provider_failed(name: str, status_code: int) -> None:
+    fail_data = {
         "status_code": status_code,
         "failed_at": time.time(),
     }
-    _backoff_until[name] = time.monotonic() + _FATAL_BACKOFF_SECONDS
+    await cache.set(f"ai_failures:{name}", fail_data, ttl=3600)
+    await cache.set(f"ai_backoff:{name}", time.monotonic() + _FATAL_BACKOFF_SECONDS, ttl=_FATAL_BACKOFF_SECONDS)
     logger.warning(
         "[ai-client] %s returned HTTP %d — marked as failing, backing off for %d min",
         name, status_code, _FATAL_BACKOFF_SECONDS // 60,
     )
 
 
-def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
+async def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
     wait = 8.0
     if retry_after:
         try:
             wait = max(float(retry_after), 4.0)
         except ValueError:
             pass
-    _backoff_until[name] = time.monotonic() + wait
-    logger.warning("[ai-client] %s rate-limited — cooling for %.0fs", name, wait)
+    await cache.set(f"ai_backoff:{name}", time.monotonic() + wait, ttl=int(wait) + 1)
+    logger.warning(f"[ai-client] {name} rate-limited — cooling for {wait:.0f}s")
 
 
 # ── Provider implementations ───────────────────────────────────────────────────
@@ -146,7 +151,7 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
     if len(api_key) < 20:
         logger.debug("[ai-client] gemini: key too short — skipping (configure a real key to enable)")
         return None
-    if not _provider_available("gemini"):
+    if not await _provider_available("gemini"):
         return None
 
     base = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -164,7 +169,7 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
                 if resp.status_code == 404:
                     continue
                 if resp.status_code == 429:
-                    _mark_rate_limited("gemini", resp.headers.get("Retry-After"))
+                    await _mark_rate_limited("gemini", resp.headers.get("Retry-After"))
                     return None
                 resp.raise_for_status()
                 data = resp.json()
@@ -182,7 +187,7 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
             sc = e.response.status_code
             logger.warning("[ai-client] gemini/%s HTTP %d", model, sc)
             if sc in (401, 403):
-                _mark_provider_failed("gemini", sc)
+                await _mark_provider_failed("gemini", sc)
         except Exception as e:
             logger.warning("[ai-client] gemini/%s error: %s", model, e)
     return None
@@ -199,7 +204,7 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
     if len(api_key) < 20:
         logger.debug("[ai-client] claude: key too short — skipping (configure a real key to enable)")
         return None
-    if not _provider_available("claude"):
+    if not await _provider_available("claude"):
         return None
 
     # Anthropic requires temperature in [0.0, 1.0]
@@ -232,13 +237,13 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
                     continue
                 if resp.status_code in (401, 403):
                     logger.warning("[ai-client] claude/%s HTTP %d — marking provider failed", model, resp.status_code)
-                    _mark_provider_failed("claude", resp.status_code)
+                    await _mark_provider_failed("claude", resp.status_code)
                     return None
                 if resp.status_code == 429:
-                    _mark_rate_limited("claude", resp.headers.get("Retry-After"))
+                    await _mark_rate_limited("claude", resp.headers.get("Retry-After"))
                     return None
                 if resp.status_code == 529:
-                    _mark_rate_limited("claude", "10")
+                    await _mark_rate_limited("claude", "10")
                     return None
                 resp.raise_for_status()
                 data = resp.json()
@@ -253,14 +258,14 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
             sc = e.response.status_code
             logger.warning("[ai-client] claude/%s HTTP %d", model, sc)
             if sc in (401, 403): # Fatal auth/billing
-                _mark_provider_failed("claude", sc)
+                await _mark_provider_failed("claude", sc)
                 return None
         except Exception as e:
             logger.warning("[ai-client] claude/%s error: %s", model, e)
 
     if _400_count >= len(_CLAUDE_MODELS):
         logger.error("[ai-client] claude exhausted all models with 400 errors")
-        _mark_provider_failed("claude", 400)
+        await _mark_provider_failed("claude", 400)
     return None
 
 
@@ -271,7 +276,7 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
     if len(api_key) < 10:
         logger.debug("[ai-client] openai: key too short — skipping (configure a real key to enable)")
         return None
-    if not _provider_available("openai"):
+    if not await _provider_available("openai"):
         return None
 
     base_url = os.getenv("AI_INTEGRATIONS_OPENAI_BASE_URL", "").rstrip("/")
@@ -295,7 +300,7 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
                 if resp.status_code == 404:
                     continue
                 if resp.status_code == 429:
-                    _mark_rate_limited("openai", resp.headers.get("Retry-After"))
+                    await _mark_rate_limited("openai", resp.headers.get("Retry-After"))
                     return None
                 resp.raise_for_status()
                 choices = resp.json().get("choices") or []
@@ -309,7 +314,7 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
             sc = e.response.status_code
             logger.warning("[ai-client] openai/%s HTTP %d", model, sc)
             if sc in (401, 403):
-                _mark_provider_failed("openai", sc)
+                await _mark_provider_failed("openai", sc)
         except Exception as e:
             logger.warning("[ai-client] openai/%s error: %s", model, e)
     return None
@@ -322,7 +327,7 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
     if len(api_key) < 20:
         logger.debug("[ai-client] grok: key too short — skipping (configure a real key to enable)")
         return None
-    if not _provider_available("grok"):
+    if not await _provider_available("grok"):
         return None
 
     url = "https://api.x.ai/v1/chat/completions"
@@ -345,7 +350,7 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
                 if resp.status_code == 404:
                     continue
                 if resp.status_code == 429:
-                    _mark_rate_limited("grok", resp.headers.get("Retry-After"))
+                    await _mark_rate_limited("grok", resp.headers.get("Retry-After"))
                     return None
                 resp.raise_for_status()
                 choices = resp.json().get("choices") or []
@@ -360,7 +365,7 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
             body = e.response.text[:200]
             logger.warning("[ai-client] grok/%s HTTP %d — %s", model, sc, body)
             if sc in (401, 403): # Fatal auth/billing
-                _mark_provider_failed("grok", sc)
+                await _mark_provider_failed("grok", sc)
                 return None
             if sc == 400:
                 continue
@@ -382,7 +387,7 @@ async def _try_deepseek(prompt: str, max_tokens: int, temperature: float) -> str
     if len(api_key) < 20:
         logger.debug("[ai-client] deepseek: key too short — skipping (configure a real key to enable)")
         return None
-    if not _provider_available("deepseek"):
+    if not await _provider_available("deepseek"):
         return None
 
     url = "https://api.deepseek.com/v1/chat/completions"
@@ -407,7 +412,7 @@ async def _try_deepseek(prompt: str, max_tokens: int, temperature: float) -> str
                 if resp.status_code == 404:
                     continue
                 if resp.status_code == 429:
-                    _mark_rate_limited("deepseek", resp.headers.get("Retry-After"))
+                    await _mark_rate_limited("deepseek", resp.headers.get("Retry-After"))
                     return None
                 resp.raise_for_status()
                 choices = resp.json().get("choices") or []
@@ -421,7 +426,7 @@ async def _try_deepseek(prompt: str, max_tokens: int, temperature: float) -> str
             sc = e.response.status_code
             logger.warning("[ai-client] deepseek/%s HTTP %d", model, sc)
             if sc in (401, 403): # Fatal auth/billing
-                _mark_provider_failed("deepseek", sc)
+                await _mark_provider_failed("deepseek", sc)
                 return None
             if sc == 400:
                 continue
@@ -433,7 +438,7 @@ async def _try_deepseek(prompt: str, max_tokens: int, temperature: float) -> str
 async def _try_puter(prompt: str, max_tokens: int, temperature: float) -> str | None:
     """Puter AI — free tier via puter.com REST API (requires PUTER_API_KEY)."""
     from app.services.puter_ai import try_puter
-    if not _provider_available("puter"):
+    if not await _provider_available("puter"):
         return None
     try:
         result = await try_puter(prompt, max_tokens, temperature)
@@ -469,7 +474,7 @@ async def call_ai_with_provider(
         providers.sort(key=lambda p: 0 if p[0] == preferred else 1)
 
     for name, fn in providers:
-        if not _provider_available(name):
+        if not await _provider_available(name):
             logger.debug("[ai-client] skipping %s (cooling down)", name)
             continue
         result = await fn(prompt, max_tokens, temperature)
@@ -507,7 +512,7 @@ async def call_ai(
         providers.sort(key=lambda p: 0 if p[0] == preferred else 1)
 
     for name, fn in providers:
-        if not _provider_available(name):
+        if not await _provider_available(name):
             logger.debug("[ai-client] skipping %s (cooling down)", name)
             continue
         result = await fn(prompt, max_tokens, temperature)
@@ -518,7 +523,7 @@ async def call_ai(
     return None
 
 
-def provider_status() -> dict[str, dict]:
+async def provider_status() -> dict[str, dict]:
     """Return granular availability status of all providers.
     
     Status levels:
@@ -544,11 +549,13 @@ def provider_status() -> dict[str, dict]:
         "deepseek": _any_key_valid("DEEPSEEK_API_KEY",                            min_len=20),
         "grok":     _any_key_valid("XAI_API_KEY",                                 min_len=20),
     }
+
     result = {}
     for name, has_key in keys.items():
-        cooling_until = _backoff_until.get(name, 0.0)
+        cooling_until = await cache.get(f"ai_backoff:{name}") or 0.0
         cooling = cooling_until > now
-        failure = _provider_failures.get(name)
+        failure = await cache.get(f"ai_failures:{name}")
+
         
         # Determine status
         if not has_key:
