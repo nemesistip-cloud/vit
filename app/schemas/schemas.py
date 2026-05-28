@@ -12,6 +12,7 @@ class MatchRequest(BaseModel):
     kickoff_time: datetime
     market_odds: Dict[str, float] = Field(default_factory=dict)
     fixture_id: Optional[str] = None  # Unique fixture ID from Football-Data API
+    sport: Optional[str] = "football"  # sport type: football | basketball | tennis | cricket | etc.
 
 
 class ResultUpdate(BaseModel):

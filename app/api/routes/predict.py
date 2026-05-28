@@ -399,7 +399,10 @@ async def predict(
     user_id: Optional[int] = current_user.id if current_user else None
 
     # C-1 / T10 — per-user daily prediction rate limit (DB-backed: accurate across restarts)
-    if user_id is not None:
+    # Admin / super_admin users are exempt from the daily limit.
+    _user_role = getattr(current_user, "role", None) if current_user else None
+    _is_admin = _user_role in ("admin", "super_admin")
+    if user_id is not None and not _is_admin:
         from datetime import datetime, timezone, timedelta
         from sqlalchemy import func as _rl_func
         _today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -518,6 +521,7 @@ async def predict(
                 kickoff_time=naive_kickoff,
                 source="predict",
                 fingerprint=_fp,
+                sport=getattr(match, "sport", "football") or "football",
                 opening_odds_home=match.market_odds.get("home"),
                 opening_odds_draw=match.market_odds.get("draw"),
                 opening_odds_away=match.market_odds.get("away"),
