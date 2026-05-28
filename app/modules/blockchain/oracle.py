@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from app.config import ORACLE_API_KEY
+from sqlalchemy import select as _select
+from app.modules.wallet.models import PlatformSecret
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
@@ -91,8 +93,19 @@ async def oracle_stats(db: AsyncSession = Depends(get_db)):
     }
 
 
-def _require_oracle_key(x_oracle_key: str = Header(...)):
-    if not ORACLE_API_KEY or x_oracle_key != ORACLE_API_KEY:
+async def _require_oracle_key(x_oracle_key: str = Header(...), db: AsyncSession = Depends(get_db)):
+    # Prefer environment-configured key, but allow an admin-set key in PlatformConfig
+    configured = ORACLE_API_KEY
+    if not configured:
+        # Check encrypted PlatformSecret table (admin-set keys persisted here)
+        row = (await db.execute(_select(PlatformSecret).where(PlatformSecret.key == "ORACLE_API_KEY"))).scalar_one_or_none()
+        if row and row.encrypted_value:
+            try:
+                from app.services.secrets_manager import decrypt_secret
+                configured = decrypt_secret(row.encrypted_value)
+            except Exception:
+                configured = None
+    if not configured or x_oracle_key != configured:
         raise HTTPException(403, "Invalid oracle API key")
 
 
