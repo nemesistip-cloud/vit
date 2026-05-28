@@ -1,6 +1,0 @@
-- Fixed "Model not found: claude-3-5-sonnet" by updating PUTER_CLAUDE_MODEL to "claude-3.5-sonnet" in 'frontend/src/lib/puter-ai.ts'.
-- Applied "Premium" UI standards across the platform, including Dashboard, Assistant, PremiumMatchCard, and Offerwall components. Used rounded-xl/2xl, backdrop-blur-md, and shadow-2xl.
-- Deduplicated requirements.txt and pinned email-validator.
-- Confirmed Multi-AI dispatcher timeout logic and enhanced Assistant status reporting to include Puter.
-- Verified SEC-01 (WebSocket JWT) and SEC-02 (CORS security) are robustly implemented.
-- Reached 24.51% backend test coverage, exceeding the 20% project requirement.

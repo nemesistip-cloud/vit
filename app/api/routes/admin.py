@@ -4102,3 +4102,10 @@ async def emergency_retrain(_: _User = Depends(get_current_admin)):
         return result
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+@router.post("/ai/reset-backoff")
+async def reset_ai_backoff(name: Optional[str] = None):
+    """Reset AI provider backoff states."""
+    from app.services.ai_client import reset_provider_backoff
+    cleared = reset_provider_backoff(name)
+    return {"message": "AI backoff reset", "cleared": cleared}

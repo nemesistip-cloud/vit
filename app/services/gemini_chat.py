@@ -134,11 +134,26 @@ async def chat(
                 except Exception as fb_err:
                     logger.warning("[gemini-chat] fallback also failed: %s", fb_err)
 
+                # LAST RESORT: Try one final time with NO history and NO context (minimal payload)
+                try:
+                    from app.services.ai_client import call_ai
+                    minimal_reply = await call_ai(f"Respond to this: {message.strip()}", max_tokens=500)
+                    if minimal_reply:
+                        return {
+                            "available": True,
+                            "reply": minimal_reply,
+                            "error": None,
+                            "thoughts": ["Primary & Secondary providers failed. Answered via last-resort fallback."],
+                        }
+                except Exception:
+                    pass
+
                 return {
                     "available": False,
                     "reply": (
                         "The AI assistant is temporarily unavailable. "
-                        "All providers are either rate-limited or unreachable — please try again in a moment."
+                        "All providers (Gemini, Claude, OpenAI, etc.) are currently unreachable or rate-limited. "
+                        "Please try again in a few minutes."
                     ),
                     "error": "All AI providers failed",
                     "thoughts": [],
