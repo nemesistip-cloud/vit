@@ -2,7 +2,6 @@
 
 from .models import Task, TaskCategory, UserTaskCompletion, TaskType, TaskStatus
 from .service import TaskService
-from .routes import router as tasks_router
 
 __all__ = [
     "Task",
@@ -11,5 +10,4 @@ __all__ = [
     "TaskType",
     "TaskStatus",
     "TaskService",
-    "tasks_router"
 ]

@@ -1739,7 +1739,7 @@ async def _run_bootstrap(app, _done_event):
             # Upsert-by-name: ensure every canonical category exists regardless of prior state
             _admin_user = (await _db.execute(_select(__import__('app.db.models', fromlist=['User']).User).where(
                 __import__('app.db.models', fromlist=['User']).User.role == "admin"
-            ))).scalar_one_or_none()
+            ))).scalars().first()
             _admin_id = _admin_user.id if _admin_user else 1
 
             _existing_cats = (await _db.execute(_select(TaskCategory))).scalars().all()
@@ -1824,7 +1824,7 @@ async def _run_bootstrap(app, _done_event):
         from decimal import Decimal as _Decimal
 
         async with AsyncSessionLocal() as _db:
-            _admin = (await _db.execute(_select(_User).where(_User.role == "admin"))).scalar_one_or_none()
+            _admin = (await _db.execute(_select(_User).where(_User.role == "admin"))).scalars().first()
             if _admin:
                 _existing_vp = (await _db.execute(
                     _select(ValidatorProfile).where(ValidatorProfile.user_id == _admin.id)
@@ -1942,14 +1942,15 @@ async def _run_bootstrap(app, _done_event):
             from app.db.models import Match as _BFMatch
             async with AsyncSessionLocal() as _db:
                 _bf_count = (await _db.execute(_bf_select(_bf_func.count()).select_from(_BFMatch))).scalar() or 0
-                _bf_months = int(get_env("BOOTSTRAP_MATCH_MONTHS", "6"))
+                # Cap months to 2 to avoid flooding TheSportsDB free tier with 429s
+                _bf_months = min(int(get_env("BOOTSTRAP_MATCH_MONTHS", "2")), 3)
                 _bf_settled = (await _db.execute(
                     _bf_select(_bf_func.count()).select_from(_BFMatch).where(
                         _BFMatch.actual_outcome.isnot(None)
                     )
                 )).scalar() or 0
-                # Run backfill if: few total fixtures OR very few settled (training-ready) ones
-                if _bf_count < 500 or _bf_settled < 200:
+                # Run backfill only if genuinely sparse — avoids rate-limit storms on restarts
+                if _bf_count < 200 or _bf_settled < 100:
                     print(
                         f"[backfill] starting historical match backfill "
                         f"(total={_bf_count}, settled={_bf_settled}, months={_bf_months})..."
@@ -2594,9 +2595,11 @@ async def health(db: AsyncSession = Depends(get_db)):
         running_count = 0
         if coordinator:
             snap = coordinator.status() if hasattr(coordinator, "status") else {}
-            for name, info in snap.items():
+            # coordinator.status() returns {"coordinator": {...}, "agents": {name: snapshot, ...}}
+            agents_snap = snap.get("agents", {})
+            for name, info in agents_snap.items():
                 agent_names.append(name)
-                if info.get("running"):
+                if info.get("status") == "ok" or info.get("enabled", True):
                     running_count += 1
         if supervisor:
             sup_snap = supervisor.snapshot() if hasattr(supervisor, "snapshot") else {}
@@ -2610,8 +2613,9 @@ async def health(db: AsyncSession = Depends(get_db)):
         stopped_names = []
         if coordinator:
             snap = coordinator.status() if hasattr(coordinator, "status") else {}
-            for n, info in snap.items():
-                if not info.get("running"):
+            agents_snap = snap.get("agents", {})
+            for n, info in agents_snap.items():
+                if info.get("status") != "ok" and not info.get("enabled", True):
                     stopped_names.append(n)
         agents_info = {
             "total": total,
