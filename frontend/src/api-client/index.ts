@@ -346,7 +346,7 @@ export function useGetMatch(id: string) {
 export function useCreatePrediction() {
   const queryClient = useQueryClient();
   return useMutation<Prediction, Error, { data: Record<string, unknown> }>({
-    mutationFn: ({ data }) => apiPost<Prediction>("/predict", data),
+    mutationFn: ({ data }) => apiPost<Prediction>("/api/predict", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListPredictionsQueryKey() });
     },
@@ -861,7 +861,7 @@ export function useGetAiPerformance() {
 export function useUpdateAiPerformance() {
   const qc = useQueryClient();
   return useMutation<any, Error, void>({
-    mutationFn: () => apiPost<any>("/ai/performance/update", {}),
+    mutationFn: () => apiPost<any>("/api/ai/performance/update", {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: getAiPerformanceQueryKey() });
       qc.invalidateQueries({ queryKey: getAiReportQueryKey() });

@@ -2150,6 +2150,8 @@ app.include_router(training_route.router, prefix="/api")
 app.include_router(analytics_route.router, prefix="/api")
 app.include_router(odds_route.router, prefix="/api")
 app.include_router(ai_feed.router, prefix="/api")
+from app.api.routes.ai_upload import router as ai_upload_router
+app.include_router(ai_upload_router, prefix="/api")
 app.include_router(ai_route.router, prefix="/api")
 app.include_router(subscription_route.router, prefix="/api")
 app.include_router(audit_route.router, prefix="/api")
@@ -2598,6 +2600,7 @@ async def health(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/system/status")
+@app.get("/api/system/status")
 async def system_status(db: AsyncSession = Depends(get_db)):
     try:
         await db.execute(text("SELECT 1"))

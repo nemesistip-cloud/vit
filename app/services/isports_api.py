@@ -11,22 +11,28 @@ logger = logging.getLogger(__name__)
 # League ID Mappings for iSports API
 # Mapping major leagues to their iSports leagueId
 ISPORTS_LEAGUE_IDS = {
-    "premier_league": 1,
-    "la_liga": 94,
-    "serie_a": 136,
-    "bundesliga": 80,
-    "ligue_1": 156,
-    "championship": 2,
-    "eredivisie": 110,
-    "primeira_liga": 169,
-    "scottish_premiership": 32,
-    "belgian_pro_league": 121,
-    "turkey_super_lig": 113,
-    "brazil_serie_a": 27,
+    "premier_league":           1,
+    "la_liga":                  94,
+    "serie_a":                  136,
+    "bundesliga":               80,
+    "ligue_1":                  156,
+    "championship":             2,
+    "eredivisie":               110,
+    "primeira_liga":            169,
+    "scottish_premiership":     32,
+    "belgian_pro_league":       121,
+    "super_lig":                113,
+    "turkey_super_lig":         113,
+    "ekstraklasa":              66,
+    "brazil_serie_a":           27,
+    "brasileirao":              27,
     "argentina_liga_profesional": 36,
-    "mls": 33,
-    "champions_league": 13,
-    "europa_league": 17
+    "argentine_primera":        36,
+    "mls":                      33,
+    "liga_mx":                  151,
+    "champions_league":         13,
+    "europa_league":            17,
+    "conference_league":        19,
 }
 
 class ISportsClient:

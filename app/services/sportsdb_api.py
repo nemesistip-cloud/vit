@@ -27,7 +27,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-BASE = "https://www.thesportsdb.com/api/v1/json/3"
+import os as _os
+_TSDB_KEY = _os.getenv("THESPORTSDB_API_KEY", "3")
+BASE = f"https://www.thesportsdb.com/api/v1/json/{_TSDB_KEY}"
 
 LEAGUES: Dict[str, int] = {
     # Top 5 European leagues

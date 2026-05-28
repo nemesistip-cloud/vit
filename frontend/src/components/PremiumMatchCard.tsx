@@ -325,9 +325,9 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
   const quality = getQualityGrade(confidence, match.model_consensus);
 
   // Odds from bookmaker data
-  const homeOdds = match.odds?.home_win ?? match.home_odds;
+  const homeOdds = match.odds?.home ?? match.home_odds;
   const drawOdds = match.odds?.draw ?? match.draw_odds;
-  const awayOdds = match.odds?.away_win ?? match.away_odds;
+  const awayOdds = match.odds?.away ?? match.away_odds;
   const hasOdds = homeOdds != null && awayOdds != null;
 
   // Score display

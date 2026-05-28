@@ -56,18 +56,25 @@ class FootballDataClient:
     
     # Competition codes mapping
     COMPETITIONS = {
-        "premier_league": "PL",
-        "la_liga": "PD",
-        "bundesliga": "BL1",
-        "serie_a": "SA",
-        "ligue_1": "FL1",
-        "eredivisie": "DED",
-        "championship": "ELC",
-        "primeira_liga": "PPL",
+        "premier_league":       "PL",
+        "la_liga":              "PD",
+        "bundesliga":           "BL1",
+        "serie_a":              "SA",
+        "ligue_1":              "FL1",
+        "eredivisie":           "DED",
+        "championship":         "ELC",
+        "primeira_liga":        "PPL",
         "scottish_premiership": "SPL",
-        "belgian_pro_league": "BJL",
-        "ucl": "CL",
-        "uel": "EL",
+        "belgian_pro_league":   "BJL",
+        "ucl":                  "CL",
+        "uel":                  "EL",
+        "champions_league":     "CL",
+        "europa_league":        "EL",
+        "conference_league":    "ECL",
+        "super_lig":            "TR1",
+        "brasileirao":          "BSA",
+        "brazil_serie_a":       "BSA",
+        "mls":                  "MLS",
     }
     
     def __init__(

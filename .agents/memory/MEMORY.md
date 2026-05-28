@@ -1,3 +1,4 @@
-- [Admin panel path prefix bug](admin-path-prefix.md) — all admin API calls in the frontend must use `/api/admin/...` — apiClient has NO auto prefix.
-- [Model breakdown double-prefix](model-breakdown-prefix.md) — router prefix + include_router prefix must not both include `/api`.
-- [DB timezone mismatch](db-timezone-naive.md) — SQLite/Postgres stores naive datetimes; Python datetime comparisons must use `.replace(tzinfo=None)`.
+- [Frontend API path convention](frontend-api-paths.md) — apiClient uses `${API_BASE}${path}` — NO auto-prefix; every path must include `/api/` or `/auth/` explicitly.
+- [Auth middleware whitelist](auth-middleware-whitelist.md) — public routes must be added to `_ALWAYS_OPEN` in `app/middleware/auth.py`; `/api/ai` prefix catches `/api/ai-upload` so explicit whitelist entries needed.
+- [SQLAlchemy boolean aggregation](sqlalchemy-bool-aggregation.md) — use `sa_case((col == True, 1), else_=0)` inside `func.sum()` for boolean aggregation in async PostgreSQL.
+- [Router prefix resolution](router-prefix-resolution.md) — final path = router `prefix` + `include_router prefix`; check both to derive the full API path for any endpoint.

@@ -287,8 +287,8 @@ async def get_clv(
             lo, hi = StatisticalSignificance.calculate_confidence_interval(clv_values)
             significance["ci_low"]  = round(float(lo), 4)
             significance["ci_high"] = round(float(hi), 4)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"[analytics/clv] significance calc error: {exc}")
 
     return {
         "summary": {
@@ -622,8 +622,8 @@ async def get_summary(db: AsyncSession = Depends(get_db)):
         bm = BankrollManager(db)
         await bm.load_state()
         bankroll_data = bm.bankroll.to_dict()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"[analytics/summary] bankroll unavailable: {exc}")
 
     result = {
         "total_predictions": total,
@@ -677,8 +677,8 @@ async def get_system_analytics(db: AsyncSession = Depends(get_db)):
         orch = get_orchestrator()
         if orch:
             model_count = orch.num_models_ready()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"[analytics/system] orchestrator unavailable: {exc}")
 
     vit_price = 0.001
     try:
@@ -687,8 +687,8 @@ async def get_system_analytics(db: AsyncSession = Depends(get_db)):
         prices = await engine.get_current_price()
         from decimal import Decimal as _D
         vit_price = float(prices.get("usd", _D("0.001")))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"[analytics/system] VIT price unavailable: {exc}")
 
     return {
         "users": {

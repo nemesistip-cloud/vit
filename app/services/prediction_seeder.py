@@ -29,14 +29,27 @@ MODEL_SOURCES = [
 ]
 
 LEAGUE_PRIORS = {
-    "premier_league":   (0.44, 0.24, 0.32),
-    "la_liga":          (0.46, 0.26, 0.28),
-    "bundesliga":       (0.47, 0.25, 0.28),
-    "serie_a":          (0.43, 0.28, 0.29),
-    "ligue_1":          (0.45, 0.27, 0.28),
-    "champions_league": (0.40, 0.24, 0.36),
-    "eredivisie":       (0.48, 0.24, 0.28),
-    "primeira_liga":    (0.44, 0.26, 0.30),
+    "premier_league":           (0.44, 0.24, 0.32),
+    "la_liga":                  (0.46, 0.26, 0.28),
+    "bundesliga":               (0.47, 0.25, 0.28),
+    "serie_a":                  (0.43, 0.28, 0.29),
+    "ligue_1":                  (0.45, 0.27, 0.28),
+    "champions_league":         (0.40, 0.24, 0.36),
+    "europa_league":            (0.42, 0.25, 0.33),
+    "conference_league":        (0.43, 0.26, 0.31),
+    "eredivisie":               (0.48, 0.24, 0.28),
+    "primeira_liga":            (0.44, 0.26, 0.30),
+    "championship":             (0.43, 0.27, 0.30),
+    "scottish_premiership":     (0.46, 0.24, 0.30),
+    "belgian_pro_league":       (0.45, 0.25, 0.30),
+    "super_lig":                (0.47, 0.24, 0.29),
+    "ekstraklasa":              (0.45, 0.27, 0.28),
+    "mls":                      (0.40, 0.30, 0.30),
+    "liga_mx":                  (0.46, 0.26, 0.28),
+    "brasileirao":              (0.46, 0.24, 0.30),
+    "brazil_serie_a":           (0.46, 0.24, 0.30),
+    "argentine_primera":        (0.47, 0.23, 0.30),
+    "argentina_liga_profesional": (0.47, 0.23, 0.30),
 }
 
 

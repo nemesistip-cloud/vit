@@ -614,7 +614,7 @@ function DatasetManagement() {
 
   const { data: stats, refetch: refetchStats } = useQuery<any>({
     queryKey: ["dataset-stats"],
-    queryFn: () => apiGet<any>("/training/dataset/stats"),
+    queryFn: () => apiGet<any>("/api/training/dataset/stats"),
   });
 
   const { data: browser, isLoading: browserLoading, refetch: refetchBrowser } = useQuery<any>({
@@ -630,7 +630,7 @@ function DatasetManagement() {
 
   const { data: models, isLoading: modelsLoading, refetch: refetchModels } = useQuery<any>({
     queryKey: ["model-comparison"],
-    queryFn: () => apiGet<any>("/training/models/compare"),
+    queryFn: () => apiGet<any>("/api/training/models/compare"),
     enabled: activeTab === "models",
   });
 
@@ -639,7 +639,7 @@ function DatasetManagement() {
       const fd = new FormData();
       fd.append("file", f);
       fd.append("merge", String(merge));
-      return apiFormPost<any>("/training/dataset/upload", fd);
+      return apiFormPost<any>("/api/training/dataset/upload", fd);
     },
     onSuccess: (data) => {
       toast.success(`Uploaded ${data.records_uploaded?.toLocaleString()} records`);
@@ -650,7 +650,7 @@ function DatasetManagement() {
   });
 
   const clearMutation = useMutation({
-    mutationFn: () => apiDelete<any>("/training/dataset/clear"),
+    mutationFn: () => apiDelete<any>("/api/training/dataset/clear"),
     onSuccess: () => {
       toast.success("Dataset cleared");
       setClearConfirm(false);

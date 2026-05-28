@@ -36,11 +36,27 @@ logger = logging.getLogger(__name__)
 
 # League-level home advantage estimates (goals). Empty = neutral default.
 _LEAGUE_HOME_ADV: Dict[str, float] = {
-    "premier_league": 0.42,
-    "la_liga":        0.45,
-    "bundesliga":     0.38,
-    "serie_a":        0.40,
-    "ligue_1":        0.35,
+    "premier_league":       0.42,
+    "la_liga":              0.45,
+    "bundesliga":           0.38,
+    "serie_a":              0.40,
+    "ligue_1":              0.35,
+    "champions_league":     0.20,
+    "europa_league":        0.18,
+    "conference_league":    0.16,
+    "eredivisie":           0.44,
+    "primeira_liga":        0.48,
+    "championship":         0.41,
+    "scottish_premiership": 0.43,
+    "belgian_pro_league":   0.42,
+    "super_lig":            0.50,
+    "ekstraklasa":          0.46,
+    "mls":                  0.38,
+    "liga_mx":              0.47,
+    "brasileirao":          0.46,
+    "argentine_primera":    0.49,
+    "brazil_serie_a":       0.46,
+    "argentina_liga_profesional": 0.49,
 }
 _DEFAULT_HOME_ADV = 0.40
 

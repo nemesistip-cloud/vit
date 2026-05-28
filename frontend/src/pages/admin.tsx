@@ -2468,7 +2468,7 @@ function ModelsTab() {
           variant={activeSection === "engine" ? "default" : "outline"}
           className={activeSection === "engine" ? "bg-cyan-500 text-black" : "border-gray-600 text-gray-300"}
           onClick={() => setActiveSection("engine")}>
-          <Cpu className="w-4 h-4 mr-2" /> AI Engine ({modelsData?.models?.length ?? modelsData?.total ?? 0})
+          <Cpu className="w-4 h-4 mr-2" /> AI Engine ({modelsData?.models?.length ?? (modelsData as any)?.total ?? 0})
         </Button>
         <Button
           variant={activeSection === "accountability" ? "default" : "outline"}
@@ -3046,7 +3046,7 @@ const STATUS_CLS: Record<string, string> = {
 function TrainingInsightCard() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery<InsightReport>({
     queryKey: ["training-insight-report"],
-    queryFn: () => apiGet<InsightReport>("/training/insight-report"),
+    queryFn: () => apiGet<InsightReport>("/api/training/insight-report"),
     staleTime: 2 * 60 * 1000,
   });
 

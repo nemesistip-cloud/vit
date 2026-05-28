@@ -68,7 +68,9 @@ def auth_enabled() -> bool:
 _ALWAYS_OPEN = (
     "/health", "/docs", "/openapi.json", "/redoc", "/favicon.ico",
     "/auth/register", "/auth/login", "/auth/refresh",
-    "/system/status",
+    "/system/status", "/api/system/status",
+    "/api/config/public",
+    "/api/ai-upload",
 )
 
 # Only enforce auth on these API route prefixes

@@ -262,7 +262,7 @@ export default function DashboardPage() {
 
   const { data: system, isLoading: isLoadingSystem, isError: isErrorSystem } = useQuery<any>({
     queryKey: ["dashboard-system"],
-    queryFn:  () => apiGet<any>("/system/status"),
+    queryFn:  () => apiGet<any>("/api/system/status"),
     refetchInterval: 60_000,
   });
 

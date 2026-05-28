@@ -25,7 +25,7 @@ export function useRealtimeTicker() {
       const fetchFallback = async () => {
         try {
           const res = await apiGet<any>('/api/dashboard/summary');
-          const sys = await apiGet<any>('/system/status');
+          const sys = await apiGet<any>('/api/system/status');
           const price = await apiGet<any>('/api/dashboard/vitcoin-price');
 
           setData({

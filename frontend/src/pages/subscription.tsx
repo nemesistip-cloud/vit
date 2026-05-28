@@ -70,19 +70,19 @@ export default function SubscriptionPage() {
   const upgradedPlan = params.get("upgraded");
   const cancelledPlan = params.get("cancelled");
 
-  const { data: plansData, isLoading: loadingPlans } = useQuery({
+  const { data: plansData, isLoading: loadingPlans } = useQuery<{ plans: any[] }>({
     queryKey: ["subscription-plans"],
-    queryFn: () => apiGet("/api/subscription/plans"),
+    queryFn: () => apiGet<{ plans: any[] }>("/api/subscription/plans"),
   });
 
-  const { data: myPlanData } = useQuery({
+  const { data: myPlanData } = useQuery<{ plan: any; usage: any }>({
     queryKey: ["my-plan"],
-    queryFn: () => apiGet("/api/subscription/my-plan"),
+    queryFn: () => apiGet<{ plan: any; usage: any }>("/api/subscription/my-plan"),
   });
 
   const checkoutMutation = useMutation({
     mutationFn: ({ plan, billing }: { plan: string; billing: string }) =>
-      apiPost("/api/subscription/create-checkout", { plan, billing }),
+      apiPost<{ checkout_url: string }>("/api/subscription/create-checkout", { plan, billing }),
     onSuccess: (data) => {
       window.location.href = data.checkout_url;
     },

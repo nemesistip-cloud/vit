@@ -719,11 +719,11 @@ function InjuryNotes() {
 
   const { data, isLoading } = useQuery<{ injuries: any[] }>({
     queryKey: ["injuries"],
-    queryFn:  () => apiGet<{ injuries: any[] }>("/odds/injuries"),
+    queryFn:  () => apiGet<{ injuries: any[] }>("/api/odds/injuries"),
   });
 
   const addMutation = useMutation({
-    mutationFn: (d: typeof form) => apiPost("/odds/injuries", d),
+    mutationFn: (d: typeof form) => apiPost("/api/odds/injuries", d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["injuries"] });
       setForm({ team: "", player: "", status: "out", note: "" });
@@ -816,7 +816,7 @@ function InjuryNotes() {
 function AuditLog() {
   const { data, isLoading, refetch, isFetching } = useQuery<{ log: any[] }>({
     queryKey: ["odds-audit"],
-    queryFn:  () => apiGet<{ log: any[] }>("/odds/audit-log"),
+    queryFn:  () => apiGet<{ log: any[] }>("/api/odds/audit-log"),
     staleTime: 30_000,
   });
 
