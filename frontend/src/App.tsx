@@ -62,7 +62,6 @@ const KYCPage             = lazy(() => import("@/pages/kyc"));
 const IDLookupPage          = lazy(() => import("@/pages/id-lookup"));
 const ModelPerformancePage  = lazy(() => import("@/pages/model-performance"));
 const BankrollPage          = lazy(() => import("@/pages/bankroll"));
-const AIUploadPage          = lazy(() => import("@/pages/ai-upload"));
 const StadiumModePage       = lazy(() => import("@/pages/stadium-mode"));
 const JulesPromptPage       = lazy(() => import("@/pages/jules-prompt"));
 const IQTestPage            = lazy(() => import("@/pages/iq-test"));
@@ -260,9 +259,6 @@ function Router() {
       </Route>
       <Route path="/bankroll">
         <Layout><ProtectedRoute component={BankrollPage} /></Layout>
-      </Route>
-      <Route path="/ai-upload">
-        <Layout><ProtectedRoute component={AIUploadPage} /></Layout>
       </Route>
       <Route path="/stadium">
         <Layout><ProtectedRoute component={StadiumModePage} /></Layout>
