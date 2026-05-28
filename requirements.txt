@@ -130,3 +130,4 @@ tenacity
 uvicorn[standard]
 web3
 xgboost
+openai
