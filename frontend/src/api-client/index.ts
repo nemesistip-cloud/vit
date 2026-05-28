@@ -893,7 +893,13 @@ export function useAiFeedConsensus() {
 export type AssistantTurn = { role: "user" | "assistant"; content: string };
 
 export function useAssistantStatus() {
-  return useQuery<{ available: boolean; provider: string; message: string }>({
+  return useQuery<{
+    available: boolean;
+    provider: string;
+    message: string;
+    configured_providers?: string[];
+    available_tools?: string[];
+  }>({
     queryKey: [API.aiAssistantStatus],
     queryFn: () => apiGet(API.aiAssistantStatus),
     staleTime: 60_000,
