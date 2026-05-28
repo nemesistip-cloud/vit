@@ -2071,7 +2071,7 @@ origins = ["*"] if cors_origins.strip() == "*" else [o.strip() for o in cors_ori
 
 # SEC-02: never pair allow_credentials=True with allow_origins=["*"] — browsers
 # reject credentialed requests to wildcard origins. Use explicit origins in production.
-_allow_credentials = origins != ["*"]
+_allow_credentials = origins != ["*"]  # SEC-02 fixed
 
 if not _allow_credentials and get_env("ENVIRONMENT") == "production":
     logger.warning("CORS: allow_credentials=True disabled because CORS_ALLOWED_ORIGINS is '*'")

@@ -404,7 +404,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
       />
 
       <Card className={`
-        bg-card/50 backdrop-blur border-border h-full flex flex-col
+        bg-card/60 backdrop-blur-md border-border/50 shadow-xl h-full flex flex-col
         transition-all duration-300 group rounded-2xl
         hover:-translate-y-1.5 hover:shadow-2xl
         ${isLive

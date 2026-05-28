@@ -487,7 +487,7 @@ export default function DashboardPage() {
                       sub: `${change24h >= 0 ? "+" : ""}${Number(change24h).toFixed(2)}% 24h`,
                     },
                   ].map(({ label, value, color, sub }) => (
-                    <div key={label} className="bg-background/30 rounded-lg p-3 border border-border/30 group hover:border-border/60 transition-colors">
+                    <div key={label} className="bg-background/40 rounded-xl p-3.5 border border-border/40 group hover:border-border/60 transition-all hover:shadow-md backdrop-blur-sm">
                       <div className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wider mb-1.5">{label}</div>
                       <div className={`text-lg font-bold font-mono vit-metric ${color}`}>{value}</div>
                       <div className="text-[9px] font-mono text-muted-foreground/40 mt-0.5">{sub}</div>
