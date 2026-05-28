@@ -19,3 +19,6 @@ models/*.pkl
 backend/models/trained/*.pkl
 
 .git.backup.*
+
+tests_tmp/
+attached_assets/Screenshot_*.jpg
