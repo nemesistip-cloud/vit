@@ -34,16 +34,22 @@ logger = logging.getLogger(__name__)
 # ── Model lists ──────────────────────────────────────────────────────────────
 
 _GEMINI_MODELS = [
+    "gemini-1.5-pro",
+    "gemini-1.5-flash-8b",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
     "gemini-1.5-flash-latest",
     "gemini-1.5-flash",
 ]
 _CLAUDE_MODELS = [
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-sonnet-latest",
     "claude-3-5-haiku-20241022",
     "claude-3-haiku-20240307",
 ]
 _OPENAI_MODELS = [
+    "gpt-4o",
+    "gpt-4o-2024-08-06",
     "gpt-4o-mini",
     "gpt-3.5-turbo",
 ]
@@ -105,7 +111,7 @@ def _provider_available(name: str) -> bool:
     return time.monotonic() >= _backoff_until.get(name, 0.0)
 
 
-_FATAL_BACKOFF_SECONDS = 1800
+_FATAL_BACKOFF_SECONDS = 300
 
 
 def _mark_provider_failed(name: str, status_code: int) -> None:
@@ -175,7 +181,7 @@ async def _try_gemini(prompt: str, max_tokens: int, temperature: float) -> str |
         except httpx.HTTPStatusError as e:
             sc = e.response.status_code
             logger.warning("[ai-client] gemini/%s HTTP %d", model, sc)
-            if sc in (400, 401, 403):
+            if sc in (401, 403):
                 _mark_provider_failed("gemini", sc)
         except Exception as e:
             logger.warning("[ai-client] gemini/%s error: %s", model, e)
@@ -221,8 +227,7 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
                 if resp.status_code == 404:
                     continue
                 if resp.status_code == 400:
-                    body = resp.text[:300]
-                    logger.warning("[ai-client] claude/%s HTTP 400 — %s", model, body)
+                    logger.warning("[ai-client] claude/%s HTTP 400 — skipping model", model)
                     _400_count += 1
                     continue
                 if resp.status_code in (401, 403):
@@ -247,12 +252,14 @@ async def _try_claude(prompt: str, max_tokens: int, temperature: float) -> str |
         except httpx.HTTPStatusError as e:
             sc = e.response.status_code
             logger.warning("[ai-client] claude/%s HTTP %d", model, sc)
-            if sc in (401, 403):
+            if sc in (401, 403): # Fatal auth/billing
                 _mark_provider_failed("claude", sc)
                 return None
         except Exception as e:
             logger.warning("[ai-client] claude/%s error: %s", model, e)
-    if _400_count == len(_CLAUDE_MODELS):
+
+    if _400_count >= len(_CLAUDE_MODELS):
+        logger.error("[ai-client] claude exhausted all models with 400 errors")
         _mark_provider_failed("claude", 400)
     return None
 
@@ -301,7 +308,7 @@ async def _try_openai(prompt: str, max_tokens: int, temperature: float) -> str |
         except httpx.HTTPStatusError as e:
             sc = e.response.status_code
             logger.warning("[ai-client] openai/%s HTTP %d", model, sc)
-            if sc in (400, 401, 403):
+            if sc in (401, 403):
                 _mark_provider_failed("openai", sc)
         except Exception as e:
             logger.warning("[ai-client] openai/%s error: %s", model, e)
@@ -352,7 +359,7 @@ async def _try_grok(prompt: str, max_tokens: int, temperature: float) -> str | N
             sc = e.response.status_code
             body = e.response.text[:200]
             logger.warning("[ai-client] grok/%s HTTP %d — %s", model, sc, body)
-            if sc in (401, 403):
+            if sc in (401, 403): # Fatal auth/billing
                 _mark_provider_failed("grok", sc)
                 return None
             if sc == 400:
@@ -413,7 +420,7 @@ async def _try_deepseek(prompt: str, max_tokens: int, temperature: float) -> str
         except httpx.HTTPStatusError as e:
             sc = e.response.status_code
             logger.warning("[ai-client] deepseek/%s HTTP %d", model, sc)
-            if sc in (401, 403):
+            if sc in (401, 403): # Fatal auth/billing
                 _mark_provider_failed("deepseek", sc)
                 return None
             if sc == 400:
