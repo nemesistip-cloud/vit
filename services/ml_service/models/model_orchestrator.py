@@ -1865,7 +1865,7 @@ class ModelOrchestrator:
             return None
 
     def num_models_ready(self) -> int:
-        return len(active_models)
+        return len(self.models)
 
     def get_model_status(self) -> Dict[str, Any]:
         w_span = _WEIGHT_MAX - _WEIGHT_MIN  # 0.75
@@ -1897,7 +1897,7 @@ class ModelOrchestrator:
                 "status":            "ready",
                 "error":             None,
             })
-        return {"ready": len(active_models), "total": _TOTAL_MODEL_SPECS, "models": models_list}
+        return {"ready": len(self.models), "total": _TOTAL_MODEL_SPECS, "models": models_list}
 
     # ── Prediction ─────────────────────────────────────────────────────────────
 
