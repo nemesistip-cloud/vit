@@ -1,26 +1,28 @@
-"""app/agents/coordinator.py
+"""
+AgentCoordinator v5 — Memory-Optimised Autonomous Swarm
 
-AgentCoordinator — singleton that owns all agents and exposes a unified
-status view to the API layer.
+This version implements lazy loading and conditional activation of agents
+to ensure the platform can run on memory-constrained environments (like Render Free).
 
-Usage (in main.py lifespan):
-    from app.agents.coordinator import AgentCoordinator, get_coordinator
-    coordinator = AgentCoordinator()
-    coordinator.register_tasks(tasks_list)   # add asyncio tasks for each agent loop
-    app.state.agent_coordinator = coordinator
-
-API route reads:
+Usage:
     coordinator = get_coordinator()
+    coordinator.start()
     coordinator.status()         # full JSON snapshot
     coordinator.trigger(name)    # manual agent trigger
+
+Environment Variables:
+    ENABLED_AGENTS: Comma-separated list of agent names to enable.
+                    If unset, a default "core" set is used in production.
+                    Use "all" to enable all agents (memory intensive).
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ def get_coordinator() -> "AgentCoordinator":
     Return the active agent coordinator.
 
     Prefers the running SwarmOrchestrator (registered at startup via
-    ``set_swarm()``) because it supervises all 22 agents. Falls back to the
+    set_swarm()) because it supervises all 22 agents. Falls back to the
     legacy AgentCoordinator singleton if the swarm is unavailable.
     """
     global _GLOBAL_COORDINATOR
@@ -56,75 +58,159 @@ class AgentCoordinator:
     """Central registry and controller for all autonomous agents."""
 
     def __init__(self) -> None:
-        from app.agents.performance_monitor          import PerformanceMonitorAgent
-        from app.agents.weight_optimizer             import WeightOptimizerAgent
-        from app.agents.retrain_trigger              import RetrainTriggerAgent
-        from app.agents.match_scout_agent            import MatchScoutAgent
-        from app.agents.news_sentinel_agent          import NewsSentinelAgent
-        from app.agents.odds_anomaly_agent           import OddsAnomalyAgent
-        # ── 14 autonomous agents ─────────────────────────────────────────
-        from app.agents.kyc_screener_agent           import KYCScreenerAgent
-        from app.agents.fraud_review_agent           import FraudReviewAgent
-        from app.agents.withdrawal_gatekeeper_agent  import WithdrawalGatekeeperAgent
-        from app.agents.marketplace_audit_agent      import MarketplaceAuditAgent
-        from app.agents.model_promoter_agent         import ModelPromoterAgent
-        from app.agents.analytics_reporter_agent     import AnalyticsReporterAgent
-        from app.agents.fixture_gap_agent            import FixtureGapAgent
-        from app.agents.accumulator_publisher_agent  import AccumulatorPublisherAgent
-        from app.agents.revenue_optimizer_agent      import RevenueOptimizerAgent
-        from app.agents.governance_executor_agent    import GovernanceExecutorAgent
-        from app.agents.self_healing_agent           import SelfHealingAgent
-        from app.agents.audit_sentinel_agent         import AuditSentinelAgent
-        from app.agents.prediction_moderator_agent   import PredictionModeratorAgent
-        from app.agents.live_match_tracker_agent     import LiveMatchTrackerAgent
-        # ── VIT Oracle + Network agents ──────────────────────────────────
-        from app.agents.oracle_node_agent            import OracleNodeAgent
-        from app.agents.network_guardian_agent       import NetworkGuardianAgent
-
-        self._agents = {
-            # ── ML performance agents ────────────────────────────────────
-            "performance-monitor":      PerformanceMonitorAgent(),
-            "weight-optimizer":         WeightOptimizerAgent(),
-            "retrain-trigger":          RetrainTriggerAgent(),
-            # ── AI-powered intelligence agents (free keys) ───────────────
-            "match-scout":              MatchScoutAgent(),
-            "news-sentinel":            NewsSentinelAgent(),
-            "odds-anomaly":             OddsAnomalyAgent(),
-            # ── Autonomous human-replacement agents (items 1-14) ─────────
-            "kyc-screener":             KYCScreenerAgent(),
-            "fraud-review":             FraudReviewAgent(),
-            "withdrawal-gatekeeper":    WithdrawalGatekeeperAgent(),
-            "marketplace-audit":        MarketplaceAuditAgent(),
-            "model-promoter":           ModelPromoterAgent(),
-            "analytics-reporter":       AnalyticsReporterAgent(),
-            "fixture-gap":              FixtureGapAgent(),
-            "accumulator-publisher":    AccumulatorPublisherAgent(),
-            "revenue-optimizer":        RevenueOptimizerAgent(),
-            "governance-executor":      GovernanceExecutorAgent(),
-            "self-healing":             SelfHealingAgent(),
-            "audit-sentinel":           AuditSentinelAgent(),
-            "prediction-moderator":     PredictionModeratorAgent(),
-            # ── Real-time tracking ───────────────────────────────────────
-            "live-match-tracker":       LiveMatchTrackerAgent(),
-            # ── VIT Oracle Node ──────────────────────────────────────────
-            "oracle-node":              OracleNodeAgent(),
-            # ── VIT Network Guardian (DID + node registry) ───────────────
-            # Rebranded to Value Intelligence Trust (VIT)
-            "network-guardian":         NetworkGuardianAgent(),
-        }
+        self._agents: Dict[str, Any] = {}
+        self._agent_classes: Dict[str, Type] = {}
         self._tasks: List[asyncio.Task] = []
         self._started_at = datetime.now(timezone.utc)
 
+        # ── Map names to lazy-loaded classes ─────────────────────────────
+        self._register_agent_classes()
+
+        # ── Determine which agents to enable ─────────────────────────────
+        enabled_names = self._get_enabled_agent_names()
+
+        # ── Instantiate enabled agents ──────────────────────────────────
+        for name in enabled_names:
+            if name in self._agent_classes:
+                try:
+                    self._agents[name] = self._agent_classes[name]()
+                    logger.info("[coordinator] instantiated agent: %s", name)
+                except Exception as e:
+                    logger.error("[coordinator] failed to instantiate agent %s: %s", name, e)
+            else:
+                logger.warning("[coordinator] unknown agent requested: %s", name)
+
         global _GLOBAL_COORDINATOR
         _GLOBAL_COORDINATOR = self
-        logger.info("[coordinator] initialised with %d agents", len(self._agents))
+        logger.info("[coordinator] initialised with %d agents (out of %d possible)",
+                    len(self._agents), len(self._agent_classes))
+
+    def _register_agent_classes(self) -> None:
+        """Populates _agent_classes with lazy imports to keep memory low."""
+        # This prevents all agent modules from being loaded into RAM at once
+        # if they aren't actually enabled.
+
+        def _get_perf():
+            from app.agents.performance_monitor import PerformanceMonitorAgent
+            return PerformanceMonitorAgent
+        def _get_weight():
+            from app.agents.weight_optimizer import WeightOptimizerAgent
+            return WeightOptimizerAgent
+        def _get_retrain():
+            from app.agents.retrain_trigger import RetrainTriggerAgent
+            return RetrainTriggerAgent
+        def _get_scout():
+            from app.agents.match_scout_agent import MatchScoutAgent
+            return MatchScoutAgent
+        def _get_news():
+            from app.agents.news_sentinel_agent import NewsSentinelAgent
+            return NewsSentinelAgent
+        def _get_anomaly():
+            from app.agents.odds_anomaly_agent import OddsAnomalyAgent
+            return OddsAnomalyAgent
+        def _get_kyc():
+            from app.agents.kyc_screener_agent import KYCScreenerAgent
+            return KYCScreenerAgent
+        def _get_fraud():
+            from app.agents.fraud_review_agent import FraudReviewAgent
+            return FraudReviewAgent
+        def _get_withdrawal():
+            from app.agents.withdrawal_gatekeeper_agent import WithdrawalGatekeeperAgent
+            return WithdrawalGatekeeperAgent
+        def _get_mkt_audit():
+            from app.agents.marketplace_audit_agent import MarketplaceAuditAgent
+            return MarketplaceAuditAgent
+        def _get_promoter():
+            from app.agents.model_promoter_agent import ModelPromoterAgent
+            return ModelPromoterAgent
+        def _get_analytics():
+            from app.agents.analytics_reporter_agent import AnalyticsReporterAgent
+            return AnalyticsReporterAgent
+        def _get_fixture():
+            from app.agents.fixture_gap_agent import FixtureGapAgent
+            return FixtureGapAgent
+        def _get_acc():
+            from app.agents.accumulator_publisher_agent import AccumulatorPublisherAgent
+            return AccumulatorPublisherAgent
+        def _get_rev():
+            from app.agents.revenue_optimizer_agent import RevenueOptimizerAgent
+            return RevenueOptimizerAgent
+        def _get_gov():
+            from app.agents.governance_executor_agent import GovernanceExecutorAgent
+            return GovernanceExecutorAgent
+        def _get_heal():
+            from app.agents.self_healing_agent import SelfHealingAgent
+            return SelfHealingAgent
+        def _get_audit():
+            from app.agents.audit_sentinel_agent import AuditSentinelAgent
+            return AuditSentinelAgent
+        def _get_moderator():
+            from app.agents.prediction_moderator_agent import PredictionModeratorAgent
+            return PredictionModeratorAgent
+        def _get_tracker():
+            from app.agents.live_match_tracker_agent import LiveMatchTrackerAgent
+            return LiveMatchTrackerAgent
+        def _get_oracle():
+            from app.agents.oracle_node_agent import OracleNodeAgent
+            return OracleNodeAgent
+        def _get_network():
+            from app.agents.network_guardian_agent import NetworkGuardianAgent
+            return NetworkGuardianAgent
+
+        registry = {
+            "performance-monitor":      _get_perf,
+            "weight-optimizer":         _get_weight,
+            "retrain-trigger":          _get_retrain,
+            "match-scout":              _get_scout,
+            "news-sentinel":            _get_news,
+            "odds-anomaly":             _get_anomaly,
+            "kyc-screener":             _get_kyc,
+            "fraud-review":             _get_fraud,
+            "withdrawal-gatekeeper":    _get_withdrawal,
+            "marketplace-audit":        _get_mkt_audit,
+            "model-promoter":           _get_promoter,
+            "analytics-reporter":       _get_analytics,
+            "fixture-gap":              _get_fixture,
+            "accumulator-publisher":    _get_acc,
+            "revenue-optimizer":        _get_rev,
+            "governance-executor":      _get_gov,
+            "self-healing":             _get_heal,
+            "audit-sentinel":           _get_audit,
+            "prediction-moderator":     _get_moderator,
+            "live-match-tracker":       _get_tracker,
+            "oracle-node":              _get_oracle,
+            "network-guardian":         _get_network,
+        }
+
+        for name, getter in registry.items():
+            try:
+                self._agent_classes[name] = getter()
+            except Exception as e:
+                logger.error("[coordinator] Failed to register class for %s: %s", name, e)
+
+    def _get_enabled_agent_names(self) -> List[str]:
+        env_val = os.getenv("ENABLED_AGENTS", "").lower().strip()
+
+        if env_val == "all":
+            return list(self._agent_classes.keys())
+
+        if env_val:
+            return [n.strip() for n in env_val.split(",") if n.strip() in self._agent_classes]
+
+        # Default "Core" set for memory-constrained production environments
+        # Focus on ML health and real-time tracking
+        return [
+            "performance-monitor",
+            "live-match-tracker",
+            "network-guardian",
+            "weight-optimizer",
+            "match-scout",
+            "oracle-node",
+            "kyc-screener"
+        ]
 
     def start(self, task_list: Optional[List[asyncio.Task]] = None) -> List[asyncio.Task]:
-        """Launch all agent loops as asyncio tasks.
-
-        Returns the created tasks so they can be tracked by the caller
-        (e.g. added to the main.py tasks list for clean shutdown).
-        """
+        """Launch all enabled agent loops as asyncio tasks."""
         for name, agent in self._agents.items():
             task = asyncio.create_task(agent.loop(), name=f"agent-{name}")
             self._tasks.append(task)
@@ -162,6 +248,7 @@ class AgentCoordinator:
                 "started_at":    self._started_at.isoformat(),
                 "agent_count":   len(self._agents),
                 "running_tasks": sum(1 for t in self._tasks if not t.done()),
+                "enabled_agents": list(self._agents.keys()),
             },
             "agents": {name: agent.snapshot() for name, agent in self._agents.items()},
         }
