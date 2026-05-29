@@ -195,7 +195,7 @@ async def support_status(user: User = Depends(get_current_user)):
     from app.services.ai_client import provider_status
     now = time.time()
     calls_this_hour = len([t for t in _RATE_LIMIT.get(user.id, []) if t > now - 3600])
-    providers = provider_status()
+    providers = await provider_status()
     ai_available = any(p["available"] for p in providers.values())
     return {
         "available": ai_available,

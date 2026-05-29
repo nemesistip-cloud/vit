@@ -69,7 +69,7 @@ async def ai_provider_status(_user=Depends(get_optional_user)):
     try:
         from app.services.ai_client import provider_status, get_provider_priority
         return {
-            "providers": provider_status(),
+            "providers": await provider_status(),
             "priority": get_provider_priority(),
         }
     except Exception as exc:
@@ -92,12 +92,12 @@ async def refresh_providers(_user=Depends(_get_admin)):
             get_provider_failures,
         )
         cleared_failures = get_provider_failures()  # snapshot before clear
-        cleared = reset_provider_backoff()
+        cleared = await reset_provider_backoff()
         return {
             "refreshed": True,
             "cleared_backoffs": list(cleared.keys()),
             "cleared_failures": {k: v["status_code"] for k, v in cleared_failures.items()},
-            "providers": provider_status(),
+            "providers": await provider_status(),
             "priority": get_provider_priority(),
         }
     except Exception as exc:
@@ -123,7 +123,7 @@ async def set_provider_priority_endpoint(body: _ProviderPriorityBody, _user=Depe
         return {
             "updated": True,
             "priority": new_order,
-            "providers": provider_status(),
+            "providers": await provider_status(),
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

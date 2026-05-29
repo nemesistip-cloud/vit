@@ -426,6 +426,8 @@ class User(Base):
     locked_until = Column(DateTime(timezone=True), nullable=True)
     # 2FA (TOTP)
     totp_secret = Column(String(64), nullable=True)
+    totp_secret_pending = Column(String(64), nullable=True)
+
     totp_enabled = Column(Boolean, default=False, nullable=False)
 
     # Wallet module relationships (back_populates wired in app/modules/wallet/models.py)
@@ -618,3 +620,17 @@ from app.modules.tasks.models import (  # noqa: F401, E402
     TaskType as _TaskType,
     TaskStatus as _TaskStatus,
 )
+
+
+class BackgroundTaskStatus(Base):
+    """ENG-05: DB-backed persistent background task health monitor"""
+    __tablename__ = "background_task_status"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_name = Column(String(100), unique=True, nullable=False, index=True)
+    status = Column(String(20), default="stopped")  # running, crashed, stopped
+    restart_count = Column(Integer, default=0)
+    last_started_at = Column(DateTime(timezone=True), nullable=True)
+    last_crashed_at = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(Text, nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

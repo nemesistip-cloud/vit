@@ -69,7 +69,7 @@ def _get_provider_status() -> List[Dict]:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/status")
-async def get_provider_status(db: AsyncSession = Depends(get_db)):
+async def get_provider_status_endpoint(db: AsyncSession = Depends(get_db)):
     """Return live API provider status and prediction coverage stats."""
     providers = _get_provider_status()
 
