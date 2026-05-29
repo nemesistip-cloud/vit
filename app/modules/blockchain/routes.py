@@ -1,7 +1,7 @@
 """Blockchain economy API routes — Module C4."""
 
 import logging
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Dict, Any
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException

@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: vit-sports-intelligence
+    name: vit
     runtime: python
     region: oregon
-    plan: standard
+    plan: starter # Recommend starter (512MB-1GB) for production stability
 
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_production.sh
@@ -19,6 +19,11 @@ services:
         value: "true"
       - key: ML_MODEL_CACHE_ENABLED
         value: "true"
+      # Memory Optimisation: limit active agents and models to fit in 512MB
+      - key: ENABLED_AGENTS
+        value: "performance-monitor,live-match-tracker,network-guardian,weight-optimizer,match-scout,oracle-node,kyc-screener"
+      - key: ENABLED_MODELS
+        value: "logistic_v2,poisson_v2,elo_v2,dixon_coles_v2,market_implied_v2"
       - key: BLOCKCHAIN_ENABLED
         value: "true"
       - key: AUTH_ENABLED

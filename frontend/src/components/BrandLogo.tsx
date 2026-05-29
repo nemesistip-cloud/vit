@@ -10,10 +10,10 @@ interface BrandLogoProps {
 }
 
 /**
- * VIT Brand Logo — Hexagonal AI Core Mark v2
+ * VIT Brand Logo — Hexagonal AI Core Mark v3 (Super App Edition)
  * Hex frame = institutional precision. Inner delta = direction + edge.
  * Six circuit nodes = the 6-layer model stack.
- * Central pulse = live AI inference engine.
+ * Central pulse = live AI inference engine (VIT Brain).
  */
 export const BrandLogo: React.FC<BrandLogoProps> = ({
   className,
@@ -26,7 +26,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   const teal    = variant === 'premium' ? '#F0D060' : '#00F5C8';
   const purple  = variant === 'premium' ? '#C8A030' : '#7C3AED';
   const id      = `vit-${variant}`;
-  const glowId  = `vit-glow-${variant}`;
   const hexId   = `vit-hex-${variant}`;
 
   const logoIcon = (
@@ -37,7 +36,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="flex-shrink-0"
-      aria-label="VIT Sports Intelligence Logo"
+      aria-label="VIT Super App Intelligence Logo"
     >
       <defs>
         {/* Core radial gradient */}
@@ -52,7 +51,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
           <stop offset="0%"   stopColor={cyan}   stopOpacity="0.14" />
           <stop offset="100%" stopColor={purple} stopOpacity="0.08" />
         </linearGradient>
-
 
         <clipPath id={`${id}-clip`}>
           <polygon points="50,6 88,28 88,72 50,94 12,72 12,28" />
@@ -159,10 +157,10 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
             <span className={cn(
               "font-black text-lg tracking-tighter font-mono",
               variant === 'premium' ? "text-[#D4AF37]" : "text-primary"
-            )}>_OS</span>
+            )}> NETWORK</span>
           </div>
           <span className="text-[7.5px] uppercase tracking-[0.22em] text-muted-foreground/55 font-mono -mt-0.5 whitespace-nowrap">
-            Intelligence · Edge · Trust
+            Institutional · Intelligence · Oracle
           </span>
         </div>
       )}
