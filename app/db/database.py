@@ -55,12 +55,13 @@ if _is_sqlite:
         cursor.execute("PRAGMA temp_store=MEMORY")
         cursor.close()
 else:
+    # Reduced pool sizes for Render Free Tier (25 connection limit)
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
         future=True,
-        pool_size=10,
-        max_overflow=20,
+        pool_size=5,
+        max_overflow=10,
         pool_pre_ping=True,
         connect_args={"ssl": True},
     )
