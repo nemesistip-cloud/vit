@@ -16,7 +16,8 @@ import unicodedata
 from datetime import date, datetime, timezone, timedelta
 from typing import Any
 
-from app.modules.kyc.models import KYCDocumentType, KYCRiskLevel, KYCStatus
+from app.modules.kyc.models import KYCDocumentType, KYCRiskLevel, KYCStatus, KYCSubmission
+from sqlalchemy import select
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -160,7 +161,45 @@ def _check_nationality(nationality: str) -> tuple[bool, int, str]:
 
 # ── Core verification function ─────────────────────────────────────────────────
 
-def verify_offline(payload: dict[str, Any]) -> dict[str, Any]:
+
+async def _check_duplicate_id(db, doc_type, doc_number, user_id) -> tuple[bool, int, str]:
+    if db is None or user_id is None:
+        return True, 0, "skipped (no db context)"
+
+    num = doc_number.strip().upper()
+    # Check for other users with same ID number who are already approved
+    q = select(KYCSubmission).where(
+        KYCSubmission.document_type == doc_type,
+        KYCSubmission.document_number == num,
+        KYCSubmission.user_id != user_id,
+        KYCSubmission.status.in_([KYCStatus.APPROVED, KYCStatus.AUTO_APPROVED])
+    )
+    res = await db.execute(q)
+    existing = res.scalar_one_or_none()
+    if existing:
+        return False, 80, "document_number already registered to another account"
+    return True, 0, "ok"
+
+
+def _check_liveness(selfie_data: dict | None) -> tuple[bool, int, str]:
+    if not selfie_data:
+        return False, 50, "selfie/liveness data missing"
+
+    # Simulated advanced check: ensure data structure and minimum "mass"
+    image = selfie_data.get("image") or selfie_data.get("video") or selfie_data.get("b64")
+    if not image:
+        return False, 40, "no image/video found in selfie payload"
+
+    if isinstance(image, str) and len(image) < 200:
+        return False, 30, "selfie data payload too small (possible empty upload)"
+
+    # Soft check for metadata
+    if not selfie_data.get("metadata") and not selfie_data.get("timestamp"):
+        return True, 5, "liveness metadata missing (soft warning)"
+
+    return True, 0, "ok"
+
+async def verify_offline(payload: dict[str, Any], db=None, user_id=None) -> dict[str, Any]:
     """
     Run all rule checks and return a structured result:
     {
@@ -194,6 +233,17 @@ def verify_offline(payload: dict[str, Any]) -> dict[str, Any]:
     ))
     _run("nationality",     _check_nationality(payload.get("nationality", "")))
 
+    # ── Advanced Internal Checks ──
+    _run("liveness",        _check_liveness(payload.get("selfie_data")))
+
+    dup_res = await _check_duplicate_id(
+        db,
+        payload.get("document_type", ""),
+        payload.get("document_number", ""),
+        user_id
+    )
+    _run("identity_collision", dup_res)
+
     # Clamp
     risk_score = min(100, max(0, risk_score))
 
@@ -206,7 +256,7 @@ def verify_offline(payload: dict[str, Any]) -> dict[str, Any]:
         risk_level = KYCRiskLevel.HIGH
 
     # All critical checks must pass for auto-approval
-    critical_rules = {"full_name", "date_of_birth", "document_type", "document_number"}
+    critical_rules = {"full_name", "date_of_birth", "document_type", "document_number", "liveness", "identity_collision"}
     critical_fail  = any(not checks[r]["passed"] for r in critical_rules if r in checks)
 
     if critical_fail or risk_score > _MANUAL_REVIEW_MAX_RISK:

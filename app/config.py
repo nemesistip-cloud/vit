@@ -209,9 +209,6 @@ SMTP_PASS: str           = get_env("SMTP_PASS", "")
 
 API_KEY: str              = get_env("API_KEY", "")
 ORACLE_API_KEY: str       = get_env("ORACLE_API_KEY", "")
-SMILE_IDENTITY_API_KEY: str      = get_env("SMILE_IDENTITY_API_KEY", "")
-SMILE_IDENTITY_PARTNER_ID: str   = get_env("SMILE_IDENTITY_PARTNER_ID", "")
-SMILE_IDENTITY_SANDBOX: bool     = get_bool_env("SMILE_IDENTITY_SANDBOX", "false")
 TELEGRAM_BOT_USERNAME: str       = get_env("TELEGRAM_BOT_USERNAME", "VITSportsBot")
 USDT_MIN_CONFIRMATIONS: int      = get_int_env("USDT_MIN_CONFIRMATIONS", "3")
 
