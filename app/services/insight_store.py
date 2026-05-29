@@ -2,30 +2,24 @@ import json
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, Optional
-
-
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-INSIGHTS_DIR = os.path.join(ROOT_DIR, "data", "insights")
+from typing import Any, Dict, Optional, List
+from sqlalchemy import select, insert, update
+from app.db.database import AsyncSessionLocal
+from app.modules.ai.models import AIInsight
 
 # Cached insights older than this are treated as stale and regenerated
 CACHE_TTL_HOURS = 6
 
-PROVIDERS = ("gemini", "claude", "grok")
+PROVIDERS = ("gemini", "claude", "grok", "openai")
 PROVIDER_LABELS = {
     "gemini": "Google Gemini",
     "claude": "Anthropic Claude",
     "grok": "xAI Grok",
+    "openai": "OpenAI GPT",
 }
-
 
 def _safe_match_id(match_id: int) -> str:
     return re.sub(r"[^0-9]", "", str(match_id))
-
-
-def _path_for(match_id: int) -> str:
-    return os.path.join(INSIGHTS_DIR, f"match_{_safe_match_id(match_id)}.json")
-
 
 def _as_probability(value: Any, fallback: Optional[float] = None) -> Optional[float]:
     if value is None:
@@ -37,7 +31,6 @@ def _as_probability(value: Any, fallback: Optional[float] = None) -> Optional[fl
         return max(0.0, min(1.0, numeric))
     except Exception:
         return fallback
-
 
 def normalize_provider_insight(source: str, payload: Dict[str, Any], defaults: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
     defaults = defaults or {}
@@ -67,7 +60,6 @@ def normalize_provider_insight(source: str, payload: Dict[str, Any], defaults: O
         "from_cache": True,
     }
 
-
 def _extract_insights(raw: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     candidates = raw.get("insights") or raw.get("agents") or raw.get("results") or raw.get("providers") or raw
     if not isinstance(candidates, dict):
@@ -80,60 +72,62 @@ def _extract_insights(raw: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             extracted[source] = value
     return extracted
 
-
-def save_match_insights(match_id: int, raw: Dict[str, Any]) -> Dict[str, Any]:
+async def save_match_insights(match_id: int, raw: Dict[str, Any]) -> Dict[str, Any]:
     insights = _extract_insights(raw)
     if not insights:
-        raise ValueError("JSON must include insights for at least one provider: gemini, claude, or grok")
+        # If raw itself IS the insight dict
+        if all(isinstance(v, dict) for v in raw.values()) and any(k in PROVIDERS for k in raw.keys()):
+            insights = {k: v for k, v in raw.items() if k in PROVIDERS}
+        else:
+            raise ValueError("JSON must include insights for at least one provider: gemini, claude, grok, or openai")
 
-    os.makedirs(INSIGHTS_DIR, exist_ok=True)
-    payload = {
-        "match_id": match_id,
-        "uploaded_at": datetime.now(timezone.utc).isoformat(),
-        "insights": insights,
-        "original": raw,
-    }
-    path = _path_for(match_id)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-    return {"match_id": match_id, "path": path, "sources": sorted(insights.keys()), "count": len(insights)}
+    async with AsyncSessionLocal() as db:
+        q = await db.execute(select(AIInsight).where(AIInsight.match_id == match_id))
+        existing = q.scalar_one_or_none()
 
+        if existing:
+            current = dict(existing.insights or {})
+            current.update(insights)
+            existing.insights = current
+            existing.original = raw
+            existing.uploaded_at = datetime.now(timezone.utc)
+        else:
+            new_insight = AIInsight(
+                match_id=match_id,
+                insights=insights,
+                original=raw,
+                uploaded_at=datetime.now(timezone.utc)
+            )
+            db.add(new_insight)
 
-def _is_stale(raw: Dict[str, Any]) -> bool:
-    """Return True if the cached file is older than CACHE_TTL_HOURS."""
-    ts_str = raw.get("uploaded_at") or raw.get("generated_at") or raw.get("saved_at")
-    if not ts_str:
-        return True  # no timestamp → assume stale
-    try:
-        ts = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        age = datetime.now(timezone.utc) - ts
-        return age > timedelta(hours=CACHE_TTL_HOURS)
-    except Exception:
+        await db.commit()
+
+    return {"match_id": match_id, "sources": sorted(insights.keys()), "count": len(insights)}
+
+def _is_stale(uploaded_at: datetime) -> bool:
+    if not uploaded_at:
         return True
+    if uploaded_at.tzinfo is None:
+        uploaded_at = uploaded_at.replace(tzinfo=timezone.utc)
+    age = datetime.now(timezone.utc) - uploaded_at
+    return age > timedelta(hours=CACHE_TTL_HOURS)
 
+async def load_match_insights(match_id: int, defaults: Optional[Dict[str, float]] = None) -> Dict[str, Dict[str, Any]]:
+    async with AsyncSessionLocal() as db:
+        q = await db.execute(select(AIInsight).where(AIInsight.match_id == match_id))
+        row = q.scalar_one_or_none()
 
-def load_match_insights(match_id: int, defaults: Optional[Dict[str, float]] = None) -> Dict[str, Dict[str, Any]]:
-    """
-    Load cached insights for match_id.
-    Returns empty dict if:
-      - File does not exist
-      - Cache is older than CACHE_TTL_HOURS (stale → dispatcher will regenerate)
-    """
-    path = _path_for(match_id)
-    if not os.path.exists(path):
+    if not row:
         return {}
-    with open(path, encoding="utf-8") as f:
-        raw = json.load(f)
-    if _is_stale(raw):
+
+    if _is_stale(row.uploaded_at):
         return {}
-    insights = _extract_insights(raw)
+
+    insights = row.insights
     return {
         source: normalize_provider_insight(source, payload, defaults=defaults)
         for source, payload in insights.items()
     }
-
 
 def infer_match_id(raw: Dict[str, Any]) -> Optional[int]:
     value = raw.get("match_id") or raw.get("id")

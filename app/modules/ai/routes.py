@@ -516,7 +516,7 @@ async def get_accuracy_report(
     No authentication required — the admin page enforces access at the UI level.
     """
     metrics = await rolling_window_accuracy(db, window=window)
-    current_T = TemperatureScaler.load().temperature
+    current_T = (await TemperatureScaler.load()).temperature
     return {
         "window": window,
         "models": [m.__dict__ for m in metrics],
@@ -547,7 +547,7 @@ async def enhance_accuracy(
             "window": window,
             "models": [m.__dict__ for m in metrics],
         },
-        "current_temperature": TemperatureScaler.load().temperature,
+        "current_temperature": (await TemperatureScaler.load()).temperature,
     }
 
 

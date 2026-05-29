@@ -86,8 +86,8 @@ async def _load_ai_signals(db: AsyncSession, match_id: str) -> Dict:
 async def generate_ai_prediction(
     features: Dict[str, Any],
     match_id: str,
-    sport: str = "soccer",
     orchestrator: Any,
+    sport: str = "soccer",
     db: Optional[AsyncSession] = None,
     triggered_by: str = "api",
 ) -> Dict[str, Any]:
@@ -145,7 +145,7 @@ async def generate_ai_prediction(
     # Temperature scaling — global calibration on the final ensemble
     # distribution. T=1.0 (default) is a no-op; values are tuned by
     # `fit_temperature_from_history` and persisted in models/temperature.json.
-    scaler = TemperatureScaler.load()
+    scaler = await TemperatureScaler.load()
     hp, dp, ap = scaler.apply(hp, dp, ap)
     preds["home_prob"], preds["draw_prob"], preds["away_prob"] = hp, dp, ap
     if abs(scaler.temperature - 1.0) > 1e-6:

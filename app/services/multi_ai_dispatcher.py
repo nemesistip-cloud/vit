@@ -10,6 +10,8 @@ from typing import List, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.services.insight_store import load_match_insights, save_match_insights
+
 logger = logging.getLogger(__name__)
 
 PROVIDERS = ["gemini", "claude", "grok", "openai"]
@@ -88,21 +90,18 @@ async def run_multi_ai(
         confidence=float(pred.confidence) if pred and pred.confidence else 0.5,
     )
 
-    from app.services.insight_store import load_match_insights
-
     defaults = {
         "home_prob": kwargs["home_prob"],
         "draw_prob": kwargs["draw_prob"],
         "away_prob": kwargs["away_prob"],
         "confidence": kwargs["confidence"],
     }
-    cached = load_match_insights(match_id, defaults=defaults)
+    cached = await load_match_insights(match_id, defaults=defaults)
     results = {source: cached[source] for source in sources if source in cached}
     missing_sources = [source for source in sources if source not in results]
 
     if missing_sources:
         # Wrap each provider call in a timeout to prevent slow APIs from hanging the entire request
-        # We use a 12s timeout per provider.
         tasks = [asyncio.wait_for(_call_provider(s, kwargs), timeout=12.0) for s in missing_sources]
         results_list = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -128,9 +127,7 @@ async def run_multi_ai(
                 # Successfully returned a result dict
                 results[requested_source] = r
 
-    # ── Deterministic fallback: ensure at least one result is available ───────
-    # If every LLM provider failed or is cooling down, inject the statistical
-    # engine result so the AI panel is never completely empty.
+    # ── Deterministic fallback ───────
     llm_available = any(
         r.get("available") for s, r in results.items() if s != "deterministic"
     )
@@ -157,39 +154,14 @@ async def run_multi_ai(
             except Exception as exc:
                 logger.warning(f"Failed to ingest {source} prediction: {exc}")
 
-    # ── Persist freshly generated insights to disk (TTL-cached) ──────
+    # ── Persist freshly generated insights to DB (Persistent) ──────
     new_insights = {
         source: r for source, r in results.items()
         if not r.get("from_cache") and r.get("available")
     }
     if new_insights:
         try:
-            from app.services.insight_store import INSIGHTS_DIR, _path_for
-            import json as _json
-            import os as _os
-            from datetime import datetime as _dt, timezone as _tz
-
-            _os.makedirs(INSIGHTS_DIR, exist_ok=True)
-            cache_path = _path_for(match_id)
-
-            # Merge with existing file if present (to preserve other providers' cached data)
-            existing_cached: dict = {}
-            if _os.path.exists(cache_path):
-                try:
-                    with open(cache_path, encoding="utf-8") as _f:
-                        _existing = _json.load(_f)
-                    existing_cached = _existing.get("insights", {})
-                except Exception:
-                    existing_cached = {}
-
-            merged_insights = {**existing_cached, **new_insights}
-            payload = {
-                "match_id": match_id,
-                "generated_at": _dt.now(_tz.utc).isoformat(),
-                "insights": merged_insights,
-            }
-            with open(cache_path, "w", encoding="utf-8") as _f:
-                _json.dump(payload, _f, indent=2, ensure_ascii=False)
+            await save_match_insights(match_id, new_insights)
         except Exception as exc:
             logger.warning(f"Failed to cache insights for match {match_id}: {exc}")
 

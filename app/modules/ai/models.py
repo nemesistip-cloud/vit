@@ -111,3 +111,19 @@ class AIPredictionAudit(Base):
     triggered_by = Column(String(64), default="api")  # api / validator / auto
 
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+class AIInsight(Base):
+    """
+    E5 — Persistent AI Insights
+    Stores multi-provider analysis for matches to avoid re-generation
+    and ensure persistence across deployments.
+    """
+    __tablename__ = "ai_insights"
+
+    id        = Column(Integer, primary_key=True, index=True)
+    match_id  = Column(Integer, unique=True, index=True, nullable=False)
+    insights  = Column(JSON, nullable=False)  # dict of provider -> normalized insight
+    original  = Column(JSON, nullable=True)   # full raw response
+
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at  = Column(DateTime(timezone=True), onupdate=func.now())

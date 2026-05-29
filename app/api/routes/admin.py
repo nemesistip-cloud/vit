@@ -1113,7 +1113,7 @@ async def upload_match_insights(
             raise HTTPException(status_code=404, detail=f"Match {resolved_match_id} not found")
 
     try:
-        saved = save_match_insights(resolved_match_id, raw)
+        saved = await save_match_insights(resolved_match_id, raw)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
