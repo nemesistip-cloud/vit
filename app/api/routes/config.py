@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.db.database import get_db
-from app.db.models import PlatformConfig, Match, Prediction, CLVEntry
+from app.db.models import Match, Prediction, CLVEntry
+from app.modules.wallet.models import PlatformConfig
 from app.api.routes.subscription import PLANS
 
 router = APIRouter(prefix="/config", tags=["Config"])
