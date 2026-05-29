@@ -653,6 +653,11 @@ async def _run_bootstrap(app, _done_event):
         from app.db.database import engine, Base
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # Ensure AIInsight and PlatformConfig are explicitly created
+            from app.modules.ai.models import AIInsight
+            from app.modules.wallet.models import PlatformConfig
+            await conn.run_sync(AIInsight.__table__.create, checkfirst=True)
+            await conn.run_sync(PlatformConfig.__table__.create, checkfirst=True)
         print("✅ Database: all tables created/verified")
     except Exception as _cre:
         print(f"⚠️  Database create_all failed: {_cre}")
@@ -2801,3 +2806,5 @@ if __name__ == "__main__":
         port=port,
         reload=False,
     )
+# Ensure AIInsight is registered for migrations
+from app.modules.ai.models import AIInsight

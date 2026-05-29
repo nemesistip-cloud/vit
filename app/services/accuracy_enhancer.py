@@ -2,23 +2,24 @@
 
 Three improvements that measurably tighten the ensemble's calibration:
 
-1.  **Proper-scoring weight updates** (`compute_log_loss_delta`)
-    Replaces the symmetric ±10% delta in `weight_adjuster` with a log-loss
+1.  **Proper-scoring weight updates** (compute_log_loss_delta)
+    Replaces the symmetric ±10% delta in weight_adjuster with a log-loss
     based magnitude. Confident-correct predictions earn more, confident-wrong
     predictions are penalised more — exactly what a strictly proper scoring
     rule should do.
 
-2.  **Rolling-window accuracy** (`rolling_window_accuracy`)
+2.  **Rolling-window accuracy** (rolling_window_accuracy)
     Computes each model's accuracy over its last N predictions from the
-    `AIPredictionAudit` history. More responsive than lifetime accuracy.
+    AIPredictionAudit history. More responsive than lifetime accuracy.
 
-3.  **Temperature scaling** (`TemperatureScaler`)
+3.  **Temperature scaling** (TemperatureScaler)
     Single-parameter post-processor on the final ensemble distribution.
-    `T > 1` softens over-confident outputs, `T < 1` sharpens under-confident
+    T > 1 softens over-confident outputs, T < 1 sharpens under-confident
     ones. Fitted on settled history by minimising NLL.
 
 All three are pure functions / single-responsibility classes with no DB
-side-effects beyond `rolling_window_accuracy` (which only reads).
+side-effects beyond rolling_window_accuracy (which only reads) and
+TemperatureScaler (which persists to the platform_configs table).
 """
 
 from __future__ import annotations
@@ -29,10 +30,17 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from app.db.database import AsyncSessionLocal
+from app.modules.wallet.models import PlatformConfig
 
 logger = logging.getLogger(__name__)
 
 EPS = 1e-9
+TEMPERATURE_KEY = "ensemble_temperature"
+# Maintain constant for compatibility if needed, but logic uses DB
 TEMPERATURE_PATH = Path("models/temperature.json")
 
 
@@ -43,19 +51,7 @@ def compute_log_loss_delta(
     base_delta: float = 0.10,
     max_magnitude: float = 0.25,
 ) -> float:
-    """Return a signed delta for weight adjustment using log-loss magnitude.
-
-    Idea: the log-likelihood of the actual outcome is the proper score.
-    A perfect prediction (p=1.0) gives log(1)=0  → maximum reward magnitude.
-    A coin-flip prediction (p=1/3) gives log(1/3)≈-1.10 → neutral.
-    A confident-wrong prediction (p=0.05) gives log(0.05)≈-3.0 → heavy penalty.
-
-    Mapping: delta = base_delta × ((-log(1/3)) - (-log(p_actual))) / log(3)
-    so it's normalised to roughly [-1, +1] × base_delta around the neutral
-    point of 1/3, then clamped to ±max_magnitude.
-
-    Returns positive for better-than-coin-flip, negative otherwise.
-    """
+    """Return a signed delta for weight adjustment using log-loss magnitude."""
     p = max(EPS, min(1.0 - EPS, p_actual))
     neutral_nll = math.log(3.0)             # NLL of a uniform 1/3 guess
     actual_nll = -math.log(p)
@@ -94,8 +90,6 @@ class RollingMetrics:
 async def rolling_window_accuracy(db, window: int = 50) -> list[RollingMetrics]:
     """Compute rolling accuracy / log-loss / Brier over the most recent
     `window` settled predictions per model.
-
-    Reads from `AIPredictionAudit` joined to `Match.actual_outcome`.
     """
     from sqlalchemy import select, desc
     from app.modules.ai.models import AIPredictionAudit
@@ -106,7 +100,7 @@ async def rolling_window_accuracy(db, window: int = 50) -> list[RollingMetrics]:
         .join(Match, Match.external_id == AIPredictionAudit.match_id, isouter=True)
         .where(Match.actual_outcome.isnot(None))
         .order_by(desc(AIPredictionAudit.created_at))
-        .limit(window * 50)             # pull enough to cover all 13 models × window
+        .limit(window * 50)
     )).all()
 
     bucket: dict[str, list[tuple[float, float, float, str]]] = {}
@@ -145,35 +139,49 @@ async def rolling_window_accuracy(db, window: int = 50) -> list[RollingMetrics]:
             log_loss=round(nll, 4),
             brier=round(bri, 4),
         ))
-    out.sort(key=lambda m: m.log_loss)      # best (lowest NLL) first
+    out.sort(key=lambda m: m.log_loss)
     return out
 
 
 # ── 3. Temperature scaling ────────────────────────────────────────────
 
 class TemperatureScaler:
-    """Single-parameter post-processor on a 1x2 distribution.
-
-    p_cal_i ∝ p_i ^ (1/T)
-    T > 1  → softens (reduces over-confidence)
-    T < 1  → sharpens
-    T = 1  → identity (no change)
-    """
+    """Single-parameter post-processor on a 1x2 distribution."""
 
     def __init__(self, temperature: float = 1.0) -> None:
         self.temperature = max(0.05, float(temperature))
 
     @classmethod
-    def load(cls, path: Path = TEMPERATURE_PATH) -> "TemperatureScaler":
+    async def load(cls) -> "TemperatureScaler":
+        """Load temperature from the persistent PlatformConfig table."""
         try:
-            t = json.loads(path.read_text()).get("temperature", 1.0)
-            return cls(t)
-        except Exception:
-            return cls(1.0)
+            async with AsyncSessionLocal() as db:
+                q = await db.execute(select(PlatformConfig).where(PlatformConfig.key == TEMPERATURE_KEY))
+                row = q.scalar_one_or_none()
+                if row and "temperature" in row.value:
+                    return cls(row.value["temperature"])
+        except Exception as e:
+            logger.warning(f"Failed to load temperature from DB: {e}")
+        return cls(1.0)
 
-    def save(self, path: Path = TEMPERATURE_PATH) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"temperature": self.temperature}))
+    async def save(self) -> None:
+        """Save temperature to the persistent PlatformConfig table."""
+        try:
+            async with AsyncSessionLocal() as db:
+                q = await db.execute(select(PlatformConfig).where(PlatformConfig.key == TEMPERATURE_KEY))
+                row = q.scalar_one_or_none()
+                if row:
+                    row.value = {"temperature": self.temperature}
+                    row.updated_at = datetime.now(timezone.utc)
+                else:
+                    new_config = PlatformConfig(
+                        key=TEMPERATURE_KEY,
+                        value={"temperature": self.temperature}
+                    )
+                    db.add(new_config)
+                await db.commit()
+        except Exception as e:
+            logger.error(f"Failed to save temperature to DB: {e}")
 
     def apply(self, hp: float, dp: float, ap: float) -> tuple[float, float, float]:
         if abs(self.temperature - 1.0) < 1e-6:
@@ -190,15 +198,10 @@ class TemperatureScaler:
         samples: Sequence[tuple[float, float, float, str]],
         candidates: Optional[Iterable[float]] = None,
     ) -> tuple[float, float]:
-        """Grid-search the temperature that minimises mean NLL on `samples`.
-
-        Each sample is (home, draw, away, outcome).
-        Returns (best_T, best_nll).
-        """
+        """Grid-search the temperature that minimises mean NLL on samples."""
         if not samples:
             return 1.0, 0.0
         if candidates is None:
-            # 0.5 → 3.0 in 0.05 steps gives 51 candidates; cheap to evaluate
             candidates = [round(0.5 + i * 0.05, 4) for i in range(51)]
 
         def mean_nll(T: float) -> float:
@@ -243,19 +246,19 @@ async def fit_temperature_from_history(db, min_samples: int = 100) -> dict:
         except (TypeError, ValueError):
             continue
 
-    current_T = TemperatureScaler.load().temperature
+    current_scaler = await TemperatureScaler.load()
+    current_T = current_scaler.temperature
 
     if len(samples) == 0:
         return {
             "fitted":      False,
-            "reason":      "No settled predictions yet — temperature unchanged at T=1.0",
+            "reason":      "No settled predictions yet — temperature unchanged",
             "n_samples":   0,
             "temperature": current_T,
             "low_confidence": False,
         }
 
     if len(samples) < min_samples:
-        # Still fit — just flag the result as low-confidence.
         low_confidence = True
     else:
         low_confidence = False
@@ -264,7 +267,7 @@ async def fit_temperature_from_history(db, min_samples: int = 100) -> dict:
     best_T, best_nll = TemperatureScaler.fit(samples)
 
     scaler = TemperatureScaler(best_T)
-    scaler.save()
+    await scaler.save()
 
     return {
         "fitted":           True,
@@ -273,14 +276,12 @@ async def fit_temperature_from_history(db, min_samples: int = 100) -> dict:
         "pre_fit_log_loss": round(pre_nll, 6),
         "post_fit_log_loss": best_nll,
         "improvement":      round(pre_nll - best_nll, 6),
-        "saved_to":         str(TEMPERATURE_PATH),
         "low_confidence":   low_confidence,
         "note": (
             f"Fitted on only {len(samples)} sample(s) — treat result as provisional until ≥ {min_samples} settle."
             if low_confidence else None
         ),
     }
-
 
 __all__ = [
     "compute_log_loss_delta",
