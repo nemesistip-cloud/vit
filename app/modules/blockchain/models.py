@@ -318,3 +318,42 @@ class BlockchainTransaction(Base):
         Index("idx_bc_tx_match", "match_id"),
         Index("idx_bc_tx_created", "created_at"),
     )
+
+class MarketplaceSignal(Base):
+    """Signals for the Super App Marketplace: Sports, Election, Policy, E-commerce."""
+    __tablename__ = "marketplace_signals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    category: Mapped[str] = mapped_column(String(50), nullable=False) # sports|election|policy|ecommerce
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    confidence: Mapped[int] = mapped_column(Integer, default=50) # 0-100
+    price_vit: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
+    provider: Mapped[str] = mapped_column(String(100), default="VIT AI")
+    external_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_signal_category", "category"),
+        Index("idx_signal_active", "is_active"),
+    )
+
+class AgentApplication(Base):
+    """Applications for Betting Shop and Community Agents."""
+    __tablename__ = "agent_applications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    agent_type: Mapped[str] = mapped_column(String(20), nullable=False) # shop|community
+    business_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    location: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending") # pending|approved|rejected
+    commission_rate: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0.05"))
+    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_agent_app_user", "user_id"),
+        Index("idx_agent_app_status", "status"),
+    )
