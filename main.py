@@ -2422,6 +2422,7 @@ def _feature_label(key: str) -> str:
 @app.get("/api/public/landing")
 async def public_landing_data(db: AsyncSession = Depends(get_db)):
     from app.db.models import Prediction, Match, CLVEntry
+    from app.modules.wallet.models import PlatformConfig
     from app.api.routes.subscription import PLANS as SUBSCRIPTION_PLANS
     from app.modules.marketplace.models import ModelRating, AIModelListing
     from app.modules.wallet.models import WalletTransaction
