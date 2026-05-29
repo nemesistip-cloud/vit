@@ -585,10 +585,9 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
         if key not in seen_keys:
             seen_keys.add(key)
             all_events.append(ev)
-
     logger.info(
-        "[sportsdb] sync_upcoming: %d next + %d range = %d unique events to process",
-        len(next_events), len(range_events), len(all_events),
+        "[sportsdb] sync_upcoming: %d events to process",
+        len(all_events),
     )
 
     inserted = 0

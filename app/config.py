@@ -225,6 +225,9 @@ JWT_SECRET_KEY: str = get_env("JWT_SECRET_KEY") or SECRET_KEY
 
 # ══════════════════════════════════════════════════════════════════════════════
 # EXTERNAL API KEYS
+# Google Auth
+GOOGLE_CLIENT_ID: str        = get_env("GOOGLE_CLIENT_ID", "")
+
 # All empty-string defaults make missing keys safe to detect with ``if KEY:``.
 # ══════════════════════════════════════════════════════════════════════════════
 
