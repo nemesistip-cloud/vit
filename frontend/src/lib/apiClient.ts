@@ -58,7 +58,7 @@ async function refreshToken(): Promise<string | null> {
 function parseError(err: unknown, fallback: string): Error {
   if (typeof err === "object" && err !== null) {
     const e = err as Record<string, unknown>;
-    let msg: unknown = e.detail ?? e.message ?? e.error;
+    let msg: unknown = e.detail ?? e.message ?? (typeof e.error === "object" && e.error !== null ? (e.error as any).message : e.error);
     if (Array.isArray(msg)) {
       const first = msg[0] as any;
       msg = first?.msg ?? first?.message ?? JSON.stringify(first);

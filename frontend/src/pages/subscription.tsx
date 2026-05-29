@@ -158,7 +158,7 @@ export default function SubscriptionPage() {
             <p className="font-bold mb-1">Payment Error</p>
             <p>{error}</p>
             {error.includes("not configured") || error.includes("configuration") ? (
-              <p className="mt-2 text-xs text-red-300">Admin: Set STRIPE_SECRET_KEY (format: sk_test_... or sk_live_...) in Replit Secrets.</p>
+              <p className="mt-2 text-xs text-red-300">Admin: Set STRIPE_SECRET_KEY (format: sk_... or rk_...) in Replit Secrets.</p>
             ) : null}
           </div>
         </div>

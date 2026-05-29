@@ -338,8 +338,6 @@ async def create_checkout_session(
     stripe_key = STRIPE_SECRET_KEY
     if not stripe_key:
         raise HTTPException(status_code=503, detail="Payment system not configured. Contact support.")
-    if not (stripe_key.startswith("sk_test_") or stripe_key.startswith("sk_live_")):
-        raise HTTPException(status_code=503, detail="Payment system configuration error. Contact support.")
 
     price_usd = plan["price_yearly"] if body.billing == "yearly" else plan["price_monthly"]
     amount_cents = int(price_usd * 100)
