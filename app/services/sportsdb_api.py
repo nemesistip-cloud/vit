@@ -738,3 +738,11 @@ async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
         inserted, updated, skipped, len(events),
     )
     return {"inserted": inserted, "updated": updated, "skipped": skipped, "total_fetched": len(events)}
+
+
+async def sync_fixture_results(db, days_back: int = 7) -> Dict:
+    """
+    Finalize Phase 3a: Result Settlement.
+    Poll for match results and update Match.actual_outcome.
+    """
+    return await sync_and_insert_historical(db, days_back=days_back)
