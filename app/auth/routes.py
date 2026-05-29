@@ -326,9 +326,10 @@ async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_
 
     google_client_id = GOOGLE_CLIENT_ID
     if not google_client_id:
-        # Fallback to check if we can at least verify without specific client ID
-        # but usually it's required for security.
-        logger.warning("GOOGLE_CLIENT_ID not set in environment")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Google Login is not configured on this server."
+        )
 
     try:
         # Verify the ID token

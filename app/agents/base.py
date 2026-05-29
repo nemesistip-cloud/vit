@@ -77,7 +77,16 @@ class BaseAgent(ABC):
         metadata: Optional[Dict] = None,
     ) -> None:
         """Post a NodeActivity record for network contribution tracking."""
-        try:
+        from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+        from sqlalchemy.exc import DBAPIError
+
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            retry=retry_if_exception_type((DBAPIError, Exception)),
+            reraise=True
+        )
+        async def _do_record():
             from app.db.database import AsyncSessionLocal
             from app.modules.network.models import NodeActivity
             async with AsyncSessionLocal() as db:
@@ -91,10 +100,13 @@ class BaseAgent(ABC):
                 )
                 db.add(record)
                 await db.commit()
+
+        try:
+            await _do_record()
             self.contribution_count += 1
             self.contribution_score += score
         except Exception as exc:
-            logger.debug("[agent:%s] network contribution record failed: %s", self.name, exc)
+            logger.debug("[agent:%s] network contribution record failed after retries: %s", self.name, exc)
 
     async def loop(self) -> None:
         """Main async loop — register with supervisor."""
