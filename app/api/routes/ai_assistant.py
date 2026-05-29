@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.api.middleware.auth import verify_api_key
 from app.core.errors import AppError
+from app.services.assistant_tools import TOOL_MAP
 from app.services.gemini_chat import chat as gemini_chat
 from app.services.ai_client import provider_status as _ps
 
@@ -55,8 +56,9 @@ async def assistant_chat(
 async def assistant_status(_user=Depends(verify_api_key)):
     """Report whether the assistant is available and which provider is configured."""
     import os
+
     gemini_key = bool(os.getenv("GEMINI_API_KEY", "").strip())
-    claude_key  = bool(
+    claude_key = bool(
         os.getenv("CLAUDE_API_KEY", "").strip()
         or os.getenv("ANTHROPIC_API_KEY", "").strip()
     )
@@ -67,18 +69,21 @@ async def assistant_status(_user=Depends(verify_api_key)):
         configured_providers.append("claude")
 
     backend_available = len(configured_providers) > 0
-    ps = await _ps()
-    # Ensure we include Puter in configured providers for frontend logic
+    ps = _ps()
+    # Ensure we include Puter when it is configured for frontend logic.
     if ps.get("puter", {}).get("configured"):
         configured_providers.append("puter")
-    provider = "gemini-1.5-flash" if gemini_key else ("claude-3-haiku" if claude_key else "puter-claude")
+
+    provider = "gemini" if gemini_key else ("claude" if claude_key else "puter")
+    available_tools = sorted(TOOL_MAP.keys())
 
     return {
-        "available": backend_available or True,
+        "available": backend_available,
         "backend_ai_available": backend_available,
         "configured_providers": configured_providers,
         "provider": provider,
-        "puter_available": True,
+        "puter_available": bool(os.getenv("PUTER_API_KEY", "").strip()),
+        "available_tools": available_tools,
         "message": (
             "Assistant ready." if backend_available
             else "Assistant is available through Puter. Configure GEMINI_API_KEY or CLAUDE_API_KEY for backend chat support."

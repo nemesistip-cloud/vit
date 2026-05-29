@@ -510,6 +510,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
 
         {activeSport && (() => {
           const s = SPORTS.find((x) => x.id === activeSport);
+          if (!s) return null;
           return (
             <div style={{
               background: `linear-gradient(135deg, ${s.color}11, rgba(0,0,0,0.4))`,

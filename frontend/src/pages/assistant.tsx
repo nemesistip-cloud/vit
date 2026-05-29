@@ -27,6 +27,16 @@ const SUGGESTED_PROMPTS = [
   "How does the VIT trust system work?",
 ];
 
+const ASSISTANT_FEATURES = [
+  "Natural-language assistant chat",
+  "Tool-enabled live odds lookups",
+  "Live score and fixture insights",
+  "Upcoming match discovery",
+  "Match-level AI predictions and insights",
+  "System health and agent status",
+  "Market trends and CLV summaries",
+];
+
 // Extend AssistantTurn to include thoughts
 interface ExtendedAssistantTurn extends AssistantTurn {
   thoughts?: string[];
@@ -199,6 +209,39 @@ export default function AssistantPage() {
             ? " via Puter · Free & unlimited · No tool support"
             : " · Backend · Full Tool Calling Support"}
         </span>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-background/90 p-4 text-xs font-mono text-muted-foreground">
+          <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-semibold">
+            Assistant capabilities
+          </p>
+          <ul className="space-y-2">
+            {ASSISTANT_FEATURES.map((feature) => (
+              <li key={feature} className="flex items-start gap-3">
+                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary flex-shrink-0" />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-border bg-background/90 p-4 text-xs font-mono text-muted-foreground">
+          <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-semibold">
+            Current assistant status
+          </p>
+          <p>{status.data?.message ?? "Checking assistant status..."}</p>
+          {status.data?.configured_providers?.length ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Configured providers: {status.data.configured_providers.join(", ")}
+            </p>
+          ) : null}
+          {status.data?.available_tools?.length ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Tool support: {status.data.available_tools.join(", ")}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {/* Chat card */}

@@ -16,9 +16,8 @@
  *   <BetSlipPanel />
  */
 
-import { createContext, useCallback, useContext, useMemo, useReducer } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState } from "react";
 import { X, Trash2, ChevronUp, ChevronDown, Layers } from "lucide-react";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 // ── Types ────────────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
+from app.api.routes.ai_assistant import assistant_status
 from app.services.gemini_chat import chat
 
 @pytest.mark.asyncio
@@ -48,3 +49,15 @@ async def test_assistant_chat_with_tools():
                 assert len(result["thoughts"]) == 1
                 assert "Executing get_upcoming_matches" in result["thoughts"][0]
                 mock_get_matches.assert_called_once_with(limit=5)
+
+
+@pytest.mark.asyncio
+async def test_assistant_status_without_provider_keys():
+    with patch.dict("os.environ", {"GEMINI_API_KEY": "", "CLAUDE_API_KEY": "", "ANTHROPIC_API_KEY": ""}):
+        result = await assistant_status()
+        assert result["available"] is False
+        assert result["backend_ai_available"] is False
+        assert result["configured_providers"] == []
+        assert result["provider"] == "puter"
+        assert isinstance(result["available_tools"], list)
+        assert "get_live_odds" in result["available_tools"]

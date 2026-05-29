@@ -15,13 +15,12 @@ import {
 import { usePublicConfig } from "@/lib/usePublicConfig";
 import { format, formatDistanceToNow } from "date-fns";
 
-type Tab = "markets" | "compare" | "arbitrage" | "injuries" | "audit";
+type Tab = "markets" | "compare" | "arbitrage" | "audit";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "markets",   label: "All Markets",       icon: Layers },
   { id: "compare",   label: "Odds Compare",       icon: BarChart2 },
   { id: "arbitrage", label: "Arbitrage Scanner",  icon: Gem },
-  { id: "injuries",  label: "Injury Notes",       icon: Activity },
   { id: "audit",     label: "Audit Log",          icon: ClipboardList },
 ];
 
@@ -711,106 +710,6 @@ function ArbitrageScanner() {
   );
 }
 
-// ── Injury Notes Tab ──────────────────────────────────────────────────
-
-function InjuryNotes() {
-  const qc = useQueryClient();
-  const [form, setForm] = useState({ team: "", player: "", status: "out", note: "" });
-
-  const { data, isLoading } = useQuery<{ injuries: any[] }>({
-    queryKey: ["injuries"],
-    queryFn:  () => apiGet<{ injuries: any[] }>("/api/odds/injuries"),
-  });
-
-  const addMutation = useMutation({
-    mutationFn: (d: typeof form) => apiPost("/api/odds/injuries", d),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["injuries"] });
-      setForm({ team: "", player: "", status: "out", note: "" });
-      toast.success("Injury note added");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const delMutation = useMutation({
-    mutationFn: (id: string) => apiDelete(`/api/odds/injuries/${id}`),
-    onSuccess:  () => { qc.invalidateQueries({ queryKey: ["injuries"] }); toast.success("Note removed"); },
-  });
-
-  const STATUS_COLORS: Record<string, string> = {
-    out:       "bg-destructive/10 text-destructive border-destructive/30",
-    doubtful:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-    returning: "bg-primary/10 text-primary border-primary/30",
-  };
-
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { key: "team",   label: "Team",   placeholder: "e.g. Arsenal" },
-          { key: "player", label: "Player", placeholder: "e.g. Saka" },
-        ].map(({ key, label, placeholder }) => (
-          <div key={key} className="space-y-1.5">
-            <Label className="font-mono text-xs uppercase">{label}</Label>
-            <Input className="font-mono bg-background/50" placeholder={placeholder}
-              value={form[key as keyof typeof form]}
-              onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
-          </div>
-        ))}
-        <div className="space-y-1.5">
-          <Label className="font-mono text-xs uppercase">Status</Label>
-          <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-            <SelectTrigger className="font-mono bg-background/50"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="out">Out</SelectItem>
-              <SelectItem value="doubtful">Doubtful</SelectItem>
-              <SelectItem value="returning">Returning</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="font-mono text-xs uppercase">Note</Label>
-          <Input className="font-mono bg-background/50" placeholder="Optional detail"
-            value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
-        </div>
-      </div>
-      <Button
-        className="font-mono uppercase"
-        disabled={!form.team || !form.player || addMutation.isPending}
-        onClick={() => addMutation.mutate(form)}
-      >
-        <Plus className="w-4 h-4 mr-2" />
-        {addMutation.isPending ? "SAVING..." : "ADD NOTE"}
-      </Button>
-      <div className="space-y-2 mt-4">
-        {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2].map(i => <div key={i} className="h-12 bg-muted/20 rounded-lg animate-pulse" />)}
-          </div>
-        ) : (data?.injuries ?? []).length === 0 ? (
-          <p className="font-mono text-muted-foreground text-sm text-center py-6">No injury notes yet</p>
-        ) : (
-          (data?.injuries ?? []).map((n: any) => (
-            <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-card/30 border border-border/50">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="font-bold text-sm font-mono">{n.team} — {n.player}</span>
-                <Badge variant="outline" className={`font-mono text-xs ${STATUS_COLORS[n.status] || ""}`}>
-                  {n.status}
-                </Badge>
-                {n.note && <span className="text-xs text-muted-foreground font-mono">{n.note}</span>}
-              </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
-                onClick={() => delMutation.mutate(n.id)}>
-                <X className="w-3 h-3" />
-              </Button>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Audit Log Tab ─────────────────────────────────────────────────────
 
 function AuditLog() {
@@ -926,7 +825,6 @@ export default function OddsPage() {
           {activeTab === "markets"   && <AllMarketsTab />}
           {activeTab === "compare"   && <OddsCompare />}
           {activeTab === "arbitrage" && <ArbitrageScanner />}
-          {activeTab === "injuries"  && <InjuryNotes />}
           {activeTab === "audit"     && <AuditLog />}
         </CardContent>
       </Card>

@@ -226,6 +226,19 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
     }
 
 
+@router.get("")
+@router.get("/")
+async def list_matches_root(
+    league: Optional[str] = Query(None),
+    sport: Optional[str] = Query(None),
+    days: int = Query(14, ge=1, le=60),
+    limit: int = Query(100, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    """Root matches endpoint — returns upcoming fixtures (alias of /upcoming)."""
+    return await get_upcoming_matches(league=league, sport=sport, days=days, limit=limit, db=db)
+
+
 @router.get("/upcoming")
 async def get_upcoming_matches(
     league: Optional[str] = Query(None),

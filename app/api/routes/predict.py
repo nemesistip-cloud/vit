@@ -240,6 +240,12 @@ def validate_prediction_response(result: dict, market_odds: Optional[dict] = Non
     NEVER return 33/33/33 uniform distribution.
     If the ensemble returns zero-sum, apply vig-removed market probabilities instead.
     """
+    # Support two-way sports (no draw) by defaulting missing draw_prob to 0
+    if "draw_prob" not in result:
+        # If caller did not supply market draw odds, assume sport has no draw
+        if not market_odds or not MarketUtils.validate_odds(market_odds.get("draw")):
+            result["draw_prob"] = 0.0
+
     required = ["home_prob", "draw_prob", "away_prob"]
     for field in required:
         if field not in result:

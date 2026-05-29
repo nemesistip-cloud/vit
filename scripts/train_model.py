@@ -55,6 +55,12 @@ def load_manifest(manifest_path: Path = None):
     return mapping
 
 TARGET_FIELDS = ["result", "winner", "actual_outcome", "outcome", "ftr", "ft_result"]
+NON_NUMERIC_COLUMNS = {
+    "home_team", "away_team", "date", "match_date", "tournament",
+    "surface", "player1", "player2", "result", "winner",
+    "league", "venue", "stadium", "weather", "team_stats_json",
+    "pitcher_home", "pitcher_away"
+}
 
 
 def resolve_target(row):
@@ -117,7 +123,7 @@ def build_feature_matrix(rows, sport, headers=None, expected_columns=None):
 
         if expected_columns:
             for col in expected_columns:
-                if col in row:
+                if col in row and col not in NON_NUMERIC_COLUMNS:
                     features.append(numeric_value(row.get(col)))
             # If no numeric features found from expected columns, fall back to heuristics
         if not features:
@@ -202,7 +208,10 @@ def main():
 
     summarize(rows, headers, path)
 
-    X, y_raw = build_feature_matrix(rows, args.sport, headers=headers)
+    expected_columns = []
+    if sport_entries:
+        expected_columns = sport_entries[0].get("expected", [])
+    X, y_raw = build_feature_matrix(rows, args.sport, headers=headers, expected_columns=expected_columns)
     if len(X) == 0:
         logger.error("No valid rows with target labels found. Ensure the CSV contains result/outcome data.")
         return 1

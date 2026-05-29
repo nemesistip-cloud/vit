@@ -47,7 +47,6 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Upload,
   Trash2,
   ChevronDown,
   ChevronUp,
@@ -713,161 +712,6 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
   );
 }
 
-// ─── Manual Upload Form ───────────────────────────────────────────────────────
-
-const ALLOWED_SOURCES = ["claude", "grok", "chatgpt", "gemini", "deepseek", "perplexity", "mistral", "manual", "server"];
-
-function ManualUploadForm({ matches }: { matches: AISourceMatch[] }) {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
-  const [form, setForm] = useState({
-    source: "claude",
-    home_prob: "0.40",
-    draw_prob: "0.28",
-    away_prob: "0.32",
-    confidence: "0.70",
-    reason: "",
-    raw_content: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-
-  const submit = async () => {
-    if (!selectedMatchId) { toast.error("Pick a match first"); return; }
-    const h = parseFloat(form.home_prob);
-    const d = parseFloat(form.draw_prob);
-    const a = parseFloat(form.away_prob);
-    if ([h, d, a].some((n) => Number.isNaN(n))) {
-      toast.error("Probabilities must be valid numbers");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await apiPost("/api/admin/ai-sources/ingest", {
-        match_id: selectedMatchId,
-        source: form.source,
-        home_prob: h,
-        draw_prob: d,
-        away_prob: a,
-        confidence: parseFloat(form.confidence) || 0.7,
-        reason: form.reason || null,
-        raw_content: form.raw_content || null,
-      });
-      toast.success("AI source uploaded");
-      setForm((f) => ({ ...f, reason: "", raw_content: "" }));
-      qc.invalidateQueries({ queryKey: ["ai-sources"] });
-    } catch (e: any) {
-      toast.error(e?.message || "Upload failed");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Card className="bg-gray-800/60 border-gray-700">
-      <button
-        className="w-full flex items-center justify-between px-5 py-4 text-left"
-        onClick={() => setOpen((x) => !x)}
-      >
-        <div className="flex items-center gap-2">
-          <Upload className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-semibold text-gray-300">Manual Upload</span>
-          <Badge className="bg-gray-700 text-gray-400 text-[10px] border-0 ml-1">fallback</Badge>
-        </div>
-        {open ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
-      </button>
-
-      {open && (
-        <CardContent className="pt-0 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-gray-300 text-xs">Match</Label>
-              <Select
-                value={selectedMatchId ? String(selectedMatchId) : ""}
-                onValueChange={(v) => setSelectedMatchId(parseInt(v, 10))}
-              >
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white text-sm">
-                  <SelectValue placeholder="Select a match" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700 text-white max-h-72">
-                  {matches.map((m) => (
-                    <SelectItem key={m.id} value={String(m.id)}>
-                      {m.home_team} vs {m.away_team}
-                      {m.league ? ` · ${m.league}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-gray-300 text-xs">AI Source</Label>
-              <Select value={form.source} onValueChange={(v) => setForm((f) => ({ ...f, source: v }))}>
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white text-sm capitalize">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700 text-white">
-                  {ALLOWED_SOURCES.map((s) => (
-                    <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {(["home_prob", "draw_prob", "away_prob", "confidence"] as const).map((k) => (
-              <div key={k}>
-                <Label className="text-gray-300 text-xs capitalize">{k.replace("_", " ")}</Label>
-                <Input
-                  type="number" step="0.01" min="0" max="1"
-                  value={(form as any)[k]}
-                  onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}
-                  className="bg-gray-900 border-gray-700 text-white text-sm"
-                />
-              </div>
-            ))}
-          </div>
-
-          <div>
-            <Label className="text-gray-300 text-xs">Short reason</Label>
-            <Input
-              value={form.reason}
-              onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-              placeholder="e.g. Home side missing 2 starting CBs, away in form"
-              maxLength={500}
-              className="bg-gray-900 border-gray-700 text-white text-sm"
-            />
-          </div>
-
-          <div>
-            <Label className="text-gray-300 text-xs">Raw analysis (full paste)</Label>
-            <Textarea
-              value={form.raw_content}
-              onChange={(e) => setForm((f) => ({ ...f, raw_content: e.target.value }))}
-              placeholder="Paste the full reasoning text here…"
-              rows={5}
-              maxLength={20000}
-              className="bg-gray-900 border-gray-700 text-white font-mono text-xs"
-            />
-            <p className="text-xs text-gray-600 mt-1">{form.raw_content.length}/20000</p>
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              onClick={submit}
-              disabled={submitting || !selectedMatchId}
-              className="bg-gray-700 hover:bg-gray-600 text-white text-sm"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              {submitting ? "Uploading…" : "Upload"}
-            </Button>
-          </div>
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
 // ─── Existing Sources Panel ───────────────────────────────────────────────────
 
 function ExistingSourcesPanel({ matchId }: { matchId: number | null }) {
@@ -1387,8 +1231,6 @@ export default function AISourcesPage() {
         {/* ── P3#15: Ensemble Model Leaderboard ───────────────── */}
         <EnsembleLeaderboard />
 
-        {/* ── Manual Upload (collapsed by default) ───────────── */}
-        <ManualUploadForm matches={matches} />
 
       </div>
     </div>

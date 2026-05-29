@@ -71,6 +71,44 @@ EXPECTED_SCHEMAS = {
     ],
 }
 
+PATH_METADATA = {
+    "data/sports/basketball/nba_matches.csv": {
+        "sport": "basketball",
+        "name": "NBA matches",
+        "description": "NBA game results with real scores, odds approximations, and ELO-based ratings."
+    },
+    "data/sports/basketball/euroleague_matches.csv": {
+        "sport": "basketball",
+        "name": "EuroLeague matches",
+        "description": "EuroLeague match results with synthetic but realistic scorelines and ratings."
+    },
+    "data/sports/tennis/atp_matches.csv": {
+        "sport": "tennis",
+        "name": "ATP matches",
+        "description": "ATP match results and player statistics sourced from Jeff Sackmann's open tennis repository."
+    },
+    "data/sports/tennis/wta_matches.csv": {
+        "sport": "tennis",
+        "name": "WTA matches",
+        "description": "WTA match results and player statistics sourced from Jeff Sackmann's open tennis repository."
+    },
+    "data/sports/american_football/nfl_matches.csv": {
+        "sport": "american_football",
+        "name": "NFL matches",
+        "description": "NFL game-level rows generated with realistic team schedules and matchup outcomes."
+    },
+    "data/sports/baseball/mlb_matches.csv": {
+        "sport": "baseball",
+        "name": "MLB matches",
+        "description": "MLB game results sourced from the MLB public stats API."
+    },
+    "data/sports/rugby/rugby_matches.csv": {
+        "sport": "rugby",
+        "name": "Rugby matches",
+        "description": "Rugby match rows generated with realistic scoring patterns for model training."
+    },
+}
+
 DATE_FIELDS = {"date", "match_date"}
 
 
@@ -153,7 +191,11 @@ def collect_csv_files(root: Path):
 
 
 def make_manifest_entry(summary):
+    metadata = PATH_METADATA.get(summary["path"], {})
     return {
+        "sport": metadata.get("sport"),
+        "name": metadata.get("name"),
+        "description": metadata.get("description"),
         "path": summary["path"],
         "row_count": summary["row_count"],
         "columns": summary["columns"],
