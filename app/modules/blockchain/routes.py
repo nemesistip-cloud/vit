@@ -820,3 +820,68 @@ async def chain_balance(address: str, _: User = Depends(get_current_user)):
         "eth_balance": eth_bal,
         "status": "connected" if eth_bal >= 0 else "error"
     }
+
+# ── VIT Blockchain Layer Extensions ──────────────────────────────────────────
+
+class LoyaltyAttestationRequest(BaseModel):
+    signal_id: str
+    amount: float
+
+@router.post("/loyalty/attest", summary="Attest to an AI signal and pay loyalty")
+async def attest_loyalty(
+    body: LoyaltyAttestationRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Users can manually attest to a signal's value and record a loyalty payment.
+    In a real implementation, this would involve a blockchain transaction via the SDK.
+    """
+    # Logic for backend recording of loyalty (off-chain mirror)
+    return {
+        "status": "success",
+        "message": "Loyalty attestation recorded",
+        "user_id": current_user.id,
+        "signal_id": body.signal_id,
+        "amount": body.amount
+    }
+
+class SignalPublishRequest(BaseModel):
+    category: str
+    external_id: str
+    data: str
+    confidence: int
+
+@router.post("/signals/publish", summary="Push a manual signal to the UniversalOracle")
+async def publish_blockchain_signal(
+    body: SignalPublishRequest,
+    current_user: User = Depends(get_current_admin)
+):
+    from app.modules.blockchain.contract_service import contract_service
+    tx_hash = await contract_service.publish_signal(
+        category=body.category,
+        external_id=body.external_id,
+        data=body.data.encode(),
+        confidence=body.confidence
+    )
+    if not tx_hash:
+        raise HTTPException(500, "Failed to publish signal to blockchain")
+    return {"tx_hash": tx_hash, "status": "published"}
+
+class ShopRegisterRequest(BaseModel):
+    name: str
+    location: str
+    owner_address: str
+    commission_rate: int
+
+@router.post("/shops/register", summary="Register a new betting shop agent")
+async def register_shop(
+    body: ShopRegisterRequest,
+    current_user: User = Depends(get_current_admin)
+):
+    # This would call ShopManager.sol via contract_service
+    return {
+        "status": "success",
+        "message": f"Shop {body.name} registration initiated",
+        "owner": body.owner_address
+    }

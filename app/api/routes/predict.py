@@ -1230,3 +1230,37 @@ if False:
         "tier_counts": tier_counts,
         "predictions": scored,
     }
+
+# ── VIT Blockchain Integration ──────────────────────────────────────────────
+
+async def _push_high_confidence_to_blockchain(prediction, match, sport: str):
+    """
+    Asynchronously push high-confidence signals to the UniversalOracle.
+    """
+    confidence = float(prediction.confidence or 0.5)
+    if confidence < 0.8:
+        return
+
+    try:
+        from app.modules.blockchain.contract_service import contract_service
+        import json
+
+        signal_data = {
+            "home": match.home_team,
+            "away": match.away_team,
+            "prediction": prediction.bet_side,
+            "odds": float(prediction.entry_odds or 0.0)
+        }
+
+        await contract_service.publish_signal(
+            category=f"sports:{sport}",
+            external_id=str(match.fixture_id or match.id),
+            data=json.dumps(signal_data).encode(),
+            confidence=int(confidence * 100)
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Blockchain push failed: {e}")
+
+# Note: In the production route, we would call this after 'response = build_prediction_response(...)'
+# like so: asyncio.create_task(_push_high_confidence_to_blockchain(prediction, db_match, sport))
