@@ -885,3 +885,70 @@ async def register_shop(
         "message": f"Shop {body.name} registration initiated",
         "owner": body.owner_address
     }
+
+# ── Super App Marketplace & Agents ──────────────────────────────────────────
+
+@router.get("/marketplace", summary="Get active signals from the marketplace")
+async def get_marketplace_signals(
+    category: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    from app.modules.blockchain.models import MarketplaceSignal
+    query = select(MarketplaceSignal).where(MarketplaceSignal.is_active == True)
+    if category:
+        query = query.where(MarketplaceSignal.category == category)
+
+    res = await db.execute(query.order_by(MarketplaceSignal.created_at.desc()))
+    signals = res.scalars().all()
+
+    return [
+        {
+            "id": s.id,
+            "category": s.category,
+            "title": s.title,
+            "description": s.description,
+            "confidence": s.confidence,
+            "price": f"{float(s.price_vit)} VIT" if s.price_vit > 0 else "FREE",
+            "provider": s.provider,
+            "created_at": s.created_at.isoformat()
+        }
+        for s in signals
+    ]
+
+class AgentApplyRequest(BaseModel):
+    agent_type: str
+    business_name: Optional[str] = None
+    location: str
+
+@router.post("/agents/apply", summary="Apply to become a VIT Agent")
+async def apply_to_be_agent(
+    body: AgentApplyRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.modules.blockchain.models import AgentApplication
+
+    existing = await db.execute(
+        select(AgentApplication).where(
+            AgentApplication.user_id == current_user.id,
+            AgentApplication.status == "pending"
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(400, "You already have a pending application")
+
+    app = AgentApplication(
+        user_id=current_user.id,
+        agent_type=body.agent_type,
+        business_name=body.business_name,
+        location=body.location
+    )
+    db.add(app)
+    await db.commit()
+    await db.refresh(app)
+
+    return {
+        "status": "success",
+        "message": "Application submitted for review",
+        "application_id": app.id
+    }
