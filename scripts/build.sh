@@ -42,8 +42,8 @@ python -c "
 import asyncio, os
 
 async def ensure_schema():
+    from app.db.database import engine, Base
     try:
-        from app.db.database import engine, Base
         import app.db.models
         import app.modules.wallet.models
         import app.modules.blockchain.models
@@ -125,6 +125,8 @@ async def ensure_schema():
         print('[build] Database schema ready')
     except Exception as e:
         print(f'[build] DB schema warning: {e}')
+    finally:
+        await engine.dispose()
 
 asyncio.run(ensure_schema())
 " || echo "[build] DB schema setup skipped"
