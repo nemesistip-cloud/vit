@@ -62,6 +62,7 @@ else:
         pool_size=10,
         max_overflow=20,
         pool_pre_ping=True,
+        connect_args={"ssl": True},
     )
 
 # Session factory
