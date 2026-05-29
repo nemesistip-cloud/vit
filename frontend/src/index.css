@@ -283,3 +283,8 @@
     animation: vit-fade-in 0.25s var(--vit-ease-out) forwards;
   }
 }
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
