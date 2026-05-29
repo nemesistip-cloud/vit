@@ -86,6 +86,7 @@ async def _load_ai_signals(db: AsyncSession, match_id: str) -> Dict:
 async def generate_ai_prediction(
     features: Dict[str, Any],
     match_id: str,
+    sport: str = "soccer",
     orchestrator: Any,
     db: Optional[AsyncSession] = None,
     triggered_by: str = "api",
@@ -121,7 +122,7 @@ async def generate_ai_prediction(
         except (ValueError, TypeError):
             pass
 
-    raw = await orchestrator.predict(features, match_id)
+    raw = await orchestrator.predict(features, match_id, sport=sport)
 
     preds = raw.get("predictions", {})
     individual = raw.get("individual_results", [])

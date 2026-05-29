@@ -301,6 +301,8 @@ export function useGetMatch(id: string) {
           ft_score: m.ft_score ?? null,
           actual_outcome: m.actual_outcome,
           status: m.status,
+          sport: m.sport || pred?.sport || "football",
+          available_markets: m.available_markets || pred?.available_markets || [],
           home_goals: m.home_goals,
           away_goals: m.away_goals,
           odds: m.odds,
