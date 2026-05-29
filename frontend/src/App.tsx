@@ -19,6 +19,10 @@ import AuthPage from "@/pages/auth";
 import InfoPage from "@/pages/info";
 
 // Lazy — every authenticated/secondary route ships in its own chunk.
+const ElectionsPage       = lazyRetry(() => import("@/pages/elections"));
+const PolicyPage          = lazyRetry(() => import("@/pages/policy"));
+const RemittancePage      = lazyRetry(() => import("@/pages/remittance"));
+const CommunityPage       = lazyRetry(() => import("@/pages/community"));
 const DashboardPage       = lazyRetry(() => import("@/pages/dashboard"));
 const MatchesPage         = lazyRetry(() => import("@/pages/matches"));
 const MatchDetailPage     = lazyRetry(() => import("@/pages/match-detail"));
@@ -143,6 +147,18 @@ function Router() {
         <Layout>
           <ProtectedRoute component={DashboardPage} />
         </Layout>
+      <Route path="/elections">
+        <Layout><ProtectedRoute component={ElectionsPage} /></Layout>
+      </Route>
+      <Route path="/policy">
+        <Layout><ProtectedRoute component={PolicyPage} /></Layout>
+      </Route>
+      <Route path="/finance">
+        <Layout><ProtectedRoute component={RemittancePage} /></Layout>
+      </Route>
+      <Route path="/community">
+        <Layout><ProtectedRoute component={CommunityPage} /></Layout>
+      </Route>
       </Route>
       <Route path="/matches">
         <Layout><ProtectedRoute component={MatchesPage} /></Layout>
