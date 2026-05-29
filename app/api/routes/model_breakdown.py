@@ -148,12 +148,12 @@ async def walk_forward_backtest(
     from app.modules.ai.models import AIPredictionAudit
     from app.db.models import Match
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=int(days_back))
 
     # Fetch settled audits
     result = await db.execute(
         select(AIPredictionAudit, Match)
-        .join(Match, Match.id == func.cast(AIPredictionAudit.match_id, type_=Match.id.__class__))
+        .join(Match, Match.id == AIPredictionAudit.match_id)
         .where(
             and_(
                 AIPredictionAudit.created_at >= cutoff,
@@ -190,7 +190,7 @@ async def walk_forward_backtest(
 
     window_start = start_date
     while window_start < end_date:
-        window_end = window_start + timedelta(days=step_size)
+        window_end = window_start + timedelta(days=int(step_size))
         train_rows = [r for r in rows if r.AIPredictionAudit.created_at < window_start]
         test_rows  = [r for r in rows if window_start <= r.AIPredictionAudit.created_at < window_end]
 
