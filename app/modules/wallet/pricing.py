@@ -34,14 +34,14 @@ class VITCoinPricingEngine:
         if not latest:
             logger.warning(
                 "VIT_PRICE_FALLBACK no rows in VITCoinPriceHistory — returning "
-                "seed price ($0.001). Run the pricing scheduler or seed the "
+                "seed price ($0.10). Run the pricing scheduler or seed the "
                 "table to recover. This is a degraded state."
             )
             return {
                 "usd": Decimal("0.001"),
-                "ngn": Decimal("1.50"),
+                "ngn": Decimal("150.00"),
                 "usdt": Decimal("0.001"),
-                "pi": Decimal("0.0005"),
+                "pi": Decimal("0.05"),
                 "_is_fallback": True,
                 "_fallback_reason": "no_price_history",
             }
