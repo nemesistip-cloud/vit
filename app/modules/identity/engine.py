@@ -1,165 +1,165 @@
-"""System ID Engine — generates and manages VIT platform identities.
-
-Fully self-contained. No external API keys required.
-ID format:  VIT-{YEAR}-{6-char alphanumeric checksum}
-            e.g.  VIT-2024-A3F9K1
-"""
-from __future__ import annotations
-
-import hashlib
-import random
-import string
-from datetime import datetime, timezone
-from typing import Optional
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.modules.identity.models import IDTier, SystemID
-
-_ALPHA = string.ascii_uppercase + string.digits
-_ISSUE_YEAR_CUTOFF = 2025   # IDs issued in 2025 show "2025"
-
-
-def _derive_sid(user_id: int, issued_year: int) -> str:
-    """
-    Generate a deterministic 6-character alphanumeric suffix from user_id + year.
-    Uses SHA-256 so the same user always gets the same ID per year-slot.
-    """
-    seed = f"vit-system-id:{user_id}:{issued_year}"
-    digest = hashlib.sha256(seed.encode()).hexdigest()
-    # Map first 12 hex chars → 6 base-36-ish alphanum chars
-    suffix = ""
-    for i in range(0, 12, 2):
-        byte_val = int(digest[i:i+2], 16)
-        suffix += _ALPHA[byte_val % len(_ALPHA)]
-    return f"VIT-{issued_year}-{suffix}"
-
-
-def _get_initials(display_name: str) -> str:
-    parts = display_name.strip().split()
-    if not parts:
-        return "VT"
-    if len(parts) == 1:
-        return parts[0][:2].upper()
-    return (parts[0][0] + parts[-1][0]).upper()
-
-
-def _infer_tier(user) -> IDTier:
-    kyc_status = getattr(user, "kyc_status", "none") or "none"
-    role        = getattr(user, "role", "user") or "user"
-    tier        = getattr(user, "subscription_tier", "viewer") or "viewer"
-    admin_role  = getattr(user, "admin_role", None)
-
-    if kyc_status == "approved" and (tier in ("pro", "elite") or admin_role or role == "admin"):
-        return IDTier.ELITE
-    if kyc_status == "approved":
-        return IDTier.VERIFIED
-    if kyc_status in ("pending", "manual_review"):
-        return IDTier.STANDARD
-    return IDTier.BASIC
-
-
-def _build_badges(user) -> dict:
-    badges: dict[str, bool] = {
-        "email_verified":   getattr(user, "is_verified", False) or False,
-        "kyc_verified":     getattr(user, "kyc_status", "none") == "approved",
-        "two_fa_enabled":   getattr(user, "totp_enabled", False) or False,
-        "validator":        getattr(user, "role", "") == "validator",
-        "admin":            getattr(user, "role", "") == "admin",
-        "pro_subscriber":   getattr(user, "subscription_tier", "") in ("pro", "elite"),
-    }
-    return {k: v for k, v in badges.items() if v}
-
-
-# ── Public API ────────────────────────────────────────────────────────────────
-
-async def get_or_create_system_id(user_id: int, user, db: AsyncSession) -> SystemID:
-    """Return the existing SystemID or create one for the user."""
-    res = await db.execute(
-        select(SystemID).where(SystemID.user_id == user_id)
-    )
-    sys_id = res.scalar_one_or_none()
-    if sys_id:
-        # Refresh tier and badges on every fetch
-        new_tier    = _infer_tier(user)
-        new_badges  = _build_badges(user)
-        if sys_id.tier != new_tier or sys_id.badges != new_badges:
-            sys_id.tier   = new_tier
-            sys_id.badges = new_badges
-            await db.flush()
-        return sys_id
-
-    year         = datetime.now(timezone.utc).year
-    sid          = _derive_sid(user_id, year)
-    display_name = getattr(user, "username", None) or getattr(user, "email", "VIT User")
-    initials     = _get_initials(display_name)
-
-    sys_id = SystemID(
-        user_id      = user_id,
-        sid          = sid,
-        display_name = display_name,
-        tier         = _infer_tier(user),
-        avatar_initials = initials,
-        badges       = _build_badges(user),
-    )
-    db.add(sys_id)
-    await db.flush()
-    return sys_id
-
-
-async def get_system_id_by_sid(sid: str, db: AsyncSession) -> Optional[SystemID]:
-    res = await db.execute(select(SystemID).where(SystemID.sid == sid))
-    return res.scalar_one_or_none()
-
-
-async def link_did(user_id: int, did: str, db: AsyncSession) -> Optional[SystemID]:
-    res = await db.execute(select(SystemID).where(SystemID.user_id == user_id))
-    sys_id = res.scalar_one_or_none()
-    if sys_id:
-        sys_id.did = did
-        await db.flush()
-    return sys_id
-
-
-async def refresh_system_id(user_id: int, user, db: AsyncSession) -> Optional[SystemID]:
-    res = await db.execute(select(SystemID).where(SystemID.user_id == user_id))
-    sys_id = res.scalar_one_or_none()
-    if not sys_id:
-        return await get_or_create_system_id(user_id, user, db)
-    sys_id.tier             = _infer_tier(user)
-    sys_id.badges           = _build_badges(user)
-    sys_id.display_name     = getattr(user, "username", None) or sys_id.display_name
-    sys_id.avatar_initials  = _get_initials(sys_id.display_name)
-    await db.flush()
-    return sys_id
-
-
-def build_id_card_data(sys_id: SystemID, user) -> dict:
-    """Serialise all data needed by the frontend ID card renderer."""
-    return {
-        "sid":             sys_id.sid,
-        "display_name":    sys_id.display_name,
-        "tier":            sys_id.tier.value,
-        "avatar_initials": sys_id.avatar_initials,
-        "did":             sys_id.did,
-        "badges":          sys_id.badges,
-        "issued_at":       sys_id.issued_at.isoformat(),
-        "expires_at":      sys_id.expires_at.isoformat() if sys_id.expires_at else None,
-        "revoked":         sys_id.revoked,
-        "email":           getattr(user, "email", ""),
-        "role":            getattr(user, "role", "user"),
-        "subscription_tier": getattr(user, "subscription_tier", "viewer"),
-        "is_verified":     getattr(user, "is_verified", False),
-        "kyc_status":      getattr(user, "kyc_status", "none") or "none",
-        "academic": {
-            "country":       getattr(user, "country", None),
-            "university":    getattr(user, "university", None),
-            "faculty":       getattr(user, "faculty", None),
-            "department":    getattr(user, "department", None),
-            "level":         getattr(user, "level", None),
-            "matric_number": getattr(user, "matric_number", None),
-            "skills":        getattr(user, "skills", []),
-            "interests":     getattr(user, "interests", []),
-        }
-    }
+"""System ID Engine — generates and manages VIT platform identities.'
+'
+Fully self-contained. No external API keys required.'
+ID format:  VIT-{YEAR}-{6-char alphanumeric checksum}'
+            e.g.  VIT-2024-A3F9K1'
+"""'
+from __future__ import annotations'
+'
+import hashlib'
+import random'
+import string'
+from datetime import datetime, timezone'
+from typing import Optional'
+'
+from sqlalchemy import select'
+from sqlalchemy.ext.asyncio import AsyncSession'
+'
+from app.modules.identity.models import IDTier, SystemID'
+'
+_ALPHA = string.ascii_uppercase + string.digits'
+_ISSUE_YEAR_CUTOFF = 2025   # IDs issued in 2025 show "2025"'
+'
+'
+def _derive_sid(user_id: int, issued_year: int) -> str:'
+    """'
+    Generate a deterministic 6-character alphanumeric suffix from user_id + year.'
+    Uses SHA-256 so the same user always gets the same ID per year-slot.'
+    """'
+    seed = f"vit-system-id:{user_id}:{issued_year}"'
+    digest = hashlib.sha256(seed.encode()).hexdigest()'
+    # Map first 12 hex chars → 6 base-36-ish alphanum chars'
+    suffix = ""'
+    for i in range(0, 12, 2):'
+        byte_val = int(digest[i:i+2], 16)'
+        suffix += _ALPHA[byte_val % len(_ALPHA)]'
+    return f"VIT-{issued_year}-{suffix}"'
+'
+'
+def _get_initials(display_name: str) -> str:'
+    parts = display_name.strip().split()'
+    if not parts:'
+        return "VT"'
+    if len(parts) == 1:'
+        return parts[0][:2].upper()'
+    return (parts[0][0] + parts[-1][0]).upper()'
+'
+'
+def _infer_tier(user) -> IDTier:'
+    kyc_status = getattr(user, "kyc_status", "none") or "none"'
+    role        = getattr(user, "role", "user") or "user"'
+    tier        = getattr(user, "subscription_tier", "viewer") or "viewer"'
+    admin_role  = getattr(user, "admin_role", None)'
+'
+    if kyc_status == "approved" and (tier in ("pro", "elite") or admin_role or role == "admin"):'
+        return IDTier.ELITE'
+    if kyc_status == "approved":'
+        return IDTier.VERIFIED'
+    if kyc_status in ("pending", "manual_review"):'
+        return IDTier.STANDARD'
+    return IDTier.BASIC'
+'
+'
+def _build_badges(user) -> dict:'
+    badges: dict[str, bool] = {'
+        "email_verified":   getattr(user, "is_verified", False) or False,'
+        "kyc_verified":     getattr(user, "kyc_status", "none") == "approved",'
+        "two_fa_enabled":   getattr(user, "totp_enabled", False) or False,'
+        "validator":        getattr(user, "role", "") == "validator",'
+        "admin":            getattr(user, "role", "") == "admin",'
+        "pro_subscriber":   getattr(user, "subscription_tier", "") in ("pro", "elite"),'
+    }'
+    return {k: v for k, v in badges.items() if v}'
+'
+'
+# ── Public API ────────────────────────────────────────────────────────────────'
+'
+async def get_or_create_system_id(user_id: int, user, db: AsyncSession) -> SystemID:'
+    """Return the existing SystemID or create one for the user."""'
+    res = await db.execute('
+        select(SystemID).where(SystemID.user_id == user_id)'
+    )'
+    sys_id = res.scalar_one_or_none()'
+    if sys_id:'
+        # Refresh tier and badges on every fetch'
+        new_tier    = _infer_tier(user)'
+        new_badges  = _build_badges(user)'
+        if sys_id.tier != new_tier or sys_id.badges != new_badges:'
+            sys_id.tier   = new_tier'
+            sys_id.badges = new_badges'
+            await db.flush()'
+        return sys_id'
+'
+    year         = datetime.now(timezone.utc).year'
+    sid          = _derive_sid(user_id, year)'
+    display_name = getattr(user, "username", None) or getattr(user, "email", "VIT User")'
+    initials     = _get_initials(display_name)'
+'
+    sys_id = SystemID('
+        user_id      = user_id,'
+        sid          = sid,'
+        display_name = display_name,'
+        tier         = _infer_tier(user),'
+        avatar_initials = initials,'
+        badges       = _build_badges(user),'
+    )'
+    db.add(sys_id)'
+    await db.flush()'
+    return sys_id'
+'
+'
+async def get_system_id_by_sid(sid: str, db: AsyncSession) -> Optional[SystemID]:'
+    res = await db.execute(select(SystemID).where(SystemID.sid == sid))'
+    return res.scalar_one_or_none()'
+'
+'
+async def link_did(user_id: int, did: str, db: AsyncSession) -> Optional[SystemID]:'
+    res = await db.execute(select(SystemID).where(SystemID.user_id == user_id))'
+    sys_id = res.scalar_one_or_none()'
+    if sys_id:'
+        sys_id.did = did'
+        await db.flush()'
+    return sys_id'
+'
+'
+async def refresh_system_id(user_id: int, user, db: AsyncSession) -> Optional[SystemID]:'
+    res = await db.execute(select(SystemID).where(SystemID.user_id == user_id))'
+    sys_id = res.scalar_one_or_none()'
+    if not sys_id:'
+        return await get_or_create_system_id(user_id, user, db)'
+    sys_id.tier             = _infer_tier(user)'
+    sys_id.badges           = _build_badges(user)'
+    sys_id.display_name     = getattr(user, "username", None) or sys_id.display_name'
+    sys_id.avatar_initials  = _get_initials(sys_id.display_name)'
+    await db.flush()'
+    return sys_id'
+'
+'
+def build_id_card_data(sys_id: SystemID, user) -> dict:'
+    """Serialise all data needed by the frontend ID card renderer."""'
+    return {'
+        "sid":             sys_id.sid,'
+        "display_name":    sys_id.display_name,'
+        "tier":            sys_id.tier.value,'
+        "avatar_initials": sys_id.avatar_initials,'
+        "did":             sys_id.did,'
+        "badges":          sys_id.badges,'
+        "issued_at":       sys_id.issued_at.isoformat(),'
+        "expires_at":      sys_id.expires_at.isoformat() if sys_id.expires_at else None,'
+        "revoked":         sys_id.revoked,'
+        "email":           getattr(user, "email", ""),'
+        "role":            getattr(user, "role", "user"),'
+        "subscription_tier": getattr(user, "subscription_tier", "viewer"),'
+        "is_verified":     getattr(user, "is_verified", False),'
+        "kyc_status":      getattr(user, "kyc_status", "none") or "none",'
+        "academic": {'
+            "country":       getattr(user, "country", None),'
+            "university":    getattr(user, "university", None),'
+            "faculty":       getattr(user, "faculty", None),'
+            "department":    getattr(user, "department", None),'
+            "level":         getattr(user, "level", None),'
+            "matric_number": getattr(user, "matric_number", None),'
+            "skills":        getattr(user, "skills", []),'
+            "interests":     getattr(user, "interests", []),'
+        }'
+    }'

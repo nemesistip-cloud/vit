@@ -1,127 +1,127 @@
-"""app/worker.py — Optional Celery background task worker.
-
-This module conditionally initialises a Celery application when a valid
-Redis URL is available. If Redis is absent (local dev, missing secret), the
-module still imports cleanly and ``celery_app`` is simply ``None`` — the
-rest of the application checks ``_celery_available`` before dispatching tasks.
-
-Usage:
-    # Start the worker process (requires Redis):
-    celery -A app.worker worker --loglevel=info
-
-    # Check availability before dispatching a task:
-    from app.worker import celery_app, _celery_available
-    if _celery_available:
-        my_task.delay(arg1, arg2)
-
-Design notes:
-    - Celery is an optional dependency. The app runs fully without it; long-running
-      tasks fall back to asyncio background loops in main.py when Celery is absent.
-    - The REDIS_URL is sanitised here (same logic as app/config.py) so this module
-      works correctly even if imported before the config module is fully loaded.
-"""
-
-import os
-from dotenv import load_dotenv
-
-# Load .env so this module works when run as a standalone worker process
-# (i.e. ``python -m app.worker`` without the FastAPI app initialising config first).
-load_dotenv()
-
-
-# ── Redis URL sanitiser (duplicate of app/config._clean_redis_url) ─────────────
-# Duplicated here rather than imported from app.config to keep this module
-# importable before the full app initialisation chain runs.
-
-def _clean_redis_url(raw: str) -> str:
-    """Extract a valid redis(s):// or unix:// URL from the raw env string.
-
-    Handles the common mistake of setting REDIS_URL to the full redis-cli
-    command (``redis-cli -u redis://...``) instead of just the URL.
-
-    Returns an empty string when ``raw`` is empty or None.
-    """
-    import re as _re
-    if not raw:
-        return ""
-    raw = raw.strip()
-    # Match a redis:// or rediss:// (TLS) or unix:// socket URL anywhere in the string
-    m = _re.search(r"(rediss?://\S+|unix://\S+)", raw)
-    return m.group(1) if m else raw  # Fallback: return raw so aioredis gives a clear error
-
-
-# Read and sanitise the broker URL from the environment
-REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))
-
-
-# ── Module-level state ─────────────────────────────────────────────────────────
-
-# True only when Celery was successfully initialised with a live broker.
-# External callers check this before calling .delay() on any task.
-_celery_available = False
-celery_app = None
-
-
-# ── Conditional Celery initialisation ─────────────────────────────────────────
-# Celery requires a message broker. We only initialise it when:
-#   1. REDIS_URL is non-empty (a broker is configured), AND
-#   2. It doesn't start with "memory://" (an in-process stub used in tests)
-#
-# If Celery fails to import or connect, the exception is caught and logged —
-# the app continues without background task support rather than crashing.
-
-if REDIS_URL and not REDIS_URL.startswith("memory://"):
-    try:
-        from celery import Celery  # type: ignore
-
-        celery_app = Celery(
-            "vit_worker",
-            broker=REDIS_URL,   # Redis queue for task messages
-            backend=REDIS_URL,  # Redis store for task results / status
-            include=["app.tasks"],  # Auto-discover tasks in this module path
-        )
-
-        celery_app.conf.update(
-            # Serialisation: use JSON so task payloads are readable in Redis and logs
-            task_serializer="json",
-            accept_content=["json"],
-            result_serializer="json",
-
-            # Clock: always store and compare timestamps in UTC
-            timezone="UTC",
-            enable_utc=True,
-
-            # Visibility: mark tasks as STARTED so the admin UI shows in-progress work
-            task_track_started=True,
-
-            # Timeouts: hard-kill a task after 30 min; raise SoftTimeLimitExceeded
-            # at 25 min so the task can clean up gracefully before the hard kill.
-            task_time_limit=30 * 60,
-            task_soft_time_limit=25 * 60,
-
-            # Reliability: fetch one task at a time so a slow task doesn't starve
-            # other workers in the same process.
-            worker_prefetch_multiplier=1,
-
-            # Reliability: only acknowledge (remove) a task from the queue AFTER it
-            # completes — ensures crashed workers don't silently drop tasks.
-            task_acks_late=True,
-        )
-
-        _celery_available = True
-
-    except Exception as exc:  # pragma: no cover
-        # Celery package missing or broker refused connection — degrade gracefully.
-        import logging
-        logging.getLogger(__name__).warning("Celery unavailable: %s", exc)
-
-
-# ── Standalone entry point ─────────────────────────────────────────────────────
-# Allows running ``python app/worker.py`` directly during development,
-# though the canonical way is: ``celery -A app.worker worker``
-
-if __name__ == "__main__":
-    if celery_app:
-        celery_app.start()
-    else:
-        print("No Redis URL configured — Celery worker not started.")
+"""app/worker.py — Optional Celery background task worker.'
+'
+This module conditionally initialises a Celery application when a valid'
+Redis URL is available. If Redis is absent (local dev, missing secret), the'
+module still imports cleanly and ``celery_app`` is simply ``None`` — the'
+rest of the application checks ``_celery_available`` before dispatching tasks.'
+'
+Usage:'
+    # Start the worker process (requires Redis):'
+    celery -A app.worker worker --loglevel=info'
+'
+    # Check availability before dispatching a task:'
+    from app.worker import celery_app, _celery_available'
+    if _celery_available:'
+        my_task.delay(arg1, arg2)'
+'
+Design notes:'
+    - Celery is an optional dependency. The app runs fully without it; long-running'
+      tasks fall back to asyncio background loops in main.py when Celery is absent.'
+    - The REDIS_URL is sanitised here (same logic as app/config.py) so this module'
+      works correctly even if imported before the config module is fully loaded.'
+"""'
+'
+import os'
+from dotenv import load_dotenv'
+'
+# Load .env so this module works when run as a standalone worker process'
+# (i.e. ``python -m app.worker`` without the FastAPI app initialising config first).'
+load_dotenv()'
+'
+'
+# ── Redis URL sanitiser (duplicate of app/config._clean_redis_url) ─────────────'
+# Duplicated here rather than imported from app.config to keep this module'
+# importable before the full app initialisation chain runs.'
+'
+def _clean_redis_url(raw: str) -> str:'
+    """Extract a valid redis(s):// or unix:// URL from the raw env string.'
+'
+    Handles the common mistake of setting REDIS_URL to the full redis-cli'
+    command (``redis-cli -u redis://...``) instead of just the URL.'
+'
+    Returns an empty string when ``raw`` is empty or None.'
+    """'
+    import re as _re'
+    if not raw:'
+        return ""'
+    raw = raw.strip()'
+    # Match a redis:// or rediss:// (TLS) or unix:// socket URL anywhere in the string'
+    m = _re.search(r"(rediss?://\S+|unix://\S+)", raw)'
+    return m.group(1) if m else raw  # Fallback: return raw so aioredis gives a clear error'
+'
+'
+# Read and sanitise the broker URL from the environment'
+REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))'
+'
+'
+# ── Module-level state ─────────────────────────────────────────────────────────'
+'
+# True only when Celery was successfully initialised with a live broker.'
+# External callers check this before calling .delay() on any task.'
+_celery_available = False'
+celery_app = None'
+'
+'
+# ── Conditional Celery initialisation ─────────────────────────────────────────'
+# Celery requires a message broker. We only initialise it when:'
+#   1. REDIS_URL is non-empty (a broker is configured), AND'
+#   2. It doesn't start with "memory://" (an in-process stub used in tests)'
+#'
+# If Celery fails to import or connect, the exception is caught and logged —'
+# the app continues without background task support rather than crashing.'
+'
+if REDIS_URL and not REDIS_URL.startswith("memory://"):'
+    try:'
+        from celery import Celery  # type: ignore'
+'
+        celery_app = Celery('
+            "vit_worker",'
+            broker=REDIS_URL,   # Redis queue for task messages'
+            backend=REDIS_URL,  # Redis store for task results / status'
+            include=["app.tasks"],  # Auto-discover tasks in this module path'
+        )'
+'
+        celery_app.conf.update('
+            # Serialisation: use JSON so task payloads are readable in Redis and logs'
+            task_serializer="json",'
+            accept_content=["json"],'
+            result_serializer="json",'
+'
+            # Clock: always store and compare timestamps in UTC'
+            timezone="UTC",'
+            enable_utc=True,'
+'
+            # Visibility: mark tasks as STARTED so the admin UI shows in-progress work'
+            task_track_started=True,'
+'
+            # Timeouts: hard-kill a task after 30 min; raise SoftTimeLimitExceeded'
+            # at 25 min so the task can clean up gracefully before the hard kill.'
+            task_time_limit=30 * 60,'
+            task_soft_time_limit=25 * 60,'
+'
+            # Reliability: fetch one task at a time so a slow task doesn't starve'
+            # other workers in the same process.'
+            worker_prefetch_multiplier=1,'
+'
+            # Reliability: only acknowledge (remove) a task from the queue AFTER it'
+            # completes — ensures crashed workers don't silently drop tasks.'
+            task_acks_late=True,'
+        )'
+'
+        _celery_available = True'
+'
+    except Exception as exc:  # pragma: no cover'
+        # Celery package missing or broker refused connection — degrade gracefully.'
+        import logging'
+        logging.getLogger(__name__).warning("Celery unavailable: %s", exc)'
+'
+'
+# ── Standalone entry point ─────────────────────────────────────────────────────'
+# Allows running ``python app/worker.py`` directly during development,'
+# though the canonical way is: ``celery -A app.worker worker``'
+'
+if __name__ == "__main__":'
+    if celery_app:'
+        celery_app.start()'
+    else:'
+        print("No Redis URL configured — Celery worker not started.")'

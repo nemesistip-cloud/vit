@@ -1,198 +1,198 @@
-"""app/agents/revenue_optimizer_agent.py  — Item 10: Revenue Optimizer
-
-Runs daily. Analyzes subscription revenue, churn signals, and marketplace
-activity, then calls Gemini to recommend pricing adjustments and growth
-actions. Sends recommendations to the admin Telegram channel.
-
-Does NOT auto-apply pricing changes — recommendations only, for admin
-review. (Auto-apply can be enabled via REVENUE_AUTO_APPLY=true env var.)
-"""
-
-from __future__ import annotations
-
-import logging
-import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
-
-
-from app.agents.base import BaseAgent
-from app.services.ai_client import call_ai
-
-logger = logging.getLogger(__name__)
-
-
-async def _gather_revenue_metrics(db) -> dict:
-    from sqlalchemy import select, func
-    from app.modules.wallet.models import (
-        WalletTransaction, WalletUserSubscription,
-        WithdrawalRequest, WalletSubscriptionPlan,
-    )
-    from app.modules.marketplace.models import AIModelListing, ModelUsageLog
-
-    now = datetime.now(timezone.utc)
-    day7 = now - timedelta(days=7)
-    day30 = now - timedelta(days=30)
-    metrics = {}
-
-    try:
-        from app.db.models import UserSubscription as LegacySub
-
-        # Count from wallet-based system
-        wallet_active = (await db.execute(
-            select(func.count(WalletUserSubscription.id))
-            .where(WalletUserSubscription.created_at >= day7)
-        )).scalar() or 0
-
-        # Count from legacy Stripe system
-        legacy_active = (await db.execute(
-            select(func.count(LegacySub.id))
-            .where(LegacySub.created_at >= day7)
-        )).scalar() or 0
-
-        metrics["active_subs_7d"] = wallet_active + legacy_active
-    except Exception:
-        metrics["active_subs_7d"] = 0
-
-    try:
-        from app.db.models import UserSubscription as LegacySub
-
-        # Count from wallet-based system
-        wallet_expired = (await db.execute(
-            select(func.count(WalletUserSubscription.id))
-            .where(
-                WalletUserSubscription.expires_at >= day7,
-                WalletUserSubscription.expires_at <= now,
-            )
-        )).scalar() or 0
-
-        # Count from legacy Stripe system
-        legacy_expired = (await db.execute(
-            select(func.count(LegacySub.id))
-            .where(
-                LegacySub.current_period_end >= day7,
-                LegacySub.current_period_end <= now,
-            )
-        )).scalar() or 0
-
-        metrics["expired_subs_7d"] = wallet_expired + legacy_expired
-    except Exception:
-        metrics["expired_subs_7d"] = 0
-
-    try:
-        metrics["marketplace_listings_active"] = (await db.execute(
-            select(func.count(AIModelListing.id))
-            .where(AIModelListing.approval_status == "approved")
-        )).scalar() or 0
-    except Exception:
-        metrics["marketplace_listings_active"] = 0
-
-    try:
-        metrics["marketplace_usage_7d"] = (await db.execute(
-            select(func.count(ModelUsageLog.id))
-            .where(ModelUsageLog.called_at >= day7)
-        )).scalar() or 0
-    except Exception:
-        metrics["marketplace_usage_7d"] = 0
-
-    try:
-        metrics["pending_withdrawals"] = (await db.execute(
-            select(func.count(WithdrawalRequest.id))
-            .where(WithdrawalRequest.status == "pending")
-        )).scalar() or 0
-    except Exception:
-        metrics["pending_withdrawals"] = 0
-
-    try:
-        plans_res = await db.execute(select(WalletSubscriptionPlan).where(WalletSubscriptionPlan.is_active == True))
-        plans = plans_res.scalars().all()
-        metrics["plans"] = [
-            {"name": p.name, "price_usd": float(p.price_usd), "duration_days": p.duration_days}
-            for p in plans
-        ]
-    except Exception:
-        metrics["plans"] = []
-
-    return metrics
-
-
-def _build_optimizer_prompt(metrics: dict, date: str) -> str:
-    churn_rate = 0.0
-    new = metrics.get("active_subs_7d", 0)
-    expired = metrics.get("expired_subs_7d", 0)
-    if new > 0:
-        churn_rate = expired / max(new + expired, 1)
-
-    plans_str = "\n".join(
-        f"  - {p['name']}: ${p['price_usd']:.2f}/{p['duration_days']}d"
-        for p in metrics.get("plans", [])
-    ) or "  (no plans found)"
-
-    return (
-        f"You are a SaaS revenue strategist. Analyze this sports prediction platform's metrics.\n\n"
-        f"Report date: {date}\n\n"
-        f"Metrics (last 7 days):\n"
-        f"  New subscriptions: {metrics.get('active_subs_7d', 0)}\n"
-        f"  Expired/churned: {metrics.get('expired_subs_7d', 0)}\n"
-        f"  Churn rate: {churn_rate:.1%}\n"
-        f"  Marketplace listings (active): {metrics.get('marketplace_listings_active', 0)}\n"
-        f"  Marketplace API calls: {metrics.get('marketplace_usage_7d', 0)}\n"
-        f"  Pending withdrawals: {metrics.get('pending_withdrawals', 0)}\n\n"
-        f"Current pricing:\n{plans_str}\n\n"
-        f"Provide:\n"
-        f"1. Revenue health assessment (2 sentences)\n"
-        f"2. Top 3 specific pricing or growth recommendations\n"
-        f"3. One warning if any metric looks alarming\n\n"
-        f"Be direct and actionable. Max 300 words."
-    )
-
-
-class RevenueOptimizerAgent(BaseAgent):
-    def __init__(self) -> None:
-        super().__init__(
-            name="revenue-optimizer",
-            interval_seconds=24 * 60 * 60,
-            initial_delay_seconds=400,
-        )
-
-    async def run_cycle(self) -> Dict[str, Any]:
-
-        from app.db.database import AsyncSessionLocal
-        from app.db.models import AgentInsight
-        from app.services.alerts import TelegramAlert, AlertPriority
-
-        now = datetime.now(timezone.utc)
-        date_str = now.strftime("%Y-%m-%d")
-
-        async with AsyncSessionLocal() as db:
-            metrics = await _gather_revenue_metrics(db)
-
-        prompt = _build_optimizer_prompt(metrics, date_str)
-        report = await call_ai(prompt)
-
-        if not report:
-            return {"skipped": True, "reason": "no Gemini response"}
-
-        async with AsyncSessionLocal() as db:
-            insight = AgentInsight(
-                agent_name="revenue-optimizer",
-                insight_type="revenue_report",
-                ai_provider="gemini",
-                content=report[:2000],
-                meta={"metrics": metrics, "date": date_str},
-                confidence=0.75,
-            )
-            db.add(insight)
-            await db.commit()
-
-        try:
-            tg = TelegramAlert()
-            await tg.send_message(
-                f"<b>💰 Revenue Optimizer Report — {date_str}</b>\n{'━'*22}\n\n{report[:2500]}",
-                AlertPriority.LOW,
-            )
-        except Exception as te:
-            logger.warning("[revenue-optimizer] Telegram error: %s", te)
-
-        logger.info("[revenue-optimizer] daily report sent")
-        return {"date": date_str, "metrics": metrics, "report_length": len(report)}
+"""app/agents/revenue_optimizer_agent.py  — Item 10: Revenue Optimizer'
+'
+Runs daily. Analyzes subscription revenue, churn signals, and marketplace'
+activity, then calls Gemini to recommend pricing adjustments and growth'
+actions. Sends recommendations to the admin Telegram channel.'
+'
+Does NOT auto-apply pricing changes — recommendations only, for admin'
+review. (Auto-apply can be enabled via REVENUE_AUTO_APPLY=true env var.)'
+"""'
+'
+from __future__ import annotations'
+'
+import logging'
+import os'
+from datetime import datetime, timedelta, timezone'
+from typing import Any, Dict'
+'
+'
+from app.agents.base import BaseAgent'
+from app.services.ai_client import call_ai'
+'
+logger = logging.getLogger(__name__)'
+'
+'
+async def _gather_revenue_metrics(db) -> dict:'
+    from sqlalchemy import select, func'
+    from app.modules.wallet.models import ('
+        WalletTransaction, WalletUserSubscription,'
+        WithdrawalRequest, WalletSubscriptionPlan,'
+    )'
+    from app.modules.marketplace.models import AIModelListing, ModelUsageLog'
+'
+    now = datetime.now(timezone.utc)'
+    day7 = now - timedelta(days=7)'
+    day30 = now - timedelta(days=30)'
+    metrics = {}'
+'
+    try:'
+        from app.db.models import UserSubscription as LegacySub'
+'
+        # Count from wallet-based system'
+        wallet_active = (await db.execute('
+            select(func.count(WalletUserSubscription.id))'
+            .where(WalletUserSubscription.created_at >= day7)'
+        )).scalar() or 0'
+'
+        # Count from legacy Stripe system'
+        legacy_active = (await db.execute('
+            select(func.count(LegacySub.id))'
+            .where(LegacySub.created_at >= day7)'
+        )).scalar() or 0'
+'
+        metrics["active_subs_7d"] = wallet_active + legacy_active'
+    except Exception:'
+        metrics["active_subs_7d"] = 0'
+'
+    try:'
+        from app.db.models import UserSubscription as LegacySub'
+'
+        # Count from wallet-based system'
+        wallet_expired = (await db.execute('
+            select(func.count(WalletUserSubscription.id))'
+            .where('
+                WalletUserSubscription.expires_at >= day7,'
+                WalletUserSubscription.expires_at <= now,'
+            )'
+        )).scalar() or 0'
+'
+        # Count from legacy Stripe system'
+        legacy_expired = (await db.execute('
+            select(func.count(LegacySub.id))'
+            .where('
+                LegacySub.current_period_end >= day7,'
+                LegacySub.current_period_end <= now,'
+            )'
+        )).scalar() or 0'
+'
+        metrics["expired_subs_7d"] = wallet_expired + legacy_expired'
+    except Exception:'
+        metrics["expired_subs_7d"] = 0'
+'
+    try:'
+        metrics["marketplace_listings_active"] = (await db.execute('
+            select(func.count(AIModelListing.id))'
+            .where(AIModelListing.approval_status == "approved")'
+        )).scalar() or 0'
+    except Exception:'
+        metrics["marketplace_listings_active"] = 0'
+'
+    try:'
+        metrics["marketplace_usage_7d"] = (await db.execute('
+            select(func.count(ModelUsageLog.id))'
+            .where(ModelUsageLog.called_at >= day7)'
+        )).scalar() or 0'
+    except Exception:'
+        metrics["marketplace_usage_7d"] = 0'
+'
+    try:'
+        metrics["pending_withdrawals"] = (await db.execute('
+            select(func.count(WithdrawalRequest.id))'
+            .where(WithdrawalRequest.status == "pending")'
+        )).scalar() or 0'
+    except Exception:'
+        metrics["pending_withdrawals"] = 0'
+'
+    try:'
+        plans_res = await db.execute(select(WalletSubscriptionPlan).where(WalletSubscriptionPlan.is_active == True))'
+        plans = plans_res.scalars().all()'
+        metrics["plans"] = ['
+            {"name": p.name, "price_usd": float(p.price_usd), "duration_days": p.duration_days}'
+            for p in plans'
+        ]'
+    except Exception:'
+        metrics["plans"] = []'
+'
+    return metrics'
+'
+'
+def _build_optimizer_prompt(metrics: dict, date: str) -> str:'
+    churn_rate = 0.0'
+    new = metrics.get("active_subs_7d", 0)'
+    expired = metrics.get("expired_subs_7d", 0)'
+    if new > 0:'
+        churn_rate = expired / max(new + expired, 1)'
+'
+    plans_str = "\n".join('
+        f"  - {p['name']}: ${p['price_usd']:.2f}/{p['duration_days']}d"'
+        for p in metrics.get("plans", [])'
+    ) or "  (no plans found)"'
+'
+    return ('
+        f"You are a SaaS revenue strategist. Analyze this sports prediction platform's metrics.\n\n"'
+        f"Report date: {date}\n\n"'
+        f"Metrics (last 7 days):\n"'
+        f"  New subscriptions: {metrics.get('active_subs_7d', 0)}\n"'
+        f"  Expired/churned: {metrics.get('expired_subs_7d', 0)}\n"'
+        f"  Churn rate: {churn_rate:.1%}\n"'
+        f"  Marketplace listings (active): {metrics.get('marketplace_listings_active', 0)}\n"'
+        f"  Marketplace API calls: {metrics.get('marketplace_usage_7d', 0)}\n"'
+        f"  Pending withdrawals: {metrics.get('pending_withdrawals', 0)}\n\n"'
+        f"Current pricing:\n{plans_str}\n\n"'
+        f"Provide:\n"'
+        f"1. Revenue health assessment (2 sentences)\n"'
+        f"2. Top 3 specific pricing or growth recommendations\n"'
+        f"3. One warning if any metric looks alarming\n\n"'
+        f"Be direct and actionable. Max 300 words."'
+    )'
+'
+'
+class RevenueOptimizerAgent(BaseAgent):'
+    def __init__(self) -> None:'
+        super().__init__('
+            name="revenue-optimizer",'
+            interval_seconds=24 * 60 * 60,'
+            initial_delay_seconds=400,'
+        )'
+'
+    async def run_cycle(self) -> Dict[str, Any]:'
+'
+        from app.db.database import AsyncSessionLocal'
+        from app.db.models import AgentInsight'
+        from app.services.alerts import TelegramAlert, AlertPriority'
+'
+        now = datetime.now(timezone.utc)'
+        date_str = now.strftime("%Y-%m-%d")'
+'
+        async with AsyncSessionLocal() as db:'
+            metrics = await _gather_revenue_metrics(db)'
+'
+        prompt = _build_optimizer_prompt(metrics, date_str)'
+        report = await call_ai(prompt)'
+'
+        if not report:'
+            return {"skipped": True, "reason": "no Gemini response"}'
+'
+        async with AsyncSessionLocal() as db:'
+            insight = AgentInsight('
+                agent_name="revenue-optimizer",'
+                insight_type="revenue_report",'
+                ai_provider="gemini",'
+                content=report[:2000],'
+                meta={"metrics": metrics, "date": date_str},'
+                confidence=0.75,'
+            )'
+            db.add(insight)'
+            await db.commit()'
+'
+        try:'
+            tg = TelegramAlert()'
+            await tg.send_message('
+                f"<b>💰 Revenue Optimizer Report — {date_str}</b>\n{'━'*22}\n\n{report[:2500]}",'
+                AlertPriority.LOW,'
+            )'
+        except Exception as te:'
+            logger.warning("[revenue-optimizer] Telegram error: %s", te)'
+'
+        logger.info("[revenue-optimizer] daily report sent")'
+        return {"date": date_str, "metrics": metrics, "report_length": len(report)}'

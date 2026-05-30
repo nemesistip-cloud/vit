@@ -1,38 +1,38 @@
-SPORT_MARKETS = {
-    "soccer": [
-        "1X2", "double_chance", "draw_no_bet",
-        "over_under_0.5", "over_under_1.5", "over_under_2.5", "over_under_3.5",
-        "btts", "asian_handicap", "correct_score"
-    ],
-    "football": [
-        "1X2", "double_chance", "draw_no_bet",
-        "over_under_0.5", "over_under_1.5", "over_under_2.5", "over_under_3.5",
-        "btts", "asian_handicap", "correct_score"
-    ],
-    "tennis": [
-        "match_winner",        # no draw exists
-        "set_betting",         # e.g. 2-0, 2-1
-        "total_games_over_under",  # e.g. 22.5 games, not goals
-        "set_handicap"
-    ],
-    "basketball": [
-        "moneyline",           # no draw
-        "point_spread",        # e.g. -5.5
-        "total_points_over_under",  # e.g. 215.5, not 2.5
-        "first_half_spread",
-        "first_half_total"
-    ],
-    "cricket": [
-        "match_winner",
-        "total_runs_over_under",
-        "innings_runs",
-        "top_batsman"
-    ],
-    "american_football": [
-        "moneyline", "point_spread", "total_points_over_under",
-        "first_half_spread", "first_half_total"
-    ],
-}
-
-def get_markets_for_sport(sport: str) -> list:
-    return SPORT_MARKETS.get(sport.lower(), SPORT_MARKETS["soccer"])
+SPORT_MARKETS = {'
+    "soccer": ['
+        "1X2", "double_chance", "draw_no_bet",'
+        "over_under_0.5", "over_under_1.5", "over_under_2.5", "over_under_3.5",'
+        "btts", "asian_handicap", "correct_score"'
+    ],'
+    "football": ['
+        "1X2", "double_chance", "draw_no_bet",'
+        "over_under_0.5", "over_under_1.5", "over_under_2.5", "over_under_3.5",'
+        "btts", "asian_handicap", "correct_score"'
+    ],'
+    "tennis": ['
+        "match_winner",        # no draw exists'
+        "set_betting",         # e.g. 2-0, 2-1'
+        "total_games_over_under",  # e.g. 22.5 games, not goals'
+        "set_handicap"'
+    ],'
+    "basketball": ['
+        "moneyline",           # no draw'
+        "point_spread",        # e.g. -5.5'
+        "total_points_over_under",  # e.g. 215.5, not 2.5'
+        "first_half_spread",'
+        "first_half_total"'
+    ],'
+    "cricket": ['
+        "match_winner",'
+        "total_runs_over_under",'
+        "innings_runs",'
+        "top_batsman"'
+    ],'
+    "american_football": ['
+        "moneyline", "point_spread", "total_points_over_under",'
+        "first_half_spread", "first_half_total"'
+    ],'
+}'
+'
+def get_markets_for_sport(sport: str) -> list:'
+    return SPORT_MARKETS.get(sport.lower(), SPORT_MARKETS["soccer"])'

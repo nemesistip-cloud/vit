@@ -1,161 +1,161 @@
-import os
-import asyncio
-import logging
-import time
-from typing import List, Dict, Any, Optional
-import httpx
-from datetime import datetime, timezone
-
-logger = logging.getLogger(__name__)
-
-# League ID Mappings for iSports API
-# Mapping major leagues to their iSports leagueId
-ISPORTS_LEAGUE_IDS = {
-    "premier_league":           1,
-    "la_liga":                  94,
-    "serie_a":                  136,
-    "bundesliga":               80,
-    "ligue_1":                  156,
-    "championship":             2,
-    "eredivisie":               110,
-    "primeira_liga":            169,
-    "scottish_premiership":     32,
-    "belgian_pro_league":       121,
-    "super_lig":                113,
-    "turkey_super_lig":         113,
-    "ekstraklasa":              66,
-    "brazil_serie_a":           27,
-    "brasileirao":              27,
-    "argentina_liga_profesional": 36,
-    "argentine_primera":        36,
-    "mls":                      33,
-    "liga_mx":                  151,
-    "champions_league":         13,
-    "europa_league":            17,
-    "conference_league":        19,
-}
-
-class ISportsClient:
-    """
-    Client for api.isportsapi.com (Football Data Provider).
-    Supports fixtures, results, and livescores.
-    """
-    BASE_URL = "https://api.isportsapi.com/sport/football"
-
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("ISPORTS_API_KEY", "")
-        self.timeout = 15.0
-        self._cache = {}
-        self._cache_expiry = 300  # 5 minutes cache for results
-        self._last_request_time = 0
-        self._min_request_interval = 0.5  # 2 requests per second limit
-
-    async def _request(self, endpoint: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        if not self.api_key:
-            logger.error("ISPORTS_API_KEY not set")
-            return {"code": -1, "message": "API key missing"}
-
-        # Rate limiting
-        elapsed = time.time() - self._last_request_time
-        if elapsed < self._min_request_interval:
-            await asyncio.sleep(self._min_request_interval - elapsed)
-
-        params["api_key"] = self.api_key
-        url = f"{self.BASE_URL}{endpoint}"
-
-        # Simple backoff/retry logic
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
-                    self._last_request_time = time.time()
-                    response = await client.get(url, params=params)
-
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data.get("code") == 0:
-                            return data
-                        else:
-                            logger.warning(f"iSports API error: {data.get('message')} (code: {data.get('code')})")
-                            if data.get("code") in [4001, 4002]: # Rate limit errors
-                                await asyncio.sleep(2 ** attempt)
-                                continue
-                            return data
-                    elif response.status_code == 429:
-                        await asyncio.sleep(2 ** attempt)
-                    else:
-                        logger.warning(f"iSports API HTTP error: {response.status_code}")
-                        await asyncio.sleep(1)
-            except Exception as e:
-                logger.error(f"iSports request exception: {e}")
-                await asyncio.sleep(1)
-
-        return {"code": -1, "message": "Max retries exceeded"}
-
-    async def get_fixtures_and_results(self, league_id: int) -> List[Dict[str, Any]]:
-        """
-        Fetch fixtures and results for a league.
-        Uses /schedule/basic endpoint.
-        """
-        cache_key = f"fixtures_{league_id}"
-        now = time.time()
-        if cache_key in self._cache:
-            data, timestamp = self._cache[cache_key]
-            if now - timestamp < self._cache_expiry:
-                return data
-
-        params = {"leagueId": league_id}
-        result = await self._request("/schedule/basic", params)
-
-        if result.get("code") == 0 and "data" in result:
-            matches = result["data"]
-            self._cache[cache_key] = (matches, now)
-            return matches
-        return []
-
-    async def get_livescores(self, league_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Fetch live scores.
-        Uses /livescores endpoint.
-        """
-        params = {}
-        if league_id:
-            params["leagueId"] = league_id
-
-        result = await self._request("/livescores", params)
-        if result.get("code") == 0 and "data" in result:
-            return result["data"]
-        return []
-
-    def format_match_data(self, m: Dict[str, Any], league_name: str) -> Dict[str, Any]:
-        """Normalize iSports match data to VIT internal format."""
-        # iSports uses epoch seconds for matchTime
-        match_time = m.get("matchTime", 0)
-        kickoff_iso = ""
-        if match_time:
-            dt = datetime.fromtimestamp(match_time, tz=timezone.utc)
-            kickoff_iso = dt.isoformat()
-
-        return {
-            "home_team": m.get("homeName", "Unknown"),
-            "away_team": m.get("awayName", "Unknown"),
-            "league": league_name,
-            "kickoff": kickoff_iso,
-            "home_goals": m.get("homeScore"),
-            "away_goals": m.get("awayScore"),
-            "status": self._map_status(m.get("status")),
-            "isports_id": m.get("matchId")
-        }
-
-    def _map_status(self, status: Any) -> str:
-        """Map iSports status codes to internal status."""
-        # iSports statuses: -1: Finished, 0: Not started, 1: First half, 2: Half time, 3: Second half...
-        status_map = {
-            "-1": "completed",
-            "0": "scheduled",
-            "1": "live",
-            "2": "live",
-            "3": "live",
-            "4": "live"
-        }
-        return status_map.get(str(status), "scheduled")
+import os'
+import asyncio'
+import logging'
+import time'
+from typing import List, Dict, Any, Optional'
+import httpx'
+from datetime import datetime, timezone'
+'
+logger = logging.getLogger(__name__)'
+'
+# League ID Mappings for iSports API'
+# Mapping major leagues to their iSports leagueId'
+ISPORTS_LEAGUE_IDS = {'
+    "premier_league":           1,'
+    "la_liga":                  94,'
+    "serie_a":                  136,'
+    "bundesliga":               80,'
+    "ligue_1":                  156,'
+    "championship":             2,'
+    "eredivisie":               110,'
+    "primeira_liga":            169,'
+    "scottish_premiership":     32,'
+    "belgian_pro_league":       121,'
+    "super_lig":                113,'
+    "turkey_super_lig":         113,'
+    "ekstraklasa":              66,'
+    "brazil_serie_a":           27,'
+    "brasileirao":              27,'
+    "argentina_liga_profesional": 36,'
+    "argentine_primera":        36,'
+    "mls":                      33,'
+    "liga_mx":                  151,'
+    "champions_league":         13,'
+    "europa_league":            17,'
+    "conference_league":        19,'
+}'
+'
+class ISportsClient:'
+    """'
+    Client for api.isportsapi.com (Football Data Provider).'
+    Supports fixtures, results, and livescores.'
+    """'
+    BASE_URL = "https://api.isportsapi.com/sport/football"'
+'
+    def __init__(self, api_key: Optional[str] = None):'
+        self.api_key = api_key or os.getenv("ISPORTS_API_KEY", "")'
+        self.timeout = 15.0'
+        self._cache = {}'
+        self._cache_expiry = 300  # 5 minutes cache for results'
+        self._last_request_time = 0'
+        self._min_request_interval = 0.5  # 2 requests per second limit'
+'
+    async def _request(self, endpoint: str, params: Dict[str, Any]) -> Dict[str, Any]:'
+        if not self.api_key:'
+            logger.error("ISPORTS_API_KEY not set")'
+            return {"code": -1, "message": "API key missing"}'
+'
+        # Rate limiting'
+        elapsed = time.time() - self._last_request_time'
+        if elapsed < self._min_request_interval:'
+            await asyncio.sleep(self._min_request_interval - elapsed)'
+'
+        params["api_key"] = self.api_key'
+        url = f"{self.BASE_URL}{endpoint}"'
+'
+        # Simple backoff/retry logic'
+        max_retries = 3'
+        for attempt in range(max_retries):'
+            try:'
+                async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:'
+                    self._last_request_time = time.time()'
+                    response = await client.get(url, params=params)'
+'
+                    if response.status_code == 200:'
+                        data = response.json()'
+                        if data.get("code") == 0:'
+                            return data'
+                        else:'
+                            logger.warning(f"iSports API error: {data.get('message')} (code: {data.get('code')})")'
+                            if data.get("code") in [4001, 4002]: # Rate limit errors'
+                                await asyncio.sleep(2 ** attempt)'
+                                continue'
+                            return data'
+                    elif response.status_code == 429:'
+                        await asyncio.sleep(2 ** attempt)'
+                    else:'
+                        logger.warning(f"iSports API HTTP error: {response.status_code}")'
+                        await asyncio.sleep(1)'
+            except Exception as e:'
+                logger.error(f"iSports request exception: {e}")'
+                await asyncio.sleep(1)'
+'
+        return {"code": -1, "message": "Max retries exceeded"}'
+'
+    async def get_fixtures_and_results(self, league_id: int) -> List[Dict[str, Any]]:'
+        """'
+        Fetch fixtures and results for a league.'
+        Uses /schedule/basic endpoint.'
+        """'
+        cache_key = f"fixtures_{league_id}"'
+        now = time.time()'
+        if cache_key in self._cache:'
+            data, timestamp = self._cache[cache_key]'
+            if now - timestamp < self._cache_expiry:'
+                return data'
+'
+        params = {"leagueId": league_id}'
+        result = await self._request("/schedule/basic", params)'
+'
+        if result.get("code") == 0 and "data" in result:'
+            matches = result["data"]'
+            self._cache[cache_key] = (matches, now)'
+            return matches'
+        return []'
+'
+    async def get_livescores(self, league_id: Optional[int] = None) -> List[Dict[str, Any]]:'
+        """'
+        Fetch live scores.'
+        Uses /livescores endpoint.'
+        """'
+        params = {}'
+        if league_id:'
+            params["leagueId"] = league_id'
+'
+        result = await self._request("/livescores", params)'
+        if result.get("code") == 0 and "data" in result:'
+            return result["data"]'
+        return []'
+'
+    def format_match_data(self, m: Dict[str, Any], league_name: str) -> Dict[str, Any]:'
+        """Normalize iSports match data to VIT internal format."""'
+        # iSports uses epoch seconds for matchTime'
+        match_time = m.get("matchTime", 0)'
+        kickoff_iso = ""'
+        if match_time:'
+            dt = datetime.fromtimestamp(match_time, tz=timezone.utc)'
+            kickoff_iso = dt.isoformat()'
+'
+        return {'
+            "home_team": m.get("homeName", "Unknown"),'
+            "away_team": m.get("awayName", "Unknown"),'
+            "league": league_name,'
+            "kickoff": kickoff_iso,'
+            "home_goals": m.get("homeScore"),'
+            "away_goals": m.get("awayScore"),'
+            "status": self._map_status(m.get("status")),'
+            "isports_id": m.get("matchId")'
+        }'
+'
+    def _map_status(self, status: Any) -> str:'
+        """Map iSports status codes to internal status."""'
+        # iSports statuses: -1: Finished, 0: Not started, 1: First half, 2: Half time, 3: Second half...'
+        status_map = {'
+            "-1": "completed",'
+            "0": "scheduled",'
+            "1": "live",'
+            "2": "live",'
+            "3": "live",'
+            "4": "live"'
+        }'
+        return status_map.get(str(status), "scheduled")'

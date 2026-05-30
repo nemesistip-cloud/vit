@@ -1,237 +1,237 @@
-"""Security Routes — anti-Sybil, fraud alerts, multi-sig, wallet freeze."""
-from __future__ import annotations
-
-from decimal import Decimal
-from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.database import get_db
-from app.modules.security.models import FraudSeverity
-from app.modules.security.service import (
-    check_rate_limit,
-    create_fraud_alert,
-    evaluate_sybil_risk,
-    freeze_wallet,
-    get_security_dashboard,
-    lift_freeze,
-    propose_multisig,
-    resolve_fraud_alert,
-    sign_multisig,
-)
-
-router = APIRouter(prefix="/api/security", tags=["security"])
-
-
-class SybilEvalRequest(BaseModel):
-    user_id: int
-    prediction_velocity: Optional[float] = None
-    stake_velocity: Optional[float] = None
-    device_fingerprints: Optional[int] = None
-    referral_cluster_score: Optional[float] = None
-    account_age_days: Optional[int] = None
-    ip_cluster_id: Optional[str] = None
-
-
-class FraudAlertRequest(BaseModel):
-    alert_type: str
-    description: str
-    severity: FraudSeverity = FraudSeverity.MEDIUM
-    user_id: Optional[int] = None
-    evidence: Optional[str] = None
-    anomaly_score: float = 0.0
-
-
-class ResolveAlertRequest(BaseModel):
-    resolved_by: int
-    action: str
-
-
-class MultiSigRequest(BaseModel):
-    operation_type: str
-    description: str
-    payload: str
-    required_signers: int = 3
-    threshold: int = 2
-    proposer_user_id: Optional[int] = None
-    ttl_hours: int = 48
-
-
-class SignRequest(BaseModel):
-    signer_user_id: int
-    approved: bool = True
-
-
-class FreezeRequest(BaseModel):
-    user_id: int
-    reason: str
-    freeze_type: str = "full"
-    frozen_by: Optional[int] = None
-    fraud_alert_id: Optional[int] = None
-    frozen_amount: Optional[float] = None
-    auto_lift_hours: Optional[int] = None
-
-
-class LiftFreezeRequest(BaseModel):
-    lifted_by: int
-    notes: Optional[str] = None
-
-
-class RateLimitRequest(BaseModel):
-    endpoint: str
-    user_id: Optional[int] = None
-    ip_address: Optional[str] = None
-    window_minutes: int = 1
-    max_calls: int = 60
-
-
-@router.get("/dashboard")
-async def security_dashboard(db: AsyncSession = Depends(get_db)):
-    return await get_security_dashboard(db)
-
-
-@router.post("/sybil/evaluate")
-async def evaluate_sybil(req: SybilEvalRequest, db: AsyncSession = Depends(get_db)):
-    profile = await evaluate_sybil_risk(
-        db,
-        user_id=req.user_id,
-        prediction_velocity=req.prediction_velocity,
-        stake_velocity=req.stake_velocity,
-        device_fingerprints=req.device_fingerprints,
-        referral_cluster_score=req.referral_cluster_score,
-        account_age_days=req.account_age_days,
-        ip_cluster_id=req.ip_cluster_id,
-    )
-    return {
-        "user_id": profile.user_id,
-        "risk_level": profile.risk_level.value,
-        "anomaly_score": float(profile.anomaly_score),
-        "prediction_velocity": float(profile.prediction_velocity),
-        "stake_velocity": float(profile.stake_velocity),
-        "device_fingerprints": profile.device_fingerprints,
-        "referral_cluster_score": float(profile.referral_cluster_score),
-        "last_evaluated_at": profile.last_evaluated_at.isoformat() if profile.last_evaluated_at else None,
-    }
-
-
-@router.post("/alerts")
-async def create_alert(req: FraudAlertRequest, db: AsyncSession = Depends(get_db)):
-    alert = await create_fraud_alert(
-        db,
-        alert_type=req.alert_type,
-        description=req.description,
-        severity=req.severity,
-        user_id=req.user_id,
-        evidence=req.evidence,
-        anomaly_score=Decimal(str(req.anomaly_score)),
-    )
-    return {
-        "alert_id": alert.id,
-        "severity": alert.severity.value,
-        "alert_type": alert.alert_type,
-        "created_at": alert.created_at.isoformat(),
-    }
-
-
-@router.post("/alerts/{alert_id}/resolve")
-async def resolve_alert(
-    alert_id: int,
-    req: ResolveAlertRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        alert = await resolve_fraud_alert(db, alert_id, req.resolved_by, req.action)
-        return {"alert_id": alert.id, "resolved": alert.resolved, "action": alert.resolution_action}
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/multisig")
-async def propose_operation(req: MultiSigRequest, db: AsyncSession = Depends(get_db)):
-    op = await propose_multisig(
-        db,
-        operation_type=req.operation_type,
-        description=req.description,
-        payload=req.payload,
-        required_signers=req.required_signers,
-        threshold=req.threshold,
-        proposer_user_id=req.proposer_user_id,
-        ttl_hours=req.ttl_hours,
-    )
-    return {
-        "operation_id": op.id,
-        "operation_type": op.operation_type,
-        "status": op.status.value,
-        "threshold": op.threshold,
-        "expires_at": op.expires_at.isoformat() if op.expires_at else None,
-    }
-
-
-@router.post("/multisig/{operation_id}/sign")
-async def sign_operation(
-    operation_id: int,
-    req: SignRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        op = await sign_multisig(db, operation_id, req.signer_user_id, req.approved)
-        return {
-            "operation_id": op.id,
-            "status": op.status.value,
-            "message": f"Signature recorded. Status: {op.status.value}",
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/freeze")
-async def freeze_user_wallet(req: FreezeRequest, db: AsyncSession = Depends(get_db)):
-    freeze = await freeze_wallet(
-        db,
-        user_id=req.user_id,
-        reason=req.reason,
-        freeze_type=req.freeze_type,
-        frozen_by=req.frozen_by,
-        fraud_alert_id=req.fraud_alert_id,
-        frozen_amount=Decimal(str(req.frozen_amount)) if req.frozen_amount else None,
-        auto_lift_hours=req.auto_lift_hours,
-    )
-    return {
-        "freeze_id": freeze.id,
-        "user_id": freeze.user_id,
-        "status": freeze.status.value,
-        "freeze_type": freeze.freeze_type,
-        "frozen_at": freeze.frozen_at.isoformat(),
-        "auto_lift_at": freeze.auto_lift_at.isoformat() if freeze.auto_lift_at else None,
-    }
-
-
-@router.post("/freeze/{freeze_id}/lift")
-async def lift_wallet_freeze(
-    freeze_id: int,
-    req: LiftFreezeRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        freeze = await lift_freeze(db, freeze_id, req.lifted_by, req.notes)
-        return {
-            "freeze_id": freeze.id,
-            "status": freeze.status.value,
-            "lifted_at": freeze.lifted_at.isoformat() if freeze.lifted_at else None,
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/rate-limit/check")
-async def check_limit(req: RateLimitRequest, db: AsyncSession = Depends(get_db)):
-    return await check_rate_limit(
-        db,
-        endpoint=req.endpoint,
-        user_id=req.user_id,
-        ip_address=req.ip_address,
-        window_minutes=req.window_minutes,
-        max_calls=req.max_calls,
-    )
+"""Security Routes — anti-Sybil, fraud alerts, multi-sig, wallet freeze."""'
+from __future__ import annotations'
+'
+from decimal import Decimal'
+from typing import Optional'
+'
+from fastapi import APIRouter, Depends, HTTPException'
+from pydantic import BaseModel, Field'
+from sqlalchemy.ext.asyncio import AsyncSession'
+'
+from app.db.database import get_db'
+from app.modules.security.models import FraudSeverity'
+from app.modules.security.service import ('
+    check_rate_limit,'
+    create_fraud_alert,'
+    evaluate_sybil_risk,'
+    freeze_wallet,'
+    get_security_dashboard,'
+    lift_freeze,'
+    propose_multisig,'
+    resolve_fraud_alert,'
+    sign_multisig,'
+)'
+'
+router = APIRouter(prefix="/api/security", tags=["security"])'
+'
+'
+class SybilEvalRequest(BaseModel):'
+    user_id: int'
+    prediction_velocity: Optional[float] = None'
+    stake_velocity: Optional[float] = None'
+    device_fingerprints: Optional[int] = None'
+    referral_cluster_score: Optional[float] = None'
+    account_age_days: Optional[int] = None'
+    ip_cluster_id: Optional[str] = None'
+'
+'
+class FraudAlertRequest(BaseModel):'
+    alert_type: str'
+    description: str'
+    severity: FraudSeverity = FraudSeverity.MEDIUM'
+    user_id: Optional[int] = None'
+    evidence: Optional[str] = None'
+    anomaly_score: float = 0.0'
+'
+'
+class ResolveAlertRequest(BaseModel):'
+    resolved_by: int'
+    action: str'
+'
+'
+class MultiSigRequest(BaseModel):'
+    operation_type: str'
+    description: str'
+    payload: str'
+    required_signers: int = 3'
+    threshold: int = 2'
+    proposer_user_id: Optional[int] = None'
+    ttl_hours: int = 48'
+'
+'
+class SignRequest(BaseModel):'
+    signer_user_id: int'
+    approved: bool = True'
+'
+'
+class FreezeRequest(BaseModel):'
+    user_id: int'
+    reason: str'
+    freeze_type: str = "full"'
+    frozen_by: Optional[int] = None'
+    fraud_alert_id: Optional[int] = None'
+    frozen_amount: Optional[float] = None'
+    auto_lift_hours: Optional[int] = None'
+'
+'
+class LiftFreezeRequest(BaseModel):'
+    lifted_by: int'
+    notes: Optional[str] = None'
+'
+'
+class RateLimitRequest(BaseModel):'
+    endpoint: str'
+    user_id: Optional[int] = None'
+    ip_address: Optional[str] = None'
+    window_minutes: int = 1'
+    max_calls: int = 60'
+'
+'
+@router.get("/dashboard")'
+async def security_dashboard(db: AsyncSession = Depends(get_db)):'
+    return await get_security_dashboard(db)'
+'
+'
+@router.post("/sybil/evaluate")'
+async def evaluate_sybil(req: SybilEvalRequest, db: AsyncSession = Depends(get_db)):'
+    profile = await evaluate_sybil_risk('
+        db,'
+        user_id=req.user_id,'
+        prediction_velocity=req.prediction_velocity,'
+        stake_velocity=req.stake_velocity,'
+        device_fingerprints=req.device_fingerprints,'
+        referral_cluster_score=req.referral_cluster_score,'
+        account_age_days=req.account_age_days,'
+        ip_cluster_id=req.ip_cluster_id,'
+    )'
+    return {'
+        "user_id": profile.user_id,'
+        "risk_level": profile.risk_level.value,'
+        "anomaly_score": float(profile.anomaly_score),'
+        "prediction_velocity": float(profile.prediction_velocity),'
+        "stake_velocity": float(profile.stake_velocity),'
+        "device_fingerprints": profile.device_fingerprints,'
+        "referral_cluster_score": float(profile.referral_cluster_score),'
+        "last_evaluated_at": profile.last_evaluated_at.isoformat() if profile.last_evaluated_at else None,'
+    }'
+'
+'
+@router.post("/alerts")'
+async def create_alert(req: FraudAlertRequest, db: AsyncSession = Depends(get_db)):'
+    alert = await create_fraud_alert('
+        db,'
+        alert_type=req.alert_type,'
+        description=req.description,'
+        severity=req.severity,'
+        user_id=req.user_id,'
+        evidence=req.evidence,'
+        anomaly_score=Decimal(str(req.anomaly_score)),'
+    )'
+    return {'
+        "alert_id": alert.id,'
+        "severity": alert.severity.value,'
+        "alert_type": alert.alert_type,'
+        "created_at": alert.created_at.isoformat(),'
+    }'
+'
+'
+@router.post("/alerts/{alert_id}/resolve")'
+async def resolve_alert('
+    alert_id: int,'
+    req: ResolveAlertRequest,'
+    db: AsyncSession = Depends(get_db),'
+):'
+    try:'
+        alert = await resolve_fraud_alert(db, alert_id, req.resolved_by, req.action)'
+        return {"alert_id": alert.id, "resolved": alert.resolved, "action": alert.resolution_action}'
+    except ValueError as e:'
+        raise HTTPException(status_code=404, detail=str(e))'
+'
+'
+@router.post("/multisig")'
+async def propose_operation(req: MultiSigRequest, db: AsyncSession = Depends(get_db)):'
+    op = await propose_multisig('
+        db,'
+        operation_type=req.operation_type,'
+        description=req.description,'
+        payload=req.payload,'
+        required_signers=req.required_signers,'
+        threshold=req.threshold,'
+        proposer_user_id=req.proposer_user_id,'
+        ttl_hours=req.ttl_hours,'
+    )'
+    return {'
+        "operation_id": op.id,'
+        "operation_type": op.operation_type,'
+        "status": op.status.value,'
+        "threshold": op.threshold,'
+        "expires_at": op.expires_at.isoformat() if op.expires_at else None,'
+    }'
+'
+'
+@router.post("/multisig/{operation_id}/sign")'
+async def sign_operation('
+    operation_id: int,'
+    req: SignRequest,'
+    db: AsyncSession = Depends(get_db),'
+):'
+    try:'
+        op = await sign_multisig(db, operation_id, req.signer_user_id, req.approved)'
+        return {'
+            "operation_id": op.id,'
+            "status": op.status.value,'
+            "message": f"Signature recorded. Status: {op.status.value}",'
+        }'
+    except ValueError as e:'
+        raise HTTPException(status_code=400, detail=str(e))'
+'
+'
+@router.post("/freeze")'
+async def freeze_user_wallet(req: FreezeRequest, db: AsyncSession = Depends(get_db)):'
+    freeze = await freeze_wallet('
+        db,'
+        user_id=req.user_id,'
+        reason=req.reason,'
+        freeze_type=req.freeze_type,'
+        frozen_by=req.frozen_by,'
+        fraud_alert_id=req.fraud_alert_id,'
+        frozen_amount=Decimal(str(req.frozen_amount)) if req.frozen_amount else None,'
+        auto_lift_hours=req.auto_lift_hours,'
+    )'
+    return {'
+        "freeze_id": freeze.id,'
+        "user_id": freeze.user_id,'
+        "status": freeze.status.value,'
+        "freeze_type": freeze.freeze_type,'
+        "frozen_at": freeze.frozen_at.isoformat(),'
+        "auto_lift_at": freeze.auto_lift_at.isoformat() if freeze.auto_lift_at else None,'
+    }'
+'
+'
+@router.post("/freeze/{freeze_id}/lift")'
+async def lift_wallet_freeze('
+    freeze_id: int,'
+    req: LiftFreezeRequest,'
+    db: AsyncSession = Depends(get_db),'
+):'
+    try:'
+        freeze = await lift_freeze(db, freeze_id, req.lifted_by, req.notes)'
+        return {'
+            "freeze_id": freeze.id,'
+            "status": freeze.status.value,'
+            "lifted_at": freeze.lifted_at.isoformat() if freeze.lifted_at else None,'
+        }'
+    except ValueError as e:'
+        raise HTTPException(status_code=404, detail=str(e))'
+'
+'
+@router.post("/rate-limit/check")'
+async def check_limit(req: RateLimitRequest, db: AsyncSession = Depends(get_db)):'
+    return await check_rate_limit('
+        db,'
+        endpoint=req.endpoint,'
+        user_id=req.user_id,'
+        ip_address=req.ip_address,'
+        window_minutes=req.window_minutes,'
+        max_calls=req.max_calls,'
+    )'
