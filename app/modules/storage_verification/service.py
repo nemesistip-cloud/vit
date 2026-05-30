@@ -39,6 +39,10 @@ async def register_content(
     ref_type: str | None = None,
     ref_id: int | None = None,
     is_public: bool = True,
+    is_tachyon: bool = False,
+    tachyon_shards: int | None = None,
+    tachyon_parity_shards: int | None = None,
+    quantum_state_hash: str | None = None,
 ) -> ContentHashRegistry:
     existing = await db.scalar(
         select(ContentHashRegistry).where(
@@ -59,6 +63,10 @@ async def register_content(
         ref_type=ref_type,
         ref_id=ref_id,
         is_public=is_public,
+        is_tachyon=is_tachyon,
+        tachyon_shards=tachyon_shards,
+        tachyon_parity_shards=tachyon_parity_shards,
+        quantum_state_hash=quantum_state_hash,
         registered_at=datetime.now(timezone.utc),
     )
     db.add(entry)

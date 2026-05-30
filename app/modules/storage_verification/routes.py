@@ -32,6 +32,10 @@ class RegisterContentRequest(BaseModel):
     ref_type: Optional[str] = None
     ref_id: Optional[int] = None
     is_public: bool = True
+    is_tachyon: bool = False
+    tachyon_shards: Optional[int] = None
+    tachyon_parity_shards: Optional[int] = None
+    quantum_state_hash: Optional[str] = None
 
 
 class SubmitProofRequest(BaseModel):
@@ -80,6 +84,10 @@ async def register(req: RegisterContentRequest, db: AsyncSession = Depends(get_d
         ref_type=req.ref_type,
         ref_id=req.ref_id,
         is_public=req.is_public,
+        is_tachyon=req.is_tachyon,
+        tachyon_shards=req.tachyon_shards,
+        tachyon_parity_shards=req.tachyon_parity_shards,
+        quantum_state_hash=req.quantum_state_hash,
     )
     return {
         "id": entry.id,
