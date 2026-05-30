@@ -3,22 +3,21 @@ import asyncio
 
 class GoogleDriveProvider(CloudProvider):
     """
-    Skeleton for Google Drive Provider.
-    In a real implementation, this would use OAuth and the Google Drive API.
+    Simulated Google Drive Provider for Tachyon Fabric.
     """
 
     def __init__(self, account_id: str):
         self.account_id = account_id
+        self.storage = {}
 
     async def upload_fragment(self, data: bytes, name: str) -> bool:
-        # Simulate API call
-        await asyncio.sleep(0.05)
+        self.storage[name] = data
+        await asyncio.sleep(0.01)
         return True
 
     async def download_fragment(self, name: str) -> bytes:
-        # Simulate API call
-        await asyncio.sleep(0.05)
-        return b"data"
+        await asyncio.sleep(0.01)
+        return self.storage.get(name, b"")
 
     async def get_quota(self) -> dict:
         return {"total": 15*1024**3, "used": 1024**3}
