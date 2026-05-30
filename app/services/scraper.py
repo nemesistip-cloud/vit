@@ -1,340 +1,340 @@
-# app/services/scraper.py'
-import asyncio'
-import random'
-import logging'
-from typing import List, Dict, Optional, Tuple'
-from datetime import datetime'
-from urllib.parse import urljoin'
-'
-import httpx'
-from bs4 import BeautifulSoup'
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type'
-'
-logger = logging.getLogger(__name__)'
-'
-'
-# User-Agent rotation pool'
-USER_AGENTS = ['
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",'
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/120.0.0.0 Safari/537.36",'
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",'
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",'
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",'
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.1 Safari/605.1.15",'
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",'
-]'
-'
-# ── Transfermarkt league slug → competition code mapping ─────────────────────'
-# Format: { db_league_key_or_name: (tm_slug, tm_competition_code) }'
-# URL pattern: https://www.transfermarkt.com/{tm_slug}/verletztespieler/wettbewerb/{tm_competition_code}'
-TRANSFERMARKT_LEAGUES: Dict[str, Tuple[str, str]] = {'
-    # English'
-    "premier_league":               ("premier-league",          "GB1"),'
-    "premier-league":               ("premier-league",          "GB1"),'
-    "Premier League":               ("premier-league",          "GB1"),'
-    "championship":                 ("championship",            "GB2"),'
-    "english_league_one":           ("league-one",              "GB3"),'
-'
-    # Spanish'
-    "la_liga":                      ("primera-division",        "ES1"),'
-    "primera-division":             ("primera-division",        "ES1"),'
-    "La Liga":                      ("primera-division",        "ES1"),'
-    "segunda_division":             ("segunda-division",        "ES2"),'
-'
-    # German'
-    "bundesliga":                   ("bundesliga",              "L1"),'
-    "Bundesliga":                   ("bundesliga",              "L1"),'
-    "zweite_bundesliga":            ("2-bundesliga",            "L2"),'
-'
-    # Italian'
-    "serie_a":                      ("serie-a",                 "IT1"),'
-    "serie-a":                      ("serie-a",                 "IT1"),'
-    "Serie A":                      ("serie-a",                 "IT1"),'
-    "serie_b":                      ("serie-b",                 "IT2"),'
-'
-    # French'
-    "ligue_1":                      ("ligue-1",                 "FR1"),'
-    "ligue-1":                      ("ligue-1",                 "FR1"),'
-    "Ligue 1":                      ("ligue-1",                 "FR1"),'
-    "ligue_2":                      ("ligue-2",                 "FR2"),'
-'
-    # Portuguese'
-    "primeira_liga":                ("liga-nos",                "PO1"),'
-    "Primeira Liga":                ("liga-nos",                "PO1"),'
-    "liga-nos":                     ("liga-nos",                "PO1"),'
-'
-    # Dutch'
-    "eredivisie":                   ("eredivisie",              "NL1"),'
-    "Eredivisie":                   ("eredivisie",              "NL1"),'
-'
-    # Swedish'
-    "swedish_allsvenskan":          ("allsvenskan",             "SE1"),'
-    "allsvenskan":                  ("allsvenskan",             "SE1"),'
-    "Swedish Allsvenskan":          ("allsvenskan",             "SE1"),'
-'
-    # Brazilian'
-    "brasileirao":                  ("brasileirao-serie-a",     "BRA1"),'
-    "brasileirao_serie_a":          ("brasileirao-serie-a",     "BRA1"),'
-    "Brasileirão":                  ("brasileirao-serie-a",     "BRA1"),'
-'
-    # Argentine'
-    "argentinian_primera_division": ("superliga",               "AR1X"),'
-    "primera_division_arg":         ("superliga",               "AR1X"),'
-'
-    # European'
-    "champions_league":             ("champions-league",        "CL"),'
-    "champions-league":             ("champions-league",        "CL"),'
-    "Champions League":             ("champions-league",        "CL"),'
-    "europa_league":                ("europa-league",           "EL"),'
-    "conference_league":            ("conference-league",       "UCOL"),'
-'
-    # MLS'
-    "mls":                          ("major-league-soccer",     "MLS1"),'
-    "MLS":                          ("major-league-soccer",     "MLS1"),'
-    "major_league_soccer":          ("major-league-soccer",     "MLS1"),'
-'
-    # Turkish'
-    "super_lig":                    ("super-lig",               "TR1"),'
-'
-    # Russian'
-    "russian_premier_league":       ("premier-liga",            "RU1"),'
-'
-    # Belgian'
-    "jupiler_pro_league":           ("jupiler-pro-league",      "BE1"),'
-'
-    # Scottish'
-    "scottish_premiership":         ("scottish-premiership",    "SC1"),'
-}'
-'
-# Active leagues to scrape by default (prioritized, football-only)'
-DEFAULT_SCRAPE_LEAGUES = ['
-    "premier_league",'
-    "la_liga",'
-    "bundesliga",'
-    "serie_a",'
-    "ligue_1",'
-    "primeira_liga",'
-    "champions_league",'
-    "brasileirao",'
-    "swedish_allsvenskan",'
-    "mls",'
-    "eredivisie",'
-]'
-'
-'
-class InjuryScraper:'
-    """'
-    Scraper for injury news from Transfermarkt.'
-'
-    Features:'
-        - Per-league correct competition codes (not hardcoded GB1)'
-        - User-Agent rotation to avoid blocking'
-        - Retry logic with exponential backoff'
-        - Structured data extraction'
-        - Configurable league list'
-    """'
-'
-    def __init__('
-        self,'
-        base_url: str = "https://www.transfermarkt.com",'
-        timeout: int = 10,'
-        max_retries: int = 2,'
-        use_playwright: bool = False'
-    ):'
-        self.base_url = base_url'
-        self.timeout = timeout'
-        self.max_retries = max_retries'
-        self.use_playwright = use_playwright'
-        self.browser = None'
-        self.playwright = None'
-'
-    def _get_headers(self) -> Dict[str, str]:'
-        return {'
-            "User-Agent": random.choice(USER_AGENTS),'
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",'
-            "Accept-Language": "en-US,en;q=0.5",'
-            "Accept-Encoding": "gzip, deflate",'
-            "Connection": "keep-alive",'
-            "Upgrade-Insecure-Requests": "1",'
-        }'
-'
-    @retry('
-        stop=stop_after_attempt(2),'
-        wait=wait_exponential(multiplier=1, min=2, max=8),'
-        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException))'
-    )'
-    async def fetch_page(self, url: str) -> str:'
-        async with httpx.AsyncClient('
-            headers=self._get_headers(),'
-            timeout=self.timeout,'
-            follow_redirects=True,'
-            verify=False,'
-        ) as client:'
-            logger.debug(f"[scraper] GET {url}")'
-            response = await client.get(url)'
-            response.raise_for_status()'
-            return response.text'
-'
-    async def fetch_injuries_transfermarkt('
-        self,'
-        league_key: str,'
-        tm_slug: Optional[str] = None,'
-        competition_code: Optional[str] = None,'
-    ) -> List[Dict]:'
-        """'
-        Fetch injuries from Transfermarkt for a given league.'
-'
-        Args:'
-            league_key:       league name / DB key (used for lookup if slug/code not provided)'
-            tm_slug:          Transfermarkt URL slug override'
-            competition_code: Transfermarkt competition code override'
-'
-        The URL format is:'
-          https://www.transfermarkt.com/{tm_slug}/verletztespieler/wettbewerb/{competition_code}'
-        """'
-        # Resolve slug + code from mapping if not provided'
-        if tm_slug is None or competition_code is None:'
-            mapping = TRANSFERMARKT_LEAGUES.get(league_key)'
-            if mapping is None:'
-                # Try lowercase + underscore normalisation'
-                normalized = league_key.lower().replace(" ", "_").replace("-", "_")'
-                mapping = TRANSFERMARKT_LEAGUES.get(normalized)'
-            if mapping is None:'
-                logger.warning("[scraper] No Transfermarkt mapping for league=%s — skipping", league_key)'
-                return []'
-            tm_slug, competition_code = mapping'
-'
-        url = f"https://www.transfermarkt.com/{tm_slug}/verletztespieler/wettbewerb/{competition_code}"'
-'
-        try:'
-            html = await self.fetch_page(url)'
-        except Exception as e:'
-            logger.warning("[scraper] Transfermarkt fetch failed league=%s url=%s: %s", league_key, url, e)'
-            return []'
-'
-        try:'
-            soup = BeautifulSoup(html, "html.parser")'
-            injuries: List[Dict] = []'
-'
-            injury_tables = soup.select("table.items")'
-            if not injury_tables:'
-                logger.debug("[scraper] No items table found for league=%s", league_key)'
-                return []'
-'
-            rows = injury_tables[0].find_all("tr", class_=["odd", "even"])'
-            for row in rows:'
-                cols = row.find_all("td")'
-                if len(cols) < 5:'
-                    continue'
-'
-                # Transfermarkt column layout:'
-                # 0: player img, 1: player name link area, 2: name text, 3: team, 4: injury, 5: return date'
-                player_name = ""'
-                team = ""'
-                injury = ""'
-                return_date = "Unknown"'
-'
-                # Player name — try col index 2 first, then 1'
-                for idx in (2, 1):'
-                    if idx < len(cols):'
-                        txt = cols[idx].get_text(strip=True)'
-                        if txt:'
-                            player_name = txt'
-                            break'
-'
-                if len(cols) > 3:'
-                    team = cols[3].get_text(strip=True)'
-                if len(cols) > 4:'
-                    injury = cols[4].get_text(strip=True)'
-                if len(cols) > 5:'
-                    return_date = cols[5].get_text(strip=True) or "Unknown"'
-'
-                if not player_name:'
-                    continue'
-'
-                injuries.append({'
-                    "player_name": player_name,'
-                    "team":        team,'
-                    "injury":      injury,'
-                    "return_date": return_date,'
-                    "status":      self._normalize_status(injury),'
-                    "league":      league_key,'
-                    "source":      "transfermarkt",'
-                    "fetched_at":  datetime.now().isoformat(),'
-                })'
-'
-            logger.info("[scraper] Fetched %d injuries from Transfermarkt league=%s", len(injuries), league_key)'
-            return injuries'
-'
-        except Exception as e:'
-            logger.error("[scraper] Parse error for league=%s: %s", league_key, e)'
-            return []'
-'
-    def _normalize_status(self, text: str) -> str:'
-        text = text.lower()'
-        if any(w in text for w in ["doubtful", "doubt"]):'
-            return "doubtful"'
-        if any(w in text for w in ["out", "injured", "ruled out", "unavailable", "absent", "verletzt"]):'
-            return "injured"'
-        if any(w in text for w in ["questionable", "late fitness", "monitoring", "50/50"]):'
-            return "questionable"'
-        if any(w in text for w in ["return", "back in training", "light training", "recovery"]):'
-            return "returning"'
-        return "fit"'
-'
-    async def fetch_all_injuries('
-        self,'
-        leagues: Optional[List[str]] = None,'
-        max_concurrent: int = 3,'
-    ) -> List[Dict]:'
-        """'
-        Fetch injuries from Transfermarkt for multiple leagues concurrently.'
-'
-        Args:'
-            leagues:        list of league keys to scrape; defaults to DEFAULT_SCRAPE_LEAGUES'
-            max_concurrent: max parallel requests (be polite to Transfermarkt)'
-        """'
-        target_leagues = leagues or DEFAULT_SCRAPE_LEAGUES'
-'
-        # Resolve only leagues that have a known mapping'
-        valid = [(lk, TRANSFERMARKT_LEAGUES[lk]) for lk in target_leagues if lk in TRANSFERMARKT_LEAGUES]'
-        if not valid:'
-            logger.warning("[scraper] No valid league mappings found — returning empty")'
-            return []'
-'
-        logger.info("[scraper] Fetching injuries for %d leagues: %s",'
-                    len(valid), [lk for lk, _ in valid])'
-'
-        # Chunk into groups to respect max_concurrent'
-        all_injuries: List[Dict] = []'
-        seen_players: set = set()'
-'
-        for i in range(0, len(valid), max_concurrent):'
-            chunk = valid[i:i + max_concurrent]'
-            tasks = ['
-                self.fetch_injuries_transfermarkt(lk, slug, code)'
-                for lk, (slug, code) in chunk'
-            ]'
-            results = await asyncio.gather(*tasks, return_exceptions=True)'
-'
-            for result in results:'
-                if isinstance(result, Exception):'
-                    logger.warning("[scraper] League fetch failed: %s", result)'
-                    continue'
-                for injury in result:'
-                    key = f"{injury['player_name'].lower()}_{injury.get('team', '').lower()}"'
-                    if key not in seen_players:'
-                        seen_players.add(key)'
-                        all_injuries.append(injury)'
-'
-            # Small delay between chunks to be polite'
-            if i + max_concurrent < len(valid):'
-                await asyncio.sleep(1.5)'
-'
-        logger.info("[scraper] Total unique injuries scraped: %d across %d leagues",'
-                    len(all_injuries), len(valid))'
-        return all_injuries'
-'
-    async def close(self):'
-        if self.playwright:'
-            await self.playwright.stop()'
+# app/services/scraper.py
+import asyncio
+import random
+import logging
+from typing import List, Dict, Optional, Tuple
+from datetime import datetime
+from urllib.parse import urljoin
+
+import httpx
+from bs4 import BeautifulSoup
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+logger = logging.getLogger(__name__)
+
+
+# User-Agent rotation pool
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.1 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
+]
+
+# ── Transfermarkt league slug → competition code mapping ─────────────────────
+# Format: { db_league_key_or_name: (tm_slug, tm_competition_code) }
+# URL pattern: https://www.transfermarkt.com/{tm_slug}/verletztespieler/wettbewerb/{tm_competition_code}
+TRANSFERMARKT_LEAGUES: Dict[str, Tuple[str, str]] = {
+    # English
+    "premier_league":               ("premier-league",          "GB1"),
+    "premier-league":               ("premier-league",          "GB1"),
+    "Premier League":               ("premier-league",          "GB1"),
+    "championship":                 ("championship",            "GB2"),
+    "english_league_one":           ("league-one",              "GB3"),
+
+    # Spanish
+    "la_liga":                      ("primera-division",        "ES1"),
+    "primera-division":             ("primera-division",        "ES1"),
+    "La Liga":                      ("primera-division",        "ES1"),
+    "segunda_division":             ("segunda-division",        "ES2"),
+
+    # German
+    "bundesliga":                   ("bundesliga",              "L1"),
+    "Bundesliga":                   ("bundesliga",              "L1"),
+    "zweite_bundesliga":            ("2-bundesliga",            "L2"),
+
+    # Italian
+    "serie_a":                      ("serie-a",                 "IT1"),
+    "serie-a":                      ("serie-a",                 "IT1"),
+    "Serie A":                      ("serie-a",                 "IT1"),
+    "serie_b":                      ("serie-b",                 "IT2"),
+
+    # French
+    "ligue_1":                      ("ligue-1",                 "FR1"),
+    "ligue-1":                      ("ligue-1",                 "FR1"),
+    "Ligue 1":                      ("ligue-1",                 "FR1"),
+    "ligue_2":                      ("ligue-2",                 "FR2"),
+
+    # Portuguese
+    "primeira_liga":                ("liga-nos",                "PO1"),
+    "Primeira Liga":                ("liga-nos",                "PO1"),
+    "liga-nos":                     ("liga-nos",                "PO1"),
+
+    # Dutch
+    "eredivisie":                   ("eredivisie",              "NL1"),
+    "Eredivisie":                   ("eredivisie",              "NL1"),
+
+    # Swedish
+    "swedish_allsvenskan":          ("allsvenskan",             "SE1"),
+    "allsvenskan":                  ("allsvenskan",             "SE1"),
+    "Swedish Allsvenskan":          ("allsvenskan",             "SE1"),
+
+    # Brazilian
+    "brasileirao":                  ("brasileirao-serie-a",     "BRA1"),
+    "brasileirao_serie_a":          ("brasileirao-serie-a",     "BRA1"),
+    "Brasileirão":                  ("brasileirao-serie-a",     "BRA1"),
+
+    # Argentine
+    "argentinian_primera_division": ("superliga",               "AR1X"),
+    "primera_division_arg":         ("superliga",               "AR1X"),
+
+    # European
+    "champions_league":             ("champions-league",        "CL"),
+    "champions-league":             ("champions-league",        "CL"),
+    "Champions League":             ("champions-league",        "CL"),
+    "europa_league":                ("europa-league",           "EL"),
+    "conference_league":            ("conference-league",       "UCOL"),
+
+    # MLS
+    "mls":                          ("major-league-soccer",     "MLS1"),
+    "MLS":                          ("major-league-soccer",     "MLS1"),
+    "major_league_soccer":          ("major-league-soccer",     "MLS1"),
+
+    # Turkish
+    "super_lig":                    ("super-lig",               "TR1"),
+
+    # Russian
+    "russian_premier_league":       ("premier-liga",            "RU1"),
+
+    # Belgian
+    "jupiler_pro_league":           ("jupiler-pro-league",      "BE1"),
+
+    # Scottish
+    "scottish_premiership":         ("scottish-premiership",    "SC1"),
+}
+
+# Active leagues to scrape by default (prioritized, football-only)
+DEFAULT_SCRAPE_LEAGUES = [
+    "premier_league",
+    "la_liga",
+    "bundesliga",
+    "serie_a",
+    "ligue_1",
+    "primeira_liga",
+    "champions_league",
+    "brasileirao",
+    "swedish_allsvenskan",
+    "mls",
+    "eredivisie",
+]
+
+
+class InjuryScraper:
+    """
+    Scraper for injury news from Transfermarkt.
+
+    Features:
+        - Per-league correct competition codes (not hardcoded GB1)
+        - User-Agent rotation to avoid blocking
+        - Retry logic with exponential backoff
+        - Structured data extraction
+        - Configurable league list
+    """
+
+    def __init__(
+        self,
+        base_url: str = "https://www.transfermarkt.com",
+        timeout: int = 10,
+        max_retries: int = 2,
+        use_playwright: bool = False
+    ):
+        self.base_url = base_url
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.use_playwright = use_playwright
+        self.browser = None
+        self.playwright = None
+
+    def _get_headers(self) -> Dict[str, str]:
+        return {
+            "User-Agent": random.choice(USER_AGENTS),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        }
+
+    @retry(
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=2, max=8),
+        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException))
+    )
+    async def fetch_page(self, url: str) -> str:
+        async with httpx.AsyncClient(
+            headers=self._get_headers(),
+            timeout=self.timeout,
+            follow_redirects=True,
+            verify=False,
+        ) as client:
+            logger.debug(f"[scraper] GET {url}")
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.text
+
+    async def fetch_injuries_transfermarkt(
+        self,
+        league_key: str,
+        tm_slug: Optional[str] = None,
+        competition_code: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Fetch injuries from Transfermarkt for a given league.
+
+        Args:
+            league_key:       league name / DB key (used for lookup if slug/code not provided)
+            tm_slug:          Transfermarkt URL slug override
+            competition_code: Transfermarkt competition code override
+
+        The URL format is:
+          https://www.transfermarkt.com/{tm_slug}/verletztespieler/wettbewerb/{competition_code}
+        """
+        # Resolve slug + code from mapping if not provided
+        if tm_slug is None or competition_code is None:
+            mapping = TRANSFERMARKT_LEAGUES.get(league_key)
+            if mapping is None:
+                # Try lowercase + underscore normalisation
+                normalized = league_key.lower().replace(" ", "_").replace("-", "_")
+                mapping = TRANSFERMARKT_LEAGUES.get(normalized)
+            if mapping is None:
+                logger.warning("[scraper] No Transfermarkt mapping for league=%s — skipping", league_key)
+                return []
+            tm_slug, competition_code = mapping
+
+        url = f"https://www.transfermarkt.com/{tm_slug}/verletztespieler/wettbewerb/{competition_code}"
+
+        try:
+            html = await self.fetch_page(url)
+        except Exception as e:
+            logger.warning("[scraper] Transfermarkt fetch failed league=%s url=%s: %s", league_key, url, e)
+            return []
+
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            injuries: List[Dict] = []
+
+            injury_tables = soup.select("table.items")
+            if not injury_tables:
+                logger.debug("[scraper] No items table found for league=%s", league_key)
+                return []
+
+            rows = injury_tables[0].find_all("tr", class_=["odd", "even"])
+            for row in rows:
+                cols = row.find_all("td")
+                if len(cols) < 5:
+                    continue
+
+                # Transfermarkt column layout:
+                # 0: player img, 1: player name link area, 2: name text, 3: team, 4: injury, 5: return date
+                player_name = ""
+                team = ""
+                injury = ""
+                return_date = "Unknown"
+
+                # Player name — try col index 2 first, then 1
+                for idx in (2, 1):
+                    if idx < len(cols):
+                        txt = cols[idx].get_text(strip=True)
+                        if txt:
+                            player_name = txt
+                            break
+
+                if len(cols) > 3:
+                    team = cols[3].get_text(strip=True)
+                if len(cols) > 4:
+                    injury = cols[4].get_text(strip=True)
+                if len(cols) > 5:
+                    return_date = cols[5].get_text(strip=True) or "Unknown"
+
+                if not player_name:
+                    continue
+
+                injuries.append({
+                    "player_name": player_name,
+                    "team":        team,
+                    "injury":      injury,
+                    "return_date": return_date,
+                    "status":      self._normalize_status(injury),
+                    "league":      league_key,
+                    "source":      "transfermarkt",
+                    "fetched_at":  datetime.now().isoformat(),
+                })
+
+            logger.info("[scraper] Fetched %d injuries from Transfermarkt league=%s", len(injuries), league_key)
+            return injuries
+
+        except Exception as e:
+            logger.error("[scraper] Parse error for league=%s: %s", league_key, e)
+            return []
+
+    def _normalize_status(self, text: str) -> str:
+        text = text.lower()
+        if any(w in text for w in ["doubtful", "doubt"]):
+            return "doubtful"
+        if any(w in text for w in ["out", "injured", "ruled out", "unavailable", "absent", "verletzt"]):
+            return "injured"
+        if any(w in text for w in ["questionable", "late fitness", "monitoring", "50/50"]):
+            return "questionable"
+        if any(w in text for w in ["return", "back in training", "light training", "recovery"]):
+            return "returning"
+        return "fit"
+
+    async def fetch_all_injuries(
+        self,
+        leagues: Optional[List[str]] = None,
+        max_concurrent: int = 3,
+    ) -> List[Dict]:
+        """
+        Fetch injuries from Transfermarkt for multiple leagues concurrently.
+
+        Args:
+            leagues:        list of league keys to scrape; defaults to DEFAULT_SCRAPE_LEAGUES
+            max_concurrent: max parallel requests (be polite to Transfermarkt)
+        """
+        target_leagues = leagues or DEFAULT_SCRAPE_LEAGUES
+
+        # Resolve only leagues that have a known mapping
+        valid = [(lk, TRANSFERMARKT_LEAGUES[lk]) for lk in target_leagues if lk in TRANSFERMARKT_LEAGUES]
+        if not valid:
+            logger.warning("[scraper] No valid league mappings found — returning empty")
+            return []
+
+        logger.info("[scraper] Fetching injuries for %d leagues: %s",
+                    len(valid), [lk for lk, _ in valid])
+
+        # Chunk into groups to respect max_concurrent
+        all_injuries: List[Dict] = []
+        seen_players: set = set()
+
+        for i in range(0, len(valid), max_concurrent):
+            chunk = valid[i:i + max_concurrent]
+            tasks = [
+                self.fetch_injuries_transfermarkt(lk, slug, code)
+                for lk, (slug, code) in chunk
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.warning("[scraper] League fetch failed: %s", result)
+                    continue
+                for injury in result:
+                    key = f"{injury['player_name'].lower()}_{injury.get('team', '').lower()}"
+                    if key not in seen_players:
+                        seen_players.add(key)
+                        all_injuries.append(injury)
+
+            # Small delay between chunks to be polite
+            if i + max_concurrent < len(valid):
+                await asyncio.sleep(1.5)
+
+        logger.info("[scraper] Total unique injuries scraped: %d across %d leagues",
+                    len(all_injuries), len(valid))
+        return all_injuries
+
+    async def close(self):
+        if self.playwright:
+            await self.playwright.stop()
