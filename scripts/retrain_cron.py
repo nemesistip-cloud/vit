@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import sys
+import asyncio
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +58,17 @@ def main():
         proc = subprocess.run(cmd)
         if proc.returncode != 0:
             print(f"Training failed for {sport} ({path}) with code {proc.returncode}")
+        else:
+            # F21: Push to Tachyon Fabric if enabled
+            if os.getenv("TACHYON_STORAGE_ENABLED") == "true":
+                 model_path = ROOT / "models" / f"{sport}_baseline.pkl"
+                 print(f"Pushing {sport} baseline to Tachyon Swarm...")
+                 # Simplified async call inside sync loop
+                 from app.services.tachyon_client import tachyon_client
+                 try:
+                     asyncio.run(tachyon_client.upload_model(str(model_path)))
+                 except Exception as te:
+                     print(f"Tachyon push failed: {te}")
     return 0
 
 
