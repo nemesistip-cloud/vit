@@ -147,6 +147,9 @@ class AgentCoordinator:
         def _get_moderator():
             from app.agents.prediction_moderator_agent import PredictionModeratorAgent
             return PredictionModeratorAgent
+        def _get_academic():
+            from app.agents.academic_agent import AcademicAgent
+            return AcademicAgent
         def _get_tracker():
             from app.agents.live_match_tracker_agent import LiveMatchTrackerAgent
             return LiveMatchTrackerAgent
@@ -158,6 +161,7 @@ class AgentCoordinator:
             return NetworkGuardianAgent
 
         registry = {
+            "academic-tutor":           _get_academic,
             "performance-monitor":      _get_perf,
             "weight-optimizer":         _get_weight,
             "retrain-trigger":          _get_retrain,
@@ -206,7 +210,8 @@ class AgentCoordinator:
             "weight-optimizer",
             "match-scout",
             "oracle-node",
-            "kyc-screener"
+            "kyc-screener",
+            "academic-tutor"
         ]
 
     def start(self, task_list: Optional[List[asyncio.Task]] = None) -> List[asyncio.Task]:

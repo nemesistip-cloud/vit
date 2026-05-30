@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Trophy, TrendingUp, Activity, Coins, ArrowUpRight, ArrowDownRight,
+  Trophy, TrendingUp, Activity, GraduationCap, Coins, ArrowUpRight, ArrowDownRight,
   Clock, Globe, Users, ShieldCheck, Brain, ChevronRight, Zap,
   BarChart2, Target, CreditCard, Flame, Sparkles, CheckCircle2,
   XCircle, Minus, AlertTriangle, ShoppingBag, Vote, Scale, MessageCircle, Store
@@ -105,7 +105,7 @@ function TopOpportunitiesWidget() {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("sports");
+  const [activeTab, setActiveTab] = useState("campus");
 
   const { data: summary } = useQuery<any>({
     queryKey: ["ticker-summary"],
@@ -142,6 +142,9 @@ export default function DashboardPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
           <TabsList className="bg-card/50 border border-border/20 p-1 h-auto flex-nowrap justify-start">
+            <TabsTrigger value="campus" className="font-mono text-[10px] uppercase tracking-wider gap-2 px-4 py-2">
+              <GraduationCap className="w-3 h-3" /> Campus
+            </TabsTrigger>
             <TabsTrigger value="sports" className="font-mono text-[10px] uppercase tracking-wider gap-2 px-4 py-2">
               <Activity className="w-3 h-3" /> Sports
             </TabsTrigger>
@@ -166,7 +169,70 @@ export default function DashboardPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="sports" className="mt-6 space-y-6">
+                <TabsContent value="campus" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card className="bg-card/50 border-border/40">
+                <CardHeader>
+                  <CardTitle className="text-sm font-mono flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-primary" /> Academic Hub
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-10 text-center">
+                  <p className="text-xs font-mono text-muted-foreground mb-4">Access Past Questions, Course Notes, and textbooks for your department.</p>
+                  <Link href="/research">
+                    <Button className="font-mono text-xs uppercase gap-2">
+                      Enter Academic Hub <ChevronRight className="w-3 h-3" />
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card/50 border-border/40">
+                <CardHeader>
+                  <CardTitle className="text-sm font-mono flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-purple-400" /> AI Tutor
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-6">
+                  <div className="bg-background/40 border border-border/20 rounded-lg p-4 font-mono text-[11px]">
+                    <p className="text-muted-foreground mb-2 italic">"How can I help you study today?"</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ask about MTH101, Laplace Transforms..."
+                        className="flex-1 bg-background border border-border/30 rounded px-3 py-1.5 outline-none focus:border-primary/50 transition-colors"
+                      />
+                      <Button size="sm" className="h-auto py-1 px-3">Ask</Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="space-y-6">
+              <Card className="bg-card/50 border-border/40">
+                <CardHeader>
+                  <CardTitle className="text-sm font-mono">Your Identity</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground font-mono">University</p>
+                    <p className="text-xs font-mono font-bold">{user?.university || "Not set"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground font-mono">Department</p>
+                    <p className="text-xs font-mono font-bold">{user?.department || "Not set"}</p>
+                  </div>
+                  <Link href="/settings">
+                    <Button variant="outline" size="sm" className="w-full text-[10px] h-8">Setup Profile</Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+<TabsContent value="sports" className="mt-6 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <Card className="bg-card/50 border-border/40">
@@ -275,23 +341,60 @@ export default function DashboardPage() {
         <TabsContent value="community" className="mt-6">
           <div className="space-y-6">
             <header>
-              <h2 className="text-lg font-bold font-mono">Community Circles</h2>
-              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Connect with elite analysts</p>
+              <h2 className="text-lg font-bold font-mono">Campus Circles</h2>
+              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Connect with students in your university</p>
             </header>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3].map(i => (
-                <Card key={i} className="bg-card/40 border-border/30">
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-mono font-bold">Circle #{i}04</p>
-                      <p className="text-[10px] font-mono text-muted-foreground">450 members • Active</p>
-                    </div>
+              {user?.university ? (
+                <>
+                  <Card className="bg-card/40 border-border/30 border-l-4 border-l-primary">
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-mono font-bold">{user.university} Hub</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">General Campus Feed</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  {user?.faculty && (
+                    <Card className="bg-card/40 border-border/30 border-l-4 border-l-emerald-500">
+                      <CardContent className="p-4 flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                          <Users className="w-5 h-5 text-emerald-500" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-mono font-bold">Faculty of {user.faculty}</p>
+                          <p className="text-[10px] font-mono text-muted-foreground">Faculty Discussions</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {user?.department && (
+                    <Card className="bg-card/40 border-border/30 border-l-4 border-l-purple-500">
+                      <CardContent className="p-4 flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                          <Users className="w-5 h-5 text-purple-500" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-mono font-bold">{user.department} Dept</p>
+                          <p className="text-[10px] font-mono text-muted-foreground">Course-specific chats</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <Card className="bg-card/40 border-border/30 col-span-full">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-xs font-mono text-muted-foreground mb-3">Setup your student profile to join your campus circles.</p>
+                    <Link href="/settings">
+                      <Button size="sm" variant="outline" className="text-[10px] uppercase font-mono">Setup Identity</Button>
+                    </Link>
                   </CardContent>
                 </Card>
-              ))}
+              )}
             </div>
           </div>
         </TabsContent>

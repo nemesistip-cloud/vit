@@ -11,10 +11,10 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Index, Integer,
+    Boolean, DateTime, Float, ForeignKey, Index, Integer,
     JSON, String, Text, UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.db.database import Base
@@ -69,3 +69,30 @@ class SystemID(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )
+
+
+class StudentProfile(Base):
+    """Detailed Student Profile (v5.1.0) — Keeps student-specific data separated."""
+    __tablename__ = "student_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+
+    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    expected_graduation_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    gpa: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Links to academic activity
+    total_resources_uploaded: Mapped[int] = mapped_column(Integer, default=0)
+    total_resources_verified: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), nullable=True
+    )
+
+    user = relationship("User", back_populates="student_profile")
