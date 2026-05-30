@@ -79,6 +79,7 @@ async def ensure_schema():
             await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0')
             await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT')
             await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT')
+        await engine.dispose()
         print('[production] Database schema ready')
     except Exception as e:
         print(f'[production] DB schema warning: {e}')

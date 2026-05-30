@@ -2050,6 +2050,13 @@ async def _run_bootstrap(app, _done_event):
     except Exception as _agent_err:
         print(f"⚠️  Agent coordinator failed to start: {_agent_err}")
 
+    # Dispose the engine used for bootstrap to free up connections for the main app
+    try:
+        from app.db.database import engine
+        await engine.dispose()
+        print("♻️  Bootstrap connections recycled")
+    except Exception:
+        pass
     print("✅ Background services started with supervision")
     print("🌐 API running at http://localhost:5000")
 
@@ -2063,6 +2070,8 @@ async def _run_bootstrap(app, _done_event):
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        from app.db.database import engine
+        await engine.dispose()
 
 
 # ============================================
@@ -2114,8 +2123,16 @@ async def add_request_id(request: Request, call_next):
     request.state.request_id = request_id
     try:
         response = await call_next(request)
-    except Exception:
-        logging.getLogger("app.errors").exception(
+    except Exception as exc:
+        logger = logging.getLogger("app.errors")
+
+        # Handle ExceptionGroup (Python 3.11+)
+        real_exc = exc
+        if isinstance(exc, ExceptionGroup):
+            real_exc = exc.exceptions[0]
+            logger.error("ExceptionGroup in add_request_id request_id=%s. Primary: %s", request_id, real_exc)
+
+        logger.exception(
             "Unhandled request failure request_id=%s method=%s path=%s",
             request_id,
             request.method,
@@ -2205,17 +2222,37 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 
 @app.exception_handler(Exception)
 async def unhandled_error_handler(request: Request, exc: Exception):
-    logging.getLogger("app.errors").exception(
+    logger = logging.getLogger("app.errors")
+    request_id = getattr(request.state, "request_id", "unknown")
+
+    # Handle ExceptionGroup (Python 3.11+)
+    real_exc = exc
+    if isinstance(exc, ExceptionGroup):
+        # Extract the first non-group exception as the primary cause
+        real_exc = exc.exceptions[0]
+        logger.error(
+            "ExceptionGroup caught request_id=%s. Primary sub-exception: %s",
+            request_id, real_exc
+        )
+
+    logger.exception(
         "Unhandled exception request_id=%s method=%s path=%s",
-        getattr(request.state, "request_id", "unknown"),
+        request_id,
         request.method,
         request.url.path,
     )
+
+    # Special message for connection drops
+    msg = "Internal server error"
+    if "connection was closed" in str(real_exc).lower():
+        msg = "Database connection transient failure. Please retry."
+
     return error_response(
         request=request,
         status_code=500,
         code="internal_server_error",
-        message="Internal server error",
+        message=msg,
+        details={"type": type(real_exc).__name__}
     )
 
 

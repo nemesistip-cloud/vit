@@ -8,6 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 from app.db.database import get_db
 from app.db.models import User, AuditLog
@@ -22,6 +23,18 @@ from app.auth.jwt_utils import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
+
+def is_transient_db_error(exception):
+    msg = str(exception).lower()
+    return "connection was closed" in msg or "not connected" in msg or "pool" in msg
+
+db_retry = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=5),
+    retry=retry_if_exception(is_transient_db_error),
+    reraise=True
+)
+
 
 
 # ── Schemas ───────────────────────────────────────────────────────────
@@ -198,6 +211,7 @@ _LOCKOUT_MINUTES = 15
 
 
 @router.post("/login")
+@db_retry
 async def login(body: LoginRequest, request: Request = None, db: AsyncSession = Depends(get_db)):
     # ── SEC-10: IP-level in-memory rate limit (quick, O(1)) ─────────────
     from app.core.rate_limit import check_login_allowed, record_login_failure as _ip_fail, clear_login_failures as _ip_clear

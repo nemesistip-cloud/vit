@@ -5,7 +5,7 @@
 import hashlib
 import logging
 from fastapi import Request, HTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import API_KEY, AUTH_ENABLED, ENVIRONMENT
 from app.core.errors import error_response
@@ -101,82 +101,104 @@ async def _validate_jwt(token: str) -> bool:
         return False
 
 
-class APIKeyMiddleware(BaseHTTPMiddleware):
+class APIKeyMiddleware:
     """
-    Authentication middleware — accepts:
+    Pure ASGI Authentication middleware — accepts:
     1. JWT Bearer token        (Authorization: Bearer <token>)
     2. Developer API key      (x-api-key: vit_*  — DB-authenticated + G09 billing)
     3. Legacy env-var API key (x-api-key: <API_KEY env var>)
     """
+    def __init__(self, app: ASGIApp):
+        self.app = app
 
-    async def dispatch(self, request: Request, call_next):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         if not auth_enabled():
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
+        request = Request(scope, receive)
         path = request.url.path
 
         if any(path.startswith(p) for p in _ALWAYS_OPEN):
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
         # Pass static frontend assets through
         if not any(path.startswith(pfx) for pfx in _PROTECTED_PREFIXES):
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
         # ── Check JWT Bearer first ──────────────────────────────────────
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
             if await _validate_jwt(token):
-                return await call_next(request)
-            return error_response(
+                await self.app(scope, receive, send)
+                return
+            res = error_response(
                 request=request,
                 status_code=401,
                 code="invalid_token",
                 message="Invalid, expired, or revoked JWT token",
             )
+            await res(scope, receive, send)
+            return
 
         # ── Fall back to API key or access token query string ───────────
         api_key = request.headers.get("x-api-key") or request.query_params.get("api_key")
         if not api_key:
             token = request.query_params.get("access_token") or request.query_params.get("token")
             if token and await _validate_jwt(token):
-                return await call_next(request)
-            return error_response(
+                await self.app(scope, receive, send)
+                return
+            res = error_response(
                 request=request,
                 status_code=401,
                 code="authentication_required",
                 message="Authentication required. Provide Authorization: Bearer <token>, x-api-key header, or api_key/access_token query parameter",
             )
+            await res(scope, receive, send)
+            return
 
         # G09: Developer API keys (vit_* prefix) — DB lookup + billing
         if api_key.startswith("vit_"):
             allowed, reason, _uid, _plan = await _auth_developer_api_key(api_key)
             if not allowed:
                 if reason == "insufficient_balance":
-                    return error_response(
+                    res = error_response(
                         request=request,
                         status_code=402,
                         code="insufficient_balance",
                         message="Insufficient VITCoin balance to make API calls on your current plan.",
                     )
-                return error_response(
-                    request=request,
-                    status_code=401,
-                    code="invalid_api_key",
-                    message=f"Developer API key rejected: {reason}",
-                )
-            return await call_next(request)
+                else:
+                    res = error_response(
+                        request=request,
+                        status_code=401,
+                        code="invalid_api_key",
+                        message=f"Developer API key rejected: {reason}",
+                    )
+                await res(scope, receive, send)
+                return
+            await self.app(scope, receive, send)
+            return
 
         # Legacy env-var key
         if api_key != API_KEY:
-            return error_response(
+            res = error_response(
                 request=request,
                 status_code=401,
                 code="invalid_api_key",
                 message="Invalid API key",
             )
+            await res(scope, receive, send)
+            return
 
-        return await call_next(request)
+        await self.app(scope, receive, send)
 
 
 async def verify_api_key(request: Request):
