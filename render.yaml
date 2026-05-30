@@ -99,6 +99,19 @@ services:
       - key: VITE_WALLETCONNECT_PROJECT_ID
         sync: false
 
+
+  - type: web
+    name: tachyon
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install fastapi uvicorn httpx
+    startCommand: python3 -m tachyon.main
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: PYTHONPATH
+        value: "."
   - type: redis
     name: vit-redis
     region: oregon

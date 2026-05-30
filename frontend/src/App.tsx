@@ -79,6 +79,7 @@ const BetRoomsPage          = lazyRetry(() => import("@/pages/bet-rooms"));
 const ProphecyChainPage     = lazyRetry(() => import("@/pages/prophecy-chain"));
 const ValueIntelligencePage = lazyRetry(() => import("@/pages/value-intelligence"));
 const WatchlistPage         = lazyRetry(() => import("@/pages/watchlist"));
+const StoragePage           = lazyRetry(() => import("@/pages/storage"));
 
 function RouteFallback() {
   return (
@@ -306,6 +307,9 @@ function Router() {
       </Route>
       <Route path="/watchlist">
         <Layout><ProtectedRoute component={WatchlistPage} /></Layout>
+      </Route>
+      <Route path="/storage">
+        <Layout><ProtectedRoute component={StoragePage} /></Layout>
       </Route>
       <Route path="/prophecy">
         <Layout><ProtectedRoute component={ProphecyChainPage} /></Layout>
