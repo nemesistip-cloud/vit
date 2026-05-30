@@ -1,116 +1,116 @@
-"""Merit Protocol — long-term merit scoring, tiers, decay, and VIT bonuses."""
-from __future__ import annotations
-
-import enum
-from datetime import datetime, timezone
-from decimal import Decimal
-from typing import Optional
-
-from sqlalchemy import ForeignKey, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.db.database import Base
-
-
-class MeritTier(str, enum.Enum):
-    UNRANKED = "unranked"
-    BRONZE = "bronze"
-    SILVER = "silver"
-    GOLD = "gold"
-    PLATINUM = "platinum"
-    DIAMOND = "diamond"
-    SOVEREIGN = "sovereign"
-
-
-class MeritEventType(str, enum.Enum):
-    PREDICTION_CORRECT = "prediction_correct"
-    PREDICTION_INCORRECT = "prediction_incorrect"
-    STREAK_BONUS = "streak_bonus"
-    VALIDATOR_UPTIME = "validator_uptime"
-    ORACLE_ACCURACY = "oracle_accuracy"
-    GOVERNANCE_VOTE = "governance_vote"
-    GOVERNANCE_PROPOSAL = "governance_proposal"
-    GRANT_RECIPIENT = "grant_recipient"
-    REFERRAL_CONVERTED = "referral_converted"
-    STAKING_MILESTONE = "staking_milestone"
-    SLASH_PENALTY = "slash_penalty"
-    INACTIVITY_DECAY = "inactivity_decay"
-    TIER_PROMOTION = "tier_promotion"
-    ADMIN_ADJUSTMENT = "admin_adjustment"
-
-
-TIER_THRESHOLDS = {
-    MeritTier.UNRANKED: 0,
-    MeritTier.BRONZE: 100,
-    MeritTier.SILVER: 500,
-    MeritTier.GOLD: 2_000,
-    MeritTier.PLATINUM: 7_500,
-    MeritTier.DIAMOND: 25_000,
-    MeritTier.SOVEREIGN: 100_000,
-}
-
-TIER_BONUS_PCT = {
-    MeritTier.UNRANKED: Decimal("0"),
-    MeritTier.BRONZE: Decimal("0.02"),
-    MeritTier.SILVER: Decimal("0.05"),
-    MeritTier.GOLD: Decimal("0.10"),
-    MeritTier.PLATINUM: Decimal("0.18"),
-    MeritTier.DIAMOND: Decimal("0.30"),
-    MeritTier.SOVEREIGN: Decimal("0.50"),
-}
-
-
-class MeritScore(Base):
-    __tablename__ = "merit_scores"
-    __table_args__ = (UniqueConstraint("user_id"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    score: Mapped[Decimal] = mapped_column(Numeric(16, 4), default=Decimal("0"))
-    tier: Mapped[MeritTier] = mapped_column(default=MeritTier.UNRANKED)
-    peak_score: Mapped[Decimal] = mapped_column(Numeric(16, 4), default=Decimal("0"))
-    peak_tier: Mapped[MeritTier] = mapped_column(default=MeritTier.UNRANKED)
-    total_earned: Mapped[Decimal] = mapped_column(
-        Numeric(16, 4), default=Decimal("0")
-    )
-    total_lost: Mapped[Decimal] = mapped_column(Numeric(16, 4), default=Decimal("0"))
-    streak_days: Mapped[int] = mapped_column(default=0)
-    last_activity_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    last_decay_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    bonus_vit_earned: Mapped[Decimal] = mapped_column(
-        Numeric(20, 6), default=Decimal("0")
-    )
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
-    )
-
-    events: Mapped[list["MeritEvent"]] = relationship(
-        back_populates="merit_score", cascade="all, delete-orphan"
-    )
-
-
-class MeritEvent(Base):
-    __tablename__ = "merit_events"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    merit_score_id: Mapped[int] = mapped_column(
-        ForeignKey("merit_scores.id", ondelete="CASCADE")
-    )
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    event_type: Mapped[MeritEventType] = mapped_column()
-    points_delta: Mapped[Decimal] = mapped_column(Numeric(16, 4))
-    score_before: Mapped[Decimal] = mapped_column(Numeric(16, 4))
-    score_after: Mapped[Decimal] = mapped_column(Numeric(16, 4))
-    tier_before: Mapped[MeritTier] = mapped_column()
-    tier_after: Mapped[MeritTier] = mapped_column()
-    bonus_vit: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))
-    ref_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    occurred_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
-
-    merit_score: Mapped["MeritScore"] = relationship(back_populates="events")
-
-
-def _utcnow():
-    return datetime.now(timezone.utc)
+"""Merit Protocol — long-term merit scoring, tiers, decay, and VIT bonuses."""'
+from __future__ import annotations'
+'
+import enum'
+from datetime import datetime, timezone'
+from decimal import Decimal'
+from typing import Optional'
+'
+from sqlalchemy import ForeignKey, Numeric, String, Text, UniqueConstraint'
+from sqlalchemy.orm import Mapped, mapped_column, relationship'
+'
+from app.db.database import Base'
+'
+'
+class MeritTier(str, enum.Enum):'
+    UNRANKED = "unranked"'
+    BRONZE = "bronze"'
+    SILVER = "silver"'
+    GOLD = "gold"'
+    PLATINUM = "platinum"'
+    DIAMOND = "diamond"'
+    SOVEREIGN = "sovereign"'
+'
+'
+class MeritEventType(str, enum.Enum):'
+    PREDICTION_CORRECT = "prediction_correct"'
+    PREDICTION_INCORRECT = "prediction_incorrect"'
+    STREAK_BONUS = "streak_bonus"'
+    VALIDATOR_UPTIME = "validator_uptime"'
+    ORACLE_ACCURACY = "oracle_accuracy"'
+    GOVERNANCE_VOTE = "governance_vote"'
+    GOVERNANCE_PROPOSAL = "governance_proposal"'
+    GRANT_RECIPIENT = "grant_recipient"'
+    REFERRAL_CONVERTED = "referral_converted"'
+    STAKING_MILESTONE = "staking_milestone"'
+    SLASH_PENALTY = "slash_penalty"'
+    INACTIVITY_DECAY = "inactivity_decay"'
+    TIER_PROMOTION = "tier_promotion"'
+    ADMIN_ADJUSTMENT = "admin_adjustment"'
+'
+'
+TIER_THRESHOLDS = {'
+    MeritTier.UNRANKED: 0,'
+    MeritTier.BRONZE: 100,'
+    MeritTier.SILVER: 500,'
+    MeritTier.GOLD: 2_000,'
+    MeritTier.PLATINUM: 7_500,'
+    MeritTier.DIAMOND: 25_000,'
+    MeritTier.SOVEREIGN: 100_000,'
+}'
+'
+TIER_BONUS_PCT = {'
+    MeritTier.UNRANKED: Decimal("0"),'
+    MeritTier.BRONZE: Decimal("0.02"),'
+    MeritTier.SILVER: Decimal("0.05"),'
+    MeritTier.GOLD: Decimal("0.10"),'
+    MeritTier.PLATINUM: Decimal("0.18"),'
+    MeritTier.DIAMOND: Decimal("0.30"),'
+    MeritTier.SOVEREIGN: Decimal("0.50"),'
+}'
+'
+'
+class MeritScore(Base):'
+    __tablename__ = "merit_scores"'
+    __table_args__ = (UniqueConstraint("user_id"),)'
+'
+    id: Mapped[int] = mapped_column(primary_key=True)'
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))'
+    score: Mapped[Decimal] = mapped_column(Numeric(16, 4), default=Decimal("0"))'
+    tier: Mapped[MeritTier] = mapped_column(default=MeritTier.UNRANKED)'
+    peak_score: Mapped[Decimal] = mapped_column(Numeric(16, 4), default=Decimal("0"))'
+    peak_tier: Mapped[MeritTier] = mapped_column(default=MeritTier.UNRANKED)'
+    total_earned: Mapped[Decimal] = mapped_column('
+        Numeric(16, 4), default=Decimal("0")'
+    )'
+    total_lost: Mapped[Decimal] = mapped_column(Numeric(16, 4), default=Decimal("0"))'
+    streak_days: Mapped[int] = mapped_column(default=0)'
+    last_activity_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)'
+    last_decay_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)'
+    bonus_vit_earned: Mapped[Decimal] = mapped_column('
+        Numeric(20, 6), default=Decimal("0")'
+    )'
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))'
+    updated_at: Mapped[datetime] = mapped_column('
+        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)'
+    )'
+'
+    events: Mapped[list["MeritEvent"]] = relationship('
+        back_populates="merit_score", cascade="all, delete-orphan"'
+    )'
+'
+'
+class MeritEvent(Base):'
+    __tablename__ = "merit_events"'
+'
+    id: Mapped[int] = mapped_column(primary_key=True)'
+    merit_score_id: Mapped[int] = mapped_column('
+        ForeignKey("merit_scores.id", ondelete="CASCADE")'
+    )'
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))'
+    event_type: Mapped[MeritEventType] = mapped_column()'
+    points_delta: Mapped[Decimal] = mapped_column(Numeric(16, 4))'
+    score_before: Mapped[Decimal] = mapped_column(Numeric(16, 4))'
+    score_after: Mapped[Decimal] = mapped_column(Numeric(16, 4))'
+    tier_before: Mapped[MeritTier] = mapped_column()'
+    tier_after: Mapped[MeritTier] = mapped_column()'
+    bonus_vit: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))'
+    ref_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)'
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)'
+    occurred_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))'
+'
+    merit_score: Mapped["MeritScore"] = relationship(back_populates="events")'
+'
+'
+def _utcnow():'
+    return datetime.now(timezone.utc)'

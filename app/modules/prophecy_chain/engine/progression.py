@@ -1,172 +1,172 @@
-"""app/modules/prophecy_chain/engine/progression.py — Prophecy Chain progression engine."""
-
-import logging
-from datetime import datetime, timezone
-from sqlalchemy import select, func, and_, desc, cast, Integer
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.models import Prediction, Match, User
-from app.modules.prophecy_chain.models import ProphecyChapter, UserProphecyProgress
-from app.modules.wallet.models import Wallet
-
-logger = logging.getLogger(__name__)
-
-class ProgressionEngine:
-    @staticmethod
-    async def evaluate_user_progress(db: AsyncSession, user_id: int, trigger: str = "unknown"):
-        """
-        Evaluate user's performance and advance them through Prophecy Chapters.
-        Called after match settlement or manually.
-        """
-        try:
-            # 1. Fetch or initialize user progress
-            res = await db.execute(
-                select(UserProphecyProgress).where(UserProphecyProgress.user_id == user_id)
-            )
-            progress = res.scalar_one_or_none()
-
-            if not progress:
-                # Initialize at first chapter
-                first_chapter_res = await db.execute(
-                    select(ProphecyChapter).order_by(ProphecyChapter.sequence_order).limit(1)
-                )
-                first_chapter = first_chapter_res.scalar_one_or_none()
-
-                progress = UserProphecyProgress(
-                    user_id=user_id,
-                    current_chapter_id=first_chapter.id if first_chapter else None,
-                    chapters_completed=[]
-                )
-                db.add(progress)
-                await db.flush()
-
-            # 2. Calculate performance metrics
-            # We only count settled predictions with was_correct set
-            perf_res = await db.execute(
-                select(
-                    func.count(Prediction.id).label("total"),
-                    func.sum(cast(Prediction.was_correct, Integer)).label("wins")
-                ).join(Match, Prediction.match_id == Match.id).where(
-                    and_(
-                        Prediction.user_id == user_id,
-                        Match.actual_outcome.isnot(None),
-                        Prediction.was_correct.isnot(None)
-                    )
-                )
-            )
-            perf = perf_res.one()
-            total = int(perf.total or 0)
-            wins = int(perf.wins or 0)
-            accuracy = wins / total if total > 0 else 0.0
-
-            progress.total_qualified_predictions = total
-            progress.total_qualified_wins = wins
-            progress.current_accuracy = round(accuracy, 4)
-            progress.last_evaluated_at = datetime.now(timezone.utc).replace(tzinfo=None)
-
-            # 3. Calculate current winning streak
-            streak_res = await db.execute(
-                select(Prediction.was_correct)
-                .join(Match, Prediction.match_id == Match.id)
-                .where(
-                    and_(
-                        Prediction.user_id == user_id,
-                        Match.actual_outcome.isnot(None),
-                        Prediction.was_correct.isnot(None)
-                    )
-                )
-                .order_by(desc(Prediction.timestamp))
-                .limit(20)
-            )
-            last_preds = streak_res.scalars().all()
-            current_streak = 0
-            for was_correct in last_preds:
-                if was_correct:
-                    current_streak += 1
-                else:
-                    break
-
-            # 4. Check for chapter advancement
-            if progress.current_chapter_id:
-                curr_chapter_res = await db.execute(
-                    select(ProphecyChapter).where(ProphecyChapter.id == progress.current_chapter_id)
-                )
-                curr_chapter = curr_chapter_res.scalar_one_or_none()
-
-                if curr_chapter:
-                    # Check if requirements met
-                    # We check: total volume, accuracy, and streak
-                    req_met = (
-                        total >= curr_chapter.required_predictions and
-                        accuracy >= curr_chapter.required_accuracy and
-                        current_streak >= curr_chapter.required_streak
-                    )
-
-                    if req_met:
-                        logger.info(f"User {user_id} COMPLETED chapter: {curr_chapter.title}")
-
-                        # Grant Rewards
-                        await ProgressionEngine._grant_rewards(db, user_id, curr_chapter)
-
-                        # Mark completed
-                        completed = list(progress.chapters_completed or [])
-                        if curr_chapter.id not in completed:
-                            completed.append(curr_chapter.id)
-                        progress.chapters_completed = completed
-
-                        # Find next chapter
-                        next_res = await db.execute(
-                            select(ProphecyChapter)
-                            .where(ProphecyChapter.sequence_order > curr_chapter.sequence_order)
-                            .order_by(ProphecyChapter.sequence_order)
-                            .limit(1)
-                        )
-                        next_chapter = next_res.scalar_one_or_none()
-
-                        if next_chapter:
-                            progress.current_chapter_id = next_chapter.id
-                            logger.info(f"User {user_id} ADVANCED to chapter: {next_chapter.title}")
-                        else:
-                            # End of the chain
-                            logger.info(f"User {user_id} reached the END of the Prophecy Chain!")
-                            progress.current_chapter_id = None
-
-            await db.commit()
-            return progress
-
-        except Exception as e:
-            logger.error(f"ProgressionEngine error for user {user_id}: {e}", exc_info=True)
-            await db.rollback()
-            return None
-
-    @staticmethod
-    async def _grant_rewards(db: AsyncSession, user_id: int, chapter: ProphecyChapter):
-        """Grant XP, VIT, and Badges to the user."""
-        try:
-            user_res = await db.execute(select(User).where(User.id == user_id))
-            user = user_res.scalar_one_or_none()
-
-            if user:
-                # Grant XP
-                user.total_xp = (user.total_xp or 0) + (chapter.reward_xp or 0)
-                logger.info(f"Granted {chapter.reward_xp} XP to user {user_id} for chapter {chapter.title}")
-
-                # Grant VIT to Wallet
-                if chapter.reward_vit > 0:
-                    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == user_id))
-                    wallet = wallet_res.scalar_one_or_none()
-                    if wallet:
-                        wallet.vitcoin_balance = (wallet.vitcoin_balance or 0) + chapter.reward_vit
-                        logger.info(f"Granted {chapter.reward_vit} VIT to user {user_id} wallet")
-                    else:
-                        # Create wallet if missing
-                        import uuid
-                        new_wallet = Wallet(
-                            id=str(uuid.uuid4()),
-                            user_id=user_id,
-                            vitcoin_balance=chapter.reward_vit
-                        )
-                        db.add(new_wallet)
-                        logger.info(f"Created wallet and granted {chapter.reward_vit} VIT to user {user_id}")
-
-        except Exception as e:
-            logger.error(f"Error granting rewards to user {user_id}: {e}")
+"""app/modules/prophecy_chain/engine/progression.py — Prophecy Chain progression engine."""'
+'
+import logging'
+from datetime import datetime, timezone'
+from sqlalchemy import select, func, and_, desc, cast, Integer'
+from sqlalchemy.ext.asyncio import AsyncSession'
+from app.db.models import Prediction, Match, User'
+from app.modules.prophecy_chain.models import ProphecyChapter, UserProphecyProgress'
+from app.modules.wallet.models import Wallet'
+'
+logger = logging.getLogger(__name__)'
+'
+class ProgressionEngine:'
+    @staticmethod'
+    async def evaluate_user_progress(db: AsyncSession, user_id: int, trigger: str = "unknown"):'
+        """'
+        Evaluate user's performance and advance them through Prophecy Chapters.'
+        Called after match settlement or manually.'
+        """'
+        try:'
+            # 1. Fetch or initialize user progress'
+            res = await db.execute('
+                select(UserProphecyProgress).where(UserProphecyProgress.user_id == user_id)'
+            )'
+            progress = res.scalar_one_or_none()'
+'
+            if not progress:'
+                # Initialize at first chapter'
+                first_chapter_res = await db.execute('
+                    select(ProphecyChapter).order_by(ProphecyChapter.sequence_order).limit(1)'
+                )'
+                first_chapter = first_chapter_res.scalar_one_or_none()'
+'
+                progress = UserProphecyProgress('
+                    user_id=user_id,'
+                    current_chapter_id=first_chapter.id if first_chapter else None,'
+                    chapters_completed=[]'
+                )'
+                db.add(progress)'
+                await db.flush()'
+'
+            # 2. Calculate performance metrics'
+            # We only count settled predictions with was_correct set'
+            perf_res = await db.execute('
+                select('
+                    func.count(Prediction.id).label("total"),'
+                    func.sum(cast(Prediction.was_correct, Integer)).label("wins")'
+                ).join(Match, Prediction.match_id == Match.id).where('
+                    and_('
+                        Prediction.user_id == user_id,'
+                        Match.actual_outcome.isnot(None),'
+                        Prediction.was_correct.isnot(None)'
+                    )'
+                )'
+            )'
+            perf = perf_res.one()'
+            total = int(perf.total or 0)'
+            wins = int(perf.wins or 0)'
+            accuracy = wins / total if total > 0 else 0.0'
+'
+            progress.total_qualified_predictions = total'
+            progress.total_qualified_wins = wins'
+            progress.current_accuracy = round(accuracy, 4)'
+            progress.last_evaluated_at = datetime.now(timezone.utc).replace(tzinfo=None)'
+'
+            # 3. Calculate current winning streak'
+            streak_res = await db.execute('
+                select(Prediction.was_correct)'
+                .join(Match, Prediction.match_id == Match.id)'
+                .where('
+                    and_('
+                        Prediction.user_id == user_id,'
+                        Match.actual_outcome.isnot(None),'
+                        Prediction.was_correct.isnot(None)'
+                    )'
+                )'
+                .order_by(desc(Prediction.timestamp))'
+                .limit(20)'
+            )'
+            last_preds = streak_res.scalars().all()'
+            current_streak = 0'
+            for was_correct in last_preds:'
+                if was_correct:'
+                    current_streak += 1'
+                else:'
+                    break'
+'
+            # 4. Check for chapter advancement'
+            if progress.current_chapter_id:'
+                curr_chapter_res = await db.execute('
+                    select(ProphecyChapter).where(ProphecyChapter.id == progress.current_chapter_id)'
+                )'
+                curr_chapter = curr_chapter_res.scalar_one_or_none()'
+'
+                if curr_chapter:'
+                    # Check if requirements met'
+                    # We check: total volume, accuracy, and streak'
+                    req_met = ('
+                        total >= curr_chapter.required_predictions and'
+                        accuracy >= curr_chapter.required_accuracy and'
+                        current_streak >= curr_chapter.required_streak'
+                    )'
+'
+                    if req_met:'
+                        logger.info(f"User {user_id} COMPLETED chapter: {curr_chapter.title}")'
+'
+                        # Grant Rewards'
+                        await ProgressionEngine._grant_rewards(db, user_id, curr_chapter)'
+'
+                        # Mark completed'
+                        completed = list(progress.chapters_completed or [])'
+                        if curr_chapter.id not in completed:'
+                            completed.append(curr_chapter.id)'
+                        progress.chapters_completed = completed'
+'
+                        # Find next chapter'
+                        next_res = await db.execute('
+                            select(ProphecyChapter)'
+                            .where(ProphecyChapter.sequence_order > curr_chapter.sequence_order)'
+                            .order_by(ProphecyChapter.sequence_order)'
+                            .limit(1)'
+                        )'
+                        next_chapter = next_res.scalar_one_or_none()'
+'
+                        if next_chapter:'
+                            progress.current_chapter_id = next_chapter.id'
+                            logger.info(f"User {user_id} ADVANCED to chapter: {next_chapter.title}")'
+                        else:'
+                            # End of the chain'
+                            logger.info(f"User {user_id} reached the END of the Prophecy Chain!")'
+                            progress.current_chapter_id = None'
+'
+            await db.commit()'
+            return progress'
+'
+        except Exception as e:'
+            logger.error(f"ProgressionEngine error for user {user_id}: {e}", exc_info=True)'
+            await db.rollback()'
+            return None'
+'
+    @staticmethod'
+    async def _grant_rewards(db: AsyncSession, user_id: int, chapter: ProphecyChapter):'
+        """Grant XP, VIT, and Badges to the user."""'
+        try:'
+            user_res = await db.execute(select(User).where(User.id == user_id))'
+            user = user_res.scalar_one_or_none()'
+'
+            if user:'
+                # Grant XP'
+                user.total_xp = (user.total_xp or 0) + (chapter.reward_xp or 0)'
+                logger.info(f"Granted {chapter.reward_xp} XP to user {user_id} for chapter {chapter.title}")'
+'
+                # Grant VIT to Wallet'
+                if chapter.reward_vit > 0:'
+                    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == user_id))'
+                    wallet = wallet_res.scalar_one_or_none()'
+                    if wallet:'
+                        wallet.vitcoin_balance = (wallet.vitcoin_balance or 0) + chapter.reward_vit'
+                        logger.info(f"Granted {chapter.reward_vit} VIT to user {user_id} wallet")'
+                    else:'
+                        # Create wallet if missing'
+                        import uuid'
+                        new_wallet = Wallet('
+                            id=str(uuid.uuid4()),'
+                            user_id=user_id,'
+                            vitcoin_balance=chapter.reward_vit'
+                        )'
+                        db.add(new_wallet)'
+                        logger.info(f"Created wallet and granted {chapter.reward_vit} VIT to user {user_id}")'
+'
+        except Exception as e:'
+            logger.error(f"Error granting rewards to user {user_id}: {e}")'

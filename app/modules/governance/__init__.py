@@ -1,1 +1,1 @@
-# app/modules/governance — Module M: Governance Layer
+# app/modules/governance — Module M: Governance Layer'

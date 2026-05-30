@@ -1,265 +1,265 @@
-"""
-app/ai/market_models.py — Phase 2: Specialized Market Models (sklearn-based)
-
-Replaces the original PyTorch implementation with scikit-learn equivalents
-that work without a GPU or torch installation.
-
-Models:
-  - BTTSModel         — GradientBoosting binary classifier (btts yes/no)
-  - OverUnderModel    — GradientBoosting 5-class (goal bands 0-1,2,3,4-5,6+)
-  - CorrectScoreModel — GradientBoosting 26-class (exact score matrix)
-"""
-from __future__ import annotations
-
-import logging
-import os
-from typing import Any, Dict, List, Optional
-
-import numpy as np
-
-logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Feature key lists (unchanged from original so existing code still imports)
-# ---------------------------------------------------------------------------
-
-_BTTS_FEATURE_KEYS = [
-    "home_xg_per_game", "away_xg_per_game",
-    "home_xg_against_per_game", "away_xg_against_per_game",
-    "home_form_gf", "home_form_ga", "away_form_gf", "away_form_ga",
-    "home_form_games", "away_form_games",
-    "h2h_btts_rate", "h2h_avg_goals",
-    "poisson_btts_prob", "poisson_over25_prob",
-    "lambda_home", "lambda_away",
-    "ref_discipline_index", "ref_fouls_per_game",
-    "market_btts_prob_vf", "market_over25_prob_vf",
-    "home_injury_score", "away_injury_score",
-    "home_rest_days", "away_rest_days",
-    "xg_total_expected", "home_shots_per_game", "away_shots_per_game",
-    "home_shot_accuracy", "away_shot_accuracy",
-    "home_form_ppg", "away_form_ppg",
-    "injury_balance",
-]
-
-_OU_FEATURE_KEYS = [
-    "home_xg_per_game", "away_xg_per_game",
-    "home_xg_against_per_game", "away_xg_against_per_game",
-    "lambda_home", "lambda_away",
-    "xg_total_expected", "poisson_over25_prob",
-    "home_form_gf", "home_form_ga", "away_form_gf", "away_form_ga",
-    "home_form_games", "away_form_games",
-    "h2h_avg_goals", "h2h_btts_rate",
-    "market_over25_prob_vf", "market_btts_prob_vf",
-    "ref_fouls_per_game", "ref_penalty_rate_per_game",
-    "home_injury_score", "away_injury_score",
-    "home_rest_days", "away_rest_days",
-    "home_shots_per_game", "away_shots_per_game",
-    "steam_home", "steam_away",
-    "odds_drift_home", "odds_drift_away",
-    "odds_velocity_total",
-    "home_form_ppg", "away_form_ppg",
-    "home_goal_threat", "away_goal_threat",
-    "injury_balance",
-]
-
-_CS_FEATURE_KEYS = [
-    "home_xg_per_game", "away_xg_per_game",
-    "home_xg_against_per_game", "away_xg_against_per_game",
-    "lambda_home", "lambda_away",
-    "xg_total_expected", "xg_dominance",
-    "home_form_gf", "home_form_ga", "away_form_gf", "away_form_ga",
-    "home_form_games", "away_form_games",
-    "h2h_home_win_rate", "h2h_draw_rate", "h2h_away_win_rate",
-    "h2h_avg_goals", "h2h_btts_rate",
-    "market_home_prob_vf", "market_draw_prob_vf", "market_away_prob_vf",
-    "market_over25_prob_vf", "market_btts_prob_vf",
-    "home_position", "away_position", "position_gap",
-    "ref_fouls_per_game", "ref_yellows_per_game",
-    "home_injury_score", "away_injury_score",
-    "home_rest_days", "away_rest_days",
-    "home_shots_per_game", "away_shots_per_game",
-    "home_form_ppg", "away_form_ppg",
-    "home_goal_threat", "away_goal_threat",
-]
-
-
-# ---------------------------------------------------------------------------
-# Feature vector builder (returns numpy array — no torch dependency)
-# ---------------------------------------------------------------------------
-
-def build_feature_vector(
-    feature_dict: dict,
-    keys: List[str],
-    default: float = 0.0,
-) -> np.ndarray:
-    vec = []
-    for k in keys:
-        v = feature_dict.get(k)
-        try:
-            vec.append(float(v) if v is not None else default)
-        except (TypeError, ValueError):
-            vec.append(default)
-    return np.array(vec, dtype=np.float32).reshape(1, -1)
-
-
-def build_btts_vector(features: dict) -> np.ndarray:
-    return build_feature_vector(features, _BTTS_FEATURE_KEYS)
-
-
-def build_ou_vector(features: dict) -> np.ndarray:
-    return build_feature_vector(features, _OU_FEATURE_KEYS)
-
-
-def build_cs_vector(features: dict) -> np.ndarray:
-    return build_feature_vector(features, _CS_FEATURE_KEYS)
-
-
-# ---------------------------------------------------------------------------
-# Label builders (unchanged)
-# ---------------------------------------------------------------------------
-
-def _btts_label(home_goals: int, away_goals: int) -> int:
-    return 1 if (home_goals > 0 and away_goals > 0) else 0
-
-
-def _ou_label(home_goals: int, away_goals: int) -> int:
-    total = home_goals + away_goals
-    if total <= 1:   return 0
-    elif total == 2: return 1
-    elif total == 3: return 2
-    elif total <= 5: return 3
-    else:            return 4
-
-
-def _cs_label(home_goals: int, away_goals: int) -> int:
-    if home_goals <= 4 and away_goals <= 4:
-        return home_goals * 5 + away_goals
-    return 25
-
-
-# ---------------------------------------------------------------------------
-# Base sklearn-backed model
-# ---------------------------------------------------------------------------
-
-class _SklearnMarketModel:
-    """
-    Thin wrapper around a GradientBoostingClassifier that exposes the same
-    interface that the rest of the codebase expects (predict_proba, MODEL_KEY,
-    load/save via joblib).
-    """
-    MODEL_KEY = "base_market"
-    N_CLASSES  = 2
-    CLASS_LABELS: List[str] = []
-
-    def __init__(self, **gbm_kwargs):
-        from sklearn.ensemble import GradientBoostingClassifier
-        self._clf = GradientBoostingClassifier(
-            n_estimators=gbm_kwargs.get("n_estimators", 200),
-            max_depth=gbm_kwargs.get("max_depth", 4),
-            learning_rate=gbm_kwargs.get("learning_rate", 0.05),
-            subsample=0.8,
-            min_samples_split=10,
-            random_state=42,
-        )
-        self._trained = False
-        self._feature_keys: List[str] = []
-
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        self._clf.fit(X, y)
-        self._trained = True
-
-    def predict_proba(self, x: np.ndarray) -> np.ndarray:
-        if not self._trained:
-            return np.full((1, self.N_CLASSES), 1.0 / self.N_CLASSES)
-        return self._clf.predict_proba(x)
-
-    def predict(self, x: np.ndarray) -> np.ndarray:
-        if not self._trained:
-            return np.array([0])
-        return self._clf.predict(x)
-
-    def is_trained(self) -> bool:
-        return self._trained
-
-
-# ---------------------------------------------------------------------------
-# BTTS Model
-# ---------------------------------------------------------------------------
-
-class BTTSModel(_SklearnMarketModel):
-    MODEL_KEY = "btts_v2"
-    N_CLASSES  = 2
-
-    def __init__(self, input_size: int = 32, **kwargs):
-        super().__init__(n_estimators=200, max_depth=4, learning_rate=0.05)
-        self._feature_keys = _BTTS_FEATURE_KEYS
-
-    def predict_proba(self, x) -> np.ndarray:
-        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x
-        return super().predict_proba(x_arr)
-
-
-# ---------------------------------------------------------------------------
-# Over/Under Model
-# ---------------------------------------------------------------------------
-
-class OverUnderModel(_SklearnMarketModel):
-    MODEL_KEY   = "over_under_v2"
-    N_CLASSES   = 5
-    CLASS_LABELS = ["0–1", "2", "3", "4–5", "6+"]
-
-    def __init__(self, input_size: int = 36, **kwargs):
-        super().__init__(n_estimators=200, max_depth=5, learning_rate=0.05)
-        self._feature_keys = _OU_FEATURE_KEYS
-
-    def predict_proba(self, x) -> np.ndarray:
-        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x
-        proba = super().predict_proba(x_arr)
-        # Pad to N_CLASSES if model was trained on fewer classes
-        if proba.shape[1] < self.N_CLASSES:
-            pad = np.zeros((proba.shape[0], self.N_CLASSES - proba.shape[1]))
-            proba = np.concatenate([proba, pad], axis=1)
-        return proba
-
-    def over_n5_prob(self, x, n: float = 2.5) -> float:
-        proba = self.predict_proba(x).squeeze()
-        band_mins = [0, 2, 3, 4, 6]
-        threshold = int(n) + 1
-        total = 0.0
-        for i, lower in enumerate(band_mins):
-            if lower >= threshold:
-                total += float(proba[i])
-            elif i + 1 < len(band_mins) and band_mins[i + 1] > threshold:
-                total += float(proba[i]) * 0.5
-        return round(min(1.0, max(0.0, total)), 4)
-
-
-# ---------------------------------------------------------------------------
-# Correct Score Model
-# ---------------------------------------------------------------------------
-
-class CorrectScoreModel(_SklearnMarketModel):
-    MODEL_KEY = "correct_score_v2"
-    N_CLASSES = 26
-    SCORE_CLASSES: List[str] = [f"{h}-{a}" for h in range(5) for a in range(5)] + ["other"]
-
-    def __init__(self, input_size: int = 40, **kwargs):
-        super().__init__(n_estimators=100, max_depth=4, learning_rate=0.10)
-        self._feature_keys = _CS_FEATURE_KEYS
-
-    def predict_proba(self, x) -> np.ndarray:
-        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x
-        proba = super().predict_proba(x_arr)
-        if proba.shape[1] < self.N_CLASSES:
-            pad = np.zeros((proba.shape[0], self.N_CLASSES - proba.shape[1]))
-            proba = np.concatenate([proba, pad], axis=1)
-        return proba
-
-    def top_scores(self, x, n: int = 5) -> List[dict]:
-        proba = self.predict_proba(x).squeeze().tolist()
-        ranked = sorted(
-            zip(self.SCORE_CLASSES, proba),
-            key=lambda t: t[1],
-            reverse=True,
-        )
-        return [{"score": s, "probability": round(p, 4)} for s, p in ranked[:n]]
+"""'
+app/ai/market_models.py — Phase 2: Specialized Market Models (sklearn-based)'
+'
+Replaces the original PyTorch implementation with scikit-learn equivalents'
+that work without a GPU or torch installation.'
+'
+Models:'
+  - BTTSModel         — GradientBoosting binary classifier (btts yes/no)'
+  - OverUnderModel    — GradientBoosting 5-class (goal bands 0-1,2,3,4-5,6+)'
+  - CorrectScoreModel — GradientBoosting 26-class (exact score matrix)'
+"""'
+from __future__ import annotations'
+'
+import logging'
+import os'
+from typing import Any, Dict, List, Optional'
+'
+import numpy as np'
+'
+logger = logging.getLogger(__name__)'
+'
+# ---------------------------------------------------------------------------'
+# Feature key lists (unchanged from original so existing code still imports)'
+# ---------------------------------------------------------------------------'
+'
+_BTTS_FEATURE_KEYS = ['
+    "home_xg_per_game", "away_xg_per_game",'
+    "home_xg_against_per_game", "away_xg_against_per_game",'
+    "home_form_gf", "home_form_ga", "away_form_gf", "away_form_ga",'
+    "home_form_games", "away_form_games",'
+    "h2h_btts_rate", "h2h_avg_goals",'
+    "poisson_btts_prob", "poisson_over25_prob",'
+    "lambda_home", "lambda_away",'
+    "ref_discipline_index", "ref_fouls_per_game",'
+    "market_btts_prob_vf", "market_over25_prob_vf",'
+    "home_injury_score", "away_injury_score",'
+    "home_rest_days", "away_rest_days",'
+    "xg_total_expected", "home_shots_per_game", "away_shots_per_game",'
+    "home_shot_accuracy", "away_shot_accuracy",'
+    "home_form_ppg", "away_form_ppg",'
+    "injury_balance",'
+]'
+'
+_OU_FEATURE_KEYS = ['
+    "home_xg_per_game", "away_xg_per_game",'
+    "home_xg_against_per_game", "away_xg_against_per_game",'
+    "lambda_home", "lambda_away",'
+    "xg_total_expected", "poisson_over25_prob",'
+    "home_form_gf", "home_form_ga", "away_form_gf", "away_form_ga",'
+    "home_form_games", "away_form_games",'
+    "h2h_avg_goals", "h2h_btts_rate",'
+    "market_over25_prob_vf", "market_btts_prob_vf",'
+    "ref_fouls_per_game", "ref_penalty_rate_per_game",'
+    "home_injury_score", "away_injury_score",'
+    "home_rest_days", "away_rest_days",'
+    "home_shots_per_game", "away_shots_per_game",'
+    "steam_home", "steam_away",'
+    "odds_drift_home", "odds_drift_away",'
+    "odds_velocity_total",'
+    "home_form_ppg", "away_form_ppg",'
+    "home_goal_threat", "away_goal_threat",'
+    "injury_balance",'
+]'
+'
+_CS_FEATURE_KEYS = ['
+    "home_xg_per_game", "away_xg_per_game",'
+    "home_xg_against_per_game", "away_xg_against_per_game",'
+    "lambda_home", "lambda_away",'
+    "xg_total_expected", "xg_dominance",'
+    "home_form_gf", "home_form_ga", "away_form_gf", "away_form_ga",'
+    "home_form_games", "away_form_games",'
+    "h2h_home_win_rate", "h2h_draw_rate", "h2h_away_win_rate",'
+    "h2h_avg_goals", "h2h_btts_rate",'
+    "market_home_prob_vf", "market_draw_prob_vf", "market_away_prob_vf",'
+    "market_over25_prob_vf", "market_btts_prob_vf",'
+    "home_position", "away_position", "position_gap",'
+    "ref_fouls_per_game", "ref_yellows_per_game",'
+    "home_injury_score", "away_injury_score",'
+    "home_rest_days", "away_rest_days",'
+    "home_shots_per_game", "away_shots_per_game",'
+    "home_form_ppg", "away_form_ppg",'
+    "home_goal_threat", "away_goal_threat",'
+]'
+'
+'
+# ---------------------------------------------------------------------------'
+# Feature vector builder (returns numpy array — no torch dependency)'
+# ---------------------------------------------------------------------------'
+'
+def build_feature_vector('
+    feature_dict: dict,'
+    keys: List[str],'
+    default: float = 0.0,'
+) -> np.ndarray:'
+    vec = []'
+    for k in keys:'
+        v = feature_dict.get(k)'
+        try:'
+            vec.append(float(v) if v is not None else default)'
+        except (TypeError, ValueError):'
+            vec.append(default)'
+    return np.array(vec, dtype=np.float32).reshape(1, -1)'
+'
+'
+def build_btts_vector(features: dict) -> np.ndarray:'
+    return build_feature_vector(features, _BTTS_FEATURE_KEYS)'
+'
+'
+def build_ou_vector(features: dict) -> np.ndarray:'
+    return build_feature_vector(features, _OU_FEATURE_KEYS)'
+'
+'
+def build_cs_vector(features: dict) -> np.ndarray:'
+    return build_feature_vector(features, _CS_FEATURE_KEYS)'
+'
+'
+# ---------------------------------------------------------------------------'
+# Label builders (unchanged)'
+# ---------------------------------------------------------------------------'
+'
+def _btts_label(home_goals: int, away_goals: int) -> int:'
+    return 1 if (home_goals > 0 and away_goals > 0) else 0'
+'
+'
+def _ou_label(home_goals: int, away_goals: int) -> int:'
+    total = home_goals + away_goals'
+    if total <= 1:   return 0'
+    elif total == 2: return 1'
+    elif total == 3: return 2'
+    elif total <= 5: return 3'
+    else:            return 4'
+'
+'
+def _cs_label(home_goals: int, away_goals: int) -> int:'
+    if home_goals <= 4 and away_goals <= 4:'
+        return home_goals * 5 + away_goals'
+    return 25'
+'
+'
+# ---------------------------------------------------------------------------'
+# Base sklearn-backed model'
+# ---------------------------------------------------------------------------'
+'
+class _SklearnMarketModel:'
+    """'
+    Thin wrapper around a GradientBoostingClassifier that exposes the same'
+    interface that the rest of the codebase expects (predict_proba, MODEL_KEY,'
+    load/save via joblib).'
+    """'
+    MODEL_KEY = "base_market"'
+    N_CLASSES  = 2'
+    CLASS_LABELS: List[str] = []'
+'
+    def __init__(self, **gbm_kwargs):'
+        from sklearn.ensemble import GradientBoostingClassifier'
+        self._clf = GradientBoostingClassifier('
+            n_estimators=gbm_kwargs.get("n_estimators", 200),'
+            max_depth=gbm_kwargs.get("max_depth", 4),'
+            learning_rate=gbm_kwargs.get("learning_rate", 0.05),'
+            subsample=0.8,'
+            min_samples_split=10,'
+            random_state=42,'
+        )'
+        self._trained = False'
+        self._feature_keys: List[str] = []'
+'
+    def fit(self, X: np.ndarray, y: np.ndarray) -> None:'
+        self._clf.fit(X, y)'
+        self._trained = True'
+'
+    def predict_proba(self, x: np.ndarray) -> np.ndarray:'
+        if not self._trained:'
+            return np.full((1, self.N_CLASSES), 1.0 / self.N_CLASSES)'
+        return self._clf.predict_proba(x)'
+'
+    def predict(self, x: np.ndarray) -> np.ndarray:'
+        if not self._trained:'
+            return np.array([0])'
+        return self._clf.predict(x)'
+'
+    def is_trained(self) -> bool:'
+        return self._trained'
+'
+'
+# ---------------------------------------------------------------------------'
+# BTTS Model'
+# ---------------------------------------------------------------------------'
+'
+class BTTSModel(_SklearnMarketModel):'
+    MODEL_KEY = "btts_v2"'
+    N_CLASSES  = 2'
+'
+    def __init__(self, input_size: int = 32, **kwargs):'
+        super().__init__(n_estimators=200, max_depth=4, learning_rate=0.05)'
+        self._feature_keys = _BTTS_FEATURE_KEYS'
+'
+    def predict_proba(self, x) -> np.ndarray:'
+        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x'
+        return super().predict_proba(x_arr)'
+'
+'
+# ---------------------------------------------------------------------------'
+# Over/Under Model'
+# ---------------------------------------------------------------------------'
+'
+class OverUnderModel(_SklearnMarketModel):'
+    MODEL_KEY   = "over_under_v2"'
+    N_CLASSES   = 5'
+    CLASS_LABELS = ["0–1", "2", "3", "4–5", "6+"]'
+'
+    def __init__(self, input_size: int = 36, **kwargs):'
+        super().__init__(n_estimators=200, max_depth=5, learning_rate=0.05)'
+        self._feature_keys = _OU_FEATURE_KEYS'
+'
+    def predict_proba(self, x) -> np.ndarray:'
+        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x'
+        proba = super().predict_proba(x_arr)'
+        # Pad to N_CLASSES if model was trained on fewer classes'
+        if proba.shape[1] < self.N_CLASSES:'
+            pad = np.zeros((proba.shape[0], self.N_CLASSES - proba.shape[1]))'
+            proba = np.concatenate([proba, pad], axis=1)'
+        return proba'
+'
+    def over_n5_prob(self, x, n: float = 2.5) -> float:'
+        proba = self.predict_proba(x).squeeze()'
+        band_mins = [0, 2, 3, 4, 6]'
+        threshold = int(n) + 1'
+        total = 0.0'
+        for i, lower in enumerate(band_mins):'
+            if lower >= threshold:'
+                total += float(proba[i])'
+            elif i + 1 < len(band_mins) and band_mins[i + 1] > threshold:'
+                total += float(proba[i]) * 0.5'
+        return round(min(1.0, max(0.0, total)), 4)'
+'
+'
+# ---------------------------------------------------------------------------'
+# Correct Score Model'
+# ---------------------------------------------------------------------------'
+'
+class CorrectScoreModel(_SklearnMarketModel):'
+    MODEL_KEY = "correct_score_v2"'
+    N_CLASSES = 26'
+    SCORE_CLASSES: List[str] = [f"{h}-{a}" for h in range(5) for a in range(5)] + ["other"]'
+'
+    def __init__(self, input_size: int = 40, **kwargs):'
+        super().__init__(n_estimators=100, max_depth=4, learning_rate=0.10)'
+        self._feature_keys = _CS_FEATURE_KEYS'
+'
+    def predict_proba(self, x) -> np.ndarray:'
+        x_arr = np.array(x, dtype=np.float32).reshape(1, -1) if not isinstance(x, np.ndarray) else x'
+        proba = super().predict_proba(x_arr)'
+        if proba.shape[1] < self.N_CLASSES:'
+            pad = np.zeros((proba.shape[0], self.N_CLASSES - proba.shape[1]))'
+            proba = np.concatenate([proba, pad], axis=1)'
+        return proba'
+'
+    def top_scores(self, x, n: int = 5) -> List[dict]:'
+        proba = self.predict_proba(x).squeeze().tolist()'
+        ranked = sorted('
+            zip(self.SCORE_CLASSES, proba),'
+            key=lambda t: t[1],'
+            reverse=True,'
+        )'
+        return [{"score": s, "probability": round(p, 4)} for s, p in ranked[:n]]'
