@@ -82,7 +82,8 @@ async def ensure_schema():
                     "ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0",
                     "ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0",
                     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT",
-                    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT"
+                    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT",
+                    "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS staked_vitcoin_balance NUMERIC(20, 8) DEFAULT 0"
                 ]
                 for cmd in sql_cmds:
                     await conn.exec_driver_sql(cmd)

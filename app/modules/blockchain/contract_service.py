@@ -1,59 +1,59 @@
-import logging'
-from web3 import Web3'
-from app.config import BASE_RPC_URL, VITCOIN_CONTRACT_ADDRESS'
-from eth_account import Account'
-import os'
-'
-logger = logging.getLogger(__name__)'
-'
-# Placeholder ABIs'
-UNIVERSAL_ORACLE_ABI = ['
-    {'
-        "inputs": ['
-            {"internalType": "string", "name": "category", "type": "string"},'
-            {"internalType": "string", "name": "externalId", "type": "string"},'
-            {"internalType": "bytes", "name": "data", "type": "bytes"},'
-            {"internalType": "uint8", "name": "confidence", "type": "uint8"}'
-        ],'
-        "name": "publishSignal",'
-        "outputs": [],'
-        "stateMutability": "nonpayable",'
-        "type": "function"'
-    }'
-]'
-'
-class ContractService:'
-    def __init__(self):'
-        self.w3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))'
-        self.oracle_address = os.getenv("UNIVERSAL_ORACLE_ADDRESS")'
-        self.private_key = os.getenv("ORACLE_PRIVATE_KEY")'
-'
-    async def publish_signal(self, category: str, external_id: str, data: bytes, confidence: int):'
-        if not self.oracle_address or not self.private_key:'
-            logger.warning("Blockchain oracle not configured: missing address or private key")'
-            return None'
-'
-        try:'
-            account = Account.from_key(self.private_key)'
-            contract = self.w3.eth.contract(address=self.w3.to_checksum_address(self.oracle_address), abi=UNIVERSAL_ORACLE_ABI)'
-'
-            nonce = self.w3.eth.get_transaction_count(account.address)'
-            tx = contract.functions.publishSignal('
-                category, external_id, data, confidence'
-            ).build_transaction({'
-                'from': account.address,'
-                'nonce': nonce,'
-                'gas': 200000,'
-                'gasPrice': self.w3.eth.gas_price'
-            })'
-'
-            signed_tx = self.w3.eth.account.sign_transaction(tx, self.private_key)'
-            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)'
-'
-            logger.info(f"Signal published to blockchain: {tx_hash.hex()}")'
-            return tx_hash.hex()'
-        except Exception as e:'
-            logger.error(f"Failed to publish signal to blockchain: {e}")'
-            return None'
-'
-contract_service = ContractService()'
+import logging
+from web3 import Web3
+from app.config import BASE_RPC_URL, VITCOIN_CONTRACT_ADDRESS
+from eth_account import Account
+import os
+
+logger = logging.getLogger(__name__)
+
+# Placeholder ABIs
+UNIVERSAL_ORACLE_ABI = [
+    {
+        "inputs": [
+            {"internalType": "string", "name": "category", "type": "string"},
+            {"internalType": "string", "name": "externalId", "type": "string"},
+            {"internalType": "bytes", "name": "data", "type": "bytes"},
+            {"internalType": "uint8", "name": "confidence", "type": "uint8"}
+        ],
+        "name": "publishSignal",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]
+
+class ContractService:
+    def __init__(self):
+        self.w3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
+        self.oracle_address = os.getenv("UNIVERSAL_ORACLE_ADDRESS")
+        self.private_key = os.getenv("ORACLE_PRIVATE_KEY")
+
+    async def publish_signal(self, category: str, external_id: str, data: bytes, confidence: int):
+        if not self.oracle_address or not self.private_key:
+            logger.warning("Blockchain oracle not configured: missing address or private key")
+            return None
+
+        try:
+            account = Account.from_key(self.private_key)
+            contract = self.w3.eth.contract(address=self.w3.to_checksum_address(self.oracle_address), abi=UNIVERSAL_ORACLE_ABI)
+
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            tx = contract.functions.publishSignal(
+                category, external_id, data, confidence
+            ).build_transaction({
+                'from': account.address,
+                'nonce': nonce,
+                'gas': 200000,
+                'gasPrice': self.w3.eth.gas_price
+            })
+
+            signed_tx = self.w3.eth.account.sign_transaction(tx, self.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+
+            logger.info(f"Signal published to blockchain: {tx_hash.hex()}")
+            return tx_hash.hex()
+        except Exception as e:
+            logger.error(f"Failed to publish signal to blockchain: {e}")
+            return None
+
+contract_service = ContractService()

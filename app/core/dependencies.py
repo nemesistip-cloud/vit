@@ -1,104 +1,104 @@
-"""Dependency injection container for VIT application"""'
-'
-from functools import lru_cache'
-from typing import Optional'
-'
-from fastapi import HTTPException'
-'
-from app.config import ('
-    ENVIRONMENT,'
-    FOOTBALL_DATA_API_KEY,'
-    ODDS_API_KEY,'
-    ENABLE_SCRAPING,'
-    ENABLE_ODDS,'
-    TELEGRAM_BOT_TOKEN,'
-    TELEGRAM_CHAT_ID,'
-    REPLIT_DEPLOYMENT,'
-)'
-'
-from app.pipelines.data_loader import DataLoader'
-from app.services.alerts import TelegramAlert'
-from services.ml_service.models.model_orchestrator import ModelOrchestrator'
-'
-'
-def _is_production() -> bool:'
-    """True when running in a Replit deployment (published app)."""'
-    return bool(REPLIT_DEPLOYMENT) or ENVIRONMENT.lower() == "production"'
-'
-'
-@lru_cache(maxsize=1)'
-def get_orchestrator() -> Optional[ModelOrchestrator]:'
-    """Lazy-load ModelOrchestrator singleton.'
-'
-    ML models are only loaded in production (published) to keep the dev'
-    environment fast and resource-light.  Set REPLIT_DEPLOYMENT=1 or'
-    ENVIRONMENT=production to force model loading locally.'
-    """'
-    if not _is_production():'
-        print("ℹ️  Model loading deferred — models load only after publishing (set ENVIRONMENT=production to override)")'
-        try:'
-            orch = ModelOrchestrator()'
-            print("✅ Orchestrator skeleton ready (no models loaded in dev)")'
-            return orch'
-        except Exception as e:'
-            print(f"❌ Orchestrator init failed: {e}")'
-            return None'
-'
-    try:'
-        orch = ModelOrchestrator()'
-        orch.load_all_models()'
-        print(f"✅ Orchestrator initialized: {orch.num_models_ready()} models")'
-        return orch'
-    except Exception as e:'
-        print(f"❌ Orchestrator load failed: {e}")'
-        import traceback'
-        traceback.print_exc()'
-        return None'
-'
-'
-@lru_cache(maxsize=1)'
-def get_data_loader() -> Optional[DataLoader]:'
-    """Lazy-load DataLoader singleton"""'
-    try:'
-        loader = DataLoader('
-            api_key=FOOTBALL_DATA_API_KEY,'
-            odds_api_key=ODDS_API_KEY,'
-            enable_scraping=ENABLE_SCRAPING,'
-            enable_odds=ENABLE_ODDS,'
-        )'
-        print(f"✅ DataLoader initialized (scraping={loader.enable_scraping}, odds={loader.enable_odds})")'
-        return loader'
-    except Exception as e:'
-        print(f"❌ DataLoader init failed: {e}")'
-        import traceback'
-        traceback.print_exc()'
-        return None'
-'
-'
-@lru_cache(maxsize=1)'
-def get_telegram_alerts() -> TelegramAlert:'
-    """Lazy-load TelegramAlert singleton"""'
-    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:'
-        return TelegramAlert(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, enabled=True)'
-    return TelegramAlert("", "", enabled=False)'
-'
-'
-async def get_orchestrator_dep() -> ModelOrchestrator:'
-    """FastAPI dependency for orchestrator"""'
-    orch = get_orchestrator()'
-    if orch is None:'
-        raise HTTPException(status_code=503, detail="ML service not available")'
-    return orch'
-'
-'
-async def get_data_loader_dep() -> DataLoader:'
-    """FastAPI dependency for data loader"""'
-    loader = get_data_loader()'
-    if loader is None:'
-        raise HTTPException(status_code=503, detail="Data loader not available")'
-    return loader'
-'
-'
-async def get_telegram_dep() -> TelegramAlert:'
-    """FastAPI dependency for Telegram alerts"""'
-    return get_telegram_alerts()'
+"""Dependency injection container for VIT application"""
+
+from functools import lru_cache
+from typing import Optional
+
+from fastapi import HTTPException
+
+from app.config import (
+    ENVIRONMENT,
+    FOOTBALL_DATA_API_KEY,
+    ODDS_API_KEY,
+    ENABLE_SCRAPING,
+    ENABLE_ODDS,
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID,
+    REPLIT_DEPLOYMENT,
+)
+
+from app.pipelines.data_loader import DataLoader
+from app.services.alerts import TelegramAlert
+from services.ml_service.models.model_orchestrator import ModelOrchestrator
+
+
+def _is_production() -> bool:
+    """True when running in a Replit deployment (published app)."""
+    return bool(REPLIT_DEPLOYMENT) or ENVIRONMENT.lower() == "production"
+
+
+@lru_cache(maxsize=1)
+def get_orchestrator() -> Optional[ModelOrchestrator]:
+    """Lazy-load ModelOrchestrator singleton.
+
+    ML models are only loaded in production (published) to keep the dev
+    environment fast and resource-light.  Set REPLIT_DEPLOYMENT=1 or
+    ENVIRONMENT=production to force model loading locally.
+    """
+    if not _is_production():
+        print("ℹ️  Model loading deferred — models load only after publishing (set ENVIRONMENT=production to override)")
+        try:
+            orch = ModelOrchestrator()
+            print("✅ Orchestrator skeleton ready (no models loaded in dev)")
+            return orch
+        except Exception as e:
+            print(f"❌ Orchestrator init failed: {e}")
+            return None
+
+    try:
+        orch = ModelOrchestrator()
+        orch.load_all_models()
+        print(f"✅ Orchestrator initialized: {orch.num_models_ready()} models")
+        return orch
+    except Exception as e:
+        print(f"❌ Orchestrator load failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+@lru_cache(maxsize=1)
+def get_data_loader() -> Optional[DataLoader]:
+    """Lazy-load DataLoader singleton"""
+    try:
+        loader = DataLoader(
+            api_key=FOOTBALL_DATA_API_KEY,
+            odds_api_key=ODDS_API_KEY,
+            enable_scraping=ENABLE_SCRAPING,
+            enable_odds=ENABLE_ODDS,
+        )
+        print(f"✅ DataLoader initialized (scraping={loader.enable_scraping}, odds={loader.enable_odds})")
+        return loader
+    except Exception as e:
+        print(f"❌ DataLoader init failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+@lru_cache(maxsize=1)
+def get_telegram_alerts() -> TelegramAlert:
+    """Lazy-load TelegramAlert singleton"""
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        return TelegramAlert(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, enabled=True)
+    return TelegramAlert("", "", enabled=False)
+
+
+async def get_orchestrator_dep() -> ModelOrchestrator:
+    """FastAPI dependency for orchestrator"""
+    orch = get_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=503, detail="ML service not available")
+    return orch
+
+
+async def get_data_loader_dep() -> DataLoader:
+    """FastAPI dependency for data loader"""
+    loader = get_data_loader()
+    if loader is None:
+        raise HTTPException(status_code=503, detail="Data loader not available")
+    return loader
+
+
+async def get_telegram_dep() -> TelegramAlert:
+    """FastAPI dependency for Telegram alerts"""
+    return get_telegram_alerts()

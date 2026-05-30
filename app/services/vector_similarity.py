@@ -1,355 +1,355 @@
-"""'
-app/services/vector_similarity.py — Phase 4: Vector Similarity Engine'
-'
-In-memory historical match state vector index with cosine similarity search.'
-Uses numpy for distance computation (faiss-cpu is optional but auto-used when'
-available for sub-millisecond ANN lookups on large indexes).'
-'
-Architecture:'
-  - VectorIndex: maintains an (N × D) float32 matrix + metadata list'
-  - build_match_vector(): maps a feature dict to a normalised D-dim vector'
-  - SimilarityEngine: singleton that auto-rebuilds from DB on startup'
-  - Endpoint: GET /api/similarity/matches?top_k=5 → similar historical matches'
-"""'
-'
-from __future__ import annotations'
-'
-import logging'
-import math'
-from typing import Any, Dict, List, Optional, Tuple'
-'
-import numpy as np'
-'
-logger = logging.getLogger(__name__)'
-'
-# Feature dimensions used for similarity vector (must match build_match_vector)'
-_SIMILARITY_KEYS = ['
-    # Market'
-    "market_home_prob_vf", "market_draw_prob_vf", "market_away_prob_vf",'
-    "market_over25_prob_vf", "market_btts_prob_vf",'
-    # xG'
-    "home_xg_per_game", "away_xg_per_game",'
-    "home_xg_against_per_game", "away_xg_against_per_game",'
-    "xg_total_expected",'
-    # Form'
-    "home_form_points", "away_form_points",'
-    "home_form_gf", "home_form_ga",'
-    "away_form_gf", "away_form_ga",'
-    "home_form_ppg", "away_form_ppg",'
-    # H2H'
-    "h2h_home_win_rate", "h2h_draw_rate", "h2h_away_win_rate",'
-    "h2h_avg_goals", "h2h_btts_rate",'
-    # Standings'
-    "home_position", "away_position", "position_gap",'
-    # Physics'
-    "lambda_home", "lambda_away",'
-    "poisson_over25_prob", "poisson_btts_prob",'
-    # Derived'
-    "home_goal_threat", "away_goal_threat",'
-    "injury_balance", "rest_days_advantage",'
-    "odds_velocity_total",'
-]'
-'
-VECTOR_DIM = len(_SIMILARITY_KEYS)'
-'
-'
-# ---------------------------------------------------------------------------'
-# Vector builder'
-# ---------------------------------------------------------------------------'
-'
-def build_match_vector(features: Dict[str, Any]) -> np.ndarray:'
-    """'
-    Convert a feature dict to a normalised float32 vector of shape (D,).'
-    Missing values are filled with 0.  The vector is L2-normalised so that'
-    cosine similarity equals inner product.'
-    """'
-    vec = np.zeros(VECTOR_DIM, dtype=np.float32)'
-    for i, key in enumerate(_SIMILARITY_KEYS):'
-        val = features.get(key)'
-        if val is not None:'
-            try:'
-                vec[i] = float(val)'
-            except (TypeError, ValueError):'
-                pass'
-'
-    # L2 normalise'
-    norm = np.linalg.norm(vec)'
-    if norm > 1e-8:'
-        vec = vec / norm'
-    return vec'
-'
-'
-# ---------------------------------------------------------------------------'
-# In-memory vector index'
-# ---------------------------------------------------------------------------'
-'
-class VectorIndex:'
-    """'
-    Lightweight in-memory vector index backed by numpy.'
-    Falls back to an exact brute-force search (O(N×D)).'
-    When faiss is available it switches to IVF-Flat for fast ANN search.'
-    """'
-'
-    def __init__(self):'
-        self._vectors:  Optional[np.ndarray]    = None   # (N, D) float32'
-        self._metadata: List[Dict[str, Any]]    = []'
-        self._faiss_index                       = None'
-        self._built                             = False'
-'
-    def build(self, vectors: np.ndarray, metadata: List[Dict]) -> None:'
-        """'
-        (Re)build the index from a (N × D) matrix and parallel metadata list.'
-        """'
-        assert vectors.shape[1] == VECTOR_DIM, ('
-            f"Expected {VECTOR_DIM}-dim vectors, got {vectors.shape[1]}"'
-        )'
-        self._vectors  = vectors.astype(np.float32)'
-        self._metadata = metadata'
-        self._faiss_index = None'
-'
-        # Try to build a FAISS index'
-        try:'
-            import faiss  # type: ignore'
-            n = vectors.shape[0]'
-            index = faiss.IndexFlatIP(VECTOR_DIM)   # inner-product (≡ cosine on L2-normed vecs)'
-            index.add(self._vectors)'
-            self._faiss_index = index'
-            logger.info("[similarity] FAISS IVF-Flat index built (n=%d, D=%d)", n, VECTOR_DIM)'
-        except ImportError:'
-            logger.info('
-                "[similarity] faiss not available — using numpy brute-force search (n=%d)", len(metadata)'
-            )'
-        except Exception as exc:'
-            logger.warning("[similarity] FAISS index build failed: %s", exc)'
-'
-        self._built = True'
-        logger.info("[similarity] index ready: %d vectors", len(metadata))'
-'
-    def search('
-        self,'
-        query: np.ndarray,'
-        top_k: int = 5,'
-        exclude_ids: Optional[List[int]] = None,'
-    ) -> List[Dict[str, Any]]:'
-        """'
-        Find the top_k most similar matches to a query vector.'
-'
-        Returns list of dicts:'
-          { match_id, similarity, home_team, away_team, league,'
-            home_goals, away_goals, actual_outcome, features_summary }'
-        """'
-        if not self._built or self._vectors is None or len(self._metadata) == 0:'
-            return []'
-'
-        q = query.astype(np.float32)'
-        norm = np.linalg.norm(q)'
-        if norm > 1e-8:'
-            q = q / norm'
-'
-        exclude_set = set(exclude_ids or [])'
-'
-        if self._faiss_index is not None:'
-            k = min(top_k + len(exclude_set) + 5, len(self._metadata))'
-            scores, idxs = self._faiss_index.search(q.reshape(1, -1), k)'
-            results = []'
-            for score, idx in zip(scores[0], idxs[0]):'
-                if idx < 0:'
-                    continue'
-                meta = self._metadata[idx]'
-                if meta.get("match_id") in exclude_set:'
-                    continue'
-                results.append({**meta, "similarity": round(float(score), 4)})'
-                if len(results) >= top_k:'
-                    break'
-        else:'
-            # Numpy brute-force cosine similarity'
-            sims = (self._vectors @ q).ravel()'
-            ranked = np.argsort(sims)[::-1]'
-            results = []'
-            for idx in ranked:'
-                meta = self._metadata[int(idx)]'
-                if meta.get("match_id") in exclude_set:'
-                    continue'
-                results.append({**meta, "similarity": round(float(sims[idx]), 4)})'
-                if len(results) >= top_k:'
-                    break'
-'
-        return results'
-'
-    @property'
-    def size(self) -> int:'
-        return len(self._metadata)'
-'
-    @property'
-    def is_built(self) -> bool:'
-        return self._built'
-'
-'
-# ---------------------------------------------------------------------------'
-# Singleton engine'
-# ---------------------------------------------------------------------------'
-'
-class SimilarityEngine:'
-    """'
-    Singleton wrapper around VectorIndex.'
-    Auto-populates from the DB on first use.'
-    """'
-'
-    def __init__(self):'
-        self._index     = VectorIndex()'
-        self._populated = False'
-'
-    async def ensure_populated(self, db) -> None:'
-        """Lazy-load: build the index from DB if not yet built."""'
-        if self._populated and self._index.size > 0:'
-            return'
-        await self._build_from_db(db)'
-'
-    async def _build_from_db(self, db) -> None:'
-        """Load settled matches with feature data from the DB."""'
-        from sqlalchemy import select, and_'
-        from app.db.models import Match, Prediction'
-'
-        rows = (await db.execute('
-            select('
-                Match.id,'
-                Match.home_team,'
-                Match.away_team,'
-                Match.league,'
-                Match.home_goals,'
-                Match.away_goals,'
-                Match.actual_outcome,'
-                Match.closing_odds_home,'
-                Match.closing_odds_draw,'
-                Match.closing_odds_away,'
-                Prediction.home_prob,'
-                Prediction.draw_prob,'
-                Prediction.away_prob,'
-                Prediction.over_25_prob,'
-                Prediction.btts_prob,'
-                Prediction.model_insights,'
-                Prediction.confidence,'
-            ).outerjoin(Prediction, Prediction.match_id == Match.id).where('
-                and_('
-                    Match.home_goals.isnot(None),'
-                    Match.away_goals.isnot(None),'
-                )'
-            ).limit(10000)'
-        )).fetchall()'
-'
-        cols = ['
-            "match_id", "home_team", "away_team", "league",'
-            "home_goals", "away_goals", "actual_outcome",'
-            "closing_odds_home", "closing_odds_draw", "closing_odds_away",'
-            "home_prob", "draw_prob", "away_prob",'
-            "over_25_prob", "btts_prob", "model_insights", "confidence",'
-        ]'
-'
-        vectors  = []'
-        metadata = []'
-'
-        for r in rows:'
-            d = dict(zip(cols, r))'
-'
-            # Build a minimal feature dict for vectorisation'
-            insights = d.get("model_insights") or {}'
-            feat: Dict[str, Any] = {}'
-            if isinstance(insights, dict):'
-                feat.update(insights.get("features", {}))'
-'
-            # Fill from match columns where missing'
-            feat.setdefault("market_home_prob_vf",   d.get("home_prob"))'
-            feat.setdefault("market_draw_prob_vf",   d.get("draw_prob"))'
-            feat.setdefault("market_away_prob_vf",   d.get("away_prob"))'
-            feat.setdefault("market_over25_prob_vf", d.get("over_25_prob"))'
-            feat.setdefault("market_btts_prob_vf",   d.get("btts_prob"))'
-'
-            # Derive lambda estimates if not present'
-            hp = d.get("home_prob") or 0.33'
-            ap = d.get("away_prob") or 0.33'
-            feat.setdefault("lambda_home", hp * 2.5)'
-            feat.setdefault("lambda_away", ap * 2.0)'
-'
-            vec = build_match_vector(feat)'
-            vectors.append(vec)'
-'
-            hg = int(d.get("home_goals") or 0)'
-            ag = int(d.get("away_goals") or 0)'
-            metadata.append({'
-                "match_id":       d["match_id"],'
-                "home_team":      d["home_team"],'
-                "away_team":      d["away_team"],'
-                "league":         d["league"],'
-                "home_goals":     hg,'
-                "away_goals":     ag,'
-                "actual_outcome": d.get("actual_outcome") or ("home" if hg > ag else "away" if ag > hg else "draw"),'
-                "confidence":     d.get("confidence"),'
-                "btts":           hg > 0 and ag > 0,'
-                "total_goals":    hg + ag,'
-            })'
-'
-        if vectors:'
-            matrix = np.stack(vectors, axis=0)'
-            self._index.build(matrix, metadata)'
-'
-        self._populated = True'
-        logger.info('
-            "[similarity] engine populated with %d historical matches", len(metadata)'
-        )'
-'
-    def invalidate(self) -> None:'
-        """Force a rebuild on next use (call after new results are ingested)."""'
-        self._populated = False'
-'
-    async def find_similar('
-        self,'
-        db,'
-        features: Dict[str, Any],'
-        top_k: int = 5,'
-        exclude_match_id: Optional[int] = None,'
-    ) -> Dict[str, Any]:'
-        await self.ensure_populated(db)'
-'
-        query_vec = build_match_vector(features)'
-        results   = self._index.search('
-            query_vec,'
-            top_k=top_k,'
-            exclude_ids=[exclude_match_id] if exclude_match_id else None,'
-        )'
-'
-        # Aggregate outcome statistics from similar matches'
-        if results:'
-            outcomes = [r["actual_outcome"] for r in results]'
-            home_wins  = outcomes.count("home")'
-            draws      = outcomes.count("draw")'
-            away_wins  = outcomes.count("away")'
-            n          = len(outcomes)'
-            avg_goals  = sum(r["total_goals"] for r in results) / n'
-            btts_rate  = sum(1 for r in results if r.get("btts")) / n'
-        else:'
-            home_wins = draws = away_wins = 0'
-            n = 1'
-            avg_goals = 0.0'
-            btts_rate = 0.0'
-'
-        return {'
-            "similar_matches": results,'
-            "index_size":      self._index.size,'
-            "aggregate": {'
-                "home_win_rate":  round(home_wins / n, 3) if n else 0,'
-                "draw_rate":      round(draws      / n, 3) if n else 0,'
-                "away_win_rate":  round(away_wins  / n, 3) if n else 0,'
-                "avg_total_goals": round(avg_goals, 2),'
-                "btts_rate":       round(btts_rate, 3),'
-            },'
-        }'
-'
-'
-_ENGINE: Optional[SimilarityEngine] = None'
-'
-'
-def get_similarity_engine() -> SimilarityEngine:'
-    global _ENGINE'
-    if _ENGINE is None:'
-        _ENGINE = SimilarityEngine()'
-    return _ENGINE'
+"""
+app/services/vector_similarity.py — Phase 4: Vector Similarity Engine
+
+In-memory historical match state vector index with cosine similarity search.
+Uses numpy for distance computation (faiss-cpu is optional but auto-used when
+available for sub-millisecond ANN lookups on large indexes).
+
+Architecture:
+  - VectorIndex: maintains an (N × D) float32 matrix + metadata list
+  - build_match_vector(): maps a feature dict to a normalised D-dim vector
+  - SimilarityEngine: singleton that auto-rebuilds from DB on startup
+  - Endpoint: GET /api/similarity/matches?top_k=5 → similar historical matches
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+# Feature dimensions used for similarity vector (must match build_match_vector)
+_SIMILARITY_KEYS = [
+    # Market
+    "market_home_prob_vf", "market_draw_prob_vf", "market_away_prob_vf",
+    "market_over25_prob_vf", "market_btts_prob_vf",
+    # xG
+    "home_xg_per_game", "away_xg_per_game",
+    "home_xg_against_per_game", "away_xg_against_per_game",
+    "xg_total_expected",
+    # Form
+    "home_form_points", "away_form_points",
+    "home_form_gf", "home_form_ga",
+    "away_form_gf", "away_form_ga",
+    "home_form_ppg", "away_form_ppg",
+    # H2H
+    "h2h_home_win_rate", "h2h_draw_rate", "h2h_away_win_rate",
+    "h2h_avg_goals", "h2h_btts_rate",
+    # Standings
+    "home_position", "away_position", "position_gap",
+    # Physics
+    "lambda_home", "lambda_away",
+    "poisson_over25_prob", "poisson_btts_prob",
+    # Derived
+    "home_goal_threat", "away_goal_threat",
+    "injury_balance", "rest_days_advantage",
+    "odds_velocity_total",
+]
+
+VECTOR_DIM = len(_SIMILARITY_KEYS)
+
+
+# ---------------------------------------------------------------------------
+# Vector builder
+# ---------------------------------------------------------------------------
+
+def build_match_vector(features: Dict[str, Any]) -> np.ndarray:
+    """
+    Convert a feature dict to a normalised float32 vector of shape (D,).
+    Missing values are filled with 0.  The vector is L2-normalised so that
+    cosine similarity equals inner product.
+    """
+    vec = np.zeros(VECTOR_DIM, dtype=np.float32)
+    for i, key in enumerate(_SIMILARITY_KEYS):
+        val = features.get(key)
+        if val is not None:
+            try:
+                vec[i] = float(val)
+            except (TypeError, ValueError):
+                pass
+
+    # L2 normalise
+    norm = np.linalg.norm(vec)
+    if norm > 1e-8:
+        vec = vec / norm
+    return vec
+
+
+# ---------------------------------------------------------------------------
+# In-memory vector index
+# ---------------------------------------------------------------------------
+
+class VectorIndex:
+    """
+    Lightweight in-memory vector index backed by numpy.
+    Falls back to an exact brute-force search (O(N×D)).
+    When faiss is available it switches to IVF-Flat for fast ANN search.
+    """
+
+    def __init__(self):
+        self._vectors:  Optional[np.ndarray]    = None   # (N, D) float32
+        self._metadata: List[Dict[str, Any]]    = []
+        self._faiss_index                       = None
+        self._built                             = False
+
+    def build(self, vectors: np.ndarray, metadata: List[Dict]) -> None:
+        """
+        (Re)build the index from a (N × D) matrix and parallel metadata list.
+        """
+        assert vectors.shape[1] == VECTOR_DIM, (
+            f"Expected {VECTOR_DIM}-dim vectors, got {vectors.shape[1]}"
+        )
+        self._vectors  = vectors.astype(np.float32)
+        self._metadata = metadata
+        self._faiss_index = None
+
+        # Try to build a FAISS index
+        try:
+            import faiss  # type: ignore
+            n = vectors.shape[0]
+            index = faiss.IndexFlatIP(VECTOR_DIM)   # inner-product (≡ cosine on L2-normed vecs)
+            index.add(self._vectors)
+            self._faiss_index = index
+            logger.info("[similarity] FAISS IVF-Flat index built (n=%d, D=%d)", n, VECTOR_DIM)
+        except ImportError:
+            logger.info(
+                "[similarity] faiss not available — using numpy brute-force search (n=%d)", len(metadata)
+            )
+        except Exception as exc:
+            logger.warning("[similarity] FAISS index build failed: %s", exc)
+
+        self._built = True
+        logger.info("[similarity] index ready: %d vectors", len(metadata))
+
+    def search(
+        self,
+        query: np.ndarray,
+        top_k: int = 5,
+        exclude_ids: Optional[List[int]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Find the top_k most similar matches to a query vector.
+
+        Returns list of dicts:
+          { match_id, similarity, home_team, away_team, league,
+            home_goals, away_goals, actual_outcome, features_summary }
+        """
+        if not self._built or self._vectors is None or len(self._metadata) == 0:
+            return []
+
+        q = query.astype(np.float32)
+        norm = np.linalg.norm(q)
+        if norm > 1e-8:
+            q = q / norm
+
+        exclude_set = set(exclude_ids or [])
+
+        if self._faiss_index is not None:
+            k = min(top_k + len(exclude_set) + 5, len(self._metadata))
+            scores, idxs = self._faiss_index.search(q.reshape(1, -1), k)
+            results = []
+            for score, idx in zip(scores[0], idxs[0]):
+                if idx < 0:
+                    continue
+                meta = self._metadata[idx]
+                if meta.get("match_id") in exclude_set:
+                    continue
+                results.append({**meta, "similarity": round(float(score), 4)})
+                if len(results) >= top_k:
+                    break
+        else:
+            # Numpy brute-force cosine similarity
+            sims = (self._vectors @ q).ravel()
+            ranked = np.argsort(sims)[::-1]
+            results = []
+            for idx in ranked:
+                meta = self._metadata[int(idx)]
+                if meta.get("match_id") in exclude_set:
+                    continue
+                results.append({**meta, "similarity": round(float(sims[idx]), 4)})
+                if len(results) >= top_k:
+                    break
+
+        return results
+
+    @property
+    def size(self) -> int:
+        return len(self._metadata)
+
+    @property
+    def is_built(self) -> bool:
+        return self._built
+
+
+# ---------------------------------------------------------------------------
+# Singleton engine
+# ---------------------------------------------------------------------------
+
+class SimilarityEngine:
+    """
+    Singleton wrapper around VectorIndex.
+    Auto-populates from the DB on first use.
+    """
+
+    def __init__(self):
+        self._index     = VectorIndex()
+        self._populated = False
+
+    async def ensure_populated(self, db) -> None:
+        """Lazy-load: build the index from DB if not yet built."""
+        if self._populated and self._index.size > 0:
+            return
+        await self._build_from_db(db)
+
+    async def _build_from_db(self, db) -> None:
+        """Load settled matches with feature data from the DB."""
+        from sqlalchemy import select, and_
+        from app.db.models import Match, Prediction
+
+        rows = (await db.execute(
+            select(
+                Match.id,
+                Match.home_team,
+                Match.away_team,
+                Match.league,
+                Match.home_goals,
+                Match.away_goals,
+                Match.actual_outcome,
+                Match.closing_odds_home,
+                Match.closing_odds_draw,
+                Match.closing_odds_away,
+                Prediction.home_prob,
+                Prediction.draw_prob,
+                Prediction.away_prob,
+                Prediction.over_25_prob,
+                Prediction.btts_prob,
+                Prediction.model_insights,
+                Prediction.confidence,
+            ).outerjoin(Prediction, Prediction.match_id == Match.id).where(
+                and_(
+                    Match.home_goals.isnot(None),
+                    Match.away_goals.isnot(None),
+                )
+            ).limit(10000)
+        )).fetchall()
+
+        cols = [
+            "match_id", "home_team", "away_team", "league",
+            "home_goals", "away_goals", "actual_outcome",
+            "closing_odds_home", "closing_odds_draw", "closing_odds_away",
+            "home_prob", "draw_prob", "away_prob",
+            "over_25_prob", "btts_prob", "model_insights", "confidence",
+        ]
+
+        vectors  = []
+        metadata = []
+
+        for r in rows:
+            d = dict(zip(cols, r))
+
+            # Build a minimal feature dict for vectorisation
+            insights = d.get("model_insights") or {}
+            feat: Dict[str, Any] = {}
+            if isinstance(insights, dict):
+                feat.update(insights.get("features", {}))
+
+            # Fill from match columns where missing
+            feat.setdefault("market_home_prob_vf",   d.get("home_prob"))
+            feat.setdefault("market_draw_prob_vf",   d.get("draw_prob"))
+            feat.setdefault("market_away_prob_vf",   d.get("away_prob"))
+            feat.setdefault("market_over25_prob_vf", d.get("over_25_prob"))
+            feat.setdefault("market_btts_prob_vf",   d.get("btts_prob"))
+
+            # Derive lambda estimates if not present
+            hp = d.get("home_prob") or 0.33
+            ap = d.get("away_prob") or 0.33
+            feat.setdefault("lambda_home", hp * 2.5)
+            feat.setdefault("lambda_away", ap * 2.0)
+
+            vec = build_match_vector(feat)
+            vectors.append(vec)
+
+            hg = int(d.get("home_goals") or 0)
+            ag = int(d.get("away_goals") or 0)
+            metadata.append({
+                "match_id":       d["match_id"],
+                "home_team":      d["home_team"],
+                "away_team":      d["away_team"],
+                "league":         d["league"],
+                "home_goals":     hg,
+                "away_goals":     ag,
+                "actual_outcome": d.get("actual_outcome") or ("home" if hg > ag else "away" if ag > hg else "draw"),
+                "confidence":     d.get("confidence"),
+                "btts":           hg > 0 and ag > 0,
+                "total_goals":    hg + ag,
+            })
+
+        if vectors:
+            matrix = np.stack(vectors, axis=0)
+            self._index.build(matrix, metadata)
+
+        self._populated = True
+        logger.info(
+            "[similarity] engine populated with %d historical matches", len(metadata)
+        )
+
+    def invalidate(self) -> None:
+        """Force a rebuild on next use (call after new results are ingested)."""
+        self._populated = False
+
+    async def find_similar(
+        self,
+        db,
+        features: Dict[str, Any],
+        top_k: int = 5,
+        exclude_match_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        await self.ensure_populated(db)
+
+        query_vec = build_match_vector(features)
+        results   = self._index.search(
+            query_vec,
+            top_k=top_k,
+            exclude_ids=[exclude_match_id] if exclude_match_id else None,
+        )
+
+        # Aggregate outcome statistics from similar matches
+        if results:
+            outcomes = [r["actual_outcome"] for r in results]
+            home_wins  = outcomes.count("home")
+            draws      = outcomes.count("draw")
+            away_wins  = outcomes.count("away")
+            n          = len(outcomes)
+            avg_goals  = sum(r["total_goals"] for r in results) / n
+            btts_rate  = sum(1 for r in results if r.get("btts")) / n
+        else:
+            home_wins = draws = away_wins = 0
+            n = 1
+            avg_goals = 0.0
+            btts_rate = 0.0
+
+        return {
+            "similar_matches": results,
+            "index_size":      self._index.size,
+            "aggregate": {
+                "home_win_rate":  round(home_wins / n, 3) if n else 0,
+                "draw_rate":      round(draws      / n, 3) if n else 0,
+                "away_win_rate":  round(away_wins  / n, 3) if n else 0,
+                "avg_total_goals": round(avg_goals, 2),
+                "btts_rate":       round(btts_rate, 3),
+            },
+        }
+
+
+_ENGINE: Optional[SimilarityEngine] = None
+
+
+def get_similarity_engine() -> SimilarityEngine:
+    global _ENGINE
+    if _ENGINE is None:
+        _ENGINE = SimilarityEngine()
+    return _ENGINE

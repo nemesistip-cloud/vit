@@ -1,177 +1,177 @@
-"""app/agents/weight_optimizer.py'
-'
-WeightOptimizerAgent — runs every 6 hours.'
-'
-Responsibilities:'
-  - Re-fit the global temperature scaler on all settled predictions'
-    (TemperatureScaler.fit via fit_temperature_from_history)'
-  - Update dynamic model weights via ModelAccountability'
-  - Sync weights across ModelMetadata and ModelPerformance tables'
-  - Integrate RL reward signals from RLRewardAccumulator (Phase 5)'
-  - Publish a summary of weight deltas to the coordinator registry'
-"""'
-'
-from __future__ import annotations'
-'
-import logging'
-from typing import Any, Dict'
-'
-from app.agents.base import BaseAgent'
-'
-logger = logging.getLogger(__name__)'
-'
-# RL reward weight influence cap (prevents a single model dominating quickly)'
-_RL_DELTA_CAP = 0.15'
-'
-'
-class WeightOptimizerAgent(BaseAgent):'
-    def __init__(self) -> None:'
-        super().__init__('
-            name="weight-optimizer",'
-            interval_seconds=6 * 3600,    # every 6 hours'
-            initial_delay_seconds=3 * 60, # start 3 min after boot'
-        )'
-'
-    async def run_cycle(self) -> Dict[str, Any]:'
-        from app.db.database import AsyncSessionLocal'
-        from app.services.accuracy_enhancer import fit_temperature_from_history'
-        from app.services.model_accountability import ModelAccountability'
-'
-        results: Dict[str, Any] = {}'
-'
-        async with AsyncSessionLocal() as db:'
-            # ── 1. Temperature calibration ─────────────────────────────'
-            try:'
-                temp_result = await fit_temperature_from_history(db, min_samples=50)'
-                results["temperature_fit"] = temp_result'
-                if temp_result.get("fitted"):'
-                    logger.info('
-                        "[weight-optimizer] temperature fitted: T=%.4f "'
-                        "NLL improvement=%.6f (n=%d)",'
-                        temp_result["temperature"],'
-                        temp_result["improvement"],'
-                        temp_result["n_samples"],'
-                    )'
-                else:'
-                    logger.info('
-                        "[weight-optimizer] temperature fit skipped: %s",'
-                        temp_result.get("reason", "unknown"),'
-                    )'
-            except Exception as e:'
-                logger.warning("[weight-optimizer] temperature fit error: %s", e)'
-                results["temperature_fit"] = {"fitted": False, "error": str(e)}'
-'
-            # ── 2. Model weight update ─────────────────────────────────'
-            try:'
-                ma = ModelAccountability(db)'
-                await ma.update_model_weights()'
-                report = await ma.get_model_report()'
-                results["weight_update"] = {'
-                    "models_updated": len(report.get("models", [])),'
-                    "total_weight":   report.get("total_weight", 0.0),'
-                    "needs_review":   ['
-                        m["name"] for m in report.get("models", [])'
-                        if m.get("needs_review")'
-                    ],'
-                }'
-                logger.info('
-                    "[weight-optimizer] weights updated: %d models, "'
-                    "total_weight=%.3f needs_review=%s",'
-                    results["weight_update"]["models_updated"],'
-                    results["weight_update"]["total_weight"],'
-                    results["weight_update"]["needs_review"],'
-                )'
-            except Exception as e:'
-                logger.warning("[weight-optimizer] weight update error: %s", e)'
-                results["weight_update"] = {"error": str(e)}'
-'
-            # ── 3. AIProfilerService weight sync ──────────────────────'
-            try:'
-                from app.services.ai_profiler import AIProfilerService'
-                profiler = AIProfilerService(db)'
-                await profiler.update_weights()'
-                results["profiler_sync"] = {"synced": True}'
-            except Exception as e:'
-                logger.debug("[weight-optimizer] profiler sync error: %s", e)'
-                results["profiler_sync"] = {"synced": False, "error": str(e)}'
-'
-            # ── 4. RL Reward Integration (Phase 5) ────────────────────'
-            try:'
-                results["rl_rewards"] = await self._apply_rl_rewards(db)'
-            except Exception as e:'
-                logger.warning("[weight-optimizer] RL reward integration error: %s", e)'
-                results["rl_rewards"] = {"error": str(e)}'
-'
-        return results'
-'
-    async def _apply_rl_rewards(self, db) -> Dict[str, Any]:'
-        """'
-        Read accumulated RL reward signals and nudge model weights accordingly.'
-'
-        The reward accumulator records post-settlement Brier / CLV rewards for'
-        each model key.  We convert the EMA into a small weight delta and apply'
-        it via ModelAccountability, then reset the accumulator to avoid'
-        compounding the same signal on the next cycle.'
-        """'
-        from app.services.rl_reward import get_accumulator'
-        from app.services.model_accountability import ModelAccountability'
-'
-        accumulator = get_accumulator()'
-        snapshot    = accumulator.snapshot()'
-'
-        if not snapshot:'
-            return {"applied": 0, "snapshot": {}}'
-'
-        ma       = ModelAccountability(db)'
-        applied  = 0'
-        deltas   = {}'
-'
-        for model_key, stats in snapshot.items():'
-            delta = stats.get("weight_delta", 0.0)'
-            if abs(delta) < 0.005:'
-                # Too small to bother applying'
-                continue'
-'
-            # Clamp to prevent large swings'
-            delta = max(-_RL_DELTA_CAP, min(_RL_DELTA_CAP, delta))'
-            deltas[model_key] = delta'
-'
-            try:'
-                # Apply delta to ModelMetadata weight if model exists'
-                from sqlalchemy import select, update as sql_update'
-                from app.db.models import ModelMetadata  # type: ignore'
-'
-                row = (await db.execute('
-                    select(ModelMetadata).where(ModelMetadata.key == model_key)'
-                )).scalar_one_or_none()'
-'
-                if row is not None:'
-                    new_weight = max(0.1, min(5.0, (row.weight or 1.0) + delta))'
-                    row.weight = new_weight'
-                    applied += 1'
-                    logger.info('
-                        "[weight-optimizer] RL delta applied: model=%s delta=%.4f new_weight=%.4f",'
-                        model_key, delta, new_weight,'
-                    )'
-            except Exception as exc:'
-                logger.debug('
-                    "[weight-optimizer] RL delta for %s skipped: %s", model_key, exc'
-                )'
-'
-        if applied > 0:'
-            try:'
-                await db.commit()'
-            except Exception as exc:'
-                logger.warning("[weight-optimizer] RL commit failed: %s", exc)'
-                await db.rollback()'
-'
-        logger.info('
-            "[weight-optimizer] RL rewards: %d models adjusted from %d signals",'
-            applied, len(snapshot),'
-        )'
-'
-        return {'
-            "applied":    applied,'
-            "deltas":     deltas,'
-            "snapshot":   snapshot,'
-        }'
+"""app/agents/weight_optimizer.py
+
+WeightOptimizerAgent — runs every 6 hours.
+
+Responsibilities:
+  - Re-fit the global temperature scaler on all settled predictions
+    (TemperatureScaler.fit via fit_temperature_from_history)
+  - Update dynamic model weights via ModelAccountability
+  - Sync weights across ModelMetadata and ModelPerformance tables
+  - Integrate RL reward signals from RLRewardAccumulator (Phase 5)
+  - Publish a summary of weight deltas to the coordinator registry
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict
+
+from app.agents.base import BaseAgent
+
+logger = logging.getLogger(__name__)
+
+# RL reward weight influence cap (prevents a single model dominating quickly)
+_RL_DELTA_CAP = 0.15
+
+
+class WeightOptimizerAgent(BaseAgent):
+    def __init__(self) -> None:
+        super().__init__(
+            name="weight-optimizer",
+            interval_seconds=6 * 3600,    # every 6 hours
+            initial_delay_seconds=3 * 60, # start 3 min after boot
+        )
+
+    async def run_cycle(self) -> Dict[str, Any]:
+        from app.db.database import AsyncSessionLocal
+        from app.services.accuracy_enhancer import fit_temperature_from_history
+        from app.services.model_accountability import ModelAccountability
+
+        results: Dict[str, Any] = {}
+
+        async with AsyncSessionLocal() as db:
+            # ── 1. Temperature calibration ─────────────────────────────
+            try:
+                temp_result = await fit_temperature_from_history(db, min_samples=50)
+                results["temperature_fit"] = temp_result
+                if temp_result.get("fitted"):
+                    logger.info(
+                        "[weight-optimizer] temperature fitted: T=%.4f "
+                        "NLL improvement=%.6f (n=%d)",
+                        temp_result["temperature"],
+                        temp_result["improvement"],
+                        temp_result["n_samples"],
+                    )
+                else:
+                    logger.info(
+                        "[weight-optimizer] temperature fit skipped: %s",
+                        temp_result.get("reason", "unknown"),
+                    )
+            except Exception as e:
+                logger.warning("[weight-optimizer] temperature fit error: %s", e)
+                results["temperature_fit"] = {"fitted": False, "error": str(e)}
+
+            # ── 2. Model weight update ─────────────────────────────────
+            try:
+                ma = ModelAccountability(db)
+                await ma.update_model_weights()
+                report = await ma.get_model_report()
+                results["weight_update"] = {
+                    "models_updated": len(report.get("models", [])),
+                    "total_weight":   report.get("total_weight", 0.0),
+                    "needs_review":   [
+                        m["name"] for m in report.get("models", [])
+                        if m.get("needs_review")
+                    ],
+                }
+                logger.info(
+                    "[weight-optimizer] weights updated: %d models, "
+                    "total_weight=%.3f needs_review=%s",
+                    results["weight_update"]["models_updated"],
+                    results["weight_update"]["total_weight"],
+                    results["weight_update"]["needs_review"],
+                )
+            except Exception as e:
+                logger.warning("[weight-optimizer] weight update error: %s", e)
+                results["weight_update"] = {"error": str(e)}
+
+            # ── 3. AIProfilerService weight sync ──────────────────────
+            try:
+                from app.services.ai_profiler import AIProfilerService
+                profiler = AIProfilerService(db)
+                await profiler.update_weights()
+                results["profiler_sync"] = {"synced": True}
+            except Exception as e:
+                logger.debug("[weight-optimizer] profiler sync error: %s", e)
+                results["profiler_sync"] = {"synced": False, "error": str(e)}
+
+            # ── 4. RL Reward Integration (Phase 5) ────────────────────
+            try:
+                results["rl_rewards"] = await self._apply_rl_rewards(db)
+            except Exception as e:
+                logger.warning("[weight-optimizer] RL reward integration error: %s", e)
+                results["rl_rewards"] = {"error": str(e)}
+
+        return results
+
+    async def _apply_rl_rewards(self, db) -> Dict[str, Any]:
+        """
+        Read accumulated RL reward signals and nudge model weights accordingly.
+
+        The reward accumulator records post-settlement Brier / CLV rewards for
+        each model key.  We convert the EMA into a small weight delta and apply
+        it via ModelAccountability, then reset the accumulator to avoid
+        compounding the same signal on the next cycle.
+        """
+        from app.services.rl_reward import get_accumulator
+        from app.services.model_accountability import ModelAccountability
+
+        accumulator = get_accumulator()
+        snapshot    = accumulator.snapshot()
+
+        if not snapshot:
+            return {"applied": 0, "snapshot": {}}
+
+        ma       = ModelAccountability(db)
+        applied  = 0
+        deltas   = {}
+
+        for model_key, stats in snapshot.items():
+            delta = stats.get("weight_delta", 0.0)
+            if abs(delta) < 0.005:
+                # Too small to bother applying
+                continue
+
+            # Clamp to prevent large swings
+            delta = max(-_RL_DELTA_CAP, min(_RL_DELTA_CAP, delta))
+            deltas[model_key] = delta
+
+            try:
+                # Apply delta to ModelMetadata weight if model exists
+                from sqlalchemy import select, update as sql_update
+                from app.db.models import ModelMetadata  # type: ignore
+
+                row = (await db.execute(
+                    select(ModelMetadata).where(ModelMetadata.key == model_key)
+                )).scalar_one_or_none()
+
+                if row is not None:
+                    new_weight = max(0.1, min(5.0, (row.weight or 1.0) + delta))
+                    row.weight = new_weight
+                    applied += 1
+                    logger.info(
+                        "[weight-optimizer] RL delta applied: model=%s delta=%.4f new_weight=%.4f",
+                        model_key, delta, new_weight,
+                    )
+            except Exception as exc:
+                logger.debug(
+                    "[weight-optimizer] RL delta for %s skipped: %s", model_key, exc
+                )
+
+        if applied > 0:
+            try:
+                await db.commit()
+            except Exception as exc:
+                logger.warning("[weight-optimizer] RL commit failed: %s", exc)
+                await db.rollback()
+
+        logger.info(
+            "[weight-optimizer] RL rewards: %d models adjusted from %d signals",
+            applied, len(snapshot),
+        )
+
+        return {
+            "applied":    applied,
+            "deltas":     deltas,
+            "snapshot":   snapshot,
+        }

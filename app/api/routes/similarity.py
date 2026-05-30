@@ -1,167 +1,167 @@
-"""'
-app/api/routes/similarity.py — Phase 4: Vector Similarity Engine REST API'
-'
-GET  /api/similarity/matches        — find similar historical matches'
-POST /api/similarity/matches/query  — query by raw feature dict'
-GET  /api/similarity/status         — index status'
-POST /api/similarity/rebuild        — admin: force index rebuild'
-"""'
-'
-import logging'
-from typing import Any, Dict, List, Optional'
-'
-from fastapi import APIRouter, Depends, HTTPException, Query'
-from pydantic import BaseModel, Field'
-from sqlalchemy.ext.asyncio import AsyncSession'
-'
-from app.auth.dependencies import get_current_user'
-from app.api.deps import get_current_admin'
-from app.db.database import get_db'
-from app.db.models import User'
-from app.services.vector_similarity import get_similarity_engine'
-'
-logger = logging.getLogger(__name__)'
-router = APIRouter(prefix="/api/similarity", tags=["Similarity Engine"])'
-'
-'
-# ---------------------------------------------------------------------------'
-# Schemas'
-# ---------------------------------------------------------------------------'
-'
-class FeatureQueryBody(BaseModel):'
-    features:         Dict[str, Any]             = Field(..., description="Flat feature dict")'
-    top_k:            int                         = Field(5, ge=1, le=20)'
-    exclude_match_id: Optional[int]              = None'
-'
-'
-class SimilarMatchResponse(BaseModel):'
-    similar_matches: List[Dict[str, Any]]'
-    index_size:      int'
-    aggregate:       Dict[str, Any]'
-'
-'
-# ---------------------------------------------------------------------------'
-# Endpoints'
-# ---------------------------------------------------------------------------'
-'
-@router.get("/status")'
-async def similarity_status('
-    _: User = Depends(get_current_user),'
-):'
-    """Return the current state of the similarity index."""'
-    engine = get_similarity_engine()'
-    return {'
-        "index_size":  engine._index.size,'
-        "is_built":    engine._index.is_built,'
-        "vector_dim":  engine._index.size and 35,'
-        "faiss_available": engine._index._faiss_index is not None,'
-    }'
-'
-'
-@router.get("/matches")'
-async def find_similar_by_match('
-    match_id: int = Query(..., description="Source match ID to find similar matches for"),'
-    top_k:    int = Query(5, ge=1, le=20),'
-    db:       AsyncSession = Depends(get_db),'
-    _:        User = Depends(get_current_user),'
-):'
-    """'
-    Find historical matches similar to the given match_id.'
-    Uses the pre-computed vector index for fast cosine similarity search.'
-    """'
-    from sqlalchemy import select'
-    from app.db.models import Match, Prediction'
-'
-    # Load the match features from the DB'
-    row = (await db.execute('
-        select('
-            Match.id,'
-            Match.home_team, Match.away_team, Match.league,'
-            Match.closing_odds_home, Match.closing_odds_draw, Match.closing_odds_away,'
-            Match.home_goals, Match.away_goals,'
-            Prediction.home_prob, Prediction.draw_prob, Prediction.away_prob,'
-            Prediction.over_25_prob, Prediction.btts_prob,'
-            Prediction.model_insights,'
-            Prediction.confidence,'
-        ).outerjoin(Prediction, Prediction.match_id == Match.id)'
-        .where(Match.id == match_id)'
-        .limit(1)'
-    )).fetchone()'
-'
-    if not row:'
-        raise HTTPException(status_code=404, detail=f"Match {match_id} not found")'
-'
-    cols = ['
-        "match_id", "home_team", "away_team", "league",'
-        "closing_odds_home", "closing_odds_draw", "closing_odds_away",'
-        "home_goals", "away_goals",'
-        "home_prob", "draw_prob", "away_prob",'
-        "over_25_prob", "btts_prob", "model_insights", "confidence",'
-    ]'
-    d = dict(zip(cols, row))'
-'
-    insights = d.get("model_insights") or {}'
-    features: Dict[str, Any] = {}'
-    if isinstance(insights, dict):'
-        features.update(insights.get("features", {}))'
-'
-    features.setdefault("market_home_prob_vf",   d.get("home_prob"))'
-    features.setdefault("market_draw_prob_vf",   d.get("draw_prob"))'
-    features.setdefault("market_away_prob_vf",   d.get("away_prob"))'
-    features.setdefault("market_over25_prob_vf", d.get("over_25_prob"))'
-    features.setdefault("market_btts_prob_vf",   d.get("btts_prob"))'
-'
-    hp = d.get("home_prob") or 0.33'
-    ap = d.get("away_prob") or 0.33'
-    features.setdefault("lambda_home", hp * 2.5)'
-    features.setdefault("lambda_away", ap * 2.0)'
-'
-    engine = get_similarity_engine()'
-    result = await engine.find_similar('
-        db, features, top_k=top_k, exclude_match_id=match_id'
-    )'
-'
-    return {'
-        "query_match": {'
-            "match_id":  d["match_id"],'
-            "home_team": d["home_team"],'
-            "away_team": d["away_team"],'
-            "league":    d["league"],'
-        },'
-        **result,'
-    }'
-'
-'
-@router.post("/matches/query")'
-async def find_similar_by_features('
-    body: FeatureQueryBody,'
-    db:   AsyncSession = Depends(get_db),'
-    _:    User = Depends(get_current_user),'
-):'
-    """'
-    Find historical matches similar to an arbitrary feature dict.'
-    Useful for pre-match analysis before a result has been recorded.'
-    """'
-    engine = get_similarity_engine()'
-    result = await engine.find_similar('
-        db,'
-        body.features,'
-        top_k=body.top_k,'
-        exclude_match_id=body.exclude_match_id,'
-    )'
-    return result'
-'
-'
-@router.post("/rebuild")'
-async def rebuild_index('
-    db: AsyncSession = Depends(get_db),'
-    _:  User = Depends(get_current_admin),'
-):'
-    """Admin: force a full index rebuild from the latest DB data."""'
-    engine = get_similarity_engine()'
-    engine.invalidate()'
-    await engine.ensure_populated(db)'
-    return {'
-        "rebuilt":    True,'
-        "index_size": engine._index.size,'
-    }'
+"""
+app/api/routes/similarity.py — Phase 4: Vector Similarity Engine REST API
+
+GET  /api/similarity/matches        — find similar historical matches
+POST /api/similarity/matches/query  — query by raw feature dict
+GET  /api/similarity/status         — index status
+POST /api/similarity/rebuild        — admin: force index rebuild
+"""
+
+import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.dependencies import get_current_user
+from app.api.deps import get_current_admin
+from app.db.database import get_db
+from app.db.models import User
+from app.services.vector_similarity import get_similarity_engine
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/similarity", tags=["Similarity Engine"])
+
+
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
+
+class FeatureQueryBody(BaseModel):
+    features:         Dict[str, Any]             = Field(..., description="Flat feature dict")
+    top_k:            int                         = Field(5, ge=1, le=20)
+    exclude_match_id: Optional[int]              = None
+
+
+class SimilarMatchResponse(BaseModel):
+    similar_matches: List[Dict[str, Any]]
+    index_size:      int
+    aggregate:       Dict[str, Any]
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/status")
+async def similarity_status(
+    _: User = Depends(get_current_user),
+):
+    """Return the current state of the similarity index."""
+    engine = get_similarity_engine()
+    return {
+        "index_size":  engine._index.size,
+        "is_built":    engine._index.is_built,
+        "vector_dim":  engine._index.size and 35,
+        "faiss_available": engine._index._faiss_index is not None,
+    }
+
+
+@router.get("/matches")
+async def find_similar_by_match(
+    match_id: int = Query(..., description="Source match ID to find similar matches for"),
+    top_k:    int = Query(5, ge=1, le=20),
+    db:       AsyncSession = Depends(get_db),
+    _:        User = Depends(get_current_user),
+):
+    """
+    Find historical matches similar to the given match_id.
+    Uses the pre-computed vector index for fast cosine similarity search.
+    """
+    from sqlalchemy import select
+    from app.db.models import Match, Prediction
+
+    # Load the match features from the DB
+    row = (await db.execute(
+        select(
+            Match.id,
+            Match.home_team, Match.away_team, Match.league,
+            Match.closing_odds_home, Match.closing_odds_draw, Match.closing_odds_away,
+            Match.home_goals, Match.away_goals,
+            Prediction.home_prob, Prediction.draw_prob, Prediction.away_prob,
+            Prediction.over_25_prob, Prediction.btts_prob,
+            Prediction.model_insights,
+            Prediction.confidence,
+        ).outerjoin(Prediction, Prediction.match_id == Match.id)
+        .where(Match.id == match_id)
+        .limit(1)
+    )).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Match {match_id} not found")
+
+    cols = [
+        "match_id", "home_team", "away_team", "league",
+        "closing_odds_home", "closing_odds_draw", "closing_odds_away",
+        "home_goals", "away_goals",
+        "home_prob", "draw_prob", "away_prob",
+        "over_25_prob", "btts_prob", "model_insights", "confidence",
+    ]
+    d = dict(zip(cols, row))
+
+    insights = d.get("model_insights") or {}
+    features: Dict[str, Any] = {}
+    if isinstance(insights, dict):
+        features.update(insights.get("features", {}))
+
+    features.setdefault("market_home_prob_vf",   d.get("home_prob"))
+    features.setdefault("market_draw_prob_vf",   d.get("draw_prob"))
+    features.setdefault("market_away_prob_vf",   d.get("away_prob"))
+    features.setdefault("market_over25_prob_vf", d.get("over_25_prob"))
+    features.setdefault("market_btts_prob_vf",   d.get("btts_prob"))
+
+    hp = d.get("home_prob") or 0.33
+    ap = d.get("away_prob") or 0.33
+    features.setdefault("lambda_home", hp * 2.5)
+    features.setdefault("lambda_away", ap * 2.0)
+
+    engine = get_similarity_engine()
+    result = await engine.find_similar(
+        db, features, top_k=top_k, exclude_match_id=match_id
+    )
+
+    return {
+        "query_match": {
+            "match_id":  d["match_id"],
+            "home_team": d["home_team"],
+            "away_team": d["away_team"],
+            "league":    d["league"],
+        },
+        **result,
+    }
+
+
+@router.post("/matches/query")
+async def find_similar_by_features(
+    body: FeatureQueryBody,
+    db:   AsyncSession = Depends(get_db),
+    _:    User = Depends(get_current_user),
+):
+    """
+    Find historical matches similar to an arbitrary feature dict.
+    Useful for pre-match analysis before a result has been recorded.
+    """
+    engine = get_similarity_engine()
+    result = await engine.find_similar(
+        db,
+        body.features,
+        top_k=body.top_k,
+        exclude_match_id=body.exclude_match_id,
+    )
+    return result
+
+
+@router.post("/rebuild")
+async def rebuild_index(
+    db: AsyncSession = Depends(get_db),
+    _:  User = Depends(get_current_admin),
+):
+    """Admin: force a full index rebuild from the latest DB data."""
+    engine = get_similarity_engine()
+    engine.invalidate()
+    await engine.ensure_populated(db)
+    return {
+        "rebuilt":    True,
+        "index_size": engine._index.size,
+    }

@@ -1,459 +1,459 @@
-"""'
-app/services/vit_intelligence.py'
-'
-VIT Self-Contained Intelligence Engine (SCIE)'
-============================================='
-'
-Generates rich match intelligence exclusively from the internal database,'
-using the system's own ML predictions and historical match records.'
-'
-No external API keys required. Zero dependency on football-data.org or'
-the-odds-api.com for core intelligence generation.'
-'
-Public API'
-----------'
-synthetic_odds(home_p, draw_p, away_p)          → decimal odds dict'
-get_team_form(team, db, n=5)                     → form stats dict'
-get_match_context(match, prediction, db)         → full enriched context'
-detect_probability_drift(prev, curr, threshold)  → anomaly list'
-build_league_snapshot(league, db)                → league-wide stats'
-"""'
-'
-from __future__ import annotations'
-'
-import logging'
-from datetime import datetime, timedelta, timezone'
-from typing import Any, Dict, List, Optional'
-'
-logger = logging.getLogger(__name__)'
-'
-'
-# ── 1. Synthetic Odds ─────────────────────────────────────────────────────────'
-'
-def synthetic_odds('
-    home_p: float,'
-    draw_p: float,'
-    away_p: float,'
-    vig: float = 0.055,'
-) -> Dict[str, Any]:'
-    """'
-    Convert ML probabilities to implied decimal odds with a bookmaker margin.'
-'
-    VIG default (5.5%) is typical for a competitive European sportsbook.'
-    Pinnacle averages ~2-3%; high-street books ~7-10%.'
-'
-    The overround is distributed proportionally across all three outcomes'
-    so the resulting odds are internally consistent (they form a proper'
-    probability distribution after removing the margin).'
-'
-    Returns decimal odds rounded to 2 decimal places.'
-    """'
-    total = home_p + draw_p + away_p'
-    if total <= 0:'
-        home_p, draw_p, away_p = 0.34, 0.33, 0.33'
-        total = 1.0'
-'
-    hp = home_p / total'
-    dp = draw_p / total'
-    ap = away_p / total'
-'
-    # Market implied probs include the overround; fair odds are lower'
-    # market_prob = fair_prob × (1 + vig)  ⟹  odds = 1 / market_prob'
-    mvig = 1.0 + vig'
-    return {'
-        "home":   round(1.0 / (hp * mvig), 2),'
-        "draw":   round(1.0 / (dp * mvig), 2),'
-        "away":   round(1.0 / (ap * mvig), 2),'
-        "vig":    round(vig, 4),'
-        "source": "vit_scie",'
-        "overround": round(vig / (1.0 + vig), 4),'
-    }'
-'
-'
-# ── 2. Team Form Engine ───────────────────────────────────────────────────────'
-'
-async def get_team_form('
-    team: str,'
-    db,'
-    n: int = 5,'
-) -> Dict[str, Any]:'
-    """'
-    Compute a team's recent form from the Match table.'
-'
-    Queries the last N settled matches where the team appeared as home or'
-    away. Returns a form string (e.g. "WWDLL"), goal stats, and a concise'
-    one-line form summary ready for use in AI prompts.'
-    """'
-    from sqlalchemy import select, or_'
-    from app.db.models import Match'
-'
-    _empty = {'
-        "form": "—",'
-        "matches": 0, "wins": 0, "draws": 0, "losses": 0,'
-        "goals_scored": 0, "goals_conceded": 0,'
-        "avg_scored": 0.0, "avg_conceded": 0.0,'
-        "win_rate": 0.0,'
-        "form_string": "No recent data",'
-        "summary": f"{team}: no historical data available",'
-    }'
-'
-    try:'
-        rows = (await db.execute('
-            select(Match)'
-            .where('
-                Match.status == "settled",'
-                Match.actual_outcome.is_not(None),'
-                or_('
-                    Match.home_team.ilike(f"%{team}%"),'
-                    Match.away_team.ilike(f"%{team}%"),'
-                ),'
-            )'
-            .order_by(Match.kickoff_time.desc())'
-            .limit(n)'
-        )).scalars().all()'
-    except Exception as exc:'
-        logger.warning("[SCIE] team_form query failed for %s: %s", team, exc)'
-        return _empty'
-'
-    if not rows:'
-        return _empty'
-'
-    wins = draws = losses = 0'
-    goals_scored = goals_conceded = 0'
-    form_chars: List[str] = []'
-'
-    for m in reversed(rows):'
-        is_home = team.lower() in (m.home_team or "").lower()'
-        result = m.actual_outcome'
-'
-        if result == "draw":'
-            draws += 1'
-            form_chars.append("D")'
-        elif (result == "home" and is_home) or (result == "away" and not is_home):'
-            wins += 1'
-            form_chars.append("W")'
-        else:'
-            losses += 1'
-            form_chars.append("L")'
-'
-        hg = m.home_goals or 0'
-        ag = m.away_goals or 0'
-        if is_home:'
-            goals_scored    += hg'
-            goals_conceded  += ag'
-        else:'
-            goals_scored    += ag'
-            goals_conceded  += hg'
-'
-    nm = len(rows)'
-    form_str = "".join(form_chars)'
-    avg_s = round(goals_scored    / nm, 2) if nm else 0.0'
-    avg_c = round(goals_conceded  / nm, 2) if nm else 0.0'
-'
-    form_desc = {'
-        "WWWWW": "in outstanding form",'
-        "WWWW":  "in excellent form",'
-        "WWW":   "in good form",'
-        "LLL":   "in poor form",'
-        "LLLL":  "in very poor form",'
-        "LLLLL": "in dire form",'
-    }.get(form_str, f"form: {form_str}")'
-'
-    summary = ('
-        f"{team} ({form_str} — {wins}W {draws}D {losses}L, "'
-        f"avg {avg_s} scored / {avg_c} conceded)"'
-    )'
-'
-    return {'
-        "form":          form_str,'
-        "matches":       nm,'
-        "wins":          wins,'
-        "draws":         draws,'
-        "losses":        losses,'
-        "win_rate":      round(wins / nm, 2),'
-        "goals_scored":  goals_scored,'
-        "goals_conceded":goals_conceded,'
-        "avg_scored":    avg_s,'
-        "avg_conceded":  avg_c,'
-        "form_string":   form_desc,'
-        "summary":       summary,'
-    }'
-'
-'
-# ── 3. Head-to-Head ───────────────────────────────────────────────────────────'
-'
-async def get_head_to_head('
-    home_team: str,'
-    away_team: str,'
-    db,'
-    n: int = 5,'
-) -> Dict[str, Any]:'
-    """Return H2H record for this fixture from settled matches in the DB."""'
-    from sqlalchemy import select, or_, and_'
-    from app.db.models import Match'
-'
-    try:'
-        rows = (await db.execute('
-            select(Match)'
-            .where('
-                Match.status == "settled",'
-                Match.actual_outcome.is_not(None),'
-                or_('
-                    and_('
-                        Match.home_team.ilike(f"%{home_team}%"),'
-                        Match.away_team.ilike(f"%{away_team}%"),'
-                    ),'
-                    and_('
-                        Match.home_team.ilike(f"%{away_team}%"),'
-                        Match.away_team.ilike(f"%{home_team}%"),'
-                    ),'
-                )'
-            )'
-            .order_by(Match.kickoff_time.desc())'
-            .limit(n)'
-        )).scalars().all()'
-    except Exception as exc:'
-        logger.warning("[SCIE] h2h query failed: %s", exc)'
-        return {"matches": 0, "home_wins": 0, "draws": 0, "away_wins": 0}'
-'
-    home_wins = draws = away_wins = 0'
-    for m in rows:'
-        is_home_fixture = home_team.lower() in (m.home_team or "").lower()'
-        if m.actual_outcome == "draw":'
-            draws += 1'
-        elif (m.actual_outcome == "home" and is_home_fixture) or \'
-             (m.actual_outcome == "away" and not is_home_fixture):'
-            home_wins += 1'
-        else:'
-            away_wins += 1'
-'
-    return {'
-        "matches":    len(rows),'
-        "home_wins":  home_wins,'
-        "draws":      draws,'
-        "away_wins":  away_wins,'
-        "summary": ('
-            f"Last {len(rows)} H2H: {home_wins}H/{draws}D/{away_wins}A"'
-            if rows else "No H2H data"'
-        ),'
-    }'
-'
-'
-# ── 4. Full Match Context Builder ─────────────────────────────────────────────'
-'
-async def get_match_context('
-    match,'
-    prediction,'
-    db,'
-) -> Dict[str, Any]:'
-    """'
-    Build a full intelligence context for a match using only internal data.'
-'
-    Combines:'
-    - ML ensemble probabilities'
-    - VIT Synthetic Odds (computed from ML probs)'
-    - Team form (last 5 settled matches per team)'
-    - Head-to-head record'
-    - Raw prediction metadata (edge, confidence)'
-'
-    Returns a dict that can be serialised directly into an AI prompt.'
-    """'
-    home_p = float(prediction.home_prob) if prediction and prediction.home_prob else 0.34'
-    draw_p = float(prediction.draw_prob) if prediction and prediction.draw_prob else 0.33'
-    away_p = float(prediction.away_prob) if prediction and prediction.away_prob else 0.33'
-'
-    odds      = synthetic_odds(home_p, draw_p, away_p)'
-    home_form = await get_team_form(match.home_team, db)'
-    away_form = await get_team_form(match.away_team, db)'
-    h2h       = await get_head_to_head(match.home_team, match.away_team, db)'
-'
-    ko = match.kickoff_time.isoformat() if match.kickoff_time else "TBD"'
-'
-    return {'
-        "match": {'
-            "home":    match.home_team,'
-            "away":    match.away_team,'
-            "league":  match.league or "Unknown",'
-            "kickoff": ko,'
-            "match_id": match.id,'
-        },'
-        "ml_probs": {'
-            "home": round(home_p, 3),'
-            "draw": round(draw_p, 3),'
-            "away": round(away_p, 3),'
-        },'
-        "synthetic_odds":  odds,'
-        "home_form":       home_form,'
-        "away_form":       away_form,'
-        "head_to_head":    h2h,'
-        "confidence":      round(float(prediction.confidence), 3)'
-                           if prediction and prediction.confidence else None,'
-        "edge":            round(float(prediction.vig_free_edge), 4)'
-                           if prediction and prediction.vig_free_edge else None,'
-    }'
-'
-'
-# ── 5. Prompt Builder ─────────────────────────────────────────────────────────'
-'
-def build_scout_prompt(ctx: Dict[str, Any]) -> str:'
-    """'
-    Build an enriched pre-match intelligence prompt from SCIE context.'
-'
-    Replaces the generic prompt with actual form, odds, and H2H data'
-    drawn from the VIT database — no external data source required.'
-    """'
-    m    = ctx["match"]'
-    ml   = ctx["ml_probs"]'
-    odds = ctx["synthetic_odds"]'
-    hf   = ctx["home_form"]'
-    af   = ctx["away_form"]'
-    h2h  = ctx["head_to_head"]'
-    edge = ctx.get("edge")'
-    conf = ctx.get("confidence")'
-'
-    edge_line = f"  VIT Edge:      {edge*100:+.2f}%" if edge else ""'
-    conf_line  = f"  VIT Confidence: {conf*100:.0f}%" if conf else ""'
-'
-    return f"""You are an elite football scout. Write a detailed pre-match intelligence brief using the data below.'
-'
-Match: {m['home']} vs {m['away']}'
-League: {m['league'].replace('_', ' ').title()}'
-Kickoff: {m['kickoff'][:16]} UTC'
-'
-VIT ML Ensemble:'
-  Home Win: {ml['home']*100:.1f}%  |  Draw: {ml['draw']*100:.1f}%  |  Away: {ml['away']*100:.1f}%'
-  VIT Market Odds (synthetic): {m['home']} {odds['home']} | Draw {odds['draw']} | {m['away']} {odds['away']}'
-{edge_line}'
-{conf_line}'
-'
-{m['home']} Recent Form (last {hf['matches']} games):'
-  {hf['form']} — W{hf['wins']} D{hf['draws']} L{hf['losses']}'
-  Avg goals: {hf['avg_scored']} scored / {hf['avg_conceded']} conceded per game'
-'
-{m['away']} Recent Form (last {af['matches']} games):'
-  {af['form']} — W{af['wins']} D{af['draws']} L{af['losses']}'
-  Avg goals: {af['avg_scored']} scored / {af['avg_conceded']} conceded per game'
-'
-Head-to-Head (last {h2h['matches']} meetings): {h2h['summary']}'
-'
-Return ONLY a JSON object (no markdown fences, no extra text):'
-{{'
-  "headline": "one punchy line summarising the key narrative",'
-  "home_form": "3-sentence form assessment using the data above",'
-  "away_form": "3-sentence form assessment using the data above",'
-  "key_factors": ["factor 1", "factor 2", "factor 3", "factor 4"],'
-  "tactical_note": "2-sentence tactical matchup insight",'
-  "value_pick": "specific bet recommendation with brief justification (reference the VIT odds)",'
-  "risk_level": "LOW|MEDIUM|HIGH",'
-  "confidence": 0.0'
-}}"""'
-'
-'
-# ── 6. Probability Drift Detector ─────────────────────────────────────────────'
-'
-def detect_probability_drift('
-    prev_probs: Dict[int, Dict[str, float]],'
-    curr_probs: Dict[int, Dict[str, float]],'
-    threshold: float = 0.08,'
-) -> List[Dict[str, Any]]:'
-    """'
-    Detect significant shifts in ML-derived probabilities between two cycles.'
-'
-    Unlike the original odds-anomaly approach (which needed stored market odds),'
-    this operates entirely on VIT's own probability outputs. A shift ≥ threshold'
-    in any outcome suggests new information has reached the ensemble (e.g. a'
-    re-weighting event) or that market odds would likely have moved.'
-'
-    Returns a list of anomaly dicts, one per affected match.'
-    """'
-    anomalies: List[Dict[str, Any]] = []'
-'
-    for match_id, curr in curr_probs.items():'
-        prev = prev_probs.get(match_id)'
-        if not prev:'
-            continue'
-'
-        home_move  = abs(curr.get("home_p", 0) - prev.get("home_p", 0))'
-        draw_move  = abs(curr.get("draw_p", 0) - prev.get("draw_p", 0))'
-        away_move  = abs(curr.get("away_p", 0) - prev.get("away_p", 0))'
-        max_move   = max(home_move, draw_move, away_move)'
-'
-        if max_move >= threshold:'
-            prev_odds = synthetic_odds(prev["home_p"], prev["draw_p"], prev["away_p"])'
-            curr_odds = synthetic_odds(curr["home_p"], curr["draw_p"], curr["away_p"])'
-            anomalies.append({'
-                "match_id":       match_id,'
-                "home_team":      curr.get("home_team", "Home"),'
-                "away_team":      curr.get("away_team", "Away"),'
-                "home_prob_prev": round(prev["home_p"], 3),'
-                "home_prob_curr": round(curr["home_p"], 3),'
-                "away_prob_prev": round(prev["away_p"], 3),'
-                "away_prob_curr": round(curr["away_p"], 3),'
-                "max_move":       round(max_move, 4),'
-                "prev_odds":      prev_odds,'
-                "curr_odds":      curr_odds,'
-                "home_odds_prev": prev_odds["home"],'
-                "home_odds_curr": curr_odds["home"],'
-                "away_odds_prev": prev_odds["away"],'
-                "away_odds_curr": curr_odds["away"],'
-            })'
-'
-    return sorted(anomalies, key=lambda x: x["max_move"], reverse=True)'
-'
-'
-# ── 7. League Snapshot ────────────────────────────────────────────────────────'
-'
-async def build_league_snapshot(league: str, db, days_back: int = 14) -> Dict[str, Any]:'
-    """'
-    Build a league performance snapshot from recent settled matches.'
-'
-    Useful for the analytics-reporter agent to add league context without'
-    any external API calls.'
-    """'
-    from sqlalchemy import select, func'
-    from app.db.models import Match'
-'
-    now    = datetime.now(timezone.utc)'
-    cutoff = now - timedelta(days=days_back)'
-'
-    try:'
-        rows = (await db.execute('
-            select(Match)'
-            .where('
-                Match.league == league,'
-                Match.status == "settled",'
-                Match.kickoff_time >= cutoff,'
-                Match.actual_outcome.is_not(None),'
-            )'
-            .order_by(Match.kickoff_time.desc())'
-            .limit(50)'
-        )).scalars().all()'
-    except Exception as exc:'
-        logger.warning("[SCIE] league_snapshot failed for %s: %s", league, exc)'
-        return {}'
-'
-    if not rows:'
-        return {}'
-'
-    home_wins = draws = away_wins = 0'
-    total_goals = 0'
-    for m in rows:'
-        if m.actual_outcome == "home":'
-            home_wins += 1'
-        elif m.actual_outcome == "draw":'
-            draws += 1'
-        else:'
-            away_wins += 1'
-        if m.home_goals is not None and m.away_goals is not None:'
-            total_goals += (m.home_goals + m.away_goals)'
-'
-    nm = len(rows)'
-    return {'
-        "league":          league,'
-        "matches":         nm,'
-        "home_win_rate":   round(home_wins / nm, 2),'
-        "draw_rate":       round(draws    / nm, 2),'
-        "away_win_rate":   round(away_wins / nm, 2),'
-        "avg_goals":       round(total_goals / nm, 2),'
-        "period_days":     days_back,'
-    }'
+"""
+app/services/vit_intelligence.py
+
+VIT Self-Contained Intelligence Engine (SCIE)
+=============================================
+
+Generates rich match intelligence exclusively from the internal database,
+using the system's own ML predictions and historical match records.
+
+No external API keys required. Zero dependency on football-data.org or
+the-odds-api.com for core intelligence generation.
+
+Public API
+----------
+synthetic_odds(home_p, draw_p, away_p)          → decimal odds dict
+get_team_form(team, db, n=5)                     → form stats dict
+get_match_context(match, prediction, db)         → full enriched context
+detect_probability_drift(prev, curr, threshold)  → anomaly list
+build_league_snapshot(league, db)                → league-wide stats
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
+
+
+# ── 1. Synthetic Odds ─────────────────────────────────────────────────────────
+
+def synthetic_odds(
+    home_p: float,
+    draw_p: float,
+    away_p: float,
+    vig: float = 0.055,
+) -> Dict[str, Any]:
+    """
+    Convert ML probabilities to implied decimal odds with a bookmaker margin.
+
+    VIG default (5.5%) is typical for a competitive European sportsbook.
+    Pinnacle averages ~2-3%; high-street books ~7-10%.
+
+    The overround is distributed proportionally across all three outcomes
+    so the resulting odds are internally consistent (they form a proper
+    probability distribution after removing the margin).
+
+    Returns decimal odds rounded to 2 decimal places.
+    """
+    total = home_p + draw_p + away_p
+    if total <= 0:
+        home_p, draw_p, away_p = 0.34, 0.33, 0.33
+        total = 1.0
+
+    hp = home_p / total
+    dp = draw_p / total
+    ap = away_p / total
+
+    # Market implied probs include the overround; fair odds are lower
+    # market_prob = fair_prob × (1 + vig)  ⟹  odds = 1 / market_prob
+    mvig = 1.0 + vig
+    return {
+        "home":   round(1.0 / (hp * mvig), 2),
+        "draw":   round(1.0 / (dp * mvig), 2),
+        "away":   round(1.0 / (ap * mvig), 2),
+        "vig":    round(vig, 4),
+        "source": "vit_scie",
+        "overround": round(vig / (1.0 + vig), 4),
+    }
+
+
+# ── 2. Team Form Engine ───────────────────────────────────────────────────────
+
+async def get_team_form(
+    team: str,
+    db,
+    n: int = 5,
+) -> Dict[str, Any]:
+    """
+    Compute a team's recent form from the Match table.
+
+    Queries the last N settled matches where the team appeared as home or
+    away. Returns a form string (e.g. "WWDLL"), goal stats, and a concise
+    one-line form summary ready for use in AI prompts.
+    """
+    from sqlalchemy import select, or_
+    from app.db.models import Match
+
+    _empty = {
+        "form": "—",
+        "matches": 0, "wins": 0, "draws": 0, "losses": 0,
+        "goals_scored": 0, "goals_conceded": 0,
+        "avg_scored": 0.0, "avg_conceded": 0.0,
+        "win_rate": 0.0,
+        "form_string": "No recent data",
+        "summary": f"{team}: no historical data available",
+    }
+
+    try:
+        rows = (await db.execute(
+            select(Match)
+            .where(
+                Match.status == "settled",
+                Match.actual_outcome.is_not(None),
+                or_(
+                    Match.home_team.ilike(f"%{team}%"),
+                    Match.away_team.ilike(f"%{team}%"),
+                ),
+            )
+            .order_by(Match.kickoff_time.desc())
+            .limit(n)
+        )).scalars().all()
+    except Exception as exc:
+        logger.warning("[SCIE] team_form query failed for %s: %s", team, exc)
+        return _empty
+
+    if not rows:
+        return _empty
+
+    wins = draws = losses = 0
+    goals_scored = goals_conceded = 0
+    form_chars: List[str] = []
+
+    for m in reversed(rows):
+        is_home = team.lower() in (m.home_team or "").lower()
+        result = m.actual_outcome
+
+        if result == "draw":
+            draws += 1
+            form_chars.append("D")
+        elif (result == "home" and is_home) or (result == "away" and not is_home):
+            wins += 1
+            form_chars.append("W")
+        else:
+            losses += 1
+            form_chars.append("L")
+
+        hg = m.home_goals or 0
+        ag = m.away_goals or 0
+        if is_home:
+            goals_scored    += hg
+            goals_conceded  += ag
+        else:
+            goals_scored    += ag
+            goals_conceded  += hg
+
+    nm = len(rows)
+    form_str = "".join(form_chars)
+    avg_s = round(goals_scored    / nm, 2) if nm else 0.0
+    avg_c = round(goals_conceded  / nm, 2) if nm else 0.0
+
+    form_desc = {
+        "WWWWW": "in outstanding form",
+        "WWWW":  "in excellent form",
+        "WWW":   "in good form",
+        "LLL":   "in poor form",
+        "LLLL":  "in very poor form",
+        "LLLLL": "in dire form",
+    }.get(form_str, f"form: {form_str}")
+
+    summary = (
+        f"{team} ({form_str} — {wins}W {draws}D {losses}L, "
+        f"avg {avg_s} scored / {avg_c} conceded)"
+    )
+
+    return {
+        "form":          form_str,
+        "matches":       nm,
+        "wins":          wins,
+        "draws":         draws,
+        "losses":        losses,
+        "win_rate":      round(wins / nm, 2),
+        "goals_scored":  goals_scored,
+        "goals_conceded":goals_conceded,
+        "avg_scored":    avg_s,
+        "avg_conceded":  avg_c,
+        "form_string":   form_desc,
+        "summary":       summary,
+    }
+
+
+# ── 3. Head-to-Head ───────────────────────────────────────────────────────────
+
+async def get_head_to_head(
+    home_team: str,
+    away_team: str,
+    db,
+    n: int = 5,
+) -> Dict[str, Any]:
+    """Return H2H record for this fixture from settled matches in the DB."""
+    from sqlalchemy import select, or_, and_
+    from app.db.models import Match
+
+    try:
+        rows = (await db.execute(
+            select(Match)
+            .where(
+                Match.status == "settled",
+                Match.actual_outcome.is_not(None),
+                or_(
+                    and_(
+                        Match.home_team.ilike(f"%{home_team}%"),
+                        Match.away_team.ilike(f"%{away_team}%"),
+                    ),
+                    and_(
+                        Match.home_team.ilike(f"%{away_team}%"),
+                        Match.away_team.ilike(f"%{home_team}%"),
+                    ),
+                )
+            )
+            .order_by(Match.kickoff_time.desc())
+            .limit(n)
+        )).scalars().all()
+    except Exception as exc:
+        logger.warning("[SCIE] h2h query failed: %s", exc)
+        return {"matches": 0, "home_wins": 0, "draws": 0, "away_wins": 0}
+
+    home_wins = draws = away_wins = 0
+    for m in rows:
+        is_home_fixture = home_team.lower() in (m.home_team or "").lower()
+        if m.actual_outcome == "draw":
+            draws += 1
+        elif (m.actual_outcome == "home" and is_home_fixture) or \
+             (m.actual_outcome == "away" and not is_home_fixture):
+            home_wins += 1
+        else:
+            away_wins += 1
+
+    return {
+        "matches":    len(rows),
+        "home_wins":  home_wins,
+        "draws":      draws,
+        "away_wins":  away_wins,
+        "summary": (
+            f"Last {len(rows)} H2H: {home_wins}H/{draws}D/{away_wins}A"
+            if rows else "No H2H data"
+        ),
+    }
+
+
+# ── 4. Full Match Context Builder ─────────────────────────────────────────────
+
+async def get_match_context(
+    match,
+    prediction,
+    db,
+) -> Dict[str, Any]:
+    """
+    Build a full intelligence context for a match using only internal data.
+
+    Combines:
+    - ML ensemble probabilities
+    - VIT Synthetic Odds (computed from ML probs)
+    - Team form (last 5 settled matches per team)
+    - Head-to-head record
+    - Raw prediction metadata (edge, confidence)
+
+    Returns a dict that can be serialised directly into an AI prompt.
+    """
+    home_p = float(prediction.home_prob) if prediction and prediction.home_prob else 0.34
+    draw_p = float(prediction.draw_prob) if prediction and prediction.draw_prob else 0.33
+    away_p = float(prediction.away_prob) if prediction and prediction.away_prob else 0.33
+
+    odds      = synthetic_odds(home_p, draw_p, away_p)
+    home_form = await get_team_form(match.home_team, db)
+    away_form = await get_team_form(match.away_team, db)
+    h2h       = await get_head_to_head(match.home_team, match.away_team, db)
+
+    ko = match.kickoff_time.isoformat() if match.kickoff_time else "TBD"
+
+    return {
+        "match": {
+            "home":    match.home_team,
+            "away":    match.away_team,
+            "league":  match.league or "Unknown",
+            "kickoff": ko,
+            "match_id": match.id,
+        },
+        "ml_probs": {
+            "home": round(home_p, 3),
+            "draw": round(draw_p, 3),
+            "away": round(away_p, 3),
+        },
+        "synthetic_odds":  odds,
+        "home_form":       home_form,
+        "away_form":       away_form,
+        "head_to_head":    h2h,
+        "confidence":      round(float(prediction.confidence), 3)
+                           if prediction and prediction.confidence else None,
+        "edge":            round(float(prediction.vig_free_edge), 4)
+                           if prediction and prediction.vig_free_edge else None,
+    }
+
+
+# ── 5. Prompt Builder ─────────────────────────────────────────────────────────
+
+def build_scout_prompt(ctx: Dict[str, Any]) -> str:
+    """
+    Build an enriched pre-match intelligence prompt from SCIE context.
+
+    Replaces the generic prompt with actual form, odds, and H2H data
+    drawn from the VIT database — no external data source required.
+    """
+    m    = ctx["match"]
+    ml   = ctx["ml_probs"]
+    odds = ctx["synthetic_odds"]
+    hf   = ctx["home_form"]
+    af   = ctx["away_form"]
+    h2h  = ctx["head_to_head"]
+    edge = ctx.get("edge")
+    conf = ctx.get("confidence")
+
+    edge_line = f"  VIT Edge:      {edge*100:+.2f}%" if edge else ""
+    conf_line  = f"  VIT Confidence: {conf*100:.0f}%" if conf else ""
+
+    return f"""You are an elite football scout. Write a detailed pre-match intelligence brief using the data below.
+
+Match: {m['home']} vs {m['away']}
+League: {m['league'].replace('_', ' ').title()}
+Kickoff: {m['kickoff'][:16]} UTC
+
+VIT ML Ensemble:
+  Home Win: {ml['home']*100:.1f}%  |  Draw: {ml['draw']*100:.1f}%  |  Away: {ml['away']*100:.1f}%
+  VIT Market Odds (synthetic): {m['home']} {odds['home']} | Draw {odds['draw']} | {m['away']} {odds['away']}
+{edge_line}
+{conf_line}
+
+{m['home']} Recent Form (last {hf['matches']} games):
+  {hf['form']} — W{hf['wins']} D{hf['draws']} L{hf['losses']}
+  Avg goals: {hf['avg_scored']} scored / {hf['avg_conceded']} conceded per game
+
+{m['away']} Recent Form (last {af['matches']} games):
+  {af['form']} — W{af['wins']} D{af['draws']} L{af['losses']}
+  Avg goals: {af['avg_scored']} scored / {af['avg_conceded']} conceded per game
+
+Head-to-Head (last {h2h['matches']} meetings): {h2h['summary']}
+
+Return ONLY a JSON object (no markdown fences, no extra text):
+{{
+  "headline": "one punchy line summarising the key narrative",
+  "home_form": "3-sentence form assessment using the data above",
+  "away_form": "3-sentence form assessment using the data above",
+  "key_factors": ["factor 1", "factor 2", "factor 3", "factor 4"],
+  "tactical_note": "2-sentence tactical matchup insight",
+  "value_pick": "specific bet recommendation with brief justification (reference the VIT odds)",
+  "risk_level": "LOW|MEDIUM|HIGH",
+  "confidence": 0.0
+}}"""
+
+
+# ── 6. Probability Drift Detector ─────────────────────────────────────────────
+
+def detect_probability_drift(
+    prev_probs: Dict[int, Dict[str, float]],
+    curr_probs: Dict[int, Dict[str, float]],
+    threshold: float = 0.08,
+) -> List[Dict[str, Any]]:
+    """
+    Detect significant shifts in ML-derived probabilities between two cycles.
+
+    Unlike the original odds-anomaly approach (which needed stored market odds),
+    this operates entirely on VIT's own probability outputs. A shift ≥ threshold
+    in any outcome suggests new information has reached the ensemble (e.g. a
+    re-weighting event) or that market odds would likely have moved.
+
+    Returns a list of anomaly dicts, one per affected match.
+    """
+    anomalies: List[Dict[str, Any]] = []
+
+    for match_id, curr in curr_probs.items():
+        prev = prev_probs.get(match_id)
+        if not prev:
+            continue
+
+        home_move  = abs(curr.get("home_p", 0) - prev.get("home_p", 0))
+        draw_move  = abs(curr.get("draw_p", 0) - prev.get("draw_p", 0))
+        away_move  = abs(curr.get("away_p", 0) - prev.get("away_p", 0))
+        max_move   = max(home_move, draw_move, away_move)
+
+        if max_move >= threshold:
+            prev_odds = synthetic_odds(prev["home_p"], prev["draw_p"], prev["away_p"])
+            curr_odds = synthetic_odds(curr["home_p"], curr["draw_p"], curr["away_p"])
+            anomalies.append({
+                "match_id":       match_id,
+                "home_team":      curr.get("home_team", "Home"),
+                "away_team":      curr.get("away_team", "Away"),
+                "home_prob_prev": round(prev["home_p"], 3),
+                "home_prob_curr": round(curr["home_p"], 3),
+                "away_prob_prev": round(prev["away_p"], 3),
+                "away_prob_curr": round(curr["away_p"], 3),
+                "max_move":       round(max_move, 4),
+                "prev_odds":      prev_odds,
+                "curr_odds":      curr_odds,
+                "home_odds_prev": prev_odds["home"],
+                "home_odds_curr": curr_odds["home"],
+                "away_odds_prev": prev_odds["away"],
+                "away_odds_curr": curr_odds["away"],
+            })
+
+    return sorted(anomalies, key=lambda x: x["max_move"], reverse=True)
+
+
+# ── 7. League Snapshot ────────────────────────────────────────────────────────
+
+async def build_league_snapshot(league: str, db, days_back: int = 14) -> Dict[str, Any]:
+    """
+    Build a league performance snapshot from recent settled matches.
+
+    Useful for the analytics-reporter agent to add league context without
+    any external API calls.
+    """
+    from sqlalchemy import select, func
+    from app.db.models import Match
+
+    now    = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days_back)
+
+    try:
+        rows = (await db.execute(
+            select(Match)
+            .where(
+                Match.league == league,
+                Match.status == "settled",
+                Match.kickoff_time >= cutoff,
+                Match.actual_outcome.is_not(None),
+            )
+            .order_by(Match.kickoff_time.desc())
+            .limit(50)
+        )).scalars().all()
+    except Exception as exc:
+        logger.warning("[SCIE] league_snapshot failed for %s: %s", league, exc)
+        return {}
+
+    if not rows:
+        return {}
+
+    home_wins = draws = away_wins = 0
+    total_goals = 0
+    for m in rows:
+        if m.actual_outcome == "home":
+            home_wins += 1
+        elif m.actual_outcome == "draw":
+            draws += 1
+        else:
+            away_wins += 1
+        if m.home_goals is not None and m.away_goals is not None:
+            total_goals += (m.home_goals + m.away_goals)
+
+    nm = len(rows)
+    return {
+        "league":          league,
+        "matches":         nm,
+        "home_win_rate":   round(home_wins / nm, 2),
+        "draw_rate":       round(draws    / nm, 2),
+        "away_win_rate":   round(away_wins / nm, 2),
+        "avg_goals":       round(total_goals / nm, 2),
+        "period_days":     days_back,
+    }
