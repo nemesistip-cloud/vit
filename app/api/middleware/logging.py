@@ -1,36 +1,68 @@
-# app/api/middleware/logging.py
 import time
 import logging
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger("app.access")
 
+class LoggingMiddleware:
+    """Pure ASGI request/response logging middleware."""
+    def __init__(self, app: ASGIApp):
+        self.app = app
 
-class LoggingMiddleware(BaseHTTPMiddleware):
-    """Request/response logging middleware"""
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-    async def dispatch(self, request: Request, call_next):
         start_time = time.time()
-        request_id = getattr(request.state, "request_id", "unknown")
+        method = scope.get("method", "UNKNOWN")
+        path = scope.get("path", "UNKNOWN")
 
+        # We'll log the completion in a send wrapper
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status = message["status"]
+                process_time = time.time() - start_time
+
+                # Fetch request_id from scope state if set by add_request_id middleware
+                state = scope.get("state", {})
+                request_id = state.get("request_id", "unknown")
+
+                # Inject timing header
+                headers = list(message.get("headers", []))
+                headers.append((b"x-process-time", str(process_time).encode()))
+                message["headers"] = headers
+
+                logger.info(
+                    "request_completed request_id=%s status=%s duration_seconds=%.3f",
+                    request_id,
+                    status,
+                    process_time,
+                )
+            await send(message)
+
+        # Log start (request_id might not be available yet if add_request_id hasn't run,
+        # but in main.py order, add_request_id is outer)
+        request_id = scope.get("state", {}).get("request_id", "unknown")
         logger.info(
             "request_started request_id=%s method=%s path=%s",
             request_id,
-            request.method,
-            request.url.path,
+            method,
+            path,
         )
 
-        response = await call_next(request)
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception:
+            # Re-log failure if not caught by exception handlers
+            process_time = time.time() - start_time
+            request_id = scope.get("state", {}).get("request_id", "unknown")
+            logger.error(
+                "request_failed request_id=%s method=%s path=%s duration_seconds=%.3f",
+                request_id,
+                method,
+                path,
+                process_time,
+            )
+            raise
 
-        process_time = time.time() - start_time
-        response.headers["X-Process-Time"] = str(process_time)
-
-        logger.info(
-            "request_completed request_id=%s status=%s duration_seconds=%.3f",
-            request_id,
-            response.status_code,
-            process_time,
-        )
-
-        return response
