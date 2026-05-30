@@ -1,1 +1,1 @@
-# app/modules/developer — Module L: Developer Platform & SDK
+# app/modules/developer — Module L: Developer Platform & SDK'

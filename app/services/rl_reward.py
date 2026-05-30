@@ -1,313 +1,313 @@
-"""
-app/services/rl_reward.py — Phase 5: Reinforcement Learning Loop
-
-Post-settlement reward function that scores each model's predictions
-against actual outcomes and produces gradient signals for the weight
-optimizer.
-
-Architecture:
-  1. After a match settles, compute_settlement_rewards() is called.
-  2. Each model's prediction for that match receives a scalar reward.
-  3. RLRewardAccumulator stores rolling reward statistics per model.
-  4. WeightOptimizerAgent reads accumulated rewards to bias model weights.
-"""
-
-from __future__ import annotations
-
-import logging
-import math
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-
-logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Reward functions
-# ---------------------------------------------------------------------------
-
-def _brier_reward(prob: float, correct: bool) -> float:
-    """
-    Brier-score-based reward: +1 for perfect correct prediction,
-    -1 for perfectly wrong prediction.  Range: (-1, +1).
-    """
-    brier = (prob - (1.0 if correct else 0.0)) ** 2
-    return round(1.0 - 2.0 * brier, 4)
-
-
-def _log_loss_reward(prob: float, correct: bool, eps: float = 1e-7) -> float:
-    """
-    Negative log-loss reward (clipped).  Higher = better calibration.
-    Returns value in (-∞, 0], mapped to approx (-2, 0) in practice.
-    """
-    p = max(eps, min(1.0 - eps, prob))
-    ll = math.log(p) if correct else math.log(1.0 - p)
-    return round(ll, 4)
-
-
-def _clv_reward(model_prob: float, closing_market_prob: float) -> float:
-    """
-    Closing-Line Value (CLV) reward.
-    Positive when model was better-calibrated than closing market.
-    """
-    return round(model_prob - closing_market_prob, 4)
-
-
-def compute_prediction_reward(
-    model_prob:            float,
-    was_correct:           bool,
-    closing_market_prob:   Optional[float] = None,
-    confidence:            Optional[float] = None,
-    edge:                  Optional[float] = None,
-) -> Dict[str, float]:
-    """
-    Compute a composite reward for a single prediction outcome.
-
-    Returns a dict with individual component rewards and a weighted total.
-    """
-    # 1. Calibration reward (Brier-based)
-    brier_r = _brier_reward(model_prob, was_correct)
-
-    # 2. Log-loss reward
-    ll_r = _log_loss_reward(model_prob, was_correct)
-
-    # 3. CLV reward (if closing market prob available)
-    clv_r = _clv_reward(model_prob, closing_market_prob) if closing_market_prob else 0.0
-
-    # 4. Confidence-weighted bonus: reward confident correct, penalise confident wrong
-    conf_bonus = 0.0
-    if confidence is not None:
-        conf_bonus = (confidence - 0.5) * (1.0 if was_correct else -1.0)
-
-    # 5. Edge realisation: was our quoted edge actually achieved?
-    edge_bonus = 0.0
-    if edge is not None:
-        edge_bonus = edge * (1.0 if was_correct else -0.5)
-
-    # Composite (weights tuned empirically)
-    total = (
-        0.40 * brier_r
-        + 0.25 * max(-2.0, ll_r)   # clip log-loss contribution
-        + 0.20 * clv_r
-        + 0.10 * conf_bonus
-        + 0.05 * edge_bonus
-    )
-
-    return {
-        "brier_reward":      brier_r,
-        "log_loss_reward":   ll_r,
-        "clv_reward":        clv_r,
-        "confidence_bonus":  round(conf_bonus, 4),
-        "edge_bonus":        round(edge_bonus, 4),
-        "total_reward":      round(total, 4),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Accumulator (in-memory; survives agent restart via weight persistence)
-# ---------------------------------------------------------------------------
-
-class RLRewardAccumulator:
-    """
-    Stateful store that accumulates rewards per model key across settlements.
-
-    Used by WeightOptimizerAgent to produce a RL-informed weight delta.
-    """
-
-    def __init__(self, decay: float = 0.95, window: int = 200):
-        """
-        decay:  Exponential moving average decay for reward history.
-        window: Maximum reward history kept per model.
-        """
-        self._rewards:      Dict[str, List[float]] = {}
-        self._ema:          Dict[str, float]        = {}
-        self._counts:       Dict[str, int]          = {}
-        self._last_updated: Dict[str, str]          = {}
-        self._decay         = decay
-        self._window        = window
-
-    def record(self, model_key: str, reward: float) -> None:
-        """Record a reward signal for a given model."""
-        history = self._rewards.setdefault(model_key, [])
-        history.append(reward)
-        if len(history) > self._window:
-            self._rewards[model_key] = history[-self._window:]
-
-        # Update EMA
-        prev_ema = self._ema.get(model_key, 0.0)
-        self._ema[model_key] = self._decay * prev_ema + (1.0 - self._decay) * reward
-        self._counts[model_key] = self._counts.get(model_key, 0) + 1
-        self._last_updated[model_key] = datetime.now(timezone.utc).isoformat()
-
-    def get_weight_delta(self, model_key: str) -> float:
-        """
-        Return a weight adjustment signal in [-0.5, +0.5].
-
-        Positive → model has been performing well → increase weight.
-        Negative → model has been underperforming → decrease weight.
-        """
-        ema = self._ema.get(model_key, 0.0)
-        # Normalise: EMA is roughly in (-1, +1); scale to weight delta range
-        return round(max(-0.5, min(0.5, ema * 0.5)), 4)
-
-    def snapshot(self) -> Dict[str, Any]:
-        """Return a summary of all accumulated reward signals."""
-        result = {}
-        for key in self._rewards:
-            history = self._rewards[key]
-            n = len(history)
-            avg = sum(history) / n if n else 0.0
-            result[key] = {
-                "ema":          round(self._ema.get(key, 0.0), 4),
-                "avg_reward":   round(avg, 4),
-                "count":        self._counts.get(key, 0),
-                "weight_delta": self.get_weight_delta(key),
-                "last_updated": self._last_updated.get(key),
-                "recent_10":    [round(r, 4) for r in history[-10:]],
-            }
-        return result
-
-    def reset(self, model_key: str) -> None:
-        """Reset reward history for a model (e.g. after retraining)."""
-        self._rewards.pop(model_key, None)
-        self._ema.pop(model_key, None)
-        self._counts.pop(model_key, None)
-        logger.info("[rl-reward] reset accumulator for model=%s", model_key)
-
-
-# ---------------------------------------------------------------------------
-# Singleton accumulator (shared across agents)
-# ---------------------------------------------------------------------------
-
-_GLOBAL_ACCUMULATOR: Optional[RLRewardAccumulator] = None
-
-
-def get_accumulator() -> RLRewardAccumulator:
-    global _GLOBAL_ACCUMULATOR
-    if _GLOBAL_ACCUMULATOR is None:
-        _GLOBAL_ACCUMULATOR = RLRewardAccumulator()
-    return _GLOBAL_ACCUMULATOR
-
-
-# ---------------------------------------------------------------------------
-# Settlement hook — called after each match result is recorded
-# ---------------------------------------------------------------------------
-
-async def process_settlement_rewards(
-    db,
-    match_id: int,
-    home_goals: int,
-    away_goals: int,
-) -> Dict[str, Any]:
-    """
-    Compute and record RL rewards for all predictions on a settled match.
-
-    This should be called whenever a match result is finalised
-    (admin result entry, automated result feed, etc.).
-    """
-    from sqlalchemy import select, and_
-    from app.db.models import Prediction, Match
-
-    accumulator = get_accumulator()
-    processed: List[Dict] = []
-
-    # Load all predictions for this match
-    rows = (await db.execute(
-        select(
-            Prediction.id,
-            Prediction.home_prob,
-            Prediction.draw_prob,
-            Prediction.away_prob,
-            Prediction.bet_side,
-            Prediction.confidence,
-            Prediction.vig_free_edge,
-            Prediction.was_correct,
-            Prediction.model_weights,
-        ).where(
-            and_(
-                Prediction.match_id == match_id,
-                Prediction.was_correct.isnot(None),
-            )
-        )
-    )).fetchall()
-
-    # Load closing market probs
-    match_row = (await db.execute(
-        select(Match.closing_odds_home, Match.closing_odds_draw, Match.closing_odds_away)
-        .where(Match.id == match_id)
-    )).fetchone()
-
-    # Determine actual outcome
-    actual = "draw"
-    if home_goals > away_goals:
-        actual = "home"
-    elif away_goals > home_goals:
-        actual = "away"
-
-    # Closing market implied probs (vig-free approx)
-    mkt_home = mkt_draw = mkt_away = None
-    if match_row and match_row[0] and match_row[1] and match_row[2]:
-        raw_h, raw_d, raw_a = (
-            1.0 / match_row[0],
-            1.0 / match_row[1],
-            1.0 / match_row[2],
-        )
-        total = raw_h + raw_d + raw_a
-        if total > 0:
-            mkt_home = raw_h / total
-            mkt_draw = raw_d / total
-            mkt_away = raw_a / total
-
-    cols = [
-        "id", "home_prob", "draw_prob", "away_prob",
-        "bet_side", "confidence", "vig_free_edge",
-        "was_correct", "model_weights",
-    ]
-
-    for r in rows:
-        d = dict(zip(cols, r))
-        bet_side = d.get("bet_side") or actual
-        prob = {
-            "home": d.get("home_prob") or 0.33,
-            "draw": d.get("draw_prob") or 0.33,
-            "away": d.get("away_prob") or 0.33,
-        }.get(bet_side, 0.33)
-
-        mkt_prob = {
-            "home": mkt_home,
-            "draw": mkt_draw,
-            "away": mkt_away,
-        }.get(bet_side)
-
-        reward_dict = compute_prediction_reward(
-            model_prob=prob,
-            was_correct=bool(d.get("was_correct")),
-            closing_market_prob=mkt_prob,
-            confidence=d.get("confidence"),
-            edge=d.get("vig_free_edge"),
-        )
-
-        # Record per-model reward from model_weights breakdown
-        model_wts = d.get("model_weights") or {}
-        if isinstance(model_wts, dict):
-            for model_key in model_wts:
-                accumulator.record(model_key, reward_dict["total_reward"])
-        else:
-            # Fallback: record under generic key
-            accumulator.record("ensemble", reward_dict["total_reward"])
-
-        processed.append({
-            "prediction_id": d["id"],
-            "reward":        reward_dict["total_reward"],
-        })
-
-    logger.info(
-        "[rl-reward] processed %d predictions for match=%d  outcome=%s",
-        len(processed), match_id, actual,
-    )
-    return {
-        "match_id":    match_id,
-        "outcome":     actual,
-        "predictions": processed,
-        "accumulator": accumulator.snapshot(),
-    }
+"""'
+app/services/rl_reward.py — Phase 5: Reinforcement Learning Loop'
+'
+Post-settlement reward function that scores each model's predictions'
+against actual outcomes and produces gradient signals for the weight'
+optimizer.'
+'
+Architecture:'
+  1. After a match settles, compute_settlement_rewards() is called.'
+  2. Each model's prediction for that match receives a scalar reward.'
+  3. RLRewardAccumulator stores rolling reward statistics per model.'
+  4. WeightOptimizerAgent reads accumulated rewards to bias model weights.'
+"""'
+'
+from __future__ import annotations'
+'
+import logging'
+import math'
+from datetime import datetime, timezone'
+from typing import Any, Dict, List, Optional'
+'
+logger = logging.getLogger(__name__)'
+'
+'
+# ---------------------------------------------------------------------------'
+# Reward functions'
+# ---------------------------------------------------------------------------'
+'
+def _brier_reward(prob: float, correct: bool) -> float:'
+    """'
+    Brier-score-based reward: +1 for perfect correct prediction,'
+    -1 for perfectly wrong prediction.  Range: (-1, +1).'
+    """'
+    brier = (prob - (1.0 if correct else 0.0)) ** 2'
+    return round(1.0 - 2.0 * brier, 4)'
+'
+'
+def _log_loss_reward(prob: float, correct: bool, eps: float = 1e-7) -> float:'
+    """'
+    Negative log-loss reward (clipped).  Higher = better calibration.'
+    Returns value in (-∞, 0], mapped to approx (-2, 0) in practice.'
+    """'
+    p = max(eps, min(1.0 - eps, prob))'
+    ll = math.log(p) if correct else math.log(1.0 - p)'
+    return round(ll, 4)'
+'
+'
+def _clv_reward(model_prob: float, closing_market_prob: float) -> float:'
+    """'
+    Closing-Line Value (CLV) reward.'
+    Positive when model was better-calibrated than closing market.'
+    """'
+    return round(model_prob - closing_market_prob, 4)'
+'
+'
+def compute_prediction_reward('
+    model_prob:            float,'
+    was_correct:           bool,'
+    closing_market_prob:   Optional[float] = None,'
+    confidence:            Optional[float] = None,'
+    edge:                  Optional[float] = None,'
+) -> Dict[str, float]:'
+    """'
+    Compute a composite reward for a single prediction outcome.'
+'
+    Returns a dict with individual component rewards and a weighted total.'
+    """'
+    # 1. Calibration reward (Brier-based)'
+    brier_r = _brier_reward(model_prob, was_correct)'
+'
+    # 2. Log-loss reward'
+    ll_r = _log_loss_reward(model_prob, was_correct)'
+'
+    # 3. CLV reward (if closing market prob available)'
+    clv_r = _clv_reward(model_prob, closing_market_prob) if closing_market_prob else 0.0'
+'
+    # 4. Confidence-weighted bonus: reward confident correct, penalise confident wrong'
+    conf_bonus = 0.0'
+    if confidence is not None:'
+        conf_bonus = (confidence - 0.5) * (1.0 if was_correct else -1.0)'
+'
+    # 5. Edge realisation: was our quoted edge actually achieved?'
+    edge_bonus = 0.0'
+    if edge is not None:'
+        edge_bonus = edge * (1.0 if was_correct else -0.5)'
+'
+    # Composite (weights tuned empirically)'
+    total = ('
+        0.40 * brier_r'
+        + 0.25 * max(-2.0, ll_r)   # clip log-loss contribution'
+        + 0.20 * clv_r'
+        + 0.10 * conf_bonus'
+        + 0.05 * edge_bonus'
+    )'
+'
+    return {'
+        "brier_reward":      brier_r,'
+        "log_loss_reward":   ll_r,'
+        "clv_reward":        clv_r,'
+        "confidence_bonus":  round(conf_bonus, 4),'
+        "edge_bonus":        round(edge_bonus, 4),'
+        "total_reward":      round(total, 4),'
+    }'
+'
+'
+# ---------------------------------------------------------------------------'
+# Accumulator (in-memory; survives agent restart via weight persistence)'
+# ---------------------------------------------------------------------------'
+'
+class RLRewardAccumulator:'
+    """'
+    Stateful store that accumulates rewards per model key across settlements.'
+'
+    Used by WeightOptimizerAgent to produce a RL-informed weight delta.'
+    """'
+'
+    def __init__(self, decay: float = 0.95, window: int = 200):'
+        """'
+        decay:  Exponential moving average decay for reward history.'
+        window: Maximum reward history kept per model.'
+        """'
+        self._rewards:      Dict[str, List[float]] = {}'
+        self._ema:          Dict[str, float]        = {}'
+        self._counts:       Dict[str, int]          = {}'
+        self._last_updated: Dict[str, str]          = {}'
+        self._decay         = decay'
+        self._window        = window'
+'
+    def record(self, model_key: str, reward: float) -> None:'
+        """Record a reward signal for a given model."""'
+        history = self._rewards.setdefault(model_key, [])'
+        history.append(reward)'
+        if len(history) > self._window:'
+            self._rewards[model_key] = history[-self._window:]'
+'
+        # Update EMA'
+        prev_ema = self._ema.get(model_key, 0.0)'
+        self._ema[model_key] = self._decay * prev_ema + (1.0 - self._decay) * reward'
+        self._counts[model_key] = self._counts.get(model_key, 0) + 1'
+        self._last_updated[model_key] = datetime.now(timezone.utc).isoformat()'
+'
+    def get_weight_delta(self, model_key: str) -> float:'
+        """'
+        Return a weight adjustment signal in [-0.5, +0.5].'
+'
+        Positive → model has been performing well → increase weight.'
+        Negative → model has been underperforming → decrease weight.'
+        """'
+        ema = self._ema.get(model_key, 0.0)'
+        # Normalise: EMA is roughly in (-1, +1); scale to weight delta range'
+        return round(max(-0.5, min(0.5, ema * 0.5)), 4)'
+'
+    def snapshot(self) -> Dict[str, Any]:'
+        """Return a summary of all accumulated reward signals."""'
+        result = {}'
+        for key in self._rewards:'
+            history = self._rewards[key]'
+            n = len(history)'
+            avg = sum(history) / n if n else 0.0'
+            result[key] = {'
+                "ema":          round(self._ema.get(key, 0.0), 4),'
+                "avg_reward":   round(avg, 4),'
+                "count":        self._counts.get(key, 0),'
+                "weight_delta": self.get_weight_delta(key),'
+                "last_updated": self._last_updated.get(key),'
+                "recent_10":    [round(r, 4) for r in history[-10:]],'
+            }'
+        return result'
+'
+    def reset(self, model_key: str) -> None:'
+        """Reset reward history for a model (e.g. after retraining)."""'
+        self._rewards.pop(model_key, None)'
+        self._ema.pop(model_key, None)'
+        self._counts.pop(model_key, None)'
+        logger.info("[rl-reward] reset accumulator for model=%s", model_key)'
+'
+'
+# ---------------------------------------------------------------------------'
+# Singleton accumulator (shared across agents)'
+# ---------------------------------------------------------------------------'
+'
+_GLOBAL_ACCUMULATOR: Optional[RLRewardAccumulator] = None'
+'
+'
+def get_accumulator() -> RLRewardAccumulator:'
+    global _GLOBAL_ACCUMULATOR'
+    if _GLOBAL_ACCUMULATOR is None:'
+        _GLOBAL_ACCUMULATOR = RLRewardAccumulator()'
+    return _GLOBAL_ACCUMULATOR'
+'
+'
+# ---------------------------------------------------------------------------'
+# Settlement hook — called after each match result is recorded'
+# ---------------------------------------------------------------------------'
+'
+async def process_settlement_rewards('
+    db,'
+    match_id: int,'
+    home_goals: int,'
+    away_goals: int,'
+) -> Dict[str, Any]:'
+    """'
+    Compute and record RL rewards for all predictions on a settled match.'
+'
+    This should be called whenever a match result is finalised'
+    (admin result entry, automated result feed, etc.).'
+    """'
+    from sqlalchemy import select, and_'
+    from app.db.models import Prediction, Match'
+'
+    accumulator = get_accumulator()'
+    processed: List[Dict] = []'
+'
+    # Load all predictions for this match'
+    rows = (await db.execute('
+        select('
+            Prediction.id,'
+            Prediction.home_prob,'
+            Prediction.draw_prob,'
+            Prediction.away_prob,'
+            Prediction.bet_side,'
+            Prediction.confidence,'
+            Prediction.vig_free_edge,'
+            Prediction.was_correct,'
+            Prediction.model_weights,'
+        ).where('
+            and_('
+                Prediction.match_id == match_id,'
+                Prediction.was_correct.isnot(None),'
+            )'
+        )'
+    )).fetchall()'
+'
+    # Load closing market probs'
+    match_row = (await db.execute('
+        select(Match.closing_odds_home, Match.closing_odds_draw, Match.closing_odds_away)'
+        .where(Match.id == match_id)'
+    )).fetchone()'
+'
+    # Determine actual outcome'
+    actual = "draw"'
+    if home_goals > away_goals:'
+        actual = "home"'
+    elif away_goals > home_goals:'
+        actual = "away"'
+'
+    # Closing market implied probs (vig-free approx)'
+    mkt_home = mkt_draw = mkt_away = None'
+    if match_row and match_row[0] and match_row[1] and match_row[2]:'
+        raw_h, raw_d, raw_a = ('
+            1.0 / match_row[0],'
+            1.0 / match_row[1],'
+            1.0 / match_row[2],'
+        )'
+        total = raw_h + raw_d + raw_a'
+        if total > 0:'
+            mkt_home = raw_h / total'
+            mkt_draw = raw_d / total'
+            mkt_away = raw_a / total'
+'
+    cols = ['
+        "id", "home_prob", "draw_prob", "away_prob",'
+        "bet_side", "confidence", "vig_free_edge",'
+        "was_correct", "model_weights",'
+    ]'
+'
+    for r in rows:'
+        d = dict(zip(cols, r))'
+        bet_side = d.get("bet_side") or actual'
+        prob = {'
+            "home": d.get("home_prob") or 0.33,'
+            "draw": d.get("draw_prob") or 0.33,'
+            "away": d.get("away_prob") or 0.33,'
+        }.get(bet_side, 0.33)'
+'
+        mkt_prob = {'
+            "home": mkt_home,'
+            "draw": mkt_draw,'
+            "away": mkt_away,'
+        }.get(bet_side)'
+'
+        reward_dict = compute_prediction_reward('
+            model_prob=prob,'
+            was_correct=bool(d.get("was_correct")),'
+            closing_market_prob=mkt_prob,'
+            confidence=d.get("confidence"),'
+            edge=d.get("vig_free_edge"),'
+        )'
+'
+        # Record per-model reward from model_weights breakdown'
+        model_wts = d.get("model_weights") or {}'
+        if isinstance(model_wts, dict):'
+            for model_key in model_wts:'
+                accumulator.record(model_key, reward_dict["total_reward"])'
+        else:'
+            # Fallback: record under generic key'
+            accumulator.record("ensemble", reward_dict["total_reward"])'
+'
+        processed.append({'
+            "prediction_id": d["id"],'
+            "reward":        reward_dict["total_reward"],'
+        })'
+'
+    logger.info('
+        "[rl-reward] processed %d predictions for match=%d  outcome=%s",'
+        len(processed), match_id, actual,'
+    )'
+    return {'
+        "match_id":    match_id,'
+        "outcome":     actual,'
+        "predictions": processed,'
+        "accumulator": accumulator.snapshot(),'
+    }'

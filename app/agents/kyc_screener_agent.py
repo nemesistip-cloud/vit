@@ -1,129 +1,129 @@
-"""app/agents/kyc_screener_agent.py  — KYC Auto-Screener (offline rule engine)
-
-Runs every 10 minutes. Processes KYCSubmission records that are still in
-PENDING status by running them through the offline rule-based verification
-engine (no external API keys required).
-
-Decision logic is fully delegated to app.modules.kyc.service.verify_offline.
-"""
-
-from __future__ import annotations
-
-import asyncio
-import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List
-
-from app.agents.base import BaseAgent
-
-logger = logging.getLogger(__name__)
-
-MAX_PER_CYCLE = 20
-KYC_VALIDITY_DAYS = 365 * 2
-
-
-class KYCScreenerAgent(BaseAgent):
-    def __init__(self) -> None:
-        super().__init__(
-            name="kyc-screener",
-            interval_seconds=10 * 60,
-            initial_delay_seconds=30,
-        )
-
-    async def run_cycle(self) -> Dict[str, Any]:
-        from app.db.database import AsyncSessionLocal
-        from app.modules.kyc.models import KYCSubmission, KYCStatus, KYCAuditEvent
-        from app.modules.kyc.service import verify_offline
-        from sqlalchemy import select
-
-        approved = rejected = escalated = 0
-        processed_ids: List[int] = []
-
-        async with AsyncSessionLocal() as db:
-            res = await db.execute(
-                select(KYCSubmission)
-                .where(KYCSubmission.status == KYCStatus.PENDING)
-                .limit(MAX_PER_CYCLE)
-            )
-            submissions = res.scalars().all()
-
-            for sub in submissions:
-                payload = {
-                    "full_name":       sub.full_name,
-                    "date_of_birth":   sub.date_of_birth,
-                    "document_type":   sub.document_type,
-                    "document_number": sub.document_number,
-                    "nationality":     sub.nationality,
-                }
-                result = verify_offline(payload)
-                now = datetime.now(timezone.utc)
-                prev_status = sub.status.value
-                new_status: KYCStatus = result["status"]
-
-                sub.status      = new_status
-                sub.risk_score  = result["risk_score"]
-                sub.risk_level  = result["risk_level"]
-                sub.rule_checks = result["rule_checks"]
-                sub.risk_flags  = result["risk_flags"]
-
-                if new_status == KYCStatus.AUTO_APPROVED:
-                    sub.approved_at = now
-                    sub.expires_at  = now + timedelta(days=KYC_VALIDITY_DAYS)
-                    approved += 1
-                    # Sync legacy User fields
-                    try:
-                        from app.db.models import User
-                        from app.modules.wallet.models import Wallet
-                        usr = (await db.execute(select(User).where(User.id == sub.user_id))).scalar_one_or_none()
-                        if usr and hasattr(usr, "kyc_status"):
-                            usr.kyc_status = "approved"
-                        wlt = (await db.execute(select(Wallet).where(Wallet.user_id == sub.user_id))).scalar_one_or_none()
-                        if wlt and hasattr(wlt, "kyc_verified"):
-                            wlt.kyc_verified = True
-                    except Exception as exc:
-                        logger.debug("[kyc-screener] legacy sync failed: %s", exc)
-                    logger.info("[kyc-screener] AUTO-APPROVED sub=%d user=%d score=%d",
-                                sub.id, sub.user_id, result["risk_score"])
-
-                elif new_status == KYCStatus.REJECTED:
-                    rejected += 1
-                    try:
-                        from app.db.models import User
-                        usr = (await db.execute(select(User).where(User.id == sub.user_id))).scalar_one_or_none()
-                        if usr and hasattr(usr, "kyc_status"):
-                            usr.kyc_status = "rejected"
-                    except Exception:
-                        pass
-                    logger.info("[kyc-screener] AUTO-REJECTED sub=%d user=%d flags=%s",
-                                sub.id, sub.user_id, result["risk_flags"])
-
-                else:  # MANUAL_REVIEW
-                    escalated += 1
-                    logger.info("[kyc-screener] MANUAL_REVIEW sub=%d user=%d score=%d",
-                                sub.id, sub.user_id, result["risk_score"])
-
-                # Write audit event
-                db.add(KYCAuditEvent(
-                    submission_id = sub.id,
-                    user_id       = sub.user_id,
-                    event_type    = "screener_processed",
-                    from_status   = prev_status,
-                    to_status     = new_status.value,
-                    note          = f"offline rule engine — risk_score={result['risk_score']}",
-                    event_data    = {"rule_checks": result["rule_checks"]},
-                ))
-
-                processed_ids.append(sub.id)
-                await asyncio.sleep(0.1)
-
-            if processed_ids:
-                await db.commit()
-
-        result_summary = {
-            "processed": len(processed_ids),
-            "approved":  approved,
-            "rejected":  rejected,
-            "escalated": escalated,
-        }
-        logger.info("[kyc-screener] cycle: %s", result_summary)
-        return result_summary
+"""app/agents/kyc_screener_agent.py  — KYC Auto-Screener (offline rule engine)'
+'
+Runs every 10 minutes. Processes KYCSubmission records that are still in'
+PENDING status by running them through the offline rule-based verification'
+engine (no external API keys required).'
+'
+Decision logic is fully delegated to app.modules.kyc.service.verify_offline.'
+"""'
+'
+from __future__ import annotations'
+'
+import asyncio'
+import logging'
+from datetime import datetime, timezone, timedelta'
+from typing import Any, Dict, List'
+'
+from app.agents.base import BaseAgent'
+'
+logger = logging.getLogger(__name__)'
+'
+MAX_PER_CYCLE = 20'
+KYC_VALIDITY_DAYS = 365 * 2'
+'
+'
+class KYCScreenerAgent(BaseAgent):'
+    def __init__(self) -> None:'
+        super().__init__('
+            name="kyc-screener",'
+            interval_seconds=10 * 60,'
+            initial_delay_seconds=30,'
+        )'
+'
+    async def run_cycle(self) -> Dict[str, Any]:'
+        from app.db.database import AsyncSessionLocal'
+        from app.modules.kyc.models import KYCSubmission, KYCStatus, KYCAuditEvent'
+        from app.modules.kyc.service import verify_offline'
+        from sqlalchemy import select'
+'
+        approved = rejected = escalated = 0'
+        processed_ids: List[int] = []'
+'
+        async with AsyncSessionLocal() as db:'
+            res = await db.execute('
+                select(KYCSubmission)'
+                .where(KYCSubmission.status == KYCStatus.PENDING)'
+                .limit(MAX_PER_CYCLE)'
+            )'
+            submissions = res.scalars().all()'
+'
+            for sub in submissions:'
+                payload = {'
+                    "full_name":       sub.full_name,'
+                    "date_of_birth":   sub.date_of_birth,'
+                    "document_type":   sub.document_type,'
+                    "document_number": sub.document_number,'
+                    "nationality":     sub.nationality,'
+                }'
+                result = verify_offline(payload)'
+                now = datetime.now(timezone.utc)'
+                prev_status = sub.status.value'
+                new_status: KYCStatus = result["status"]'
+'
+                sub.status      = new_status'
+                sub.risk_score  = result["risk_score"]'
+                sub.risk_level  = result["risk_level"]'
+                sub.rule_checks = result["rule_checks"]'
+                sub.risk_flags  = result["risk_flags"]'
+'
+                if new_status == KYCStatus.AUTO_APPROVED:'
+                    sub.approved_at = now'
+                    sub.expires_at  = now + timedelta(days=KYC_VALIDITY_DAYS)'
+                    approved += 1'
+                    # Sync legacy User fields'
+                    try:'
+                        from app.db.models import User'
+                        from app.modules.wallet.models import Wallet'
+                        usr = (await db.execute(select(User).where(User.id == sub.user_id))).scalar_one_or_none()'
+                        if usr and hasattr(usr, "kyc_status"):'
+                            usr.kyc_status = "approved"'
+                        wlt = (await db.execute(select(Wallet).where(Wallet.user_id == sub.user_id))).scalar_one_or_none()'
+                        if wlt and hasattr(wlt, "kyc_verified"):'
+                            wlt.kyc_verified = True'
+                    except Exception as exc:'
+                        logger.debug("[kyc-screener] legacy sync failed: %s", exc)'
+                    logger.info("[kyc-screener] AUTO-APPROVED sub=%d user=%d score=%d",'
+                                sub.id, sub.user_id, result["risk_score"])'
+'
+                elif new_status == KYCStatus.REJECTED:'
+                    rejected += 1'
+                    try:'
+                        from app.db.models import User'
+                        usr = (await db.execute(select(User).where(User.id == sub.user_id))).scalar_one_or_none()'
+                        if usr and hasattr(usr, "kyc_status"):'
+                            usr.kyc_status = "rejected"'
+                    except Exception:'
+                        pass'
+                    logger.info("[kyc-screener] AUTO-REJECTED sub=%d user=%d flags=%s",'
+                                sub.id, sub.user_id, result["risk_flags"])'
+'
+                else:  # MANUAL_REVIEW'
+                    escalated += 1'
+                    logger.info("[kyc-screener] MANUAL_REVIEW sub=%d user=%d score=%d",'
+                                sub.id, sub.user_id, result["risk_score"])'
+'
+                # Write audit event'
+                db.add(KYCAuditEvent('
+                    submission_id = sub.id,'
+                    user_id       = sub.user_id,'
+                    event_type    = "screener_processed",'
+                    from_status   = prev_status,'
+                    to_status     = new_status.value,'
+                    note          = f"offline rule engine — risk_score={result['risk_score']}",'
+                    event_data    = {"rule_checks": result["rule_checks"]},'
+                ))'
+'
+                processed_ids.append(sub.id)'
+                await asyncio.sleep(0.1)'
+'
+            if processed_ids:'
+                await db.commit()'
+'
+        result_summary = {'
+            "processed": len(processed_ids),'
+            "approved":  approved,'
+            "rejected":  rejected,'
+            "escalated": escalated,'
+        }'
+        logger.info("[kyc-screener] cycle: %s", result_summary)'
+        return result_summary'

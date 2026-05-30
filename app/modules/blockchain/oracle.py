@@ -1,252 +1,252 @@
-"""Oracle system — Module C5.
-
-Receives match results from external oracle sources, requires 2-of-3
-agreement before triggering settlement. Disputes are flagged for admin.
-"""
-
-import logging
-from datetime import datetime, timezone
-from typing import Optional
-
-from app.config import ORACLE_API_KEY
-from sqlalchemy import select as _select
-from app.modules.wallet.models import PlatformSecret
-
-from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.api.deps import get_current_admin
-from app.db.database import get_db
-from app.modules.blockchain.models import OracleResult, ConsensusPrediction, ConsensusStatus
-from app.modules.blockchain.settlement import settle_match
-
-router = APIRouter(tags=["Oracle"])
-logger = logging.getLogger(__name__)
-
-_MIN_AGREEMENT = 2
-_MAX_SOURCES = 3
-
-
-@router.get("/api/oracle/stats")
-async def oracle_stats(db: AsyncSession = Depends(get_db)):
-    """Public: oracle network statistics snapshot."""
-    total_res = await db.execute(select(func.count(OracleResult.id)))
-    total = total_res.scalar() or 0
-
-    accepted_res = await db.execute(
-        select(func.count(OracleResult.id)).where(OracleResult.is_accepted == True)
-    )
-    accepted = accepted_res.scalar() or 0
-
-    dispute_res = await db.execute(
-        select(func.count(OracleResult.id)).where(OracleResult.dispute_flag == True)
-    )
-    disputed = dispute_res.scalar() or 0
-
-    # Load recent results and build source stats in-memory
-    all_results_res = await db.execute(
-        select(OracleResult).order_by(OracleResult.submitted_at.desc()).limit(200)
-    )
-    all_results = all_results_res.scalars().all()
-
-    # Build source stats from recent results
-    source_map: dict[str, dict] = {}
-    for r in all_results:
-        if r.source not in source_map:
-            source_map[r.source] = {"source": r.source, "count": 0, "accepted": 0}
-        source_map[r.source]["count"] += 1
-        if r.is_accepted:
-            source_map[r.source]["accepted"] += 1
-
-    # Count settled matches
-    from app.modules.blockchain.models import MatchSettlement
-    settlements_res = await db.execute(select(func.count(MatchSettlement.id)))
-    settlements = settlements_res.scalar() or 0
-
-    consensus_rate = round((accepted / max(total, 1)) * 100, 1)
-
-    recent = [
-        {
-            "id": r.id,
-            "match_id": r.match_id,
-            "source": r.source,
-            "result": r.result,
-            "is_accepted": r.is_accepted,
-            "dispute_flag": r.dispute_flag,
-            "submitted_at": r.submitted_at.isoformat(),
-        }
-        for r in all_results[:20]
-    ]
-
-    return {
-        "total_submissions": total,
-        "accepted_submissions": accepted,
-        "disputed_submissions": disputed,
-        "pending_submissions": max(0, total - accepted - disputed),
-        "settlements_triggered": settlements,
-        "consensus_rate_pct": consensus_rate,
-        "sources": list(source_map.values()),
-        "recent": recent,
-        "snapshot_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-async def _require_oracle_key(x_oracle_key: str = Header(...), db: AsyncSession = Depends(get_db)):
-    # Prefer environment-configured key, but allow an admin-set key in PlatformConfig
-    configured = ORACLE_API_KEY
-    if not configured:
-        # Check encrypted PlatformSecret table (admin-set keys persisted here)
-        row = (await db.execute(_select(PlatformSecret).where(PlatformSecret.key == "ORACLE_API_KEY"))).scalar_one_or_none()
-        if row and row.encrypted_value:
-            try:
-                from app.services.secrets_manager import decrypt_secret
-                configured = decrypt_secret(row.encrypted_value)
-            except Exception:
-                configured = None
-    if not configured or x_oracle_key != configured:
-        raise HTTPException(403, "Invalid oracle API key")
-
-
-class OracleResultBody(BaseModel):
-    match_id: str
-    source: str
-    home_score: int
-    away_score: int
-
-
-@router.post("/api/oracle/result")
-async def submit_oracle_result(
-    body: OracleResultBody,
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(_require_oracle_key),
-):
-    """Internal endpoint — oracle providers submit confirmed match results."""
-    outcome = "home" if body.home_score > body.away_score else (
-        "draw" if body.home_score == body.away_score else "away"
-    )
-
-    existing = await db.execute(
-        select(OracleResult).where(
-            OracleResult.match_id == body.match_id,
-            OracleResult.source == body.source,
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(409, f"Oracle {body.source} already submitted result for {body.match_id}")
-
-    oracle_rec = OracleResult(
-        match_id=body.match_id,
-        source=body.source,
-        home_score=body.home_score,
-        away_score=body.away_score,
-        result=outcome,
-        submitted_at=datetime.now(timezone.utc),
-    )
-    db.add(oracle_rec)
-    await db.flush()
-
-    all_results_res = await db.execute(
-        select(OracleResult).where(OracleResult.match_id == body.match_id)
-    )
-    all_results = all_results_res.scalars().all()
-
-    outcome_counts: dict[str, int] = {}
-    for r in all_results:
-        outcome_counts[r.result] = outcome_counts.get(r.result, 0) + 1
-
-    agreed_outcome: Optional[str] = None
-    for outcome_val, count in outcome_counts.items():
-        if count >= _MIN_AGREEMENT:
-            agreed_outcome = outcome_val
-            break
-
-    response: dict = {"status": "received", "source": body.source, "result": outcome}
-
-    if agreed_outcome:
-        for r in all_results:
-            r.is_accepted = r.result == agreed_outcome
-        await db.flush()
-
-        cp_res = await db.execute(
-            select(ConsensusPrediction).where(ConsensusPrediction.match_id == body.match_id)
-        )
-        cp = cp_res.scalar_one_or_none()
-        if cp and cp.status not in (ConsensusStatus.SETTLED.value, ConsensusStatus.VOIDED.value):
-            try:
-                await settle_match(body.match_id, agreed_outcome, db)
-            except Exception as exc:
-                logger.error(f"Settlement failed for {body.match_id}: {exc}")
-
-        response["consensus"] = agreed_outcome
-        response["status"] = "settled"
-
-    elif len(all_results) >= _MAX_SOURCES:
-        for r in all_results:
-            r.dispute_flag = True
-        logger.warning(f"Dispute flagged for match {body.match_id}: {outcome_counts}")
-        response["status"] = "dispute_flagged"
-
-    await db.commit()
-    return response
-
-
-@router.get("/api/admin/oracle/disputes")
-async def list_disputes(
-    db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_admin),
-):
-    """Admin: list all disputed oracle results."""
-    result = await db.execute(
-        select(OracleResult).where(OracleResult.dispute_flag == True)
-        .order_by(OracleResult.submitted_at.desc())
-    )
-    rows = result.scalars().all()
-    disputes: dict[str, list] = {}
-    for r in rows:
-        disputes.setdefault(r.match_id, []).append({
-            "source": r.source,
-            "home_score": r.home_score,
-            "away_score": r.away_score,
-            "result": r.result,
-            "submitted_at": r.submitted_at.isoformat(),
-        })
-    return {"disputes": disputes, "total_matches": len(disputes)}
-
-
-class ResolveDisputeBody(BaseModel):
-    result: str
-
-
-@router.post("/api/admin/oracle/resolve/{match_id}")
-async def resolve_dispute(
-    match_id: str,
-    body: ResolveDisputeBody,
-    db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_admin),
-):
-    """Admin: manually resolve a disputed match result and trigger settlement."""
-    if body.result not in ("home", "draw", "away"):
-        raise HTTPException(400, "result must be 'home', 'draw', or 'away'")
-
-    result = await db.execute(
-        select(OracleResult).where(OracleResult.match_id == match_id)
-    )
-    records = result.scalars().all()
-    if not records:
-        raise HTTPException(404, "No oracle results found for this match")
-
-    for r in records:
-        r.dispute_flag = False
-        r.is_accepted = r.result == body.result
-
-    cp_res = await db.execute(
-        select(ConsensusPrediction).where(ConsensusPrediction.match_id == match_id)
-    )
-    cp = cp_res.scalar_one_or_none()
-    if cp and cp.status not in (ConsensusStatus.SETTLED.value, ConsensusStatus.VOIDED.value):
-        await settle_match(match_id, body.result, db)
-
-    await db.commit()
-    return {"status": "resolved", "match_id": match_id, "result": body.result}
+"""Oracle system — Module C5.'
+'
+Receives match results from external oracle sources, requires 2-of-3'
+agreement before triggering settlement. Disputes are flagged for admin.'
+"""'
+'
+import logging'
+from datetime import datetime, timezone'
+from typing import Optional'
+'
+from app.config import ORACLE_API_KEY'
+from sqlalchemy import select as _select'
+from app.modules.wallet.models import PlatformSecret'
+'
+from fastapi import APIRouter, Depends, Header, HTTPException'
+from pydantic import BaseModel'
+from sqlalchemy import select, func'
+from sqlalchemy.ext.asyncio import AsyncSession'
+'
+from app.api.deps import get_current_admin'
+from app.db.database import get_db'
+from app.modules.blockchain.models import OracleResult, ConsensusPrediction, ConsensusStatus'
+from app.modules.blockchain.settlement import settle_match'
+'
+router = APIRouter(tags=["Oracle"])'
+logger = logging.getLogger(__name__)'
+'
+_MIN_AGREEMENT = 2'
+_MAX_SOURCES = 3'
+'
+'
+@router.get("/api/oracle/stats")'
+async def oracle_stats(db: AsyncSession = Depends(get_db)):'
+    """Public: oracle network statistics snapshot."""'
+    total_res = await db.execute(select(func.count(OracleResult.id)))'
+    total = total_res.scalar() or 0'
+'
+    accepted_res = await db.execute('
+        select(func.count(OracleResult.id)).where(OracleResult.is_accepted == True)'
+    )'
+    accepted = accepted_res.scalar() or 0'
+'
+    dispute_res = await db.execute('
+        select(func.count(OracleResult.id)).where(OracleResult.dispute_flag == True)'
+    )'
+    disputed = dispute_res.scalar() or 0'
+'
+    # Load recent results and build source stats in-memory'
+    all_results_res = await db.execute('
+        select(OracleResult).order_by(OracleResult.submitted_at.desc()).limit(200)'
+    )'
+    all_results = all_results_res.scalars().all()'
+'
+    # Build source stats from recent results'
+    source_map: dict[str, dict] = {}'
+    for r in all_results:'
+        if r.source not in source_map:'
+            source_map[r.source] = {"source": r.source, "count": 0, "accepted": 0}'
+        source_map[r.source]["count"] += 1'
+        if r.is_accepted:'
+            source_map[r.source]["accepted"] += 1'
+'
+    # Count settled matches'
+    from app.modules.blockchain.models import MatchSettlement'
+    settlements_res = await db.execute(select(func.count(MatchSettlement.id)))'
+    settlements = settlements_res.scalar() or 0'
+'
+    consensus_rate = round((accepted / max(total, 1)) * 100, 1)'
+'
+    recent = ['
+        {'
+            "id": r.id,'
+            "match_id": r.match_id,'
+            "source": r.source,'
+            "result": r.result,'
+            "is_accepted": r.is_accepted,'
+            "dispute_flag": r.dispute_flag,'
+            "submitted_at": r.submitted_at.isoformat(),'
+        }'
+        for r in all_results[:20]'
+    ]'
+'
+    return {'
+        "total_submissions": total,'
+        "accepted_submissions": accepted,'
+        "disputed_submissions": disputed,'
+        "pending_submissions": max(0, total - accepted - disputed),'
+        "settlements_triggered": settlements,'
+        "consensus_rate_pct": consensus_rate,'
+        "sources": list(source_map.values()),'
+        "recent": recent,'
+        "snapshot_at": datetime.now(timezone.utc).isoformat(),'
+    }'
+'
+'
+async def _require_oracle_key(x_oracle_key: str = Header(...), db: AsyncSession = Depends(get_db)):'
+    # Prefer environment-configured key, but allow an admin-set key in PlatformConfig'
+    configured = ORACLE_API_KEY'
+    if not configured:'
+        # Check encrypted PlatformSecret table (admin-set keys persisted here)'
+        row = (await db.execute(_select(PlatformSecret).where(PlatformSecret.key == "ORACLE_API_KEY"))).scalar_one_or_none()'
+        if row and row.encrypted_value:'
+            try:'
+                from app.services.secrets_manager import decrypt_secret'
+                configured = decrypt_secret(row.encrypted_value)'
+            except Exception:'
+                configured = None'
+    if not configured or x_oracle_key != configured:'
+        raise HTTPException(403, "Invalid oracle API key")'
+'
+'
+class OracleResultBody(BaseModel):'
+    match_id: str'
+    source: str'
+    home_score: int'
+    away_score: int'
+'
+'
+@router.post("/api/oracle/result")'
+async def submit_oracle_result('
+    body: OracleResultBody,'
+    db: AsyncSession = Depends(get_db),'
+    _: None = Depends(_require_oracle_key),'
+):'
+    """Internal endpoint — oracle providers submit confirmed match results."""'
+    outcome = "home" if body.home_score > body.away_score else ('
+        "draw" if body.home_score == body.away_score else "away"'
+    )'
+'
+    existing = await db.execute('
+        select(OracleResult).where('
+            OracleResult.match_id == body.match_id,'
+            OracleResult.source == body.source,'
+        )'
+    )'
+    if existing.scalar_one_or_none():'
+        raise HTTPException(409, f"Oracle {body.source} already submitted result for {body.match_id}")'
+'
+    oracle_rec = OracleResult('
+        match_id=body.match_id,'
+        source=body.source,'
+        home_score=body.home_score,'
+        away_score=body.away_score,'
+        result=outcome,'
+        submitted_at=datetime.now(timezone.utc),'
+    )'
+    db.add(oracle_rec)'
+    await db.flush()'
+'
+    all_results_res = await db.execute('
+        select(OracleResult).where(OracleResult.match_id == body.match_id)'
+    )'
+    all_results = all_results_res.scalars().all()'
+'
+    outcome_counts: dict[str, int] = {}'
+    for r in all_results:'
+        outcome_counts[r.result] = outcome_counts.get(r.result, 0) + 1'
+'
+    agreed_outcome: Optional[str] = None'
+    for outcome_val, count in outcome_counts.items():'
+        if count >= _MIN_AGREEMENT:'
+            agreed_outcome = outcome_val'
+            break'
+'
+    response: dict = {"status": "received", "source": body.source, "result": outcome}'
+'
+    if agreed_outcome:'
+        for r in all_results:'
+            r.is_accepted = r.result == agreed_outcome'
+        await db.flush()'
+'
+        cp_res = await db.execute('
+            select(ConsensusPrediction).where(ConsensusPrediction.match_id == body.match_id)'
+        )'
+        cp = cp_res.scalar_one_or_none()'
+        if cp and cp.status not in (ConsensusStatus.SETTLED.value, ConsensusStatus.VOIDED.value):'
+            try:'
+                await settle_match(body.match_id, agreed_outcome, db)'
+            except Exception as exc:'
+                logger.error(f"Settlement failed for {body.match_id}: {exc}")'
+'
+        response["consensus"] = agreed_outcome'
+        response["status"] = "settled"'
+'
+    elif len(all_results) >= _MAX_SOURCES:'
+        for r in all_results:'
+            r.dispute_flag = True'
+        logger.warning(f"Dispute flagged for match {body.match_id}: {outcome_counts}")'
+        response["status"] = "dispute_flagged"'
+'
+    await db.commit()'
+    return response'
+'
+'
+@router.get("/api/admin/oracle/disputes")'
+async def list_disputes('
+    db: AsyncSession = Depends(get_db),'
+    _=Depends(get_current_admin),'
+):'
+    """Admin: list all disputed oracle results."""'
+    result = await db.execute('
+        select(OracleResult).where(OracleResult.dispute_flag == True)'
+        .order_by(OracleResult.submitted_at.desc())'
+    )'
+    rows = result.scalars().all()'
+    disputes: dict[str, list] = {}'
+    for r in rows:'
+        disputes.setdefault(r.match_id, []).append({'
+            "source": r.source,'
+            "home_score": r.home_score,'
+            "away_score": r.away_score,'
+            "result": r.result,'
+            "submitted_at": r.submitted_at.isoformat(),'
+        })'
+    return {"disputes": disputes, "total_matches": len(disputes)}'
+'
+'
+class ResolveDisputeBody(BaseModel):'
+    result: str'
+'
+'
+@router.post("/api/admin/oracle/resolve/{match_id}")'
+async def resolve_dispute('
+    match_id: str,'
+    body: ResolveDisputeBody,'
+    db: AsyncSession = Depends(get_db),'
+    _=Depends(get_current_admin),'
+):'
+    """Admin: manually resolve a disputed match result and trigger settlement."""'
+    if body.result not in ("home", "draw", "away"):'
+        raise HTTPException(400, "result must be 'home', 'draw', or 'away'")'
+'
+    result = await db.execute('
+        select(OracleResult).where(OracleResult.match_id == match_id)'
+    )'
+    records = result.scalars().all()'
+    if not records:'
+        raise HTTPException(404, "No oracle results found for this match")'
+'
+    for r in records:'
+        r.dispute_flag = False'
+        r.is_accepted = r.result == body.result'
+'
+    cp_res = await db.execute('
+        select(ConsensusPrediction).where(ConsensusPrediction.match_id == match_id)'
+    )'
+    cp = cp_res.scalar_one_or_none()'
+    if cp and cp.status not in (ConsensusStatus.SETTLED.value, ConsensusStatus.VOIDED.value):'
+        await settle_match(match_id, body.result, db)'
+'
+    await db.commit()'
+    return {"status": "resolved", "match_id": match_id, "result": body.result}'

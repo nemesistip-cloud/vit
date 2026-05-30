@@ -1,1 +1,1 @@
-"""Blockchain economy layer — Module C."""
+"""Blockchain economy layer — Module C."""'

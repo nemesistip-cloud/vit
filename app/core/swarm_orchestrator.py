@@ -1,129 +1,129 @@
-"""
-app/core/swarm_orchestrator.py
-
-SwarmOrchestrator — v7.0 agent lifecycle manager.
-===================================================
-Owns all 22 autonomous agents, supervises their asyncio tasks, and
-exposes a coordinator-compatible status/trigger interface so that the
-legacy AgentCoordinator code paths continue to work.
-
-The single global instance is created at startup (main.py lifespan) via
-``init_swarm(agents, tasks)`` and retrieved anywhere via ``get_swarm()``.
-"""
-
-from __future__ import annotations
-
-import asyncio
-import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-
-logger = logging.getLogger(__name__)
-
-_SWARM: Optional["SwarmOrchestrator"] = None
-
-
-def get_swarm() -> "SwarmOrchestrator":
-    """Return the running SwarmOrchestrator or raise RuntimeError."""
-    if _SWARM is None:
-        raise RuntimeError("SwarmOrchestrator has not been initialised yet")
-    return _SWARM
-
-
-def set_swarm(swarm: "SwarmOrchestrator") -> None:
-    """Register the global swarm instance (called once at startup)."""
-    global _SWARM
-    _SWARM = swarm
-    logger.info("[swarm] global SwarmOrchestrator registered (%d agents)", len(swarm._agents))
-
-
-class SwarmOrchestrator:
-    """
-    Supervisor for all autonomous VIT agents.
-
-    Attributes
-    ----------
-    _agents  : dict mapping agent name → agent instance
-    _tasks   : list of asyncio.Task objects (one per agent loop)
-    _started : datetime when the swarm was initialised
-    """
-
-    def __init__(self) -> None:
-        self._agents: Dict[str, Any] = {}
-        self._tasks: List[asyncio.Task] = []
-        self._started: datetime = datetime.now(timezone.utc)
-        self._trigger_log: List[Dict[str, Any]] = []
-
-    # ── Registration ────────────────────────────────────────────────
-
-    def register(self, name: str, agent: Any) -> None:
-        """Register an agent instance under the given name."""
-        self._agents[name] = agent
-
-    def register_tasks(self, tasks: List[asyncio.Task]) -> None:
-        """Store the asyncio.Task list so status() can report running/stopped."""
-        self._tasks = tasks
-
-    # ── Status / trigger (AgentCoordinator-compatible) ──────────────
-
-    def status(self) -> Dict[str, Any]:
-        """Return a JSON-serialisable snapshot of all agents."""
-        running = sum(1 for t in self._tasks if not t.done())
-        stopped = len(self._tasks) - running
-        agents_status = {}
-        for name, agent in self._agents.items():
-            agents_status[name] = {
-                "name": name,
-                "running": True,
-                "last_run": getattr(agent, "last_run", None),
-                "run_count": getattr(agent, "run_count", 0),
-                "last_error": getattr(agent, "last_error", None),
-            }
-        return {
-            "total_agents": len(self._agents),
-            "running": running,
-            "stopped": stopped,
-            "started_at": self._started.isoformat(),
-            "agents": agents_status,
-        }
-
-    def trigger(self, name: str) -> Dict[str, Any]:
-        """Manually trigger an agent cycle (non-blocking fire-and-forget)."""
-        agent = self._agents.get(name)
-        if agent is None:
-            return {"ok": False, "error": f"Agent '{name}' not found"}
-
-        async def _run() -> None:
-            try:
-                await agent.run_once()
-            except Exception as exc:
-                logger.warning("[swarm] manual trigger error for %s: %s", name, exc)
-
-        asyncio.create_task(_run())
-        event = {
-            "agent": name,
-            "triggered_at": datetime.now(timezone.utc).isoformat(),
-            "source": "manual",
-        }
-        self._trigger_log.append(event)
-        return {"ok": True, "agent": name}
-
-    # ── dict-like helpers for legacy coordinator code ────────────────
-
-    def get(self, name: str, default: Any = None) -> Any:
-        return self._agents.get(name, default)
-
-    def __contains__(self, name: str) -> bool:
-        return name in self._agents
-
-    def __len__(self) -> int:
-        return len(self._agents)
-
-    def items(self):
-        return self._agents.items()
-
-    def values(self):
-        return self._agents.values()
-
-    def keys(self):
-        return self._agents.keys()
+"""'
+app/core/swarm_orchestrator.py'
+'
+SwarmOrchestrator — v7.0 agent lifecycle manager.'
+==================================================='
+Owns all 22 autonomous agents, supervises their asyncio tasks, and'
+exposes a coordinator-compatible status/trigger interface so that the'
+legacy AgentCoordinator code paths continue to work.'
+'
+The single global instance is created at startup (main.py lifespan) via'
+``init_swarm(agents, tasks)`` and retrieved anywhere via ``get_swarm()``.'
+"""'
+'
+from __future__ import annotations'
+'
+import asyncio'
+import logging'
+from datetime import datetime, timezone'
+from typing import Any, Dict, List, Optional'
+'
+logger = logging.getLogger(__name__)'
+'
+_SWARM: Optional["SwarmOrchestrator"] = None'
+'
+'
+def get_swarm() -> "SwarmOrchestrator":'
+    """Return the running SwarmOrchestrator or raise RuntimeError."""'
+    if _SWARM is None:'
+        raise RuntimeError("SwarmOrchestrator has not been initialised yet")'
+    return _SWARM'
+'
+'
+def set_swarm(swarm: "SwarmOrchestrator") -> None:'
+    """Register the global swarm instance (called once at startup)."""'
+    global _SWARM'
+    _SWARM = swarm'
+    logger.info("[swarm] global SwarmOrchestrator registered (%d agents)", len(swarm._agents))'
+'
+'
+class SwarmOrchestrator:'
+    """'
+    Supervisor for all autonomous VIT agents.'
+'
+    Attributes'
+    ----------'
+    _agents  : dict mapping agent name → agent instance'
+    _tasks   : list of asyncio.Task objects (one per agent loop)'
+    _started : datetime when the swarm was initialised'
+    """'
+'
+    def __init__(self) -> None:'
+        self._agents: Dict[str, Any] = {}'
+        self._tasks: List[asyncio.Task] = []'
+        self._started: datetime = datetime.now(timezone.utc)'
+        self._trigger_log: List[Dict[str, Any]] = []'
+'
+    # ── Registration ────────────────────────────────────────────────'
+'
+    def register(self, name: str, agent: Any) -> None:'
+        """Register an agent instance under the given name."""'
+        self._agents[name] = agent'
+'
+    def register_tasks(self, tasks: List[asyncio.Task]) -> None:'
+        """Store the asyncio.Task list so status() can report running/stopped."""'
+        self._tasks = tasks'
+'
+    # ── Status / trigger (AgentCoordinator-compatible) ──────────────'
+'
+    def status(self) -> Dict[str, Any]:'
+        """Return a JSON-serialisable snapshot of all agents."""'
+        running = sum(1 for t in self._tasks if not t.done())'
+        stopped = len(self._tasks) - running'
+        agents_status = {}'
+        for name, agent in self._agents.items():'
+            agents_status[name] = {'
+                "name": name,'
+                "running": True,'
+                "last_run": getattr(agent, "last_run", None),'
+                "run_count": getattr(agent, "run_count", 0),'
+                "last_error": getattr(agent, "last_error", None),'
+            }'
+        return {'
+            "total_agents": len(self._agents),'
+            "running": running,'
+            "stopped": stopped,'
+            "started_at": self._started.isoformat(),'
+            "agents": agents_status,'
+        }'
+'
+    def trigger(self, name: str) -> Dict[str, Any]:'
+        """Manually trigger an agent cycle (non-blocking fire-and-forget)."""'
+        agent = self._agents.get(name)'
+        if agent is None:'
+            return {"ok": False, "error": f"Agent '{name}' not found"}'
+'
+        async def _run() -> None:'
+            try:'
+                await agent.run_once()'
+            except Exception as exc:'
+                logger.warning("[swarm] manual trigger error for %s: %s", name, exc)'
+'
+        asyncio.create_task(_run())'
+        event = {'
+            "agent": name,'
+            "triggered_at": datetime.now(timezone.utc).isoformat(),'
+            "source": "manual",'
+        }'
+        self._trigger_log.append(event)'
+        return {"ok": True, "agent": name}'
+'
+    # ── dict-like helpers for legacy coordinator code ────────────────'
+'
+    def get(self, name: str, default: Any = None) -> Any:'
+        return self._agents.get(name, default)'
+'
+    def __contains__(self, name: str) -> bool:'
+        return name in self._agents'
+'
+    def __len__(self) -> int:'
+        return len(self._agents)'
+'
+    def items(self):'
+        return self._agents.items()'
+'
+    def values(self):'
+        return self._agents.values()'
+'
+    def keys(self):'
+        return self._agents.keys()'
