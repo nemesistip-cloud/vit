@@ -69,26 +69,42 @@ async def update_config(
 
 async def _calc_voting_power(db: AsyncSession, user_id: int) -> float:
     """
-    voting_power = vitcoin_staked × trust_score_normalised
-    Falls back gracefully if modules aren't loaded.
+    voting_power = vitcoin_staked × merit_multiplier × trust_factor
+    Uses the unified VIT Passport for calculation.
     """
+    from app.modules.identity.passport import PassportService
+    from app.modules.wallet.services import WalletService
+
     try:
-        from app.modules.wallet.services import WalletService
+        # 1. Get user's Passport
+        passport = await PassportService.get_passport(db, user_id)
+
+        # 2. Get explicit staked balance (VIT 2.0)
         ws = WalletService(db)
         wallet = await ws.get_or_create_wallet(user_id)
-        stake = float(wallet.vitcoin_balance)
-    except Exception:
-        stake = 0.0
+        staked_balance = float(wallet.staked_vitcoin_balance)
 
-    trust_score = 1.0
-    try:
-        from app.modules.trust.engine import get_user_trust_score
-        ts = await get_user_trust_score(db, user_id)
-        trust_score = max(0.1, min(ts / 100.0, 2.0))
-    except Exception:
-        pass
+        # 3. Merit Multiplier (Tier-based)
+        merit_multipliers = {
+            "unranked": 1.0,
+            "bronze":   1.1,
+            "silver":   1.2,
+            "gold":     1.5,
+            "platinum": 2.0,
+            "diamond":  3.0,
+            "sovereign": 5.0
+        }
+        merit_factor = merit_multipliers.get(passport.merit_tier, 1.0)
 
-    return max(1.0, round(stake * trust_score, 4))
+        # 4. Trust Factor (0.5x to 1.5x)
+        trust_factor = max(0.5, min(passport.trust_score / 60.0, 1.5))
+
+        power = staked_balance * merit_factor * trust_factor
+        return max(1.0, round(power, 4))
+
+    except Exception as exc:
+        logger.warning(f"Governance power calc failed for user {user_id}: {exc}")
+        return 1.0
 
 
 # ── Proposal CRUD ─────────────────────────────────────────────────────────────

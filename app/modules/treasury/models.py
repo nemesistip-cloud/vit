@@ -21,6 +21,7 @@ class PoolType(str, enum.Enum):
     PREDICTION_LIQUIDITY = "prediction_liquidity"
     BUG_BOUNTY = "bug_bounty"
     TEAM_VESTING = "team_vesting"
+    COMMUNITY_POOL = "community_pool"
 
 
 class ProposalStatus(str, enum.Enum):

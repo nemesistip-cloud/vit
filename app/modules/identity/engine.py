@@ -12,9 +12,10 @@ import string
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models import User
 from app.modules.identity.models import IDTier, SystemID
 
 _ALPHA = string.ascii_uppercase + string.digits
@@ -163,3 +164,10 @@ def build_id_card_data(sys_id: SystemID, user) -> dict:
             "interests":     getattr(user, "interests", []),
         }
     }
+
+async def get_user_id_by_social_identifier(identifier: str, db: AsyncSession) -> Optional[int]:
+    clean_id = identifier.strip()
+    if clean_id.startswith("@"): clean_id = clean_id[1:]
+    stmt = select(User.id).where(or_(User.username.ilike(clean_id), User.email.ilike(clean_id), User.phone == clean_id))
+    res = await db.execute(stmt)
+    return res.scalar_one_or_none()

@@ -32,6 +32,7 @@ INITIAL_POOLS: dict[PoolType, dict] = {
     PoolType.PREDICTION_LIQUIDITY:{"allocation_pct": Decimal("3"),  "auto_refill": False},
     PoolType.BUG_BOUNTY:          {"allocation_pct": Decimal("1"),  "auto_refill": False},
     PoolType.TEAM_VESTING:        {"allocation_pct": Decimal("1"),  "auto_refill": False},
+    PoolType.COMMUNITY_POOL:      {"allocation_pct": Decimal("0"),  "auto_refill": False},
 }
 
 
@@ -263,4 +264,68 @@ async def get_treasury_overview(db: AsyncSession) -> dict:
         "utilization_pct": (total_spent / total_deposited * 100) if total_deposited else 0,
         "pending_grant_proposals": pending_grants,
         "pools": pools,
+    }
+
+
+async def get_transparency_report(db: AsyncSession) -> dict:
+    """Enhanced real-time transparency report for user-facing dashboards."""
+    overview = await get_treasury_overview(db)
+
+    # Fetch recent allocations for public audit
+    allocs_q = await db.execute(
+        select(TreasuryAllocation)
+        .order_by(TreasuryAllocation.released_at.desc())
+        .limit(10)
+    )
+    recent_allocations = [
+        {
+            "amount": float(a.amount),
+            "reason": a.reason,
+            "status": a.status.value,
+            "released_at": a.released_at.isoformat() if a.released_at else None,
+            "tx_hash": a.tx_hash
+        }
+        for a in allocs_q.scalars().all()
+    ]
+
+    return {
+        "summary": overview,
+        "recent_allocations": recent_allocations,
+        "last_updated": datetime.now(timezone.utc).isoformat()
+    }
+
+
+async def distribute_platform_revenue(
+    db: AsyncSession,
+    revenue_amount: Decimal,
+    community_share_pct: Decimal = Decimal("20")
+) -> dict:
+    """
+    Distribute platform revenue (fees) from RESERVE to COMMUNITY_POOL.
+    This simulates the Revenue Sharing feature of VIT 2.0.
+    """
+    community_share = (revenue_amount * community_share_pct) / Decimal("100")
+
+    # 1. Allocate from Reserve
+    reserve_alloc = await allocate_from_pool(
+        db,
+        pool_type=PoolType.RESERVE,
+        amount=community_share,
+        reason="Revenue Sharing: Platform Fee Distribution"
+    )
+
+    # 2. Deposit to Community Pool
+    await deposit_to_pool(
+        db,
+        pool_type=PoolType.COMMUNITY_POOL,
+        amount=community_share,
+        source="Platform Revenue Distribution",
+        notes=f"Shared from RESERVE (Total Revenue: {revenue_amount})"
+    )
+
+    logger.info(f"Distributed {community_share} VIT to Community Pool for revenue sharing")
+    return {
+        "revenue_total": float(revenue_amount),
+        "community_share": float(community_share),
+        "tx_hash": reserve_alloc.tx_hash
     }

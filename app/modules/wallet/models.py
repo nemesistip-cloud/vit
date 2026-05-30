@@ -94,6 +94,7 @@ class Wallet(Base):
     usdt_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
     pi_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
     vitcoin_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
+    staked_vitcoin_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
 
     is_frozen: Mapped[bool] = mapped_column(Boolean, default=False)
     kyc_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -232,6 +233,34 @@ class WithdrawalRequest(Base):
         Index("idx_withdrawal_user_id", "user_id"),
         Index("idx_withdrawal_status", "status"),
         Index("idx_withdrawal_requested_at", "requested_at"),
+    )
+
+
+class SavingsVault(Base):
+    """User-defined goal-based or emergency savings vault."""
+    __tablename__ = "savings_vaults"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    wallet_id: Mapped[str] = mapped_column(String(36), ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False)
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    vault_type: Mapped[str] = mapped_column(String(30), default="goal")  # goal, emergency, fixed
+    currency: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    current_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
+    target_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 8), nullable=True)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_vault_user_id", "user_id"),
+        Index("idx_vault_wallet_id", "wallet_id"),
+        Index("idx_vault_type", "vault_type"),
     )
 
 
