@@ -159,34 +159,6 @@ function NotificationsCard() {
           <p className="text-xs text-muted-foreground font-mono">Loading preferences…</p>
         </CardContent>
       </Card>
-      <Card className="bg-card/50 border-border/40">
-        <CardHeader>
-          <CardTitle className="text-sm font-mono flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-primary" /> Student Identity
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase text-muted-foreground font-mono">University</label>
-              <Input defaultValue={user?.university || ""} placeholder="e.g. University of Port Harcourt" className="bg-background/50" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase text-muted-foreground font-mono">Faculty</label>
-              <Input defaultValue={user?.faculty || ""} placeholder="e.g. Engineering" className="bg-background/50" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase text-muted-foreground font-mono">Department</label>
-              <Input defaultValue={user?.department || ""} placeholder="e.g. Computer Science" className="bg-background/50" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase text-muted-foreground font-mono">Level</label>
-              <Input defaultValue={user?.level || ""} placeholder="e.g. 300" className="bg-background/50" />
-            </div>
-          </div>
-          <Button className="w-full font-mono text-[10px] uppercase tracking-widest mt-2">Update Student Profile</Button>
-        </CardContent>
-      </Card>
 
     );
   }
