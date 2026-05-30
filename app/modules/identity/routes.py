@@ -24,6 +24,7 @@ from app.modules.identity.engine import (
     link_did,
 )
 from app.modules.identity.models import SystemID
+from app.schemas.schemas import StudentIdentityUpdate
 
 router = APIRouter(prefix="/api/identity", tags=["System Identity"])
 logger = logging.getLogger(__name__)
@@ -109,3 +110,23 @@ async def resolve_identity(sid: str, db: AsyncSession = Depends(get_db)):
         "badges":          sys_id.badges,
         "issued_at":       sys_id.issued_at.isoformat(),
     }
+
+@router.patch("/profile")
+async def update_student_profile(
+    data: StudentIdentityUpdate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the student identity fields for the current user."""
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(current_user, key, value)
+
+    await db.commit()
+    await db.refresh(current_user)
+
+    # Refresh System ID to reflect name changes or new badges if applicable
+    await refresh_system_id(current_user.id, current_user, db)
+    await db.commit()
+
+    return {"status": "success", "message": "Student profile updated"}

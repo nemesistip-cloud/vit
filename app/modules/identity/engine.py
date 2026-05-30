@@ -152,4 +152,14 @@ def build_id_card_data(sys_id: SystemID, user) -> dict:
         "subscription_tier": getattr(user, "subscription_tier", "viewer"),
         "is_verified":     getattr(user, "is_verified", False),
         "kyc_status":      getattr(user, "kyc_status", "none") or "none",
+        "academic": {
+            "country":       getattr(user, "country", None),
+            "university":    getattr(user, "university", None),
+            "faculty":       getattr(user, "faculty", None),
+            "department":    getattr(user, "department", None),
+            "level":         getattr(user, "level", None),
+            "matric_number": getattr(user, "matric_number", None),
+            "skills":        getattr(user, "skills", []),
+            "interests":     getattr(user, "interests", []),
+        }
     }

@@ -417,6 +417,18 @@ class User(Base):
     kyc_status = Column(String(20), default="none")   # none, pending, approved, rejected
     kyc_submitted_at = Column(DateTime(timezone=True), nullable=True)
     kyc_data = Column(JSON, nullable=True)
+        # Academic / Student Identity (v5.1.0)
+    university = Column(String(255), nullable=True, index=True)
+    faculty = Column(String(255), nullable=True, index=True)
+    department = Column(String(255), nullable=True, index=True)
+    study_level = Column(String(20), nullable=True) # e.g. "100L", "200L", etc.
+    matric_number = Column(String(50), nullable=True)
+    student_skills = Column(JSON, default=list)
+    student_interests = Column(JSON, default=list)
+    student_country = Column(String(100), nullable=True)
+    is_student_verified = Column(Boolean, default=False)
+    student_profile_completed = Column(Boolean, default=False)
+
     # Gamification
     current_streak = Column(Integer, default=0)
     best_streak = Column(Integer, default=0)
@@ -445,6 +457,7 @@ class User(Base):
 
     # Task module relationships (Module T)
     task_completions = relationship("UserTaskCompletion", back_populates="user", cascade="all, delete-orphan")
+    student_profile = relationship("StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
     __table_args__ = (
         Index('idx_users_email', 'email'),
@@ -609,6 +622,7 @@ Index('idx_ai_signal_cache_match', AISignalCache.match_id)
 from app.modules.wallet.models import Wallet as _Wallet, WalletTransaction as _WTx  # noqa: F401, E402
 from app.modules.notifications.models import Notification as _Notif, NotificationPreference as _NotifPref  # noqa: F401, E402
 from app.modules.trust.models import UserTrustScore as _UTS, FraudFlag as _FF, RiskEvent as _RE  # noqa: F401, E402
+from app.modules.identity.models import StudentProfile
 # Import tasks models to register UserTaskCompletion with SQLAlchemy so the
 # User.task_completions relationship resolves in all contexts. The unused
 # get_orchestrator import has been removed from tasks/service.py, so there

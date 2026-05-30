@@ -2417,10 +2417,16 @@ app.include_router(quality_feed_router, prefix="/api")
 
 # Prophecy Branch — Academy, AI Core, AI Upload
 from app.modules.academy.routes import router as academy_router
+from app.modules.academy.communities import router as campus_circles_router
+from app.modules.academy.gigs import router as campus_gigs_router
+from app.modules.academy.campus import router as campus_hub_router
 from app.modules.ai_core.routes import router as ai_core_router
 from app.modules.prophecy_chain.routes import router as prophecy_chain_router
 
 app.include_router(academy_router)
+app.include_router(campus_circles_router)
+app.include_router(campus_gigs_router)
+app.include_router(campus_hub_router)
 app.include_router(ai_core_router)
 app.include_router(prophecy_chain_router, prefix="/api")
 

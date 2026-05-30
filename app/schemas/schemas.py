@@ -174,3 +174,54 @@ def calculate_true_probabilities(
     true_away = implied_away / total_implied
 
     return true_home, true_draw, true_away
+# --- ACADEMIC / STUDENT IDENTITY ---
+class StudentIdentityUpdate(BaseModel):
+    country: Optional[str] = None
+    university: Optional[str] = None
+    faculty: Optional[str] = None
+    department: Optional[str] = None
+    level: Optional[int] = None
+    matric_number: Optional[str] = None
+    skills: Optional[List[str]] = None
+    interests: Optional[List[str]] = None
+
+class StudentIdentityResponse(BaseModel):
+    country: Optional[str]
+    university: Optional[str]
+    faculty: Optional[str]
+    department: Optional[str]
+    level: Optional[int]
+    matric_number: Optional[str]
+    skills: List[str] = []
+    interests: List[str] = []
+
+# --- ACADEMIC REPOSITORY ---
+class CourseCreate(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+    university: str
+    faculty: str
+    department: str
+    level: int
+
+class CourseResponse(CourseCreate):
+    id: int
+    created_at: datetime
+
+class ResourceCreate(BaseModel):
+    course_id: int
+    title: str
+    resource_type: str
+    file_url: str
+    file_format: Optional[str] = None
+    year: Optional[int] = None
+    tags: List[str] = []
+
+class ResourceResponse(ResourceCreate):
+    id: int
+    uploader_id: int
+    is_verified: bool
+    download_count: int
+    rating: float
+    created_at: datetime
