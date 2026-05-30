@@ -26,10 +26,10 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 def is_transient_db_error(exception):
     msg = str(exception).lower()
-    return "connection was closed" in msg or "not connected" in msg or "pool" in msg
+    return any(x in msg for x in ["connection was closed", "not connected", "pool", "broken pipe", "protocol error", "timeout", "reset by peer", "io error"])
 
 db_retry = retry(
-    stop=stop_after_attempt(3),
+    stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=1, max=5),
     retry=retry_if_exception(is_transient_db_error),
     reraise=True

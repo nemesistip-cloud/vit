@@ -147,6 +147,7 @@ from app.api.middleware.auth import APIKeyMiddleware
 from app.api.middleware.logging import LoggingMiddleware
 from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.api.middleware.security import SecurityHeadersMiddleware
+from app.api.middleware.request_id import RequestIDMiddleware
 
 # ===== SERVICES =====
 from app.schemas.schemas import HealthResponse
@@ -2078,11 +2079,19 @@ async def _run_bootstrap(app, _done_event):
 # APP INIT
 # ============================================
 
+
+
 app = FastAPI(
     title="VIT Sports Intelligence Network",
     version=APP_VERSION,
     lifespan=lifespan,
 )
+@app.on_event("shutdown")
+async def shutdown_event():
+    from app.db.database import engine
+    await engine.dispose()
+    logger.info("Database engine disposed on shutdown")
+
 
 # ============================================
 # MIDDLEWARE
@@ -2111,37 +2120,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(APIKeyMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
-
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    request_id = (
-        request.headers.get("X-Request-ID")
-        or request.headers.get("X-Correlation-ID")
-        or str(uuid.uuid4())
-    )
-    request.state.request_id = request_id
-    try:
-        response = await call_next(request)
-    except Exception as exc:
-        logger = logging.getLogger("app.errors")
-
-        # Handle ExceptionGroup (Python 3.11+)
-        real_exc = exc
-        if isinstance(exc, ExceptionGroup):
-            real_exc = exc.exceptions[0]
-            logger.error("ExceptionGroup in add_request_id request_id=%s. Primary: %s", request_id, real_exc)
-
-        logger.exception(
-            "Unhandled request failure request_id=%s method=%s path=%s",
-            request_id,
-            request.method,
-            request.url.path,
-        )
-        raise
-    response.headers["X-Request-ID"] = request_id
-    response.headers["X-Correlation-ID"] = request_id
-    return response
+app.add_middleware(RequestIDMiddleware)
 
 
 @app.exception_handler(AppError)
