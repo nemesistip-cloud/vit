@@ -2255,6 +2255,11 @@ async def unhandled_error_handler(request: Request, exc: Exception):
 
 # ============================================
 # ROUTES
+
+@app.get("/readiness")
+async def readiness():
+    return {"status": "ready", "service": "vit-api"}
+
 # ============================================
 
 # Core

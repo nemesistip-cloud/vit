@@ -168,3 +168,22 @@ Check individual modules for licensing. A root LICENSE file is pending (See Gap 
 ---
 
 Built with ⚡ by the VIT Network Foundation.
+
+## ☁️ Deployment (Google Cloud Platform)
+
+VIT Network is production-ready for Google Cloud Platform.
+
+### Quick Start
+1. Ensure you have the [Google Cloud SDK](https://cloud.google.com/sdk) installed.
+2. Run the deployment script:
+   ```bash
+   gcloud builds submit --config cloudbuild.yaml .
+   ```
+
+Refer to the [GCP Deployment Guide](DEPLOYMENT_GCP.md) for detailed instructions on setting up Cloud Run, Cloud SQL, and Secret Manager.
+
+### Docker Support
+You can also run VIT locally using Docker Compose:
+```bash
+docker-compose up --build
+```
