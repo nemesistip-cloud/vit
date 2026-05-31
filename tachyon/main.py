@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from tachyon.api import router as api_router
 
@@ -11,4 +12,5 @@ app.include_router(api_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)

@@ -1,0 +1,65 @@
+steps:
+  # Build the multi-purpose image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA', '-t', 'gcr.io/$PROJECT_ID/vit-network:latest', '.']
+
+  # Push the image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/vit-network:latest']
+
+  # Deploy API to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'vit-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--add-cloudsql-instances'
+      - '$PROJECT_ID:us-central1:vit-postgres'
+
+  # Deploy Worker to Cloud Run (Always-on CPU recommended)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'vit-worker'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
+      - '--command'
+      - 'celery,-A,app.worker,worker,--loglevel=info'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--no-cpu-throttling' # Required for background workers
+
+  # Deploy Tachyon to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'vit-tachyon'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
+      - '--command'
+      - 'python,-m,tachyon.main'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+
+images:
+  - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/vit-network:latest'
