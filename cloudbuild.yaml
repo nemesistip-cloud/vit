@@ -25,6 +25,8 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--add-cloudsql-instances'
+      - "--timeout"
+      - "300"
       - '$PROJECT_ID:us-central1:vit-postgres'
 
   # Deploy Worker to Cloud Run (Always-on CPU recommended)

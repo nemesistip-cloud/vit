@@ -36,4 +36,4 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Default entrypoint (can be overridden for worker/tachyon)
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers"]
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers"]
