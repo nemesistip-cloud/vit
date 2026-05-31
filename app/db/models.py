@@ -249,7 +249,7 @@ class AIPrediction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("matches.id"), nullable=False)
-    source = Column(String(50), nullable=False)  # chatgpt, gemini, grok, deepseek, perplexity
+    source = Column(String(50), nullable=False)  # native, manual
     home_prob = Column(Float, nullable=False)
     draw_prob = Column(Float, nullable=False)
     away_prob = Column(Float, nullable=False)
@@ -590,7 +590,7 @@ class AgentInsight(Base):
     insight_type = Column(String(50),  nullable=False)   # "match_scout"|"team_news"|"odds_anomaly"
     match_id     = Column(Integer, ForeignKey("matches.id", ondelete="SET NULL"), nullable=True)
     team         = Column(String(100), nullable=True)
-    ai_provider  = Column(String(20),  nullable=False)   # "gemini"|"grok"|"claude"|"openai"
+    ai_provider  = Column(String(20),  nullable=False)   # "native"
     content      = Column(Text,        nullable=False)
     meta         = Column(JSON,        nullable=False, default=dict)
     confidence   = Column(Float,       nullable=True)

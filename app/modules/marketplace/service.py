@@ -61,7 +61,7 @@ async def create_listing(
     model_key: Optional[str] = None,
     pkl_path: Optional[str] = None,
     file_size_bytes: Optional[int] = None,
-    pkl_sha256: Optional[str] = None,
+    pkl_sha256: Optional[str] = None, gcs_uri: Optional[str] = None,
     webhook_url: Optional[str] = None,
     charge_listing_fee: bool = True,
 ) -> AIModelListing:
@@ -120,7 +120,7 @@ async def create_listing(
         model_key=model_key,
         pkl_path=pkl_path,
         file_size_bytes=file_size_bytes,
-        pkl_sha256=pkl_sha256,
+        pkl_sha256=pkl_sha256, gcs_uri=gcs_uri,
         webhook_url=webhook_url,
         listing_fee_paid=listing_fee,
         approval_status="pending",
@@ -362,6 +362,11 @@ async def _register_pkl_as_plugin(listing: AIModelListing) -> Optional[str]:
     Load a marketplace .pkl into the live orchestrator as a plugin model.
     Returns the model key that was registered, or None on failure.
     """
+    # Task 3D: Download from GCS if needed
+    from app.modules.marketplace.gcs_integration import prepare_model_for_loading
+    gcs_path = await prepare_model_for_loading(listing)
+    if gcs_path:
+        pkl_abs = gcs_path
     if not listing.pkl_path:
         return None
 

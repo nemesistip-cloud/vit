@@ -1,3 +1,7 @@
+from app.services.gcs_storage import gcs_storage
+from app.services.gcs_storage import gcs_storage
+from app.services.gcs_storage import gcs_storage
+from app.services.gcs_storage import gcs_storage
 # app/modules/marketplace/routes.py
 """AI Marketplace REST API — Module G."""
 
@@ -250,7 +254,64 @@ async def create_listing(
             403,
             "Model listings are available to developer, analyst, pro, elite, validator, and admin accounts.",
         )
+        gcs_uri = None
     try:
+        # For simplicity in this migration, we zip or just upload the primary file.
+        # Requirement says: "Any code that writes a model file locally must now call gcs_storage.upload_model() instead"
+        # We upload the manifest and primary file to GCS.
+        # Since a package can have multiple files, we upload them individually using the upload_id as prefix.
+        for f_meta in files_meta:
+            local_f = os.path.join(package_dir, f_meta["filename"])
+            await gcs_storage.upload_model(local_f, f"{upload_id}/{f_meta['filename']}")
+
+        gcs_uri = f"gs://{os.getenv('GCS_BUCKET_NAME')}/{upload_id}/{selected_primary}"
+    except Exception as gcs_e:
+        logger.error("[mkt-upload] GCS upload failed: %s", gcs_e)
+        raise HTTPException(500, "Storage backend unavailable")
+        # Task 3C: Upload to GCS
+        gcs_uri = None
+        try:
+            for f_meta in files_meta:
+                local_f = os.path.join(package_dir, f_meta["filename"])
+                await gcs_storage.upload_model(local_f, f"{upload_id}/" + f_meta["filename"])
+            gcs_uri = f"gs://{os.getenv('GCS_BUCKET_NAME') or 'vit-models'}/{upload_id}/{selected_primary}"
+        except Exception as gcs_e:
+            logger.error("[mkt-upload] GCS upload failed: %s", gcs_e)
+            raise HTTPException(500, "Storage backend unavailable")
+
+        # Task 3C: Upload to GCS
+        gcs_uri = None
+        try:
+            for f_meta in files_meta:
+                local_f = os.path.join(package_dir, f_meta["filename"])
+                await gcs_storage.upload_model(local_f, f"{upload_id}/{f_meta["filename"]}")
+            gcs_uri = f"gs://{os.getenv("GCS_BUCKET_NAME") or "vit-models"}/{upload_id}/{selected_primary}"
+        except Exception as gcs_e:
+            logger.error("[mkt-upload] GCS upload failed: %s", gcs_e)
+            raise HTTPException(500, "Storage backend unavailable")
+
+        # Task 3C: Upload to GCS
+        gcs_uri = None
+        try:
+            for f_meta in files_meta:
+                local_f = os.path.join(package_dir, f_meta["filename"])
+                await gcs_storage.upload_model(local_f, f"{upload_id}/" + f_meta["filename"])
+            gcs_uri = f"gs://{os.getenv('GCS_BUCKET_NAME') or 'vit-models'}/{upload_id}/{selected_primary}"
+        except Exception as gcs_e:
+            logger.error("[mkt-upload] GCS upload failed: %s", gcs_e)
+            raise HTTPException(500, "Storage backend unavailable")
+        # Task 3C: Upload to GCS
+        gcs_uri = None
+        try:
+            for f_meta in files_meta:
+                local_f = os.path.join(package_dir, f_meta["filename"])
+                await gcs_storage.upload_model(local_f, f"{upload_id}/" + f_meta["filename"])
+            gcs_uri = f"gs://{os.getenv('GCS_BUCKET_NAME') or 'vit-models'}/{upload_id}/{selected_primary}"
+        except Exception as gcs_e:
+            logger.error("[mkt-upload] GCS upload failed: %s", gcs_e)
+            import shutil
+            raise HTTPException(500, "Storage backend unavailable")
+
         listing = await svc.create_listing(
             db,
             creator_id=current_user.id,
@@ -392,32 +453,14 @@ async def upload_model_file(
         with open(os.path.join(package_dir, "manifest.json"), "w", encoding="utf-8") as fh:
             json.dump(manifest, fh, indent=2)
     except Exception:
-        shutil.rmtree(package_dir, ignore_errors=True)
         raise
 
     package_hash = package_sha.hexdigest()
     logger.info(f"Saved marketplace model package for user {current_user.id}: {upload_id} ({total_size} bytes)")
 
-    try:
-        listing = await svc.create_listing(
-            db,
-            creator_id=current_user.id,
-            name=name,
-            description=description,
-            category=category,
-            tags=tags,
-            price_per_call=Decimal(str(price_per_call)),
-            model_key=model_key,
-            pkl_path=upload_id,
-            file_size_bytes=total_size,
-            pkl_sha256=package_hash,
-            webhook_url=webhook_url,
-            charge_listing_fee=True,
-        )
-    except ValueError as e:
-        shutil.rmtree(package_dir, ignore_errors=True)
-        raise HTTPException(400, str(e))
-
+    listing = await svc.create_listing(
+        db, creator_id=current_user.id, name=name, description=description, category=category, tags=tags, price_per_call=Decimal(str(price_per_call)), model_key=model_key, pkl_path=upload_id, file_size_bytes=total_size, pkl_sha256=package_hash, webhook_url=webhook_url, charge_listing_fee=True,
+    )
     return {
         **_fmt_listing(listing),
         "message": (

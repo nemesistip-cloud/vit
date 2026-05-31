@@ -12,12 +12,6 @@ import {
 } from "@/api-client";
 import { toast } from "sonner";
 import {
-  isPuterAvailable,
-  puterChat,
-  PUTER_CLAUDE_MODEL,
-  PUTER_GROK_MODEL,
-  type PuterModel,
-} from "@/lib/puter-ai";
 
 const SUGGESTED_PROMPTS = [
   "Find upcoming high-value matches.",
@@ -45,25 +39,18 @@ interface ExtendedAssistantTurn extends AssistantTurn {
 type Mode = "claude" | "grok" | "gemini";
 
 const MODES: { id: Mode; label: string; sublabel: string; free: boolean }[] = [
-  { id: "claude", label: "Claude",  sublabel: PUTER_CLAUDE_MODEL,  free: true  },
-  { id: "grok",   label: "Grok",    sublabel: PUTER_GROK_MODEL,    free: true  },
   { id: "gemini", label: "Gemini",  sublabel: "gemini-2.0-flash",  free: false },
 ];
 
 export default function AssistantPage() {
   const [input, setInput]     = useState("");
   const [messages, setMessages] = useState<ExtendedAssistantTurn[]>([]);
-  const [mode, setMode]       = useState<Mode>(isPuterAvailable() ? "claude" : "gemini");
-  const [puterPending, setPuterPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const status = useAssistantStatus();
   const chat   = useAssistantChat();
 
-  const puter = isPuterAvailable();
   const backendReady = status.data?.available ?? false;
-  const isReady   = mode === "gemini" ? backendReady : puter;
-  const isPending = mode === "gemini" ? chat.isPending : puterPending;
 
   const currentMode = MODES.find((m) => m.id === mode)!;
 
@@ -83,12 +70,9 @@ export default function AssistantPage() {
     setInput("");
 
     if (mode === "claude" || mode === "grok") {
-      setPuterPending(true);
       try {
-        const reply = await puterChat(trimmed, messages, mode as PuterModel);
         setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       } catch (e: any) {
-        const msg = e?.message || "Puter AI unavailable";
         setMessages((prev) => [
           ...prev,
           {
@@ -98,7 +82,6 @@ export default function AssistantPage() {
         ]);
         toast.error(msg);
       } finally {
-        setPuterPending(false);
       }
     } else {
       try {
@@ -206,7 +189,6 @@ export default function AssistantPage() {
           Powered by{" "}
           <span className="text-primary font-semibold">{currentMode.sublabel}</span>
           {currentMode.free
-            ? " via Puter · Free & unlimited · No tool support"
             : " · Backend · Full Tool Calling Support"}
         </span>
       </div>
@@ -277,7 +259,6 @@ export default function AssistantPage() {
                   </p>
                   <p className="font-mono text-xs text-muted-foreground">
                     {currentMode.free
-                      ? `Powered by ${currentMode.sublabel} via Puter's free tier.`
                       : "I can now autonomously fetch live matches, analyze system health, and track market trends using platform tools."}
                   </p>
                 </div>
@@ -327,7 +308,6 @@ export default function AssistantPage() {
                   ? `Ask ${currentMode.label} anything about VIT Sports…`
                   : mode === "gemini"
                   ? "Backend AI not configured"
-                  : "Puter AI loading…"
               }
               disabled={!isReady || isPending}
               className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 max-h-32"

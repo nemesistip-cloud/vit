@@ -246,10 +246,10 @@ class AnalyticsReporterAgent(BaseAgent):
         # Force DeepSeek cascade for better summaries
         from app.services.ai_client import call_ai
         report = await call_ai(prompt, temperature=0.7)
-        _provider = "deepseek-cascade"
+        _provider = "native"
         if not report:
             report = _template_brief(stats, report_date, is_weekly)
-            _provider = "scie"
+            _provider = "native"
 
         insight_type = "weekly_report" if is_weekly else "daily_brief"
         async with AsyncSessionLocal() as db:

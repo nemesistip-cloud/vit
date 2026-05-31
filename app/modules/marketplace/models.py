@@ -46,6 +46,7 @@ class AIModelListing(Base):
     pkl_path        : Mapped[str]      = mapped_column(String(512), nullable=True)
     file_size_bytes : Mapped[int]      = mapped_column(Integer, nullable=True)
     pkl_sha256      : Mapped[str]      = mapped_column(String(64), nullable=True)    # file integrity hash
+    gcs_uri: Mapped[str] = mapped_column(String(512), nullable=True)
 
     # External webhook (for third-party hosted models)
     webhook_url     : Mapped[str]      = mapped_column(String(512), nullable=True)

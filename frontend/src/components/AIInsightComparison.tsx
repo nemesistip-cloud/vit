@@ -10,13 +10,11 @@ import {
   BrainCircuit, Zap, Sparkles, RefreshCw, TrendingUp,
   AlertTriangle, Bot, CheckCircle2, WifiOff, Scale,
 } from "lucide-react";
-import { analyzeMatchWithPuter, isPuterAvailable, MatchAnalysis } from "@/lib/puter-ai";
 
 const AI_PROVIDERS = {
   gemini: { name: "Gemini", color: "hsl(var(--primary))",   icon: Sparkles     },
   claude: { name: "Claude", color: "hsl(262 83% 58%)",      icon: BrainCircuit },
   grok:   { name: "Grok",   color: "hsl(var(--secondary))", icon: Zap           },
-  puter:  { name: "Puter",  color: "hsl(173 80% 50%)",      icon: Bot           },
   openai: { name: "GPT-4o", color: "hsl(150 60% 50%)",      icon: Sparkles      },
 } as const;
 
@@ -62,7 +60,6 @@ interface InsightsData {
   source?: string;
 }
 
-interface PuterInsightState {
   status: "idle" | "loading" | "done" | "error";
   insight?: Insight;
   error?: string;
@@ -70,11 +67,8 @@ interface PuterInsightState {
 
 // ── Consensus Probability Component ──────────────────────────────────────────
 
-function ConsensusBars({ insights, puterInsight }: {
   insights: (Insight | undefined)[],
-  puterInsight?: Insight
 }) {
-  const activeInsights = [...insights, puterInsight].filter(ins => ins && ins.available !== false && ins.home_prob !== undefined);
 
   if (activeInsights.length === 0) return null;
 
@@ -260,28 +254,20 @@ function ServerInsightCard({
   return <FilledInsightCard provider={name} insight={insight} color={color} icon={icon} />;
 }
 
-function PuterGridCard({
-  puterState,
   onRun,
   canRun,
 }: {
-  puterState: PuterInsightState;
   onRun: () => void;
   canRun: boolean;
 }) {
-  const { name, color, icon: Icon } = AI_PROVIDERS.puter;
 
-  if (puterState.status === "loading") {
     return (
       <Card className="bg-card/40 border-primary/20 animate-pulse h-[280px] flex flex-col items-center justify-center text-center">
         <Bot className="w-8 h-8 text-primary/40 animate-bounce mb-3" />
-        <p className="text-[10px] font-mono text-primary/60 uppercase animate-pulse">Puter analyzing…</p>
       </Card>
     );
   }
 
-  if (puterState.status === "done" && puterState.insight) {
-    return <FilledInsightCard provider="Puter AI" insight={puterState.insight} color={color} icon={Icon} />;
   }
 
   return (
@@ -289,7 +275,6 @@ function PuterGridCard({
       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
         <Icon className="w-5 h-5 text-primary/60" />
       </div>
-      <h4 className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Puter.js Intelligence</h4>
       <p className="text-[9px] font-mono text-muted-foreground/50 mb-4 px-2 italic">Client-side Claude — no server key required</p>
       {canRun ? (
         <Button
@@ -307,26 +292,19 @@ function PuterGridCard({
   );
 }
 
-function PuterHeroCard({
-  puterState,
   onRun,
   canRun,
   homeTeam,
   awayTeam,
 }: {
-  puterState: PuterInsightState;
   onRun: () => void;
   canRun: boolean;
   homeTeam?: string;
   awayTeam?: string;
 }) {
-  const { color } = AI_PROVIDERS.puter;
 
-  if (puterState.status === "done" && puterState.insight) {
     return (
       <FilledInsightCard
-        provider="Puter Browser AI · Claude 3.5 Sonnet"
-        insight={puterState.insight}
         color={color}
         icon={Bot}
         fullWidth
@@ -353,16 +331,13 @@ function PuterHeroCard({
       <CardContent className="relative z-10 pt-2 pb-6">
         <p className="text-xs text-muted-foreground max-w-md mb-5 leading-relaxed">
           I can perform a deep tactical analysis of <span className="text-foreground font-bold">{homeTeam} vs {awayTeam}</span> using
-          your browser's computing power via Puter.js. No API keys or server credits required.
         </p>
         {canRun ? (
           <Button
             className="font-mono uppercase text-xs h-9 px-6 gap-2 shadow-xl shadow-primary/20"
             style={{ background: color, color: "#000" }}
             onClick={onRun}
-            disabled={puterState.status === "loading"}
           >
-            {puterState.status === "loading" ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 Processing Tactical Data…
@@ -375,7 +350,6 @@ function PuterHeroCard({
             )}
           </Button>
         ) : (
-          <p className="font-mono text-[10px] text-amber-500/80">Puter environment not initialized</p>
         )}
       </CardContent>
     </Card>
@@ -384,7 +358,6 @@ function PuterHeroCard({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function resolveInsight(data: InsightsData | undefined, provider: Exclude<Provider, "puter">): Insight | undefined {
   if (!data) return undefined;
   if (data.results?.[provider]) return data.results[provider];
   return (data as any)[provider];
@@ -411,12 +384,9 @@ export function AIInsightComparison({
     staleTime: 5 * 60 * 1000,
   });
 
-  const [puterState, setPuterState] = useState<PuterInsightState>({ status: "idle" });
   const autoTriggered = useRef(false);
 
-  const canRunPuter = isPuterAvailable() && !!homeTeam && !!awayTeam;
 
-  const serverProviders: Exclude<Provider, "puter">[] = ["gemini", "claude", "grok", "openai"];
 
   const serverInsights = serverProviders.map((p) => resolveInsight(insights, p));
   const serverHasAny   = serverInsights.some((ins) => ins?.available !== false && ins != null);
@@ -424,39 +394,30 @@ export function AIInsightComparison({
     (ins) => !ins || ins.available === false
   );
 
-  // ── Auto-trigger Puter when all server providers are unavailable ──────────
   useEffect(() => {
     if (
       allServerFailed &&
       !autoTriggered.current &&
-      canRunPuter &&
-      puterState.status === "idle" &&
       homeTeam &&
       awayTeam
     ) {
       autoTriggered.current = true;
-      runPuter();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allServerFailed, canRunPuter]);
 
-  const runPuter = async () => {
     if (!homeTeam || !awayTeam) return;
-    setPuterState({ status: "loading" });
     try {
       const priors = {
         home: resolveInsight(insights, "gemini")?.confidence ?? 0.34,
         draw: 0.33,
         away: 0.33,
       };
-      const analysis: MatchAnalysis = await analyzeMatchWithPuter(
         homeTeam, awayTeam, league ?? "Football",
         priors.home, priors.draw, priors.away,
         "claude",
       );
       const insight: Insight = {
         available: true,
-        provider: "puter",
         summary: analysis.reason,
         key_factors: analysis.key_factors,
         confidence: analysis.confidence,
@@ -466,9 +427,7 @@ export function AIInsightComparison({
         risk_level: analysis.confidence >= 0.7 ? "LOW" : analysis.confidence >= 0.55 ? "MEDIUM" : "HIGH",
         recommendation: `Home ${(analysis.home_prob * 100).toFixed(0)}% · Draw ${(analysis.draw_prob * 100).toFixed(0)}% · Away ${(analysis.away_prob * 100).toFixed(0)}%`,
       };
-      setPuterState({ status: "done", insight });
     } catch (e: any) {
-      setPuterState({ status: "error", error: e?.message || "Puter analysis failed" });
     }
   };
 
@@ -482,7 +441,6 @@ export function AIInsightComparison({
           <CardTitle className="font-mono uppercase flex items-center gap-2 tracking-tighter">
             <Sparkles className="w-5 h-5 text-primary" />
             AI Intelligence Comparison
-            {allServerFailed && puterState.status !== "done" && (
               <Badge variant="outline" className="text-[9px] font-mono font-normal text-muted-foreground bg-amber-500/5 flex items-center gap-1 border-amber-500/20">
                 <WifiOff className="w-3 h-3" /> server fallback active
               </Badge>
@@ -523,17 +481,12 @@ export function AIInsightComparison({
                 Predictions must be generated before AI analysis can run.
               </p>
             </div>
-            {canRunPuter && (
               <div className="pt-4">
                 <Button
                   size="sm"
                   className="font-mono gap-2 rounded-full px-6"
-                  style={{ background: AI_PROVIDERS.puter.color, color: "#000" }}
-                  onClick={runPuter}
-                  disabled={puterState.status === "loading"}
                 >
                   <Bot className="w-4 h-4" />
-                  {puterState.status === "loading" ? "Thinking…" : "Analyze with Browser AI"}
                 </Button>
               </div>
             )}
@@ -548,25 +501,17 @@ export function AIInsightComparison({
                 {serverProviders.map((p) => (
                   <ServerInsightCard key={p} provider={p} isLoading />
                 ))}
-                <PuterGridCard puterState={{ status: "idle" }} onRun={runPuter} canRun={canRunPuter} />
               </div>
             )}
 
             {/* Consensus Bars - New G07 feature */}
-            {!isLoading && (serverHasAny || puterState.status === "done") && (
               <ConsensusBars
                 insights={serverInsights}
-                puterInsight={puterState.status === "done" ? puterState.insight : undefined}
               />
             )}
 
-            {/* All server providers failed — Puter takes the full width */}
             {!isLoading && allServerFailed && (
               <div className="grid grid-cols-1 gap-4">
-                <PuterHeroCard
-                  puterState={puterState}
-                  onRun={runPuter}
-                  canRun={canRunPuter}
                   homeTeam={homeTeam}
                   awayTeam={awayTeam}
                 />
@@ -584,21 +529,16 @@ export function AIInsightComparison({
                     isLoading={false}
                   />
                 ))}
-                <PuterGridCard puterState={puterState} onRun={runPuter} canRun={canRunPuter} />
               </div>
             )}
 
             {/* Provider status footer */}
-            {!isLoading && (serverHasAny || puterState.status === "done") && (
               <div className="mt-8 p-4 bg-muted/10 rounded-2xl border border-border/30">
                 <div className="flex items-center gap-4 flex-wrap">
                   <p className="text-[10px] font-mono text-muted-foreground uppercase font-bold tracking-widest shrink-0">Engine Connectivity</p>
                   <div className="flex flex-wrap gap-4">
-                    {(["gemini", "claude", "grok", "openai", "puter"] as Provider[]).map((p) => {
                       const { name, color, icon: Icon } = AI_PROVIDERS[p];
                       let active = false;
-                      if (p === "puter") {
-                        active = puterState.status === "done";
                       } else {
                         const r = resolveInsight(insights, p);
                         active = !!r && r.available !== false;

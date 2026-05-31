@@ -1002,7 +1002,7 @@ async def get_match_insights(
     """
     import os as _os
     from app.db.models import Match, Prediction
-    from app.services.gemini_insights import generate_match_insights
+    pass
 
     match_row = await db.execute(select(Match).where(Match.id == match_id))
     match = match_row.scalar_one_or_none()
@@ -1028,7 +1028,7 @@ async def get_match_insights(
     btts = float(pred.btts_prob or 0.0)
     bet_side = pred.bet_side or "home"
 
-    gemini_key = GEMINI_API_KEY.strip()
+    gemini_key = ""
 
     if not gemini_key:
         # ML ensemble fallback — generate rule-based insight from prediction data
@@ -1056,9 +1056,7 @@ async def get_match_insights(
         }
         return {
             "match_id": match_id,
-            "gemini": synthetic_insight,
-            "claude": None,
-            "grok": None,
+            "native": synthetic_insight,
             "source": "ml_fallback",
         }
 
@@ -1089,9 +1087,7 @@ async def get_match_insights(
 
     return {
         "match_id": match_id,
-        "gemini": gemini_insight,
-        "claude": None,
-        "grok": None,
+        "native": gemini_insight,
         "source": "gemini" if gemini_insight else "unavailable",
     }
 
