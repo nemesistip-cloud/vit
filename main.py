@@ -122,6 +122,11 @@ from app.modules.governance.routes import router as governance_router
 # ===== NEW FEATURE ROUTES =====
 from app.auth.verification import router as verification_router
 from app.auth.totp import router as totp_router
+from app.modules.elections.routes import router as elections_router
+from app.modules.policy.routes import router as policy_router
+from app.modules.remittance.routes import router as remittance_router
+from app.api.routes.basketball import router as basketball_router
+from app.api.routes.tennis import router as tennis_router
 from app.modules.referral.routes import router as referral_router
 from app.api.routes.leaderboard import router as leaderboard_router
 from app.api.routes.exports import router as exports_router
@@ -2274,6 +2279,11 @@ app.include_router(subscription_route.router, prefix="/api")
 app.include_router(audit_route.router, prefix="/api")
 app.include_router(config_route.router, prefix="/api")
 app.include_router(ai_assistant_route.router, prefix="/api")
+app.include_router(elections_router, prefix="/api")
+app.include_router(policy_router, prefix="/api")
+app.include_router(remittance_router, prefix="/api")
+app.include_router(basketball_router, prefix="/api")
+app.include_router(tennis_router, prefix="/api")
 
 # Auth (JWT)
 app.include_router(auth_router)

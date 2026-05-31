@@ -1,85 +1,85 @@
-import { lazyRetry } from "@/lib/lazy-retry";
-import { lazy, Suspense } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Suspense } from "react";
+import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/not-found";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
-import { Layout } from "@/components/layout";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { Layout } from "@/components/layout";
 import { GamblingAgeDisclaimer } from "@/components/gambling-age-disclaimer";
 import { wagmiConfig } from "@/lib/web3";
+import { WagmiProvider } from "wagmi";
+import { lazyRetry } from "@/lib/lazy-retry";
 
-// Eager — first-paint surfaces (landing + auth) and the tiny info page used for legal routes.
-import LandingPage from "@/pages/landing";
-import AuthPage from "@/pages/auth";
-import InfoPage from "@/pages/info";
-
-// Lazy — every authenticated/secondary route ships in its own chunk.
-const ElectionsPage       = lazyRetry(() => import("@/pages/elections"));
-const PolicyPage          = lazyRetry(() => import("@/pages/policy"));
-const RemittancePage      = lazyRetry(() => import("@/pages/remittance"));
-const CommunityPage       = lazyRetry(() => import("@/pages/community"));
-const DashboardPage       = lazyRetry(() => import("@/pages/dashboard"));
-const MatchesPage         = lazyRetry(() => import("@/pages/matches"));
-const MatchDetailPage     = lazyRetry(() => import("@/pages/match-detail"));
-const PredictionsPage     = lazyRetry(() => import("@/pages/predictions"));
-const WalletPage          = lazyRetry(() => import("@/pages/wallet"));
-const ValidatorsPage      = lazyRetry(() => import("@/pages/validators"));
-const TrainingPage        = lazyRetry(() => import("@/pages/training"));
-const AnalyticsPage       = lazyRetry(() => import("@/pages/analytics"));
-const SubscriptionPage    = lazyRetry(() => import("@/pages/subscription"));
-const AdminPage           = lazyRetry(() => import("@/pages/admin"));
-const AISourcesPage       = lazyRetry(() => import("@/pages/ai-sources"));
-const MarketplacePage     = lazyRetry(() => import("@/pages/marketplace"));
-const TrustPage           = lazyRetry(() => import("@/pages/trust"));
-const BridgePage          = lazyRetry(() => import("@/pages/bridge"));
-const DeveloperPage       = lazyRetry(() => import("@/pages/developer"));
-const GovernancePage      = lazyRetry(() => import("@/pages/governance"));
-const AccumulatorPage     = lazyRetry(() => import("@/pages/accumulator"));
-const BacktestPage        = lazyRetry(() => import("@/pages/backtest"));
-const OddsPage            = lazyRetry(() => import("@/pages/odds"));
+// Lazy-loaded pages with retry logic
+const DashboardPage = lazyRetry(() => import("@/pages/dashboard"));
+const AuthPage = lazyRetry(() => import("@/pages/auth"));
+const LandingPage = lazyRetry(() => import("@/pages/landing"));
+const MatchesPage = lazyRetry(() => import("@/pages/matches"));
+const MatchDetailPage = lazyRetry(() => import("@/pages/match-detail"));
+const PredictionsPage = lazyRetry(() => import("@/pages/predictions"));
+const WalletPage = lazyRetry(() => import("@/pages/wallet"));
+const ValidatorsPage = lazyRetry(() => import("@/pages/validators"));
+const TrainingPage = lazyRetry(() => import("@/pages/training"));
+const AnalyticsPage = lazyRetry(() => import("@/pages/analytics"));
+const SubscriptionPage = lazyRetry(() => import("@/pages/subscription"));
+const MarketplacePage = lazyRetry(() => import("@/pages/marketplace"));
+const TrustPage = lazyRetry(() => import("@/pages/trust"));
+const BridgePage = lazyRetry(() => import("@/pages/bridge"));
+const DeveloperPage = lazyRetry(() => import("@/pages/developer"));
+const GovernancePage = lazyRetry(() => import("@/pages/governance"));
+const AdminPage = lazyRetry(() => import("@/pages/admin"));
+const AISourcesPage = lazyRetry(() => import("@/pages/ai-sources"));
+const AccumulatorPage = lazyRetry(() => import("@/pages/accumulator"));
+const BacktestPage = lazyRetry(() => import("@/pages/backtest"));
+const OddsPage = lazyRetry(() => import("@/pages/odds"));
 const PaymentCallbackPage = lazyRetry(() => import("@/pages/payment-callback"));
-const LeaderboardPage     = lazyRetry(() => import("@/pages/leaderboard"));
-const ReferralPage        = lazyRetry(() => import("@/pages/referral"));
-const SettingsPage        = lazyRetry(() => import("@/pages/settings"));
-const TasksPage           = lazyRetry(() => import("@/pages/tasks"));
-const AssistantPage       = lazyRetry(() => import("@/pages/assistant"));
-const ForgotPasswordPage  = lazyRetry(() => import("@/pages/forgot-password"));
-const ResetPasswordPage   = lazyRetry(() => import("@/pages/reset-password"));
-const VerifyEmailPage     = lazyRetry(() => import("@/pages/verify-email"));
-const OfferwallPage       = lazyRetry(() => import("@/pages/offerwall"));
-const AgentsPage          = lazyRetry(() => import("@/pages/agents"));
-const ReportsPage         = lazyRetry(() => import("@/pages/reports"));
-const OraclePage          = lazyRetry(() => import("@/pages/oracle"));
-const NetworkPage         = lazyRetry(() => import("@/pages/network"));
-const ResearchPage        = lazyRetry(() => import("@/pages/research"));
-const SmartContractsPage  = lazyRetry(() => import("@/pages/smart-contracts"));
-const TreasuryPage        = lazyRetry(() => import("@/pages/treasury"));
-const MeritPage           = lazyRetry(() => import("@/pages/merit"));
-const SecurityLayerPage   = lazyRetry(() => import("@/pages/security"));
-const RoadmapPage         = lazyRetry(() => import("@/pages/roadmap"));
-const IdentityPage        = lazyRetry(() => import("@/pages/identity"));
-const KYCPage             = lazyRetry(() => import("@/pages/kyc"));
-const IDLookupPage          = lazyRetry(() => import("@/pages/id-lookup"));
-const ModelPerformancePage  = lazyRetry(() => import("@/pages/model-performance"));
-const BankrollPage          = lazyRetry(() => import("@/pages/bankroll"));
-const StadiumModePage       = lazyRetry(() => import("@/pages/stadium-mode"));
-const JulesPromptPage       = lazyRetry(() => import("@/pages/jules-prompt"));
-const IQTestPage            = lazyRetry(() => import("@/pages/iq-test"));
-const OraclesMicPage        = lazyRetry(() => import("@/pages/oracle-mic"));
+const LeaderboardPage = lazyRetry(() => import("@/pages/leaderboard"));
+const ReferralPage = lazyRetry(() => import("@/pages/referral"));
+const SettingsPage = lazyRetry(() => import("@/pages/settings"));
+const TasksPage = lazyRetry(() => import("@/pages/tasks"));
+const AssistantPage = lazyRetry(() => import("@/pages/assistant"));
+const OfferwallPage = lazyRetry(() => import("@/pages/offerwall"));
+const AgentsPage = lazyRetry(() => import("@/pages/agents"));
+const ReportsPage = lazyRetry(() => import("@/pages/reports"));
+const OraclePage = lazyRetry(() => import("@/pages/oracle"));
+const NetworkPage = lazyRetry(() => import("@/pages/network"));
+const ResearchPage = lazyRetry(() => import("@/pages/research"));
+const SmartContractsPage = lazyRetry(() => import("@/pages/smart-contracts"));
+const TreasuryPage = lazyRetry(() => import("@/pages/treasury"));
+const MeritPage = lazyRetry(() => import("@/pages/merit"));
+const SecurityLayerPage = lazyRetry(() => import("@/pages/security"));
+const RoadmapPage = lazyRetry(() => import("@/pages/roadmap"));
+const IdentityPage = lazyRetry(() => import("@/pages/identity"));
+const KYCPage = lazyRetry(() => import("@/pages/kyc"));
+const IDLookupPage = lazyRetry(() => import("@/pages/id-lookup"));
+const ModelPerformancePage = lazyRetry(() => import("@/pages/model-performance"));
+const BankrollPage = lazyRetry(() => import("@/pages/bankroll"));
+const StadiumModePage = lazyRetry(() => import("@/pages/stadium-mode"));
+const JulesPromptPage = lazyRetry(() => import("@/pages/jules-prompt"));
+const IQTestPage = lazyRetry(() => import("@/pages/iq-test"));
+const OraclesMicPage = lazyRetry(() => import("@/pages/oracle-mic"));
 const PredictionWrappedPage = lazyRetry(() => import("@/pages/wrapped"));
-const DisciplineCoachPage   = lazyRetry(() => import("@/pages/discipline-coach"));
-const QualityFeedPage       = lazyRetry(() => import("@/pages/quality-feed"));
-const DebateMarketsPage     = lazyRetry(() => import("@/pages/debate-markets"));
-const BetRoomsPage          = lazyRetry(() => import("@/pages/bet-rooms"));
-const ProphecyChainPage     = lazyRetry(() => import("@/pages/prophecy-chain"));
+const DisciplineCoachPage = lazyRetry(() => import("@/pages/discipline-coach"));
+const QualityFeedPage = lazyRetry(() => import("@/pages/quality-feed"));
+const DebateMarketsPage = lazyRetry(() => import("@/pages/debate-markets"));
+const BetRoomsPage = lazyRetry(() => import("@/pages/bet-rooms"));
+const WatchlistPage = lazyRetry(() => import("@/pages/watchlist"));
+const StoragePage = lazyRetry(() => import("@/pages/storage"));
+const ProphecyChainPage = lazyRetry(() => import("@/pages/prophecy-chain"));
 const ValueIntelligencePage = lazyRetry(() => import("@/pages/value-intelligence"));
-const WatchlistPage         = lazyRetry(() => import("@/pages/watchlist"));
-const StoragePage           = lazyRetry(() => import("@/pages/storage"));
+const ElectionsPage = lazyRetry(() => import("@/pages/elections"));
+const PolicyPage = lazyRetry(() => import("@/pages/policy"));
+const RemittancePage = lazyRetry(() => import("@/pages/remittance"));
+const CommunityPage = lazyRetry(() => import("@/pages/community"));
+
+// Simple components
+const InfoPage = lazyRetry(() => import("@/pages/info"));
+const ForgotPasswordPage = lazyRetry(() => import("@/pages/forgot-password"));
+const ResetPasswordPage = lazyRetry(() => import("@/pages/reset-password"));
+const VerifyEmailPage = lazyRetry(() => import("@/pages/verify-email"));
+const NotFound = lazyRetry(() => import("@/pages/not-found"));
 
 function RouteFallback() {
   return (
@@ -148,6 +148,7 @@ function Router() {
         <Layout>
           <ProtectedRoute component={DashboardPage} />
         </Layout>
+      </Route>
       <Route path="/elections">
         <Layout><ProtectedRoute component={ElectionsPage} /></Layout>
       </Route>
@@ -159,7 +160,6 @@ function Router() {
       </Route>
       <Route path="/community">
         <Layout><ProtectedRoute component={CommunityPage} /></Layout>
-      </Route>
       </Route>
       <Route path="/matches">
         <Layout><ProtectedRoute component={MatchesPage} /></Layout>
