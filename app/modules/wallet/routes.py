@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.db.models import User
 from app.api.deps import get_current_user
 from app.services.telegram_service import create_stars_invoice
 from app.modules.wallet.services import WalletService, WithdrawalService, SubscriptionService
@@ -69,6 +70,10 @@ class KYCSubmitRequest(BaseModel):
 
 class KYCRejectRequest(BaseModel):
     reason: Optional[str] = None
+
+
+class StarsInvoiceRequest(BaseModel):
+    stars_amount: int = Field(..., gt=0, description="Number of Telegram Stars to invoice")
 
 
 class WalletResponse(BaseModel):
