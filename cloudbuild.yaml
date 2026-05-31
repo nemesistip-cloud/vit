@@ -11,6 +11,7 @@ steps:
     args: ['push', 'gcr.io/$PROJECT_ID/vit-network:latest']
 
   # Deploy API to Cloud Run
+  # NOTE: Ensure the service account (default or custom) has 'Secret Manager Secret Accessor' role
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
