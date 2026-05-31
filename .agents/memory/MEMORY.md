@@ -1,0 +1,2 @@
+- [Test suite fixes v5.1.0](test-suite-fixes.md) — 8 root causes fixed to get 16 failing tests to 0; key pitfalls to avoid repeating.
+- [Header dedup contract](header-dedup-contract.md) — error_response() must own X-Request-ID headers; middleware must guard before appending.

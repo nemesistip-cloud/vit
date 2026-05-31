@@ -141,7 +141,7 @@ def _clean_redis_url(raw: str) -> str:
 # /config/public endpoint. Override via env vars for white-label deployments.
 # ══════════════════════════════════════════════════════════════════════════════
 
-APP_VERSION: str    = "5.0.0"  # Bumped here only — imported everywhere else
+APP_VERSION: str    = "5.1.0"  # Bumped here only — imported everywhere else
 APP_NAME: str       = get_env("APP_NAME",       "Value Intelligence Trust (VIT)")
 APP_SHORT_NAME: str = get_env("APP_SHORT_NAME", "VIT")
 APP_TAGLINE: str    = get_env("APP_TAGLINE",    "Where Value, Intelligence, and Trust Converge")

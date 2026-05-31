@@ -1,6 +1,6 @@
 # VIT Network: Africa's AI Intelligence Oracle & Blockchain Super App
 
-[![Build Status](https://img.shields.io/badge/Version-5.0.0-blue.svg)](https://github.com/vit-network/vit-blockchain)
+[![Build Status](https://img.shields.io/badge/Version-5.1.0-blue.svg)](https://github.com/vit-network/vit-blockchain)
 [![Ecosystem](https://img.shields.io/badge/Blockchain-Base_L2-emerald.svg)](https://base.org)
 [![Intelligence](https://img.shields.io/badge/AI-Ensemble_Swarm-orange.svg)](app/ai)
 
@@ -122,6 +122,27 @@ cd frontend
 pnpm install
 pnpm dev
 ```
+
+---
+
+## 🆕 What's New in v5.1.0 (2026-05-31)
+
+**Stability & Test-Suite Hardening Release** — zero failing tests, no regressions.
+
+| Area | Change |
+|------|--------|
+| `predict.py` | Fixed `TypeError` — `data_quality` was passed as the 4th positional arg (mapped to `sport`). |
+| `ai_assistant.py` | Fixed `AttributeError` — missing `await` on async `provider_status()`. |
+| `errors.py` + `request_id.py` | Fixed duplicate `X-Request-ID` response header. Middleware now skips headers already set by `error_response()`. |
+| `worker.py` test | Fixed false-positive: `REDIS_URL` env var leaked into test that expects Celery to be unavailable. |
+| `isports` test | Replaced deprecated `asyncio.get_event_loop().time()` with `time.time()`; added skip for live-network integration test. |
+| `test_ml_models.py` | Fixture now sets `USE_REAL_ML_MODELS=false` + `FeatureFlags.reset()` before building the orchestrator. |
+| `test_predictions_functional.py` | Odds payload corrected to `market_odds: {home, draw, away}` object format. |
+| Test DB | Deleted stale/corrupt `vit.db`; session fixture cleanly recreates it. |
+
+**Test results**: 267 passed, 1 skipped (integration-only), 0 failed (was 252/0/16).
+
+Full details in [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 ---
 

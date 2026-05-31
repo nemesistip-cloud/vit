@@ -146,11 +146,16 @@ def error_response(
     Returns:
         A ``JSONResponse`` ready to return from any route or middleware.
     """
-    # X-Request-ID and X-Correlation-ID are injected by RequestIDMiddleware for
-    # every response, so we must NOT add them here — doing so causes the header
-    # to appear twice (once from the JSONResponse, once from the middleware wrap),
-    # which the HTTP spec joins as "value, value" and breaks header equality checks.
-    response_headers: dict[str, str] = {}
+    request_id = get_request_id(request)
+
+    # Always set correlation headers so error_response() is self-contained when
+    # called outside the ASGI middleware stack (e.g. in unit tests).
+    # RequestIDMiddleware checks for existing headers before appending, so these
+    # are never duplicated when the response passes through the middleware.
+    response_headers = {
+        "X-Request-ID":     request_id,
+        "X-Correlation-ID": request_id,
+    }
     # Merge caller-supplied headers (e.g. Retry-After for 429 responses)
     if headers:
         response_headers.update(headers)

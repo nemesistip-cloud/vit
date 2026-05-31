@@ -36,8 +36,14 @@ class RequestIDMiddleware:
         async def send_wrapper(message):
             if message["type"] == "http.response.start":
                 resp_headers = list(message.get("headers", []))
-                resp_headers.append((b"x-request-id", request_id.encode()))
-                resp_headers.append((b"x-correlation-id", request_id.encode()))
+                # Collect already-present header names (lower-cased bytes)
+                existing = {name.lower() for name, _ in resp_headers}
+                # Only inject if not already set — prevents duplication when
+                # error_response() has already attached these headers.
+                if b"x-request-id" not in existing:
+                    resp_headers.append((b"x-request-id", request_id.encode()))
+                if b"x-correlation-id" not in existing:
+                    resp_headers.append((b"x-correlation-id", request_id.encode()))
                 message["headers"] = resp_headers
             await send(message)
 
