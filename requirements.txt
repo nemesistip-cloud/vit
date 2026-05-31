@@ -2,7 +2,6 @@ SQLAlchemy[asyncio]
 aiohttp
 aiosqlite
 alembic
-anthropic
 asyncpg
 bcrypt
 beautifulsoup4
@@ -18,7 +17,6 @@ itsdangerous
 joblib
 lxml
 numpy
-openai
 pandas
 passlib[bcrypt]
 pillow
@@ -44,7 +42,8 @@ xgboost
 email-validator>=2.0
 web3>=6.0.0
 eth-account>=0.8.0
-httpx
 pytest
 pytest-asyncio
 pytest-cov
+google-cloud-storage
+google-cloud-secret-manager

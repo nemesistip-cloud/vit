@@ -253,12 +253,7 @@ STRIPE_SECRET_KEY: str        = get_env("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET: str    = get_env("STRIPE_WEBHOOK_SECRET", "")
 
 # AI providers — cascade: Gemini → Claude → OpenAI → DeepSeek → Grok → Puter (browser-side)
-CLAUDE_API_KEY: str        = get_env("CLAUDE_API_KEY",  "") or get_env("ANTHROPIC_API_KEY", "")
 ANTHROPIC_API_KEY: str     = CLAUDE_API_KEY
-GEMINI_API_KEY: str        = get_env("GEMINI_API_KEY",  "")
-OPENAI_API_KEY: str        = get_env("OPENAI_API_KEY",  "")
-DEEPSEEK_API_KEY: str      = get_env("DEEPSEEK_API_KEY", "")
-XAI_API_KEY: str           = get_env("XAI_API_KEY",     "")
 
 # Redis — optional; enables distributed rate limiting, caching, and Celery tasks.
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.
@@ -335,11 +330,18 @@ def print_config_status() -> None:
     print(f"  {'✅' if THE_ODDS_API_KEY else '❌'} Odds API:           {'Configured' if THE_ODDS_API_KEY else 'Missing (odds disabled)'}")
     print(f"  {'✅' if PAYSTACK_SECRET_KEY else '❌'} Paystack:           {'Configured' if PAYSTACK_SECRET_KEY else 'Missing (NGN payments disabled)'}")
     print(f"  {'✅' if STRIPE_SECRET_KEY else '❌'} Stripe:             {'Configured' if STRIPE_SECRET_KEY else 'Missing (USD payments disabled)'}")
-    print(f"  {'✅' if CLAUDE_API_KEY else '❌'} Claude AI:          {'Configured' if CLAUDE_API_KEY else 'Missing (AI insights disabled)'}")
-    print(f"  {'✅' if GEMINI_API_KEY else '❌'} Gemini AI:          {'Configured' if GEMINI_API_KEY else 'Missing (AI insights disabled)'}")
-    print(f"  {'✅' if DEEPSEEK_API_KEY else '❌'} DeepSeek AI:        {'Configured' if DEEPSEEK_API_KEY else 'Missing (optional AI provider)'}")
     print(f"  {'✅' if RESEND_API_KEY else '❌'} RESEND Email:       {'Configured' if RESEND_API_KEY else 'Missing (email disabled)'}")
     print(f"  ✅ TheSportsDB:       Always available (free key)")
     print(f"  ✅ Settlement mode:   {settle_mode}")
     print(f"  {'✅' if REDIS_URL else '⚠️ '} Redis:              {'Configured' if REDIS_URL else 'Missing (in-memory rate limiting only)'}")
     print(f"{'='*55}\n")
+
+# GCS Storage
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "")
+GCS_PROJECT_ID = os.getenv("GCS_PROJECT_ID", "")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+
+# GCS Storage
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "")
+GCS_PROJECT_ID = os.getenv("GCS_PROJECT_ID", "")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")

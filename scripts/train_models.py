@@ -1,3 +1,5 @@
+import asyncio
+from app.services.gcs_storage import gcs_storage
 """
 scripts/train_models.py — VIT Sports Intelligence Network
 
@@ -306,6 +308,12 @@ def train_and_save(entry, X, y):
 
     out_path = MODELS_DIR / f"{key}.pkl"
     joblib.dump(payload, out_path)
+    # Task 3D: Upload to GCS
+    try:
+        asyncio.run(gcs_storage.upload_model(out_path, os.path.basename(out_path)))
+        # os.remove(out_path) # Cleanup if requested
+    except Exception as e:
+        print(f"GCS upload failed: {e}")
     logger.info(f"  [{key}] ✅ Saved → {out_path}")
     return {"key": key, "accuracy": acc, "log_loss": ll}
 

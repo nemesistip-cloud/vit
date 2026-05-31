@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from app.api.routes.ai_assistant import assistant_status
-from app.services.gemini_chat import chat
+from app.api.routes.ai_assistant import assistant_chat
 
 @pytest.mark.asyncio
 async def test_assistant_chat_no_key():
