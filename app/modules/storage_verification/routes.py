@@ -16,6 +16,7 @@ from app.modules.storage_verification.service import (
     register_content,
     respond_to_challenge,
     submit_storage_proof,
+    list_registered_content,
 )
 
 router = APIRouter(prefix="/api/storage", tags=["storage-verification"])
@@ -68,6 +69,11 @@ class AttestRequest(BaseModel):
 @router.get("/stats")
 async def storage_stats(db: AsyncSession = Depends(get_db)):
     return await get_storage_stats(db)
+
+
+@router.get("/objects")
+async def list_objects(limit: int = 100, offset: int = 0, db: AsyncSession = Depends(get_db)):
+    return await list_registered_content(db, limit=limit, offset=offset)
 
 
 @router.post("/content/register")
