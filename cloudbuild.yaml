@@ -16,18 +16,18 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'vit-api'
+      - 'vit'
       - '--image'
       - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
       - '--region'
-      - 'us-central1'
+      - 'europe-west1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--add-cloudsql-instances'
       - "--timeout"
       - "300"
-      - '$PROJECT_ID:us-central1:vit-postgres'
+      - '$PROJECT_ID:europe-west1:vit-postgres'
 
   # Deploy Worker to Cloud Run (Always-on CPU recommended)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -41,9 +41,10 @@ steps:
       - '--command'
       - 'celery,-A,app.worker,worker,--loglevel=info'
       - '--region'
-      - 'us-central1'
+      - 'europe-west1'
       - '--platform'
       - 'managed'
+      - '--allow-unauthenticated'
       - '--no-cpu-throttling' # Required for background workers
 
   # Deploy Tachyon to Cloud Run
@@ -58,9 +59,10 @@ steps:
       - '--command'
       - 'python,-m,tachyon.main'
       - '--region'
-      - 'us-central1'
+      - 'europe-west1'
       - '--platform'
       - 'managed'
+      - '--allow-unauthenticated'
 
 images:
   - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
