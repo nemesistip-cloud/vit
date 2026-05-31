@@ -1,0 +1,53 @@
+"""app/iot/schemas.py — Pydantic schemas for the IoT event layer."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, Optional
+
+from pydantic import BaseModel, Field
+
+
+class IoTEventType(str, Enum):
+    MATCH_EVENT     = "match_event"      # Goal, card, substitution
+    ODDS_CHANGE     = "odds_change"      # Odds movement from any book
+    INJURY_UPDATE   = "injury_update"    # New or updated injury
+    WEATHER_UPDATE  = "weather_update"   # Weather at match venue
+    AI_SIGNAL       = "ai_signal"        # Insight from an AI provider
+    SENTIMENT       = "sentiment"        # Social/fan sentiment signal
+    EXTERNAL        = "external"         # Arbitrary webhook payload
+
+
+class IoTEventSource(str, Enum):
+    LIVE_TRACKER = "live_tracker"
+    ODDS_API     = "odds_api"
+    SCRAPER      = "scraper"
+    AGENT        = "agent"
+    EXTERNAL     = "external"
+    MANUAL       = "manual"
+
+
+class IngestRequest(BaseModel):
+    source:     IoTEventSource
+    event_type: IoTEventType
+    payload:    Dict[str, Any] = Field(default_factory=dict)
+    match_id:   Optional[int]  = None
+
+    model_config = {"use_enum_values": True}
+
+
+class IngestResponse(BaseModel):
+    event_id:   int
+    source:     str
+    event_type: str
+    match_id:   Optional[int]
+    received_at: datetime
+
+
+class IoTStatusResponse(BaseModel):
+    total_events:     int
+    unprocessed:      int
+    connected_clients: int
+    event_type_counts: Dict[str, int]
+    source_counts:     Dict[str, int]

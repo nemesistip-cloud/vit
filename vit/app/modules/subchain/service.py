@@ -1,0 +1,212 @@
+"""Sub-Chain Service — chain lifecycle, block production, cross-chain messaging."""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import secrets
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Optional
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.subchain.models import (
+    CrossChainMessage,
+    MessageStatus,
+    SubChain,
+    SubChainBlock,
+    SubChainStatus,
+    SubChainType,
+    SubChainValidator,
+)
+
+logger = logging.getLogger(__name__)
+
+BUILTIN_CHAINS: list[dict] = [
+    {"chain_type": SubChainType.PREDICTIONS, "name": "VIT Predictions Chain", "chain_id": "vit-pred-1", "tps_target": 5000, "block_time_ms": 500},
+    {"chain_type": SubChainType.ORACLE, "name": "VIT Oracle Chain", "chain_id": "vit-oracle-1", "tps_target": 10000, "block_time_ms": 200},
+    {"chain_type": SubChainType.GOVERNANCE, "name": "VIT Governance Chain", "chain_id": "vit-gov-1", "tps_target": 500, "block_time_ms": 5000},
+    {"chain_type": SubChainType.BRIDGE, "name": "VIT Bridge Chain", "chain_id": "vit-bridge-1", "tps_target": 2000, "block_time_ms": 1000},
+    {"chain_type": SubChainType.AI_AGENTS, "name": "VIT AI Agent Chain", "chain_id": "vit-ai-1", "tps_target": 8000, "block_time_ms": 300},
+    {"chain_type": SubChainType.REPUTATION, "name": "VIT Reputation Chain", "chain_id": "vit-rep-1", "tps_target": 3000, "block_time_ms": 800},
+    {"chain_type": SubChainType.TREASURY, "name": "VIT Treasury Chain", "chain_id": "vit-treas-1", "tps_target": 200, "block_time_ms": 10000},
+    {"chain_type": SubChainType.IDENTITY, "name": "VIT Identity Chain", "chain_id": "vit-id-1", "tps_target": 1000, "block_time_ms": 2000},
+]
+
+
+def _genesis_hash(chain_id: str) -> str:
+    return "0x" + hashlib.sha3_256(f"genesis:{chain_id}:vit".encode()).hexdigest()
+
+
+def _block_hash(chain_id: str, block_number: int, parent_hash: str, txn_count: int) -> str:
+    raw = f"{chain_id}:{block_number}:{parent_hash}:{txn_count}:{secrets.token_hex(4)}"
+    return "0x" + hashlib.sha3_256(raw.encode()).hexdigest()
+
+
+def _state_root(chain_id: str, block_number: int) -> str:
+    return "0x" + hashlib.sha3_256(f"state:{chain_id}:{block_number}".encode()).hexdigest()
+
+
+async def bootstrap_subchains(db: AsyncSession) -> int:
+    created = 0
+    with db.no_autoflush:
+        for cfg in BUILTIN_CHAINS:
+            existing = await db.scalar(
+                select(SubChain).where(SubChain.chain_type == cfg["chain_type"])
+            )
+            if not existing:
+                genesis = _genesis_hash(cfg["chain_id"])
+                chain = SubChain(
+                    chain_type=cfg["chain_type"],
+                    name=cfg["name"],
+                    chain_id=cfg["chain_id"],
+                    status=SubChainStatus.ACTIVE,
+                    tps_target=cfg["tps_target"],
+                    block_time_ms=cfg["block_time_ms"],
+                    genesis_hash=genesis,
+                    latest_block_hash=genesis,
+                    description=f"VIT {cfg['chain_type'].value} sub-chain",
+                    config=json.dumps({"consensus": "vit-dpos", "finality": "bft"}),
+                )
+                db.add(chain)
+                created += 1
+    if created:
+        await db.commit()
+    return created
+
+
+async def produce_block(
+    db: AsyncSession,
+    chain_type: SubChainType,
+    txn_count: int,
+    gas_used: int = 0,
+    validator_address: str | None = None,
+) -> SubChainBlock:
+    chain = await db.scalar(
+        select(SubChain).where(SubChain.chain_type == chain_type)
+    )
+    if not chain:
+        raise ValueError(f"Sub-chain {chain_type} not found")
+    if chain.status != SubChainStatus.ACTIVE:
+        raise ValueError(f"Sub-chain is {chain.status}")
+
+    block_number = chain.current_block + 1
+    parent_hash = chain.latest_block_hash or _genesis_hash(chain.chain_id)
+    block_hash = _block_hash(chain.chain_id, block_number, parent_hash, txn_count)
+    state_root = _state_root(chain.chain_id, block_number)
+
+    block = SubChainBlock(
+        chain_id=chain.id,
+        block_number=block_number,
+        block_hash=block_hash,
+        parent_hash=parent_hash,
+        validator_address=validator_address,
+        txn_count=txn_count,
+        gas_used=gas_used,
+        state_root=state_root,
+        finalized=True,
+    )
+    db.add(block)
+
+    chain.current_block = block_number
+    chain.finalized_block = block_number
+    chain.latest_block_hash = block_hash
+    chain.total_txns += txn_count
+
+    await db.commit()
+    await db.refresh(block)
+    return block
+
+
+async def send_cross_chain_message(
+    db: AsyncSession,
+    source_chain_type: SubChainType,
+    dest_chain_type: SubChainType,
+    message_type: str,
+    payload: dict,
+    sender_address: str | None = None,
+    recipient_address: str | None = None,
+    fee_paid: Decimal = Decimal("0.01"),
+) -> CrossChainMessage:
+    source = await db.scalar(select(SubChain).where(SubChain.chain_type == source_chain_type))
+    dest = await db.scalar(select(SubChain).where(SubChain.chain_type == dest_chain_type))
+    if not source or not dest:
+        raise ValueError("Source or destination chain not found")
+
+    payload_str = json.dumps(payload, sort_keys=True, default=str)
+    payload_hash = "0x" + hashlib.sha3_256(payload_str.encode()).hexdigest()
+
+    nonce_q = await db.execute(
+        select(func.count(CrossChainMessage.id)).where(
+            CrossChainMessage.source_chain_id == source.id
+        )
+    )
+    nonce = (nonce_q.scalar() or 0) + 1
+
+    msg = CrossChainMessage(
+        source_chain_id=source.id,
+        dest_chain_id=dest.id,
+        nonce=nonce,
+        message_type=message_type,
+        payload=payload_str,
+        payload_hash=payload_hash,
+        sender_address=sender_address,
+        recipient_address=recipient_address,
+        fee_paid=fee_paid,
+        status=MessageStatus.QUEUED,
+    )
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    return msg
+
+
+async def relay_message(
+    db: AsyncSession,
+    message_id: int,
+    relay_proof: str | None = None,
+) -> CrossChainMessage:
+    msg = await db.get(CrossChainMessage, message_id)
+    if not msg:
+        raise ValueError("Message not found")
+    if msg.status != MessageStatus.QUEUED:
+        raise ValueError(f"Message status is {msg.status}")
+
+    msg.status = MessageStatus.RELAYED
+    msg.relay_proof = relay_proof or ("0x" + hashlib.sha3_256(f"relay:{message_id}:{secrets.token_hex(8)}".encode()).hexdigest())
+    msg.relayed_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(msg)
+    return msg
+
+
+async def confirm_message(db: AsyncSession, message_id: int) -> CrossChainMessage:
+    msg = await db.get(CrossChainMessage, message_id)
+    if not msg:
+        raise ValueError("Message not found")
+    msg.status = MessageStatus.CONFIRMED
+    msg.confirmed_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(msg)
+    return msg
+
+
+async def get_chain_summary(db: AsyncSession) -> list[dict]:
+    result = await db.execute(select(SubChain).order_by(SubChain.chain_type))
+    chains = list(result.scalars().all())
+    return [
+        {
+            "chain_id": c.chain_id,
+            "name": c.name,
+            "type": c.chain_type.value,
+            "status": c.status.value,
+            "current_block": c.current_block,
+            "total_txns": c.total_txns,
+            "tps_target": c.tps_target,
+            "block_time_ms": c.block_time_ms,
+            "validator_count": c.validator_count,
+        }
+        for c in chains
+    ]

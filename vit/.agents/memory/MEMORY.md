@@ -1,0 +1,6 @@
+- [Frontend API path convention](frontend-api-paths.md) — apiClient uses `${API_BASE}${path}` — NO auto-prefix; every path must include `/api/` or `/auth/` explicitly.
+- [Auth middleware whitelist](auth-middleware-whitelist.md) — public routes must be added to `_ALWAYS_OPEN` in `app/middleware/auth.py`; `/api/ai` prefix catches `/api/ai-upload` so explicit whitelist entries needed.
+- [SQLAlchemy boolean aggregation](sqlalchemy-bool-aggregation.md) — use `sa_case((col == True, 1), else_=0)` inside `func.sum()` for boolean aggregation in async PostgreSQL.
+- [Router prefix resolution](router-prefix-resolution.md) — final path = router `prefix` + `include_router prefix`; check both to derive the full API path for any endpoint.
+- [Prediction rate limit admin bypass](pred-rate-limit-admin.md) — admin/super_admin must be exempted from MAX_PREDICTIONS_PER_DAY; check `current_user.role` before enforcing limit.
+- [Multi-sport match seeding](multi-sport-seeding.md) — Match.sport column accepts football|basketball|tennis|cricket|american_football|ice_hockey; seed directly into DB; MatchRequest.sport added as optional field.

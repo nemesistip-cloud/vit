@@ -1,0 +1,165 @@
+"""Sub-Chain Architecture — VIT named sub-chains with cross-chain messaging."""
+from __future__ import annotations
+
+import enum
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Optional
+
+from sqlalchemy import ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.database import Base
+
+
+class SubChainType(str, enum.Enum):
+    PREDICTIONS = "predictions"
+    ORACLE = "oracle"
+    GOVERNANCE = "governance"
+    BRIDGE = "bridge"
+    AI_AGENTS = "ai_agents"
+    REPUTATION = "reputation"
+    TREASURY = "treasury"
+    IDENTITY = "identity"
+
+
+class SubChainStatus(str, enum.Enum):
+    GENESIS = "genesis"
+    SYNCING = "syncing"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    FINALIZED = "finalized"
+
+
+class MessageStatus(str, enum.Enum):
+    QUEUED = "queued"
+    RELAYED = "relayed"
+    CONFIRMED = "confirmed"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
+class SubChain(Base):
+    __tablename__ = "sub_chains"
+    __table_args__ = (UniqueConstraint("chain_type"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chain_type: Mapped[SubChainType] = mapped_column()
+    name: Mapped[str] = mapped_column(String(100))
+    chain_id: Mapped[str] = mapped_column(String(32), unique=True)
+    status: Mapped[SubChainStatus] = mapped_column(default=SubChainStatus.GENESIS)
+    current_block: Mapped[int] = mapped_column(default=0)
+    finalized_block: Mapped[int] = mapped_column(default=0)
+    block_time_ms: Mapped[int] = mapped_column(default=1000)
+    validator_count: Mapped[int] = mapped_column(default=0)
+    tps_target: Mapped[int] = mapped_column(default=1000)
+    tps_current: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), default=Decimal("0")
+    )
+    total_txns: Mapped[int] = mapped_column(default=0)
+    genesis_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
+    latest_block_hash: Mapped[Optional[str]] = mapped_column(
+        String(66), nullable=True
+    )
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    config: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
+
+    blocks: Mapped[list["SubChainBlock"]] = relationship(
+        back_populates="chain", cascade="all, delete-orphan"
+    )
+    outbound_messages: Mapped[list["CrossChainMessage"]] = relationship(
+        foreign_keys="CrossChainMessage.source_chain_id",
+        back_populates="source_chain",
+        cascade="all, delete-orphan",
+    )
+    inbound_messages: Mapped[list["CrossChainMessage"]] = relationship(
+        foreign_keys="CrossChainMessage.dest_chain_id",
+        back_populates="dest_chain",
+    )
+
+
+class SubChainBlock(Base):
+    __tablename__ = "subchain_blocks"
+    __table_args__ = (UniqueConstraint("chain_id", "block_number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chain_id: Mapped[int] = mapped_column(
+        ForeignKey("sub_chains.id", ondelete="CASCADE")
+    )
+    block_number: Mapped[int] = mapped_column()
+    block_hash: Mapped[str] = mapped_column(String(66), unique=True)
+    parent_hash: Mapped[str] = mapped_column(String(66))
+    validator_address: Mapped[Optional[str]] = mapped_column(
+        String(66), nullable=True
+    )
+    txn_count: Mapped[int] = mapped_column(default=0)
+    gas_used: Mapped[int] = mapped_column(default=0)
+    state_root: Mapped[str] = mapped_column(String(66))
+    finality_proof: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    finalized: Mapped[bool] = mapped_column(default=False)
+    produced_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    chain: Mapped["SubChain"] = relationship(back_populates="blocks")
+
+
+class CrossChainMessage(Base):
+    __tablename__ = "cross_chain_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_chain_id: Mapped[int] = mapped_column(
+        ForeignKey("sub_chains.id", ondelete="CASCADE")
+    )
+    dest_chain_id: Mapped[int] = mapped_column(
+        ForeignKey("sub_chains.id", ondelete="CASCADE")
+    )
+    nonce: Mapped[int] = mapped_column()
+    message_type: Mapped[str] = mapped_column(String(80))
+    payload: Mapped[str] = mapped_column(Text)
+    payload_hash: Mapped[str] = mapped_column(String(66))
+    sender_address: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
+    recipient_address: Mapped[Optional[str]] = mapped_column(
+        String(66), nullable=True
+    )
+    status: Mapped[MessageStatus] = mapped_column(default=MessageStatus.QUEUED)
+    relay_proof: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    confirmation_block: Mapped[Optional[int]] = mapped_column(nullable=True)
+    fee_paid: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))
+    retry_count: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    relayed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+
+    source_chain: Mapped["SubChain"] = relationship(
+        foreign_keys=[source_chain_id], back_populates="outbound_messages"
+    )
+    dest_chain: Mapped["SubChain"] = relationship(
+        foreign_keys=[dest_chain_id], back_populates="inbound_messages"
+    )
+
+
+class SubChainValidator(Base):
+    __tablename__ = "subchain_validators"
+    __table_args__ = (UniqueConstraint("chain_id", "validator_user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chain_id: Mapped[int] = mapped_column(
+        ForeignKey("sub_chains.id", ondelete="CASCADE")
+    )
+    validator_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE")
+    )
+    stake: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))
+    blocks_produced: Mapped[int] = mapped_column(default=0)
+    uptime_pct: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), default=Decimal("100")
+    )
+    is_active: Mapped[bool] = mapped_column(default=True)
+    joined_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+
+def _utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)

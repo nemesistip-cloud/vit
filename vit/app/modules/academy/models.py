@@ -1,0 +1,162 @@
+from __future__ import annotations
+import enum
+from datetime import datetime
+from typing import Optional, List
+
+from sqlalchemy import (
+    Column, Integer, String, Float, DateTime, ForeignKey,
+    Boolean, JSON, Text, Index, UniqueConstraint
+)
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+
+from app.db.database import Base
+
+class ResourceType(str, enum.Enum):
+    NOTE = "note"
+    PAST_QUESTION = "past_question"
+    TEXTBOOK = "textbook"
+    SLIDE = "slide"
+    VIDEO = "video"
+    OTHER = "other"
+
+class Course(Base):
+    """Academic Course model (v5.1.0)"""
+    __tablename__ = "academic_courses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_code = Column(String(20), nullable=False, index=True)
+    course_title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+
+    university = Column(String(255), nullable=False, index=True)
+    faculty = Column(String(255), nullable=False, index=True)
+    department = Column(String(255), nullable=False, index=True)
+    level = Column(String(20), nullable=False, index=True)
+
+    upvotes = Column(Integer, default=0)
+    is_verified = Column(Boolean, default=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    resources = relationship("AcademicResource", back_populates="course", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("course_code", "university", name="uq_course_code_uni"),
+    )
+
+class AcademicResource(Base):
+    """Academic Resource model (v5.1.0)"""
+    __tablename__ = "academic_resources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("academic_courses.id"), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    resource_type = Column(String(32), nullable=False)
+
+    file_url = Column(String(512), nullable=False)
+    file_size_bytes = Column(Integer, nullable=True)
+
+    university = Column(String(255), nullable=True)
+    faculty = Column(String(255), nullable=True)
+    department = Column(String(255), nullable=True)
+
+    academic_year = Column(Integer, nullable=True)
+    semester = Column(Integer, nullable=True)
+
+    upvotes = Column(Integer, default=0)
+    downloads = Column(Integer, default=0)
+    is_verified = Column(Boolean, default=False)
+    vit_reward_paid = Column(Boolean, default=False)
+    content_summary = Column(Text, nullable=True)
+
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    course = relationship("Course", back_populates="resources")
+
+    __table_args__ = (
+        Index("idx_resource_course", "course_id"),
+        Index("idx_resource_type", "resource_type"),
+    )
+
+class CampusCircle(Base):
+    """Campus Circle (Community) model (v5.1.0)"""
+    __tablename__ = "campus_circles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), nullable=False)
+    description = Column(Text, nullable=True)
+    circle_type = Column(String(32), nullable=False)
+
+    university = Column(String(255), nullable=False, index=True)
+    faculty = Column(String(255), nullable=True)
+    department = Column(String(255), nullable=True)
+
+    member_count = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    posts = relationship("CampusPost", back_populates="circle", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("name", "university", name="uq_circle_name_uni"),
+    )
+
+class CampusPost(Base):
+    """Post within a Campus Circle (v5.1.0)"""
+    __tablename__ = "campus_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    circle_id = Column(Integer, ForeignKey("campus_circles.id"), nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    content = Column(Text, nullable=False)
+    media_urls = Column(JSON, default=list)
+
+    upvotes = Column(Integer, default=0)
+    is_pinned = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    circle = relationship("CampusCircle", back_populates="posts")
+    comments = relationship("CampusComment", back_populates="post", cascade="all, delete-orphan")
+
+class CampusComment(Base):
+    """Comment on a Campus Post (v5.1.0)"""
+    __tablename__ = "campus_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("campus_posts.id"), nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    post = relationship("CampusPost", back_populates="comments")
+
+class CampusGig(Base):
+    """Campus Micro-tasks / Gigs (v5.1.0)"""
+    __tablename__ = "campus_gigs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    gig_type = Column(String(50), nullable=False)
+
+    budget_vit = Column(Float, default=0.0)
+    budget_ngn = Column(Float, default=0.0)
+
+    university = Column(String(255), nullable=False, index=True)
+    status = Column(String(20), default="open")
+
+    posted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    deadline = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_gig_uni", "university"),
+        Index("idx_gig_status", "status"),
+    )
