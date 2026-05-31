@@ -36,6 +36,7 @@ externalPort = 8000
 
 [nix]
 channel = "stable-25_05"
+packages = ["cargo", "freetype", "glibcLocales", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "openssl", "pkg-config", "postgresql", "rustc", "tcl", "tk", "xcodebuild", "xsimd", "zlib"]
 
 [deployment]
 deploymentTarget = "cloudrun"
