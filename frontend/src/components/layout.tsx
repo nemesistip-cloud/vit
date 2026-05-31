@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { isTWA } from "@/lib/twa";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import {
@@ -131,6 +132,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
 
   if (!user) return <>{children}</>;
+  if (isTWA()) return <div className="min-h-screen bg-background p-4 pb-24">{children}</div>;
 
   const isAdmin      = user?.role === "admin";
   const canUploadAi  = isAdmin || hasTier("analyst");

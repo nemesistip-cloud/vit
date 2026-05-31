@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.api.deps import get_current_user
+from app.services.telegram_service import create_stars_invoice
 from app.modules.wallet.services import WalletService, WithdrawalService, SubscriptionService
 from app.modules.wallet.pricing import VITCoinPricingEngine
 from app.modules.wallet.models import (
@@ -1003,3 +1004,19 @@ async def get_vitcoin_price(db: AsyncSession = Depends(get_db)):
         "calculated_at": last.calculated_at.isoformat() if last else None,
         "next_update_at": next_update,
     }
+
+
+@router.post("/telegram/stars-invoice")
+async def get_telegram_stars_invoice(
+    body: StarsInvoiceRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Generate a Telegram Stars invoice link for the current user."""
+    if body.stars_amount <= 0:
+        raise HTTPException(status_code=400, detail="Stars amount must be positive")
+
+    invoice_link = await create_stars_invoice(current_user.id, body.stars_amount)
+    if not invoice_link:
+        raise HTTPException(status_code=503, detail="Failed to create Telegram Stars invoice")
+
+    return {"invoice_link": invoice_link}

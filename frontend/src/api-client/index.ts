@@ -10,6 +10,7 @@ export type { User, Match, Prediction, Wallet, Transaction, Validator, TrainingJ
 export const API = {
   me: "/auth/me",
   login: "/auth/login",
+  telegramLogin: "/auth/telegram",
   google: "/auth/google",
   register: "/auth/register",
   dashboard: {
@@ -65,6 +66,7 @@ export const API = {
   plans: "/api/wallet/plans",
   subscribe: "/api/wallet/subscribe",
   vitcoinPrice: "/api/wallet/vitcoin-price",
+  telegramStarsInvoice: "/api/wallet/telegram/stars-invoice",
   // Admin endpoints
   adminCalibrationFit: "/api/admin/calibration/fit",
   adminCalibrationReload: "/api/admin/calibration/reload",
@@ -179,6 +181,13 @@ export interface AuthResponse {
   user_id: number;
   username: string;
   role: string;
+}
+
+
+export function useTelegramLogin() {
+  return useMutation<AuthResponse, Error, { init_data: string }>({
+    mutationFn: (data) => apiPost<AuthResponse>(API.telegramLogin, data),
+  });
 }
 
 export function useLogin() {
@@ -716,6 +725,13 @@ export function useConvertCurrency() {
       queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
       queryClient.invalidateQueries({ queryKey: [API.transactions] });
     },
+  });
+}
+
+
+export function useTelegramStarsInvoice() {
+  return useMutation<{ invoice_link: string }, Error, { stars_amount: number }>({
+    mutationFn: (data) => apiPost<{ invoice_link: string }>(API.telegramStarsInvoice, data),
   });
 }
 

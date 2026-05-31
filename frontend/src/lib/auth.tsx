@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { useGetMe } from "@/api-client";
+import WebApp from "@twa-dev/sdk";
+import { useGetMe, useTelegramLogin } from "@/api-client";
 import type { User } from "@/api-client/schemas";
 
 const TIER_ORDER: Record<string, number> = {
@@ -29,6 +30,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
   const [, setLocation] = useLocation();
+  const { mutate: telegramLoginAction } = useTelegramLogin();
+
+
+  useEffect(() => {
+    // ── Telegram Mini App Auto-Auth ──
+    if (WebApp.initData && !token) {
+      telegramLoginAction({ init_data: WebApp.initData }, {
+        onSuccess: (data) => {
+          login(data.access_token, data.refresh_token);
+        },
+        onError: (err) => {
+          console.error("Telegram auth failed:", err);
+        }
+      });
+    }
+  }, [token, telegramLoginAction]);
 
   const { data: user, isLoading, isError } = useGetMe({
     query: {

@@ -18,7 +18,11 @@ User linking flow:
 import hashlib
 import logging
 import secrets
-from typing import Optional
+import json
+import os
+from decimal import Decimal
+from typing import Optional, Dict, Any, List
+import time as _time
 
 from app.config import TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME
 
@@ -28,7 +32,6 @@ logger = logging.getLogger(__name__)
 
 # In-memory store for pending link codes: { code: user_id }
 # Codes expire after LINK_CODE_TTL_SECONDS.
-import time as _time
 _PENDING: dict[str, tuple[int, float]] = {}   # code → (user_id, expires_at)
 LINK_CODE_TTL_SECONDS = 600  # 10 minutes
 
@@ -292,6 +295,39 @@ async def _cmd_predict(chat_id: str, text: str) -> None:
         logger.warning("[tg-cmd] predict error: %s", exc)
         await send_user_message(chat_id, "⚠️ Could not process prediction request. Try again shortly.")
 
+async def create_stars_invoice(user_id: int, stars_amount: int) -> Optional[str]:
+    """
+    Create a Telegram Stars invoice link.
+    stars_amount is the number of Stars.
+    """
+    token = get_bot_token()
+    if not token:
+        return None
+
+    payload = {
+        "title": f"{stars_amount} Telegram Stars for VITCoin",
+        "description": f"Purchase {stars_amount} Stars to convert into VITCoin on the VIT Network.",
+        "payload": json.dumps({"user_id": user_id, "stars": stars_amount, "type": "stars_purchase"}),
+        "provider_token": "", # Empty for Telegram Stars
+        "currency": "XTR",     # XTR is the currency code for Telegram Stars
+        "prices": [{"label": "Stars", "amount": stars_amount}],
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(
+                f"https://api.telegram.org/bot{token}/createInvoiceLink",
+                json=payload,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("ok"):
+                    return data.get("result")
+            logger.error(f"Failed to create invoice link: {r.text}")
+            return None
+    except Exception as e:
+        logger.error(f"Error creating invoice link: {e}")
+        return None
 
 async def process_webhook_update(update: dict) -> Optional[int]:
     """
@@ -300,6 +336,55 @@ async def process_webhook_update(update: dict) -> Optional[int]:
     Returns the user_id that was linked, or None.
     """
     message = update.get("message") or update.get("channel_post")
+
+    # ── Payment handling ──────────────────────────────────────────────────
+    if "pre_checkout_query" in update:
+        query = update["pre_checkout_query"]
+        token = get_bot_token()
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/answerPreCheckoutQuery",
+                json={"pre_checkout_query_id": query["id"], "ok": True},
+            )
+        return None
+
+    if message and "successful_payment" in message:
+        payment = message["successful_payment"]
+        chat = message.get("chat", {})
+        chat_id = str(chat.get("id", ""))
+        payload_str = payment.get("invoice_payload")
+        if payload_str:
+            try:
+                payload = json.loads(payload_str)
+                if payload.get("type") == "stars_purchase":
+                    user_id = payload.get("user_id")
+                    stars = payload.get("stars")
+                    vit_amount = Decimal(str(stars)) * Decimal("0.2")
+
+                    from app.db.database import AsyncSessionLocal
+                    from app.modules.wallet.services import WalletService
+                    from app.modules.wallet.models import Currency
+
+                    async with AsyncSessionLocal() as db:
+                        ws = WalletService(db)
+                        wallet = await ws.get_or_create_wallet(user_id)
+                        await ws.credit(
+                            wallet.id, user_id, Currency.VITCOIN, vit_amount,
+                            "deposit", reference=f"STARS_{message['message_id']}",
+                            metadata={"stars": stars, "provider": "telegram_stars"}
+                        )
+                        await db.commit()
+
+                    await send_user_message(
+                        chat_id,
+                        f"✅ <b>Payment Successful!</b>\n\n"
+                        f"You purchased {stars} Stars and received <b>{vit_amount} VITCoin</b>.\n"
+                        f"Your balance has been updated."
+                    )
+            except Exception as e:
+                logger.error(f"Error processing successful payment: {e}")
+        return None
+
     if not message:
         return None
 
@@ -339,13 +424,27 @@ async def process_webhook_update(update: dict) -> Optional[int]:
     code = parts[1] if len(parts) > 1 else None
 
     if not code:
-        # No code — welcome message
-        await send_user_message(
-            chat_id,
-            "👋 <b>Welcome to VIT Sports Intelligence!</b>\n\n"
-            "To link your account, visit your notification settings in the VIT app "
-            "and click <b>Link Telegram</b> to get your personalised link.",
-        )
+        # If no code, suggest opening the Mini App
+        pub_url = (os.getenv("PUBLIC_APP_URL") or os.getenv("REPLIT_DEV_DOMAIN") or "").rstrip("/")
+        if not pub_url.startswith("http") and pub_url: pub_url = f"https://{pub_url}"
+
+        keyboard = {"inline_keyboard": [[{"text": "🚀 Open VIT Mini App", "web_app": {"url": pub_url}}]]} if pub_url else None
+
+        token = get_bot_token()
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": (
+                        "👋 <b>Welcome to VIT Sports Intelligence!</b>\n\n"
+                        "The VIT Mini App is now available! Tap the button below to launch it directly in Telegram.\n\n"
+                        "To link your external account, visit your notification settings in the VIT web app."
+                    ),
+                    "parse_mode": "HTML",
+                    "reply_markup": keyboard
+                }
+            )
         return None
 
     user_id = consume_link_code(code)

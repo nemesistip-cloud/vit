@@ -695,6 +695,8 @@ async def _run_bootstrap(app, _done_event):
                             "current_streak": "INTEGER DEFAULT 0",
                             "best_streak": "INTEGER DEFAULT 0",
                             "total_xp": "INTEGER DEFAULT 0",
+                            "telegram_id": "VARCHAR(255)",
+                            "telegram_username": "VARCHAR(255)",
                         }
                         for col, ddl in user_additions.items():
                             if col not in user_col_names:
@@ -780,6 +782,8 @@ async def _run_bootstrap(app, _done_event):
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0"))
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0"))
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0"))
+                        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id VARCHAR(255)"))
+                        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(255)"))
                         # ── marketplace_listings new columns (PostgreSQL) ───────────
                         try:
                             for col, ddl in [

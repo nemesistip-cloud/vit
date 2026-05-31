@@ -13,6 +13,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from app.db.database import get_db
 from app.db.models import User, AuditLog
 from app.modules.wallet.models import Wallet
+from app.auth.telegram import validate_telegram_init_data
 from app.auth.jwt_utils import (
     hash_password,
     verify_password,
@@ -105,6 +106,9 @@ class RefreshRequest(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     id_token: str
+
+class TelegramLoginRequest(BaseModel):
+    init_data: str
 
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -433,6 +437,95 @@ async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_
     except Exception as e:
         logger.error(f"Google login error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error during Google login")
+
+@router.post("/telegram", response_model=TokenResponse)
+async def telegram_login(body: TelegramLoginRequest, db: AsyncSession = Depends(get_db)):
+    """Authenticate a user using Telegram Mini App initData."""
+    user_data = validate_telegram_init_data(body.init_data)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Invalid Telegram authentication data")
+
+    tg_id = str(user_data.get("id"))
+    tg_username = user_data.get("username")
+    email = f"tg_{tg_id}@vit.network"  # Fallback email
+
+    # 1. Try to find user by telegram_id
+    result = await db.execute(select(User).where(User.telegram_id == tg_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        # 2. Check if a user with this username exists (and doesn't have a tg_id yet)
+        if tg_username:
+            result = await db.execute(select(User).where(User.username == tg_username))
+            user = result.scalar_one_or_none()
+            if user:
+                user.telegram_id = tg_id
+                await db.commit()
+
+    if not user:
+        # 3. Create new user
+        from sqlalchemy import func as _func
+        is_first = ((await db.execute(select(_func.count(User.id)))).scalar() or 0) == 0
+
+        user = User(
+            email=email,
+            username=tg_username or f"tg_user_{tg_id[:8]}",
+            telegram_id=tg_id,
+            telegram_username=tg_username,
+            role="admin" if is_first else "user",
+            is_active=True,
+            is_verified=True,
+        )
+        db.add(user)
+        await db.flush()
+
+        # Create wallet
+        from app.modules.wallet.models import Wallet, PlatformConfig
+        from decimal import Decimal
+
+        bonus_row = (await db.execute(
+            select(PlatformConfig).where(PlatformConfig.key == "welcome_bonus_vit")
+        )).scalar_one_or_none()
+
+        welcome_bonus = Decimal("100.00000000")
+        if bonus_row and bonus_row.value:
+            try:
+                if isinstance(bonus_row.value, dict):
+                    welcome_bonus = Decimal(str(bonus_row.value.get("amount", 100)))
+                else:
+                    welcome_bonus = Decimal(str(bonus_row.value))
+            except Exception:
+                pass
+
+        wallet = Wallet(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            vitcoin_balance=welcome_bonus,
+        )
+        db.add(wallet)
+        await db.commit()
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is deactivated")
+
+    user.last_login = datetime.now(timezone.utc)
+    if tg_username and user.telegram_username != tg_username:
+        user.telegram_username = tg_username
+
+    await db.commit()
+
+    access_token = create_access_token({"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+    await _write_audit(db, "user.login.telegram", user.email, "auth", str(user.id))
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+    )
+
 
 
 @router.post("/refresh", response_model=TokenResponse)

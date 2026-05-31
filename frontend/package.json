@@ -43,6 +43,7 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tanstack/react-query": "^5.74.4",
     "@tanstack/react-virtual": "^3.13.24",
+    "@twa-dev/sdk": "^8.0.2",
     "@wagmi/connectors": "^8.0.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -403,6 +403,8 @@ class User(Base):
     company_name = Column(String(255), nullable=True)
     phone = Column(String(50), nullable=True)
     google_id = Column(String(255), unique=True, nullable=True, index=True)
+    telegram_id = Column(String(255), unique=True, nullable=True, index=True)
+    telegram_username = Column(String(255), nullable=True)
     role = Column(String(20), default="user")  # user, admin, validator
     # RBAC extensions
     admin_role = Column(String(20), nullable=True)          # super_admin, admin, auditor, support

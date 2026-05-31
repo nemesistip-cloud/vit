@@ -19,6 +19,8 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { isTWA } from "@/lib/twa";
+import { useTelegramStarsInvoice } from "@/api-client";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { usePublicConfig } from "@/lib/usePublicConfig";
 import {
@@ -329,6 +331,7 @@ export default function WalletPage() {
     staleTime: 2 * 60 * 1000,
   });
 
+  const { mutate: getStarsInvoice, isPending: gettingInvoice } = useTelegramStarsInvoice();
   const initiateDeposit = useInitiateDeposit();
   const withdraw = useWithdraw();
   const convert = useConvertCurrency();
@@ -447,6 +450,23 @@ export default function WalletPage() {
   const handleDeposit = async () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) { toast.error("Enter a valid amount"); return; }
     try {
+      if (depositMethod === "telegram_stars") {
+        getStarsInvoice({ stars_amount: Math.round(parseFloat(depositAmount)) }, {
+          onSuccess: (data) => {
+            if (window.Telegram?.WebApp) {
+              window.Telegram.WebApp.openInvoice(data.invoice_link, (status: string) => {
+                if (status === "paid") {
+                  toast.success("Payment successful!");
+                  queryClient.invalidateQueries({ queryKey: ["/api/wallet/me"] });
+                } else if (status === "failed") {
+                  toast.error("Payment failed");
+                }
+              });
+            }
+          }
+        });
+        return;
+      }
       const result = await initiateDeposit.mutateAsync({
         currency: depositCurrency,
         amount: parseFloat(depositAmount),
@@ -757,7 +777,8 @@ export default function WalletPage() {
                   <SelectContent>
                     {depositCurrency === "NGN" && <SelectItem value="paystack" className="font-mono">Paystack (NGN)</SelectItem>}
                     {(depositCurrency === "USD" || depositCurrency === "USDT") && <SelectItem value="stripe" className="font-mono">Stripe (USD/Card)</SelectItem>}
-                    {(depositCurrency === "PI" || depositCurrency === "VITCoin") && <SelectItem value="manual" className="font-mono">Manual / On-chain</SelectItem>}
+                                        {(depositCurrency === "PI" || depositCurrency === "VITCoin") && <SelectItem value="manual" className="font-mono">Manual / On-chain</SelectItem>}
+                    {isTWA() && <SelectItem value="telegram_stars" className="font-mono">Telegram Stars</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
