@@ -37,9 +37,7 @@ def _match_payload(**overrides):
         "away_team": f"AwayFC_{uuid.uuid4().hex[:4]}",
         "kickoff_time": _future_kickoff(),
         "league": "premier_league",
-        "home_odds": 2.10,
-        "draw_odds": 3.40,
-        "away_odds": 3.80,
+        "market_odds": {"home": 2.10, "draw": 3.40, "away": 3.80},
     }
     base.update(overrides)
     return base

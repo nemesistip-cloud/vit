@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import time
 import os
 from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
 from app.services.results_settler import fetch_finished_matches, fetch_live_matches
@@ -41,7 +42,7 @@ async def test_fetch_finished_matches_integration(monkeypatch):
             "matchId": "123",
             "homeName": "Team A",
             "awayName": "Team B",
-            "matchTime": int(asyncio.get_event_loop().time()) + 10000,
+            "matchTime": int(time.time()) + 10000,
             "homeScore": 1,
             "awayScore": 0,
             "status": "-1"

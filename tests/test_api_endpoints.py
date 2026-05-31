@@ -220,10 +220,11 @@ def test_load_jsonl_skips_invalid_lines():
 
 # ── Worker module import ───────────────────────────────────────────────────────
 
-def test_worker_module_loads_without_redis():
-    import importlib
+def test_worker_module_loads_without_redis(monkeypatch):
     import sys
+    monkeypatch.delenv("REDIS_URL", raising=False)
     sys.modules.pop("app.worker", None)
     import app.worker as worker
     assert worker._celery_available is False
     assert worker.celery_app is None
+    sys.modules.pop("app.worker", None)

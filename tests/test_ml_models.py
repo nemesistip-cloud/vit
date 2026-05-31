@@ -10,7 +10,14 @@ from services.ml_service.models.model_orchestrator import ModelOrchestrator
 
 @pytest.fixture(scope="module")
 def orchestrator():
-    return ModelOrchestrator()
+    import os
+    from app.core.feature_flags import FeatureFlags
+    os.environ["USE_REAL_ML_MODELS"] = "false"
+    FeatureFlags.reset()
+    orch = ModelOrchestrator()
+    yield orch
+    os.environ.pop("USE_REAL_ML_MODELS", None)
+    FeatureFlags.reset()
 
 
 def test_orchestrator_loads_13_models(orchestrator):

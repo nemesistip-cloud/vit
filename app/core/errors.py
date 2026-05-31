@@ -131,8 +131,8 @@ def error_response(
 ) -> JSONResponse:
     """Return a structured ``JSONResponse`` with standard error shape.
 
-    Also attaches ``X-Request-ID`` and ``X-Correlation-ID`` headers so
-    clients and logging infrastructure can correlate errors to request traces.
+    ``X-Request-ID`` and ``X-Correlation-ID`` are injected by ``RequestIDMiddleware``
+    on every response — do not set them here to avoid duplicate header values.
     Any additional ``headers`` (e.g. ``Retry-After``) are merged in.
 
     Args:
@@ -146,13 +146,11 @@ def error_response(
     Returns:
         A ``JSONResponse`` ready to return from any route or middleware.
     """
-    request_id = get_request_id(request)
-
-    # Start with correlation headers that every error response carries
-    response_headers = {
-        "X-Request-ID":    request_id,  # Matches the ID logged server-side
-        "X-Correlation-ID": request_id, # Redundant alias for OpenTelemetry compatibility
-    }
+    # X-Request-ID and X-Correlation-ID are injected by RequestIDMiddleware for
+    # every response, so we must NOT add them here — doing so causes the header
+    # to appear twice (once from the JSONResponse, once from the middleware wrap),
+    # which the HTTP spec joins as "value, value" and breaks header equality checks.
+    response_headers: dict[str, str] = {}
     # Merge caller-supplied headers (e.g. Retry-After for 429 responses)
     if headers:
         response_headers.update(headers)

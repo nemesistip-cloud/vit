@@ -473,7 +473,7 @@ async def predict(
                 logger.info(f"Returning cached prediction for hash={idempotency_key}")
                 cached_dq = dict(data_quality)
                 cached_dq["warnings"].append("served_from_cache")
-                return build_prediction_response(existing_pred, ex_match, orchestrator, cached_dq, sport=sport, available_markets=available_markets)
+                return build_prediction_response(existing_pred, ex_match, orchestrator, sport=sport, data_quality=cached_dq, available_markets=available_markets)
 
         # --- Find or create match ---
         # 1. Try by external_id (fixture_id)
@@ -974,7 +974,7 @@ async def predict(
                 logger.warning(f"Telegram alert failed (non-fatal): {e}")
 
         response = build_prediction_response(
-            prediction, db_match, orchestrator, data_quality, data_source=data_source, sport=sport, available_markets=available_markets
+            prediction, db_match, orchestrator, sport=sport, data_quality=data_quality, data_source=data_source, available_markets=available_markets
         )
         response.calibration_note = calibration_note
         return response
