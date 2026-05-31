@@ -2237,7 +2237,7 @@ async def unhandled_error_handler(request: Request, exc: Exception):
 
     # Special message for connection drops
     msg = "Internal server error"
-    if "connection was closed" in str(real_exc).lower():
+    if any(x in str(real_exc).lower() for x in ["connection was closed", "unexpected eof", "connection reset", "broken pipe"]):
         msg = "Database connection transient failure. Please retry."
 
     return error_response(
