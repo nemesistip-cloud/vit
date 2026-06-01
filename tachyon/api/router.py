@@ -45,7 +45,8 @@ async def download_file(file_id: str):
 
     data = await scheduler.download_burst(
         manifest["fragment_names"],
-        manifest["provider_mapping"]
+        manifest["provider_mapping"],
+        manifest["size_bytes"]
     )
 
     from fastapi.responses import Response

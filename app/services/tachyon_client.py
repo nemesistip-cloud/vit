@@ -5,7 +5,8 @@ from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
 
-TACHYON_ENDPOINT = os.getenv("TACHYON_ENDPOINT", "http://localhost:8080/api/v1")
+# Tachyon endpoint defaults to the internal API route if not overridden
+TACHYON_ENDPOINT = os.getenv("TACHYON_ENDPOINT", "http://localhost:5000/api/tachyon")
 
 class TachyonClient:
     async def upload_model(self, file_path: str) -> Optional[str]:
