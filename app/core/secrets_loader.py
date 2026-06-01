@@ -13,12 +13,10 @@ async def load_all_secrets():
             "SECRET_KEY",
             "DATABASE_URL",
             "REDIS_URL",
-            "GEMINI_API_KEY",
             "FOOTBALL_DATA_API_KEY",
             "ODDS_API_KEY",
             "ISPORTS_API_KEY",
             "TELEGRAM_BOT_TOKEN",
             "RESEND_API_KEY",
-            "SMILE_IDENTITY_API_KEY",
         ]
         await gcp_secrets.load_secrets_to_env(secrets)

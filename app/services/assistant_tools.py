@@ -14,14 +14,13 @@ from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
 logger = logging.getLogger(__name__)
 
 async def get_live_odds(league: str) -> Dict[str, Any]:
-    """Fetch real-time market odds for a specific league from The Odds API."""
+    """Fetch real-time market odds for a specific league."""
     api_key = os.getenv("THE_ODDS_API_KEY") or os.getenv("ODDS_API_KEY")
     if not api_key:
         return {"error": "Odds API key not configured."}
 
     client = OddsAPIClient(api_key)
     try:
-        # Map common league names to Odds API keys if necessary
         sport_key = OddsAPIClient.SPORT_MAPPING.get(league.lower(), league)
         odds_list = await client.get_odds(sport=sport_key)
 
@@ -40,7 +39,7 @@ async def get_live_odds(league: str) -> Dict[str, Any]:
                     "away_odds": o.away_odds,
                     "timestamp": o.timestamp.isoformat() if o.timestamp else None
                 }
-                for o in odds_list[:15] # Limit to 15 matches to avoid blowing up context
+                for o in odds_list[:15]
             ]
         }
     except Exception as e:
@@ -50,7 +49,7 @@ async def get_live_odds(league: str) -> Dict[str, Any]:
         await client.close()
 
 async def get_live_scores(league: Optional[str] = None) -> Dict[str, Any]:
-    """Fetch current live scores for active matches from iSports API."""
+    """Fetch current live scores for active matches."""
     api_key = os.getenv("ISPORTS_API_KEY")
     if not api_key:
         return {"error": "iSports API key not configured."}
@@ -77,7 +76,7 @@ async def get_live_scores(league: Optional[str] = None) -> Dict[str, Any]:
         return {"error": str(e)}
 
 async def get_external_fixtures(league: str) -> Dict[str, Any]:
-    """Search for upcoming fixtures in external iSports API for a specific league."""
+    """Search for upcoming fixtures in external data providers for a specific league."""
     api_key = os.getenv("ISPORTS_API_KEY")
     if not api_key:
         return {"error": "iSports API key not configured."}
@@ -92,7 +91,6 @@ async def get_external_fixtures(league: str) -> Dict[str, Any]:
         if not matches:
             return {"message": f"No fixtures found for {league} in external API."}
 
-        # Filter for upcoming only (status 0)
         upcoming = [m for m in matches if str(m.get("status")) == "0"]
 
         formatted = []
@@ -171,87 +169,83 @@ async def get_market_trends() -> Dict[str, Any]:
         repo = CLVRepository(db)
         return await repo.get_stats()
 
-# Tool declarations for Gemini
-GEMINI_TOOLS = [
+# Tool declarations for Internal Intelligence
+NATIVE_AI_TOOLS = [
     {
-        "function_declarations": [
-            {
-                "name": "get_live_odds",
-                "description": "Fetch real-time market odds for a specific league from The Odds API.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "league": {
-                            "type": "STRING",
-                            "description": "The league name (e.g., 'premier_league', 'la_liga')."
-                        }
-                    },
-                    "required": ["league"]
+        "name": "get_live_odds",
+        "description": "Fetch real-time market odds for a specific league.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "league": {
+                    "type": "STRING",
+                    "description": "The league name (e.g., 'premier_league', 'la_liga')."
                 }
             },
-            {
-                "name": "get_live_scores",
-                "description": "Fetch current live scores for active matches from iSports API.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "league": {
-                            "type": "STRING",
-                            "description": "Optional league name to filter live scores."
-                        }
-                    }
+            "required": ["league"]
+        }
+    },
+    {
+        "name": "get_live_scores",
+        "description": "Fetch current live scores for active matches.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "league": {
+                    "type": "STRING",
+                    "description": "Optional league name to filter live scores."
                 }
-            },
-            {
-                "name": "get_external_fixtures",
-                "description": "Search for upcoming fixtures in external iSports API for a specific league.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "league": {
-                            "type": "STRING",
-                            "description": "The league name (e.g., 'premier_league', 'la_liga')."
-                        }
-                    },
-                    "required": ["league"]
-                }
-            },
-            {
-                "name": "get_upcoming_matches",
-                "description": "Fetch upcoming football matches from the platform's database.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "limit": {
-                            "type": "INTEGER",
-                            "description": "Maximum number of matches to return (default 10)."
-                        }
-                    }
-                }
-            },
-            {
-                "name": "get_match_insights",
-                "description": "Fetch deep AI insights and predictions for a specific match ID.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "match_id": {
-                            "type": "INTEGER",
-                            "description": "The unique ID of the match."
-                        }
-                    },
-                    "required": ["match_id"]
-                }
-            },
-            {
-                "name": "get_system_health",
-                "description": "Fetch the current status and performance of all autonomous agents in the VIT network.",
-            },
-            {
-                "name": "get_market_trends",
-                "description": "Fetch overall market trends and CLV (Closing Line Value) performance statistics.",
             }
-        ]
+        }
+    },
+    {
+        "name": "get_external_fixtures",
+        "description": "Search for upcoming fixtures in external data providers for a specific league.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "league": {
+                    "type": "STRING",
+                    "description": "The league name (e.g., 'premier_league', 'la_liga')."
+                }
+            },
+            "required": ["league"]
+        }
+    },
+    {
+        "name": "get_upcoming_matches",
+        "description": "Fetch upcoming football matches from the platform's database.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "limit": {
+                    "type": "INTEGER",
+                    "description": "Maximum number of matches to return (default 10)."
+                }
+            }
+        }
+    },
+    {
+        "name": "get_match_insights",
+        "description": "Fetch deep AI insights and predictions for a specific match ID.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "match_id": {
+                    "type": "INTEGER",
+                    "description": "The unique ID of the match."
+                }
+            },
+            "required": ["match_id"]
+        }
+    },
+    {
+        "name": "get_system_health",
+        "description": "Fetch the current status and performance of all autonomous agents in the VIT network.",
+    },
+    {
+        "name": "get_market_trends",
+        "description": "Fetch overall market trends and CLV (Closing Line Value) performance statistics.",
     }
 ]
 
