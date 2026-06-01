@@ -16,6 +16,7 @@ from app.config import get_env, APP_VERSION, AUTH_ENABLED, API_KEY
 from app.db.database import AsyncSessionLocal, get_db
 from app.db.models import User, AuditLog, Match, Prediction, SubscriptionPlan
 from app.core.dependencies import get_orchestrator, get_telegram_alerts
+from app.auth.dependencies import get_current_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -36,36 +37,34 @@ _KEY_REGISTRY = [
         "required":    True,
         "group":       "Sports Data",
     },
-    # ── AI Providers ───────────────────────────────────────────────────
+    # ── VIT AI (Native Ecosystem) ──────────────────────────────────────
     {
-        "label":       "Google Gemini AI",
-        "description": "Powers AI match insights, AI Assistant chat, and tactical analysis",
+        "name":        "USE_REAL_ML_MODELS",
+        "label":       "Use Real ML Models",
+        "description": "Toggle between algorithmic fallbacks and trained weights (true/false)",
         "required":    False,
-        "group":       "AI Providers",
+        "group":       "VIT AI",
     },
     {
-        "label":       "Anthropic Claude",
-        "description": "Claude 3 Haiku — second AI analyst for multi-AI match insights",
+        "name":        "GCS_BUCKET_NAME",
+        "label":       "GCS Model Bucket",
+        "description": "Google Cloud Storage bucket for syncing model weights",
         "required":    False,
-        "group":       "AI Providers",
+        "group":       "VIT AI",
     },
     {
-        "label":       "OpenAI",
-        "description": "GPT-4o — third AI analyst for multi-AI match insights",
+        "name":        "ML_MODEL_CACHE_ENABLED",
+        "label":       "Model Cache",
+        "description": "Enable in-memory caching for ML models (true/false)",
         "required":    False,
-        "group":       "AI Providers",
+        "group":       "VIT AI",
     },
     {
-        "label":       "xAI Grok",
-        "description": "Grok Beta — fifth AI analyst for multi-AI match insights",
+        "name":        "GEMINI_API_KEY",
+        "label":       "Google Gemini API",
+        "description": "Powers advanced research agents and ecosystem intelligence",
         "required":    False,
-        "group":       "AI Providers",
-    },
-    {
-        "label":       "DeepSeek AI",
-        "description": "DeepSeek-V3 / R1 — fourth AI analyst (cascade slot 4 of 5). Get key at platform.deepseek.com",
-        "required":    False,
-        "group":       "AI Providers",
+        "group":       "VIT AI",
     },
     # ── Payments ───────────────────────────────────────────────────────
     {
@@ -223,7 +222,13 @@ _KEY_REGISTRY = [
 async def list_api_keys():
     keys = []
     for entry in _KEY_REGISTRY:
-        keys.append({**entry, "configured": bool(os.getenv(entry["name"])), "masked": "••••" if os.getenv(entry["name"]) else ""})
+        name = entry.get("name")
+        val = os.getenv(name) if name else None
+        keys.append({
+            **entry,
+            "configured": bool(val),
+            "masked": "••••" if val else ""
+        })
     return {"keys": keys}
 
 @router.get("/config-status")
@@ -252,6 +257,8 @@ async def get_config_status(current_user=Depends(get_current_admin)):
     services = [
         _status("FOOTBALL_DATA_API_KEY",  "Football-Data.org",   required=True),
         _status("ODDS_API_KEY",           "The Odds API",        required=True),
+        _status("USE_REAL_ML_MODELS",     "VIT Native AI",       required=False),
+        _status("GEMINI_API_KEY",         "Gemini Research AI",  required=False),
         _status("STRIPE_SECRET_KEY",      "Stripe Payments",     required=False),
         _status("STRIPE_WEBHOOK_SECRET",  "Stripe Webhooks",     required=False),
         _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),

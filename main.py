@@ -78,6 +78,7 @@ from app.api.routes.postbacks import router as postbacks_router
 from app.api.routes.admin_rewards import router as admin_rewards_router
 from app.modules.rewards.routes import router as rewards_router
 from app.modules.marketplace.routes import router as marketplace_router
+from app.modules.marketplace.merchant import router as merchant_router
 from app.modules.trust.routes import router as trust_router
 from app.modules.bridge.routes import router as bridge_router
 from app.modules.developer.routes import router as developer_router
@@ -122,10 +123,20 @@ logger = logging.getLogger("uvicorn.error")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.core.logging_config import configure_logging
+    from app.core.secrets_loader import load_all_secrets
+
+    # 1. Load secrets from GCP Secret Manager (if available)
+    await load_all_secrets()
+
+    # 2. Configure logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
+
     print_config_status()
     print(f"🚀 VIT Network v{APP_VERSION} starting (NATIVE AI MODE)...")
+
+    # 3. Start background bootstrap
     _bootstrap_task = asyncio.create_task(_run_bootstrap(app, None), name="bootstrap")
+
     yield
     if not _bootstrap_task.done():
         _bootstrap_task.cancel()
@@ -1583,10 +1594,6 @@ async def _run_bootstrap(app, _done_event):
 # APP INIT
 # ============================================
 
-
-    except Exception as e:
-        print(f"❌ Bootstrap failed: {e}")
-
 app = FastAPI(
     title="Value Intelligence Trust (VIT)",
     version=APP_VERSION,
@@ -1717,6 +1724,7 @@ app.include_router(ai_assistant_route.router, prefix="/api")
 app.include_router(auth_router)
 app.include_router(wallet_router)
 app.include_router(marketplace_router)
+app.include_router(merchant_router)
 app.include_router(blockchain_router)
 app.include_router(oracle_router)
 app.include_router(training_module_router)
