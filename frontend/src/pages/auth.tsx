@@ -323,6 +323,7 @@ export default function AuthPage() {
                                       <Input
                                         type={showPasswordLogin ? "text" : "password"}
                                         placeholder="••••••••"
+                                        autoComplete="current-password"
                                         className="bg-background/60 font-mono border-border/60 focus-visible:ring-primary/50 h-10 pr-10"
                                         {...field}
                                       />
@@ -483,6 +484,7 @@ export default function AuthPage() {
                                   <Input
                                     type={showPasswordRegister ? "text" : "password"}
                                     placeholder="Min 8 characters"
+                                    autoComplete="new-password"
                                     className="bg-background/60 font-mono border-border/60 focus-visible:ring-primary/50 h-10 pr-10"
                                     {...field}
                                   />

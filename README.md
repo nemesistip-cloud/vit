@@ -1,189 +1,273 @@
-# VIT Network: Africa's AI Intelligence Oracle & Blockchain Super App
+# VIT Network — Africa's AI Intelligence Oracle & Blockchain Super App
 
-[![Build Status](https://img.shields.io/badge/Version-5.1.0-blue.svg)](https://github.com/vit-network/vit-blockchain)
-[![Ecosystem](https://img.shields.io/badge/Blockchain-Base_L2-emerald.svg)](https://base.org)
-[![Intelligence](https://img.shields.io/badge/AI-Ensemble_Swarm-orange.svg)](app/ai)
+[![Version](https://img.shields.io/badge/Version-5.1.0-blue.svg)](https://github.com/nemesistip-cloud/vit)
+[![Blockchain](https://img.shields.io/badge/Blockchain-Base_L2-emerald.svg)](https://base.org)
+[![AI](https://img.shields.io/badge/AI-13_Model_Ensemble-orange.svg)](app/modules/ai)
+[![Deployment](https://img.shields.io/badge/Deploy-Google_Cloud_Run-4285F4.svg)](https://cloud.google.com/run)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-VIT is the premier intelligence layer for the African digital economy. By combining a multi-model AI ensemble with a decentralized agent swarm and Base L2 settlement, VIT provides verifiable, high-confidence insights for sports, elections, policy, and marketplace intelligence.
+VIT is Africa's premier intelligence layer — combining a 13-model AI ensemble, an autonomous 22-agent swarm, and Base L2 blockchain settlement to deliver verifiable, high-confidence insights for sports, elections, policy, and marketplace intelligence.
 
 ---
 
 ## 🌟 Vision
-To build Africa's largest digital super network, empowering 100 million users with verifiable intelligence, seamless financial inclusion, and a decentralized marketplace for the next generation of the African economy.
 
-## 🚀 The Real System (Audit Summary)
-Unlike traditional platforms, VIT is a living ecosystem built on three core layers:
-1.  **Intelligence Tier**: 13+ ML models (LSTM, XGBoost, Transformer) orchestrated by an autonomous agent swarm.
-2.  **Infrastructure Tier**: High-speed decentralized storage (Tachyon Fabric) and persistent PostgreSQL state.
-3.  **Settlement Tier**: Gasless transactions via Biconomy and smart contract oracles on Base L2.
-
----
-
-## 📦 Core Products
-
-### 🏆 Sports Intelligence (Production Ready)
-- **AI Ensemble**: Real-time predictions across major football leagues with 60/40 weight distribution between Scikit-learn and PyTorch LSTM models.
-- **VIT Score**: A proprietary high-confidence metric for signal reliability.
-- **Smart Settlements**: Automated on-chain result verification via `UniversalOracle.sol`.
-
-### 🤖 Autonomous Agent Swarm (Production Ready)
-- **22+ Specialized Agents**: Including Audit Sentinels, Fraud Reviewers, and Market Scouts.
-- **Lazy-Loading Architecture**: Optimized for memory-constrained environments (512MB RAM).
-
-### 💳 Wallet & Financial Services (Production Ready)
-- **Regional Payments**: Support for OPay, PalmPay, and MTN MoMo.
-- **Gasless UX**: Biconomy account abstraction for seamless user onboarding.
-- **Loyalty Vault**: Automated yield and rewards for ecosystem participants.
-
-### 🏪 Signal Marketplace (Beta)
-- **Peer-to-Peer Intelligence**: Users can list and subscribe to custom AI models.
-- **Staking & Slashing**: Protocol-level incentives for signal accuracy.
-
-### 🌌 Tachyon Fabric (Beta)
-- **Swarm Storage**: Parallel burst transfers across aggregated cloud providers (Gdrive, etc.).
-- **Quantum-Safe**: EEC-based erasure coding for high-speed fragmentation.
-
-### 🏛️ Elections & Policy (In Development)
-- **Sentiment Engine**: Real-time analysis of citizen sentiment and electoral polling.
-- **Policy Simulator**: Verifiable forecasts for regional economic and political shifts.
+To build Africa's largest digital super network, empowering 100 million users with verifiable intelligence, seamless financial inclusion, and a decentralised marketplace for the next generation of the African digital economy.
 
 ---
 
 ## 🏗️ Architecture
 
-```mermaid
-graph TD
-    User((User App)) -->|React 19| Frontend[Frontend / Dashboard]
-    Frontend -->|FastAPI| API[API Gateway]
-
-    subgraph "Intelligence Tier"
-        API -->|Orchestrator| Agents[Agent Swarm]
-        Agents -->|Ensemble| ML[ML Service]
-        ML -->|Predictions| DB[(PostgreSQL)]
-    end
-
-    subgraph "Infrastructure Tier"
-        Agents -->|Verification| Storage[Tachyon Fabric]
-        API -->|Oracle| Chain[Base L2 / Smart Contracts]
-    end
-
-    subgraph "External"
-        Chain -->|Biconomy| Auth[Passkey Auth]
-        API -->|Payments| MobileMoney[OPay / PalmPay / MoMo]
-    end
 ```
+┌────────────────────────────────────────────────────────────┐
+│                    User / Client                            │
+│            React 19 + Vite + Tailwind CSS v4               │
+└───────────────────────────┬────────────────────────────────┘
+                            │ HTTPS / WebSocket
+┌───────────────────────────▼────────────────────────────────┐
+│            FastAPI Gateway   (Python 3.11)                  │
+│   JWT Auth · TOTP · Google OAuth · Telegram Mini App       │
+│   Rate Limiting · CORS · Request-ID tracing                │
+└──────┬──────────────────────┬───────────────┬──────────────┘
+       │                      │               │
+┌──────▼──────┐   ┌───────────▼─────┐  ┌──────▼──────────────┐
+│ Intelligence │   │  Wallet &       │  │  Blockchain Layer   │
+│    Tier      │   │  Payments       │  │  Base L2 / Oracles  │
+│ 13 ML models │   │ NGN·USD·USDT    │  │  VITCoin · DID      │
+│ 22 AI agents │   │ Paystack·Stripe │  │  Smart Contracts    │
+└──────┬───────┘   └─────────────────┘  └─────────────────────┘
+       │
+┌──────▼──────────────────────────────────────────────────────┐
+│                  Data & Storage Layer                        │
+│  PostgreSQL (prod) │ SQLite (dev) │ Redis (cache/streaks)   │
+│  TheSportsDB · Football-Data.org · The Odds API             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📦 Core Modules
+
+| Module | Status | Description |
+|--------|--------|-------------|
+| **Sports Intelligence** | ✅ Production | 13-model ensemble (LSTM, XGBoost, Transformer, Logistic, Poisson, Elo, Dixon-Coles, Bayesian) with CLV streak tracking |
+| **Autonomous Agents** | ✅ Production | 22 specialised agents — live-match tracker, weight optimiser, oracle, KYC screener, fraud reviewer, and more |
+| **Wallet & Payments** | ✅ Production | Multi-currency (NGN/USD/USDT/VITCoin/PI) with Paystack, Stripe, and blockchain settlement |
+| **Signal Marketplace** | ✅ Production | Peer-to-peer intelligence trading with staking and accuracy-based slashing |
+| **VIT DID Identity** | ✅ Production | W3C-compliant decentralised identity for African users |
+| **Tachyon Fabric** | 🔶 Beta | Swarm storage coordination across cloud providers with EEC erasure coding |
+| **Elections & Policy** | 🔶 Beta | Electoral sentiment engine and verifiable policy simulation |
+| **Academy** | ✅ Production | Gamified learning paths with XP, streaks, and on-chain credentials |
 
 ---
 
 ## 🛠️ Technology Stack
-- **Backend**: FastAPI (Python 3.11+), SQLAlchemy, Uvicorn.
-- **Frontend**: React 19, Vite, Tailwind CSS, Lucide React.
-- **AI/ML**: Scikit-learn, XGBoost, PyTorch, Ollama (Internal VIT Brain).
-- **Blockchain**: Solidity 0.8.28, Foundry, Viem, Biconomy SDK.
-- **Database**: PostgreSQL (Production), Redis (Caching), ChromaDB (RAG).
-- **Storage**: Tachyon Fabric (Fragmentation + EEC).
+
+### Backend
+- **Runtime**: Python 3.11+
+- **Framework**: FastAPI + Uvicorn
+- **Database**: PostgreSQL (production) / SQLite (development)
+- **Cache**: Redis (distributed rate-limiting, CLV streaks, session)
+- **Auth**: JWT (HS256) + TOTP 2FA + Google OAuth + Telegram Mini App
+- **ML**: Scikit-learn, XGBoost, PyTorch, Statsmodels (13-model ensemble)
+- **Blockchain**: Web3.py, Viem, Wagmi (Base L2 / chain_id = 8453)
+- **Migrations**: Alembic (21 migration files)
+
+### Frontend
+- **Framework**: React 19 + Vite 6 + TypeScript
+- **Styling**: Tailwind CSS v4 + Radix UI primitives
+- **State**: TanStack Query v5
+- **Routing**: Wouter
+- **Web3**: Viem + Wagmi + WalletConnect
 
 ---
 
-## 📂 Repository Structure
-- `app/`: Core FastAPI application and agent logic.
-- `frontend/`: React 19 single-page application.
-- `packages/contracts/`: Smart contracts (Foundry).
-- `packages/sdk/`: TypeScript SDK for ecosystem integrations.
-- `services/ml_service/`: Decentralized ML orchestrator.
-- `tachyon/`: Parallel swarm storage coordination service.
-- `scripts/`: Deployment, training, and maintenance utilities.
+## 🚀 Quick Start (Development)
+
+### Prerequisites
+- Python 3.11+
+- Node.js 20+
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/nemesistip-cloud/vit.git
+cd vit
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install frontend dependencies
+cd frontend && npm install && cd ..
+
+# Start full stack (backend + frontend dev server)
+bash scripts/start_fullstack.sh
+```
+
+The app will be available at `http://localhost:5000`.
+API health check: `http://localhost:8000/health`
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `JWT_SECRET_KEY` | ✅ | JWT signing secret (min 32 chars) |
+| `DATABASE_URL` | ✅ | PostgreSQL URL (SQLite used if unset in dev) |
+| `ADMIN_PASSWORD` | ✅ | Initial admin account password |
+| `FOOTBALL_DATA_API_KEY` | ⭐ | Football-Data.org API key |
+| `THE_ODDS_API_KEY` | ⭐ | The Odds API key |
+| `GEMINI_API_KEY` | ⭐ | Google Gemini AI key |
+| `ANTHROPIC_API_KEY` | ⭐ | Anthropic Claude API key |
+| `OPENAI_API_KEY` | ⭐ | OpenAI API key |
+| `PAYSTACK_SECRET_KEY` | 💳 | Paystack (NGN payments) |
+| `STRIPE_SECRET_KEY` | 💳 | Stripe (USD payments) |
+| `RESEND_API_KEY` | 📧 | Transactional email |
+| `TELEGRAM_BOT_TOKEN` | 📱 | Telegram bot integration |
+| `REDIS_URL` | 🔧 | Redis for distributed caching |
+
+> Without optional keys the app runs in degraded mode — predictions fall back to TheSportsDB (free), AI uses Puter browser fallback, and payments are disabled.
 
 ---
 
-## 🏁 Getting Started
+## ☁️ Production Deployment — Google Cloud Run
 
-### Quick Start
+### Build & Deploy
+
 ```bash
-# Install dependencies
-npm install && pnpm install --filter "./frontend"
+# Build and push the Docker image
+gcloud builds submit --tag gcr.io/YOUR_PROJECT/vit-network:latest
 
-# Start the full stack (Development)
-./scripts/start_fullstack.sh
+# Deploy to Cloud Run
+gcloud run deploy vit-network \
+  --image gcr.io/YOUR_PROJECT/vit-network:latest \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --memory 2Gi \
+  --cpu 2 \
+  --min-instances 1 \
+  --set-env-vars ENVIRONMENT=production \
+  --set-secrets JWT_SECRET_KEY=jwt-secret:latest,DATABASE_URL=db-url:latest
 ```
 
-### Backend Setup
-```bash
-# Configure environment
-cp .env.example .env
+The `Dockerfile` at the repository root handles:
+1. Installing Python + Node.js dependencies
+2. Building the React frontend (`frontend/dist/`)
+3. Running database migrations via Alembic
+4. Starting FastAPI with Uvicorn on `$PORT`
 
-# Run backend
-./scripts/start_backend.sh
+### Replit Deploy
+
+Click the **Deploy** button in the Replit workspace. The `.replit` file is pre-configured with `deploymentTarget = "cloudrun"`.
+
+---
+
+## 📁 Repository Structure
+
 ```
-
-### Frontend Setup
-```bash
-cd frontend
-pnpm install
-pnpm dev
+vit/
+├── main.py                      # FastAPI application entry point
+├── requirements.txt             # Python dependencies
+├── Dockerfile                   # Cloud Run container build
+├── alembic.ini                  # Alembic migration config
+├── alembic/versions/            # 21 database migration files
+├── app/
+│   ├── config.py                # All environment variable config
+│   ├── agents/                  # 22 autonomous agent implementations
+│   ├── api/                     # FastAPI routers and middleware
+│   ├── auth/                    # JWT · TOTP · OAuth · Telegram auth
+│   ├── core/                    # Logging · error handling · rate limiting
+│   ├── data/                    # ETL pipeline and DB models
+│   ├── db/                      # SQLAlchemy session management
+│   ├── modules/                 # Feature modules (20+)
+│   │   ├── ai/                  # ML orchestration
+│   │   ├── blockchain/          # Base L2 integration
+│   │   ├── wallet/              # Multi-currency wallet
+│   │   ├── marketplace/         # Signal marketplace
+│   │   ├── identity/ & did/     # W3C DID identity
+│   │   ├── governance/          # DAO governance
+│   │   ├── rewards/             # Loyalty and staking
+│   │   ├── trust/               # Trust scoring
+│   │   ├── academy/             # Gamified learning
+│   │   └── …                    # bridge, quant, kyc, subchain, iot …
+│   ├── pipelines/               # Data ingestion pipeline
+│   └── services/                # Business logic (50+ service files)
+├── frontend/                    # React 19 SPA
+│   ├── src/components/          # UI components
+│   ├── src/pages/               # Route-level pages
+│   └── vite.config.ts           # Dev server with API proxy
+├── models/                      # Trained ML model weights (.pkl)
+│   └── calibrators/             # Probability calibrators
+├── scripts/                     # Operational & seeding scripts
+│   ├── start_fullstack.sh       # Dev startup (backend + frontend)
+│   ├── start_production.sh      # Production startup (Cloud Run)
+│   └── seed_*.py                # Database seeding utilities
+├── tachyon/                     # Tachyon Fabric storage service
+└── packages/
+    ├── contracts/               # Solidity smart contracts (Foundry)
+    └── sdk/                     # TypeScript SDK
 ```
 
 ---
 
 ## 🆕 What's New in v5.1.0 (2026-05-31)
 
-**Stability & Test-Suite Hardening Release** — zero failing tests, no regressions.
+**Stability & Deployment Release**
 
 | Area | Change |
 |------|--------|
-| `predict.py` | Fixed `TypeError` — `data_quality` was passed as the 4th positional arg (mapped to `sport`). |
-| `ai_assistant.py` | Fixed `AttributeError` — missing `await` on async `provider_status()`. |
-| `errors.py` + `request_id.py` | Fixed duplicate `X-Request-ID` response header. Middleware now skips headers already set by `error_response()`. |
-| `worker.py` test | Fixed false-positive: `REDIS_URL` env var leaked into test that expects Celery to be unavailable. |
-| `isports` test | Replaced deprecated `asyncio.get_event_loop().time()` with `time.time()`; added skip for live-network integration test. |
-| `test_ml_models.py` | Fixture now sets `USE_REAL_ML_MODELS=false` + `FeatureFlags.reset()` before building the orchestrator. |
-| `test_predictions_functional.py` | Odds payload corrected to `market_odds: {home, draw, away}` object format. |
-| Test DB | Deleted stale/corrupt `vit.db`; session fixture cleanly recreates it. |
+| `clv_streak_monitor.py` | Fixed UTC timezone crash — SQLite returns timezone-naive datetimes; normalised with `.replace(tzinfo=utc)` before comparison |
+| `wallet/services.py` | Added `seed_wallet_subscription_plans()` — seeds Free / Analyst / Pro / Elite plan tiers on startup |
+| `Dockerfile` | New — Google Cloud Run multi-stage build (Python 3.11 + Node 20, builds frontend, runs migrations, serves unified app) |
+| `predict.py` | Fixed `TypeError` — `data_quality` was passed as wrong positional arg |
+| `ai_assistant.py` | Fixed `AttributeError` — missing `await` on async `provider_status()` |
+| `errors.py` + `request_id.py` | Fixed duplicate `X-Request-ID` response header — middleware now guards before appending |
+| `worker.py` test | Fixed false-positive: `REDIS_URL` env var leaked across test isolation |
+| `test_ml_models.py` | Fixture now sets `USE_REAL_ML_MODELS=false` + `FeatureFlags.reset()` before ML orchestrator init |
+| `test_predictions_functional.py` | Odds payload corrected to `market_odds: {home, draw, away}` object format |
+| Test DB | Deleted stale corrupt `vit.db`; session fixture cleanly recreates from schema |
 
-**Test results**: 267 passed, 1 skipped (integration-only), 0 failed (was 252/0/16).
+**Test results**: 267 passed · 1 skipped · 0 failed (was 252 passed · 0 skipped · 16 failed)
 
-Full details in [docs/CHANGELOG.md](docs/CHANGELOG.md).
+---
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=app --cov-report=html
+```
 
 ---
 
 ## 🗺️ Roadmap
-- **Q4 2024**: Full migration to Base L2 and Tachyon Beta launch. (Completed)
-- **Q1 2025**: Electoral Oracle integration and Agent Recruitment Portal.
-- **Q2 2025**: Cross-border remittance rails via .
-- **Q3 2025**: Expansion to Kenya and Ghana ecosystems.
 
-See [ROADMAP.md](ROADMAP.md) for the detailed strategic plan.
+- **Q1 2026**: Cloud Run deployment · CLV streak hardening · Test-suite 100% pass rate ✅
+- **Q2 2026**: Electoral Oracle integration · Agent Recruitment Portal
+- **Q3 2026**: Cross-border remittance rails · Kenya & Ghana ecosystem expansion
+- **Q4 2026**: Tachyon Fabric v1 GA · Full Base L2 migration
 
 ---
 
 ## 🤝 Contributing
-We welcome contributors from all backgrounds. Please see our [Integration Guide](INTEGRATION_GUIDE.md) for technical standards.
 
-## 🛡️ Security
-For security disclosures, please refer to our internal security team via the [Security Dashboard](frontend/src/pages/security.tsx).
-
-## 📄 License
-Check individual modules for licensing. A root LICENSE file is pending (See Gap Analysis).
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes following [Conventional Commits](https://www.conventionalcommits.org/)
+4. Push and open a Pull Request against `main`
 
 ---
 
-Built with ⚡ by the VIT Network Foundation.
+## 📄 License
 
-## ☁️ Deployment (Google Cloud Platform)
+MIT — see [LICENSE](LICENSE) for details.
 
-VIT Network is production-ready for Google Cloud Platform.
+---
 
-### Quick Start
-1. Ensure you have the [Google Cloud SDK](https://cloud.google.com/sdk) installed.
-2. Run the deployment script:
-   ```bash
-   gcloud builds submit --config cloudbuild.yaml .
-   ```
-
-Refer to the [GCP Deployment Guide](DEPLOYMENT_GCP.md) for detailed instructions on setting up Cloud Run, Cloud SQL, and Secret Manager.
-
-### Docker Support
-You can also run VIT locally using Docker Compose:
-```bash
-docker-compose up --build
-```
+*VIT Network — Where Value, Intelligence, and Trust Converge.*
+*Built for Africa 🌍*

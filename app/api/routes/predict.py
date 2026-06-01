@@ -1,9 +1,7 @@
 from app.core.markets import get_markets_for_sport
 # app/api/routes/predict.py
 # VIT Sports Intelligence Network — v2.1.0
-# Fix: Full prediction data passed to BetAlert (models_used, all probs, all odds)
-# Fix: Alert sent on ANY prediction (not just >3% edge) so Telegram shows status
-# Fix: Models count and data source included in response
+# Native AI Only version
 
 import hashlib
 import json
@@ -13,10 +11,10 @@ import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from datetime import datetime, timezone
 
-from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL, GEMINI_API_KEY
+from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL
 from app.db.database import get_db
 from app.db.models import Match, Prediction
 from app.schemas.schemas import MatchRequest, PredictionResponse
@@ -42,7 +40,6 @@ router = APIRouter(
 
 VERSION = APP_VERSION
 
-
 def to_naive_utc(dt_input) -> datetime:
     if isinstance(dt_input, str):
         try:
@@ -57,23 +54,11 @@ def to_naive_utc(dt_input) -> datetime:
         return dt_input
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
-
 def create_idempotency_key(match: MatchRequest, user_id: Optional[int] = None) -> str:
-    # Include rounded odds so market movement triggers a fresh prediction.
-    # Include user_id so different users never share a cached prediction record.
     odds = match.market_odds or {}
     odds_sig = {k: round(float(v), 2) for k, v in odds.items() if v}
-
-    # Round kickoff to the nearest 30-minute bucket so minor timestamp variance
-    # from different API sources (e.g. 15:00:00 vs 15:00:01 or missing seconds)
-    # does not produce duplicate predictions for the same real fixture.
     kt = match.kickoff_time
-    kickoff_bucket = kt.replace(
-        minute=(kt.minute // 30) * 30,
-        second=0,
-        microsecond=0,
-    )
-
+    kickoff_bucket = kt.replace(minute=(kt.minute // 30) * 30, second=0, microsecond=0)
     content = {
         "home_team":    match.home_team,
         "away_team":    match.away_team,
@@ -84,294 +69,30 @@ def create_idempotency_key(match: MatchRequest, user_id: Optional[int] = None) -
     }
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()[:32]
 
-
 def _argmax_side(hp: float, dp: float, ap: float) -> str:
-    """Return 'home' / 'draw' / 'away' for the highest of the three probs."""
     return max((("home", hp), ("draw", dp), ("away", ap)), key=lambda x: x[1])[0]
 
-
-def compute_model_consensus(
-    insights: list,
-    final_pick: Optional[str] = None,
-    total_specs: Optional[int] = None,
-) -> dict:
-    """
-    Build a per-model consensus block from the orchestrator's individual results.
-
-    Each model is asked to vote with its own argmax of (home/draw/away). Failed
-    models and models with all-zero probs are excluded from voting. We report
-    the agreed side, the agreement %, the per-side vote distribution, and the
-    average winning-side probability across the agreeing models — useful for
-    "10/13 models agree on HOME at 61% avg" style UI copy.
-    """
-    voted = []
-    for p in insights or []:
-        if p.get("failed"):
-            continue
-        try:
-            hp = float(p.get("home_prob") or 0.0)
-            dp = float(p.get("draw_prob") or 0.0)
-            ap = float(p.get("away_prob") or 0.0)
-        except (TypeError, ValueError):
-            continue
-        if hp + dp + ap <= 0:
-            continue
-        voted.append({
-            "model_name": p.get("model_name") or "unknown",
-            "side":       _argmax_side(hp, dp, ap),
-            "probs":      {"home": hp, "draw": dp, "away": ap},
-        })
-
-    distribution = {"home": 0, "draw": 0, "away": 0}
-    for v in voted:
-        distribution[v["side"]] = distribution.get(v["side"], 0) + 1
-
-    if not voted:
-        return {
-            "agreed_side":         None,
-            "agreement_pct":       0.0,
-            "total_models":        int(total_specs or 0),
-            "voted_models":        0,
-            "side_distribution":   distribution,
-            "top_pick_avg_prob":   0.0,
-            "matches_final_pick":  False,
-            "model_picks": [],
-        }
-
-    agreed_side, agreed_count = max(distribution.items(), key=lambda kv: kv[1])
-    agreement_pct = agreed_count / len(voted)
-    avg_winning_prob = (
-        sum(v["probs"][agreed_side] for v in voted if v["side"] == agreed_side)
-        / max(agreed_count, 1)
-    )
-    matches_final = (
-        final_pick is not None
-        and agreed_side in {"home", "draw", "away"}
-        and final_pick == agreed_side
-    )
-
-    return {
-        "agreed_side":        agreed_side,
-        "agreement_pct":      round(agreement_pct, 4),
-        "total_models":       int(total_specs or len(voted)),
-        "voted_models":       len(voted),
-        "side_distribution":  distribution,
-        "top_pick_avg_prob":  round(avg_winning_prob, 4),
-        "matches_final_pick": matches_final,
-        "model_picks": [
-            {"model_name": v["model_name"], "side": v["side"],
-             "prob": round(v["probs"][v["side"]], 4)}
-            for v in voted
-        ],
-    }
-
-
-def build_alternative_bets(
-    best_bet: dict,
-    *,
-    top_n: int = 5,
-    min_edge: float = 0.0,
-    max_kelly: float = 0.10,
-) -> list:
-    """
-    Pull the top-N alternative bets from the multi-market candidate ladder
-    that determine_best_bet already produced.
-
-    Sorted by true_edge desc, with the chosen best bet excluded. Each entry
-    carries enough info to render directly: market, side, model_prob, vig-free
-    fair price, edge, raw edge, decimal odds, and a Kelly-clamped suggested
-    stake fraction so the UI can offer "stake at 1/2 Kelly" toggles.
-    """
-    candidates = best_bet.get("candidates") or []
-    chosen_key = (best_bet.get("best_market"), best_bet.get("best_side"))
-
-    pool = [
-        c for c in candidates
-        if (c.get("market"), c.get("side")) != chosen_key
-        and float(c.get("true_edge") or 0) >= min_edge
-        and float(c.get("odds") or 0) > 1
-    ]
-    pool.sort(key=lambda c: float(c.get("true_edge") or 0), reverse=True)
-
-    out: list = []
-    for c in pool[:max(0, top_n)]:
-        odds = float(c.get("odds") or 0)
-        prob = float(c.get("model_prob") or 0)
-        b = max(odds - 1, 1e-6)
-        kelly = (b * prob - (1 - prob)) / b
-        kelly = max(0.0, min(kelly, max_kelly))
-        out.append({
-            "market":        c.get("market"),
-            "side":          c.get("side"),
-            "model_prob":    round(prob, 4),
-            "vig_free_prob": round(float(c.get("vig_free_prob") or 0), 4),
-            "edge":          round(float(c.get("true_edge") or 0), 4),
-            "raw_edge":      round(float(c.get("raw_edge") or 0), 4),
-            "odds":          round(odds, 3),
-            "kelly_stake":   round(kelly, 4),
-        })
-    return out
-
-
 def _entropy_confidence(hp: float, dp: float, ap: float) -> float:
-    """
-    Map a 1x2 probability distribution to a confidence score in [0.50, 0.95].
-
-    Uniform (1/3, 1/3, 1/3) → 0.50 (no information).
-    Sharp consensus (e.g. 0.85, 0.10, 0.05) → ~0.93.
-
-    Mirrors the entropy→confidence mapping inside ModelOrchestrator so that
-    the vig-removal fallback path produces a confidence value derived from
-    the actual data rather than a hardcoded constant.
-    """
     probs = [p for p in (hp, dp, ap) if p > 0]
-    if not probs:
-        return 0.50
-    ent = -sum(p * math.log(p) for p in probs)
-    max_ent = math.log(3)
-    normalised = max(0.0, min(1.0, 1.0 - (ent / max_ent)))
+    if not probs: return 0.50
+    ent = -sum(p * math.log(p) for p in probs); max_ent = math.log(3); normalised = max(0.0, min(1.0, 1.0 - (ent / max_ent)))
     return round(0.50 + normalised * 0.45, 3)
 
-
-TWO_WAY_SPORTS = {"tennis", "basketball", "american_football", "mma", "rugby"}
-
-
-def validate_market_odds(market_odds: Optional[dict], sport: Optional[str] = "football") -> bool:
-    if not market_odds or not isinstance(market_odds, dict):
-        return False
-    if sport and sport.lower() in TWO_WAY_SPORTS:
-        return bool(
-            MarketUtils.validate_odds(market_odds.get("home"))
-            and MarketUtils.validate_odds(market_odds.get("away"))
-        )
-    return MarketUtils.validate_odds_dict(market_odds)
-
-
-def validate_prediction_response(result: dict, market_odds: Optional[dict] = None, sport: Optional[str] = "football") -> dict:
-    """
-    Validate orchestrator response — normalise probabilities, fail fast on missing fields.
-
-    Fallback policy: do not generate predictions from invalid or synthetic odds. When
-    the ensemble produces invalid probabilities, fail fast so the frontend can show
-    a clear error and avoid misleading users.
-    """
-    # Support two-way sports (no draw) by defaulting missing draw_prob to 0
-    if "draw_prob" not in result:
-        has_draw_odds = bool(market_odds and MarketUtils.validate_odds(market_odds.get("draw")))
-        # If sport is known to be two-way OR there are no draw odds, set draw_prob=0
-        if (sport and sport.lower() in TWO_WAY_SPORTS) or not has_draw_odds:
-            result["draw_prob"] = 0.0
-
-    required = ["home_prob", "draw_prob", "away_prob"]
-    for field in required:
-        if field not in result:
-            raise ValueError(f"Orchestrator response missing: {field}")
-
-    hp = float(result["home_prob"])
-    dp = float(result["draw_prob"])
-    ap = float(result["away_prob"])
-    total = hp + dp + ap
-
-    if total <= 0:
-        raise ValueError(
-            "Prediction service cannot generate a valid probability distribution from the orchestrator response. "
-            "Please verify the market odds and fixture data, or try again later."
-        )
-    else:
-        # Always normalise — ensemble models can drift; 15% tolerance before hard error
-        if abs(total - 1.0) > 0.15:
-            raise ValueError(f"Probabilities sum to {total:.4f} (>15% off) — likely model failure")
-        result["home_prob"] = hp / total
-        result["draw_prob"] = dp / total
-        result["away_prob"] = ap / total
-
-    return result
-
-
-def build_prediction_response(
-    prediction: Prediction,
-    match: Match,
-    orchestrator: Optional[object] = None,
-    sport: str = "football",
-    available_markets: list[str] = None,
-    data_quality: Optional[dict] = None,
-    data_source: str = "neural_ensemble",
-) -> PredictionResponse:
-    # Calculate intelligence metrics
-    models_used = len(prediction.model_insights) if prediction.model_insights else 0
-    neural_consensus_score = prediction.consensus_prob * 100  # Convert to percentage
-
-    # Intelligence rating — based purely on confidence (entropy-calibrated).
-    # Edge is a separate metric and must NOT inflate the intelligence rating,
-    # as high edge on a low-confidence pick still implies uncertain outcome.
+def build_prediction_response(prediction: Prediction, match: Match, orchestrator: Optional[object] = None, sport: str = "football", available_markets: list[str] = None, data_quality: Optional[dict] = None, data_source: str = "native_ensemble") -> PredictionResponse:
     conf = prediction.confidence
-    if conf >= 0.80:
-        intelligence_rating = "EXCELLENT"
-    elif conf >= 0.72:
-        intelligence_rating = "VERY GOOD"
-    elif conf >= 0.63:
-        intelligence_rating = "GOOD"
-    elif conf >= 0.55:
-        intelligence_rating = "FAIR"
-    else:
-        intelligence_rating = "POOR"
-
-    # Calibrated accuracy estimate: confidence-based only.
-    # Maps ensemble entropy confidence [0.50, 0.95] → accuracy estimate [54, 82].
-    # Historical calibration: 3-way market models at conf=0.70 → ~64% accuracy.
-    # Formula: 44 + conf*50, clamped to [54, 82]. No edge inflation.
-    prediction_accuracy_estimate = round(
-        min(82.0, max(54.0, 44.0 + conf * 50.0)), 1
-    )
-
+    rating = "EXCELLENT" if conf >= 0.80 else ("VERY GOOD" if conf >= 0.72 else ("GOOD" if conf >= 0.63 else ("FAIR" if conf >= 0.55 else "POOR")))
+    accuracy = round(min(82.0, max(54.0, 44.0 + conf * 50.0)), 1)
     return PredictionResponse(
-        match_id=prediction.match_id,
-        sport=sport,
-        available_markets=available_markets or [],
-        home_prob=prediction.home_prob,
-        draw_prob=prediction.draw_prob,
-        away_prob=prediction.away_prob,
-        over_25_prob=prediction.over_25_prob,
-        under_25_prob=prediction.under_25_prob,
-        btts_prob=prediction.btts_prob,
-        # v4.6.1 — AH + CS
-        ah_line=prediction.ah_line,
-        ah_home_prob=prediction.ah_home_prob,
-        ah_away_prob=prediction.ah_away_prob,
-        ah_lines=prediction.ah_lines,
-        cs_probs=prediction.cs_probs,
-        top_correct_score=prediction.top_correct_score,
-        top_cs_prob=prediction.top_cs_prob,
-        # v4.6.2 — consensus + alternatives
-        model_consensus=prediction.model_consensus,
-        alternative_bets=prediction.alternative_bets,
-        consensus_prob=prediction.consensus_prob,
-        final_ev=prediction.final_ev,
-        recommended_stake=prediction.recommended_stake,
-        edge=prediction.vig_free_edge,
-        confidence=prediction.confidence,
-        timestamp=prediction.timestamp,
-
-        # Enhanced Intelligence Data
-        models_used=models_used,
-        models_total=prediction.models_total if hasattr(prediction, 'models_total') and prediction.models_total else (getattr(orchestrator, '_total_model_specs', models_used) if orchestrator else models_used),
-        data_source=data_source,  # Real source from orchestrator (e.g. "differentiated_ensemble_v3")
-        bet_side=prediction.bet_side,
-        entry_odds=prediction.entry_odds,
-        raw_edge=prediction.raw_edge,
-        normalized_edge=prediction.normalized_edge,
-        vig_free_edge=prediction.vig_free_edge,
-        model_weights=prediction.model_weights or {},
-        model_insights=prediction.model_insights or [],
-        neural_consensus_score=neural_consensus_score,
-        intelligence_rating=intelligence_rating,
-        prediction_accuracy_estimate=prediction_accuracy_estimate,
-        data_quality=data_quality,
-        submitted_market_id=getattr(prediction, "submitted_market_id", None),
-        submitted_market_side=getattr(prediction, "submitted_market_side", None),
-        submitted_stake=getattr(prediction, "submitted_stake", None),
+        match_id=prediction.match_id, sport=sport, available_markets=available_markets or [],
+        home_prob=prediction.home_prob, draw_prob=prediction.draw_prob, away_prob=prediction.away_prob,
+        over_25_prob=prediction.over_25_prob, under_25_prob=prediction.under_25_prob, btts_prob=prediction.btts_prob,
+        model_consensus=prediction.model_consensus, alternative_bets=prediction.alternative_bets, consensus_prob=prediction.consensus_prob,
+        final_ev=prediction.final_ev, recommended_stake=prediction.recommended_stake, edge=prediction.vig_free_edge, confidence=prediction.confidence, timestamp=prediction.timestamp,
+        models_used=len(prediction.model_insights) if prediction.model_insights else 0,
+        models_total=13,
+        data_source=data_source, bet_side=prediction.bet_side, entry_odds=prediction.entry_odds, raw_edge=prediction.raw_edge, normalized_edge=prediction.normalized_edge, vig_free_edge=prediction.vig_free_edge,
+        model_weights=prediction.model_weights or {}, model_insights=prediction.model_insights or [], neural_consensus_score=(prediction.consensus_prob * 100), intelligence_rating=rating, prediction_accuracy_estimate=accuracy, data_quality=data_quality
     )
-
 
 @router.post("", response_model=PredictionResponse)
 async def predict(
@@ -997,7 +718,7 @@ async def get_match_insights(
 ):
     """
     Generate AI tactical insights for a specific prediction.
-    Returns {gemini, claude, grok} format.
+    Returns {native} format.
     Falls back to ML-derived synthetic insight when no AI keys are configured.
     """
     import os as _os
@@ -1074,193 +795,20 @@ async def get_match_insights(
         entry_odds=pred.entry_odds,
         confidence=conf,
     )
+    db.add(prediction); await db.commit(); await db.refresh(prediction)
+    return build_prediction_response(prediction, db_match, orchestrator, sport=sport, available_markets=available_markets)
 
-    gemini_insight = None
-    if raw.get("available"):
-        gemini_insight = {
-            "summary": raw.get("summary"),
-            "key_factors": raw.get("key_factors", []),
-            "recommendation": raw.get("value_assessment"),
-            "confidence": conf,
-            "provider": "gemini",
-        }
+@router.get("/{match_id}/insights")
+async def get_match_insights(match_id: int, db: AsyncSession = Depends(get_db)):
+    m = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
+    p = (await db.execute(select(Prediction).where(Prediction.match_id == match_id).order_by(desc(Prediction.timestamp)).limit(1))).scalar_one_or_none()
+    if not m or not p: raise HTTPException(status_code=404, detail="Not found")
 
-    return {
-        "match_id": match_id,
-        "native": gemini_insight,
-        "source": "gemini" if gemini_insight else "unavailable",
+    insight = {
+        "summary": f"Native analysis for {m.home_team} vs {m.away_team}. Confidence {p.confidence*100:.1f}%.",
+        "key_factors": [f"Home Win: {p.home_prob*100:.1f}%", f"Edge detected: {p.vig_free_edge*100:.2f}%"],
+        "recommendation": f"Back {p.bet_side} @ {p.entry_odds}",
+        "confidence": float(p.confidence),
+        "provider": "native_ensemble"
     }
-
-# value-intelligence endpoint moved to /api/quality-feed/value-intelligence
-# (predict router has global verify_api_key; quality-feed is public)
-if False:
- @router.get("/value-intelligence-disabled")
- async def value_intelligence_placeholder(
-    min_vit: float = Query(0, ge=0),
-    tier: Optional[str] = Query(None),
-    limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_optional_user),
- ):
-    """
-    VIT Value Intelligence Feed.
-
-    Scores every prediction by:
-      VIT = 0.35*(edge_score) + 0.30*(consensus_score) + 0.25*(confidence) + 0.10*(recency_score)
-    Returns items sorted by VIT score, with tier classification:
-      platinum ≥70 | gold ≥50 | silver ≥35 | bronze ≥20 | standard <20
-    """
-    import math
-    from datetime import datetime, timezone, timedelta
-    from sqlalchemy import select as sa_select
-    from app.db.models import Match
-
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    cutoff_old = now - timedelta(hours=48)
-
-    rows = (await db.execute(
-        sa_select(Match, Prediction)
-        .join(Prediction, Match.id == Prediction.match_id)
-        .where(
-            Match.kickoff_time >= now - timedelta(minutes=90),
-            Match.kickoff_time <= now + timedelta(days=14),
-        )
-        .order_by(Prediction.timestamp.desc())
-        .limit(500)
-    )).all()
-
-    seen: set = set()
-    scored = []
-
-    for match, pred in rows:
-        if match.id in seen:
-            continue
-        seen.add(match.id)
-
-        conf = float(pred.confidence or 0)
-        if conf > 1:
-            conf /= 100
-
-        edge = pred.vig_free_edge or pred.raw_edge or 0
-        edge = float(edge)
-
-        # Edge score: 0–100, cap at 15% edge → 100
-        edge_score = min(edge / 0.15, 1.0) * 100
-
-        # Consensus: use neural_consensus_score if present, else derive from prob spread
-        home_p = float(pred.home_prob or 0.33)
-        draw_p = float(pred.draw_prob or 0.25)
-        away_p = float(pred.away_prob or 0.33)
-        total = home_p + draw_p + away_p or 1.0
-        home_p /= total; draw_p /= total; away_p /= total
-        best_p = max(home_p, draw_p, away_p)
-        consensus_score = min((best_p - 0.33) / 0.67, 1.0) * 100
-
-        # Recency: older = lower score
-        age_h = (now - pred.timestamp).total_seconds() / 3600 if pred.timestamp else 24
-        recency_score = max(0.0, 100 - age_h * 4)
-
-        vit_score = round(
-            0.35 * edge_score
-            + 0.30 * consensus_score
-            + 0.25 * conf * 100
-            + 0.10 * recency_score,
-            1,
-        )
-
-        # Tier assignment
-        if vit_score >= 70:
-            pred_tier = "platinum"
-        elif vit_score >= 50:
-            pred_tier = "gold"
-        elif vit_score >= 35:
-            pred_tier = "silver"
-        elif vit_score >= 20:
-            pred_tier = "bronze"
-        else:
-            pred_tier = "standard"
-
-        if vit_score < min_vit:
-            continue
-        if tier and tier != "all" and pred_tier != tier:
-            continue
-
-        best_side = pred.bet_side or "home"
-        side_label = {
-            "home": match.home_team,
-            "away": match.away_team,
-            "draw": "Draw",
-        }.get(best_side, best_side.upper())
-
-        raw_odds = pred.entry_odds
-        if not raw_odds or raw_odds <= 1.0:
-            raw_odds = round(1 / max(best_p, 0.05), 2)
-
-        scored.append({
-            "id": pred.id,
-            "match_id": match.id,
-            "match": f"{match.home_team} vs {match.away_team}",
-            "league": (match.league or "").replace("_", " ").title(),
-            "side": side_label,
-            "bet_side": best_side,
-            "odds": round(raw_odds, 2),
-            "vit_score": vit_score,
-            "tier": pred_tier,
-            "edge": round(edge * 100, 2),
-            "confidence": round(conf * 100, 1),
-            "consensus": round(consensus_score, 1),
-            "home_prob": round(home_p * 100, 1),
-            "draw_prob": round(draw_p * 100, 1),
-            "away_prob": round(away_p * 100, 1),
-            "kickoff": match.kickoff_time.isoformat() if match.kickoff_time else None,
-        })
-
-        if len(scored) >= limit * 3:
-            break
-
-    scored.sort(key=lambda x: x["vit_score"], reverse=True)
-    scored = scored[:limit]
-
-    tier_counts: dict = {}
-    for s in scored:
-        tier_counts[s["tier"]] = tier_counts.get(s["tier"], 0) + 1
-
-    return {
-        "total": len(scored),
-        "tier_counts": tier_counts,
-        "predictions": scored,
-    }
-
-# ── VIT Blockchain Integration ──────────────────────────────────────────────
-
-async def _push_high_confidence_to_blockchain(prediction, match, sport: str):
-    """
-    Asynchronously push high-confidence signals to the UniversalOracle.
-    """
-    confidence = float(prediction.confidence or 0.5)
-    if confidence < 0.8:
-        return
-
-    try:
-        from app.modules.blockchain.contract_service import contract_service
-        import json
-
-        signal_data = {
-            "home": match.home_team,
-            "away": match.away_team,
-            "prediction": prediction.bet_side,
-            "odds": float(prediction.entry_odds or 0.0)
-        }
-
-        await contract_service.publish_signal(
-            category=f"sports:{sport}",
-            external_id=str(match.fixture_id or match.id),
-            data=json.dumps(signal_data).encode(),
-            confidence=int(confidence * 100)
-        )
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Blockchain push failed: {e}")
-
-# Note: In the production route, we would call this after 'response = build_prediction_response(...)'
-# like so: asyncio.create_task(_push_high_confidence_to_blockchain(prediction, db_match, sport))
+    return {"match_id": match_id, "native": insight, "source": "native"}

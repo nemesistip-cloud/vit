@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.db.models import User
+from app.api.deps import get_current_admin
 from app.modules.merit.models import MeritEventType, MeritTier, TIER_THRESHOLDS, TIER_BONUS_PCT
 from app.modules.merit.service import (
     apply_inactivity_decay,
@@ -117,8 +119,8 @@ async def get_history(user_id: int, limit: int = 50, db: AsyncSession = Depends(
     }
 
 
-@router.post("/events")
-async def record_event(req: MeritEventRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/events", summary="Admin: record a merit event")
+async def record_event(req: MeritEventRequest, db: AsyncSession = Depends(get_db), _: User = Depends(get_current_admin)):
     event = await record_merit_event(
         db,
         user_id=req.user_id,
@@ -139,16 +141,16 @@ async def record_event(req: MeritEventRequest, db: AsyncSession = Depends(get_db
     }
 
 
-@router.post("/users/{user_id}/decay")
-async def trigger_decay(user_id: int, db: AsyncSession = Depends(get_db)):
+@router.post("/users/{user_id}/decay", summary="Admin: trigger inactivity decay")
+async def trigger_decay(user_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(get_current_admin)):
     ms = await apply_inactivity_decay(db, user_id)
     if not ms:
         raise HTTPException(status_code=404, detail="Merit score not found")
     return {"user_id": user_id, "score": float(ms.score), "tier": ms.tier.value, "last_decay_at": ms.last_decay_at.isoformat() if ms.last_decay_at else None}
 
 
-@router.post("/bonus-calc")
-async def calculate_bonus(req: BonusCalcRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/bonus-calc", summary="Admin: calculate merit bonus for a user")
+async def calculate_bonus(req: BonusCalcRequest, db: AsyncSession = Depends(get_db), _: User = Depends(get_current_admin)):
     bonus = await compute_merit_bonus_vit(db, req.user_id, Decimal(str(req.base_reward)))
     return {"user_id": req.user_id, "base_reward": req.base_reward, "bonus_vit": float(bonus)}
 

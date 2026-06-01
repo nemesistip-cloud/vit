@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.db.database import get_db
 from app.db.models import User
-from app.auth.jwt_utils import decode_token
+from app.auth.jwt_utils import decode_token, is_token_revoked
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -27,6 +27,14 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    jti = payload.get("jti")
+    if jti and await is_token_revoked(jti, db):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked — please log in again",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

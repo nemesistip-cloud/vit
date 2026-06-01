@@ -605,7 +605,7 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
           </Badge>
         </CardTitle>
         <CardDescription>
-          Uses the AI cascade (Gemini → Claude → OpenAI → Grok) first, then automatically
+          Uses the AI cascade (Native Ensemble) first, then automatically
           falls back to the 13-model ML ensemble when AI providers are unavailable.
         </CardDescription>
       </CardHeader>

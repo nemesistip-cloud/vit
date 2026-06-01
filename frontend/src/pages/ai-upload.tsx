@@ -130,7 +130,7 @@ export default function AIUploadPage() {
               Submit AI Prediction
             </CardTitle>
             <CardDescription className="text-xs">
-              Enter probability estimates from any AI source (ChatGPT, Claude, Gemini, Grok, etc.)
+              Enter probability estimates from any AI source (Native Ensemble)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

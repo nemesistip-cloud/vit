@@ -243,7 +243,7 @@ class AnalyticsReporterAgent(BaseAgent):
             stats = await _gather_metrics(db, window_hours)
 
         prompt = _daily_prompt(stats, report_date, is_weekly)
-        # Force DeepSeek cascade for better summaries
+        # Force native AI cascade for better summaries
         from app.services.ai_client import call_ai
         report = await call_ai(prompt, temperature=0.7)
         _provider = "native"

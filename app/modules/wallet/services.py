@@ -191,6 +191,52 @@ class WalletService:
         c_tx = await self.credit(t_w.id, to_user_id, currency, amount, "transfer", reference=f"FROM:{from_user_id}", metadata={"note": note})
         return d_tx, c_tx
 
+    @staticmethod
+    async def seed_wallet_subscription_plans(db: AsyncSession) -> None:
+        """Seed default wallet subscription plans if they don't exist yet."""
+        from app.modules.wallet.models import WalletSubscriptionPlan as _WSP
+        existing = (await db.execute(select(func.count(_WSP.id)))).scalar_one()
+        if existing:
+            return
+        plans = [
+            _WSP(
+                name="Free",
+                description="Basic access — no cost",
+                features=["5 predictions/day", "TheSportsDB data", "Basic analytics"],
+                price_ngn=Decimal("0.00"), price_usd=Decimal("0.00"),
+                price_usdt=Decimal("0.00"), price_pi=Decimal("0.00"),
+                price_vitcoin=Decimal("0.00"), duration_days=30, is_active=True,
+            ),
+            _WSP(
+                name="Analyst",
+                description="Enhanced intelligence for serious bettors",
+                features=["20 predictions/day", "Multi-source odds", "CLV tracking", "AI insights"],
+                price_ngn=Decimal("5000.00"), price_usd=Decimal("5.00"),
+                price_usdt=Decimal("5.00"), price_pi=Decimal("15.00"),
+                price_vitcoin=Decimal("50.00"), duration_days=30, is_active=True,
+            ),
+            _WSP(
+                name="Pro",
+                description="Full intelligence suite with live data",
+                features=["Unlimited predictions", "Live odds", "22 AI agents", "API access", "Priority support"],
+                price_ngn=Decimal("15000.00"), price_usd=Decimal("15.00"),
+                price_usdt=Decimal("15.00"), price_pi=Decimal("50.00"),
+                price_vitcoin=Decimal("150.00"), duration_days=30, is_active=True,
+            ),
+            _WSP(
+                name="Elite",
+                description="Institutional-grade access with full blockchain features",
+                features=["Unlimited predictions", "On-chain verification", "DID identity", "Oracle access", "White-glove support"],
+                price_ngn=Decimal("50000.00"), price_usd=Decimal("50.00"),
+                price_usdt=Decimal("50.00"), price_pi=Decimal("150.00"),
+                price_vitcoin=Decimal("500.00"), duration_days=30, is_active=True,
+            ),
+        ]
+        for plan in plans:
+            db.add(plan)
+        await db.commit()
+        logger.info("[wallet] Seeded %d wallet subscription plans", len(plans))
+
     async def get_transaction_history(self, user_id, limit=50, offset=0, transaction_type=None, currency=None, status=None, date_from=None, date_to=None):
         query = select(WalletTransaction).where(WalletTransaction.user_id == user_id)
         if transaction_type: query = query.where(WalletTransaction.type == transaction_type)

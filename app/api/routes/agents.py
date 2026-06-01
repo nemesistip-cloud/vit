@@ -114,7 +114,7 @@ async def set_provider_priority_endpoint(body: _ProviderPriorityBody, _user=Depe
     Update the AI provider try-order without restarting the server.
 
     Pass a list of provider names in the desired priority order.
-    Valid names: gemini, claude, openai, grok, puter.
+    Valid names: native.
     Unknown names are ignored; missing names are appended at the end.
     """
     try:

@@ -103,75 +103,6 @@ const PROVIDER_META: Record<string, { label: string; color: string }> = {
   grok:   { label: "Grok",   color: "text-amber-400" },
 };
 
-function ProviderStatusBar({ onRefresh }: { onRefresh: () => void }) {
-  const qc = useQueryClient();
-  const { data, isFetching } = useQuery<ProvidersData>({
-    queryKey: ["ai-providers"],
-    queryFn: () => apiGet<ProvidersData>("/api/agents/providers"),
-    refetchInterval: 30_000,
-    staleTime: 20_000,
-  });
-
-  const refreshMutation = useMutation({
-    mutationFn: () => apiPost<ProvidersData>("/api/agents/providers/refresh"),
-    onSuccess: (d) => {
-      qc.setQueryData(["ai-providers"], d);
-      onRefresh();
-    },
-  });
-
-  const providers = data?.providers ?? {};
-
-  return (
-    <div className="flex items-center gap-3 px-4 py-2.5 bg-card/40 border border-border/50 rounded-xl flex-wrap">
-      <div className="flex items-center gap-1.5 shrink-0">
-        <Cpu className="w-3.5 h-3.5 text-muted-foreground/60" />
-        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wide">AI Providers</span>
-      </div>
-      <div className="flex items-center gap-2 flex-wrap flex-1">
-        {priority.map((name, i) => {
-          const info = providers[name];
-          const meta = PROVIDER_META[name] ?? { label: name, color: "text-gray-400" };
-          const dot = !info?.configured
-            ? "bg-gray-500/60"
-            : info.failing
-            ? "bg-red-500"
-            : info.cooling
-            ? "bg-amber-400 animate-pulse"
-            : info.available
-            ? "bg-green-400"
-            : "bg-red-400";
-          const label = !info?.configured
-            ? "no key"
-            : info.failing
-            ? `failing${info.last_error_code ? ` (${info.last_error_code})` : ""}`
-            : info.cooling
-            ? `cooling ${info.cooling_for_seconds}s`
-            : "ready";
-          return (
-            <div key={name} className="flex items-center gap-1.5">
-              {i > 0 && <span className="text-muted-foreground/30 text-[10px]">→</span>}
-              <span className={`w-1.5 h-1.5 rounded-full ${dot} shrink-0`} />
-              <span className={`text-[10px] font-mono font-semibold ${meta.color}`}>{meta.label}</span>
-              <span className="text-[9px] font-mono text-muted-foreground/50">{label}</span>
-            </div>
-          );
-        })}
-      </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-primary shrink-0"
-        onClick={() => refreshMutation.mutate()}
-        disabled={refreshMutation.isPending || isFetching}
-        title="Clear rate-limit cooldowns and reload provider config"
-      >
-        <RotateCcw className={`w-3 h-3 mr-1 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
-        Reset
-      </Button>
-    </div>
-  );
-}
 
 // ─── Live Scores Ticker ───────────────────────────────────────────────────────
 
@@ -478,7 +409,6 @@ export default function ReportsPage() {
       </div>
 
       {/* AI Provider Status Bar */}
-      <ProviderStatusBar onRefresh={() => qc.invalidateQueries({ queryKey: ["agent-reports"] })} />
 
       {/* Live Score Ticker */}
       <LiveScoresTicker scores={liveScores} wsGoals={wsGoals} />

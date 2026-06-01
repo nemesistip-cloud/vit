@@ -483,7 +483,7 @@ async def quant_summary(
 
 
 # ---------------------------------------------------------------------------
-# 6.  Puter Distributed Monte Carlo  —  POST /api/quant/monte-carlo/native
+# 6.  Native Distributed Monte Carlo  —  POST /api/quant/monte-carlo/native
 # ---------------------------------------------------------------------------
 
 @router.post("/monte-carlo/native")
@@ -493,19 +493,19 @@ async def native_monte_carlo(
     initial_bankroll:  float = Query(1000.0, ge=100, le=1_000_000),
     staking:           str   = Query("kelly", pattern="^(flat|kelly)$"),
     workers:           int   = Query(4, ge=1, le=16,
-                                     description="Number of parallel Puter worker shards"),
+                                     description="Number of parallel Native worker shards"),
     db: AsyncSession = Depends(get_db),
     _:  User = Depends(get_current_user),
 ):
     """
-    Puter-distributed Monte Carlo simulation.
+    Native-distributed Monte Carlo simulation.
 
     Splits the trial workload across `workers` shards.  Each shard is executed
-    as a Puter agent task (via the server-side PuterAIService).  Results are
+    as a native agent task (via the server-side NativeAIService).  Results are
     merged and returned with the same schema as the standard /monte-carlo
     endpoint plus a `native_tasks` execution summary.
 
-    Falls back to synchronous execution if Puter is unavailable.
+    Falls back to synchronous execution if Native is unavailable.
     """
     preds = await _load_settled(db)
     if len(preds) < 10:
@@ -515,7 +515,7 @@ async def native_monte_carlo(
     per_worker = max(10, trials // workers)
     shard_sizes = [per_worker] * (workers - 1) + [trials - per_worker * (workers - 1)]
 
-    # Attempt Puter task execution
+    # Attempt Native task execution
     native_tasks = []
     all_finals: list[float] = []
     ruin_total  = 0
@@ -550,7 +550,7 @@ async def native_monte_carlo(
                 finals.append(round(br, 2))
             return {"finals": finals, "ruin": ruin, "trials": shard_trials}
 
-        # Run shards with Puter prompt-based task dispatch (fire-and-forget style)
+        # Run shards with Native prompt-based task dispatch (fire-and-forget style)
         import asyncio
         shard_tasks = [
             _run_shard(sz, seed=42 + i)
@@ -569,7 +569,7 @@ async def native_monte_carlo(
         execution_mode = "native_parallel" if len(native_tasks) > 0 else "synchronous"
 
     except Exception as exc:
-        logger.warning("[quant] Puter parallel execution unavailable: %s — falling back", exc)
+        logger.warning("[quant] native parallel execution unavailable: %s — falling back", exc)
         # Synchronous fallback
         rng = random.Random(42)
         for _ in range(trials):

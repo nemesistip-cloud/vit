@@ -3,7 +3,7 @@ services:
     name: vit
     runtime: python
     region: oregon
-    plan: starter # Recommend starter (512MB-1GB) for production stability
+    plan: starter
 
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_production.sh
@@ -19,7 +19,6 @@ services:
         value: "true"
       - key: ML_MODEL_CACHE_ENABLED
         value: "true"
-      # Memory Optimisation: limit active agents and models to fit in 512MB
       - key: ENABLED_AGENTS
         value: "performance-monitor,live-match-tracker,network-guardian,weight-optimizer,match-scout,oracle-node,kyc-screener"
       - key: ENABLED_MODELS
@@ -36,22 +35,13 @@ services:
         value: "0.05"
       - key: MIN_EDGE_THRESHOLD
         value: "0.02"
-      - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: "60"
-      - key: REFRESH_TOKEN_EXPIRE_DAYS
-        value: "30"
       - key: ADMIN_EMAIL
         value: admin@vit.network
       - key: ADMIN_USERNAME
         value: vit_admin
       - key: BASE_CHAIN_ID
         value: "8453"
-      # Secrets — set these in the Render dashboard, never commit values here
       - key: JWT_SECRET_KEY
-        sync: false
-      - key: SECRET_KEY
-        sync: false
-      - key: ADMIN_PASSWORD
         sync: false
       - key: DATABASE_URL
         fromDatabase:
@@ -61,44 +51,29 @@ services:
         fromDatabase:
           name: vit-postgres
           property: connectionString
-      - key: GEMINI_API_KEY
         sync: false
-      - key: ANTHROPIC_API_KEY
         sync: false
-      - key: OPENAI_API_KEY
         sync: false
-      - key: XAI_API_KEY
         sync: false
       - key: ODDS_API_KEY
         sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: RESEND_API_KEY
-        sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
-      - key: PAYSTACK_SECRET_KEY
-        sync: false
-      - key: PAYSTACK_WEBHOOK_SECRET
-        sync: false
-      - key: SMILE_IDENTITY_API_KEY
-        sync: false
-      - key: SMILE_IDENTITY_PARTNER_ID
-        sync: false
       - key: FOOTBALL_DATA_API_KEY
         sync: false
-      - key: THESPORTSDB_API_KEY
-        value: "3"
+      - key: GCS_BUCKET_NAME
+        sync: false
+      - key: GCS_PROJECT_ID
+        sync: false
       - key: REDIS_URL
         fromService:
           type: redis
           name: vit-redis
           property: connectionString
-      - key: VITE_WALLETCONNECT_PROJECT_ID
-        sync: false
-
 
   - type: web
     name: tachyon
@@ -116,7 +91,7 @@ services:
     name: vit-redis
     region: oregon
     plan: free
-    ipAllowList: [] # Internal access only
+    ipAllowList: []
 
 databases:
   - name: vit-postgres
