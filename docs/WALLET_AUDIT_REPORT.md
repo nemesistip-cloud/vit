@@ -69,7 +69,7 @@ Based on code evidence in `app/modules/wallet`, `app/modules/blockchain`, and `p
 
 ## Deliverable 5 & 6: Opportunity & Competitive Strategy
 
-### The VIT Moat: "Intelligence-Backed Yield"
+### The VIT Moat: "Analytics-Backed Yield"
 Unlike passive wallets (OPay) or complex Web3 wallets (Metamask), VIT is **Proactive**.
 *   **Yield from Accuracy**: Earn by backing high-confidence AI signals.
 *   **Gasless Experience**: Biconomy integration removes the "ETH for Gas" hurdle for African users.
@@ -95,7 +95,7 @@ Unlike passive wallets (OPay) or complex Web3 wallets (Metamask), VIT is **Proac
 
 ## Deliverable 8: Ultimate VIT Wallet Blueprint
 
-**Vision**: The VIT Wallet is the **Intelligence Hub** for the global south.
+**Vision**: The VIT Wallet is the **Analytics Hub** for the global south.
 1.  **AI Co-Pilot**: Automated staking and savings based on AI confidence.
 2.  **Merit-Based Finance**: Reputation (Accuracy) unlocks lower fees and higher limits.
 3.  **Zero-Gas Sovereignty**: On-chain security with the UX of a modern fintech app.

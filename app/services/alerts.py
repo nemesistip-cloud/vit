@@ -1,5 +1,5 @@
 # app/services/alerts.py
-# VIT Sports Intelligence Network — v2.1.0
+# VIT Sports Analytics Network — v2.1.0
 # Fix: Model count now displayed (was always 0/0)
 # Fix: Probabilities now match-specific (was always 36.3%)
 # Fix: Edge, stake, confidence all populated correctly
@@ -381,7 +381,7 @@ class TelegramAlert:
 <b>📊 Models:</b> {model_str}{extra_block}
 
 ━━━━━━━━━━━━━━━━━━━━━
-<i>VIT Sports Intelligence v{VERSION}</i>"""
+<i>VIT Sports Analytics v{VERSION}</i>"""
 
         priority = AlertPriority.BET if has_edge else AlertPriority.INFO
         return await self.send_message(message.strip(), priority)
@@ -421,7 +421,7 @@ class TelegramAlert:
             for edge in top_edges[:3]:
                 message += f"• {edge.get('home_team')} vs {edge.get('away_team')}: {edge.get('edge', 0):.2%} edge\n"
 
-        message += f"\n<i>VIT Sports Intelligence v{VERSION}</i>"
+        message += f"\n<i>VIT Sports Analytics v{VERSION}</i>"
         return await self.send_message(message.strip())
 
     # ------------------------------------------------------------------

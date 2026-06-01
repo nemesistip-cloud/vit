@@ -67,7 +67,7 @@ export default function MatchDetailPage() {
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4 font-mono">
           <div className="text-4xl text-muted-foreground">404</div>
-          <div className="text-muted-foreground uppercase text-sm">Match not found in the intelligence network</div>
+          <div className="text-muted-foreground uppercase text-sm">Match not found in the analytics network</div>
           <Button variant="outline" className="font-mono uppercase text-xs" onClick={() => setLocation("/matches")}>
             <ChevronLeft className="w-4 h-4 mr-2" /> Return to Feed
           </Button>
@@ -168,14 +168,14 @@ export default function MatchDetailPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="analysis" className="w-full">
+      <Tabs defaultValue="analytics" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="analysis">Analysis</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="injuries">Injuries</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="analysis" className="mt-6">
+        <TabsContent value="analytics" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <MatchAssistantCard match={match} consensus={consensus} />
@@ -191,7 +191,7 @@ export default function MatchDetailPage() {
                 <CardHeader className="border-b border-border/50 pb-4">
                   <CardTitle className="font-mono uppercase flex items-center">
                     <BrainCircuit className="w-5 h-5 mr-2 text-primary" />
-                    Ensemble Intelligence</CardTitle>
+                    Ensemble Analytics</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6 space-y-6">
               <div className="grid grid-cols-3 gap-4 text-center">
@@ -364,7 +364,7 @@ export default function MatchDetailPage() {
           <Card className="bg-card/50 backdrop-blur border-border">
             <CardHeader className="border-b border-border/50 pb-4">
               <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-primary" /> Child Model Analysis
+                <BarChart2 className="w-4 h-4 text-primary" /> Child Model Analytics
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-3">
@@ -411,7 +411,7 @@ export default function MatchDetailPage() {
               }) : (
                 <div className="text-center py-6 space-y-2">
                   <div className="font-mono text-muted-foreground text-sm">No model breakdown available yet.</div>
-                  <div className="font-mono text-muted-foreground text-xs">Run the ML ensemble for this match to see child model analysis.</div>
+                  <div className="font-mono text-muted-foreground text-xs">Run the ML ensemble for this match to see child model analytics.</div>
                 </div>
               )}
             </CardContent>

@@ -1,9 +1,9 @@
-"""VIT Sports Intelligence Network - Main Application Package"""
+"""VIT Sports Analytics Network - Main Application Package"""
 
 from app.config import APP_VERSION
 
 __version__     = APP_VERSION
-__author__      = "VIT Sports Intelligence"
+__author__      = "VIT Sports Analytics"
 __description__ = "13-Model Ensemble for Football Prediction with CLV Tracking"
 
 def __getattr__(name):

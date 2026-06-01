@@ -1,5 +1,5 @@
 """app/services/insight_store.py — Native Insight Storage.
-Replaces external AI provider insights with native intelligence storage.
+Replaces external AI provider insights with native analytics storage.
 """
 import json
 import re
@@ -11,7 +11,7 @@ from app.modules.ai.models import AIInsight
 
 CACHE_TTL_HOURS = 12
 PROVIDERS = ("native",)
-PROVIDER_LABELS = {"native": "Native VIT Intelligence"}
+PROVIDER_LABELS = {"native": "Native VIT Analytics"}
 
 def _as_probability(value: Any, fallback: Optional[float] = None) -> Optional[float]:
     if value is None: return fallback
@@ -31,7 +31,7 @@ def normalize_provider_insight(source: str, payload: Dict[str, Any], defaults: O
         "draw_prob": _as_probability(payload.get("draw_prob"), defaults.get("draw_prob", 0.33)),
         "away_prob": _as_probability(payload.get("away_prob"), defaults.get("away_prob", 0.33)),
         "confidence": _as_probability(payload.get("confidence"), 0.75),
-        "summary": payload.get("summary") or "Native ensemble analysis complete.",
+        "summary": payload.get("summary") or "Native ensemble analytics complete.",
         "key_factors": payload.get("key_factors") or ["Native Signals"],
         "risk_level": payload.get("risk_level", "MEDIUM"),
         "error": None,

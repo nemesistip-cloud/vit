@@ -1,4 +1,4 @@
-"""Admin/Analyst AI Sources panel — upload raw Claude/Grok/etc analysis per match."""
+"""Admin/Analyst AI Sources panel — upload raw Claude/Grok/etc analytics per match."""
 
 import json
 import logging
@@ -212,7 +212,7 @@ async def trigger_performance_update(
     return {"status": "ok", "message": "Performance metrics recalculated"}
 
 
-class ServerAnalysisPayload(BaseModel):
+class ServerAnalyticsPayload(BaseModel):
     limit: int = Field(20, ge=1, le=50)
     source_label: str = Field("server", description="Source label for ingested predictions")
 
@@ -222,7 +222,7 @@ def _build_match_prompt(home: str, away: str, league: str) -> str:
         f"Analyze this football match and provide your independent probability assessment.\n\n"
         f"Match: {home} vs {away}\n"
         f"League: {league}\n\n"
-        f"Provide your analysis as a raw JSON object (no markdown, no code fences):\n"
+        f"Provide your analytics as a raw JSON object (no markdown, no code fences):\n"
         f'{{\n'
         f'  "home_prob": 0.00,\n'
         f'  "draw_prob": 0.00,\n'
@@ -267,7 +267,7 @@ def _parse_ai_json(raw: str, home_default=0.34, draw_default=0.33, away_default=
         "draw_prob": round(d / total, 4),
         "away_prob": round(a / total, 4),
         "confidence": min(1.0, max(0.3, float(parsed.get("confidence", 0.65)))),
-        "reason": str(parsed.get("reason", "Server AI analysis"))[:500],
+        "reason": str(parsed.get("reason", "Server AI analytics"))[:500],
         "raw_content": raw,
     }
 
@@ -281,7 +281,7 @@ async def _ml_ensemble_fallback(
 ) -> Optional[dict]:
     """
     Use the platform's 13-model ML ensemble to generate predictions when
-    all external AI providers are unavailable.  Returns an analysis dict
+    all external AI providers are unavailable.  Returns an analytics dict
     (home_prob, draw_prob, away_prob, confidence, reason, raw_content)
     or None if the orchestrator is not ready.
     """
@@ -304,7 +304,7 @@ async def _ml_ensemble_fallback(
             match_id=str(match_id),
             orchestrator=orch,
             db=db,
-            triggered_by="server-analysis-ml-fallback",
+            triggered_by="server-analytics-ml-fallback",
         )
 
         preds = result.get("predictions", {})
@@ -339,18 +339,18 @@ async def _ml_ensemble_fallback(
             "raw_content": json.dumps({"source": "ml_ensemble", "predictions": preds}),
         }
     except Exception as exc:
-        logger.warning("[server-analysis] ML fallback failed for match=%s: %s", match_id, exc)
+        logger.warning("[server-analytics] ML fallback failed for match=%s: %s", match_id, exc)
         return None
 
 
 @router.post("/run-server")
-async def run_server_analysis(
-    payload: ServerAnalysisPayload,
+async def run_server_analytics(
+    payload: ServerAnalyticsPayload,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_uploader),
 ):
     """
-    Run server-side AI analysis on upcoming matches using:
+    Run server-side AI analytics on upcoming matches using:
       1. Built-in AI cascade  (Native VIT Ensemble)
       2. 13-model ML ensemble fallback when all AI providers are unavailable
 
@@ -406,18 +406,18 @@ async def run_server_analysis(
             )
 
             if raw:
-                analysis = _parse_ai_json(raw)
+                analytics = _parse_ai_json(raw)
                 method = "ai_cascade"
             else:
                 # ── Step 2: ML ensemble fallback ─────────────────────────────
                 logger.info(
-                    "[server-analysis] AI cascade unavailable for %s vs %s — trying ML ensemble",
+                    "[server-analytics] AI cascade unavailable for %s vs %s — trying ML ensemble",
                     home, away,
                 )
-                analysis = await _ml_ensemble_fallback(db, match.id, home, away, league)
+                analytics = await _ml_ensemble_fallback(db, match.id, home, away, league)
                 method = "ml_ensemble"
 
-            if not analysis:
+            if not analytics:
                 results.append({
                     "match_id": match.id,
                     "match": f"{home} vs {away}",
@@ -429,32 +429,32 @@ async def run_server_analysis(
             ok = await service.ingest_prediction(
                 match_id=match.id,
                 source=source_label,
-                home_prob=analysis["home_prob"],
-                draw_prob=analysis["draw_prob"],
-                away_prob=analysis["away_prob"],
-                confidence=analysis["confidence"],
-                reason=analysis["reason"],
-                raw_content=analysis["raw_content"],
+                home_prob=analytics["home_prob"],
+                draw_prob=analytics["draw_prob"],
+                away_prob=analytics["away_prob"],
+                confidence=analytics["confidence"],
+                reason=analytics["reason"],
+                raw_content=analytics["raw_content"],
                 submitted_by=user.id,
             )
             results.append({
                 "match_id": match.id,
                 "match": f"{home} vs {away}",
                 "status": "ingested" if ok else "failed",
-                "home_prob": analysis["home_prob"],
-                "draw_prob": analysis["draw_prob"],
-                "away_prob": analysis["away_prob"],
-                "confidence": analysis["confidence"],
-                "reason": analysis["reason"],
+                "home_prob": analytics["home_prob"],
+                "draw_prob": analytics["draw_prob"],
+                "away_prob": analytics["away_prob"],
+                "confidence": analytics["confidence"],
+                "reason": analytics["reason"],
                 "method": method,
             })
             logger.info(
-                "[server-analysis] %s vs %s [%s] → %.0f/%.0f/%.0f conf=%.2f",
+                "[server-analytics] %s vs %s [%s] → %.0f/%.0f/%.0f conf=%.2f",
                 home, away, method,
-                analysis["home_prob"] * 100,
-                analysis["draw_prob"] * 100,
-                analysis["away_prob"] * 100,
-                analysis["confidence"],
+                analytics["home_prob"] * 100,
+                analytics["draw_prob"] * 100,
+                analytics["away_prob"] * 100,
+                analytics["confidence"],
             )
         except (json.JSONDecodeError, ValueError, KeyError) as parse_err:
             results.append({
@@ -464,7 +464,7 @@ async def run_server_analysis(
                 "error": str(parse_err)[:200],
             })
         except Exception as exc:
-            logger.warning("[server-analysis] match=%s error=%s", match.id, exc)
+            logger.warning("[server-analytics] match=%s error=%s", match.id, exc)
             results.append({
                 "match_id": match.id,
                 "match": f"{home} vs {away}",
@@ -538,7 +538,7 @@ async def ingest_source(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_uploader),
 ):
-    """Upload (or update) a single match's AI analysis from Claude/Grok/etc."""
+    """Upload (or update) a single match's AI analytics from Claude/Grok/etc."""
     match_row = await db.execute(select(Match).where(Match.id == payload.match_id))
     match = match_row.scalar_one_or_none()
     if not match:

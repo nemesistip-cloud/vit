@@ -1,6 +1,6 @@
 # VIT Network — Changelog
 
-All notable changes to the VIT Sports Intelligence Network are documented here.
+All notable changes to the VIT Sports Analytics Network are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
@@ -66,7 +66,7 @@ Initial production-ready release. Complete multi-tier super-app architecture:
 - 13-model ML ensemble with XGBoost, LSTM, Transformer, and Logistic Regression
 - 22+ autonomous agent swarm for fraud detection, market scouting, and self-healing
 - Base L2 blockchain integration with gasless transactions via Biconomy
-- Tachyon Fabric decentralized swarm storage
+- Storage System decentralized swarm storage
 - Regional payment support (OPay, PalmPay, MTN MoMo)
 - FastAPI backend + React 19 frontend
 

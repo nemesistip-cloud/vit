@@ -32,7 +32,7 @@ const StoragePage: React.FC = () => {
     <div className="container mx-auto p-6 space-y-8 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">Tachyon Fabric</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">Storage System</h1>
           <p className="text-muted-foreground mt-1">Massively parallel, quantum-inspired decentralized storage.</p>
         </div>
         <div className="flex gap-3">

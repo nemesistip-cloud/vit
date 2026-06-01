@@ -43,7 +43,7 @@ def _html_wrapper(title: str, body_html: str, footer: str = "") -> str:
               VIT_OS
             </div>
             <div style="font-size:11px;color:#555;margin-top:4px;letter-spacing:2px;text-transform:uppercase;">
-              Sports Intelligence Network
+              Sports Analytics Network
             </div>
           </td>
         </tr>
@@ -226,7 +226,7 @@ async def send_test_email(to_email: str, username: str) -> bool:
         ntype="system",
         title="Test Notification — VIT Network",
         body=(
-            "This is a test email from VIT Sports Intelligence Network. "
+            "This is a test email from VIT Sports Analytics Network. "
             "If you received this, your email notifications are working correctly."
         ),
     )
@@ -257,7 +257,7 @@ async def send_verification_email(
     <p style="margin:0 0 12px;color:#c0c0d8;">Hi {username or 'there'},</p>
     <p style="color:#a0a0b8;font-size:14px;line-height:1.7;margin:0 0 8px;">
       You're almost there! Click the button below to verify your email address
-      and unlock full access to the VIT Sports Intelligence Network.
+      and unlock full access to the VIT Sports Analytics Network.
     </p>
     {_cta_button("Verify Email Address", verification_link)}
     <p style="color:#666;font-size:12px;margin:16px 0 0;">

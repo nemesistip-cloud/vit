@@ -792,7 +792,7 @@ export default function OddsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Odds Intelligence</h1>
+        <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Odds Analytics</h1>
         <p className="text-muted-foreground font-mono text-sm mt-1">
           Real-time odds across all markets — 1X2, Over/Under, Asian Handicap, Double Chance, Draw No Bet
         </p>

@@ -1,7 +1,7 @@
 {
-  "name": "VIT Sports Intelligence Network",
-  "short_name": "VIT OS",
-  "description": "Professional football prediction and betting analytics platform.",
+  "name": "VIT",
+  "short_name": "VIT",
+  "description": "Professional analytics and prediction platform.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#080b10",

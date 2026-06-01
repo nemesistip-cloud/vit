@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Betting Analysis Pipeline
+Betting Analytics Pipeline
 
-Orchestrates the complete betting model analysis pipeline:
+Orchestrates the complete betting model analytics pipeline:
 1. Data Loading
-2. Analysis
+2. Analytics
 3. Strategy Optimization
 4. Backtesting
 """
@@ -23,8 +23,8 @@ from strategy_optimizer import StrategyOptimizer
 from backtester import Backtester
 
 
-class BettingAnalysisPipeline:
-    """Complete betting analysis pipeline."""
+class BettingAnalyticsPipeline:
+    """Complete betting analytics pipeline."""
 
     def __init__(self, data_source: str = 'synthetic', min_sample_size: int = 10):
         """
@@ -46,10 +46,10 @@ class BettingAnalysisPipeline:
 
     def run_pipeline(self) -> Dict[str, Any]:
         """
-        Run the complete analysis pipeline.
+        Run the complete analytics pipeline.
 
         Returns:
-            Dictionary with complete analysis results
+            Dictionary with complete analytics results
         """
         print("=== BETTING ANALYSIS PIPELINE ===")
 
@@ -59,13 +59,13 @@ class BettingAnalysisPipeline:
         self.df = self.data_loader.load_data()
         print(f"Loaded {len(self.df)} predictions")
 
-        # 2. Analysis
+        # 2. Analytics
         print("\n2. Analyzing performance...")
         self.analyzer = Analyzer(self.df)
-        analysis_results = self.analyzer.get_performance_summary()
+        analytics_results = self.analyzer.get_performance_summary()
 
         # Print key metrics
-        overall = analysis_results['overall']
+        overall = analytics_results['overall']
         print(f"Overall: {overall['total_bets']} bets, {overall['win_rate']:.1%} win rate, {overall['roi']:.1f}% ROI")
 
         # 3. Strategy Optimization
@@ -106,7 +106,7 @@ class BettingAnalysisPipeline:
                 'source': self.data_source,
                 'total_predictions': len(self.df)
             },
-            'analysis': analysis_results,
+            'analytics': analytics_results,
             'optimization': {
                 'best_strategy': best_strategy,
                 'best_metrics': best_metrics,
@@ -134,7 +134,7 @@ class BettingAnalysisPipeline:
 
 def main():
     """Run the pipeline with default settings."""
-    pipeline = BettingAnalysisPipeline()
+    pipeline = BettingAnalyticsPipeline()
     results = pipeline.run_pipeline()
 
     # Print detailed breakdown

@@ -33,7 +33,7 @@ async def test_run_multi_ai_basic():
                 "home_prob": 0.7,
                 "draw_prob": 0.2,
                 "away_prob": 0.1,
-                "summary": "Mocked analysis"
+                "summary": "Mocked analytics"
             }
 
             with patch("app.services.ai_ingestion.AIIngestionService.ingest_prediction") as mock_ingest:

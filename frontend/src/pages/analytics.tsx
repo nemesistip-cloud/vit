@@ -137,7 +137,7 @@ export default function AnalyticsPage() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Analytics Suite</h1>
-          <p className="text-muted-foreground font-mono text-sm">Performance intelligence & edge tracking.</p>
+          <p className="text-muted-foreground font-mono text-sm">Performance analytics & edge tracking.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Filter className="w-3.5 h-3.5 text-muted-foreground" />

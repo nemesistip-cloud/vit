@@ -255,7 +255,7 @@ class AIPrediction(Base):
     away_prob = Column(Float, nullable=False)
     confidence = Column(Float, default=0.7)
     reason = Column(String(500), nullable=True)
-    raw_content = Column(Text, nullable=True)  # Full pasted analysis from Claude/Grok/etc
+    raw_content = Column(Text, nullable=True)  # Full pasted analytics from Claude/Grok/etc
     submitted_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # who uploaded it
     model_version = Column(String(50), default="manual_v1")
     is_certified = Column(Boolean, default=False)
@@ -582,7 +582,7 @@ class IoTEvent(Base):
 
 
 class AgentInsight(Base):
-    """AI-generated intelligence produced by autonomous agents."""
+    """AI-generated analytics produced by autonomous agents."""
     __tablename__ = "agent_insights"
 
     id           = Column(Integer, primary_key=True, index=True)

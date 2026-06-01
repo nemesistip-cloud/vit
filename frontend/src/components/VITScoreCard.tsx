@@ -4,7 +4,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 
 interface VITComponents {
   value: number;
-  intelligence: number;
+  analytics: number;
   trust: number;
   recency?: number;
 }
@@ -67,7 +67,7 @@ export function VITScoreCard({
   const score = Math.round(vitScore ?? 0);
 
   const vComp = vitComponents?.value        ?? Math.min(100, (edge ?? 0) * 500);
-  const iComp = vitComponents?.intelligence ?? (agreementPct ?? 0) * 100;
+  const iComp = vitComponents?.analytics ?? (agreementPct ?? 0) * 100;
   const tComp = vitComponents?.trust        ?? (confidence ?? 0) * 100;
   const rComp = vitComponents?.recency      ?? 100;
 
@@ -97,7 +97,7 @@ export function VITScoreCard({
           </div>
           <div>
             <div className="font-mono text-xs font-bold uppercase tracking-wider text-muted-foreground">VIT Score v3</div>
-            <div className="font-mono text-[9px] text-muted-foreground/60">Value · Intelligence · Trust · Recency</div>
+            <div className="font-mono text-[9px] text-muted-foreground/60">Value · Analytics · Trust · Recency</div>
           </div>
         </div>
         <div className="text-right">

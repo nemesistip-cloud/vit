@@ -57,7 +57,7 @@ export default function BetRoomsPage() {
   const dynamicRooms = [
     {
       id: "official",
-      name: "VIT Intelligence Official",
+      name: "VIT Analytics Official",
       creator: "VIT_System",
       description: `${activeModels}-model ensemble · ${ensembleAcc.toFixed(1)}% ensemble accuracy`,
       participants: topUsers.length > 0 ? topUsers.length + 1200 : 1200,

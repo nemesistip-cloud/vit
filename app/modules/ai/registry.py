@@ -19,7 +19,7 @@ from app.modules.ai.models import ModelMetadata
 logger = logging.getLogger(__name__)
 
 # Canonical spec for all 13 models (key → display metadata).
-# spec_weight: ensemble contribution per the Value Intelligence Trust design spec (sums to 1.0)
+# spec_weight: ensemble contribution per the Value Analytics Trust design spec (sums to 1.0)
 # parent_version: the previous-generation key — used so v2 bootstrap can
 #                 deactivate the matching v1 row without deleting it.
 # v4.6.0 bumped every key from *_v1 to *_v2.

@@ -20,6 +20,7 @@ from app.core.dependencies import get_orchestrator, get_telegram_alerts
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+from app.api.deps import get_current_admin
 _KEY_REGISTRY = [
     # ── Sports Data ────────────────────────────────────────────────────
     {
@@ -39,7 +40,7 @@ _KEY_REGISTRY = [
     # ── AI Providers ───────────────────────────────────────────────────
     {
         "label":       "Google Gemini AI",
-        "description": "Powers AI match insights, AI Assistant chat, and tactical analysis",
+        "description": "Powers AI match insights, AI Assistant chat, and tactical analytics",
         "required":    False,
         "group":       "AI Providers",
     },

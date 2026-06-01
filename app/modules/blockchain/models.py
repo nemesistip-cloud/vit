@@ -320,7 +320,7 @@ class BlockchainTransaction(Base):
     )
 
 class MarketplaceSignal(Base):
-    """Signals for the Super App Marketplace: Sports, Election, Policy, E-commerce."""
+    """Signals for the App Marketplace: Sports, Election, Policy, E-commerce."""
     __tablename__ = "marketplace_signals"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)

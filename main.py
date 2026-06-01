@@ -1,4 +1,4 @@
-# main.py — VIT Sports Intelligence Network v5.2.0
+# main.py — VIT Analytics Platform v5.2.0
 # Full Integration: Native AI + Wallet + Blockchain + Training
 
 import asyncio
@@ -58,7 +58,7 @@ from app.api.routes import (
     config as config_route, training as training_route, analytics as analytics_route,
     odds_compare as odds_route, subscription as subscription_route,
     audit as audit_route, matches as matches_route, ai_assistant as ai_assistant_route,
-    ai_intelligence as ai_intelligence_route, ai_support as ai_support_route
+    analytics as analytics_route, ai_support as ai_support_route
 )
 
 from app.auth.routes import router as auth_router
@@ -854,9 +854,9 @@ async def _run_bootstrap(app, _done_event):
                 _task_categories = [
                     {"name": "Prediction",  "description": "Tasks related to making and reviewing football predictions",        "icon": "target",       "color": "blue",   "sort_order": 1},
                     {"name": "Social",      "description": "Community and referral tasks to grow the VIT network",             "icon": "users",        "color": "green",  "sort_order": 2},
-                    {"name": "Learning",    "description": "Educational tasks to improve your sports intelligence",            "icon": "book-open",    "color": "purple", "sort_order": 3},
+                    {"name": "Learning",    "description": "Educational tasks to improve your sports analytics",            "icon": "book-open",    "color": "purple", "sort_order": 3},
                     {"name": "Platform",    "description": "Platform setup tasks that unlock VIT features and integrations",   "icon": "settings",     "color": "cyan",   "sort_order": 4},
-                    {"name": "Enterprise",  "description": "Advanced milestones for power users and institutional participants","icon": "briefcase",    "color": "gold",   "sort_order": 5},
+                    {"name": "Enterprise",  "description": "Advanced milestones for power users and professional participants","icon": "briefcase",    "color": "gold",   "sort_order": 5},
                     {"name": "Analytics",   "description": "Quant and research tasks to sharpen your analytical edge",        "icon": "bar-chart-2",  "color": "indigo", "sort_order": 6},
                     {"name": "Daily",       "description": "Daily recurring challenges that refresh every 24 hours",          "icon": "calendar",     "color": "orange", "sort_order": 7},
                 ]
@@ -901,7 +901,7 @@ async def _run_bootstrap(app, _done_event):
                     {
                         "category_name": "Prediction",
                         "title": "Prediction Veteran",
-                        "description": "Accumulate 50 total predictions across any matches to prove your dedication to sports intelligence.",
+                        "description": "Accumulate 50 total predictions across any matches to prove your dedication to sports analytics.",
                         "short_description": "50 total predictions",
                         "task_type": TaskType.PROGRESS.value,
                         "required_count": 50,
@@ -934,7 +934,7 @@ async def _run_bootstrap(app, _done_event):
                     {
                         "category_name": "Social",
                         "title": "Refer a Friend",
-                        "description": "Invite a friend to join VIT Sports Intelligence Network using your referral link.",
+                        "description": "Invite a friend to join VIT Analytics Platform using your referral link.",
                         "short_description": "Refer 1 friend",
                         "task_type": TaskType.PROGRESS.value,
                         "required_count": 1,
@@ -1107,7 +1107,7 @@ async def _run_bootstrap(app, _done_event):
                     {
                         "category_name": "Enterprise",
                         "title": "VIT Millionaire",
-                        "description": "Earn a cumulative total of 1,000 VIT from task completions — true institutional-grade status.",
+                        "description": "Earn a cumulative total of 1,000 VIT from task completions — true professional status.",
                         "short_description": "Earn 1000 VIT total",
                         "task_type": TaskType.ONE_TIME.value,
                         "required_count": 1000,
@@ -1121,7 +1121,7 @@ async def _run_bootstrap(app, _done_event):
                     {
                         "category_name": "Enterprise",
                         "title": "Prediction Centurion",
-                        "description": "Submit 100 total predictions — an institutional-grade commitment to sports intelligence.",
+                        "description": "Submit 100 total predictions — an professional commitment to sports analytics.",
                         "short_description": "100 total predictions",
                         "task_type": TaskType.ONE_TIME.value,
                         "required_count": 100,
@@ -1188,7 +1188,7 @@ async def _run_bootstrap(app, _done_event):
                     {
                         "category_name": "Daily",
                         "title": "Daily Login",
-                        "description": "Log into VIT Sports Intelligence Network at least once a day to keep your streak active.",
+                        "description": "Log into VIT Analytics Platform at least once a day to keep your streak active.",
                         "short_description": "Daily login",
                         "task_type": TaskType.DAILY.value,
                         "required_count": 1,
@@ -1224,7 +1224,7 @@ async def _run_bootstrap(app, _done_event):
                     {
                         "category_name": "Daily",
                         "title": "Daily AI Insight",
-                        "description": "Read at least one AI agent intelligence report per day to stay informed on match analytics.",
+                        "description": "Read at least one AI agent analytics report per day to stay informed on match analytics.",
                         "short_description": "Read AI report",
                         "task_type": TaskType.DAILY.value,
                         "required_count": 1,
@@ -1584,11 +1584,9 @@ async def _run_bootstrap(app, _done_event):
 # ============================================
 
 
-    except Exception as e:
-        print(f"❌ Bootstrap failed: {e}")
 
 app = FastAPI(
-    title="Value Intelligence Trust (VIT)",
+    title="VIT",
     version=APP_VERSION,
     lifespan=lifespan,
 )
@@ -1757,11 +1755,11 @@ app.include_router(market_training_router)
 from app.api.routes.similarity import router as similarity_router
 app.include_router(similarity_router)
 
-# Advanced AI Intelligence (OpenAI advanced + Grok advanced)
-from app.api.routes.ai_intelligence import router as ai_intelligence_router
-app.include_router(ai_intelligence_router)
+# Advanced AI Analytics (OpenAI advanced + Grok advanced)
+from app.api.routes.analytics import router as analytics_router
+app.include_router(analytics_router)
 
-# Blockchain Analytics, Auto-Slash, Oracle Disputes
+# Blockchain Analytics, Auto-Slash, Analytics Disputes
 from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
 app.include_router(blockchain_analytics_router)
 
@@ -1922,11 +1920,11 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
     if not testimonials:
         testimonials = [
             {"user": "Marketplace user #104", "role": "Pro Analyst", "stars": 5,
-             "text": "The VIT Brain ensemble gives me institutional-grade confidence. Truly a Super App."},
+             "text": "The VIT Brain ensemble gives me professional confidence. Truly a App."},
             {"user": "Validator #22", "role": "Validator Node", "stars": 5,
-             "text": "Running a validator on the Super Network is seamless. The on-chain transparency is top-notch."},
+             "text": "Running a validator on the Network is seamless. The on-chain transparency is top-notch."},
             {"user": "Amara N.", "role": "Beta Tester", "stars": 4,
-             "text": "The election intelligence signals are a game changer for my research terminal."},
+             "text": "The election analytics signals are a game changer for my research terminal."},
         ]
 
     orchestrator = get_orchestrator()

@@ -1,5 +1,5 @@
 """Academic Agent — provides specialized tutoring and indexes school resources.
-v5.1.0 — Part of the Student Intelligence Network.
+v5.1.0 — Part of the Student Analytics Network.
 """
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 """
-Encrypted secrets manager — VIT Sports Intelligence Network.
+Encrypted secrets manager — VIT Sports Analytics Network.
 
 Keys can come from two sources (checked in order):
   1. Replit Secrets / env vars already in os.environ at startup

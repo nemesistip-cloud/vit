@@ -83,6 +83,6 @@ async def predict_basketball(
             )
         ],
         neural_consensus_score=75.0,
-        intelligence_rating="EXCELLENT",
+        analytics_rating="EXCELLENT",
         prediction_accuracy_estimate=0.78
     )

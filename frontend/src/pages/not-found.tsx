@@ -16,7 +16,7 @@ export default function NotFound() {
           <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Error 404</p>
           <h1 className="text-3xl font-bold font-mono tracking-tight">PAGE_NOT_FOUND</h1>
           <p className="text-sm text-muted-foreground font-mono leading-relaxed">
-            The requested route does not exist in the VIT Sports Intelligence Network.
+            The requested route does not exist in the VIT Sports Analytics Network.
             Check the URL or navigate back to the dashboard.
           </p>
         </div>

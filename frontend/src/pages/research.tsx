@@ -539,7 +539,7 @@ function StrategyPanel({ token }: { token: string }) {
       </div>
 
       {isLoading && <Loader />}
-      {isError && <Err msg="Strategy analysis failed" />}
+      {isError && <Err msg="Strategy analytics failed" />}
       {!isLoading && !isError && data?.error && <Err msg={data.error} />}
 
       {!isLoading && !isError && !data?.error && (
@@ -633,7 +633,7 @@ export default function ResearchPage() {
           </span>
         </div>
         <p className="text-xs text-muted-foreground font-mono">
-          Institutional-grade backtesting, simulation and signal scanning powered by{" "}
+          Professional backtesting, simulation and signal scanning powered by{" "}
           {summary?.count ?? "—"} settled predictions.
         </p>
       </div>
@@ -661,7 +661,7 @@ export default function ResearchPage() {
       {/* ── Info banner ────────────────────────────────────── */}
       <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-[11px] font-mono text-blue-400">
         <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-        All analysis uses live prediction data from your database. EV Scanner shows live upcoming
+        All analytics uses live prediction data from your database. EV Scanner shows live upcoming
         fixtures where available, or historical signals when no upcoming matches are scheduled.
       </div>
 

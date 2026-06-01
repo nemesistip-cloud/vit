@@ -22,7 +22,7 @@ class AIIngestionService:
                               draw_prob: float, away_prob: float, confidence: float = 0.7,
                               reason: str = None, raw_content: str = None,
                               submitted_by: int = None) -> bool:
-        """Ingest a single AI prediction (supports raw analysis text + submitter)."""
+        """Ingest a single AI prediction (supports raw analytics text + submitter)."""
 
         # Validate probabilities
         total = home_prob + draw_prob + away_prob

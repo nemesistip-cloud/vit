@@ -4,7 +4,7 @@ import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { Redirect } from "wouter";
 import {
-  MatchAnalysis,
+  MatchAnalytics,
 import { toast } from "sonner";
 import {
   Card,
@@ -82,7 +82,7 @@ type SlotStatus = "pending" | "running" | "ingesting" | "done" | "failed" | "ski
 
 interface SlotResult {
   status: SlotStatus;
-  analysis: MatchAnalysis | null;
+  analytics: MatchAnalytics | null;
   error?: string;
 }
 
@@ -321,8 +321,8 @@ function MatchCard({
           <div className="space-y-2 pt-1">
             {activeModels.map((m) => {
               const slot = results[m];
-              if (slot?.status !== "done" || !slot.analysis) return null;
-              const a = slot.analysis;
+              if (slot?.status !== "done" || !slot.analytics) return null;
+              const a = slot.analytics;
               const model = MODELS.find((x) => x.id === m);
               if (!model) return null;
               return (
@@ -382,7 +382,7 @@ function MatchCard({
           return (
             <p key={m} className="text-[11px] text-rose-400 flex items-center gap-1">
               <AlertTriangle className="w-3 h-3 shrink-0" />
-              {MODELS.find((x) => x.id === m)?.label ?? m}: {slot.error || "Analysis failed"}
+              {MODELS.find((x) => x.id === m)?.label ?? m}: {slot.error || "Analytics failed"}
             </p>
           );
         })}
@@ -533,7 +533,7 @@ function PerformanceStatsPanel() {
   );
 }
 
-// ─── Server-Side Analysis Panel ───────────────────────────────────────────────
+// ─── Server-Side Analytics Panel ───────────────────────────────────────────────
 
 interface ServerResult {
   match_id: number;
@@ -548,7 +548,7 @@ interface ServerResult {
   method?: "ai_cascade" | "ml_ensemble";
 }
 
-function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
+function ServerAnalyticsPanel({ matchCount }: { matchCount: number }) {
   const qc = useQueryClient();
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<ServerResult[] | null>(null);
@@ -583,13 +583,13 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
         const parts = [];
         if (ai > 0) parts.push(`${ai} via AI cascade`);
         if (ml > 0) parts.push(`${ml} via ML ensemble`);
-        toast.success(`Analysis complete — ${data.ingested} ingested (${parts.join(", ")})`);
+        toast.success(`Analytics complete — ${data.ingested} ingested (${parts.join(", ")})`);
         qc.invalidateQueries({ queryKey: ["ai-sources"] });
       } else {
-        toast.warning("Server analysis ran but no predictions could be generated");
+        toast.warning("Server analytics ran but no predictions could be generated");
       }
     } catch (e: any) {
-      toast.error(e?.message || "Server analysis failed");
+      toast.error(e?.message || "Server analytics failed");
     } finally {
       setRunning(false);
     }
@@ -600,7 +600,7 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-white text-base">
           <Settings className="w-5 h-5 text-amber-400" />
-          Server-Side Analysis
+          Server-Side Analytics
           <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] ml-1">
           </Badge>
         </CardTitle>
@@ -637,7 +637,7 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
           {running ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analysing…</>
           ) : (
-            <><Cpu className="w-4 h-4 mr-2" />Run Server Analysis{matchCount > 0 && <span className="ml-2 text-xs opacity-70">{matchCount} matches</span>}</>
+            <><Cpu className="w-4 h-4 mr-2" />Run Server Analytics{matchCount > 0 && <span className="ml-2 text-xs opacity-70">{matchCount} matches</span>}</>
           )}
         </Button>
 
@@ -803,7 +803,7 @@ export default function AISourcesPage() {
       const existing = next.get(matchId) ?? {};
       next.set(matchId, {
         ...existing,
-        [model]: { ...(existing[model] ?? { status: "pending", analysis: null }), ...patch },
+        [model]: { ...(existing[model] ?? { status: "pending", analytics: null }), ...patch },
       });
       return next;
     });
@@ -835,7 +835,7 @@ export default function AISourcesPage() {
       if (shouldStop.current) return;
       const { match, model } = task;
 
-      updateSlot(match.id, model, { status: "running", analysis: null });
+      updateSlot(match.id, model, { status: "running", analytics: null });
       try {
           match.home_team,
           match.away_team,
@@ -845,17 +845,17 @@ export default function AISourcesPage() {
         );
 
         if (shouldStop.current) return;
-        updateSlot(match.id, model, { status: "ingesting", analysis });
+        updateSlot(match.id, model, { status: "ingesting", analytics });
 
         await apiPost("/api/admin/ai-sources/ingest", {
           match_id: match.id,
           source: model,
-          home_prob: analysis.home_prob,
-          draw_prob: analysis.draw_prob,
-          away_prob: analysis.away_prob,
-          confidence: analysis.confidence,
-          reason: analysis.reason,
-          raw_content: analysis.raw_content,
+          home_prob: analytics.home_prob,
+          draw_prob: analytics.draw_prob,
+          away_prob: analytics.away_prob,
+          confidence: analytics.confidence,
+          reason: analytics.reason,
+          raw_content: analytics.raw_content,
         });
 
         updateSlot(match.id, model, { status: "done" });
@@ -958,7 +958,7 @@ export default function AISourcesPage() {
           <div>
             <h1 className="text-2xl font-bold">Quantum AI Sources</h1>
             <p className="text-sm text-gray-400 mt-0.5">
-              self-ingest the analysis into the prediction ensemble.
+              self-ingest the analytics into the prediction ensemble.
             </p>
           </div>
         </div>
@@ -1161,8 +1161,8 @@ export default function AISourcesPage() {
           </div>
         )}
 
-        {/* ── Server-Side Analysis ────────────────────────────── */}
-        <ServerAnalysisPanel matchCount={matches.length} />
+        {/* ── Server-Side Analytics ────────────────────────────── */}
+        <ServerAnalyticsPanel matchCount={matches.length} />
 
         {/* ── Ingested Sources for focused match ─────────────── */}
         {focusMatchId && <ExistingSourcesPanel matchId={focusMatchId} />}

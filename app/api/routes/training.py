@@ -1,7 +1,7 @@
 # app/api/routes/training.py
 from app.services.gcs_storage import gcs_storage
 import asyncio
-# VIT Sports Intelligence Network — v3.0.0 (Beast Mode)
+# VIT Sports Analytics Network — v3.0.0 (Beast Mode)
 # Training Pipeline: trigger retraining, simulation engine, bootstrap training,
 #                    hybrid loss, edge memory, self-play, continuous learning
 
@@ -337,11 +337,11 @@ async def _run_training_body(job_id: str, job: dict, config, orchestrator, start
                 odds_client = OddsAPIClient(odds_key)
                 job["events"].append({"type": "info", "message": "Enriching training data with Odds API...", "ts": time.time()})
 
-                # Enrich matches with market intelligence
+                # Enrich matches with market analytics
                 for i, match in enumerate(historical):
                     try:
                         league = match.get("league", DEFAULT_LEAGUE)
-                        # Add computed vig-free probabilities and market intelligence
+                        # Add computed vig-free probabilities and market analytics
                         if match.get("market_odds"):
                             odds = match["market_odds"]
                             total_books = sum([1/v for v in odds.values() if v > 0])

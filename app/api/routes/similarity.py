@@ -140,7 +140,7 @@ async def find_similar_by_features(
 ):
     """
     Find historical matches similar to an arbitrary feature dict.
-    Useful for pre-match analysis before a result has been recorded.
+    Useful for pre-match analytics before a result has been recorded.
     """
     engine = get_similarity_engine()
     result = await engine.find_similar(

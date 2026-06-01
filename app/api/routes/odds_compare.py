@@ -1,5 +1,5 @@
 # app/api/routes/odds_compare.py
-# VIT Sports Intelligence Network — v4.7.5
+# VIT Sports Analytics Network — v4.7.5
 # Multi-bookmaker odds comparison, full-market view, arbitrage scanner, audit log
 
 import logging

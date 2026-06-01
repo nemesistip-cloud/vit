@@ -334,7 +334,7 @@ class ModelOrchestrator:
                 base_llm_w = self.model_meta.get("llm_consensus_v1", {}).get("weight", 1.25)
                 boosted_w = round(base_llm_w * (0.7 + llm_accuracy * 0.6), 4)
                 self.model_meta["llm_consensus_v1"]["weight"] = min(2.5, boosted_w)
-            # Pass web context so the LLM model can incorporate real-time intelligence
+            # Pass web context so the LLM model can incorporate real-time analytics
             if web_context_text:
                 llm_model._web_context = web_context_text
 
@@ -342,7 +342,7 @@ class ModelOrchestrator:
         league = str(features.get("league") or "").lower()
 
         # ── Real-time AI call using web context ───────────────────────────────
-        # If real-time web intelligence is available (fetched by predict route),
+        # If real-time web analytics is available (fetched by predict route),
         # make a live AI call to get probability estimates informed by current news.
         # Result is injected into the LLM consensus model as ai_signals.
         if web_context_text and llm_model is not None and not ai_signals:
@@ -360,7 +360,7 @@ class ModelOrchestrator:
                     f"  {home_team} (Home)  vs  {away_team} (Away)  — {league}\n\n"
                     f"Current bookmaker odds (decimal): Home={_mh}, Draw={_md}, Away={_ma}\n\n"
                     f"{web_context_text}\n\n"
-                    f"Based on the market odds AND the real-time intelligence above, provide your "
+                    f"Based on the market odds AND the real-time analytics above, provide your "
                     f"probability estimates. Market odds already imply home={round(1/_mh,3)}, "
                     f"draw={round(1/_md,3)}, away={round(1/_ma,3)} (vig-free). Adjust these based "
                     f"on the news context.\n\n"

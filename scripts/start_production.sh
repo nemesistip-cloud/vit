@@ -18,7 +18,7 @@ export ENVIRONMENT="${ENVIRONMENT:-production}"
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
 export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-true}"
 
-echo "[production] VIT Sports Intelligence Network v${APP_VERSION}"
+echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Environment: ${ENVIRONMENT} | Port: ${PORT}"
 
 if [ -d "frontend/dist" ]; then
@@ -109,7 +109,7 @@ async def ensure_schema():
 asyncio.run(ensure_schema())
 PYEOF
 
-echo "[production] Starting VIT Sports Intelligence Network on port ${PORT}..."
+echo "[production] Starting VIT Sports Analytics Network on port ${PORT}..."
 exec python -m uvicorn main:app \
     --host 0.0.0.0 \
     --port "${PORT}" \

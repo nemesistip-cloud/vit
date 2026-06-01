@@ -155,7 +155,7 @@ async def agent_reports(
     _user=Depends(verify_api_key),
 ):
     """
-    Return recent AgentInsight records — the live intelligence feed.
+    Return recent AgentInsight records — the live analytics feed.
 
     Query params:
       limit        — max rows (default 50, max 200)
@@ -200,9 +200,9 @@ async def agent_reports(
 @router.post("/generate-now")
 async def generate_reports_now(_user=Depends(verify_api_key)):
     """
-    Trigger all intelligence agents immediately and return how many were dispatched.
+    Trigger all analytics agents immediately and return how many were dispatched.
 
-    Useful for seeding the Intelligence Reports page on first deployment or
+    Useful for seeding the Analytics Reports page on first deployment or
     after a long idle period.  Agents run asynchronously — reports appear in
     /agents/reports within ~30 seconds.
     """
@@ -211,7 +211,7 @@ async def generate_reports_now(_user=Depends(verify_api_key)):
     try:
         from app.agents.coordinator import get_coordinator
         coordinator = get_coordinator()
-        intelligence_agents = [
+        analytics_agents = [
             "analytics-reporter",
             "match-scout",
             "news-sentinel",
@@ -219,7 +219,7 @@ async def generate_reports_now(_user=Depends(verify_api_key)):
         ]
         triggered = []
         skipped   = []
-        for name in intelligence_agents:
+        for name in analytics_agents:
             try:
                 ok = coordinator.trigger(name)
                 if ok:

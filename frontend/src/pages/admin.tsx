@@ -3801,7 +3801,7 @@ function TasksTab() {
   );
 }
 
-// ─── AI Sources Tab (manual intelligence ingestion) ───────────────────
+// ─── AI Sources Tab (manual analytics ingestion) ───────────────────
 
 interface AISourceMatch {
   id: number;
@@ -3892,7 +3892,7 @@ export function AISourcesTab() {
           <Lock className="w-10 h-10 mx-auto mb-3 text-amber-400" />
           <h3 className="text-lg font-semibold mb-2">AI Source Uploads Locked</h3>
           <p className="text-sm text-gray-400">
-            Uploading raw native analysis requires an admin account or an
+            Uploading raw native analytics requires an admin account or an
             <span className="text-cyan-400"> analyst, pro, or elite</span> subscription tier.
           </p>
           <p className="text-xs text-gray-500 mt-2">
@@ -3937,7 +3937,7 @@ export function AISourcesTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <Brain className="w-5 h-5 text-cyan-400" />
-            Upload AI Match Analysis
+            Upload AI Match Analytics
           </CardTitle>
           <CardDescription>
             Paste raw insights from the native ensemble and feed them
@@ -4034,7 +4034,7 @@ export function AISourcesTab() {
           </div>
 
           <div>
-            <Label className="text-gray-300">Raw native analysis (full paste)</Label>
+            <Label className="text-gray-300">Raw native analytics (full paste)</Label>
             <Textarea
               value={form.raw_content}
               onChange={e => setForm(f => ({ ...f, raw_content: e.target.value }))}
@@ -4110,7 +4110,7 @@ export function AISourcesTab() {
                     {p.raw_content && (
                       <details className="text-xs text-gray-400">
                         <summary className="cursor-pointer text-cyan-400 hover:text-cyan-300">
-                          View raw analysis ({p.raw_content.length} chars)
+                          View raw analytics ({p.raw_content.length} chars)
                         </summary>
                         <pre className="whitespace-pre-wrap mt-2 p-2 bg-black/40 rounded border border-gray-700">
 {p.raw_content}
@@ -4752,7 +4752,7 @@ export default function AdminPage() {
               <div className="font-bold text-white text-base leading-tight tracking-wide">
                 ADMIN <span className="text-cyan-400">CONTROL CENTER</span>
               </div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Sports Intelligence Network</div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Sports Analytics Network</div>
             </div>
           </div>
 

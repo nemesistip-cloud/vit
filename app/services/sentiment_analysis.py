@@ -1,13 +1,13 @@
 """
-app/services/sentiment_analysis.py
+app/services/sentiment_analytics.py
 
-Market Sentiment Analysis Service
+Market Sentiment Analytics Service
 ==================================
 Analyses market sentiment from available data sources (odds movements,
 injury news, team form) without requiring external NLP API keys.
 
 Returns a sentiment score and signals that can be used by the
-NewsSentinelAgent to enrich match intelligence reports.
+NewsSentinelAgent to enrich match analytics reports.
 """
 
 from __future__ import annotations
@@ -87,7 +87,7 @@ async def analyze_market_sentiment(
                 home_sentiment -= 0.15
                 signals.append(f"Home odds drifted ({drift:.1%}) — market moving against home")
 
-    # ── News snippet keyword analysis ───────────────────────────────
+    # ── News snippet keyword analytics ───────────────────────────────
     if news_snippets:
         positive_keywords = ["form", "win streak", "confident", "fit", "return", "strong"]
         negative_keywords = ["crisis", "injury", "suspension", "ban", "doubt", "poor form", "struggle"]

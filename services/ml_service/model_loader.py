@@ -60,9 +60,9 @@ def load_model(model_key: str, cache_enabled: bool = True) -> Optional[Dict[str,
 
     pkl_path = _find_pkl(model_key)
     if pkl_path is None:
-        # F21: Fallback to Tachyon Fabric if enabled
+        # F21: Fallback to Storage System if enabled
         if os.getenv("TACHYON_STORAGE_ENABLED") == "true":
-             logger.info(f"🔍 ModelLoader: {model_key} not found locally, checking Tachyon Fabric Swarm...")
+             logger.info(f"🔍 ModelLoader: {model_key} not found locally, checking Storage System Swarm...")
              # In production, this would use tachyon_client to fetch the model
 
         logger.debug(f"No trained pkl found for '{model_key}' in {[str(d) for d in _candidate_dirs()]}")

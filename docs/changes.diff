@@ -206,7 +206,7 @@ index fc06a12..0000000
 -    'main.py',
 -    'app/api/routes/ai_upload.py',
 -    'app/api/routes/ai_support.py',
--    'app/api/routes/ai_intelligence.py',
+-    'app/api/routes/ai_analytics.py',
 -    'app/api/routes/agents.py',
 -    'app/api/routes/ai_assistant.py'
 -]
@@ -523,7 +523,7 @@ index 3a4a630..0000000
 -        new_lines.append("    await asyncio.gather(*tasks, return_exceptions=True)")
 -        new_lines.append("    print('🛑 Shutdown complete')\n")
 -        new_lines.append("app = FastAPI(")
--        new_lines.append("    title='VIT Sports Intelligence Network',")
+-        new_lines.append("    title='VIT Sports Analytics Network',")
 -        new_lines.append("    version=APP_VERSION,")
 -        new_lines.append("    lifespan=lifespan,")
 -        new_lines.append(")\n")
@@ -976,7 +976,7 @@ index 4f78848..0000000
 -  // await expect(badge).toBeVisible();
 -
 -  // Check for the description
--  const description = page.locator('text=Agentic copilot for the VIT Sports Intelligence Network');
+-  const description = page.locator('text=Agentic copilot for the VIT Sports Analytics Network');
 -  // await expect(description).toBeVisible();
 -
 -  // Check for suggested prompts

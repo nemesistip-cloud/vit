@@ -96,7 +96,7 @@ export const API = {
   blockchainLeaderboard: "/api/blockchain/analytics/leaderboard",
   blockchainSlashHistory: "/api/blockchain/analytics/slash-history",
   blockchainEconomics: "/api/blockchain/analytics/economics",
-  // AI Intelligence (v4.12.0)
+  // AI Analytics (v4.12.0)
   aiIntelHealth: "/api/ai-intel/health",
   aiIntelInjuries: "/api/ai-intel/injuries",
   // Smart Contracts (v5.0.0)

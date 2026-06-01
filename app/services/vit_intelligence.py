@@ -1,14 +1,14 @@
 """
-app/services/vit_intelligence.py
+app/services/vit_analytics.py
 
-VIT Self-Contained Intelligence Engine (SCIE)
+VIT Self-Contained Analytics Engine (SCIE)
 =============================================
 
-Generates rich match intelligence exclusively from the internal database,
+Generates rich match analytics exclusively from the internal database,
 using the system's own ML predictions and historical match records.
 
 No external API keys required. Zero dependency on football-data.org or
-the-odds-api.com for core intelligence generation.
+the-odds-api.com for core analytics generation.
 
 Public API
 ----------
@@ -247,7 +247,7 @@ async def get_match_context(
     db,
 ) -> Dict[str, Any]:
     """
-    Build a full intelligence context for a match using only internal data.
+    Build a full analytics context for a match using only internal data.
 
     Combines:
     - ML ensemble probabilities
@@ -297,7 +297,7 @@ async def get_match_context(
 
 def build_scout_prompt(ctx: Dict[str, Any]) -> str:
     """
-    Build an enriched pre-match intelligence prompt from SCIE context.
+    Build an enriched pre-match analytics prompt from SCIE context.
 
     Replaces the generic prompt with actual form, odds, and H2H data
     drawn from the VIT database — no external data source required.
@@ -314,7 +314,7 @@ def build_scout_prompt(ctx: Dict[str, Any]) -> str:
     edge_line = f"  VIT Edge:      {edge*100:+.2f}%" if edge else ""
     conf_line  = f"  VIT Confidence: {conf*100:.0f}%" if conf else ""
 
-    return f"""You are an elite football scout. Write a detailed pre-match intelligence brief using the data below.
+    return f"""You are an elite football scout. Write a detailed pre-match analytics brief using the data below.
 
 Match: {m['home']} vs {m['away']}
 League: {m['league'].replace('_', ' ').title()}

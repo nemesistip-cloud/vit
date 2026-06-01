@@ -1,5 +1,5 @@
 """AI Signals Service — Native Feature Engineering.
-Replaces external AI provider signals with native intelligence features.
+Replaces external AI provider signals with native analytics features.
 """
 import logging
 from typing import Dict, List, Optional

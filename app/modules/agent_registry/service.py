@@ -29,8 +29,8 @@ BUILTIN_AGENTS = [
     {"agent_id": "vit-oracle-aggregator", "name": "Oracle Data Aggregator", "capabilities": ["oracle", "verification"]},
     {"agent_id": "vit-network-guardian", "name": "Network Guardian", "capabilities": ["verification", "governance"]},
     {"agent_id": "vit-settlement-agent", "name": "Settlement Agent", "capabilities": ["prediction", "trading"]},
-    {"agent_id": "vit-risk-monitor", "name": "Risk Monitor", "capabilities": ["risk_analysis", "verification"]},
-    {"agent_id": "vit-sentiment-agent", "name": "Sentiment Analysis Agent", "capabilities": ["sentiment", "data_processing"]},
+    {"agent_id": "vit-risk-monitor", "name": "Risk Monitor", "capabilities": ["risk_analytics", "verification"]},
+    {"agent_id": "vit-sentiment-agent", "name": "Sentiment Analytics Agent", "capabilities": ["sentiment", "data_processing"]},
     {"agent_id": "vit-governance-ai", "name": "Governance AI Advisor", "capabilities": ["governance", "general"]},
 ]
 

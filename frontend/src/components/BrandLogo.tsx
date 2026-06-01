@@ -10,8 +10,8 @@ interface BrandLogoProps {
 }
 
 /**
- * VIT Brand Logo — Hexagonal AI Core Mark v3 (Super App Edition)
- * Hex frame = institutional precision. Inner delta = direction + edge.
+ * VIT Brand Logo — Hexagonal AI Core Mark v3 (App Edition)
+ * Hex frame = professional precision. Inner delta = direction + edge.
  * Six circuit nodes = the 6-layer model stack.
  * Central pulse = live AI inference engine (VIT Brain).
  */
@@ -36,7 +36,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="flex-shrink-0"
-      aria-label="VIT Super App Intelligence Logo"
+      aria-label="VIT App Analytics Logo"
     >
       <defs>
         {/* Core radial gradient */}
@@ -94,7 +94,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
         </g>
       ))}
 
-      {/* ── Inner delta triangle (Value · Intelligence · Trust) ── */}
+      {/* ── Inner delta triangle (Value · Analytics · Trust) ── */}
       <polygon
         points="50,24 68,56 32,56"
         stroke={teal}
@@ -160,7 +160,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
             )}> NETWORK</span>
           </div>
           <span className="text-[7.5px] uppercase tracking-[0.22em] text-muted-foreground/55 font-mono -mt-0.5 whitespace-nowrap">
-            Institutional · Intelligence · Oracle
+            Professional · Analytics · System
           </span>
         </div>
       )}

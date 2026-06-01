@@ -887,7 +887,7 @@ async def register_shop(
         "owner": body.owner_address
     }
 
-# ── Super App Marketplace & Agents ──────────────────────────────────────────
+# ── App Marketplace & Agents ──────────────────────────────────────────
 
 @router.get("/marketplace", summary="Get active signals from the marketplace")
 async def get_marketplace_signals(

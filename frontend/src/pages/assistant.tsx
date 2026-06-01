@@ -128,7 +128,7 @@ export default function AssistantPage() {
             AI Assistant <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary border-primary/30">AGENTIC</Badge>
           </h1>
           <p className="text-sm text-muted-foreground font-mono mt-1">
-            Agentic copilot for the VIT Sports Intelligence Network.
+            Agentic copilot for the VIT Sports Analytics Network.
           </p>
         </div>
 
