@@ -72,6 +72,7 @@ export default defineConfig({
       "/analytics": { target: "http://localhost:8000", bypass: htmlBypass },
       "/admin": { target: "http://localhost:8000", bypass: htmlBypass },
       "/health": { target: "http://localhost:8000", bypass: htmlBypass },
+      "/readiness": { target: "http://localhost:8000", bypass: htmlBypass },
       "/training": { target: "http://localhost:8000", bypass: htmlBypass },
       "/odds": { target: "http://localhost:8000", bypass: htmlBypass },
       "/ai": { target: "http://localhost:8000", bypass: htmlBypass },

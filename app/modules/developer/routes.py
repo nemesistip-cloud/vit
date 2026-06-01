@@ -70,10 +70,9 @@ def _fmt_plan(p) -> dict:
 
 # ── Plans ─────────────────────────────────────────────────────────────────────
 
-@router.get("/plans", summary="List available API plans")
+@router.get("/plans", summary="List available API plans (public)")
 async def list_plans(
     db: AsyncSession = Depends(get_db),
-    _:  User         = Depends(get_current_user),
 ):
     await svc.seed_plans(db)
     plans = await svc.list_plans(db)
@@ -236,9 +235,10 @@ async def developer_docs(
         "openapi_url":         "/openapi.json",
         "redoc_url":           "/redoc",
         "swagger_url":         "/docs",
-        "sdk_typescript_url":  "https://github.com/vit-network/typescript-sdk",
-        "sdk_python_url":      "https://github.com/vit-network/python-sdk",
-        "base_api_url":        "/api",
+        "sdk_typescript_url":  "https://github.com/Value-intelligence-trust/vit-sdk",
+        "sdk_python_url":      "https://github.com/Value-intelligence-trust/vit-sdk",
+        "base_api_url":        "https://vit-897838355273.europe-west1.run.app/api",
+        "cloud_run_url":       "https://vit-897838355273.europe-west1.run.app",
         "authentication":      "Include your API key in the `X-API-Key` header.",
         "rate_limiting":       "Rate limits are enforced per minute and per day per key.",
         "endpoint_count":      len(endpoints),

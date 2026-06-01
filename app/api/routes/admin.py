@@ -21,12 +21,202 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 _KEY_REGISTRY = [
-    {"name": "FOOTBALL_DATA_API_KEY", "label": "Football-Data.org", "required": True, "group": "Sports Data"},
-    {"name": "ISPORTS_API_KEY", "label": "iSports API", "required": False, "group": "Sports Data"},
-    {"name": "ODDS_API_KEY", "label": "The Odds API", "required": True, "group": "Sports Data"},
-    {"name": "STRIPE_SECRET_KEY", "label": "Stripe", "required": False, "group": "Payments"},
-    {"name": "JWT_SECRET_KEY", "label": "JWT Secret Key", "required": True, "group": "Security"},
-    {"name": "GCS_BUCKET_NAME", "label": "GCS Bucket", "required": True, "group": "Infrastructure"},
+    # ── Sports Data ────────────────────────────────────────────────────
+    {
+        "name":        "FOOTBALL_DATA_API_KEY",
+        "label":       "Football-Data.org",
+        "description": "Fetches scheduled fixtures and match history",
+        "required":    True,
+        "group":       "Sports Data",
+    },
+    {
+        "name":        "ODDS_API_KEY",
+        "label":       "The Odds API",
+        "description": "Live betting odds and market data (also readable as THE_ODDS_API_KEY)",
+        "required":    True,
+        "group":       "Sports Data",
+    },
+    # ── AI Providers ───────────────────────────────────────────────────
+    {
+        "label":       "Google Gemini AI",
+        "description": "Powers AI match insights, AI Assistant chat, and tactical analysis",
+        "required":    False,
+        "group":       "AI Providers",
+    },
+    {
+        "label":       "Anthropic Claude",
+        "description": "Claude 3 Haiku — second AI analyst for multi-AI match insights",
+        "required":    False,
+        "group":       "AI Providers",
+    },
+    {
+        "label":       "OpenAI",
+        "description": "GPT-4o — third AI analyst for multi-AI match insights",
+        "required":    False,
+        "group":       "AI Providers",
+    },
+    {
+        "label":       "xAI Grok",
+        "description": "Grok Beta — fifth AI analyst for multi-AI match insights",
+        "required":    False,
+        "group":       "AI Providers",
+    },
+    {
+        "label":       "DeepSeek AI",
+        "description": "DeepSeek-V3 / R1 — fourth AI analyst (cascade slot 4 of 5). Get key at platform.deepseek.com",
+        "required":    False,
+        "group":       "AI Providers",
+    },
+    # ── Payments ───────────────────────────────────────────────────────
+    {
+        "name":        "STRIPE_SECRET_KEY",
+        "label":       "Stripe",
+        "description": "USD subscription payments — Pro ($49/mo) and Elite ($199/mo) plans",
+        "required":    False,
+        "group":       "Payments",
+    },
+    {
+        "name":        "PAYSTACK_SECRET_KEY",
+        "label":       "Paystack",
+        "description": "NGN wallet deposits and local payment processing",
+        "required":    False,
+        "group":       "Payments",
+    },
+    # ── Infrastructure ─────────────────────────────────────────────────
+    {
+        "name":        "REDIS_URL",
+        "label":       "Redis URL",
+        "description": "Redis connection for Celery job queue and persistent rate limiting",
+        "required":    False,
+        "group":       "Infrastructure",
+    },
+    {
+        "name":        "SMTP_HOST",
+        "label":       "SMTP Host",
+        "description": "Mail server hostname for email verification and password resets",
+        "required":    False,
+        "group":       "Infrastructure",
+    },
+    {
+        "name":        "SMTP_USER",
+        "label":       "SMTP Username",
+        "description": "Mail server login username",
+        "required":    False,
+        "group":       "Infrastructure",
+    },
+    {
+        "name":        "SMTP_PASS",
+        "label":       "SMTP Password",
+        "description": "Mail server login password",
+        "required":    False,
+        "group":       "Infrastructure",
+    },
+    # ── Messaging ──────────────────────────────────────────────────────
+    {
+        "name":        "TELEGRAM_BOT_TOKEN",
+        "label":       "Telegram Bot Token",
+        "description": "Sends alerts and accumulators via Telegram",
+        "required":    False,
+        "group":       "Messaging",
+    },
+    {
+        "name":        "TELEGRAM_CHAT_ID",
+        "label":       "Telegram Chat / Channel ID",
+        "description": "Target chat or channel for Telegram messages",
+        "required":    False,
+        "group":       "Messaging",
+    },
+    # ── AI Feeds ───────────────────────────────────────────────────────
+    {
+        "name":        "BZZOIRO_API_KEY",
+        "label":       "Bzzoiro AI Feed",
+        "description": "Free AI predictions from sports.bzzoiro.com",
+        "required":    False,
+        "group":       "AI Feeds",
+    },
+    {
+        "name":        "SPORTBOT_API_KEY",
+        "label":       "SportBot AI Feed",
+        "description": "Free-tier AI predictions from sportbot.ai",
+        "required":    False,
+        "group":       "AI Feeds",
+    },
+    # ── Payments (Webhooks) ─────────────────────────────────────────────
+    {
+        "name":        "STRIPE_WEBHOOK_SECRET",
+        "label":       "Stripe Webhook Secret",
+        "description": "Validates Stripe webhook signatures (whsec_…) — required to process subscription events",
+        "required":    False,
+        "group":       "Payments",
+    },
+    {
+        "name":        "PAYSTACK_WEBHOOK_SECRET",
+        "label":       "Paystack Webhook Secret",
+        "description": "Validates Paystack webhook HMAC signatures — required to process NGN deposit events",
+        "required":    False,
+        "group":       "Payments",
+    },
+    # ── KYC / Identity ─────────────────────────────────────────────────
+    {
+        "name":        "SMILE_IDENTITY_API_KEY",
+        "label":       "Smile Identity API Key",
+        "description": "Enables KYC identity verification for user onboarding",
+        "required":    False,
+        "group":       "KYC / Identity",
+    },
+    {
+        "name":        "SMILE_IDENTITY_PARTNER_ID",
+        "label":       "Smile Identity Partner ID",
+        "description": "Your Smile Identity partner / merchant ID (numeric string)",
+        "required":    False,
+        "group":       "KYC / Identity",
+    },
+    # ── Blockchain ─────────────────────────────────────────────────────
+    {
+        "name":        "BASE_RPC_URL",
+        "label":       "Base L2 RPC URL",
+        "description": "JSON-RPC endpoint for the Base L2 network (e.g. https://mainnet.base.org)",
+        "required":    False,
+        "group":       "Blockchain",
+    },
+    {
+        "name":        "VIT_CONTRACT_ADDRESS",
+        "label":       "VITCoin Contract Address",
+        "description": "Deployed ERC-20 contract address for VITCoin on Base L2 (0x…)",
+        "required":    False,
+        "group":       "Blockchain",
+    },
+    # ── Security ───────────────────────────────────────────────────────
+    {
+        "name":        "JWT_SECRET_KEY",
+        "label":       "JWT Secret Key",
+        "description": "Signs all access tokens. Must be set in production — ephemeral key resets sessions on restart",
+        "required":    True,
+        "group":       "Security",
+    },
+    {
+        "name":        "API_KEY",
+        "label":       "Admin API Key",
+        "description": "Master key used to authenticate legacy admin endpoints",
+        "required":    False,
+        "group":       "Security",
+    },
+    # ── Notifications ──────────────────────────────────────────────────
+    {
+        "name":        "RESEND_API_KEY",
+        "label":       "Resend Email API Key",
+        "description": "Sends transactional emails (verification, password reset, notifications) via Resend.com",
+        "required":    False,
+        "group":       "Messaging",
+    },
+    # ── Sports Data (free tier) ────────────────────────────────────────
+    {
+        "name":        "THESPORTSDB_API_KEY",
+        "label":       "TheSportsDB API Key",
+        "description": "Fixture source — value '3' is the free-tier key, no account required",
+        "required":    False,
+        "group":       "Sports Data",
+    },
 ]
 
 @router.get("/api-keys")
@@ -37,11 +227,58 @@ async def list_api_keys():
     return {"keys": keys}
 
 @router.get("/config-status")
-async def get_config_status():
-    services = []
-    for entry in _KEY_REGISTRY:
-        services.append({"key": entry["name"], "label": entry["label"], "set": bool(os.getenv(entry["name"])), "status": "ok" if os.getenv(entry["name"]) else "warning"})
-    return {"services": services, "summary": {"healthy": True}}
+async def get_config_status(current_user=Depends(get_current_admin)):
+    """
+    Returns real-time health status for every external service.
+    Used by the admin Config Health strip.
+    Checks both os.environ (Replit Secrets + live-saved keys) and the DB secret store.
+    """
+    # Load the set of keys currently stored encrypted in the DB
+    from app.services.secrets_manager import get_db_secret_keys
+    db_keys: set = await get_db_secret_keys()
+
+    def _status(key: str, label: str, required: bool = False) -> dict:
+        val = os.getenv(key, "").strip()
+        in_db = key in db_keys
+        is_set = bool(val) or in_db
+        return {
+            "key":      key,
+            "label":    label,
+            "set":      is_set,
+            "required": required,
+            "status":   "ok" if is_set else ("error" if required else "warning"),
+        }
+
+    services = [
+        _status("FOOTBALL_DATA_API_KEY",  "Football-Data.org",   required=True),
+        _status("ODDS_API_KEY",           "The Odds API",        required=True),
+        _status("STRIPE_SECRET_KEY",      "Stripe Payments",     required=False),
+        _status("STRIPE_WEBHOOK_SECRET",  "Stripe Webhooks",     required=False),
+        _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),
+        _status("PAYSTACK_WEBHOOK_SECRET","Paystack Webhooks",   required=False),
+        _status("SMILE_IDENTITY_API_KEY", "Smile KYC",           required=False),
+        _status("BASE_RPC_URL",           "Base L2 RPC",         required=False),
+        _status("VIT_CONTRACT_ADDRESS",   "VITCoin Contract",    required=False),
+        _status("REDIS_URL",              "Redis",               required=False),
+        _status("SMTP_HOST",              "Email / SMTP",        required=False),
+        _status("TELEGRAM_BOT_TOKEN",     "Telegram Bot",        required=False),
+    ]
+
+    errors   = [s for s in services if s["status"] == "error"]
+    warnings = [s for s in services if s["status"] == "warning"]
+    ok       = [s for s in services if s["status"] == "ok"]
+
+    return {
+        "services":      services,
+        "summary": {
+            "total":    len(services),
+            "ok":       len(ok),
+            "warnings": len(warnings),
+            "errors":   len(errors),
+            "healthy":  len(errors) == 0,
+        },
+    }
+
 
 @router.get("/health")
 async def admin_health():

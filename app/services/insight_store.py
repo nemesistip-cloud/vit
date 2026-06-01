@@ -1,6 +1,6 @@
-\"\"\"app/services/insight_store.py — Native Insight Storage.
+"""app/services/insight_store.py — Native Insight Storage.
 Replaces external AI provider insights with native intelligence storage.
-\"\"\"
+"""
 import json
 import re
 from datetime import datetime, timezone, timedelta

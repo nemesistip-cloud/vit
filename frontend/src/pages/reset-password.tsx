@@ -72,6 +72,7 @@ export default function ResetPasswordPage() {
                     <Input
                       type={showPass ? "text" : "password"}
                       placeholder="Min 8 characters"
+                      autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="font-mono text-sm pr-10"
@@ -91,6 +92,7 @@ export default function ResetPasswordPage() {
                   <Input
                     type="password"
                     placeholder="Repeat password"
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className={`font-mono text-sm ${confirmPassword && !passwordsMatch ? "border-red-500" : ""}`}

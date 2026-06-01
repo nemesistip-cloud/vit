@@ -1,6 +1,7 @@
 modules = ["python-3.11", "nodejs-20"]
 [agent]
 expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
 
 [workflows]
 runButton = "Project"
@@ -31,6 +32,10 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
+localPort = 5001
+externalPort = 3000
+
+[[ports]]
 localPort = 8000
 externalPort = 8000
 
@@ -40,3 +45,9 @@ packages = ["cargo", "freetype", "glibcLocales", "lcms2", "libiconv", "libimageq
 
 [deployment]
 deploymentTarget = "cloudrun"
+
+[userenv]
+
+[userenv.shared]
+VIT_DATABASE_URL = "sqlite+aiosqlite:///./vit.db"
+GCP_PROJECT_ID = "vitnetwork-63818"

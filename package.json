@@ -2,17 +2,14 @@
   "name": "vit-blockchain-monorepo",
   "version": "1.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "workspaces": [
     "frontend",
     "packages/*"
   ],
   "scripts": {
-    "test": "echo \"No test specified\""
-  },
-  "dependencies": {
-    "@tailwindcss/vite": "^4.3.0",
-    "@vitejs/plugin-react": "^6.0.2",
-    "tailwindcss": "^4.3.0",
-    "vite": "^8.0.14"
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "test": "cd frontend && npm test"
   }
 }
