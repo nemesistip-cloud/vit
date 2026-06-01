@@ -1,5 +1,5 @@
 import hashlib
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 CHUNK_SIZE = 4096  # 4KB
 
@@ -37,6 +37,37 @@ class TachyonShredder:
         fragments = self.shred(data)
         parity = self.generate_parity(fragments)
         return fragments, parity
+
+    def decode(self, fragments: List[Optional[bytes]], parity: Optional[bytes], original_size: int) -> bytes:
+        """
+        Reconstructs original data, using parity if exactly one fragment is missing.
+        """
+        missing_indices = [i for i, f in enumerate(fragments) if f is None]
+
+        if not missing_indices:
+            # No fragments missing, just join
+            data = b"".join(fragments)
+            return data[:original_size]
+
+        if len(missing_indices) > 1:
+            raise ValueError("Too many fragments missing for EEC recovery")
+
+        if parity is None:
+            raise ValueError("Parity missing, cannot recover fragment")
+
+        # Recover the single missing fragment
+        missing_idx = missing_indices[0]
+        recovered = bytearray(parity)
+
+        for i, frag in enumerate(fragments):
+            if i == missing_idx:
+                continue
+            for j in range(CHUNK_SIZE):
+                recovered[j] ^= frag[j]
+
+        fragments[missing_idx] = bytes(recovered)
+        data = b"".join(fragments)
+        return data[:original_size]
 
     @staticmethod
     def get_fragment_hash(fragment: bytes) -> str:

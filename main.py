@@ -103,6 +103,7 @@ from app.modules.elections.routes import router as elections_router
 from app.modules.policy.routes import router as policy_router
 from app.modules.remittance.routes import router as remittance_router
 from app.iot.router import router as iot_router
+from tachyon.api.router import router as tachyon_router
 from app.agents.coordinator import AgentCoordinator
 
 # ===== MIDDLEWARE =====
@@ -1761,6 +1762,7 @@ app.include_router(network_router)
 app.include_router(elections_router, prefix="/api")
 app.include_router(policy_router, prefix="/api")
 app.include_router(remittance_router, prefix="/api")
+app.include_router(tachyon_router, prefix="/api/tachyon")
 
 # VIT Quant Engine — Phase 2
 from app.modules.quant.routes import router as quant_router
