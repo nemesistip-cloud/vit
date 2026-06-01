@@ -425,7 +425,7 @@ export default function DeveloperPage() {
               <p className="text-sm text-muted-foreground">{docs.authentication}</p>
               <div className="rounded-lg bg-muted/50 border border-border p-3 font-mono text-xs">
                 <span className="text-muted-foreground">curl</span>{" "}
-                <span className="text-primary">https://api.vit.network/predict</span>{" "}
+                <span className="text-primary">https://vit-897838355273.europe-west1.run.app/api/predict</span>{" "}
                 <span className="text-yellow-400">\</span>
                 <br />
                 {"  "}<span className="text-muted-foreground">-H</span>{" "}
