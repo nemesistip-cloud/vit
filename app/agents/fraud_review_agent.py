@@ -1,12 +1,12 @@
 """app/agents/fraud_review_agent.py  — Item 2: Fraud Flag Auto-Reviewer
 
-Runs every 15 minutes. Reads open FraudFlags, calls Gemini to generate
+Runs every 15 minutes. Reads open FraudFlags, calls native AI to generate
 a risk narrative and resolution recommendation, then:
 
   LOW severity   → auto-dismiss (safe to clear without human)
   MEDIUM severity → attaches AI narrative + leaves open for human (with AI summary in evidence)
-  HIGH severity   → Gemini narrative + marks 'actioned', triggers Telegram alert
-  CRITICAL        → Gemini narrative + auto-suspends user + Telegram alert
+  HIGH severity   → native AI narrative + marks 'actioned', triggers Telegram alert
+  CRITICAL        → native AI narrative + auto-suspends user + Telegram alert
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ class FraudReviewAgent(BaseAgent):
                     await asyncio.sleep(0.1)
                     continue
 
-                # MEDIUM/HIGH/CRITICAL → call Gemini
+                # MEDIUM/HIGH/CRITICAL → call native AI
                 prompt = _build_fraud_prompt(
                     flag.rule_code or "unknown",
                     severity,

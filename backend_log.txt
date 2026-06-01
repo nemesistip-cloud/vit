@@ -1,0 +1,200 @@
+
+[WARN] JWT_SECRET_KEY is not set. Generating an EPHEMERAL dev key — all issued tokens will be invalidated on next restart. Add JWT_SECRET_KEY to environment variables to persist sessions.
+
+/app/main.py:2114: DeprecationWarning:
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+  @app.on_event("shutdown")
+INFO:     Started server process [243077]
+INFO:     Waiting for application startup.
+2026-06-01 08:44:10 | INFO     | app.logging | Logging configured
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+2026-06-01 08:44:52 | INFO     | app.services.sportsdb_api | [sportsdb] fetch_past_events: 17 events across 19 leagues
+2026-06-01 08:45:16 | INFO     | app.access | request_started request_id=60905e79-331e-4335-8edb-f637f6680b8e method=GET path=/health
+2026-06-01 08:45:16 | INFO     | app.access | request_completed request_id=60905e79-331e-4335-8edb-f637f6680b8e status=200 duration_seconds=0.004
+2026-06-01 08:45:32 | INFO     | app.services.sportsdb_api | [sportsdb] fetch_next_events: 4 events across 19 leagues
+2026-06-01 08:45:32 | INFO     | app.services.sportsdb_api | [sportsdb] fetch_all_real_fixtures: 17 past + 4 upcoming
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: xgb_v2 (weight=0.1200)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: lstm_v2 (weight=0.0900)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: poisson_v2 (weight=0.0800)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: hybrid_v2 (weight=0.0800)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: transformer_v2 (weight=0.0800)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: ensemble_v2 (weight=0.0700)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: dixon_coles_v2 (weight=0.0700)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: bayes_v2 (weight=0.0600)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: market_v2 (weight=0.1000)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: rf_v2 (weight=0.0500)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: logistic_v2 (weight=0.0600)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: elo_v2 (weight=0.0400)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Registered v2 model: llm_consensus_v2 (weight=0.1000)
+2026-06-01 08:45:32 | INFO     | app.modules.ai.registry | [registry] Bootstrap complete — 13 new v2 models registered
+2026-06-01 08:45:32 | INFO     | app.modules.marketplace.service | Seeded 12 system marketplace listings
+2026-06-01 08:45:32 | INFO     | app.modules.prophecy_chain.services.seeder | Seeded 4 prophecy chapters
+INFO:     [supervisor] task started name=etl-pipeline
+INFO:     [supervisor] task started name=odds-refresh
+INFO:     [supervisor] task started name=cache-purge
+INFO:     [supervisor] task started name=task-reset
+INFO:     [supervisor] started with tasks=etl-pipeline, odds-refresh, cache-purge, task-reset
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] instantiated agent: performance-monitor
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] instantiated agent: live-match-tracker
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] instantiated agent: network-guardian
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] instantiated agent: weight-optimizer
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] instantiated agent: match-scout
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] instantiated agent: oracle-node
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] instantiated agent: kyc-screener
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] instantiated agent: academic-tutor
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] initialised with 8 agents (out of 23 possible)
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] agent task created: performance-monitor (node_id=did:vit:agent:performance-monitor)
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] agent task created: live-match-tracker (node_id=did:vit:agent:live-match-tracker)
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] agent task created: network-guardian (node_id=did:vit:agent:network-guardian)
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] agent task created: weight-optimizer (node_id=did:vit:agent:weight-optimizer)
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] agent task created: match-scout (node_id=did:vit:agent:match-scout)
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] agent task created: oracle-node (node_id=did:vit:agent:oracle-node)
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] agent task created: kyc-screener (node_id=did:vit:agent:kyc-screener)
+2026-06-01 08:45:32 | INFO     | app.agents.coordinator | [coordinator] agent task created: academic-tutor (node_id=did:vit:agent:academic-tutor)
+2026-06-01 08:45:32 | INFO     | task-reset | Task reset loop started
+2026-06-01 08:45:32 | INFO     | app.services.exchange_rate | [exchange_rate] Starting exchange rate refresh loop (interval=1800s)
+2026-06-01 08:45:32 | INFO     | app.agents.base | [agent:performance-monitor] starting (interval=1800s delay=90s node_id=did:vit:agent:performance-monitor)
+2026-06-01 08:45:32 | INFO     | app.agents.base | [agent:live-match-tracker] starting (interval=60s delay=30s node_id=did:vit:agent:live-match-tracker)
+2026-06-01 08:45:32 | INFO     | app.agents.base | [agent:network-guardian] starting (interval=3600s delay=90s node_id=did:vit:agent:network-guardian)
+2026-06-01 08:45:32 | INFO     | app.agents.base | [agent:weight-optimizer] starting (interval=21600s delay=180s node_id=did:vit:agent:weight-optimizer)
+2026-06-01 08:45:32 | INFO     | app.agents.base | [agent:match-scout] starting (interval=600s delay=90s node_id=did:vit:agent:match-scout)
+2026-06-01 08:45:32 | INFO     | app.agents.base | [agent:oracle-node] starting (interval=600s delay=45s node_id=did:vit:agent:oracle-node)
+2026-06-01 08:45:32 | INFO     | app.agents.base | [agent:kyc-screener] starting (interval=600s delay=30s node_id=did:vit:agent:kyc-screener)
+2026-06-01 08:45:32 | INFO     | app.agents.base | [agent:academic-tutor] starting (interval=3600s delay=30s node_id=did:vit:agent:academic-tutor)
+2026-06-01 08:46:02 | INFO     | app.data.pipeline | [pipeline] No football data API key configured — skipping ETL run
+INFO:     [pricing] VITCoin price updated: $0.100000 USD (supply=10000000, 30d_revenue=0)
+2026-06-01 08:46:02 | INFO     | app.agents.kyc_screener_agent | [kyc-screener] cycle: {'processed': 0, 'approved': 0, 'rejected': 0, 'escalated': 0}
+2026-06-01 08:46:02 | INFO     | app.agents.base | [agent:kyc-screener] cycle complete in 0.02s run=1
+2026-06-01 08:46:02 | INFO     | app.agents.base | [agent:academic-tutor] cycle complete in 0.04s run=1
+2026-06-01 08:46:02 | INFO     | app.agents.live_match_tracker_agent | [live-tracker] auto-completed 17 past matches
+2026-06-01 08:46:02 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.07s run=1
+2026-06-01 08:46:17 | INFO     | app.agents.oracle_node_agent | [oracle-node] cycle complete: {'submitted': 0, 'settled': 0, 'skipped': 0, 'lifetime_submitted': 0, 'lifetime_settled': 0}
+2026-06-01 08:46:17 | INFO     | app.agents.base | [agent:oracle-node] cycle complete in 0.01s run=1
+2026-06-01 08:46:32 | WARNING  | app.services.results_settler | FOOTBALL_DATA_API_KEY not set — cannot fetch finished matches
+2026-06-01 08:46:32 | INFO     | app.services.results_settler | [settle] Football-Data.org returned 0 matches — trying TheSportsDB fallback
+2026-06-01 08:46:42 | INFO     | app.services.sportsdb_api | [sportsdb] fetch_historical_range(7d): 21 settled events
+2026-06-01 08:46:42 | INFO     | app.services.results_settler | [settle] TheSportsDB fallback: 21 finished events (days_back=7)
+2026-06-01 08:46:42 | INFO     | app.services.results_settler | [settle] New record created: Real Zaragoza 0-2 Málaga
+2026-06-01 08:46:42 | INFO     | app.services.results_settler | [settle] New record created: Córdoba 1-1 Huesca
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Burgos 1-0 FC Andorra
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Granada 1-2 Sporting de Gijón
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Ceuta 1-0 Albacete
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Real Sociedad B 1-1 Cultural Leonesa
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Deutschlandsberger 1-1 Velden
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Union Dietach 1-1 Voitsberg
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Gleisdorf 09 1-0 Junge Wikinger Ried
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Traiskirchen 2-4 Neusiedl am See
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: AC Boise 0-2 Sarasota Paradise
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Torpedo Kutaisi 1-2 Gagra
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Barcelona Femení 2-1 Real Sociedad Femenino
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Deportivo de La Coruña Women 2-2 Espanyol Femení
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Hohenems 4-1 Lauterach
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Borac Banja Luka 2-0 Posušje
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Sloga Doboj 1-0 Rudar Prijedor
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Zrinjski Mostar 3-0 Velež Mostar
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: FK Sarajevo 1-0 Željezničar Sarajevo
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Široki Brijeg 4-0 Radnik Bijeljina
+2026-06-01 08:46:43 | INFO     | app.services.results_settler | [settle] New record created: Coritiba 3-2 Bahia
+INFO:     [settlement] Settlement complete: 21 settled, 0 already done, 21 new records created | errors=0
+2026-06-01 08:47:02 | INFO     | app.agents.performance_monitor | [performance-monitor] bootstrap: only 0 model metric rows — DB needs more settled predictions before accuracy tracking is meaningful. Skipping drift detection for this cycle.
+2026-06-01 08:47:02 | INFO     | app.agents.base | [agent:performance-monitor] cycle complete in 0.06s run=1
+2026-06-01 08:47:02 | INFO     | app.agents.match_scout_agent | [match-scout] pre=0 live=0 total_cache=0
+2026-06-01 08:47:02 | INFO     | app.agents.base | [agent:match-scout] cycle complete in 0.06s run=1
+2026-06-01 08:47:02 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.05s run=2
+2026-06-01 08:47:02 | INFO     | app.agents.network_guardian_agent | [network-guardian] cycle complete: {'dids_created': 22, 'vcs_issued': 5, 'network_snapshot': {'total_nodes': 4, 'active_nodes': 4, 'health_score': 100.0}, 'lifetime_dids': 22, 'lifetime_vcs': 5}
+2026-06-01 08:47:02 | INFO     | app.agents.base | [agent:network-guardian] cycle complete in 0.21s run=1
+2026-06-01 08:47:31 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsday.php?d=2026-04-25&s=Soccer (retry-after=120) — skipping
+2026-06-01 08:47:31 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsday.php?d=2026-04-24&s=Soccer (retry-after=120) — skipping
+INFO:     [accountability] updated
+2026-06-01 08:47:34 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsday.php?d=2026-04-23&s=Soccer (retry-after=117) — skipping
+2026-06-01 08:47:34 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsday.php?d=2026-04-22&s=Soccer (retry-after=117) — skipping
+2026-06-01 08:47:37 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsday.php?d=2026-04-21&s=Soccer (retry-after=114) — skipping
+2026-06-01 08:48:02 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.03s run=3
+2026-06-01 08:48:06 | INFO     | app.services.sportsdb_api | [sportsdb] fetch_historical_range(60d): 165 settled events
+2026-06-01 08:48:09 | INFO     | app.services.sportsdb_api | [sportsdb] historical sync done: inserted=165 updated=0 skipped=0 total=165
+2026-06-01 08:48:10 | INFO     | app.services.prediction_seeder | [prediction-seeder] seeded=609 skipped=0 matches_checked=203
+2026-06-01 08:48:10 | INFO     | app.api.routes.training | Loaded 6743 historical matches
+2026-06-01 08:48:11 | INFO     | services.ml_service.model_loader | ModelLoader cache cleared
+2026-06-01 08:48:11 | INFO     | app.api.routes.training | Training job 46d2c320-3476-46 complete — avg accuracy 0.0000, OvUn 0.5000
+2026-06-01 08:48:32 | INFO     | app.agents.weight_optimizer | [weight-optimizer] temperature fit skipped: No settled predictions yet — temperature unchanged
+2026-06-01 08:48:32 | INFO     | app.agents.weight_optimizer | [weight-optimizer] weights updated: 0 models, total_weight=0.000 needs_review=[]
+2026-06-01 08:48:32 | INFO     | app.services.ai_profiler | Updated weights for 0 AI sources
+2026-06-01 08:48:32 | INFO     | app.agents.base | [agent:weight-optimizer] cycle complete in 0.03s run=1
+2026-06-01 08:49:02 | INFO     | app.agents.live_match_tracker_agent | [live-tracker] auto-completed 165 past matches
+2026-06-01 08:49:02 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.04s run=4
+2026-06-01 08:50:02 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.03s run=5
+2026-06-01 08:50:33 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 premier_league: 15 fixtures
+2026-06-01 08:50:34 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 la_liga: 15 fixtures
+2026-06-01 08:50:36 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 bundesliga: 15 fixtures
+2026-06-01 08:50:38 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 serie_a: 15 fixtures
+2026-06-01 08:50:40 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 ligue_1: 15 fixtures
+2026-06-01 08:50:42 | INFO     | app.services.sportsdb_api | [sportsdb] season 2026 champions_league: 15 fixtures
+2026-06-01 08:50:46 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 conference_league: 15 fixtures
+2026-06-01 08:50:48 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 eredivisie: 15 fixtures
+2026-06-01 08:50:50 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 primeira_liga: 15 fixtures
+2026-06-01 08:50:52 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 championship: 15 fixtures
+2026-06-01 08:50:54 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 scottish_premiership: 15 fixtures
+2026-06-01 08:50:56 | INFO     | app.services.sportsdb_api | [sportsdb] season 2025-2026 belgian_pro_league: 15 fixtures
+2026-06-01 08:50:58 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4347&s=2026 (retry-after=120) — skipping
+2026-06-01 08:50:59 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4422&s=2026-2027 (retry-after=118) — skipping
+2026-06-01 08:50:59 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4422&s=2025-2026 (retry-after=118) — skipping
+2026-06-01 08:51:00 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4422&s=2026 (retry-after=118) — skipping
+2026-06-01 08:51:01 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4399&s=2026-2027 (retry-after=117) — skipping
+2026-06-01 08:51:01 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4399&s=2025-2026 (retry-after=117) — skipping
+2026-06-01 08:51:01 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4399&s=2026 (retry-after=117) — skipping
+2026-06-01 08:51:02 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=6
+2026-06-01 08:51:03 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4350&s=2026-2027 (retry-after=115) — skipping
+2026-06-01 08:51:03 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4350&s=2025-2026 (retry-after=115) — skipping
+2026-06-01 08:51:03 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4350&s=2026 (retry-after=115) — skipping
+2026-06-01 08:51:05 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4351&s=2026-2027 (retry-after=113) — skipping
+2026-06-01 08:51:05 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4351&s=2025-2026 (retry-after=113) — skipping
+2026-06-01 08:51:05 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4351&s=2026 (retry-after=113) — skipping
+2026-06-01 08:51:06 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4406&s=2026-2027 (retry-after=111) — skipping
+2026-06-01 08:51:07 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4406&s=2025-2026 (retry-after=111) — skipping
+2026-06-01 08:51:07 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsseason.php?id=4406&s=2026 (retry-after=111) — skipping
+2026-06-01 08:51:07 | INFO     | app.services.sportsdb_api | [sportsdb] fetch_season_fixtures(days_ahead=90): 0 upcoming fixtures across 19 leagues
+2026-06-01 08:51:09 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsnextleague.php?id=4335 (retry-after=109) — skipping
+2026-06-01 08:51:11 | WARNING  | app.services.sportsdb_api | [sportsdb] rate-limited (429) on eventsnextleague.php?id=4331 (retry-after=107) — skipping
+2026-06-01 08:51:46 | INFO     | app.services.sportsdb_api | [sportsdb] fetch_next_events: 4 events across 19 leagues
+2026-06-01 08:51:46 | INFO     | app.services.sportsdb_api | [sportsdb] sync_upcoming: 0 season + 4 next_events before dedup
+2026-06-01 08:51:46 | INFO     | app.services.sportsdb_api | [sportsdb] sync_upcoming: 4 events to process
+2026-06-01 08:51:46 | INFO     | app.services.sportsdb_api | [sportsdb] sync_upcoming_fixtures done: inserted=0 updated=0 skipped=4 total=4
+2026-06-01 08:52:02 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=7
+2026-06-01 08:53:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=8
+2026-06-01 08:54:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=9
+2026-06-01 08:55:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=10
+2026-06-01 08:56:02 | INFO     | app.agents.kyc_screener_agent | [kyc-screener] cycle: {'processed': 0, 'approved': 0, 'rejected': 0, 'escalated': 0}
+2026-06-01 08:56:02 | INFO     | app.agents.base | [agent:kyc-screener] cycle complete in 0.01s run=2
+2026-06-01 08:56:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=11
+2026-06-01 08:56:17 | INFO     | app.agents.oracle_node_agent | [oracle-node] cycle complete: {'submitted': 0, 'settled': 0, 'skipped': 0, 'lifetime_submitted': 0, 'lifetime_settled': 0}
+2026-06-01 08:56:17 | INFO     | app.agents.base | [agent:oracle-node] cycle complete in 0.01s run=2
+2026-06-01 08:57:02 | INFO     | app.agents.match_scout_agent | [match-scout] pre=0 live=0 total_cache=0
+2026-06-01 08:57:02 | INFO     | app.agents.base | [agent:match-scout] cycle complete in 0.02s run=2
+2026-06-01 08:57:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.03s run=12
+2026-06-01 08:58:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=13
+2026-06-01 08:59:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.04s run=14
+2026-06-01 09:00:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=15
+2026-06-01 09:01:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=16
+2026-06-01 09:02:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=17
+2026-06-01 09:03:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=18
+2026-06-01 09:04:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=19
+2026-06-01 09:05:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=20
+2026-06-01 09:06:02 | INFO     | app.agents.kyc_screener_agent | [kyc-screener] cycle: {'processed': 0, 'approved': 0, 'rejected': 0, 'escalated': 0}
+2026-06-01 09:06:02 | INFO     | app.agents.base | [agent:kyc-screener] cycle complete in 0.02s run=3
+2026-06-01 09:06:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.04s run=21
+2026-06-01 09:06:17 | INFO     | app.agents.oracle_node_agent | [oracle-node] cycle complete: {'submitted': 0, 'settled': 0, 'skipped': 0, 'lifetime_submitted': 0, 'lifetime_settled': 0}
+2026-06-01 09:06:17 | INFO     | app.agents.base | [agent:oracle-node] cycle complete in 0.01s run=3
+2026-06-01 09:07:02 | INFO     | app.agents.match_scout_agent | [match-scout] pre=0 live=0 total_cache=0
+2026-06-01 09:07:02 | INFO     | app.agents.base | [agent:match-scout] cycle complete in 0.02s run=3
+2026-06-01 09:07:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=22
+2026-06-01 09:08:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=23
+2026-06-01 09:09:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.03s run=24
+2026-06-01 09:10:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=25
+2026-06-01 09:11:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=26
+2026-06-01 09:12:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=27
+2026-06-01 09:13:03 | INFO     | app.agents.base | [agent:live-match-tracker] cycle complete in 0.02s run=28

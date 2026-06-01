@@ -143,7 +143,7 @@ async def get_performance_report(db: AsyncSession = Depends(get_db)):
 @router.get("/multi-insights/{match_id}")
 async def get_multi_ai_insights(
     match_id: int,
-    sources: str = "gemini,claude,grok",
+    sources: str = "native",
     db: AsyncSession = Depends(get_db),
 ):
     """

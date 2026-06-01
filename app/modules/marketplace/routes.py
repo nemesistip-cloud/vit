@@ -63,6 +63,19 @@ async def upload_model_file(
     files_meta = []
     package_sha = hashlib.sha256()
 
+    for upload in incoming:
+        safe_name = _safe_upload_name(upload.filename)
+        content = await upload.read()
+        total_size += len(content)
+        package_sha.update(safe_name.encode())
+        package_sha.update(content)
+        disk_path = os.path.join(package_dir, safe_name)
+        os.makedirs(os.path.dirname(disk_path), exist_ok=True)
+        with open(disk_path, "wb") as f: f.write(content)
+        files_meta.append({"filename": safe_name, "size_bytes": len(content)})
+
+    selected_primary = primary_file or (files_meta[0]["filename"] if files_meta else "")
+    gcs_uri = None
     try:
         incoming = [*model_files]
         if model_file: incoming.append(model_file)

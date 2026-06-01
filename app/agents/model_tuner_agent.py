@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ModelTunerAgent(BaseAgent):
     """
     Agent responsible for analyzing model performance and suggesting
-    parameter/weight adjustments using DeepSeek.
+    parameter/weight adjustments using native AI.
     """
 
     def __init__(self):
@@ -72,7 +72,7 @@ class ModelTunerAgent(BaseAgent):
         ]
 
     async def _get_tuning_suggestions(self, perf_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Asks DeepSeek to analyze performance and suggest adjustments."""
+        """Asks native AI to analyze performance and suggest adjustments."""
         prompt = f"""
         Analyze the following model performance data for my sports prediction ensemble:
         {json.dumps(perf_data, indent=2)}

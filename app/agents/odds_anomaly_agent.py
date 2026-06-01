@@ -17,7 +17,7 @@ Detection modes
    when populated (original behaviour, now secondary).
 
 Free-tier limit protection:
-  - Max 2 anomalies explained per cycle (Grok free tier is limited)
+  - Max 2 anomalies explained per cycle (native AI free tier is limited)
   - ML prob snapshots tracked in memory between cycles
 """
 
@@ -94,7 +94,7 @@ class OddsAnomalyAgent(BaseAgent):
         self._prev_probs: Dict[int, Dict] = {}   # ML-prob snapshots (SCIE)
 
     async def run_cycle(self) -> Dict[str, Any]:
-        grok_key = True  # always try — cascade client handles key/availability
+        native_ai = True  # always try — cascade client handles key/availability
 
         from app.db.database import AsyncSessionLocal
         from app.db.models import Match, Prediction, AgentInsight
@@ -197,9 +197,9 @@ class OddsAnomalyAgent(BaseAgent):
                     f"VIT SCIE detected a significant ML probability shift for "
                     f"{anomaly['home_team']} vs {anomaly['away_team']} "
                     f"(max drift: {anomaly.get('max_move',0)*100:.1f}%). "
-                    "Grok key not configured for detailed explanation."
+                    "native AI key not configured for detailed explanation."
                 ) if source == "scie" else (
-                    "Significant odds movement detected — Grok key not configured for explanation."
+                    "Significant odds movement detected — native AI key not configured for explanation."
                 )
                 cause = "UNKNOWN"
                 confidence = 0.3
@@ -235,7 +235,7 @@ class OddsAnomalyAgent(BaseAgent):
                         action = "WATCH"
                         meta = {**anomaly}
                 else:
-                    # Grok call failed — store a generic report anyway
+                    # native AI call failed — store a generic report anyway
                     explanation = (
                         f"Probability drift detected for {anomaly['home_team']} vs "
                         f"{anomaly['away_team']} (drift: {anomaly.get('max_move',0)*100:.1f}%). "

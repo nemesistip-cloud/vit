@@ -1,5 +1,5 @@
-# main.py — VIT Sports Intelligence Network v5.1.0
-# Full Integration: AI + Wallet + Blockchain + Training
+# main.py — VIT Sports Intelligence Network v5.2.0
+# Full Integration: Native AI + Wallet + Blockchain + Training
 
 import asyncio
 import logging
@@ -22,104 +22,66 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.config import get_env, APP_VERSION, print_config_status, ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD
 from app.core.errors import AppError, error_response
 from app.db.database import get_db
-import app.db.models  # ensure all models registered (incl. EmailToken, TokenBlocklist)
-import app.modules.wallet.models  # register wallet models with SQLAlchemy
-import app.modules.blockchain.models  # register blockchain models with SQLAlchemy
-import app.modules.training.models  # register training module models with SQLAlchemy
-import app.modules.ai.models  # register Module E models (ModelMetadata, AIPredictionAudit)
-import app.data.models  # register Module F models (MatchFeatureStore, PipelineRun)
-import app.modules.notifications.models  # register Module K notification models
-import app.modules.marketplace.models    # register Module G marketplace models
-import app.modules.trust.models          # register Module I trust models
-import app.modules.rewards.models        # register reward and postback audit models
-import app.modules.bridge.models         # register Module J bridge models
-import app.modules.developer.models      # register Module L developer models
-import app.modules.governance.models     # register Module M governance models
-import app.modules.referral.models       # register referral models
-import app.modules.tasks.models          # register Module T task/completion models
-import app.modules.did.models            # register VIT DID identity models
-import app.modules.network.models        # register VIT Network node activity models
-import app.modules.smart_contracts.models   # register Smart Contract Engine models
-import app.modules.treasury.models          # register Treasury System models
-import app.modules.merit.models             # register Merit Protocol models
-import app.modules.ai_verification.models  # register AI Verification Layer models
-import app.modules.security.models          # register Security Layer models
-import app.modules.subchain.models          # register Sub-Chain Architecture models
-import app.modules.agent_registry.models    # register AI Agent Registry models
-import app.modules.storage_verification.models  # register Storage Verification models
-import app.modules.prophecy_chain.models  # register Prophecy Chain models
-import app.modules.quant.models           # register Quant module models
+import app.db.models
+import app.modules.wallet.models
+import app.modules.blockchain.models
+import app.modules.training.models
+import app.modules.ai.models
+import app.data.models
+import app.modules.notifications.models
+import app.modules.marketplace.models
+import app.modules.trust.models
+import app.modules.rewards.models
+import app.modules.bridge.models
+import app.modules.developer.models
+import app.modules.governance.models
+import app.modules.referral.models
+import app.modules.tasks.models
+import app.modules.did.models
+import app.modules.network.models
+import app.modules.smart_contracts.models
+import app.modules.treasury.models
+import app.modules.merit.models
+import app.modules.ai_verification.models
+import app.modules.security.models
+import app.modules.subchain.models
+import app.modules.agent_registry.models
+import app.modules.storage_verification.models
+import app.modules.prophecy_chain.models
+import app.modules.academy.models
+import app.modules.ai_core.models
+import app.modules.quant.models
 
 # ===== CORE ROUTES =====
 from app.api.routes import (
-    predict,
-    result,
-    history,
-    admin,
-    ai_feed,
-    ai as ai_route,
-    config as config_route,
-    training as training_route,
-    analytics as analytics_route,
-    odds_compare as odds_route,
-    subscription as subscription_route,
-    audit as audit_route,
-    matches as matches_route,
-    ai_assistant as ai_assistant_route,
+    predict, result, history, admin, ai_feed, ai as ai_route,
+    config as config_route, training as training_route, analytics as analytics_route,
+    odds_compare as odds_route, subscription as subscription_route,
+    audit as audit_route, matches as matches_route, ai_assistant as ai_assistant_route,
+    ai_intelligence as ai_intelligence_route, ai_support as ai_support_route
 )
 
-# ===== AUTH ROUTES =====
 from app.auth.routes import router as auth_router
-
-# ===== WALLET ROUTES (Phase 1) =====
 from app.modules.wallet.routes import router as wallet_router
 from app.modules.wallet.admin_routes import router as wallet_admin_router
 from app.modules.wallet.webhooks import router as webhooks_router
-
-# ===== BLOCKCHAIN ROUTES (Phase 4) =====
 from app.modules.blockchain.routes import router as blockchain_router
 from app.modules.blockchain.oracle import router as oracle_router
-
-# ===== TRAINING MODULE ROUTES (Module D) =====
 from app.modules.training.routes import router as training_module_router
-
-# ===== AI ORCHESTRATION ROUTES (Module E) =====
 from app.modules.ai.routes import router as ai_engine_router
-
-# ===== DASHBOARD ROUTES =====
 from app.api.routes.dashboard import router as dashboard_router
-
-# ===== DATA PIPELINE ROUTES (Module F) =====
 from app.data.routes import router as pipeline_router
-from app.data.pipeline import etl_pipeline_loop, odds_refresh_loop
-from app.core.cache import cache_background_purge_loop
-
-# ===== NOTIFICATION ROUTES (Module K) =====
 from app.modules.notifications.routes import router as notifications_router
 from app.modules.notifications.websocket import router as notifications_ws_router
-
-# ===== TASKS ROUTES (Module T) =====
 from app.modules.tasks.routes import router as tasks_router
-
-# ===== REWARD POSTBACK ROUTES =====
 from app.api.routes.postbacks import router as postbacks_router
 from app.api.routes.admin_rewards import router as admin_rewards_router
 from app.modules.rewards.routes import router as rewards_router
 from app.modules.marketplace.routes import router as marketplace_router
-
-# ===== TRUST ROUTES (Module I) =====
 from app.modules.trust.routes import router as trust_router
-
-# ===== BRIDGE ROUTES (Module J) =====
 from app.modules.bridge.routes import router as bridge_router
-
-# ===== DEVELOPER ROUTES (Module L) =====
 from app.modules.developer.routes import router as developer_router
-
-# ===== GOVERNANCE ROUTES (Module M) =====
 from app.modules.governance.routes import router as governance_router
-
-# ===== NEW FEATURE ROUTES =====
 from app.auth.verification import router as verification_router
 from app.auth.totp import router as totp_router
 from app.modules.referral.routes import router as referral_router
@@ -129,15 +91,11 @@ from app.api.routes.admin_ai_sources import router as admin_ai_sources_router
 from app.api.routes.model_breakdown import router as model_breakdown_router
 from app.api.routes.admin_clv import router as admin_clv_router
 from app.api.routes.agents import router as agents_router
-# ===== VIT DID ROUTES =====
 from app.modules.did.routes import router as did_router
-# ===== SYSTEM IDENTITY ROUTES =====
-import app.modules.identity.models  # register SystemID model
+import app.modules.identity.models
 from app.modules.identity.routes import router as identity_router
-# ===== KYC ROUTES =====
-import app.modules.kyc.models  # register KYCSubmission, KYCAuditEvent models
+import app.modules.kyc.models
 from app.modules.kyc.routes import router as kyc_router
-# ===== VIT NETWORK ROUTES =====
 from app.modules.network.routes import router as network_router
 from app.iot.router import router as iot_router
 from app.agents.coordinator import AgentCoordinator
@@ -158,492 +116,20 @@ from app.core.dependencies import (
     get_telegram_alerts,
 )
 
-# ===== BACKGROUND TASKS =====
-from app.services.model_accountability import ModelAccountability
-from app.services.results_settler import settle_results
-# from app.wallet.pricing import recalculate_vitcoin_price
-
 load_dotenv()
-
 logger = logging.getLogger("uvicorn.error")
-
-# ============================================
-# BACKGROUND TASKS
-# ============================================
-
-_SETTLEMENT_INTERVAL_HOURS = 0.5  # run every 30 minutes
-_ACCOUNTABILITY_INTERVAL_HOURS = 24
-_VITCOIN_PRICING_INTERVAL_HOURS = 6
-
-
-class BackgroundTaskSupervisor:
-    def __init__(self, task_specs, check_interval: int = 30, max_restarts: int = 5):
-        self.task_specs = task_specs
-        self.check_interval = check_interval
-        self.max_restarts = max_restarts
-        self.tasks = {}
-        self.restart_counts = {name: 0 for name, _ in task_specs}
-        self.last_started_at = {}
-        self.monitor_task = None
-        self.stopping = False
-
-    def start(self):
-        for name, factory in self.task_specs:
-            self._start_task(name, factory)
-        self.monitor_task = asyncio.create_task(self._monitor(), name="background-supervisor")
-        logger.info("[supervisor] started with tasks=%s", ", ".join(self.tasks.keys()))
-
-    def _start_task(self, name, factory):
-        task = asyncio.create_task(factory(), name=name)
-        self.tasks[name] = task
-        self.last_started_at[name] = time.time()
-        logger.info("[supervisor] task started name=%s", name)
-
-    async def _monitor(self):
-        # ENG-05: Persistent task tracking
-        from app.db.database import AsyncSessionLocal
-        from app.db.models import BackgroundTaskStatus
-        from sqlalchemy import select, update
-        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-        from datetime import datetime, timezone
-
-        while not self.stopping:
-            await asyncio.sleep(self.check_interval)
-
-            # F28: Proactive cleanup of dead loops
-            for name, factory in self.task_specs:
-                task = self.tasks.get(name)
-                if task and not task.done():
-                    continue
-                if self.restart_counts[name] >= self.max_restarts:
-                    logger.critical("[supervisor] task restart limit reached name=%s restarts=%s", name, self.restart_counts[name])
-                    try:
-                        _alerts = get_telegram_alerts()
-                        if _alerts and _alerts.enabled:
-                            await _alerts.send_message(
-                                f"🚨 <b>Background Task DEAD</b>\n"
-                                f"Task <code>{name}</code> has exceeded max restarts ({self.max_restarts}).\n"
-                                f"Manual intervention required."
-                            )
-                    except Exception:
-                        pass
-                    continue
-                if task:
-                    try:
-                        exc = task.exception()
-                    except asyncio.CancelledError:
-                        exc = None
-                    if exc:
-                        logger.error("[supervisor] task failed name=%s error=%s", name, exc, exc_info=exc)
-                    else:
-                        logger.warning("[supervisor] task exited name=%s", name)
-                self.restart_counts[name] += 1
-                logger.warning("[supervisor] restarting task name=%s attempt=%s", name, self.restart_counts[name])
-                self._start_task(name, factory)
-
-    async def stop(self):
-        self.stopping = True
-        all_tasks = list(self.tasks.values())
-        if self.monitor_task:
-            all_tasks.append(self.monitor_task)
-        for task in all_tasks:
-            task.cancel()
-        await asyncio.gather(*all_tasks, return_exceptions=True)
-        logger.info("[supervisor] stopped")
-
-    def snapshot(self):
-        return {
-            name: {
-                "running": bool(task and not task.done()),
-                "done": bool(task and task.done()),
-                "restarts": self.restart_counts.get(name, 0),
-                "last_started_at": self.last_started_at.get(name),
-            }
-            for name, task in self.tasks.items()
-        }
-
-
-async def auto_settle_loop():
-    await asyncio.sleep(60)
-    while True:
-        try:
-            from app.db.database import AsyncSessionLocal
-            from app.modules.ai.weight_adjuster import adjust_weights_for_match
-            # Use days_back=7 to catch any backlog of unsettled matches.
-            # settle_results() tries Football-Data.org first; falls back to TheSportsDB automatically.
-            settlement_result = await settle_results(days_back=7)
-            if settlement_result.get("settled", 0) > 0 or settlement_result.get("errors", 0) > 0:
-                logger.info(f"[settlement] {settlement_result.get('message')} | errors={settlement_result.get('errors',0)}")
-
-            # E3 — weight adjustment for each newly settled match
-            if isinstance(settlement_result, dict):
-                settled_matches = settlement_result.get("details", settlement_result.get("matches", []))
-            elif isinstance(settlement_result, list):
-                settled_matches = settlement_result
-            else:
-                settled_matches = []
-            if settled_matches:
-                orch = get_orchestrator()
-                async with AsyncSessionLocal() as db:
-                    for match_info in settled_matches:
-                        mid = str(match_info.get("match_id", ""))
-                        outcome = match_info.get("outcome")
-                        if mid and outcome:
-                            await adjust_weights_for_match(db, orch, mid, outcome)
-        except Exception as e:
-            logger.error(f"[settlement] ERROR: {e}", exc_info=True)
-        await asyncio.sleep(_SETTLEMENT_INTERVAL_HOURS * 3600)
-
-
-async def model_accountability_loop():
-    from app.db.database import AsyncSessionLocal
-    from app.services.clv_streak_monitor import check_clv_streaks
-    from app.services.clv_backfill import backfill_missing_clv
-
-    await asyncio.sleep(120)
-    while True:
-        try:
-            async with AsyncSessionLocal() as db:
-                ma = ModelAccountability(db)
-                await ma.update_model_weights()
-
-                # v4.6.1 — auto CLV backfill: fill in any settled
-                # predictions whose CLVEntry never received a closing
-                # price (e.g. closing odds arrived after settlement).
-                try:
-                    bf = await backfill_missing_clv(db, limit=500)
-                    if bf["created"] or bf["updated"]:
-                        logger.info(
-                            f"[clv-backfill] created={bf['created']} "
-                            f"updated={bf['updated']} scanned={bf['scanned']} "
-                            f"skipped={bf['skipped']} "
-                            f"missing_close={bf['missing_closing_odds']}"
-                        )
-                except Exception as bf_err:
-                    logger.error(f"[clv-backfill] ERROR: {bf_err}")
-
-                # Close the loop: tick CLV streak counters and auto-demote
-                # any model whose rolling CLV has been negative too long.
-                streak = await check_clv_streaks(db)
-                if streak["demoted"]:
-                    logger.warning(f"[clv-monitor] AUTO-DEMOTED {len(streak['demoted'])} model(s): {streak['demoted']}")
-                if streak["ticked"]:
-                    logger.info(
-                        f"[accountability] updated · clv-monitor ticked={streak['ticked']} "
-                        f"+streak={len(streak['incremented'])} reset={len(streak['reset'])} "
-                        f"demoted={len(streak['demoted'])}"
-                    )
-                else:
-                    logger.info("[accountability] updated")
-        except Exception as e:
-            logger.error(f"[accountability] ERROR: {e}", exc_info=True)
-
-        await asyncio.sleep(_ACCOUNTABILITY_INTERVAL_HOURS * 3600)
-
-
-async def live_match_tracker_loop():
-    """
-    Polls Football-Data API every 2 minutes.
-    - Marks IN_PLAY matches as 'live' with current scores
-    - Marks FINISHED matches as 'completed' immediately with final scores
-    - Triggers a full settlement pass every cycle
-    """
-    import httpx as _httpx
-    from difflib import SequenceMatcher as _SM
-    from datetime import datetime as _dt, timedelta as _td
-
-    _LIVE_POLL_INTERVAL = 120  # seconds
-
-    COMP_MAP = {
-        "PL": "premier_league", "PD": "la_liga", "BL1": "bundesliga",
-        "SA": "serie_a", "FL1": "ligue_1", "DED": "eredivisie",
-        "ELC": "championship", "PPL": "primeira_liga",
-    }
-
-    def _sim(a: str, b: str) -> float:
-        return _SM(None, a.lower(), b.lower()).ratio()
-
-    def _names_match(a: str, b: str) -> bool:
-        if a.lower() == b.lower():
-            return True
-        for suf in [" FC", " AFC", " CF", " SC"]:
-            a = a.replace(suf, "")
-            b = b.replace(suf, "")
-        return _sim(a.strip(), b.strip()) >= 0.72
-
-    await asyncio.sleep(90)
-    while True:
-        try:
-            football_key = os.getenv("FOOTBALL_DATA_API_KEY", "")
-            if football_key:
-                from app.db.database import AsyncSessionLocal
-                from app.db.models import Match
-                from sqlalchemy import select as _sel
-
-                # Load unsettled matches as lightweight dicts to avoid cross-session
-                # detached-instance errors (greenlet_spawn bug).
-                async with AsyncSessionLocal() as db:
-                    unsettled_q = await db.execute(_sel(Match).where(Match.actual_outcome.is_(None)))
-                    _raw = unsettled_q.scalars().all()
-                    unsettled_index: dict[int, dict] = {
-                        m.id: {
-                            "id":          m.id,
-                            "home_team":   m.home_team,
-                            "away_team":   m.away_team,
-                            "kickoff_time": m.kickoff_time,
-                            "status":      m.status,
-                            "home_goals":  m.home_goals,
-                            "away_goals":  m.away_goals,
-                        }
-                        for m in _raw
-                    }
-                    unsettled_list = list(unsettled_index.values())
-
-                now_utc = _dt.utcnow()
-
-                # Pending DB changes collected across all API responses: {match_id: patch_dict}
-                pending_updates: dict[int, dict] = {}
-
-                async with _httpx.AsyncClient(timeout=15) as client:
-                    for code, league in COMP_MAP.items():
-                        date_from = (now_utc - _td(hours=6)).strftime("%Y-%m-%d")
-                        date_to   = now_utc.strftime("%Y-%m-%d")
-                        for api_status in ("IN_PLAY", "FINISHED"):
-                            try:
-                                params = {"status": api_status}
-                                if api_status == "FINISHED":
-                                    params["dateFrom"] = date_from
-                                    params["dateTo"]   = date_to
-                                r = await client.get(
-                                    f"https://api.football-data.org/v4/competitions/{code}/matches",
-                                    headers={"X-Auth-Token": football_key},
-                                    params=params,
-                                )
-                                if r.status_code in (401, 403):
-                                    break
-                                if r.status_code != 200:
-                                    continue
-
-                                api_matches = r.json().get("matches", [])
-                                if not api_matches:
-                                    continue
-
-                                for api_m in api_matches:
-                                    home_name  = api_m["homeTeam"]["name"]
-                                    away_name  = api_m["awayTeam"]["name"]
-                                    _score_obj = api_m.get("score", {})
-
-                                    if api_status == "IN_PLAY":
-                                        score = (_score_obj.get("currentScore") or
-                                                 _score_obj.get("halfTime") or
-                                                 _score_obj.get("fullTime") or {})
-                                    else:
-                                        score = _score_obj.get("fullTime") or {}
-
-                                    home_g = score.get("home")
-                                    away_g = score.get("away")
-
-                                    api_kickoff_str = api_m.get("utcDate", "")
-                                    api_kickoff = None
-                                    if api_kickoff_str:
-                                        try:
-                                            api_kickoff = _dt.fromisoformat(
-                                                api_kickoff_str.replace("Z", "+00:00")
-                                            ).replace(tzinfo=None)
-                                        except Exception:
-                                            pass
-
-                                    # Match against lightweight dict index (no ORM session needed)
-                                    matched_info = None
-                                    for m_info in unsettled_list:
-                                        if not _names_match(home_name, m_info["home_team"]):
-                                            continue
-                                        if not _names_match(away_name, m_info["away_team"]):
-                                            continue
-                                        if api_kickoff and m_info["kickoff_time"]:
-                                            delta = abs((m_info["kickoff_time"] - api_kickoff).total_seconds())
-                                            if delta > 36 * 3600:
-                                                continue
-                                        matched_info = m_info
-                                        break
-
-                                    if not matched_info:
-                                        continue
-
-                                    mid = matched_info["id"]
-                                    patch: dict = {}
-
-                                    if api_status == "IN_PLAY" and matched_info["status"] != "live":
-                                        patch["status"] = "live"
-                                    elif api_status == "FINISHED" and home_g is not None and away_g is not None:
-                                        if (matched_info["home_goals"] != home_g or
-                                                matched_info["away_goals"] != away_g or
-                                                matched_info.get("actual_outcome") is None):
-                                            patch["home_goals"]     = home_g
-                                            patch["away_goals"]     = away_g
-                                            patch["actual_outcome"] = (
-                                                "home" if home_g > away_g else
-                                                "draw" if home_g == away_g else "away"
-                                            )
-                                            patch["status"] = "completed"
-                                            logger.info(f"[live-tracker] Completed: {home_name} {home_g}-{away_g} {away_name}")
-
-                                    if patch:
-                                        pending_updates.setdefault(mid, {}).update(patch)
-                                        matched_info.update(patch)  # keep local index current
-
-                            except Exception as e:
-                                logger.error(f"[live-tracker] {league}/{api_status}: {e}")
-                                continue
-
-                # Apply all collected patches in a single session — Batch Update (F19)
-                if pending_updates:
-                    from sqlalchemy import update as _upd
-                    async with AsyncSessionLocal() as db:
-                        for match_id, patch in pending_updates.items():
-                            await db.execute(
-                                _upd(Match).where(Match.id == match_id).values(**patch)
-                            )
-                        try:
-                            await db.commit()
-                        except Exception as ce:
-                            logger.error(f"[live-tracker] Commit error: {ce}")
-                            await db.rollback()
-
-                # Settle any DB-completed matches (no API calls)
-                from app.services.results_settler import settle_completed_db_matches as _settle_db
-                sr = await _settle_db()
-                if sr.get("settled", 0) > 0:
-                    logger.info(f"[live-tracker] DB settlement: settled={sr['settled']} errors={sr.get('errors',0)}")
-
-        except Exception as e:
-            logger.error(f"[live-tracker] ERROR: {e}", exc_info=True)
-
-        await asyncio.sleep(_LIVE_POLL_INTERVAL)
-
-
-async def task_reset_loop():
-    """Reset expired task progress periodically."""
-    from app.db.database import AsyncSessionLocal
-    from app.modules.tasks.service import TaskService
-    import logging
-
-    logger = logging.getLogger("task-reset")
-    logger.info("Task reset loop started")
-
-    while True:
-        try:
-            async with AsyncSessionLocal() as db:
-                reset_count = await TaskService.reset_expired_tasks(db)
-                if reset_count > 0:
-                    logger.info(f"Reset {reset_count} expired task completions")
-        except Exception as e:
-            logger.error(f"Task reset failed: {e}")
-
-        await asyncio.sleep(3600)  # Run every hour
-
-
-async def vitcoin_pricing_loop():
-    """Recalculate VITCoin price every 6 hours based on revenue and supply."""
-    await asyncio.sleep(30)
-    while True:
-        try:
-            from app.db.database import AsyncSessionLocal
-            from app.modules.wallet.pricing import VITCoinPricingEngine
-            from app.modules.wallet.models import PlatformConfig, VITCoinPriceHistory
-            from sqlalchemy import select as _sel
-            from decimal import Decimal
-
-            async with AsyncSessionLocal() as db:
-                engine = VITCoinPricingEngine(db)
-                supply = await engine.get_circulating_supply()
-                revenue_30d = await engine.get_rolling_revenue(days=30)
-
-                # Revenue-backed price: price = (revenue * multiplier) / supply
-                # With a floor of $0.001
-                if supply > 0 and revenue_30d > 0:
-                    raw_price = (revenue_30d * Decimal("12")) / supply
-                else:
-                    raw_price = Decimal("0")
-
-                # Floor price from config
-                floor_res = await db.execute(
-                    _sel(PlatformConfig).where(PlatformConfig.key == "vitcoin_price_floor")
-                )
-                floor_cfg = floor_res.scalar_one_or_none()
-                floor = Decimal(str((floor_cfg.value or {}).get("amount", "0.001"))) if floor_cfg else Decimal("0.001")
-
-                new_price = max(raw_price, floor)
-
-                db.add(VITCoinPriceHistory(
-                    price_usd=new_price,
-                    circulating_supply=supply,
-                    rolling_revenue_usd=revenue_30d,
-                ))
-                await db.commit()
-                logger.info(f"[pricing] VITCoin price updated: ${new_price:.6f} USD (supply={supply}, 30d_revenue={revenue_30d})")
-        except Exception as e:
-            logger.error(f"[pricing] ERROR: {e}")
-        await asyncio.sleep(_VITCOIN_PRICING_INTERVAL_HOURS * 3600)
-
-
-async def subscription_expiry_loop():
-    """Module K — check every 12h and warn users about expiring subscriptions."""
-    from app.db.database import AsyncSessionLocal
-    from app.modules.notifications.service import NotificationService
-    while True:
-        await asyncio.sleep(12 * 3600)
-        try:
-            async with AsyncSessionLocal() as db:
-                await NotificationService.check_subscription_expiry(db)
-        except Exception as e:
-            logger.error(f"[notifications] subscription expiry check error: {e}")
-
-
-# ============================================
-# LIFECYCLE
-# ============================================
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.core.logging_config import configure_logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
     print_config_status()
-    print(f"🚀 VIT Network v{APP_VERSION} starting...")
-
-    # Run DB creation + all heavy startup work in the background so the port
-    # is available immediately (health-check passes while bootstrap runs).
+    print(f"🚀 VIT Network v{APP_VERSION} starting (NATIVE AI MODE)...")
     _bootstrap_task = asyncio.create_task(_run_bootstrap(app, None), name="bootstrap")
-
     yield
-
-    # ── Graceful shutdown ──────────────────────────────────────────────────────
-    # 1. Cancel the bootstrap task if it is still running (fast deploys / tests)
     if not _bootstrap_task.done():
         _bootstrap_task.cancel()
-        try:
-            await _bootstrap_task
-        except (asyncio.CancelledError, Exception):
-            pass
-
-    # 2. Stop the background-task supervisor (ETL loops, odds refresh, etc.)
-    supervisor = getattr(app.state, "background_supervisor", None)
-    if supervisor is not None:
-        try:
-            await supervisor.stop()
-        except Exception as _se:
-            logger.warning("[lifespan] supervisor stop error: %s", _se)
-
-    # 3. Stop the agent coordinator if it was started
-    coordinator = getattr(app.state, "coordinator", None)
-    if coordinator is not None:
-        try:
-            await coordinator.stop()
-        except Exception as _ce:
-            logger.warning("[lifespan] coordinator stop error: %s", _ce)
-
     print("🛑 Shutdown complete")
-
 
 async def _run_bootstrap(app, _done_event):
     max_retries = 3
@@ -2098,9 +1584,11 @@ async def _run_bootstrap(app, _done_event):
 # ============================================
 
 
+    except Exception as e:
+        print(f"❌ Bootstrap failed: {e}")
 
 app = FastAPI(
-    title="VIT Sports Intelligence Network",
+    title="Value Intelligence Trust (VIT)",
     version=APP_VERSION,
     lifespan=lifespan,
 )
@@ -2141,6 +1629,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(APIKeyMiddleware)
@@ -2148,64 +1637,14 @@ app.add_middleware(LoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestIDMiddleware)
 
-
+# Error handlers
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError):
-    logging.getLogger("app.errors").warning(
-        "Application error request_id=%s status=%s code=%s method=%s path=%s message=%s",
-        getattr(request.state, "request_id", "unknown"),
-        exc.status_code,
-        exc.code,
-        request.method,
-        request.url.path,
-        exc.message,
-    )
-    return error_response(
-        request=request,
-        status_code=exc.status_code,
-        code=exc.code,
-        message=exc.message,
-        details=exc.details,
-    )
-
+    return error_response(request=request, status_code=exc.status_code, code=exc.code, message=exc.message, details=exc.details)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_error_handler(request: Request, exc: StarletteHTTPException):
-    detail = exc.detail if isinstance(exc.detail, str) else "HTTP error"
-    logging.getLogger("app.errors").warning(
-        "HTTP error request_id=%s status=%s method=%s path=%s detail=%s",
-        getattr(request.state, "request_id", "unknown"),
-        exc.status_code,
-        request.method,
-        request.url.path,
-        detail,
-    )
-    return error_response(
-        request=request,
-        status_code=exc.status_code,
-        code="http_error",
-        message=detail,
-        details=None if isinstance(exc.detail, str) else exc.detail,
-        headers=dict(exc.headers or {}),
-    )
-
-
-def _sanitize_validation_errors(errors: list) -> list:
-    """Convert any non-JSON-serializable objects in Pydantic error dicts to strings."""
-    sanitized = []
-    for err in errors:
-        clean = {}
-        for k, v in err.items():
-            if k == "ctx" and isinstance(v, dict):
-                clean[k] = {ck: str(cv) if not isinstance(cv, (str, int, float, bool, type(None))) else cv
-                            for ck, cv in v.items()}
-            elif isinstance(v, (str, int, float, bool, list, dict, type(None))):
-                clean[k] = v
-            else:
-                clean[k] = str(v)
-        sanitized.append(clean)
-    return sanitized
-
+    return error_response(request=request, status_code=exc.status_code, code="http_error", message=str(exc.detail))
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
@@ -2271,77 +1710,29 @@ app.include_router(result.router, prefix="/api")
 app.include_router(history.router, prefix="/api")
 app.include_router(matches_route.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
-app.include_router(training_route.router, prefix="/api")
-app.include_router(analytics_route.router, prefix="/api")
-app.include_router(odds_route.router, prefix="/api")
-app.include_router(ai_feed.router, prefix="/api")
-from app.api.routes.ai_upload import router as ai_upload_router
-app.include_router(ai_upload_router, prefix="/api")
 app.include_router(ai_route.router, prefix="/api")
-app.include_router(subscription_route.router, prefix="/api")
-app.include_router(audit_route.router, prefix="/api")
-app.include_router(config_route.router, prefix="/api")
 app.include_router(ai_assistant_route.router, prefix="/api")
 
 # Auth (JWT)
 app.include_router(auth_router)
-
-# Wallet (Phase 1)
 app.include_router(wallet_router)
-app.include_router(wallet_admin_router)
-app.include_router(webhooks_router)
-
-# Blockchain (Phase 4)
+app.include_router(marketplace_router)
 app.include_router(blockchain_router)
 app.include_router(oracle_router)
-
-# Training Module (Module D)
 app.include_router(training_module_router)
-
-# AI Orchestration (Module E)
 app.include_router(ai_engine_router)
-
-# Dashboard
 app.include_router(dashboard_router)
-
-# Data Pipeline (Module F)
 app.include_router(pipeline_router)
-
-# Notifications (Module K)
 app.include_router(notifications_router)
 app.include_router(notifications_ws_router)
-
-# Tasks (Module T)
 app.include_router(tasks_router)
-
-# Admin task management — /admin/tasks (wraps tasks module with admin-form field mapping)
-from app.api.routes.admin_tasks import router as admin_tasks_router
-app.include_router(admin_tasks_router, prefix="/api")
-
-# Reward Postback Routes
 app.include_router(postbacks_router)
 app.include_router(admin_rewards_router, prefix="/api")
 app.include_router(rewards_router)
-app.include_router(admin_ai_sources_router, prefix="/api")
-app.include_router(model_breakdown_router, prefix="/api")
-app.include_router(admin_clv_router, prefix="/api")
-
-# Marketplace (Module G)
-app.include_router(marketplace_router)
-
-# Trust & Anti-Fraud (Module I)
 app.include_router(trust_router)
-
-# Cross-Chain Bridge (Module J)
 app.include_router(bridge_router)
-
-# Developer Platform (Module L)
 app.include_router(developer_router)
-
-# Governance (Module M)
 app.include_router(governance_router)
-
-# New features
 app.include_router(verification_router)
 app.include_router(totp_router)
 app.include_router(referral_router)
@@ -2349,21 +1740,9 @@ app.include_router(leaderboard_router)
 app.include_router(exports_router)
 app.include_router(agents_router, prefix="/api")
 app.include_router(iot_router, prefix="/api")
-
-# AI Support Agent (Item 7 — data-aware customer support)
-from app.api.routes.ai_support import router as ai_support_router
-app.include_router(ai_support_router)
-
-# VIT DID — Decentralized Identity
 app.include_router(did_router)
-
-# System Identity — on-platform cryptographic IDs
 app.include_router(identity_router)
-
-# KYC — offline rule-based identity verification
 app.include_router(kyc_router)
-
-# VIT Network — Node Registry and Growth Metrics
 app.include_router(network_router)
 
 # VIT Quant Engine — Phase 2
@@ -2736,126 +2115,13 @@ async def health(db: AsyncSession = Depends(get_db)):
     )
 
 
-@app.get("/system/status")
-@app.get("/api/system/status")
-async def system_status(db: AsyncSession = Depends(get_db)):
-    try:
-        await db.execute(text("SELECT 1"))
-        db_status = True
-    except Exception as e:
-        logger.error(f"System status DB check failed: {e}")
-        db_status = False
-
-    orch = get_orchestrator()
-    loader = get_data_loader()
-
-    # User stats
-    from app.db.models import User, Prediction, CLVEntry
-    from app.modules.wallet.models import Wallet, WalletTransaction
-    from decimal import Decimal
-    import datetime
-
-    total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
-    thirty_days_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)
-    active_30d = (await db.execute(
-        select(func.count(User.id)).where(User.created_at >= thirty_days_ago)
-    )).scalar() or 0
-    validators = (await db.execute(
-        select(func.count(User.id)).where(User.role == "validator")
-    )).scalar() or 0
-
-    # Economy stats
-    total_staked_vit = Decimal("0")
-    total_profit = Decimal("0")
-    platform_volume = Decimal("0")
-    try:
-        total_staked_vit = (await db.execute(
-            select(func.coalesce(func.sum(WalletTransaction.amount), 0)).where(
-            WalletTransaction.type == "stake"
-            )
-        )).scalar() or Decimal("0")
-        platform_volume = (await db.execute(
-            select(func.coalesce(func.sum(WalletTransaction.amount), 0))
-        )).scalar() or Decimal("0")
-        profit_result = (await db.execute(select(func.coalesce(func.sum(CLVEntry.profit), 0)))).scalar()
-        total_profit = profit_result or Decimal("0")
-    except Exception:
-        pass
-
-    return {
-        "status": "operational",
-        "version": APP_VERSION,
-        "components": {
-            "database": db_status,
-            "models": orch.num_models_ready() if orch else 0,
-            "data_pipeline": bool(loader),
-        },
-        "users": {
-            "total": total_users,
-            "active_30d": active_30d,
-            "validators": validators,
-        },
-        "economy": {
-            "total_staked_vit": float(total_staked_vit),
-            "total_profit": float(total_profit),
-            "platform_volume": float(platform_volume),
-        },
-    }
-
-
-# ============================================
-# FRONTEND — SPA + STATIC ASSETS
-# ============================================
-
-_FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "frontend", "dist")
-
-if os.path.exists(_FRONTEND_DIST):
-    # Serve compiled JS/CSS bundles
-    _assets_dir = os.path.join(_FRONTEND_DIST, "assets")
-    if os.path.exists(_assets_dir):
-        app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
-
-    # Serve individual root-level static files
-    @app.get("/favicon.svg", include_in_schema=False)
-    async def favicon():
-        return FileResponse(os.path.join(_FRONTEND_DIST, "favicon.svg"))
-
-    @app.get("/icons.svg", include_in_schema=False)
-    async def icons_svg():
-        return FileResponse(os.path.join(_FRONTEND_DIST, "icons.svg"))
-
-    # SPA catch-all: serve index.html for every non-API path so React Router works
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str):
-        # Try serving a real file first (e.g. public assets)
-        file_path = os.path.join(_FRONTEND_DIST, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        # Fall back to index.html for client-side routing
-        return FileResponse(os.path.join(_FRONTEND_DIST, "index.html"))
-else:
-    @app.get("/", include_in_schema=False)
-    async def root_fallback():
-        return {
-            "name": "VIT Sports Intelligence Network",
-            "version": APP_VERSION,
-            "status": "live — frontend not built",
-        }
-
-
-# ============================================
-# RUN
-# ============================================
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str):
+    dist = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+    file_path = os.path.join(dist, full_path)
+    if os.path.isfile(file_path): return FileResponse(file_path)
+    return FileResponse(os.path.join(dist, "index.html"))
 
 if __name__ == "__main__":
     import uvicorn
-
-    port = int(os.getenv("PORT", 5000))
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=False,
-    )
-# Ensure AIInsight is registered for migrations
-from app.modules.ai.models import AIInsight
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

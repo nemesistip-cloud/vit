@@ -3801,7 +3801,7 @@ function TasksTab() {
   );
 }
 
-// ─── AI Sources Tab (manual Claude/Grok ingestion) ───────────────────
+// ─── AI Sources Tab (manual intelligence ingestion) ───────────────────
 
 interface AISourceMatch {
   id: number;
@@ -3892,7 +3892,7 @@ export function AISourcesTab() {
           <Lock className="w-10 h-10 mx-auto mb-3 text-amber-400" />
           <h3 className="text-lg font-semibold mb-2">AI Source Uploads Locked</h3>
           <p className="text-sm text-gray-400">
-            Uploading raw Claude / Grok analysis requires an admin account or an
+            Uploading raw native analysis requires an admin account or an
             <span className="text-cyan-400"> analyst, pro, or elite</span> subscription tier.
           </p>
           <p className="text-xs text-gray-500 mt-2">
@@ -3940,7 +3940,7 @@ export function AISourcesTab() {
             Upload AI Match Analysis
           </CardTitle>
           <CardDescription>
-            Paste raw insights from Claude, Grok, ChatGPT, etc. and feed them
+            Paste raw insights from the native ensemble and feed them
             into the ensemble — match by match. Updates an existing entry if the
             same source is re-uploaded.
           </CardDescription>
@@ -4034,7 +4034,7 @@ export function AISourcesTab() {
           </div>
 
           <div>
-            <Label className="text-gray-300">Raw Claude / Grok analysis (full paste)</Label>
+            <Label className="text-gray-300">Raw native analysis (full paste)</Label>
             <Textarea
               value={form.raw_content}
               onChange={e => setForm(f => ({ ...f, raw_content: e.target.value }))}
@@ -5032,7 +5032,7 @@ function CalibrationTab() {
             </div>
           </div>
           <CardDescription className="text-gray-500 text-xs mt-1">
-            Activity across Gemini, Claude, OpenAI, and Grok derived from agent insight calls.
+            Activity across the native AI layer derived from agent insight calls.
             "Accuracy" column populates only after matches settle and <span className="font-mono">Update Performance</span> is run.
           </CardDescription>
         </CardHeader>

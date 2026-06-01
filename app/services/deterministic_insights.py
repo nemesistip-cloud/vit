@@ -78,7 +78,7 @@ def generate_deterministic_insights(
 ) -> dict:
     """
     Generate statistically-grounded insights without any external AI call.
-    Returns the same schema as gemini/openai/grok insights generators.
+    Returns the same schema as native insights generators.
     """
     # ── 1. Blend ensemble probs with prior ────────────────────────────────────
     hp = (1 - _PRIOR_BLEND) * home_prob + _PRIOR_BLEND * _PRIOR_HOME

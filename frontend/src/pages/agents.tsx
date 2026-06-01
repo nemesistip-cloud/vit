@@ -244,69 +244,6 @@ function AgentCard({ name, snap, onTrigger, triggering }: {
 
 // ── AI Provider Status Bar ────────────────────────────────────────────────────
 
-function ProviderStatusBar() {
-  const keys = [
-    { name: "Gemini",    env: "GEMINI_API_KEY",  color: "text-blue-400" },
-    { name: "Claude",    env: "CLAUDE_API_KEY",  color: "text-orange-400" },
-    { name: "OpenAI",    env: "OPENAI_API_KEY",  color: "text-green-400" },
-    { name: "xAI/Grok", env: "XAI_API_KEY",     color: "text-purple-400" },
-  ];
-
-  const { data } = useQuery({
-    queryKey: ["ai-provider-status"],
-    queryFn: () => apiGet<{ providers: Record<string, { configured: boolean; available: boolean; cooling: boolean; cooling_for_seconds: number; failing: boolean; last_error_code: number | null }>; priority: string[] }>("/api/agents/providers"),
-    refetchInterval: 15000,
-    retry: false,
-  });
-
-  return (
-    <Card className="bg-slate-900/60 border-slate-700/50">
-      <CardContent className="px-4 py-3">
-        <div className="flex items-center gap-1 mb-2">
-          <Brain className="w-4 h-4 text-slate-400" />
-          <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">AI Providers</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {keys.map(({ name, color }) => {
-            const providers = data?.providers ?? {};
-            const info = providers[name.toLowerCase().replace("/", "")] ??
-                         providers[name.split("/")[0].toLowerCase()] ??
-                         null;
-            const available = info?.available ?? false;
-            const cooling = info?.cooling ?? false;
-            const configured = info?.configured ?? false;
-            const failing = info?.failing ?? false;
-            const errCode = info?.last_error_code ?? null;
-            const statusLabel = !configured
-              ? "no key"
-              : failing
-              ? `failing${errCode ? ` (${errCode})` : ""}`
-              : cooling
-              ? `cooling ${info?.cooling_for_seconds}s`
-              : "ready";
-            return (
-              <div key={name} className="flex items-center gap-2 bg-slate-800/50 rounded-lg px-2 py-1.5">
-                {available ? (
-                  <Wifi className={cn("w-3 h-3", color)} />
-                ) : (
-                  <WifiOff className={cn("w-3 h-3", failing ? "text-red-500" : "text-slate-600")} />
-                )}
-                <div className="min-w-0">
-                  <div className={cn("text-xs font-medium truncate", available ? color : failing ? "text-red-400" : "text-slate-500")}>
-                    {name}
-                  </div>
-                  <div className={cn("text-xs", failing ? "text-red-500/70" : "text-slate-600")}>
-                    {statusLabel}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
@@ -441,7 +378,6 @@ export default function AgentsPage() {
       </div>
 
       {/* AI Provider status */}
-      <ProviderStatusBar />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">

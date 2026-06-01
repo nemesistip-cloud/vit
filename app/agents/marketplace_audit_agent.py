@@ -1,7 +1,7 @@
 """app/agents/marketplace_audit_agent.py  — Item 4: Marketplace Code Audit
 
 Runs every 30 minutes. Finds pending marketplace listings with uploaded
-Python source code, calls Gemini to perform a security + quality audit,
+Python source code, calls native AI to perform a security + quality audit,
 then auto-approves SAFE listings and auto-rejects DANGEROUS ones.
 
 Audit dimensions:
@@ -32,7 +32,7 @@ from app.services.ai_client import call_ai
 logger = logging.getLogger(__name__)
 
 MAX_PER_CYCLE = 5
-MAX_CODE_CHARS = 8000  # Gemini token budget
+MAX_CODE_CHARS = 8000  # native AI token budget
 
 
 

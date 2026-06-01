@@ -616,7 +616,7 @@ async def get_provider_stats(db: AsyncSession = Depends(get_db)):
     all_providers = set(insight_map) | set(pred_map) | set(perf_map)
 
     # Ensure the four main providers always appear even if no data yet
-    for known in ("gemini", "claude", "openai", "grok"):
+    for known in ("native",):
         all_providers.add(known)
 
     result = []
