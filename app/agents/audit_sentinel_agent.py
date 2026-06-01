@@ -2,7 +2,7 @@
 
 Runs every 24 hours. Reads the audit_log table for the past 24 hours,
 groups events by actor and action type, flags suspicious patterns,
-and sends a shift summary to admin Telegram via Gemini narrative.
+and sends a shift summary to admin Telegram via native AI narrative.
 
 Suspicious patterns flagged:
   - Bulk deletions (>5 delete actions by one actor in 24h)

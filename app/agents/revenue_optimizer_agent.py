@@ -1,7 +1,7 @@
 """app/agents/revenue_optimizer_agent.py  — Item 10: Revenue Optimizer
 
 Runs daily. Analyzes subscription revenue, churn signals, and marketplace
-activity, then calls Gemini to recommend pricing adjustments and growth
+activity, then calls native AI to recommend pricing adjustments and growth
 actions. Sends recommendations to the admin Telegram channel.
 
 Does NOT auto-apply pricing changes — recommendations only, for admin
@@ -171,13 +171,13 @@ class RevenueOptimizerAgent(BaseAgent):
         report = await call_ai(prompt)
 
         if not report:
-            return {"skipped": True, "reason": "no Gemini response"}
+            return {"skipped": True, "reason": "no native AI response"}
 
         async with AsyncSessionLocal() as db:
             insight = AgentInsight(
                 agent_name="revenue-optimizer",
                 insight_type="revenue_report",
-                ai_provider="gemini",
+                ai_provider="native",
                 content=report[:2000],
                 meta={"metrics": metrics, "date": date_str},
                 confidence=0.75,

@@ -2,7 +2,7 @@
 
 Runs every 20 minutes. Reviews recently submitted AI predictions (from
 admin_ai_sources ingest endpoint) that have not yet been certified,
-quality-gates them using Gemini, and auto-certifies high-quality
+quality-gates them using native AI, and auto-certifies high-quality
 submissions while flagging low-quality ones.
 
 Quality checks:
@@ -12,8 +12,8 @@ Quality checks:
   - Duplicate detection (same source + match + probabilities within ±1%)
   - Hallucination markers (unrealistically extreme probabilities)
 
-Auto-certify: passes all checks + Gemini quality_score >= 0.70
-Flag as low-quality: fails multiple checks or Gemini quality_score < 0.40
+Auto-certify: passes all checks + native AI quality_score >= 0.70
+Flag as low-quality: fails multiple checks or native AI quality_score < 0.40
 """
 
 from __future__ import annotations

@@ -143,13 +143,13 @@ async def get_performance_report(db: AsyncSession = Depends(get_db)):
 @router.get("/multi-insights/{match_id}")
 async def get_multi_ai_insights(
     match_id: int,
-    sources: str = "gemini,claude,grok",
+    sources: str = "native",
     db: AsyncSession = Depends(get_db),
 ):
     """
     Fan-out to selected AI providers in parallel, return per-provider
     tactical insights + probability assessments and ingest into DB.
-    sources: comma-separated list of: gemini, claude, grok
+    sources: comma-separated list of: native
     """
     from app.services.multi_ai_dispatcher import run_multi_ai
     source_list = [s.strip() for s in sources.split(",") if s.strip()]
