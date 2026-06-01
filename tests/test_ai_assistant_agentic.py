@@ -5,7 +5,7 @@ from app.api.routes.ai_assistant import assistant_chat
 
 @pytest.mark.asyncio
 async def test_assistant_chat_no_key():
-    with patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
+    with patch.dict("os.environ", {"NATIVE_AI": "true"}):
         result = await chat("hello")
         assert result["available"] is False
         assert "GEMINI_API_KEY not configured" in result["error"]
@@ -35,7 +35,7 @@ async def test_assistant_chat_with_tools():
         }]
     }
 
-    with patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"}):
+    with patch.dict("os.environ", {"NATIVE_AI": "true"}):
         with patch("httpx.AsyncClient.post") as mock_post:
             mock_post.side_effect = [mock_resp_1, mock_resp_2]
 
@@ -53,7 +53,7 @@ async def test_assistant_chat_with_tools():
 
 @pytest.mark.asyncio
 async def test_assistant_status_without_provider_keys():
-    with patch.dict("os.environ", {"GEMINI_API_KEY": "", "CLAUDE_API_KEY": "", "ANTHROPIC_API_KEY": ""}):
+    with patch.dict("os.environ", {"NATIVE_AI": "true", "NATIVE_AI": "true", "NATIVE_AI": "true"}):
         result = await assistant_status()
         assert result["available"] is False
         assert result["backend_ai_available"] is False

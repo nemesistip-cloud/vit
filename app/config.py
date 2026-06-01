@@ -1,6 +1,12 @@
 """app/config.py — Single source of truth for all runtime configuration.
 
 Every environment variable the application reads lives here. Callers import
+
+# GCS Storage
+GCS_BUCKET_NAME = get_env("GCS_BUCKET_NAME", "")
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "")
+GCS_PROJECT_ID = get_env("GCS_PROJECT_ID", "")
+GOOGLE_APPLICATION_CREDENTIALS = get_env("GOOGLE_APPLICATION_CREDENTIALS", "")
 named constants (e.g. from app.config import REDIS_URL) so a change to
 the env-var name only needs updating in one place.
 
@@ -253,7 +259,6 @@ STRIPE_SECRET_KEY: str        = get_env("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET: str    = get_env("STRIPE_WEBHOOK_SECRET", "")
 
 # AI providers — cascade: Gemini → Claude → OpenAI → DeepSeek → Grok → Puter (browser-side)
-ANTHROPIC_API_KEY: str     = CLAUDE_API_KEY
 
 # Redis — optional; enables distributed rate limiting, caching, and Celery tasks.
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.
@@ -342,6 +347,8 @@ GCS_PROJECT_ID = os.getenv("GCS_PROJECT_ID", "")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 
 # GCS Storage
-GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "")
-GCS_PROJECT_ID = os.getenv("GCS_PROJECT_ID", "")
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+# AI providers stub constants for backward compatibility if needed by any imports
+GEMINI_API_KEY = ""
+CLAUDE_API_KEY = ""
+OPENAI_API_KEY = ""
+ANTHROPIC_API_KEY = ""
