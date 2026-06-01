@@ -50,3 +50,4 @@ deploymentTarget = "cloudrun"
 
 [userenv.shared]
 VIT_DATABASE_URL = "sqlite+aiosqlite:///./vit.db"
+GCP_PROJECT_ID = "vitnetwork-63818"
