@@ -2115,15 +2115,23 @@ async def shutdown_event():
 # MIDDLEWARE
 # ============================================
 
-cors_origins = get_env("CORS_ALLOWED_ORIGINS", "*")
+_env = get_env("ENVIRONMENT", "development")
+_default_cors = (
+    "https://vit-897838355273.europe-west1.run.app"
+    if _env == "production"
+    else "*"
+)
+cors_origins = get_env("CORS_ALLOWED_ORIGINS", _default_cors)
 origins = ["*"] if cors_origins.strip() == "*" else [o.strip() for o in cors_origins.split(",") if o.strip()]
 
 # SEC-02: never pair allow_credentials=True with allow_origins=["*"] — browsers
 # reject credentialed requests to wildcard origins. Use explicit origins in production.
 _allow_credentials = origins != ["*"]  # SEC-02 fixed
 
-if not _allow_credentials and get_env("ENVIRONMENT") == "production":
+if not _allow_credentials and _env == "production":
     logger.warning("CORS: allow_credentials=True disabled because CORS_ALLOWED_ORIGINS is '*'")
+elif _env == "production" and _allow_credentials:
+    logger.info(f"CORS: restricted to {origins}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -2612,6 +2620,23 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
         },
         "plans": plans,
     }
+
+@app.get("/readiness", include_in_schema=False)
+@app.get("/api/readiness", include_in_schema=False)
+async def readiness(db: AsyncSession = Depends(get_db)):
+    """Lightweight readiness probe for Cloud Run / load balancers."""
+    try:
+        await db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    status_code = 200 if db_ok else 503
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if db_ok else "not_ready", "db": db_ok},
+    )
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health(db: AsyncSession = Depends(get_db)):

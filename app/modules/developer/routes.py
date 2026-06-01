@@ -70,10 +70,9 @@ def _fmt_plan(p) -> dict:
 
 # ── Plans ─────────────────────────────────────────────────────────────────────
 
-@router.get("/plans", summary="List available API plans")
+@router.get("/plans", summary="List available API plans (public)")
 async def list_plans(
     db: AsyncSession = Depends(get_db),
-    _:  User         = Depends(get_current_user),
 ):
     await svc.seed_plans(db)
     plans = await svc.list_plans(db)
