@@ -108,7 +108,7 @@ const PHASES: RoadmapPhase[] = [
       { label: "Staking contract: lock VIT · earn yield · validator bonding",  status: "planned",      icon: Target },
       { label: "Governance token distribution to early stakers",               status: "planned",      icon: Vote },
       { label: "Stripe + Paystack live webhooks (secrets set via admin panel)", status: "done", icon: CreditCard,  detail: "Full HMAC signature verification live; secrets hot-reload from admin panel without restart" },
-      { label: "Smile Identity KYC live verification flow",                    status: "done",  icon: ShieldCheck, detail: "Live API verification when SMILE_IDENTITY_API_KEY + PARTNER_ID are set; offline rule engine fallback" },
+      { label: "Native KYC verification engine",                            status: "done",  icon: ShieldCheck, detail: "Asynchronous verification engine featuring duplicate detection and simulated liveness verification." },
       { label: "The Graph indexer for VIT contract events",                    status: "planned",      icon: Database },
       { label: "Public developer API v2 with on-chain proof of call",          status: "planned",      icon: Code2 },
       { label: "Community airdrop campaign: merit-weighted distribution",       status: "planned",      icon: Star },

@@ -59,13 +59,7 @@ _KEY_REGISTRY = [
         "required":    False,
         "group":       "VIT AI",
     },
-    {
-        "name":        "GEMINI_API_KEY",
-        "label":       "Google Gemini API",
-        "description": "Powers advanced research agents and ecosystem intelligence",
-        "required":    False,
-        "group":       "VIT AI",
-    },
+
     # ── Payments ───────────────────────────────────────────────────────
     {
         "name":        "STRIPE_SECRET_KEY",
@@ -125,21 +119,7 @@ _KEY_REGISTRY = [
         "required":    False,
         "group":       "Messaging",
     },
-    # ── AI Feeds ───────────────────────────────────────────────────────
-    {
-        "name":        "BZZOIRO_API_KEY",
-        "label":       "Bzzoiro AI Feed",
-        "description": "Free AI predictions from sports.bzzoiro.com",
-        "required":    False,
-        "group":       "AI Feeds",
-    },
-    {
-        "name":        "SPORTBOT_API_KEY",
-        "label":       "SportBot AI Feed",
-        "description": "Free-tier AI predictions from sportbot.ai",
-        "required":    False,
-        "group":       "AI Feeds",
-    },
+
     # ── Payments (Webhooks) ─────────────────────────────────────────────
     {
         "name":        "STRIPE_WEBHOOK_SECRET",
@@ -155,21 +135,7 @@ _KEY_REGISTRY = [
         "required":    False,
         "group":       "Payments",
     },
-    # ── KYC / Identity ─────────────────────────────────────────────────
-    {
-        "name":        "SMILE_IDENTITY_API_KEY",
-        "label":       "Smile Identity API Key",
-        "description": "Enables KYC identity verification for user onboarding",
-        "required":    False,
-        "group":       "KYC / Identity",
-    },
-    {
-        "name":        "SMILE_IDENTITY_PARTNER_ID",
-        "label":       "Smile Identity Partner ID",
-        "description": "Your Smile Identity partner / merchant ID (numeric string)",
-        "required":    False,
-        "group":       "KYC / Identity",
-    },
+
     # ── Blockchain ─────────────────────────────────────────────────────
     {
         "name":        "BASE_RPC_URL",
@@ -258,12 +224,12 @@ async def get_config_status(current_user=Depends(get_current_admin)):
         _status("FOOTBALL_DATA_API_KEY",  "Football-Data.org",   required=True),
         _status("ODDS_API_KEY",           "The Odds API",        required=True),
         _status("USE_REAL_ML_MODELS",     "VIT Native AI",       required=False),
-        _status("GEMINI_API_KEY",         "Gemini Research AI",  required=False),
+
         _status("STRIPE_SECRET_KEY",      "Stripe Payments",     required=False),
         _status("STRIPE_WEBHOOK_SECRET",  "Stripe Webhooks",     required=False),
         _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),
         _status("PAYSTACK_WEBHOOK_SECRET","Paystack Webhooks",   required=False),
-        _status("SMILE_IDENTITY_API_KEY", "Smile KYC",           required=False),
+
         _status("BASE_RPC_URL",           "Base L2 RPC",         required=False),
         _status("VIT_CONTRACT_ADDRESS",   "VITCoin Contract",    required=False),
         _status("REDIS_URL",              "Redis",               required=False),

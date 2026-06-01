@@ -2112,13 +2112,7 @@ async def health(db: AsyncSession = Depends(get_db)):
         for name, info in _status.items():
             ai_providers[name] = info.get("status", "unknown")
 
-        # F20: Claude/Grok health probe injection (active verification)
-        if ai_providers.get("claude") == "available" and os.getenv("CLAUDE_HEALTH_PROBE") == "true":
-             if await _vp("claude"):
-                 ai_providers["claude"] = "verified"
-        if ai_providers.get("grok") == "available" and os.getenv("GROK_HEALTH_PROBE") == "true":
-             if await _vp("grok"):
-                 ai_providers["grok"] = "verified"
+
     except Exception:
         pass
 
