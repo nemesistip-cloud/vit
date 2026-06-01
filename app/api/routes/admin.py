@@ -174,35 +174,30 @@ _KEY_REGISTRY = [
     },
     # ── AI Providers ───────────────────────────────────────────────────
     {
-        "name":        "GEMINI_API_KEY",
         "label":       "Google Gemini AI",
         "description": "Powers AI match insights, AI Assistant chat, and tactical analysis",
         "required":    False,
         "group":       "AI Providers",
     },
     {
-        "name":        "ANTHROPIC_API_KEY",
         "label":       "Anthropic Claude",
         "description": "Claude 3 Haiku — second AI analyst for multi-AI match insights",
         "required":    False,
         "group":       "AI Providers",
     },
     {
-        "name":        "OPENAI_API_KEY",
         "label":       "OpenAI",
         "description": "GPT-4o — third AI analyst for multi-AI match insights",
         "required":    False,
         "group":       "AI Providers",
     },
     {
-        "name":        "XAI_API_KEY",
         "label":       "xAI Grok",
         "description": "Grok Beta — fifth AI analyst for multi-AI match insights",
         "required":    False,
         "group":       "AI Providers",
     },
     {
-        "name":        "DEEPSEEK_API_KEY",
         "label":       "DeepSeek AI",
         "description": "DeepSeek-V3 / R1 — fourth AI analyst (cascade slot 4 of 5). Get key at platform.deepseek.com",
         "required":    False,
@@ -587,10 +582,6 @@ async def get_config_status(current_user=Depends(get_current_admin)):
     services = [
         _status("FOOTBALL_DATA_API_KEY",  "Football-Data.org",   required=True),
         _status("ODDS_API_KEY",           "The Odds API",        required=True),
-        _status("GEMINI_API_KEY",         "Gemini AI",           required=False),
-        _status("ANTHROPIC_API_KEY",      "Claude AI",           required=False),
-        _status("OPENAI_API_KEY",         "OpenAI",              required=False),
-        _status("XAI_API_KEY",            "Grok AI",             required=False),
         _status("STRIPE_SECRET_KEY",      "Stripe Payments",     required=False),
         _status("STRIPE_WEBHOOK_SECRET",  "Stripe Webhooks",     required=False),
         _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),

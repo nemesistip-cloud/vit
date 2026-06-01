@@ -149,7 +149,7 @@ async def get_multi_ai_insights(
     """
     Fan-out to selected AI providers in parallel, return per-provider
     tactical insights + probability assessments and ingest into DB.
-    sources: comma-separated list of: gemini, claude, grok
+    sources: comma-separated list of: native
     """
     from app.services.multi_ai_dispatcher import run_multi_ai
     source_list = [s.strip() for s in sources.split(",") if s.strip()]

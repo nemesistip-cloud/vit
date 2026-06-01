@@ -1757,8 +1757,8 @@ class ModelOrchestrator:
                         loaded = True
                         loaded_from = parent_version
                         logger.info(
-                            "↳ %s loaded weights from parent %s (v2 pkl not yet trained)",
-                            key, parent_version,
+                        "↳ %s loaded weights from parent %s (v2 pkl not yet trained)",
+                        key, parent_version,
                         )
 
             self._pkl_loaded[key] = loaded
@@ -1790,10 +1790,7 @@ class ModelOrchestrator:
 
     def _try_load_pkl(self, key: str, legacy_models_dir: str, cache_on: bool) -> Optional[Dict]:
         """
-        Try loading a trained pkl for *key* from two locations in order:
-        1. backend/models/trained/<key>.pkl  (new ModelLoader path)
-        2. models/<key>.pkl                  (legacy project-root path)
-        Returns the payload dict or None.
+        Internal helper.
         """
         try:
             from services.ml_service.model_loader import load_model
@@ -1823,7 +1820,6 @@ class ModelOrchestrator:
             except Exception as exc:
                 logger.warning(f"Failed to load legacy {key}.pkl: {exc}")
         return None
-
     def _attach_sklearn_payload(self, model_obj, key: str, payload: Dict) -> None:
         """Attach a loaded sklearn payload to a model instance."""
         loaded_model = payload["model"]

@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone
 
-from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL, GEMINI_API_KEY
+from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL
 from app.db.database import get_db
 from app.db.models import Match, Prediction
 from app.schemas.schemas import MatchRequest, PredictionResponse
@@ -997,7 +997,7 @@ async def get_match_insights(
 ):
     """
     Generate AI tactical insights for a specific prediction.
-    Returns {gemini, claude, grok} format.
+    Returns {native} format.
     Falls back to ML-derived synthetic insight when no AI keys are configured.
     """
     import os as _os
