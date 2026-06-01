@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/app/tachyon/main.py", line 2, in <module>
+    from fastapi import FastAPI
+ModuleNotFoundError: No module named 'fastapi'

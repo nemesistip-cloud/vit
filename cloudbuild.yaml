@@ -11,23 +11,24 @@ steps:
     args: ['push', 'gcr.io/$PROJECT_ID/vit-network:latest']
 
   # Deploy API to Cloud Run
+  # NOTE: Ensure the service account (default or custom) has 'Secret Manager Secret Accessor' role
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'vit-api'
+      - 'vit'
       - '--image'
       - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
       - '--region'
-      - 'us-central1'
+      - 'europe-west1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--add-cloudsql-instances'
-      - "--timeout"
-      - "300"
-      - '$PROJECT_ID:us-central1:vit-postgres'
+      - '$PROJECT_ID:europe-west1:vit-postgres'
+      - '--timeout'
+      - '300'
 
   # Deploy Worker to Cloud Run (Always-on CPU recommended)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -39,12 +40,15 @@ steps:
       - '--image'
       - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
       - '--command'
-      - 'celery,-A,app.worker,worker,--loglevel=info'
+      - 'celery'
+      - '--args'
+      - '-A,app.worker,worker,--loglevel=info'
       - '--region'
-      - 'us-central1'
+      - 'europe-west1'
       - '--platform'
       - 'managed'
-      - '--no-cpu-throttling' # Required for background workers
+      - '--allow-unauthenticated'
+      - '--no-cpu-throttling'
 
   # Deploy Tachyon to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -56,11 +60,14 @@ steps:
       - '--image'
       - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'
       - '--command'
-      - 'python,-m,tachyon.main'
+      - 'python'
+      - '--args'
+      - '-m,tachyon.main'
       - '--region'
-      - 'us-central1'
+      - 'europe-west1'
       - '--platform'
       - 'managed'
+      - '--allow-unauthenticated'
 
 images:
   - 'gcr.io/$PROJECT_ID/vit-network:$COMMIT_SHA'

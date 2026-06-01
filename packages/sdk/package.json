@@ -2,6 +2,7 @@
   "name": "@vit/sdk",
   "version": "1.0.0",
   "description": "VIT Blockchain SDK",
+  "license": "AGPL-3.0-only",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

@@ -259,6 +259,12 @@ STRIPE_SECRET_KEY: str        = get_env("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET: str    = get_env("STRIPE_WEBHOOK_SECRET", "")
 
 # AI providers — cascade: Gemini → Claude → OpenAI → DeepSeek → Grok → Puter (browser-side)
+GEMINI_API_KEY: str        = get_env("GEMINI_API_KEY", "")
+CLAUDE_API_KEY: str        = get_env("CLAUDE_API_KEY", "")
+ANTHROPIC_API_KEY: str     = CLAUDE_API_KEY
+OPENAI_API_KEY: str        = get_env("OPENAI_API_KEY", "")
+DEEPSEEK_API_KEY: str      = get_env("DEEPSEEK_API_KEY", "")
+XAI_API_KEY: str           = get_env("XAI_API_KEY", "")
 
 # Redis — optional; enables distributed rate limiting, caching, and Celery tasks.
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.

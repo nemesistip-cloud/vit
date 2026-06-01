@@ -2427,6 +2427,12 @@ app.include_router(agent_registry_router)
 from app.modules.storage_verification.routes import router as storage_router
 app.include_router(storage_router)
 
+# Compatibility route for Tachyon Fabric objects listing
+@app.get("/api/objects")
+async def list_tachyon_objects(limit: int = 100, offset: int = 0, db: AsyncSession = Depends(get_db)):
+    from app.modules.storage_verification.service import list_registered_content
+    return await list_registered_content(db, limit=limit, offset=offset)
+
 # Phase 3 — Model Performance Dashboard + Bankroll Management
 from app.api.routes.model_performance import router as model_perf_router
 from app.api.routes.bankroll import router as bankroll_router
