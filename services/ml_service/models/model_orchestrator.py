@@ -28,6 +28,7 @@ import math
 import os
 import random
 import sys
+import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -1719,13 +1720,11 @@ class ModelOrchestrator:
                 if payload is None and os.getenv("GCS_BUCKET_NAME"):
                     try:
                         from app.services.gcs_storage import gcs_storage
-                    local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
+                        local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
                         # We use sync wrapper here as load_all_models is usually called during startup
-                        import asyncio
                         try:
                             # Try downloading it
-                    try:
-                        asyncio.run(gcs_storage.download_model(f"{key}.pkl", local_tmp))
+                            asyncio.run(gcs_storage.download_model(f"{key}.pkl", local_tmp))
                             payload = self._try_load_pkl(key, "/tmp/vit_models", cache_on)
                         except Exception:
                              pass
@@ -1742,13 +1741,11 @@ class ModelOrchestrator:
                 if payload is None and os.getenv("GCS_BUCKET_NAME"):
                     try:
                         from app.services.gcs_storage import gcs_storage
-                    local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
+                        local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
                         # We use sync wrapper here as load_all_models is usually called during startup
-                        import asyncio
                         try:
                             # Try downloading it
-                    try:
-                        asyncio.run(gcs_storage.download_model(f"{key}.pkl", local_tmp))
+                            asyncio.run(gcs_storage.download_model(f"{key}.pkl", local_tmp))
                             payload = self._try_load_pkl(key, "/tmp/vit_models", cache_on)
                         except Exception:
                              pass
@@ -1800,20 +1797,18 @@ class ModelOrchestrator:
         """
         try:
             from services.ml_service.model_loader import load_model
-                        payload = load_model(key, cache_enabled=cache_on)
-                            # Task 3D: On model load, check GCS if not found locally
-                if payload is None and os.getenv("GCS_BUCKET_NAME"):
+            payload = load_model(key, cache_enabled=cache_on)
+            # Task 3D: On model load, check GCS if not found locally
+            if payload is None and os.getenv("GCS_BUCKET_NAME"):
                 try:
                     from app.services.gcs_storage import gcs_storage
                     local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
-                    import asyncio
-                    try:
                     try:
                         asyncio.run(gcs_storage.download_model(f"{key}.pkl", local_tmp))
                         payload = load_model(key, cache_enabled=cache_on)
                     except Exception: pass
-                    except Exception: pass
-                return payload
+                except Exception: pass
+            return payload
         except Exception as exc:
             logger.debug(f"ModelLoader unavailable for {key}: {exc}")
 
@@ -2011,7 +2006,6 @@ class ModelOrchestrator:
         # Result is injected into the LLM consensus model as ai_signals.
         if web_context_text and llm_model is not None and not ai_signals:
             try:
-                    import asyncio
                 from app.services.ai_client import call_ai as _call_ai
                 import json as _json_orch
 
@@ -2409,7 +2403,6 @@ class ModelOrchestrator:
           λ_a_remaining = λ_a_original * (90 - minute) / 90
           Goal-state conditional: update λ based on observed score gap.
         """
-                    import asyncio
 
         mkt = features.get("market_odds", {})
         h_raw = float(mkt.get("home", 2.30))
