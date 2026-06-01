@@ -21,7 +21,7 @@ class ResourceType(str, enum.Enum):
     OTHER = "other"
 
 class Course(Base):
-    """Academic Course model (v5.1.0)"""
+    """Academic Course model (v5.2.0)"""
     __tablename__ = "academic_courses"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -46,7 +46,7 @@ class Course(Base):
     )
 
 class AcademicResource(Base):
-    """Academic Resource model (v5.1.0)"""
+    """Academic Resource model (v5.2.0)"""
     __tablename__ = "academic_resources"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -82,7 +82,7 @@ class AcademicResource(Base):
     )
 
 class CampusCircle(Base):
-    """Campus Circle (Community) model (v5.1.0)"""
+    """Campus Circle (Community) model (v5.2.0)"""
     __tablename__ = "campus_circles"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -104,7 +104,7 @@ class CampusCircle(Base):
     )
 
 class CampusPost(Base):
-    """Post within a Campus Circle (v5.1.0)"""
+    """Post within a Campus Circle (v5.2.0)"""
     __tablename__ = "campus_posts"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -122,7 +122,7 @@ class CampusPost(Base):
     comments = relationship("CampusComment", back_populates="post", cascade="all, delete-orphan")
 
 class CampusComment(Base):
-    """Comment on a Campus Post (v5.1.0)"""
+    """Comment on a Campus Post (v5.2.0)"""
     __tablename__ = "campus_comments"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -135,7 +135,7 @@ class CampusComment(Base):
     post = relationship("CampusPost", back_populates="comments")
 
 class CampusGig(Base):
-    """Campus Micro-tasks / Gigs (v5.1.0)"""
+    """Campus Micro-tasks / Gigs (v5.2.0)"""
     __tablename__ = "campus_gigs"
 
     id = Column(Integer, primary_key=True, index=True)

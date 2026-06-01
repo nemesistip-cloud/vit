@@ -144,15 +144,14 @@ def _clean_redis_url(raw: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# APPLICATION IDENTITY
-# These values are used in email footers, the startup banner, and the API's
-# /config/public endpoint. Override via env vars for white-label deployments.
+# APPLICATION IDENTITY — SINGLE SOURCE OF TRUST
+# These values are used across the entire ecosystem (API, Email, Frontend, Logs).
 # ══════════════════════════════════════════════════════════════════════════════
 
-APP_VERSION: str    = "5.1.0"  # Bumped here only — imported everywhere else
-APP_NAME: str       = get_env("APP_NAME",       "Value Intelligence Trust (VIT)")
+APP_VERSION: str    = "5.2.0"
+APP_NAME: str       = get_env("APP_NAME",       "VIT Network")
 APP_SHORT_NAME: str = get_env("APP_SHORT_NAME", "VIT")
-APP_TAGLINE: str    = get_env("APP_TAGLINE",    "Where Value, Intelligence, and Trust Converge")
+APP_TAGLINE: str    = get_env("APP_TAGLINE",    "AI Intelligence & Blockchain Super App")
 ADMIN_EMAIL: str    = get_env("ADMIN_EMAIL",    "admin@vit.network")
 SUPPORT_EMAIL: str  = get_env("SUPPORT_EMAIL",  "support@vit.network")
 LEGAL_EMAIL: str    = get_env("LEGAL_EMAIL",    "legal@vit.network")

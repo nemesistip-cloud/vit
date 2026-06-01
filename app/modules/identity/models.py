@@ -72,7 +72,7 @@ class SystemID(Base):
 
 
 class StudentProfile(Base):
-    """Detailed Student Profile (v5.1.0) — Keeps student-specific data separated."""
+    """Detailed Student Profile (v5.2.0) — Keeps student-specific data separated."""
     __tablename__ = "student_profiles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
