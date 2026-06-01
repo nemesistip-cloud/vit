@@ -19,8 +19,8 @@ class TachyonScheduler:
         if not self.providers:
             raise ValueError("No providers configured")
 
-        fragments, parity = self.shredder.encode(data)
-        all_fragments = fragments + [parity]
+        fragments, parities = self.shredder.encode(data)
+        all_fragments = fragments + parities
 
         tasks = []
         for i, frag in enumerate(all_fragments):
@@ -56,11 +56,16 @@ class TachyonScheduler:
         if not processed_fragments:
             return b""
 
-        # In our burst protocol, the last fragment is parity
-        data_fragments = processed_fragments[:-1]
-        parity_fragment = processed_fragments[-1]
+        # In our upgraded burst protocol, the last `parity_shards` fragments are parity
+        num_data_shards = (size_bytes + 4095) // 4096
+        data_fragments = processed_fragments[:num_data_shards]
+        parity_fragments = processed_fragments[num_data_shards:]
 
-        return self.shredder.decode(data_fragments, parity_fragment, size_bytes)
+        # Ensure parity_fragments is not empty for XOR fallback
+        if not parity_fragments and num_data_shards < len(processed_fragments):
+             parity_fragments = [processed_fragments[num_data_shards]]
+
+        return self.shredder.decode(data_fragments, parity_fragments, size_bytes)
 
 if __name__ == "__main__":
     # Mock Provider for testing
@@ -88,7 +93,8 @@ if __name__ == "__main__":
         await scheduler.upload_burst(test_data, "test_file_001")
 
         print("\nStarting Burst Download (Standard)...")
-        fragment_names = ["tachyon_test_file_001_0", "tachyon_test_file_001_1"]
+        # 1 data shard + 2 parity shards = 3 total
+        fragment_names = [f"tachyon_test_file_001_{i}" for i in range(3)]
         mapping = {name: i % 2 for i, name in enumerate(fragment_names)}
         recovered = await scheduler.download_burst(fragment_names, mapping, len(test_data))
 
@@ -96,13 +102,15 @@ if __name__ == "__main__":
         assert recovered == test_data
         print("Standard download verified.")
 
-        print("\nStarting Burst Download (with 1 missing fragment - EEC test)...")
-        # Simulate missing fragment by removing it from provider
-        del p1.storage["tachyon_test_file_001_0"]
+        print("\nStarting Burst Download (with 2 missing fragments - EEC test)...")
+        # Simulate missing fragments by removing them from providers
+        # We have 2 parity shards, so we can lose up to 2 fragments total
+        del p1.storage["tachyon_test_file_001_0"] # Data shard
+        del p2.storage["tachyon_test_file_001_1"] # Parity shard 1
 
         recovered_eec = await scheduler.download_burst(fragment_names, mapping, len(test_data))
         print(f"Recovered (EEC) data length: {len(recovered_eec)}")
         assert recovered_eec == test_data
-        print("EEC recovery verified.")
+        print("EEC (RS) multi-fragment recovery verified.")
 
     asyncio.run(test())

@@ -61,8 +61,8 @@ async def _ddg_search(query: str, max_results: int = 5) -> List[str]:
             resp.raise_for_status()
             html = resp.text
         snippets: List[str] = []
-        for m in re.finditer(r'class="result__snippet"[^>]*>(.*?)</a>', html, re.DOTALL):
-            snip = _strip_html(m.group(1)).strip()
+        for m in re.finditer(r'class="result__snippet"[^>]*>(.*?)</div>', html, re.DOTALL):
+            snip = _strip_html(m.group(1)).replace("</a>", "").strip()
             if snip and len(snip) > 20:
                 snippets.append(snip)
             if len(snippets) >= max_results:
