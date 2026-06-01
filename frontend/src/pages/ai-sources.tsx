@@ -4,20 +4,7 @@ import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { Redirect } from "wouter";
 import {
-  analyzeMatchWithPuter,
-  isPuterAvailable,
-  isPuterSignedIn,
-  puterSignIn,
-  puterSignOut,
-  getPuterUser,
   MatchAnalysis,
-  PuterModel,
-  PUTER_CLAUDE_MODEL,
-  PUTER_GPT4O_MODEL,
-  PUTER_GEMINI_MODEL,
-  PUTER_DEEPSEEK_MODEL,
-  PUTER_GROK_MODEL,
-} from "@/lib/puter-ai";
 import { toast } from "sonner";
 import {
   Card,
@@ -99,35 +86,22 @@ interface SlotResult {
   error?: string;
 }
 
-type MatchResults = Partial<Record<PuterModel, SlotResult>>;
 
-const MODELS: { id: PuterModel; label: string; model: string; color: string }[] = [
-  { id: "gpt4o",   label: "GPT-4o",  model: PUTER_GPT4O_MODEL,  color: "text-emerald-400" },
-  { id: "claude",  label: "Claude",  model: PUTER_CLAUDE_MODEL, color: "text-purple-400"  },
-  { id: "gemini",  label: "Gemini",  model: PUTER_GEMINI_MODEL, color: "text-blue-400"    },
-  { id: "grok",    label: "Grok",    model: PUTER_GROK_MODEL,   color: "text-cyan-400"    },
-  { id: "deepseek", label: "DeepSeek", model: PUTER_DEEPSEEK_MODEL, color: "text-orange-400"  },
 ];
-// Delay between Puter calls — raised to 3.5s to stay within free tier limits
 const DELAY_MS = 3500;
 
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
-// ─── Puter Account Panel ──────────────────────────────────────────────────────
 
-function PuterAccountPanel() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!isPuterAvailable()) { setSignedIn(false); return; }
-    const ok = await isPuterSignedIn();
     setSignedIn(ok);
     if (ok) {
-      const user = await getPuterUser();
       setUsername(user?.username ?? null);
     } else {
       setUsername(null);
@@ -139,18 +113,14 @@ function PuterAccountPanel() {
   const handleSignIn = async () => {
     setBusy(true);
     try {
-      await puterSignIn();
       await refresh();
-      toast.success("Signed in to Puter");
     } catch (e: any) {
-      toast.error(e?.message || "Puter sign-in failed");
     } finally { setBusy(false); }
   };
 
   const handleSwitchAccount = async () => {
     setBusy(true);
     try {
-      await puterSignOut();
       await refresh();
       toast.info("Signed out — sign in with a different account to reset rate limits");
     } catch (e: any) {
@@ -158,17 +128,14 @@ function PuterAccountPanel() {
     } finally { setBusy(false); }
   };
 
-  if (!isPuterAvailable()) return null;
 
   return (
     <div className="flex items-center gap-2 flex-wrap bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2">
       <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
       {signedIn === null ? (
-        <span className="text-xs text-gray-500">Checking Puter…</span>
       ) : signedIn && username ? (
         <>
           <span className="text-xs text-gray-300">
-            Puter: <span className="text-cyan-400 font-mono">{username}</span>
           </span>
           <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px]">signed in</Badge>
           <button
@@ -182,7 +149,6 @@ function PuterAccountPanel() {
         </>
       ) : (
         <>
-          <span className="text-xs text-gray-400">Not signed in to Puter</span>
           <button
             onClick={handleSignIn}
             disabled={busy}
@@ -240,7 +206,6 @@ function QuantumShardMonitor({
   tasks,
   results
 }: {
-  tasks: { match: AISourceMatch, model: PuterModel }[],
   results: Map<number, MatchResults>
 }) {
   const activeShards = tasks.filter(t => {
@@ -287,7 +252,6 @@ function MatchCard({
 }: {
   match: AISourceMatch;
   results: MatchResults;
-  activeModels: PuterModel[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const anyRunning = activeModels.some(
@@ -638,7 +602,6 @@ function ServerAnalysisPanel({ matchCount }: { matchCount: number }) {
           <Settings className="w-5 h-5 text-amber-400" />
           Server-Side Analysis
           <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] ml-1">
-            no Puter needed
           </Badge>
         </CardTitle>
         <CardDescription>
@@ -807,7 +770,6 @@ export default function AISourcesPage() {
   if (!isAdmin && !hasTier("analyst")) return <Redirect to="/subscription" />;
   const qc = useQueryClient();
 
-  const [selectedModels, setSelectedModels] = useState<Set<PuterModel>>(new Set(["claude", "grok"]));
   const [agentStatus, setAgentStatus] = useState<"idle" | "running" | "done">("idle");
   const [results, setResults] = useState<Map<number, MatchResults>>(new Map());
   const [progress, setProgress] = useState({ current: 0, total: 0, matchLabel: "" });
@@ -815,7 +777,6 @@ export default function AISourcesPage() {
   const shouldStop = useRef(false);
   const [quantumMode, setQuantumMode] = useState(false);
   const [concurrency, setConcurrency] = useState(3);
-  const [activeTasks, setActiveTasks] = useState<{ match: AISourceMatch, model: PuterModel }[]>([]);
 
   if (!user) return <Redirect to="/login" />;
   if (!isAdmin && !hasTier("analyst")) return <Redirect to="/subscription" />;
@@ -836,9 +797,7 @@ export default function AISourcesPage() {
   });
 
   const matches = matchesQ.data?.matches ?? [];
-  const activeModels = [...selectedModels] as PuterModel[];
 
-  const updateSlot = (matchId: number, model: PuterModel, patch: Partial<SlotResult>) => {
     setResults((prev) => {
       const next = new Map(prev);
       const existing = next.get(matchId) ?? {};
@@ -852,8 +811,6 @@ export default function AISourcesPage() {
 
   const runAgents = useCallback(async () => {
     if (!matches.length) { toast.error("No matches loaded yet"); return; }
-    if (!isPuterAvailable()) {
-      toast.error("Puter.js not ready — refresh and sign in via Puter");
       return;
     }
     if (activeModels.length === 0) { toast.error("Select at least one AI model"); return; }
@@ -862,7 +819,6 @@ export default function AISourcesPage() {
     setAgentStatus("running");
     setResults(new Map());
 
-    const allTasks: { match: AISourceMatch, model: PuterModel }[] = [];
     matches.forEach(m => {
       activeModels.forEach(mod => {
         allTasks.push({ match: m, model: mod });
@@ -876,13 +832,11 @@ export default function AISourcesPage() {
     const limit = quantumMode ? concurrency : 1;
     const taskQueue = [...allTasks];
 
-    const executeTask = async (task: { match: AISourceMatch, model: PuterModel }) => {
       if (shouldStop.current) return;
       const { match, model } = task;
 
       updateSlot(match.id, model, { status: "running", analysis: null });
       try {
-        const analysis = await analyzeMatchWithPuter(
           match.home_team,
           match.away_team,
           match.league ?? "Unknown League",
@@ -945,14 +899,12 @@ export default function AISourcesPage() {
     } else {
       toast.success(`Quantum Sourcing Complete - ${completed} tasks processed`);
     }
-  }, [matches, isPuterAvailable, activeModels, updateSlot, qc, quantumMode, concurrency]);
 
   const stopAgents = () => {
     shouldStop.current = true;
     toast.info("Stopping Quantum shards…");
   };
 
-  const toggleModel = (m: PuterModel) => {
     setSelectedModels((prev) => {
       const next = new Set(prev);
       if (next.has(m)) next.delete(m);
@@ -961,7 +913,6 @@ export default function AISourcesPage() {
     });
   };
 
-  const puterReady = isPuterAvailable();
 
   const totalSlots = matches.length * activeModels.length;
   const doneSlots = [...results.values()].reduce((acc, mr) => {
@@ -1007,7 +958,6 @@ export default function AISourcesPage() {
           <div>
             <h1 className="text-2xl font-bold">Quantum AI Sources</h1>
             <p className="text-sm text-gray-400 mt-0.5">
-              Autonomous agents query Claude & Grok via Puter (free) for every match and
               self-ingest the analysis into the prediction ensemble.
             </p>
           </div>
@@ -1039,7 +989,6 @@ export default function AISourcesPage() {
             {/* Model Toggles */}
             <div>
               <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
-                AI Models (FREE via Puter.js)
               </p>
               <div className="flex gap-2 flex-wrap">
                 {MODELS.map((m) => {
@@ -1064,8 +1013,6 @@ export default function AISourcesPage() {
               </div>
             </div>
 
-            {/* Puter account panel */}
-            <PuterAccountPanel />
             {/* Quantum Mode Toggle */}
             <div className="flex items-center justify-between p-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5">
               <div className="flex items-center gap-3">
@@ -1099,11 +1046,8 @@ export default function AISourcesPage() {
               </div>
             </div>
 
-            {/* Puter warning */}
-            {!puterReady && (
               <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded p-2.5 text-xs text-amber-300">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                To use the free AI Sourcing engine, you must be signed in to your Puter account.
               </div>
             )}
 
@@ -1143,7 +1087,6 @@ export default function AISourcesPage() {
                   />
                 </div>
                 <p className="text-[11px] text-gray-500">
-                  {DELAY_MS / 1000}s cooldown between calls · auto-retries on rate limit · switch Puter account if blocked.
                 </p>
               </div>
             )}
@@ -1153,7 +1096,6 @@ export default function AISourcesPage() {
               {agentStatus !== "running" ? (
                 <Button
                   onClick={runAgents}
-                  disabled={!puterReady || matchesQ.isLoading || activeModels.length === 0}
                   className="bg-cyan-500 hover:bg-cyan-600 text-black font-semibold"
                 >
                   <Play className="w-4 h-4 mr-2" />

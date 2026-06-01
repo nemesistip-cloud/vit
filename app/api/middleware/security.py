@@ -28,12 +28,10 @@ class SecurityHeadersMiddleware:
 
                 csp = (
                     "default-src 'self'; "
-                    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.puter.com; "
                     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                     "img-src 'self' data: https:; "
                     "connect-src 'self' wss: https:; "
                     "font-src 'self' data: https://fonts.gstatic.com; "
-                    "frame-src https://js.puter.com; "
                     "frame-ancestors 'none';"
                 )
                 headers.append((b"content-security-policy", csp.encode()))

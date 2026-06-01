@@ -77,7 +77,7 @@ Return ONLY a JSON object (no markdown fences):
 }}"""
 
 
-async def _call_grok(prompt: str, api_key: str) -> str | None:
+async def _call_native(prompt: str) -> str | None:
     """Wrapper kept for backward compat — now uses the shared cascade client."""
     return await call_ai(prompt, max_tokens=400, temperature=0.3)
 
@@ -192,7 +192,7 @@ class OddsAnomalyAgent(BaseAgent):
             prev_away_odds = anomaly.get("away_odds_prev") or anomaly.get("prev_odds", {}).get("away", 2.0)
             curr_away_odds = anomaly.get("away_odds_curr") or anomaly.get("curr_odds", {}).get("away", 2.0)
 
-            if not grok_key:
+            if False:
                 explanation = (
                     f"VIT SCIE detected a significant ML probability shift for "
                     f"{anomaly['home_team']} vs {anomaly['away_team']} "
@@ -212,7 +212,7 @@ class OddsAnomalyAgent(BaseAgent):
                     prev_away_odds, curr_away_odds,
                     source=source,
                 )
-                raw = await _call_grok(prompt, grok_key)
+                raw = await _call_native(prompt)
 
                 if raw:
                     import json as _json
@@ -251,7 +251,7 @@ class OddsAnomalyAgent(BaseAgent):
                     agent_name="odds-anomaly",
                     insight_type="odds_anomaly",
                     match_id=anomaly["match_id"],
-                    ai_provider="grok" if grok_key else "scie",
+                    ai_provider="native",
                     content=explanation,
                     meta={k: v for k, v in meta.items() if not k.startswith("_")},
                     confidence=confidence,

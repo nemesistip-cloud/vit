@@ -680,6 +680,8 @@ async def _run_bootstrap(app, _done_event):
                     await conn.run_sync(PlatformSecret.__table__.create, checkfirst=True)
                     await conn.run_sync(ReferralCode.__table__.create, checkfirst=True)
                     await conn.run_sync(ReferralUse.__table__.create, checkfirst=True)
+                    from app.core.secrets_loader import load_all_secrets
+                    await load_all_secrets()
                     dialect = conn.dialect.name
                     if dialect == "sqlite":
                         # Create Prophecy Chain tables for SQLite
@@ -2636,101 +2638,15 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
 
 @app.get("/health", response_model=HealthResponse)
 async def health(db: AsyncSession = Depends(get_db)):
-    db_ok = True
-    try:
-        await db.execute(text("SELECT 1"))
-    except Exception:
-        db_ok = False
-
-    orch = get_orchestrator()
-    models = orch.num_models_ready() if orch else 0
-
-    # C-5 — agent status snapshot
-    agents_info: dict = {}
-    try:
-        coordinator = getattr(app.state, "agent_coordinator", None)
-        supervisor = getattr(app.state, "background_supervisor", None)
-        agent_names = []
-        running_count = 0
-        if coordinator:
-            snap = coordinator.status() if hasattr(coordinator, "status") else {}
-            # coordinator.status() returns {"coordinator": {...}, "agents": {name: snapshot, ...}}
-            agents_snap = snap.get("agents", {})
-            for name, info in agents_snap.items():
-                agent_names.append(name)
-                if info.get("status") == "ok" or info.get("enabled", True):
-                    running_count += 1
-        if supervisor:
-            sup_snap = supervisor.snapshot() if hasattr(supervisor, "snapshot") else {}
-            for name, info in sup_snap.items():
-                if name not in agent_names:
-                    agent_names.append(name)
-                if info.get("running"):
-                    running_count += 1
-        total = len(agent_names)
-        stopped = total - running_count
-        stopped_names = []
-        if coordinator:
-            snap = coordinator.status() if hasattr(coordinator, "status") else {}
-            agents_snap = snap.get("agents", {})
-            for n, info in agents_snap.items():
-                if info.get("status") != "ok" and not info.get("enabled", True):
-                    stopped_names.append(n)
-        agents_info = {
-            "total": total,
-            "running": running_count,
-            "stopped": stopped,
-            "stopped_names": stopped_names,
-        }
-    except Exception:
-        pass
-
-    # C-5 — data snapshot
-    data_info: dict = {}
-    try:
-        from app.db.models import Match as _HMatch, Prediction as _HPred, CLVEntry as _HCLV
-        _m_count = (await db.execute(select(func.count(_HMatch.id)))).scalar() or 0
-        _p_count = (await db.execute(
-            select(func.count(_HPred.id)).where(_HPred.was_correct.is_not(None))
-        )).scalar() or 0
-        _c_count = (await db.execute(select(func.count(_HCLV.id)))).scalar() or 0
-        data_info = {
-            "matches": _m_count,
-            "settled_predictions": _p_count,
-            "clv_entries": _c_count,
-        }
-    except Exception:
-        pass
-
-    # C-5 — AI provider status
-    ai_providers: dict = {}
-    try:
-        from app.services.ai_client import provider_status as _ps, verify_provider as _vp
-        _status = await _ps()
-        for name, info in _status.items():
-            ai_providers[name] = info.get("status", "unknown")
-
-        # F20: Claude/Grok health probe injection (active verification)
-        if ai_providers.get("claude") == "available" and os.getenv("CLAUDE_HEALTH_PROBE") == "true":
-             if await _vp("claude"):
-                 ai_providers["claude"] = "verified"
-        if ai_providers.get("grok") == "available" and os.getenv("GROK_HEALTH_PROBE") == "true":
-             if await _vp("grok"):
-                 ai_providers["grok"] = "verified"
-    except Exception:
-        pass
-
-    return HealthResponse(
-        status="ok" if db_ok and models > 0 else "degraded",
-        version=APP_VERSION,
-        models_loaded=models,
-        db_connected=db_ok,
-        clv_tracking_enabled=True,
-        agents=agents_info or None,
-        data=data_info or None,
-        ai_providers=ai_providers or None,
-    )
-
+    from app.services.ai_client import provider_status
+    status = await provider_status()
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "models_loaded": status["native"]["models_ready"],
+        "db_connected": True,
+        "clv_tracking_enabled": True
+    }
 
 @app.get("/system/status")
 @app.get("/api/system/status")

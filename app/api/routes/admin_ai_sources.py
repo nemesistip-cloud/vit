@@ -22,8 +22,7 @@ router = APIRouter(prefix="/admin/ai-sources", tags=["admin-ai-sources"])
 
 
 ALLOWED_SOURCES = {
-    "chatgpt", "gemini", "claude", "grok",
-    "deepseek", "perplexity", "mistral", "manual", "server",
+    "native", "manual",
 }
 ALLOWED_TIERS = {"analyst", "pro", "elite"}
 
@@ -352,7 +351,7 @@ async def run_server_analysis(
 ):
     """
     Run server-side AI analysis on upcoming matches using:
-      1. Built-in AI cascade  (Gemini → Claude → OpenAI → Grok)
+      1. Built-in AI cascade  (Native VIT Ensemble)
       2. 13-model ML ensemble fallback when all AI providers are unavailable
 
     Always produces predictions — never returns "No AI provider available"

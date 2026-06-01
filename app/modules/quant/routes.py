@@ -483,11 +483,11 @@ async def quant_summary(
 
 
 # ---------------------------------------------------------------------------
-# 6.  Puter Distributed Monte Carlo  —  POST /api/quant/monte-carlo/puter
+# 6.  Puter Distributed Monte Carlo  —  POST /api/quant/monte-carlo/native
 # ---------------------------------------------------------------------------
 
-@router.post("/monte-carlo/puter")
-async def puter_monte_carlo(
+@router.post("/monte-carlo/native")
+async def native_monte_carlo(
     trials:            int   = Query(2000, ge=100, le=20000),
     bets_per_trial:    int   = Query(100,  ge=10,  le=1000),
     initial_bankroll:  float = Query(1000.0, ge=100, le=1_000_000),
@@ -503,7 +503,7 @@ async def puter_monte_carlo(
     Splits the trial workload across `workers` shards.  Each shard is executed
     as a Puter agent task (via the server-side PuterAIService).  Results are
     merged and returned with the same schema as the standard /monte-carlo
-    endpoint plus a `puter_tasks` execution summary.
+    endpoint plus a `native_tasks` execution summary.
 
     Falls back to synchronous execution if Puter is unavailable.
     """
@@ -516,14 +516,14 @@ async def puter_monte_carlo(
     shard_sizes = [per_worker] * (workers - 1) + [trials - per_worker * (workers - 1)]
 
     # Attempt Puter task execution
-    puter_tasks = []
+    native_tasks = []
     all_finals: list[float] = []
     ruin_total  = 0
     execution_mode = "synchronous"
 
     try:
-        from app.services.puter_ai import PuterAIService
-        puter = PuterAIService()
+        pass
+        pass
 
         async def _run_shard(shard_trials: int, seed: int) -> dict:
             rng = random.Random(seed)
@@ -560,13 +560,13 @@ async def puter_monte_carlo(
 
         for i, res in enumerate(results):
             if isinstance(res, Exception):
-                puter_tasks.append({"shard": i, "status": "error", "error": str(res)})
+                native_tasks.append({"shard": i, "status": "error", "error": str(res)})
             else:
-                puter_tasks.append({"shard": i, "status": "ok", "trials": res["trials"]})
+                native_tasks.append({"shard": i, "status": "ok", "trials": res["trials"]})
                 all_finals.extend(res["finals"])
                 ruin_total += res["ruin"]
 
-        execution_mode = "puter_parallel" if len(puter_tasks) > 0 else "synchronous"
+        execution_mode = "native_parallel" if len(native_tasks) > 0 else "synchronous"
 
     except Exception as exc:
         logger.warning("[quant] Puter parallel execution unavailable: %s — falling back", exc)
@@ -594,7 +594,7 @@ async def puter_monte_carlo(
         execution_mode = "synchronous_fallback"
 
     if not all_finals:
-        return {"error": "All shards failed", "puter_tasks": puter_tasks}
+        return {"error": "All shards failed", "native_tasks": native_tasks}
 
     all_finals.sort()
     n = len(all_finals)
@@ -612,7 +612,7 @@ async def puter_monte_carlo(
         "staking":              staking,
         "workers":              workers,
         "execution_mode":       execution_mode,
-        "puter_tasks":          puter_tasks,
+        "native_tasks":          native_tasks,
         "ruin_probability_pct": round(ruin_total / n * 100, 2),
         "profit_probability_pct": round(winners / n * 100, 1),
         "percentiles": {
