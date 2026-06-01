@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone
 
-from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL, GEMINI_API_KEY
+from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL
 from app.db.database import get_db
 from app.db.models import Match, Prediction
 from app.schemas.schemas import MatchRequest, PredictionResponse
@@ -997,12 +997,12 @@ async def get_match_insights(
 ):
     """
     Generate AI tactical insights for a specific prediction.
-    Returns {gemini, claude, grok} format.
+    Returns {native} format.
     Falls back to ML-derived synthetic insight when no AI keys are configured.
     """
     import os as _os
     from app.db.models import Match, Prediction
-    from app.services.gemini_insights import generate_match_insights
+    pass
 
     match_row = await db.execute(select(Match).where(Match.id == match_id))
     match = match_row.scalar_one_or_none()
@@ -1028,7 +1028,7 @@ async def get_match_insights(
     btts = float(pred.btts_prob or 0.0)
     bet_side = pred.bet_side or "home"
 
-    gemini_key = GEMINI_API_KEY.strip()
+    gemini_key = ""
 
     if not gemini_key:
         # ML ensemble fallback — generate rule-based insight from prediction data
@@ -1056,9 +1056,7 @@ async def get_match_insights(
         }
         return {
             "match_id": match_id,
-            "gemini": synthetic_insight,
-            "claude": None,
-            "grok": None,
+            "native": synthetic_insight,
             "source": "ml_fallback",
         }
 
@@ -1089,9 +1087,7 @@ async def get_match_insights(
 
     return {
         "match_id": match_id,
-        "gemini": gemini_insight,
-        "claude": None,
-        "grok": None,
+        "native": gemini_insight,
         "source": "gemini" if gemini_insight else "unavailable",
     }
 

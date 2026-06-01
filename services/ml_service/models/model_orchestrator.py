@@ -28,6 +28,7 @@ import math
 import os
 import random
 import sys
+import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -1715,19 +1716,49 @@ class ModelOrchestrator:
             loaded_from = None
             if use_real:
                 payload = self._try_load_pkl(key, models_dir, cache_on)
+                                # Task 3D: On model load, check GCS if not found locally
+                if payload is None and os.getenv("GCS_BUCKET_NAME"):
+                    try:
+                        from app.services.gcs_storage import gcs_storage
+                        local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
+                        # We use sync wrapper here as load_all_models is usually called during startup
+                        try:
+                            # Try downloading it
+                            asyncio.run(gcs_storage.download_model(f"{key}.pkl", local_tmp))
+                            payload = self._try_load_pkl(key, "/tmp/vit_models", cache_on)
+                        except Exception:
+                             pass
+                    except Exception:
+                        pass
+
                 if payload is not None:
                     self._attach_sklearn_payload(model_obj, key, payload)
                     loaded = True
                     loaded_from = key
                 elif parent_version:
                     payload = self._try_load_pkl(parent_version, models_dir, cache_on)
-                    if payload is not None:
+                                    # Task 3D: On model load, check GCS if not found locally
+                if payload is None and os.getenv("GCS_BUCKET_NAME"):
+                    try:
+                        from app.services.gcs_storage import gcs_storage
+                        local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
+                        # We use sync wrapper here as load_all_models is usually called during startup
+                        try:
+                            # Try downloading it
+                            asyncio.run(gcs_storage.download_model(f"{key}.pkl", local_tmp))
+                            payload = self._try_load_pkl(key, "/tmp/vit_models", cache_on)
+                        except Exception:
+                             pass
+                    except Exception:
+                        pass
+
+                if payload is not None:
                         self._attach_sklearn_payload(model_obj, key, payload)
                         loaded = True
                         loaded_from = parent_version
                         logger.info(
-                            "↳ %s loaded weights from parent %s (v2 pkl not yet trained)",
-                            key, parent_version,
+                        "↳ %s loaded weights from parent %s (v2 pkl not yet trained)",
+                        key, parent_version,
                         )
 
             self._pkl_loaded[key] = loaded
@@ -1759,16 +1790,22 @@ class ModelOrchestrator:
 
     def _try_load_pkl(self, key: str, legacy_models_dir: str, cache_on: bool) -> Optional[Dict]:
         """
-        Try loading a trained pkl for *key* from two locations in order:
-        1. backend/models/trained/<key>.pkl  (new ModelLoader path)
-        2. models/<key>.pkl                  (legacy project-root path)
-        Returns the payload dict or None.
+        Internal helper.
         """
         try:
             from services.ml_service.model_loader import load_model
             payload = load_model(key, cache_enabled=cache_on)
-            if payload is not None:
-                return payload
+            # Task 3D: On model load, check GCS if not found locally
+            if payload is None and os.getenv("GCS_BUCKET_NAME"):
+                try:
+                    from app.services.gcs_storage import gcs_storage
+                    local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
+                    try:
+                        asyncio.run(gcs_storage.download_model(f"{key}.pkl", local_tmp))
+                        payload = load_model(key, cache_enabled=cache_on)
+                    except Exception: pass
+                except Exception: pass
+            return payload
         except Exception as exc:
             logger.debug(f"ModelLoader unavailable for {key}: {exc}")
 
@@ -1783,7 +1820,6 @@ class ModelOrchestrator:
             except Exception as exc:
                 logger.warning(f"Failed to load legacy {key}.pkl: {exc}")
         return None
-
     def _attach_sklearn_payload(self, model_obj, key: str, payload: Dict) -> None:
         """Attach a loaded sklearn payload to a model instance."""
         loaded_model = payload["model"]
@@ -1966,7 +2002,6 @@ class ModelOrchestrator:
         # Result is injected into the LLM consensus model as ai_signals.
         if web_context_text and llm_model is not None and not ai_signals:
             try:
-                import asyncio as _asyncio
                 from app.services.ai_client import call_ai as _call_ai
                 import json as _json_orch
 
@@ -2364,7 +2399,6 @@ class ModelOrchestrator:
           λ_a_remaining = λ_a_original * (90 - minute) / 90
           Goal-state conditional: update λ based on observed score gap.
         """
-        import asyncio
 
         mkt = features.get("market_odds", {})
         h_raw = float(mkt.get("home", 2.30))

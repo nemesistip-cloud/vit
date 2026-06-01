@@ -242,6 +242,16 @@ async def attest_availability(
     return att
 
 
+async def list_registered_content(
+    db: AsyncSession,
+    limit: int = 100,
+    offset: int = 0
+) -> list[ContentHashRegistry]:
+    query = select(ContentHashRegistry).order_by(ContentHashRegistry.registered_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
 async def get_storage_stats(db: AsyncSession) -> dict:
     total_content = await db.scalar(select(func.count(ContentHashRegistry.id))) or 0
     total_proofs = await db.scalar(select(func.count(StorageProof.id))) or 0

@@ -1,7 +1,13 @@
+import os
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from tachyon.api import router as api_router
 
 app = FastAPI(title="Tachyon Fabric Coordination Service", version="1.0.0")
+
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/health")
 
 @app.get("/health")
 async def health():
@@ -11,4 +17,5 @@ app.include_router(api_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)

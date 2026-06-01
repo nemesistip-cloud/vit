@@ -2,6 +2,7 @@
   "name": "vit-blockchain-monorepo",
   "version": "1.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "workspaces": [
     "frontend",
     "packages/*"
