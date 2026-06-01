@@ -58,7 +58,8 @@ from app.api.routes import (
     config as config_route, training as training_route, analytics as analytics_route,
     odds_compare as odds_route, subscription as subscription_route,
     audit as audit_route, matches as matches_route, ai_assistant as ai_assistant_route,
-    ai_intelligence as ai_intelligence_route, ai_support as ai_support_route
+    ai_intelligence as ai_intelligence_route, ai_support as ai_support_route,
+    basketball, tennis,
 )
 
 from app.auth.routes import router as auth_router
@@ -98,6 +99,9 @@ from app.modules.identity.routes import router as identity_router
 import app.modules.kyc.models
 from app.modules.kyc.routes import router as kyc_router
 from app.modules.network.routes import router as network_router
+from app.modules.elections.routes import router as elections_router
+from app.modules.policy.routes import router as policy_router
+from app.modules.remittance.routes import router as remittance_router
 from app.iot.router import router as iot_router
 from app.agents.coordinator import AgentCoordinator
 
@@ -1636,7 +1640,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(APIKeyMiddleware)
@@ -1719,6 +1723,8 @@ app.include_router(matches_route.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(ai_route.router, prefix="/api")
 app.include_router(ai_assistant_route.router, prefix="/api")
+app.include_router(basketball.router, prefix="/api")
+app.include_router(tennis.router, prefix="/api")
 
 # Auth (JWT)
 app.include_router(auth_router)
@@ -1752,6 +1758,9 @@ app.include_router(did_router)
 app.include_router(identity_router)
 app.include_router(kyc_router)
 app.include_router(network_router)
+app.include_router(elections_router, prefix="/api")
+app.include_router(policy_router, prefix="/api")
+app.include_router(remittance_router, prefix="/api")
 
 # VIT Quant Engine — Phase 2
 from app.modules.quant.routes import router as quant_router
@@ -2133,3 +2142,10 @@ async def serve_spa(full_path: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
+def _sanitize_validation_errors(errors: list) -> list:
+    """Helper to clean up pydantic validation errors for public response."""
+    return [
+        {"loc": e["loc"], "msg": e["msg"], "type": e["type"]}
+        for e in errors
+    ]
