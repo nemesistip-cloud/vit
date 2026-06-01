@@ -88,7 +88,12 @@ async def check_clv_streaks(db: AsyncSession) -> Dict:
 
     for row in rows:
         # Once-per-day guard so faster loop cadences don't inflate the streak.
-        if row.last_clv_check_at and row.last_clv_check_at > cutoff:
+        # Normalise last_clv_check_at to UTC-aware so SQLite (which stores
+        # timezone-naive datetimes) and PostgreSQL both compare correctly.
+        _check_at = row.last_clv_check_at
+        if _check_at is not None and _check_at.tzinfo is None:
+            _check_at = _check_at.replace(tzinfo=_tz.utc)
+        if _check_at and _check_at > cutoff:
             summary["skipped_recent"] += 1
             continue
 
