@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, func
 
 from fastapi.middleware.gzip import GZipMiddleware
-from app.config import get_env, APP_VERSION, print_config_status, ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD
+from app.config import get_env, APP_NAME, APP_VERSION, print_config_status, ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD
 from app.core.errors import AppError, error_response
 from app.db.database import get_db
 import app.db.models
@@ -1600,7 +1600,7 @@ async def _run_bootstrap(app, _done_event):
 # ============================================
 
 app = FastAPI(
-    title="Value Intelligence Trust (VIT)",
+    title=APP_NAME,
     version=APP_VERSION,
     lifespan=lifespan,
 )

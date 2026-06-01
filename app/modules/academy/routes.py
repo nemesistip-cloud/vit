@@ -1,5 +1,5 @@
 """Academic Repository API routes.
-v5.1.0 — Course notes, past questions, and school-specific resources.
+v5.2.0 — Course notes, past questions, and school-specific resources.
 """
 from __future__ import annotations
 
