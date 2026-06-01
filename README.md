@@ -163,7 +163,7 @@ We welcome contributors from all backgrounds. Please see our [Integration Guide]
 For security disclosures, please refer to our internal security team via the [Security Dashboard](frontend/src/pages/security.tsx).
 
 ## 📄 License
-Check individual modules for licensing. A root LICENSE file is pending (See Gap Analysis).
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See the [LICENSE](LICENSE) file for the full license text.
 
 ---
 
