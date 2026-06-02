@@ -423,7 +423,7 @@ class User(Base):
     kyc_status = Column(String(20), default="none")   # none, pending, approved, rejected
     kyc_submitted_at = Column(DateTime(timezone=True), nullable=True)
     kyc_data = Column(JSON, nullable=True)
-        # Academic / Student Identity (v5.1.0)
+        # Academic / Student Identity (v5.2.0)
     university = Column(String(255), nullable=True, index=True)
     faculty = Column(String(255), nullable=True, index=True)
     department = Column(String(255), nullable=True, index=True)

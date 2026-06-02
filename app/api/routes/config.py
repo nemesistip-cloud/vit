@@ -9,6 +9,7 @@ from app.db.database import get_db
 from app.db.models import Match, Prediction, CLVEntry
 from app.modules.wallet.models import PlatformConfig
 from app.api.routes.subscription import PLANS
+from app.config import APP_NAME, APP_VERSION, APP_TAGLINE, APP_SHORT_NAME
 
 router = APIRouter(prefix="/config", tags=["Config"])
 
@@ -150,9 +151,12 @@ async def _build_config(db: AsyncSession) -> Dict[str, Any]:
             "vit_usd":        vit_usd,
         },
         "platform": {
+            "name":              APP_NAME,
+            "short_name":        APP_SHORT_NAME,
+            "tagline":           APP_TAGLINE,
+            "version":           APP_VERSION,
             "welcome_bonus_vit": welcome_bonus_vit,
             "model_count":       model_count,
-            "version":           "5.0.0",
         },
     }
 

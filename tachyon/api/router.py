@@ -5,11 +5,19 @@ import os
 import asyncio
 from tachyon.core.scheduler import TachyonScheduler
 from tachyon.providers.gdrive import GoogleDriveProvider
+from tachyon.providers.onedrive import OneDriveProvider
+from tachyon.providers.dropbox import DropboxProvider
 
 router = APIRouter()
 
 # Global scheduler for the coordination plane
-_providers = [GoogleDriveProvider(f"acc_{i}") for i in range(5)]
+_providers = [
+    GoogleDriveProvider("gdrive_1"),
+    GoogleDriveProvider("gdrive_2"),
+    OneDriveProvider("onedrive_1"),
+    OneDriveProvider("onedrive_2"),
+    DropboxProvider("dropbox_1")
+]
 scheduler = TachyonScheduler(_providers)
 
 # Manifest store
@@ -24,7 +32,8 @@ async def upload_file(file: UploadFile = File(...)):
     results = await scheduler.upload_burst(content, file_id)
 
     num_frags = (len(content) + 4095) // 4096
-    fragment_names = [f"tachyon_{file_id}_{i}" for i in range(num_frags + 1)]
+    parity_shards = scheduler.shredder.parity_shards
+    fragment_names = [f"tachyon_{file_id}_{i}" for i in range(num_frags + parity_shards)]
     mapping = {name: i % len(_providers) for i, name in enumerate(fragment_names)}
 
     manifest = {
@@ -45,7 +54,8 @@ async def download_file(file_id: str):
 
     data = await scheduler.download_burst(
         manifest["fragment_names"],
-        manifest["provider_mapping"]
+        manifest["provider_mapping"],
+        manifest["size_bytes"]
     )
 
     from fastapi.responses import Response

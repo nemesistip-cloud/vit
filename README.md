@@ -1,60 +1,66 @@
-# VIT — Professional Analytics & Prediction Platform
+# VIT Network (v5.2.0)
+### AI Intelligence Oracle & Blockchain Super App
 
-[![Version](https://img.shields.io/badge/Version-5.2.0-blue.svg)](https://github.com/nemesistip-cloud/vit)
-[![Blockchain](https://img.shields.io/badge/Blockchain-Base_L2-emerald.svg)](https://base.org)
-[![AI](https://img.shields.io/badge/AI-13_Model_Ensemble-orange.svg)](app/modules/ai)
-[![Deployment](https://img.shields.io/badge/Deploy-Google_Cloud_Run-4285F4.svg)](https://cloud.google.com/run)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-VIT is a professional analytics platform combining machine learning ensembles, autonomous data agents, and blockchain settlement to deliver verifiable, high-confidence predictions for sports and financial markets.
+VIT Network is an institutional-grade intelligence layer providing verifiable, high-confidence insights across multiple verticals including sports, electoral sentiment, and macroeconomic policy. The ecosystem leverages a 13-model AI ensemble, autonomous agent coordination, and Base L2 blockchain settlement to deliver a transparent and decentralised intelligence marketplace.
 
 ---
 
-## 🚀 Overview
+## 🏗️ System Architecture
 
-- **ML Ensemble**: 13 calibrated models providing multi-layered signal analytics.
-- **Autonomous Agents**: 22 specialized agents for real-time data tracking and validation.
-- **Blockchain Core**: Transparent settlement and identity via Base L2.
-- **GCP Native**: Built for scale on Google Cloud Run and Cloud SQL.
-
----
-
-## 🛠️ Technology Stack
-
-### Backend
-- **Framework**: FastAPI (Python 3.11+)
-- **Database**: PostgreSQL (Production) / SQLite (Dev)
-- **ML**: Scikit-learn, XGBoost, PyTorch
-- **Blockchain**: Web3.py (Base L2)
-
-### Frontend
-- **Framework**: React 19 + Vite 6
-- **Styling**: Tailwind CSS v4
-- **State**: TanStack Query v5
+- **Intelligence Layer**: 13-model ML ensemble (LSTM, XGBoost, Transformers) with autonomous re-weighting.
+- **Agentic Swarm**: 22 specialised agents for live-data ingestion, anomaly detection, and risk assessment.
+- **Financial Rails**: Multi-currency wallet (USD, NGN, USDT, VITCoin) with Paystack and Stripe integration.
+- **Blockchain Layer**: Base L2 (chain_id 8453) for verifiable on-chain credentials, staking, and settlement.
+- **Tachyon Fabric**: Parallelized swarm storage coordination with Reed-Solomon Erasure Coding (EEC).
+- **Frontend SPA**: React 19 + Vite + Tailwind CSS v4 high-performance interface.
 
 ---
 
-## 📦 Quick Start
+## 📦 Core Deliverables
 
-### Setup
+| Product | Status | Functionality |
+|---------|--------|---------------|
+| **Sports Oracle** | ✅ GA | Verifiable match predictions with CLV tracking and model accountability. |
+| **Sentiment Engine** | ✅ Beta | Real-time electoral and policy sentiment analysis using native AI reasoning. |
+| **Marketplace** | ✅ GA | Peer-to-peer intelligence trading with accuracy-based slashing mechanisms. |
+| **Identity (DID)** | ✅ GA | W3C-compliant decentralised identity for verifiable user reputation. |
+| **Tachyon Storage** | ✅ Beta | High-availability multi-cloud swarm storage coordination. |
+| **Remittance** | ✅ Beta | Cross-border financial rails utilizing blockchain liquidity. |
 
+---
+
+## 🛠️ Technical Stack
+
+- **Backend**: Python 3.11+, FastAPI, SQLAlchemy, Alembic.
+- **Database**: PostgreSQL (Production), SQLite (Dev), Redis (Cache/Rate-limiting).
+- **Machine Learning**: PyTorch, Scikit-learn, XGBoost, Statsmodels.
+- **Blockchain**: Web3.py, Viem, Wagmi, WalletConnect (Base L2).
+- **Deployment**: Google Cloud Run, Cloud SQL, Secret Manager, GCS.
+
+---
+
+## 🚀 Deployment & Development
+
+### Local Setup
 ```bash
-# Install dependencies
+git clone https://github.com/nemesistip-cloud/vit.git
 pip install -r requirements.txt
-cd frontend && npm install && cd ..
-
-# Start application
-bash scripts/start_fullstack.sh
+cd frontend && npm install && npm run build
 ```
 
+### Environment Configuration
+The system uses `app/config.py` as the single source of trust for all configuration. Required keys include `JWT_SECRET_KEY`, `DATABASE_URL`, and relevant AI/Payment provider keys.
+
+### Production
+Optimized for **Google Cloud Run**. Deployment is managed via `cloudbuild.yaml` or directly through the GCR console.
+
 ---
 
-## ☁️ Deployment
+## 📈 Roadmap & Deliveries
 
-VIT is optimized for **Google Cloud Platform**. See [DEPLOYMENT_GCP.md](DEPLOYMENT_GCP.md) for detailed instructions on Cloud Run, Cloud Build, and Secret Manager setup.
+- **Current (v5.2.0)**: EEC-upgraded storage, AI-powered election sentiment, and unified ecosystem identity.
+- **Next Phase**: Full Base L2 migration for all treasury operations and expansion into Western & Eastern African corridors.
 
 ---
 
-## 📄 License
-
-MIT — see [LICENSE](LICENSE) for details.
+*VIT Network — Verifiable Intelligence. Universal Trust.*

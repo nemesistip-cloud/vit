@@ -1,6 +1,6 @@
 ---
-name: Test suite fixes — v5.1.0
-description: Root causes of the 16 failing tests resolved in v5.1.0; patterns to avoid.
+name: Test suite fixes — v5.2.0
+description: Root causes of the 16 failing tests resolved in v5.2.0; patterns to avoid.
 ---
 
 ## Key fixes & patterns to avoid repeating

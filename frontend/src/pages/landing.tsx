@@ -201,7 +201,7 @@ export default function LandingPage() {
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/5 rounded-full blur-[120px] -z-10" />
         <div className="max-w-5xl mx-auto text-center">
           <Badge variant="outline" className="mb-6 font-mono py-1.5 px-4 text-[10px] tracking-[0.2em] uppercase border-primary/30 bg-primary/5 text-primary">
-            v5.2.0 — The Analytics App
+            {publicCfg?.platform.version ?? 'v5.2.0'} — The Intelligence Super App
           </Badge>
           <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tight mb-6 leading-[1.1]">
             Professional <br />
@@ -538,7 +538,7 @@ export default function LandingPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 All systems operational
               </span>
-              <span>v5.2.0</span>
+              <span>{publicCfg?.platform.version ?? 'v5.2.0'}</span>
             </div>
           </div>
         </div>

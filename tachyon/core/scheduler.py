@@ -19,8 +19,8 @@ class TachyonScheduler:
         if not self.providers:
             raise ValueError("No providers configured")
 
-        fragments, parity = self.shredder.encode(data)
-        all_fragments = fragments + [parity]
+        fragments, parities = self.shredder.encode(data)
+        all_fragments = fragments + parities
 
         tasks = []
         for i, frag in enumerate(all_fragments):
@@ -32,22 +32,40 @@ class TachyonScheduler:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         return results
 
-    async def download_burst(self, fragment_names: List[str], fragment_to_provider_map: Dict[str, int]) -> bytes:
+    async def download_burst(self, fragment_names: List[str], fragment_to_provider_map: Dict[str, int], size_bytes: int) -> bytes:
         """
-        Burst download: Fetches fragments in parallel and reassembles.
+        Burst download: Fetches fragments in parallel and reassembles with EEC.
         """
         tasks = []
         for name in fragment_names:
-            provider_idx = fragment_to_provider_map[name]
+            provider_idx = fragment_to_provider_map.get(name)
+            if provider_idx is None:
+                continue
             provider = self.providers[provider_idx]
             tasks.append(provider.download_fragment(name))
 
-        fragments = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Simple reassembly (excluding parity for now in this prototype)
-        # In a real EEC implementation, we'd check parity and reconstruct if needed
-        data = b"".join(fragments[:-1]) # Assume last one was parity
-        return data.rstrip(b'\0')
+        processed_fragments = []
+        for res in results:
+            if isinstance(res, Exception):
+                processed_fragments.append(None)
+            else:
+                processed_fragments.append(res)
+
+        if not processed_fragments:
+            return b""
+
+        # In our upgraded burst protocol, the last `parity_shards` fragments are parity
+        num_data_shards = (size_bytes + 4095) // 4096
+        data_fragments = processed_fragments[:num_data_shards]
+        parity_fragments = processed_fragments[num_data_shards:]
+
+        # Ensure parity_fragments is not empty for XOR fallback
+        if not parity_fragments and num_data_shards < len(processed_fragments):
+             parity_fragments = [processed_fragments[num_data_shards]]
+
+        return self.shredder.decode(data_fragments, parity_fragments, size_bytes)
 
 if __name__ == "__main__":
     # Mock Provider for testing
@@ -74,13 +92,25 @@ if __name__ == "__main__":
         print("Starting Burst Upload...")
         await scheduler.upload_burst(test_data, "test_file_001")
 
-        print("\nStarting Burst Download...")
-        fragment_names = ["tachyon_test_file_001_0", "tachyon_test_file_001_1"]
+        print("\nStarting Burst Download (Standard)...")
+        # 1 data shard + 2 parity shards = 3 total
+        fragment_names = [f"tachyon_test_file_001_{i}" for i in range(3)]
         mapping = {name: i % 2 for i, name in enumerate(fragment_names)}
-        recovered = await scheduler.download_burst(fragment_names, mapping)
+        recovered = await scheduler.download_burst(fragment_names, mapping, len(test_data))
 
         print(f"\nRecovered data length: {len(recovered)}")
-        assert recovered.startswith(b"Tachyon Parallel Burst Test")
-        print("Scheduler logic verified.")
+        assert recovered == test_data
+        print("Standard download verified.")
+
+        print("\nStarting Burst Download (with 2 missing fragments - EEC test)...")
+        # Simulate missing fragments by removing them from providers
+        # We have 2 parity shards, so we can lose up to 2 fragments total
+        del p1.storage["tachyon_test_file_001_0"] # Data shard
+        del p2.storage["tachyon_test_file_001_1"] # Parity shard 1
+
+        recovered_eec = await scheduler.download_burst(fragment_names, mapping, len(test_data))
+        print(f"Recovered (EEC) data length: {len(recovered_eec)}")
+        assert recovered_eec == test_data
+        print("EEC (RS) multi-fragment recovery verified.")
 
     asyncio.run(test())

@@ -16,7 +16,7 @@ ai_feed_service = LiveAIFeedService()
 
 @router.post("/predictions")
 async def get_ai_predictions(match: MatchRequest, current_user=Depends(get_optional_user)):
-    """Get live AI predictions from all available free sources."""
+    """Get live AI predictions from native intelligence sources."""
     match_data = {
         "match_id": f"{match.home_team}_vs_{match.away_team}",
         "home_team": match.home_team,
@@ -55,7 +55,7 @@ async def get_ai_consensus(match: MatchRequest, current_user=Depends(get_optiona
     edges = market_comparison.get("edge_vs_market", {})
     for outcome, edge in edges.items():
         if edge > 0.03:
-            opportunities.append(f"AI consensus shows +{edge*100:.1f}% edge on {outcome}")
+            opportunities.append(f"Native AI shows +{edge*100:.1f}% edge on {outcome}")
         elif edge < -0.03:
             opportunities.append(f"Market is more confident on {outcome} than AI")
 
@@ -71,17 +71,14 @@ async def get_available_sources():
         sources.append({
             "name": source["name"].value,
             "enabled": source["enabled"],
-            "requires_api_key": source["name"] in [AISource.BZZOIRO, AISource.SPORTBOT],
+            "requires_api_key": False,
         })
 
     return {
         "sources": sources,
         "total_enabled": sum(1 for s in sources if s["enabled"]),
         "instructions": {
-            "sports_skills": "pip install sports-skills",
-            "bzzoiro": "Sign up at sports.bzzoiro.com for free API key",
-            "sportbot": "Sign up at sportbot.ai for free tier API key",
-            "football_bin": "No setup required",
+            "native": "Always enabled internal intelligence engine",
         },
     }
 

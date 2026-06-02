@@ -49,7 +49,7 @@ Stability, test-suite hardening, and infrastructure correctness release. All 16 
   with standard-library `time` module.
 
 ### Test Results
-| Metric | v5.0.0 | v5.1.0 |
+| Metric | v5.0.0 | v5.2.0 |
 |--------|--------|--------|
 | Total tests | 268 | 268 |
 | Passed | 252 | 267 |

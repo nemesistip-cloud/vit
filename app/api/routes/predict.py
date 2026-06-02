@@ -712,103 +712,39 @@ async def predict(
 
 
 @router.get("/{match_id}/insights")
-async def get_match_insights(
-    match_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Generate AI tactical insights for a specific prediction.
-    Returns {native} format.
-    Falls back to ML-derived synthetic insight when no AI keys are configured.
-    """
-    import os as _os
-    from app.db.models import Match, Prediction
-    pass
-
-    match_row = await db.execute(select(Match).where(Match.id == match_id))
-    match = match_row.scalar_one_or_none()
-    if not match:
-        raise HTTPException(status_code=404, detail="Match not found")
-
-    pred_row = await db.execute(
-        select(Prediction)
-        .where(Prediction.match_id == match_id)
-        .order_by(Prediction.timestamp.desc())
-        .limit(1)
-    )
-    pred = pred_row.scalars().first()
-    if not pred:
-        raise HTTPException(status_code=404, detail="Prediction not found")
-
-    conf = float(pred.confidence) if isinstance(pred.confidence, (int, float)) else 0.5
-    home_p = float(pred.home_prob or 0.33)
-    draw_p = float(pred.draw_prob or 0.33)
-    away_p = float(pred.away_prob or 0.34)
-    edge_val = float(pred.vig_free_edge or 0.0)
-    over25 = float(pred.over_25_prob or 0.0)
-    btts = float(pred.btts_prob or 0.0)
-    bet_side = pred.bet_side or "home"
-
-    gemini_key = ""
-
-    if not gemini_key:
-        # ML ensemble fallback — generate rule-based insight from prediction data
-        probs = {"home": home_p, "draw": draw_p, "away": away_p}
-        leader = max(probs, key=probs.get)
-        leader_prob = probs[leader]
-        side_label = bet_side.upper()
-        synthetic_insight = {
-            "summary": (
-                f"ML ensemble analytics for {match.home_team} vs {match.away_team}. "
-                f"Home win probability: {home_p * 100:.1f}%, "
-                f"Draw: {draw_p * 100:.1f}%, "
-                f"Away: {away_p * 100:.1f}%. "
-                f"The {leader} outcome leads with {leader_prob * 100:.1f}% probability."
-            ),
-            "key_factors": [
-                f"Detected edge: {edge_val * 100:.2f}% above market implied probability",
-                f"Over 2.5 goals probability: {over25 * 100:.1f}%",
-                f"BTTS probability: {btts * 100:.1f}%",
-                "Based on 13-model differentiated statistical ensemble",
-            ],
-            "recommendation": f"Back {side_label} — {edge_val * 100:.2f}% edge detected at {float(pred.entry_odds or 2.0):.2f}",
-            "confidence": conf,
-            "provider": "ml_ensemble",
-        }
-        return {
-            "match_id": match_id,
-            "native": synthetic_insight,
-            "source": "ml_fallback",
-        }
-
-    raw = await generate_match_insights(
-        home_team=match.home_team,
-        away_team=match.away_team,
-        league=match.league or "unknown",
-        home_prob=home_p,
-        draw_prob=draw_p,
-        away_prob=away_p,
-        over_25_prob=pred.over_25_prob,
-        btts_prob=pred.btts_prob,
-        bet_side=bet_side,
-        edge=edge_val,
-        entry_odds=pred.entry_odds,
-        confidence=conf,
-    )
-    db.add(prediction); await db.commit(); await db.refresh(prediction)
-    return build_prediction_response(prediction, db_match, orchestrator, sport=sport, available_markets=available_markets)
 
 @router.get("/{match_id}/insights")
 async def get_match_insights(match_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Generate AI tactical insights for a specific prediction using Native VIT Intelligence.
+    """
+    from app.db.models import Match, Prediction
+    from app.services.deterministic_insights import generate_match_insights
+    from sqlalchemy import desc
+
     m = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
     p = (await db.execute(select(Prediction).where(Prediction.match_id == match_id).order_by(desc(Prediction.timestamp)).limit(1))).scalar_one_or_none()
-    if not m or not p: raise HTTPException(status_code=404, detail="Not found")
 
-    insight = {
-        "summary": f"Native analytics for {m.home_team} vs {m.away_team}. Confidence {p.confidence*100:.1f}%.",
-        "key_factors": [f"Home Win: {p.home_prob*100:.1f}%", f"Edge detected: {p.vig_free_edge*100:.2f}%"],
-        "recommendation": f"Back {p.bet_side} @ {p.entry_odds}",
-        "confidence": float(p.confidence),
-        "provider": "native_ensemble"
+    if not m or not p:
+        raise HTTPException(status_code=404, detail="Match or Prediction not found")
+
+    insight_data = await generate_match_insights(
+        home_team=m.home_team,
+        away_team=m.away_team,
+        league=m.league or "unknown",
+        home_prob=float(p.home_prob or 0.33),
+        draw_prob=float(p.draw_prob or 0.33),
+        away_prob=float(p.away_prob or 0.34),
+        over_25_prob=float(p.over_25_prob or 0),
+        btts_prob=float(p.btts_prob or 0),
+        bet_side=p.bet_side,
+        edge=float(p.vig_free_edge or 0),
+        entry_odds=float(p.entry_odds or 2.0),
+        confidence=float(p.confidence or 0.5),
+    )
+
+    return {
+        "match_id": match_id,
+        "native": insight_data,
+        "source": "native"
     }
-    return {"match_id": match_id, "native": insight, "source": "native"}

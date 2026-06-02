@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, func
 
 from fastapi.middleware.gzip import GZipMiddleware
-from app.config import get_env, APP_VERSION, print_config_status, ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD
+from app.config import get_env, APP_NAME, APP_VERSION, print_config_status, ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD
 from app.core.errors import AppError, error_response
 from app.db.database import get_db
 import app.db.models
@@ -58,7 +58,8 @@ from app.api.routes import (
     config as config_route, training as training_route, analytics as analytics_route,
     odds_compare as odds_route, subscription as subscription_route,
     audit as audit_route, matches as matches_route, ai_assistant as ai_assistant_route,
-    analytics as analytics_route, ai_support as ai_support_route
+    ai_intelligence as ai_intelligence_route, ai_support as ai_support_route,
+    basketball, tennis,
 )
 
 from app.auth.routes import router as auth_router
@@ -78,6 +79,7 @@ from app.api.routes.postbacks import router as postbacks_router
 from app.api.routes.admin_rewards import router as admin_rewards_router
 from app.modules.rewards.routes import router as rewards_router
 from app.modules.marketplace.routes import router as marketplace_router
+from app.modules.marketplace.merchant import router as merchant_router
 from app.modules.trust.routes import router as trust_router
 from app.modules.bridge.routes import router as bridge_router
 from app.modules.developer.routes import router as developer_router
@@ -97,7 +99,11 @@ from app.modules.identity.routes import router as identity_router
 import app.modules.kyc.models
 from app.modules.kyc.routes import router as kyc_router
 from app.modules.network.routes import router as network_router
+from app.modules.elections.routes import router as elections_router
+from app.modules.policy.routes import router as policy_router
+from app.modules.remittance.routes import router as remittance_router
 from app.iot.router import router as iot_router
+from tachyon.api.router import router as tachyon_router
 from app.agents.coordinator import AgentCoordinator
 
 # ===== MIDDLEWARE =====
@@ -122,10 +128,20 @@ logger = logging.getLogger("uvicorn.error")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.core.logging_config import configure_logging
+    from app.core.secrets_loader import load_all_secrets
+
+    # 1. Load secrets from GCP Secret Manager (if available)
+    await load_all_secrets()
+
+    # 2. Configure logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
+
     print_config_status()
     print(f"🚀 VIT Network v{APP_VERSION} starting (NATIVE AI MODE)...")
+
+    # 3. Start background bootstrap
     _bootstrap_task = asyncio.create_task(_run_bootstrap(app, None), name="bootstrap")
+
     yield
     if not _bootstrap_task.done():
         _bootstrap_task.cancel()
@@ -1583,10 +1599,8 @@ async def _run_bootstrap(app, _done_event):
 # APP INIT
 # ============================================
 
-
-
 app = FastAPI(
-    title="VIT",
+    title=APP_NAME,
     version=APP_VERSION,
     lifespan=lifespan,
 )
@@ -1627,7 +1641,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(APIKeyMiddleware)
@@ -1710,11 +1724,14 @@ app.include_router(matches_route.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(ai_route.router, prefix="/api")
 app.include_router(ai_assistant_route.router, prefix="/api")
+app.include_router(basketball.router, prefix="/api")
+app.include_router(tennis.router, prefix="/api")
 
 # Auth (JWT)
 app.include_router(auth_router)
 app.include_router(wallet_router)
 app.include_router(marketplace_router)
+app.include_router(merchant_router)
 app.include_router(blockchain_router)
 app.include_router(oracle_router)
 app.include_router(training_module_router)
@@ -1742,6 +1759,10 @@ app.include_router(did_router)
 app.include_router(identity_router)
 app.include_router(kyc_router)
 app.include_router(network_router)
+app.include_router(elections_router, prefix="/api")
+app.include_router(policy_router, prefix="/api")
+app.include_router(remittance_router, prefix="/api")
+app.include_router(tachyon_router, prefix="/api/tachyon")
 
 # VIT Quant Engine — Phase 2
 from app.modules.quant.routes import router as quant_router
@@ -2091,13 +2112,7 @@ async def health(db: AsyncSession = Depends(get_db)):
         for name, info in _status.items():
             ai_providers[name] = info.get("status", "unknown")
 
-        # F20: Claude/Grok health probe injection (active verification)
-        if ai_providers.get("claude") == "available" and os.getenv("CLAUDE_HEALTH_PROBE") == "true":
-             if await _vp("claude"):
-                 ai_providers["claude"] = "verified"
-        if ai_providers.get("grok") == "available" and os.getenv("GROK_HEALTH_PROBE") == "true":
-             if await _vp("grok"):
-                 ai_providers["grok"] = "verified"
+
     except Exception:
         pass
 
@@ -2123,3 +2138,10 @@ async def serve_spa(full_path: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
+def _sanitize_validation_errors(errors: list) -> list:
+    """Helper to clean up pydantic validation errors for public response."""
+    return [
+        {"loc": e["loc"], "msg": e["msg"], "type": e["type"]}
+        for e in errors
+    ]
