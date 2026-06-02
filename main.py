@@ -125,6 +125,90 @@ from app.core.dependencies import (
 load_dotenv()
 logger = logging.getLogger("uvicorn.error")
 
+
+class BackgroundTaskSupervisor:
+    """Supervises long-running async tasks, restarting them on failure up to max_restarts times."""
+
+    def __init__(
+        self,
+        tasks: list,
+        check_interval: float = 30,
+        max_restarts: int = 5,
+    ):
+        self._task_defs = tasks
+        self._check_interval = check_interval
+        self._max_restarts = max_restarts
+        self._funcs: dict = {name: fn for name, fn in tasks}
+        self._state: dict = {
+            name: {"restarts": 0, "done": False, "task": None}
+            for name, _ in tasks
+        }
+        self._loop_task = None
+
+    def start(self) -> None:
+        loop = asyncio.get_event_loop()
+        for name, fn in self._task_defs:
+            self._state[name]["task"] = loop.create_task(fn(), name=name)
+        self._loop_task = loop.create_task(self._supervision_loop())
+
+    async def _supervision_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self._check_interval)
+            for name, fn in self._task_defs:
+                s = self._state[name]
+                if s["done"]:
+                    continue
+                task = s["task"]
+                if task is not None and task.done():
+                    exc = None
+                    if not task.cancelled():
+                        try:
+                            exc = task.exception()
+                        except Exception:
+                            exc = None
+                    if exc is not None:
+                        if s["restarts"] < self._max_restarts:
+                            s["restarts"] += 1
+                            loop = asyncio.get_event_loop()
+                            s["task"] = loop.create_task(fn(), name=name)
+                            logger.warning(
+                                "Background task %r restarted (attempt %d/%d): %s",
+                                name, s["restarts"], self._max_restarts, exc,
+                            )
+                        else:
+                            s["done"] = True
+                            logger.error(
+                                "Background task %r exhausted %d restarts and will not be restarted.",
+                                name, self._max_restarts,
+                            )
+
+    async def stop(self) -> None:
+        if self._loop_task and not self._loop_task.done():
+            self._loop_task.cancel()
+            try:
+                await self._loop_task
+            except asyncio.CancelledError:
+                pass
+        for s in self._state.values():
+            task = s.get("task")
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+    def snapshot(self) -> dict:
+        return {
+            name: {
+                "restarts": s["restarts"],
+                "done": s["done"],
+                "running": s["task"] is not None and not s["task"].done(),
+            }
+            for name, s in self._state.items()
+        }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.core.logging_config import configure_logging
