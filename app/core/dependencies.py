@@ -1,5 +1,6 @@
 """Dependency injection container for VIT application"""
 
+import logging
 from functools import lru_cache
 from typing import Optional
 
@@ -20,6 +21,8 @@ from app.pipelines.data_loader import DataLoader
 from app.services.alerts import TelegramAlert
 from services.ml_service.models.model_orchestrator import ModelOrchestrator
 
+logger = logging.getLogger(__name__)
+
 
 def _is_production() -> bool:
     """True when running in a Replit deployment (published app)."""
@@ -35,24 +38,25 @@ def get_orchestrator() -> Optional[ModelOrchestrator]:
     ENVIRONMENT=production to force model loading locally.
     """
     if not _is_production():
-        print("ℹ️  Model loading deferred — models load only after publishing (set ENVIRONMENT=production to override)")
+        logger.info(
+            "Model loading deferred — models load only after publishing "
+            "(set ENVIRONMENT=production to override)"
+        )
         try:
             orch = ModelOrchestrator()
-            print("✅ Orchestrator skeleton ready (no models loaded in dev)")
+            logger.info("Orchestrator skeleton ready (no models loaded in dev)")
             return orch
         except Exception as e:
-            print(f"❌ Orchestrator init failed: {e}")
+            logger.error("Orchestrator init failed: %s", e, exc_info=True)
             return None
 
     try:
         orch = ModelOrchestrator()
         orch.load_all_models()
-        print(f"✅ Orchestrator initialized: {orch.num_models_ready()} models")
+        logger.info("Orchestrator initialized: %d models ready", orch.num_models_ready())
         return orch
     except Exception as e:
-        print(f"❌ Orchestrator load failed: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error("Orchestrator load failed: %s", e, exc_info=True)
         return None
 
 
@@ -66,12 +70,14 @@ def get_data_loader() -> Optional[DataLoader]:
             enable_scraping=ENABLE_SCRAPING,
             enable_odds=ENABLE_ODDS,
         )
-        print(f"✅ DataLoader initialized (scraping={loader.enable_scraping}, odds={loader.enable_odds})")
+        logger.info(
+            "DataLoader initialized (scraping=%s, odds=%s)",
+            loader.enable_scraping,
+            loader.enable_odds,
+        )
         return loader
     except Exception as e:
-        print(f"❌ DataLoader init failed: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error("DataLoader init failed: %s", e, exc_info=True)
         return None
 
 

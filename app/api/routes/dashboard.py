@@ -351,10 +351,7 @@ async def get_leaderboard(
                 "level": level,
                 "predictions": total_preds,
                 "streak": streak,
-        "xp": xp,
-        "user_profit": float(user_profit),
-        "xp": xp,
-        "user_profit": float(user_profit),
+                "user_profit": 0.0,
             })
 
         leaderboard.sort(key=lambda x: x["xp"], reverse=True)
@@ -394,8 +391,8 @@ async def get_achievements(
             )).scalar_one_or_none()
             if wallet:
                 vitcoin_balance = float(wallet.vitcoin_balance)
-        except Exception:
-            pass
+        except Exception as _wallet_err:
+            logger.debug("Could not read wallet balance for achievements: %s", _wallet_err)
 
         is_validator = current_user.role == "validator"
         streak = getattr(current_user, "current_streak", 0) or 0

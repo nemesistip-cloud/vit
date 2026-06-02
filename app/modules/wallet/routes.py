@@ -276,6 +276,12 @@ async def initiate_deposit(
         logger.error(f"Failed to record pending deposit transaction for user {current_user.id}: {_tx_err}")
         await db.rollback()
 
+    if not payment_link:
+        logger.warning(
+            "Payment gateway returned no link for ref=%s (user=%s method=%s) — "
+            "using hardcoded fallback. Configure payment gateway credentials to fix.",
+            ref, current_user.id, request.method,
+        )
     fallback_link = payment_link or f"https://paystack.com/pay/vit-sports?ref={ref}"
 
     return {

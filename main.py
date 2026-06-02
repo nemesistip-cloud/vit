@@ -1,4 +1,4 @@
-# main.py — VIT Analytics Platform v5.2.0
+# main.py — VIT Analytics Platform v5.5.0
 # Full Integration: Native AI + Wallet + Blockchain + Training
 
 import asyncio
@@ -2128,12 +2128,23 @@ async def health(db: AsyncSession = Depends(get_db)):
     )
 
 
+@app.get("/system/status", tags=["System"])
+async def system_status():
+    """Lightweight public health/status endpoint — no auth required."""
+    return {"status": "ok", "version": APP_VERSION}
+
+
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(full_path: str):
+    from fastapi.responses import JSONResponse
     dist = os.path.join(os.path.dirname(__file__), "frontend", "dist")
     file_path = os.path.join(dist, full_path)
-    if os.path.isfile(file_path): return FileResponse(file_path)
-    return FileResponse(os.path.join(dist, "index.html"))
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    index_path = os.path.join(dist, "index.html")
+    if not os.path.isfile(index_path):
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    return FileResponse(index_path)
 
 if __name__ == "__main__":
     import uvicorn

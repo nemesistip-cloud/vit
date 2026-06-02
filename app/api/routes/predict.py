@@ -56,7 +56,9 @@ def to_naive_utc(dt_input) -> datetime:
 
 def create_idempotency_key(match: MatchRequest, user_id: Optional[int] = None) -> str:
     odds = match.market_odds or {}
-    odds_sig = {k: round(float(v), 2) for k, v in odds.items() if v}
+    # Use fixed-decimal strings to avoid float JSON-serialisation drift
+    # (e.g. round(2.345, 2) → 2.34 vs 2.35 across platforms).
+    odds_sig = {k: f"{round(float(v), 2):.2f}" for k, v in odds.items() if v}
     kt = match.kickoff_time
     kickoff_bucket = kt.replace(minute=(kt.minute // 30) * 30, second=0, microsecond=0)
     content = {

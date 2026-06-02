@@ -1,4 +1,8 @@
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def validate_features(features: dict) -> bool:
     """
@@ -11,7 +15,7 @@ def validate_features(features: dict) -> bool:
         bool: True if all features are valid, False otherwise.
     """
     if not features:
-        print("Validation failed: Features dictionary is empty.")
+        logger.warning("Validation failed: Features dictionary is empty.")
         return False
 
     validation_rules = {
@@ -31,27 +35,39 @@ def validate_features(features: dict) -> bool:
 
         if value is None:
             if not rules.get("nullable", False):
-                print(f"Validation failed for '{feature_name}': Cannot be null.")
+                logger.warning("Validation failed for '%s': Cannot be null.", feature_name)
                 is_valid = False
             continue
 
         expected_type = rules.get("type")
         if expected_type == "int" and not isinstance(value, int):
-            print(f"Validation failed for '{feature_name}': Expected type {expected_type}, got {type(value).__name__}.")
+            logger.warning(
+                "Validation failed for '%s': Expected type %s, got %s.",
+                feature_name, expected_type, type(value).__name__,
+            )
             is_valid = False
             continue
         if expected_type == "float" and not isinstance(value, (int, float)):
-            print(f"Validation failed for '{feature_name}': Expected type {expected_type}, got {type(value).__name__}.")
+            logger.warning(
+                "Validation failed for '%s': Expected type %s, got %s.",
+                feature_name, expected_type, type(value).__name__,
+            )
             is_valid = False
             continue
 
         min_val = rules.get("min")
         max_val = rules.get("max")
         if min_val is not None and value < min_val:
-            print(f"Validation failed for '{feature_name}': Value {value} is below min {min_val}.")
+            logger.warning(
+                "Validation failed for '%s': Value %s is below min %s.",
+                feature_name, value, min_val,
+            )
             is_valid = False
         if max_val is not None and value > max_val:
-            print(f"Validation failed for '{feature_name}': Value {value} is above max {max_val}.")
+            logger.warning(
+                "Validation failed for '%s': Value %s is above max %s.",
+                feature_name, value, max_val,
+            )
             is_valid = False
 
     return is_valid

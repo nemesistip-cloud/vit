@@ -132,6 +132,8 @@ class APIKeyMiddleware:
             await self.app(scope, receive, send)
             return
 
+        client_ip = request.client.host if request.client else "unknown"
+
         # ── Check JWT Bearer first ──────────────────────────────────────
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
@@ -139,6 +141,10 @@ class APIKeyMiddleware:
             if await _validate_jwt(token):
                 await self.app(scope, receive, send)
                 return
+            logger.warning(
+                "Auth rejected (invalid_token): ip=%s path=%s",
+                client_ip, path,
+            )
             res = error_response(
                 request=request,
                 status_code=401,
@@ -155,6 +161,10 @@ class APIKeyMiddleware:
             if token and await _validate_jwt(token):
                 await self.app(scope, receive, send)
                 return
+            logger.warning(
+                "Auth rejected (no_credentials): ip=%s path=%s",
+                client_ip, path,
+            )
             res = error_response(
                 request=request,
                 status_code=401,
@@ -168,6 +178,10 @@ class APIKeyMiddleware:
         if api_key.startswith("vit_"):
             allowed, reason, _uid, _plan = await _auth_developer_api_key(api_key)
             if not allowed:
+                logger.warning(
+                    "Auth rejected (developer_key_%s): ip=%s path=%s key=%.12s…",
+                    reason, client_ip, path, api_key,
+                )
                 if reason == "insufficient_balance":
                     res = error_response(
                         request=request,
@@ -189,6 +203,10 @@ class APIKeyMiddleware:
 
         # Legacy env-var key
         if api_key != API_KEY:
+            logger.warning(
+                "Auth rejected (invalid_legacy_key): ip=%s path=%s key=%.8s…",
+                client_ip, path, api_key,
+            )
             res = error_response(
                 request=request,
                 status_code=401,

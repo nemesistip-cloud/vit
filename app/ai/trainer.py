@@ -22,6 +22,10 @@ from app.ai.nn_model import MatchOutcomeNN
 from app.data.feature_store import FeatureStore
 from app.data.data_validator import validate_features
 
+import logging as _logging
+logger = _logging.getLogger(__name__)
+
+
 def train_match_outcome_nn(
     feature_store: FeatureStore,
     model_save_path: str = "match_outcome_nn_model.pth",
@@ -32,7 +36,7 @@ def train_match_outcome_nn(
     batch_size: int = 32,
     learning_rate: float = 0.001
 ) -> None:
-    print("Starting MatchOutcomeNN training...")
+    logger.info("Starting MatchOutcomeNN training...")
 
     model = MatchOutcomeNN(input_dim, hidden_dim, output_dim)
     criterion = nn.CrossEntropyLoss()
@@ -77,11 +81,11 @@ def train_match_outcome_nn(
             total_loss += loss.item()
 
         if (epoch + 1) % 10 == 0:
-            print(f"Epoch [{epoch+1}/{epochs}], Loss: {total_loss/len(dataloader):.4f}")
+            logger.info("Epoch [%d/%d], Loss: %.4f", epoch + 1, epochs, total_loss / len(dataloader))
 
     os.makedirs(os.path.dirname(model_save_path) if os.path.dirname(model_save_path) else ".", exist_ok=True)
     torch.save(model.state_dict(), model_save_path)
-    print(f"Model saved to {model_save_path}")
+    logger.info("Model saved to %s", model_save_path)
 
     try:
         import mlflow
@@ -96,9 +100,9 @@ def train_match_outcome_nn(
             dummy_input = torch.randn(1, input_dim)
             signature = infer_signature(dummy_input.numpy(), model(dummy_input).detach().numpy())
             mlflow.pytorch.log_model(pytorch_model=model, artifact_path="model", signature=signature)
-            print("MLflow run logged.")
+            logger.info("MLflow run logged.")
     except ImportError:
-        print("MLflow not installed — skipping experiment tracking.")
+        logger.debug("MLflow not installed — skipping experiment tracking.")
 
 
 if __name__ == '__main__':

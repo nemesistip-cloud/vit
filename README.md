@@ -1,4 +1,4 @@
-# VIT Network (v5.2.0)
+# VIT Network (v5.5.0)
 ### AI Intelligence Oracle & Blockchain Super App
 
 VIT Network is an institutional-grade intelligence layer providing verifiable, high-confidence insights across multiple verticals including sports, electoral sentiment, and macroeconomic policy. The ecosystem leverages a 13-model AI ensemble, autonomous agent coordination, and Base L2 blockchain settlement to deliver a transparent and decentralised intelligence marketplace.

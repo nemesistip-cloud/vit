@@ -148,7 +148,7 @@ def _clean_redis_url(raw: str) -> str:
 # These values are used across the entire ecosystem (API, Email, Frontend, Logs).
 # ══════════════════════════════════════════════════════════════════════════════
 
-APP_VERSION: str    = "5.2.0"
+APP_VERSION: str    = "5.5.0"
 APP_NAME: str       = get_env("APP_NAME",       "VIT Network")
 APP_SHORT_NAME: str = get_env("APP_SHORT_NAME", "VIT")
 APP_TAGLINE: str    = get_env("APP_TAGLINE",    "AI Intelligence & Blockchain Super App")

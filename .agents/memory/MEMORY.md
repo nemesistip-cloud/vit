@@ -1,3 +1,7 @@
 - [Test suite fixes v5.2.0](test-suite-fixes.md) — 8 root causes fixed to get 16 failing tests to 0; key pitfalls to avoid repeating.
 - [Header dedup contract](header-dedup-contract.md) — error_response() must own X-Request-ID headers; middleware must guard before appending.
 - [Security hardening patterns](security-hardening.md) — treasury/merit write routes must use Depends(get_current_admin); get_current_user enforces JWT blocklist; CORS defaults to Cloud Run URL in production.
+- [FeatureFlags caching fix](feature-flags.md) — FeatureFlags had no cache; tests expect caching; fix adds _cache dict + real reset().
+- [SPA fallback RuntimeError](spa-fallback.md) — serve_spa in main.py crashes when frontend/dist/index.html missing; fixed to return 404 JSON.
+- [Test batch OOM limit](test-batching.md) — full pytest suite OOMs the container; run in batches of ≤9 files with --no-cov for reliability.
+- [Google Cloud lazy imports](gcs-lazy-import.md) — gcs_storage.py and gcp_secrets.py must use lazy imports guarded by availability flags or they block the entire app on cold start.

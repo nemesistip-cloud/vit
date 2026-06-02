@@ -137,7 +137,7 @@ async def handle_stripe_checkout_complete(request: Request, db: AsyncSession = D
         logger.info(f"Subscription activated: user={user_id} plan={vit_plan}")
 
     except Exception as e:
-        logger.error(f"Webhook processing error: {e}")
+        logger.error("Stripe checkout webhook error: %s", e, exc_info=True)
         return {"received": True, "error": str(e)}
 
     return {"received": True}
@@ -209,7 +209,7 @@ async def handle_stripe_invoice_paid(request: Request, db: AsyncSession = Depend
         logger.info(f"Subscription renewed: customer={customer_id} until={sub.current_period_end}")
 
     except Exception as e:
-        logger.error(f"Invoice webhook error: {e}")
+        logger.error("Stripe invoice webhook error: %s", e, exc_info=True)
         return {"received": True, "error": str(e)}
 
     return {"received": True}
@@ -270,6 +270,6 @@ async def handle_stripe_subscription_deleted(request: Request, db: AsyncSession 
             logger.info(f"Subscription cancelled: customer={customer_id}")
 
     except Exception as e:
-        logger.error(f"Subscription delete webhook error: {e}")
+        logger.error("Stripe subscription-deleted webhook error: %s", e, exc_info=True)
 
     return {"received": True}
