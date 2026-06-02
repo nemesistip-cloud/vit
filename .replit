@@ -44,7 +44,9 @@ channel = "stable-25_05"
 packages = ["cargo", "freetype", "glibcLocales", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "openssl", "pkg-config", "postgresql", "rustc", "tcl", "tk", "xcodebuild", "xsimd", "zlib"]
 
 [deployment]
-deploymentTarget = "cloudrun"
+deploymentTarget = "vm"
+run = ["bash", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port 5000"]
+build = ["bash", "-c", "cd frontend && npm install --prefer-offline --silent && npm run build"]
 
 [userenv]
 
