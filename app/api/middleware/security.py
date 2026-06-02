@@ -1,4 +1,4 @@
-"""Pure ASGI Security headers middleware — VIT Sports Intelligence Network."""
+"""Pure ASGI Security headers middleware — VIT Sports Analytics Network."""
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 from app.config import ENVIRONMENT

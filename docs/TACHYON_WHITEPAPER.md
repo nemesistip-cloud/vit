@@ -11,7 +11,7 @@ Date: May 2026
 
 ## Abstract
 
-Tachyon Fabric is a decentralized storage protocol that achieves unprecedented data transfer speeds by aggregating millions of idle, user-contributed cloud storage accounts into a massively parallel swarm. By shredding files into 4KB fragments and distributing them across thousands of simultaneous API connections, Tachyon transcends the throttling limits of any single provider, achieving aggregate bandwidth theoretically exceeding 3 Tbps. The protocol employs quantum-inspired erasure coding, a self-farming account aggregation engine, trustless triple-blind execution via Trusted Execution Environments (TEEs), and a multi-dimensional incentive system that rewards contributors with storage credits, speed tier amplifications, and a liquid governance token ($TACHYON). Tachyon Fabric is not merely a storage system; it is a cooperative, self-growing, planet-scale data organism.
+Storage System is a decentralized storage protocol that achieves unprecedented data transfer speeds by aggregating millions of idle, user-contributed cloud storage accounts into a massively parallel swarm. By shredding files into 4KB fragments and distributing them across thousands of simultaneous API connections, Tachyon transcends the throttling limits of any single provider, achieving aggregate bandwidth theoretically exceeding 3 Tbps. The protocol employs quantum-inspired erasure coding, a self-farming account aggregation engine, trustless triple-blind execution via Trusted Execution Environments (TEEs), and a multi-dimensional incentive system that rewards contributors with storage credits, speed tier amplifications, and a liquid governance token ($TACHYON). Storage System is not merely a storage system; it is a cooperative, self-growing, planet-scale data organism.
 
 ---
 
@@ -27,7 +27,7 @@ Simultaneously, billions of gigabytes of cloud storage entitlements lie dormant 
 
 A single TCP stream to a single cloud account is slow. Ten thousand simultaneous streams to ten thousand different accounts are fast. The speed of light is a limit; the number of parallel API sessions is not.
 
-Tachyon Fabric weaponizes this insight. It transforms the world's dormant cloud storage into a cooperative, massively parallel data transfer fabric that is faster than any single storage system ever built, costs nothing to operate, and rewards those who contribute.
+Storage System weaponizes this insight. It transforms the world's dormant cloud storage into a cooperative, massively parallel data transfer fabric that is faster than any single storage system ever built, costs nothing to operate, and rewards those who contribute.
 
 ### 1.3 Design Philosophy
 

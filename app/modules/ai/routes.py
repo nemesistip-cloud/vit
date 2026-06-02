@@ -155,7 +155,7 @@ async def upload_pkl(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Upload a Colab-trained .pkl file for a specific model key.
+    Upload a externally-trained .pkl file for a specific model key.
 
     Versioning behaviour (Apr 2026):
     - Each upload is saved with a version-suffixed filename

@@ -1,7 +1,7 @@
 """app/api/routes/ai_upload.py — Native AI Prediction Upload/Sync.
 
 Replaces the external LLM cascade with the application's native
-intelligence layer for auto-generating match predictions.
+analytics layer for auto-generating match predictions.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def _get_provider_status():
     """Report native provider status."""
     return [{
         "id": "native",
-        "name": "Native VIT Intelligence",
+        "name": "Native VIT Analytics",
         "priority": 1,
         "configured": True,
         "status": "available",
@@ -68,7 +68,7 @@ async def sync_ai_sources(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_optional_user),
 ):
-    """Auto-generate AI predictions using native intelligence signals."""
+    """Auto-generate AI predictions using native analytics signals."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     result = await db.execute(
         select(Match)

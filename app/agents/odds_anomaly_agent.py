@@ -2,7 +2,7 @@
 
 OddsAnomalyAgent — runs every 8 minutes.
 
-VIT Self-Contained Intelligence Enhancement:
+VIT Self-Contained Analytics Enhancement:
   Primary detection now uses ML probability drift from the VIT SCIE engine,
   so the agent fires useful anomaly reports even when no market odds are stored
   on Match records.  Market-odds comparison (opening/closing) is retained as a
@@ -12,7 +12,7 @@ Detection modes
 ---------------
 1. SCIE Probability Drift  — compares the ML ensemble's home/draw/away probs
    between consecutive cycles (threshold: 8 % change in any outcome).
-   Derives synthetic implied odds via vit_intelligence.synthetic_odds().
+   Derives synthetic implied odds via vit_analytics.synthetic_odds().
 2. Market Odds Movement     — uses Match.opening_odds_home / closing_odds_home
    when populated (original behaviour, now secondary).
 
@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 
 from app.agents.base import BaseAgent
 from app.services.ai_client import call_ai
-from app.services.vit_intelligence import detect_probability_drift, synthetic_odds
+from app.services.vit_analytics import detect_probability_drift, synthetic_odds
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ Significant {source_note} detected:
 - Home Win odds: {prev_home:.2f} → {curr_home:.2f} ({direction})
 - Away Win odds: {prev_away:.2f} → {curr_away:.2f}
 
-In 2-3 concise sentences, explain what market intelligence or news event could
+In 2-3 concise sentences, explain what market analytics or news event could
 explain this shift. Consider: injury news, lineup leaks, weather,
 referee assignment, tactical shifts, or sharp money.
 

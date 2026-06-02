@@ -3,7 +3,7 @@ import asyncio
 
 class GoogleDriveProvider(CloudProvider):
     """
-    Simulated Google Drive Provider for Tachyon Fabric.
+    Simulated Google Drive Provider for Storage System.
     """
 
     def __init__(self, account_id: str):

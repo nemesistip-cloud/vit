@@ -1,7 +1,7 @@
 # VIT Blockchain Integration Guide
 
 ## Overview
-VIT Sports Intelligence Network is now the foundation for the VIT Blockchain. This upgrade introduces a monorepo structure with smart contracts (Foundry) and a TypeScript SDK.
+VIT Sports Analytics Network is now the foundation for the VIT Blockchain. This upgrade introduces a monorepo structure with smart contracts (Foundry) and a TypeScript SDK.
 
 ## Core Components
 

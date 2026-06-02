@@ -68,11 +68,12 @@ const BetRoomsPage = lazyRetry(() => import("@/pages/bet-rooms"));
 const WatchlistPage = lazyRetry(() => import("@/pages/watchlist"));
 const StoragePage = lazyRetry(() => import("@/pages/storage"));
 const ProphecyChainPage = lazyRetry(() => import("@/pages/prophecy-chain"));
-const ValueIntelligencePage = lazyRetry(() => import("@/pages/value-intelligence"));
+const ValueAnalyticsPage = lazyRetry(() => import("@/pages/value-analytics"));
 const ElectionsPage = lazyRetry(() => import("@/pages/elections"));
 const PolicyPage = lazyRetry(() => import("@/pages/policy"));
 const RemittancePage = lazyRetry(() => import("@/pages/remittance"));
 const CommunityPage = lazyRetry(() => import("@/pages/community"));
+const TeamsPage = lazyRetry(() => import("@/pages/teams"));
 
 // Simple components
 const InfoPage = lazyRetry(() => import("@/pages/info"));
@@ -159,7 +160,7 @@ function Router() {
         <Layout><ProtectedRoute component={RemittancePage} /></Layout>
       </Route>
       <Route path="/community">
-        <Layout><ProtectedRoute component={CommunityPage} /></Layout>
+        <Layout><ProtectedRoute component={TeamsPage} /></Layout>
       </Route>
       <Route path="/matches">
         <Layout><ProtectedRoute component={MatchesPage} /></Layout>
@@ -314,8 +315,8 @@ function Router() {
       <Route path="/prophecy">
         <Layout><ProtectedRoute component={ProphecyChainPage} /></Layout>
       </Route>
-      <Route path="/value-intelligence">
-        <Layout><ProtectedRoute component={ValueIntelligencePage} /></Layout>
+      <Route path="/value-analytics">
+        <Layout><ProtectedRoute component={ValueAnalyticsPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />

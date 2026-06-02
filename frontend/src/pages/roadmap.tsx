@@ -146,7 +146,7 @@ const PHASES: RoadmapPhase[] = [
     id: "p4",
     phase: 4,
     title: "AI-Native Blockchain",
-    subtitle: "Autonomous agents · Decentralized compute · Institutional AI",
+    subtitle: "Autonomous agents · Decentralized compute · Professional AI",
     status: "vision",
     eta: "2026 → beyond",
     icon: Sparkles,
@@ -155,18 +155,18 @@ const PHASES: RoadmapPhase[] = [
     bgColor: "bg-purple-500/5",
     glowColor: "shadow-purple-500/10",
     techStack: ["Rust", "Python", "Kafka", "WASM", "ZK Proofs", "Federated Learning"],
-    architectureNote: "VIT becomes AI-native infrastructure — not just a blockchain that hosts an AI app, but a chain where the consensus mechanism itself is informed by AI oracle outputs. Validators, agents, and models form a unified intelligence economy.",
+    architectureNote: "VIT becomes AI-native infrastructure — not just a blockchain that hosts an AI app, but a chain where the consensus mechanism itself is informed by AI oracle outputs. Validators, agents, and models form a unified analytics economy.",
     items: [
       { label: "AI subnets: specialized prediction zones with dedicated validators",    status: "vision", icon: Brain },
       { label: "Decentralized AI compute marketplace: GPU rental via VIT staking",     status: "vision", icon: Cpu },
       { label: "Federated ML training: models trained across validator nodes",          status: "vision", icon: BookOpen },
       { label: "Autonomous prediction agents with on-chain execution rights",           status: "vision", icon: Bot },
       { label: "ZK-proof verification of AI model outputs (trustless inference)",      status: "vision", icon: Shield },
-      { label: "Institutional analytics API: hedge fund + sportsbook grade data",      status: "vision", icon: TrendingUp },
+      { label: "Professional analytics API: hedge fund + sportsbook grade data",      status: "vision", icon: TrendingUp },
       { label: "Cross-chain AI oracle network: VIT data available via IBC to all chains", status: "vision", icon: Network },
       { label: "Prediction economy: users stake VIT on agent performance",              status: "vision", icon: Target },
       { label: "AI-weighted consensus: validator rewards scaled by oracle accuracy",    status: "vision", icon: Triangle },
-      { label: "Decentralized intelligence index: on-chain AI performance ledger",     status: "vision", icon: BarChart2 },
+      { label: "Decentralized analytics index: on-chain AI performance ledger",     status: "vision", icon: BarChart2 },
     ],
   },
 ];
@@ -359,11 +359,11 @@ export default function RoadmapPage() {
           <Rocket className="w-3 h-3" /> Ecosystem Roadmap
         </div>
         <h1 className="text-3xl md:text-4xl font-bold text-white">
-          VIT Intelligence Network
+          VIT Analytics Network
         </h1>
         <p className="text-gray-400 max-w-2xl mx-auto text-sm leading-relaxed">
           From AI-native prediction infrastructure to a sovereign Cosmos app-chain.
-          An AI-native blockchain built for intelligence coordination — not just transactions.
+          An AI-native blockchain built for analytics coordination — not just transactions.
         </p>
       </div>
 

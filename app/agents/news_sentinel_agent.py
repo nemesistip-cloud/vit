@@ -11,7 +11,7 @@ Mode A — Scraper (preferred):
 Mode B — VIT SCIE Fallback (no external data required):
   When the scraper returns empty (blocked / rate-limited / no data), falls
   back to querying the internal database for teams with sharp recent form
-  changes and uses AI to generate team-news style intelligence briefs.
+  changes and uses AI to generate team-news style analytics briefs.
   This ensures the agent always produces reports even without live web data.
 
 Free-tier limit protection:
@@ -44,13 +44,13 @@ def _build_news_prompt(team: str, injuries: List[Dict], web_snippets: Optional[L
     web_section = ""
     if web_snippets:
         snippet_text = "\n".join(f"  • {s[:180]}" for s in web_snippets[:3])
-        web_section = f"\n\nReal-time web intelligence (recent search results):\n{snippet_text}"
+        web_section = f"\n\nReal-time web analytics (recent search results):\n{snippet_text}"
     return f"""You are a football injury analyst with access to current web information. Assess the impact of the following absences on {team}.
 
 Current absences for {team}:
 {injury_lines}{web_section}
 
-Use both the injury list and any web intelligence above to produce a thorough assessment.
+Use both the injury list and any web analytics above to produce a thorough assessment.
 
 Return ONLY a JSON object (no markdown fences):
 {{
@@ -66,7 +66,7 @@ Return ONLY a JSON object (no markdown fences):
 def _build_form_news_prompt(team: str, form: Dict, league: str) -> str:
     """SCIE fallback: generate team news from internal form data."""
     return f"""You are a football analyst. Based on the following recent performance data for {team},
-write an intelligence brief as if reporting team news.
+write an analytics brief as if reporting team news.
 
 Team: {team}
 League: {league.replace('_', ' ').title()}
@@ -75,13 +75,13 @@ Avg goals scored: {form['avg_scored']} per game
 Avg goals conceded: {form['avg_conceded']} per game
 
 Imagine plausible reasons for this form (injuries, tactical changes, morale)
-and write a useful intelligence note. Do NOT fabricate specific player names.
+and write a useful analytics note. Do NOT fabricate specific player names.
 
 Return ONLY a JSON object (no markdown fences):
 {{
   "team": "{team}",
   "severity": "LOW|MEDIUM|HIGH|CRITICAL",
-  "summary": "2-sentence form-based intelligence brief",
+  "summary": "2-sentence form-based analytics brief",
   "key_positions_affected": ["general area if applicable"],
   "betting_implication": "1 sentence on betting implication of this form",
   "confidence": 0.0,
@@ -182,8 +182,8 @@ class NewsSentinelAgent(BaseAgent):
         from app.db.database import AsyncSessionLocal
         from app.db.models import AgentInsight
         from app.iot.processor import store_and_broadcast
-        from app.services.vit_intelligence import get_team_form
-        from app.services.sentiment_analysis import analyze_market_sentiment
+        from app.services.vit_analytics import get_team_form
+        from app.services.sentiment_analytics import analyze_market_sentiment
 
         scraper = InjuryScraper()
         try:
@@ -292,7 +292,7 @@ class NewsSentinelAgent(BaseAgent):
                     },
                 )
 
-                # --- Market Sentiment Analysis (Phase 2) ---
+                # --- Market Sentiment Analytics (Phase 2) ---
                 news_texts = [content] + [i.get('injury', '') for i in injuries]
                 # NewsSentinel focuses on single team news, so we map it to home_team for sentiment context
                 sentiment = await analyze_market_sentiment(
@@ -315,7 +315,7 @@ class NewsSentinelAgent(BaseAgent):
             }
 
         # ── Mode B: SCIE DB Fallback ──────────────────────────────────────────
-        logger.info("[news-sentinel] using SCIE DB fallback for team intelligence")
+        logger.info("[news-sentinel] using SCIE DB fallback for team analytics")
 
         async with AsyncSessionLocal() as db:
             notable = await _get_notable_teams_from_db(db, n=MAX_TEAMS_PER_CYCLE * 2)
@@ -381,7 +381,7 @@ class NewsSentinelAgent(BaseAgent):
                     },
                 )
 
-                # --- Market Sentiment Analysis (Phase 2) ---
+                # --- Market Sentiment Analytics (Phase 2) ---
                 sentiment = await analyze_market_sentiment(
                     match_id=0, home_team=team, away_team="Opposition",
                     news_snippets=[content]

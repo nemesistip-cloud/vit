@@ -176,7 +176,7 @@ export default function MatchesPage() {
       {/* ── Header ──────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Intelligence Feed</h1>
+          <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Analytics Feed</h1>
           <p className="text-muted-foreground font-mono text-sm flex items-center gap-2 flex-wrap">
             {statusFilter === "completed"
               ? `${sortedMatches.length} of ${completed.length} completed fixtures`

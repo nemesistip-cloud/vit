@@ -74,7 +74,7 @@ const PROCESSING_STEPS = [
   { label: "Calculating Bayesian Value Edge", icon: TrendingUp },
   { label: "Aggregating Multi-Model Consensus", icon: Brain },
   { label: "Applying Entropy Calibration", icon: ShieldCheck },
-  { label: "Finalizing Intelligence Report", icon: CheckCircle2 }
+  { label: "Finalizing Analytics Report", icon: CheckCircle2 }
 ];
 
 export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
@@ -364,8 +364,8 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
             <div className="bg-primary text-[#0a0a0b] p-2 rounded-2xl shadow-[0_0_20px_rgba(0,255,255,0.4)]">
               <ShieldCheck className="w-8 h-8" />
             </div>
-            <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white mt-2">Intelligence Report</h2>
-            <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Analysis v4.2 Finalized</p>
+            <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white mt-2">Analytics Report</h2>
+            <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Analytics v4.2 Finalized</p>
           </div>
 
           <div className="p-6 space-y-6">
@@ -374,10 +374,10 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               <div className="bg-[#0d0d0e] border border-[#1a1a1c] rounded-2xl p-4 space-y-1">
                 <span className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Signal Rating</span>
                 <p className={`text-xl font-black ${
-                  predictionResult.intelligence_rating === "EXCELLENT" ? "text-primary" :
-                  predictionResult.intelligence_rating === "VERY GOOD" ? "text-green-400" : "text-yellow-400"
+                  predictionResult.analytics_rating === "EXCELLENT" ? "text-primary" :
+                  predictionResult.analytics_rating === "VERY GOOD" ? "text-green-400" : "text-yellow-400"
                 }`}>
-                  {predictionResult.intelligence_rating}
+                  {predictionResult.analytics_rating}
                 </p>
               </div>
               <div className="bg-[#0d0d0e] border border-[#1a1a1c] rounded-2xl p-4 space-y-1">
@@ -450,7 +450,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
             </div>
             <div>
               <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">ML Ensemble v4.2</h2>
-              <p className="text-[9px] text-muted-foreground font-bold uppercase">Strategic Intelligence Suite</p>
+              <p className="text-[9px] text-muted-foreground font-bold uppercase">Strategic Analytics Suite</p>
             </div>
           </div>
           <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] px-2 py-1 rounded-lg animate-pulse">
@@ -483,7 +483,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
             </div>
           </div>
 
-          {/* Market Intelligence Grid */}
+          {/* Market Analytics Grid */}
           <div className="space-y-6">
             {marketGroups.map((group) => (
               <div key={group.id} className="space-y-3">

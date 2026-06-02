@@ -1,6 +1,6 @@
 from app.core.markets import get_markets_for_sport
 # app/api/routes/predict.py
-# VIT Sports Intelligence Network — v2.1.0
+# VIT Sports Analytics Network — v2.1.0
 # Native AI Only version
 
 import hashlib
@@ -91,7 +91,7 @@ def build_prediction_response(prediction: Prediction, match: Match, orchestrator
         models_used=len(prediction.model_insights) if prediction.model_insights else 0,
         models_total=13,
         data_source=data_source, bet_side=prediction.bet_side, entry_odds=prediction.entry_odds, raw_edge=prediction.raw_edge, normalized_edge=prediction.normalized_edge, vig_free_edge=prediction.vig_free_edge,
-        model_weights=prediction.model_weights or {}, model_insights=prediction.model_insights or [], neural_consensus_score=(prediction.consensus_prob * 100), intelligence_rating=rating, prediction_accuracy_estimate=accuracy, data_quality=data_quality
+        model_weights=prediction.model_weights or {}, model_insights=prediction.model_insights or [], neural_consensus_score=(prediction.consensus_prob * 100), analytics_rating=rating, prediction_accuracy_estimate=accuracy, data_quality=data_quality
     )
 
 @router.post("", response_model=PredictionResponse)

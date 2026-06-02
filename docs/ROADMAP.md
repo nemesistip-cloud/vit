@@ -10,9 +10,9 @@
 - [ ] ShopManager.sol deployment for commission tracking.
 - [ ] Offline terminal integration for low-bandwidth environments.
 
-## Phase 3: Electoral & Policy Intelligence (Q1 2026)
+## Phase 3: Electoral & Policy Analytics (Q1 2026)
 - [ ] ElectoralOracle.sol integration for real-time polling.
-- [ ] Citizen sentiment analysis engine.
+- [ ] Citizen sentiment analytics engine.
 - [ ] Policy Simulator v1.0 launch.
 
 ## Phase 4: E-commerce & Remittances (Q2 2026)
@@ -23,4 +23,4 @@
 ## Phase 5: Full Continental Dominance (2027+)
 - [ ] Expansion to Kenya, Ghana, South Africa, and Egypt.
 - [ ] Decentralized ID (DID) for all participants.
-- [ ] $VIT as the standard for verifiable African intelligence.
+- [ ] $VIT as the standard for verifiable African analytics.

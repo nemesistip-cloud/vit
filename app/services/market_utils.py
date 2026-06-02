@@ -1,5 +1,5 @@
 # app/services/market_utils.py
-# VIT Sports Intelligence Network — v2.1.0
+# VIT Sports Analytics Network — v2.1.0
 # Fix: Added odds validation to prevent flat 2.75/2.75/2.75 default
 # Fix: Added estimate_odds_from_position for when API odds unavailable
 # Fix: Added validate_odds_dict helper used by data_loader

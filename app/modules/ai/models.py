@@ -115,7 +115,7 @@ class AIPredictionAudit(Base):
 class AIInsight(Base):
     """
     E5 — Persistent AI Insights
-    Stores multi-provider analysis for matches to avoid re-generation
+    Stores multi-provider analytics for matches to avoid re-generation
     and ensure persistence across deployments.
     """
     __tablename__ = "ai_insights"

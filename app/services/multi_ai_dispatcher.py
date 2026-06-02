@@ -14,7 +14,7 @@ async def run_multi_ai(
     db: AsyncSession,
     sources: List[str] = None,
 ) -> Dict[str, Any]:
-    """Run native intelligence analysis for a match."""
+    """Run native analytics analytics for a match."""
     return {
         "match_id": match_id,
         "results": {
@@ -24,7 +24,7 @@ async def run_multi_ai(
                 "draw_prob": 0.33,
                 "away_prob": 0.33,
                 "confidence": 0.75,
-                "reason": "Native ensemble analysis complete.",
+                "reason": "Native ensemble analytics complete.",
             }
         }
     }

@@ -2,7 +2,7 @@
 """
 Strategy Optimizer Module
 
-Finds optimal betting strategies based on performance analysis.
+Finds optimal betting strategies based on performance analytics.
 """
 
 import pandas as pd

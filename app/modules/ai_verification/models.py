@@ -23,7 +23,7 @@ class VerificationStatus(str, enum.Enum):
 class AttestationKind(str, enum.Enum):
     MATCH_PREDICTION = "match_prediction"
     ACCUMULATOR = "accumulator"
-    INJURY_ANALYSIS = "injury_analysis"
+    INJURY_ANALYSIS = "injury_analytics"
     MARKET_REGIME = "market_regime"
     SENTIMENT = "sentiment"
     ORACLE_CONSENSUS = "oracle_consensus"

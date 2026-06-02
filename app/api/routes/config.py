@@ -210,7 +210,7 @@ async def public_landing(db: AsyncSession = Depends(get_db)):
     except Exception:
         pass
 
-    # Super App Stats
+    # App Stats
     active_agents = 22
     election_signals = 0
     try:
@@ -316,11 +316,11 @@ async def public_landing(db: AsyncSession = Depends(get_db)):
         "ticker": ticker,
         "testimonials": [
             {"user": "Marketplace user #104", "role": "Pro Analyst", "stars": 5,
-             "text": "The VIT Brain ensemble gives me institutional-grade confidence. Truly a Super App."},
+             "text": "The VIT Brain ensemble gives me professional confidence. Truly a App."},
             {"user": "Validator #22", "role": "Validator Node", "stars": 5,
              "text": "Running a validator on the Super Network is seamless. The on-chain transparency is top-notch."},
             {"user": "Amara N.", "role": "Beta Tester", "stars": 4,
-             "text": "The election intelligence signals are a game changer for my research terminal."},
+             "text": "The election analytics signals are a game changer for my research terminal."},
         ],
         "model_consensus": {
             "models": model_list or [

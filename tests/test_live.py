@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Live Test Suite for VIT Sports Intelligence Network
+Live Test Suite for VIT Sports Analytics Network
 Uses admin credentials from .env to verify system health
 """
 
@@ -170,7 +170,7 @@ class VITLiveTest:
         await self.setup()
         
         print("\n" + "="*60)
-        print("VIT Sports Intelligence - Live Test Suite")
+        print("VIT Sports Analytics - Live Test Suite")
         print("="*60 + "\n")
         
         # Run tests in sequence

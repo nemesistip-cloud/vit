@@ -21,6 +21,7 @@ from app.auth.dependencies import get_current_admin
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+from app.api.deps import get_current_admin
 _KEY_REGISTRY = [
     # ── Sports Data ────────────────────────────────────────────────────
     {

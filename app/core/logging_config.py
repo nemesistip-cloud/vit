@@ -1,5 +1,5 @@
 # app/core/logging_config.py
-# Structured JSON logging for VIT Sports Intelligence Network
+# Structured JSON logging for VIT Sports Analytics Network
 # Provides consistent, machine-parseable log output across all environments.
 
 import json

@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from app.core.dependencies import get_orchestrator
 logger = logging.getLogger(__name__)
-async def call_ai(p, **k): return "Native analysis."
-async def call_ai_with_provider(p, **k): return ("Native analysis.", "native")
+async def call_ai(p, **k): return "Native analytics."
+async def call_ai_with_provider(p, **k): return ("Native analytics.", "native")
 async def provider_status():
     orch = get_orchestrator()
     ready = orch.num_models_ready() if orch else 0

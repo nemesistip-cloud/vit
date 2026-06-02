@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VIT Sports Intelligence Network — Training Data Generator
+VIT Sports Analytics Network — Training Data Generator
 ==========================================================
 Generates synthetic but realistic historical football match data for
 model training when real match data is unavailable or insufficient.

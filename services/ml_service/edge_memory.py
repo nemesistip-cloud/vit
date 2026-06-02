@@ -1,5 +1,5 @@
 # services/ml_service/edge_memory.py
-# VIT Sports Intelligence — Edge Memory System
+# VIT Sports Analytics — Edge Memory System
 # Stores profitable betting patterns with ROI tracking + time decay
 # Uses the `edges` table via SQLAlchemy (PostgreSQL or SQLite)
 

@@ -1,4 +1,4 @@
-"""app/agents/analytics_reporter_agent.py — v2: Daily Analytics Intelligence
+"""app/agents/analytics_reporter_agent.py — v2: Daily Analytics Analytics
 
 Runs every 24 hours.  Every day: concise daily brief.  Every Monday: full
 weekly deep-dive.  Both stored as AgentInsight and dispatched to Telegram.
@@ -156,7 +156,7 @@ def _daily_prompt(stats: dict, date_str: str, is_weekly: bool) -> str:
     acc = f"{stats['accuracy_rate']*100:.1f}%" if stats.get("accuracy_rate") is not None else "N/A"
     edge = f"{stats.get('avg_edge',0)*100:.2f}%" if stats.get("avg_edge") is not None else "N/A"
     conf = f"{stats.get('avg_confidence',0)*100:.0f}%" if stats.get("avg_confidence") else "N/A"
-    report_type = "Weekly Performance Deep-Dive" if is_weekly else "Daily Intelligence Brief"
+    report_type = "Weekly Performance Deep-Dive" if is_weekly else "Daily Analytics Brief"
     window = "7 days" if is_weekly else "24 hours"
 
     return (
@@ -188,7 +188,7 @@ def _template_brief(stats: dict, date_str: str, is_weekly: bool) -> str:
     Generate a structured analytics brief from DB metrics alone (no AI required).
 
     Used as a SCIE fallback when all AI providers are unavailable, ensuring
-    the Intelligence Reports page always shows at least one analytics report.
+    the Analytics Reports page always shows at least one analytics report.
     """
     acc = f"{stats['accuracy_rate']*100:.1f}%" if stats.get("accuracy_rate") is not None else "N/A"
     edge = f"{stats.get('avg_edge',0)*100:.2f}%" if stats.get("avg_edge") is not None else "N/A"

@@ -2,7 +2,7 @@
 Module F — Feature Engineering (v2.0)
 Transforms raw MatchContext data into a structured, model-ready feature vector.
 
-v2.0 additions (Phase 1 — Feature Intelligence Upgrade):
+v2.0 additions (Phase 1 — Feature Analytics Upgrade):
   - xG (expected goals) estimated from shot & scoring history
   - Referee statistics (cards, fouls discipline)
   - Rest days since last match (fatigue proxy)

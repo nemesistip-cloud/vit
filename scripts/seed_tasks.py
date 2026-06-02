@@ -164,7 +164,7 @@ TASKS_DATA = [
      "action_url": "/analytics", "action_label": "Open Analytics"},
 
     {"category": "Analytics", "title": "Export Your Prediction History",
-     "description": "Download a full CSV export of your prediction history for analysis.",
+     "description": "Download a full CSV export of your prediction history for analytics.",
      "short_description": "Export history",
      "task_type": TaskType.ONE_TIME.value, "vit_reward": Decimal("50"), "xp_reward": 75,
      "icon": "Download", "color": "cyan",

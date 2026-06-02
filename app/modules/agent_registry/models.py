@@ -24,7 +24,7 @@ class AgentCapability(str, enum.Enum):
     PREDICTION = "prediction"
     ORACLE = "oracle"
     SENTIMENT = "sentiment"
-    RISK_ANALYSIS = "risk_analysis"
+    RISK_ANALYSIS = "risk_analytics"
     GOVERNANCE = "governance"
     TRADING = "trading"
     DATA_PROCESSING = "data_processing"

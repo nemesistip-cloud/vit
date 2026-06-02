@@ -76,7 +76,7 @@ class PredictionResponse(BaseModel):
     confidence: float
     timestamp: datetime
 
-    # Enhanced Intelligence Data
+    # Enhanced Analytics Data
     models_used: int
     models_total: int
     data_source: str
@@ -88,7 +88,7 @@ class PredictionResponse(BaseModel):
     model_weights: Dict[str, Any]
     model_insights: List[ModelInsight]
     neural_consensus_score: float
-    intelligence_rating: str
+    analytics_rating: str
     prediction_accuracy_estimate: float
 
     # v4.10.0 — explicit fallback / data-quality surfacing.

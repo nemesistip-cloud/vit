@@ -155,7 +155,7 @@ async def send_test_notification(
         ntype=NotificationType.SYSTEM,
         context={},
         title="Test Notification",
-        body="This is a test notification from VIT Sports Intelligence Network.",
+        body="This is a test notification from VIT Sports Analytics Network.",
     )
     results["in_app"] = "sent"
 

@@ -43,43 +43,43 @@ const buildFeatures = (modelCount: number) => [
     desc: `Powered by an internal Mistral/Ollama core and VIT Memory (RAG). Every signal is processed through ${modelCount} specialized AI agents with calibrated weights for maximum precision.`,
     color: "text-primary",
     bg: "bg-primary/10 border-primary/20",
-    tag: "CORE INTELLIGENCE",
+    tag: "CORE ANALYTICS",
   },
   {
     icon: Vote,
-    title: "Electoral Intelligence",
-    desc: "Real-time sentiment analysis and outcome prediction for global elections. Leveraging on-chain data and the VIT Nerve orchestrator to detect shifts in public sentiment before they hit the polls.",
+    title: "Elections",
+    desc: "Real-time sentiment analytics and outcome prediction for global elections. Leveraging on-chain data and the VIT Nerve orchestrator to detect shifts in public sentiment before they hit the polls.",
     color: "text-cyan-400",
     bg: "bg-cyan-500/10 border-cyan-500/20",
-    tag: "SUPER APP",
+    tag: "APP",
   },
   {
     icon: Scale,
     title: "Policy & Governance",
-    desc: "Predictive modeling for legislative changes and policy impacts. Our agents monitor global policy shifts to provide high-fidelity intelligence for governance and institutional decision-making.",
+    desc: "Predictive modeling for legislative changes and policy impacts. Our agents monitor global policy shifts to provide high-fidelity analytics for governance and professional decision-making.",
     color: "text-teal-400",
     bg: "bg-teal-500/10 border-teal-500/20",
-    tag: "SUPER APP",
+    tag: "APP",
   },
   {
     icon: Wallet,
     title: "DeFi & Remittance",
-    desc: "Modernizing finance with the VITCoin economy. Low-cost cross-border remittance, staking rewards for validators, and a transparent on-chain treasury for the Super App ecosystem.",
+    desc: "Modernizing finance with the VITCoin economy. Low-cost cross-border remittance, staking rewards for validators, and a transparent on-chain treasury for the App ecosystem.",
     color: "text-secondary",
     bg: "bg-secondary/10 border-secondary/20",
     tag: "FINANCE",
   },
   {
     icon: Shield,
-    title: "Blockchain-Verified Oracle",
-    desc: "All intelligence signals and prediction results are anchored on-chain and verified by a decentralized validator network. Zero manipulation, total transparency.",
+    title: "Blockchain-Verified Analytics",
+    desc: "All analytics signals and prediction results are anchored on-chain and verified by a decentralized validator network. Zero manipulation, total transparency.",
     color: "text-purple-400",
     bg: "bg-purple-500/10 border-purple-500/20",
     tag: "TRUST",
   },
   {
     icon: Network,
-    title: "22-Agent Intelligence Network",
+    title: "22-Agent Network",
     desc: "Live trackers, news sentinels, sentiment crawlers, and anomaly detectors. 22 autonomous agents feed continuous data streams into the VIT Brain to maintain our competitive edge.",
     color: "text-rose-400",
     bg: "bg-rose-500/10 border-rose-500/20",
@@ -88,7 +88,7 @@ const buildFeatures = (modelCount: number) => [
   {
     icon: BarChart2,
     title: "Kelly & Risk Management",
-    desc: "Institutional-grade risk tools for every user. Full Kelly criterion calculator, fractional staking, and automated bankroll management to ensure long-term sustainability.",
+    desc: "Professional risk tools for every user. Full Kelly criterion calculator, fractional staking, and automated bankroll management to ensure long-term sustainability.",
     color: "text-green-400",
     bg: "bg-green-500/10 border-green-500/20",
     tag: "RISK",
@@ -107,7 +107,7 @@ const CAPABILITY_PILLS = [
   { label: "VIT Brain (Mistral/Ollama)", color: "text-primary  border-primary/30  bg-primary/8"  },
   { label: "VIT Memory (RAG)",         color: "text-teal-400 border-teal-400/30 bg-teal-400/8" },
   { label: "22 Live Agents",           color: "text-cyan-400 border-cyan-400/30 bg-cyan-400/8" },
-  { label: "Electoral Oracle",         color: "text-purple-400 border-purple-400/30 bg-purple-400/8" },
+  { label: "Elections",         color: "text-purple-400 border-purple-400/30 bg-purple-400/8" },
   { label: "Policy Sentiment",         color: "text-indigo-400 border-indigo-400/30 bg-indigo-400/8" },
   { label: "VITCoin Economy",          color: "text-green-400 border-green-400/30 bg-green-400/8" },
   { label: "On-Chain Verification",    color: "text-amber-400 border-amber-400/30 bg-amber-400/8" },
@@ -181,7 +181,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <BrandLogo withWordmark size={30} />
           <div className="hidden md:flex items-center gap-8 text-xs font-mono tracking-widest uppercase">
-            <a href="#features" className="hover:text-primary transition-colors">Intelligence</a>
+            <a href="#features" className="hover:text-primary transition-colors">Analytics</a>
             <a href="#ai" className="hover:text-primary transition-colors">VIT Brain</a>
             <a href="#pricing" className="hover:text-primary transition-colors">Pricing</a>
           </div>
@@ -204,11 +204,11 @@ export default function LandingPage() {
             {publicCfg?.platform.version ?? 'v5.2.0'} — The Intelligence Super App
           </Badge>
           <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tight mb-6 leading-[1.1]">
-            Institutional <br />
-            <span className="vit-gradient-text">Intelligence Oracle</span>
+            Professional <br />
+            <span className="vit-gradient-text">Analytics Analytics</span>
           </h1>
           <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-            A decentralised super network providing institutional-grade AI intelligence across sports,
+            A decentralised network providing professional AI analytics across sports,
             elections, finance, and policy. Secured by VIT Blockchain.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -254,9 +254,9 @@ export default function LandingPage() {
       <section id="features" className="py-24 px-4 md:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold font-mono mb-4 tracking-tight">The VIT Network Stack</h2>
+            <h2 className="text-3xl md:text-4xl font-bold font-mono mb-4 tracking-tight">The VIT Stack</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              We've built a multi-layered intelligence ecosystem that combines local AI reasoning
+              We've built a multi-layered analytics ecosystem that combines local AI reasoning
               with blockchain-enforced integrity.
             </p>
           </div>
@@ -302,7 +302,7 @@ export default function LandingPage() {
               Unlike other platforms that rely on centralized LLM APIs, VIT runs an internal,
               private AI stack. Our <strong>VIT Nerve</strong> orchestrator coordinates
               <strong>VIT Brain</strong> (Local Mistral) and <strong>VIT Memory</strong> (Persistent RAG)
-              to ensure your intelligence never leaves the network.
+              to ensure your analytics never leaves the network.
             </p>
             <ul className="space-y-4 mb-10">
               {[
@@ -384,7 +384,7 @@ export default function LandingPage() {
       {/* ── Testimonials ────────────────────────────────── */}
       <section className="py-20 px-4 md:px-8 bg-card/10">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-bold font-mono mb-12">Trusted Intelligence</h2>
+          <h2 className="text-3xl font-bold font-mono mb-12">Trusted Analytics</h2>
           <div className="relative min-h-[160px]">
             {testimonials.length === 0 ? (
               <div className="rounded-xl border border-border bg-card/40 p-8 text-sm font-mono text-muted-foreground">
@@ -427,7 +427,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold font-mono mb-3">Transparent Tiers</h2>
-            <p className="text-muted-foreground">Start free. Upgrade when you are ready to scale your intelligence.</p>
+            <p className="text-muted-foreground">Start free. Upgrade when you are ready to scale your analytics.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {plans.map((plan) => (
@@ -506,7 +506,7 @@ export default function LandingPage() {
             <div className="space-y-3">
               <BrandLogo size={28} withWordmark />
               <p className="text-xs text-muted-foreground max-w-xs leading-relaxed font-mono">
-                Institutional-grade intelligence powered by the VIT Super Network.
+                Unified ecosystem for predictive analytics, policy simulation, and global remittance.
                 Secured by VIT Blockchain and a decentralised validator network.
               </p>
             </div>
@@ -519,7 +519,7 @@ export default function LandingPage() {
               </div>
               <div className="space-y-2">
                 <div className="text-foreground font-bold uppercase tracking-widest text-[10px] mb-3">Product</div>
-                <a href="#features" className="block text-muted-foreground hover:text-primary transition-colors">Intelligence</a>
+                <a href="#features" className="block text-muted-foreground hover:text-primary transition-colors">Analytics</a>
                 <a href="#ai" className="block text-muted-foreground hover:text-primary transition-colors">VIT Brain</a>
                 <a href="#capabilities" className="block text-muted-foreground hover:text-primary transition-colors">Network</a>
               </div>
@@ -532,7 +532,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-border/40 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs font-mono text-muted-foreground/60">
-            <span>© {new Date().getFullYear()} VIT Network. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} VIT. All rights reserved.</span>
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />

@@ -12,7 +12,7 @@ from typing import Optional
 
 
 class DataLoader:
-    """Loads prediction data for analysis."""
+    """Loads prediction data for analytics."""
 
     def __init__(self, data_source: str = 'synthetic'):
         """

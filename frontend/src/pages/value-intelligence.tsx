@@ -36,7 +36,7 @@ interface VITPrediction {
   agreement_pct: number;
   vit_score: number;
   vit_tier: string;
-  vit_components: { value: number; intelligence: number; trust: number; recency?: number };
+  vit_components: { value: number; analytics: number; trust: number; recency?: number };
   has_market_odds: boolean;
   prediction_age_hours: number;
   timestamp: string | null;
@@ -134,7 +134,7 @@ function VITPredictionCard({ p }: { p: VITPrediction }) {
             <div className="font-mono text-[8px] text-muted-foreground uppercase mb-0.5 flex items-center justify-center gap-0.5">
               <Brain className="w-2 h-2 text-blue-400" /> Intel
             </div>
-            <div className="font-mono text-sm font-bold text-blue-400">{p.vit_components.intelligence.toFixed(0)}</div>
+            <div className="font-mono text-sm font-bold text-blue-400">{p.vit_components.analytics.toFixed(0)}</div>
             <div className="font-mono text-[8px] text-muted-foreground">{(p.agreement_pct * 100).toFixed(0)}% agree</div>
           </div>
           <div className="rounded-lg bg-background/40 border border-border/40 px-1.5 py-1.5 text-center">
@@ -189,20 +189,20 @@ function TierStat({ tier, count, total }: { tier: string; count: number; total: 
   );
 }
 
-export default function ValueIntelligencePage() {
+export default function ValueAnalyticsPage() {
   const [minVit, setMinVit] = useState(25);
   const [tierFilter, setTierFilter] = useState("all");
   const [limitFilter, setLimitFilter] = useState("20");
 
   const { data, isLoading, refetch, isFetching } = useQuery<VITFeedResponse>({
-    queryKey: ["value-intelligence", minVit, tierFilter, limitFilter],
+    queryKey: ["value-analytics", minVit, tierFilter, limitFilter],
     queryFn: () => {
       const params = new URLSearchParams({
         min_vit: String(minVit),
         limit: limitFilter,
       });
       if (tierFilter !== "all") params.set("tier", tierFilter);
-      return apiGet<VITFeedResponse>(`/api/quality-feed/value-intelligence?${params}`);
+      return apiGet<VITFeedResponse>(`/api/quality-feed/value-analytics?${params}`);
     },
     refetchInterval: 60_000,
   });

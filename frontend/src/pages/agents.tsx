@@ -46,16 +46,16 @@ const AGENT_META: Record<string, { label: string; category: string; icon: React.
   "weight-optimizer":      { label: "Weight Optimizer",       category: "ML",           icon: <Brain className="w-4 h-4" />,       description: "Auto-tunes ensemble model weights" },
   "retrain-trigger":       { label: "Retrain Trigger",        category: "ML",           icon: <RefreshCw className="w-4 h-4" />,   description: "Kicks off retraining when accuracy dips" },
   "model-promoter":        { label: "Model Auto-Promoter",    category: "ML",           icon: <Zap className="w-4 h-4" />,         description: "Promotes new model versions on stat significance" },
-  "match-scout":           { label: "Match Scout",            category: "Intelligence", icon: <Eye className="w-4 h-4" />,         description: "Generates pre-match intelligence briefs" },
-  "news-sentinel":         { label: "News Sentinel",          category: "Intelligence", icon: <Wifi className="w-4 h-4" />,        description: "Monitors team news and injury feeds" },
-  "odds-anomaly":          { label: "Odds Anomaly Detector",  category: "Intelligence", icon: <AlertTriangle className="w-4 h-4" />, description: "Flags unusual market movements" },
+  "match-scout":           { label: "Match Scout",            category: "Analytics", icon: <Eye className="w-4 h-4" />,         description: "Generates pre-match analytics briefs" },
+  "news-sentinel":         { label: "News Sentinel",          category: "Analytics", icon: <Wifi className="w-4 h-4" />,        description: "Monitors team news and injury feeds" },
+  "odds-anomaly":          { label: "Odds Anomaly Detector",  category: "Analytics", icon: <AlertTriangle className="w-4 h-4" />, description: "Flags unusual market movements" },
   "fixture-gap":           { label: "Fixture Gap Filler",     category: "Data",         icon: <Database className="w-4 h-4" />,    description: "Auto-fills missing fixture data" },
   "kyc-screener":          { label: "KYC Auto-Screener",      category: "Compliance",   icon: <ShieldCheck className="w-4 h-4" />, description: "Vision AI screens identity submissions" },
   "fraud-review":          { label: "Fraud Reviewer",         category: "Compliance",   icon: <ShieldCheck className="w-4 h-4" />, description: "AI risk narrative + auto-resolve fraud flags" },
   "audit-sentinel":        { label: "Audit Sentinel",         category: "Compliance",   icon: <Eye className="w-4 h-4" />,         description: "Nightly audit log monitoring" },
   "prediction-moderator":  { label: "Prediction Moderator",   category: "Quality",      icon: <CheckCircle2 className="w-4 h-4" />, description: "AI quality-gates prediction submissions" },
   "withdrawal-gatekeeper": { label: "Withdrawal Gatekeeper",  category: "Finance",      icon: <DollarSign className="w-4 h-4" />,  description: "Rule cascade auto-approval for withdrawals" },
-  "revenue-optimizer":     { label: "Revenue Optimizer",      category: "Finance",      icon: <DollarSign className="w-4 h-4" />,  description: "Daily revenue analysis and pricing recs" },
+  "revenue-optimizer":     { label: "Revenue Optimizer",      category: "Finance",      icon: <DollarSign className="w-4 h-4" />,  description: "Daily revenue analytics and pricing recs" },
   "accumulator-publisher": { label: "Accumulator Publisher",  category: "Publishing",   icon: <Zap className="w-4 h-4" />,         description: "Auto-publishes best accumulators to Telegram" },
   "analytics-reporter":    { label: "Analytics Reporter",     category: "Reporting",    icon: <BarChart3 className="w-4 h-4" />,   description: "Weekly narrative analytics report" },
   "marketplace-audit":     { label: "Marketplace Auditor",    category: "Platform",     icon: <Settings className="w-4 h-4" />,    description: "Claude code audits marketplace listings" },
@@ -65,7 +65,7 @@ const AGENT_META: Record<string, { label: string; category: string; icon: React.
 
 const CATEGORY_COLORS: Record<string, string> = {
   "ML":             "bg-violet-500/20 text-violet-300 border-violet-500/30",
-  "Intelligence":   "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  "Analytics":   "bg-blue-500/20 text-blue-300 border-blue-500/30",
   "Data":           "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
   "Compliance":     "bg-orange-500/20 text-orange-300 border-orange-500/30",
   "Finance":        "bg-green-500/20 text-green-300 border-green-500/30",
@@ -247,7 +247,7 @@ function AgentCard({ name, snap, onTrigger, triggering }: {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-const CATEGORIES = ["All", "ML", "Intelligence", "Data", "Compliance", "Finance", "Quality", "Publishing", "Reporting", "Platform", "Infrastructure"];
+const CATEGORIES = ["All", "ML", "Analytics", "Data", "Compliance", "Finance", "Quality", "Publishing", "Reporting", "Platform", "Infrastructure"];
 
 export default function AgentsPage() {
   const { isAdmin } = useAuth();

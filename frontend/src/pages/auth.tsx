@@ -203,7 +203,7 @@ export default function AuthPage() {
               VIT<span className="text-primary">_OS</span>
             </h1>
             <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
-              Institutional-grade sports intelligence powered by 13 AI models.
+              Professional sports analytics powered by 13 AI models.
             </p>
             <div className="space-y-3 text-left">
               {FEATURE_ITEMS.map(({ icon: Icon, text }) => (

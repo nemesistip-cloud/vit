@@ -1,5 +1,5 @@
 """app/modules/ai_core/routes.py
-AI Intelligence Core — Atomic Match Model (AMM), Player DNA, Causal Inference.
+AI Analytics Core — Atomic Match Model (AMM), Player DNA, Causal Inference.
 
 All endpoints query the live database (AgentInsight, Prediction, Match) for real
 data. Hardcoded demonstration values have been removed.
@@ -45,7 +45,7 @@ async def get_player_dna(player_id: str, db: AsyncSession = Depends(get_db)):
             "player_id":    player_id,
             "data_points":  0,
             "dna":          None,
-            "note":         "No intelligence data found. DNA is built from agent insight records.",
+            "note":         "No analytics data found. DNA is built from agent insight records.",
             "last_updated": None,
         }
 

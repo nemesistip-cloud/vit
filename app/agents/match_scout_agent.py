@@ -1,4 +1,4 @@
-"""app/agents/match_scout_agent.py — v2: Enhanced Pre-Match & Live Intelligence
+"""app/agents/match_scout_agent.py — v2: Enhanced Pre-Match & Live Analytics
 
 Runs every 10 minutes. Two modes:
   PRE-MATCH  — AI brief for upcoming fixtures (48h window), 5 matches/cycle
@@ -7,7 +7,7 @@ Runs every 10 minutes. Two modes:
 Free-tier limit protection:
   - Max 5 analyses per cycle
   - 2-second pause between AI calls
-  - Scouted ID cache resets daily to allow re-analysis
+  - Scouted ID cache resets daily to allow re-analytics
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.agents.base import BaseAgent
 from app.services.ai_client import call_ai, call_ai_with_provider
-from app.services.vit_intelligence import get_match_context, build_scout_prompt
+from app.services.vit_analytics import get_match_context, build_scout_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ def _pre_match_prompt(home: str, away: str, league: str,
                       home_prob: float, draw_prob: float, away_prob: float,
                       kickoff_iso: str) -> str:
     """Legacy fallback prompt — used only when SCIE context is unavailable."""
-    from app.services.vit_intelligence import synthetic_odds
+    from app.services.vit_analytics import synthetic_odds
     odds = synthetic_odds(home_prob, draw_prob, away_prob)
-    return f"""You are an elite football scout. Write a detailed pre-match intelligence brief.
+    return f"""You are an elite football scout. Write a detailed pre-match analytics brief.
 
 Match: {home} vs {away}
 League: {league.replace("_", " ").title()}
@@ -67,7 +67,7 @@ Return ONLY a JSON object (no markdown fences):
 {{
   "headline": "current match narrative in one sentence",
   "momentum": "HOME|AWAY|BALANCED",
-  "live_analysis": "2-sentence tactical assessment of what's happening",
+  "live_analytics": "2-sentence tactical assessment of what's happening",
   "key_factors": ["observation 1", "observation 2"],
   "in_play_bet": "best current in-play opportunity or NONE",
   "revised_home_prob": 0.0,
@@ -112,7 +112,7 @@ class MatchScoutAgent(BaseAgent):
         now_naive = now.replace(tzinfo=None)
         today = now.strftime("%Y-%m-%d")
 
-        # Reset scouted cache daily for re-analysis
+        # Reset scouted cache daily for re-analytics
         if self._scouted_date != today:
             self._scouted_ids.clear()
             self._scouted_date = today
@@ -230,15 +230,15 @@ class MatchScoutAgent(BaseAgent):
                         confidence=0.5,
                     )
                     content = scie.get("summary") or (
-                        f"VIT SCIE pre-match intelligence for "
+                        f"VIT SCIE pre-match analytics for "
                         f"{match.home_team} vs {match.away_team}: "
-                        f"{scie.get('key_factors', ['Statistical analysis complete'])[0]}. "
+                        f"{scie.get('key_factors', ['Statistical analytics complete'])[0]}. "
                         f"Risk level: {scie.get('risk_level', 'MEDIUM')}. "
                         f"Value assessment: {scie.get('value_assessment', 'Monitor market for value signals.')}."
                     )
                 except Exception:
                     content = (
-                        f"VIT SCIE pre-match intelligence for "
+                        f"VIT SCIE pre-match analytics for "
                         f"{match.home_team} vs {match.away_team}: "
                         f"Statistical baseline applied — historical home advantage priors. "
                         f"Monitor team news and market movement before kickoff."

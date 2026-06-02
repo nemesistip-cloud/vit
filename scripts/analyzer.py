@@ -2,7 +2,7 @@
 """
 Analyzer Module
 
-Provides comprehensive analysis of prediction performance.
+Provides comprehensive analytics of prediction performance.
 """
 
 import pandas as pd

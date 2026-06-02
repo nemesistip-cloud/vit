@@ -1,4 +1,4 @@
-"""app/api/routes/quality_feed.py — Quality Bet Feed + Value Intelligence Feed.
+"""app/api/routes/quality_feed.py — Quality Bet Feed + Value Analytics Feed.
 
 Derives curated high-edge bets and VIT-scored predictions from the DB.
 No global auth dependency — all endpoints are public (no API key required).
@@ -168,15 +168,15 @@ async def curated_bets(
     }
 
 
-@router.get("/value-intelligence")
-async def value_intelligence(
+@router.get("/value-analytics")
+async def value_analytics(
     min_vit: float = Query(0, ge=0),
     tier: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    VIT Value Intelligence Feed.
+    VIT Value Analytics Feed.
 
     Scores every prediction:
       VIT = 0.35*(edge_score) + 0.30*(consensus_score) + 0.25*(confidence) + 0.10*(recency_score)

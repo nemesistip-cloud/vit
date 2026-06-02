@@ -112,7 +112,7 @@ export default function SubscriptionPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Subscription Plans</h1>
-        <p className="text-muted-foreground font-mono text-sm">Unlock the full power of VIT Sports Intelligence.</p>
+        <p className="text-muted-foreground font-mono text-sm">Unlock the full power of VIT Sports Analytics.</p>
       </div>
 
       {upgradedPlan && (

@@ -37,7 +37,7 @@ export const AIInsightComparison: React.FC<AIInsightComparisonProps> = ({ matchI
         <CardHeader className="flex flex-row items-center space-x-3">
           <Sparkles className="h-6 w-6 text-primary" />
           <div>
-            <CardTitle className="text-xl">Native Ensemble Intelligence</CardTitle>
+            <CardTitle className="text-xl">Native Ensemble Analytics</CardTitle>
             <p className="text-sm text-muted-foreground">Blockchain-verified internal model consensus</p>
           </div>
         </CardHeader>
@@ -66,7 +66,7 @@ export const AIInsightComparison: React.FC<AIInsightComparisonProps> = ({ matchI
               </div>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground italic">No native analysis available for this match yet.</p>
+            <p className="text-sm text-muted-foreground italic">No native analytics available for this match yet.</p>
           )}
         </CardContent>
       </Card>

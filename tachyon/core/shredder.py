@@ -127,7 +127,7 @@ class TachyonShredder:
 if __name__ == "__main__":
     # Quick test
     shredder = TachyonShredder()
-    test_data = b"Tachyon Fabric test data " * 200
+    test_data = b"Storage System test data " * 200
     frags, p = shredder.encode(test_data)
     print(f"Fragments: {len(frags)}, Parity Size: {len(p)}")
     assert len(p) == CHUNK_SIZE

@@ -6,7 +6,7 @@ export default function CommunityPage() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Community Circles</h1>
-        <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">Collaborative Intelligence & Social Proof</p>
+        <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">Collaborative Analytics & Social Proof</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

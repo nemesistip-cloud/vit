@@ -90,7 +90,7 @@ function buildContext(match: any, consensus: any): string {
   }
 
   lines.push("");
-  lines.push("Answer the user's question using the figures above. If they ask for predictions, advice, or analysis, ground it in this match's numbers. Keep replies concise and use plain language.");
+  lines.push("Answer the user's question using the figures above. If they ask for predictions, advice, or analytics, ground it in this match's numbers. Keep replies concise and use plain language.");
 
   return lines.join("\n");
 }

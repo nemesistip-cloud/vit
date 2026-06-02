@@ -108,7 +108,7 @@ SUBSCRIPTION_PLANS = [
 TASK_CATEGORIES = [
     {"name": "Prediction", "description": "Tasks related to making and reviewing football predictions", "icon": "target", "color": "blue", "sort_order": 1},
     {"name": "Social", "description": "Community and referral tasks to grow the VIT network", "icon": "users", "color": "green", "sort_order": 2},
-    {"name": "Learning", "description": "Educational tasks to improve your sports intelligence", "icon": "book-open", "color": "purple", "sort_order": 3},
+    {"name": "Learning", "description": "Educational tasks to improve your sports analytics", "icon": "book-open", "color": "purple", "sort_order": 3},
 ]
 
 TASK_DEFINITIONS = [
@@ -150,7 +150,7 @@ TASK_DEFINITIONS = [
     {
         "category_name": "Prediction",
         "title": "Prediction Veteran",
-        "description": "Accumulate 50 total predictions across any matches to prove your dedication to sports intelligence.",
+        "description": "Accumulate 50 total predictions across any matches to prove your dedication to sports analytics.",
         "short_description": "50 total predictions",
         "task_type": TaskType.PROGRESS.value,
         "required_count": 50,
@@ -182,7 +182,7 @@ TASK_DEFINITIONS = [
     {
         "category_name": "Social",
         "title": "Refer a Friend",
-        "description": "Invite a friend to join VIT Sports Intelligence Network using your referral link.",
+        "description": "Invite a friend to join VIT Sports Analytics Network using your referral link.",
         "short_description": "Refer 1 friend",
         "task_type": TaskType.PROGRESS.value,
         "required_count": 1,

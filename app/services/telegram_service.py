@@ -124,7 +124,7 @@ async def send_notification_telegram(
     text = (
         f"{icon} <b>{title}</b>\n\n"
         f"{body}\n\n"
-        f"<i>VIT Sports Intelligence Network</i>"
+        f"<i>VIT Sports Analytics Network</i>"
     )
     return await send_user_message(chat_id, text)
 
@@ -135,7 +135,7 @@ async def send_test_telegram(chat_id: str) -> bool:
         chat_id,
         "🔔 <b>Test Notification — VIT Network</b>\n\n"
         "Your Telegram notifications are working correctly.\n\n"
-        "<i>VIT Sports Intelligence Network</i>",
+        "<i>VIT Sports Analytics Network</i>",
     )
 
 
@@ -181,7 +181,7 @@ async def _cmd_top5(chat_id: str) -> None:
                 f"   📅 {ko}\n"
             )
 
-        await send_user_message(chat_id, "\n".join(lines) + "\n<i>VIT Sports Intelligence</i>")
+        await send_user_message(chat_id, "\n".join(lines) + "\n<i>VIT Sports Analytics</i>")
     except Exception as exc:
         logger.warning("[tg-cmd] top5 error: %s", exc)
         await send_user_message(chat_id, "⚠️ Could not fetch picks right now. Try again shortly.")
@@ -214,7 +214,7 @@ async def _cmd_stats(chat_id: str) -> None:
             f"🎯 <b>Total Predictions:</b> {total_preds:,}\n"
             f"✅ <b>Settled Predictions:</b> {settled_preds:,}\n"
             f"📈 <b>Overall Accuracy:</b> {acc}\n\n"
-            "<i>VIT Sports Intelligence Network</i>"
+            "<i>VIT Sports Analytics Network</i>"
         )
         await send_user_message(chat_id, msg)
     except Exception as exc:
@@ -288,7 +288,7 @@ async def _cmd_predict(chat_id: str, text: str) -> None:
         msg = (
             f"⚽ <b>{match.home_team} vs {match.away_team}</b>\n"
             f"🏆 {match.league or 'League TBD'}  |  📅 {ko}\n\n"
-            f"{rec}\n\n<i>VIT Sports Intelligence Network</i>"
+            f"{rec}\n\n<i>VIT Sports Analytics Network</i>"
         )
         await send_user_message(chat_id, msg)
     except Exception as exc:
@@ -413,7 +413,7 @@ async def process_webhook_update(update: dict) -> Optional[int]:
             "• /stats — Platform performance stats\n"
             "• /predict &lt;team1&gt; vs &lt;team2&gt; — Quick prediction request\n"
             "• /help — Show this message\n\n"
-            "<i>VIT Sports Intelligence Network</i>",
+            "<i>VIT Sports Analytics Network</i>",
         )
         return None
 
@@ -437,7 +437,7 @@ async def process_webhook_update(update: dict) -> Optional[int]:
                 json={
                     "chat_id": chat_id,
                     "text": (
-                        "👋 <b>Welcome to VIT Sports Intelligence!</b>\n\n"
+                        "👋 <b>Welcome to VIT Sports Analytics!</b>\n\n"
                         "The VIT Mini App is now available! Tap the button below to launch it directly in Telegram.\n\n"
                         "To link your external account, visit your notification settings in the VIT web app."
                     ),
@@ -465,6 +465,6 @@ async def process_webhook_update(update: dict) -> Optional[int]:
         chat_id,
         "✅ <b>Telegram linked successfully!</b>\n\n"
         "You'll now receive VIT notifications directly here.\n\n"
-        "<i>VIT Sports Intelligence Network</i>",
+        "<i>VIT Sports Analytics Network</i>",
     )
     return user_id

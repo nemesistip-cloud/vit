@@ -66,6 +66,6 @@ async def predict_tennis(
             )
         ],
         neural_consensus_score=65.0,
-        intelligence_rating="GOOD",
+        analytics_rating="GOOD",
         prediction_accuracy_estimate=0.72
     )

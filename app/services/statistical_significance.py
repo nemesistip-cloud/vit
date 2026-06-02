@@ -60,5 +60,5 @@ class StatisticalSignificance:
             return float('inf')
 
         effect_size = abs(current_mean - target_mean) / current_std
-        # Simplified calculation - would use power analysis in production
+        # Simplified calculation - would use power analytics in production
         return int(np.ceil((1.96 * current_std / effect_size) ** 2))

@@ -117,7 +117,7 @@ export default function AIUploadPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold font-mono">AI Upload</h1>
-          <p className="text-sm text-muted-foreground">Submit external AI model probability estimates for match analysis</p>
+          <p className="text-sm text-muted-foreground">Submit external AI model probability estimates for match analytics</p>
         </div>
       </div>
 
@@ -235,7 +235,7 @@ export default function AIUploadPage() {
             <div className="space-y-1.5">
               <Label className="text-xs font-mono text-muted-foreground">Raw AI Response (optional)</Label>
               <Textarea
-                placeholder="Paste the full AI analysis here…"
+                placeholder="Paste the full AI analytics here…"
                 value={raw}
                 onChange={e => setRaw(e.target.value)}
                 rows={3}

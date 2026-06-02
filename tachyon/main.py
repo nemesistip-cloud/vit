@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from tachyon.api import router as api_router
 
-app = FastAPI(title="Tachyon Fabric Coordination Service", version="1.0.0")
+app = FastAPI(title="Storage System Coordination Service", version="1.0.0")
 
 @app.get("/")
 async def root():

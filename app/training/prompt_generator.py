@@ -44,7 +44,7 @@ def generate_training_prompt(
     )
     models_block = "\n".join(f"  - {m}" for m in models)
 
-    prompt = f"""# VIT Sports Intelligence — AI Training Guide
+    prompt = f"""# VIT Sports Analytics — AI Training Guide
 
 ## Dataset Profile
 - **Records**: {n:,}

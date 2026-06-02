@@ -12,6 +12,8 @@ import {
   Map, Fingerprint, BadgeCheck, Bot, Vault, Star, ShieldAlert, FileCode2,
   ChevronRight, Smartphone, Sword, MessageSquare,
   LineChart, Landmark, Eye, Mic2, Route, ListChecks, PieChart,
+  Users, Zap as ZapIcon, X as XIcon, ChevronRight as ChevronRightIcon,
+  Moon as MoonIcon, Sun as SunIcon, LogOut as LogOutIcon, Menu as MenuIcon
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "./notification-bell";
@@ -19,7 +21,7 @@ import { EcosystemTicker } from "./ecosystem-ticker";
 import { Badge } from "./ui/badge";
 import { BrandLogo } from "@/components/BrandLogo";
 
-type NavItem  = { name: string; href: string; icon: typeof Home };
+type NavItem  = { name: string; href: string; icon: any };
 type NavGroup = { name: string; items: NavItem[] };
 
 const NAV_GROUPS: NavGroup[] = [
@@ -27,8 +29,9 @@ const NAV_GROUPS: NavGroup[] = [
     name: "Bet",
     items: [
       { name: "Dashboard",      href: "/dashboard",          icon: Home },
+      { name: "Project Teams",   href: "/community",          icon: Users },
       { name: "Matches",        href: "/matches",            icon: Activity },
-      { name: "Value Intel",    href: "/value-intelligence", icon: Shield },
+      { name: "Analytics",    href: "/value-analytics", icon: Shield },
       { name: "Predictions",    href: "/predictions",        icon: CheckSquare },
       { name: "Quality Feed",   href: "/quality-feed",       icon: Target },
       { name: "Accumulator",    href: "/accumulator",        icon: Layers },
@@ -43,7 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Wallet",      href: "/wallet",      icon: Coins },
       { name: "Watchlist",   href: "/watchlist",   icon: Eye },
       { name: "Tasks",       href: "/tasks",       icon: ListChecks },
-      { name: "Offers",      href: "/earn",        icon: Zap },
+      { name: "Offers",      href: "/earn",        icon: ZapIcon },
       { name: "Merit",       href: "/merit",       icon: Star },
       { name: "Leaderboard", href: "/leaderboard", icon: Medal },
       { name: "Referral",    href: "/referral",    icon: Gift },
@@ -59,7 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Intel Reports",    href: "/reports",            icon: Radio },
       { name: "Research",         href: "/research",           icon: FlaskConical },
       { name: "Stadium Mode",     href: "/stadium",            icon: Map },
-      { name: "VIT IQ Test",      href: "/iq-test",            icon: Brain },
+      { name: "VIT Analytics Test",      href: "/iq-test",            icon: Brain },
       { name: "Oracle's Mic",     href: "/oracle-mic",         icon: Mic2 },
       { name: "Debate Arena",     href: "/debates",            icon: Sword },
       { name: "Bet Rooms",        href: "/rooms",              icon: MessageSquare },
@@ -71,7 +74,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     name: "Network",
     items: [
-      { name: "VIT Oracle",      href: "/oracle",          icon: DatabaseZap },
+      { name: "VIT Analytics",      href: "/oracle",          icon: DatabaseZap },
       { name: "Node Network",    href: "/network",         icon: Network },
       { name: "Smart Contracts", href: "/smart-contracts", icon: FileCode2 },
       { name: "Treasury",        href: "/treasury",        icon: Vault },
@@ -126,14 +129,15 @@ function UserInitials({ name }: { name: string }) {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { user, logout, hasTier } = useAuth();
   const [location] = useLocation();
+  const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
 
   if (!user) return <>{children}</>;
-  if (isTWA()) return <div className="min-h-screen bg-background p-4 pb-24">{children}</div>;
 
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const hasTier = (t: string) => (user?.subscription_tier ?? "viewer") === t || user?.role === "admin";
   const isAdmin      = user?.role === "admin";
   const canUploadAi  = isAdmin || hasTier("analyst");
   const tierKey      = isAdmin ? "admin" : (user?.subscription_tier ?? "viewer");
@@ -183,7 +187,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     )}
                     <item.icon className={`w-3.5 h-3.5 flex-shrink-0 transition-all ${isActive ? "text-primary" : "group-hover:text-foreground group-hover:scale-105"}`} />
                     <span className="truncate text-xs">{item.name}</span>
-                    {isActive && <ChevronRight className="w-3 h-3 ml-auto opacity-50" />}
+                    {isActive && <ChevronRightIcon className="w-3 h-3 ml-auto opacity-50" />}
                   </span>
                 </Link>
               );
@@ -201,15 +205,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="lg:hidden flex items-center justify-between px-4 py-2.5 border-b border-border/50 sticky top-0 z-40 bg-background">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-primary/20 to-purple-500/20 border border-primary/25">
-            <Zap className="w-3.5 h-3.5 text-primary" />
+            <ZapIcon className="w-3.5 h-3.5 text-primary" />
           </div>
           <span className="font-bold font-mono text-sm tracking-tight">
-            VIT<span className="vit-gradient-text">_OS</span>
+            VIT
           </span>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-8 w-8" aria-label="Toggle theme">
-            {theme === "dark" ? <Sun className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4 text-blue-400" />}
+            {theme === "dark" ? <SunIcon className="w-4 h-4 text-yellow-400" /> : <MoonIcon className="w-4 h-4 text-blue-400" />}
           </Button>
           <NotificationBell />
           <Button
@@ -218,7 +222,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             aria-label="Open menu"
             className="h-8 w-8"
           >
-            <Menu className="w-4 h-4" />
+            <MenuIcon className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -232,15 +236,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center justify-between p-4 border-b border-white/5">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary/25 to-purple-500/25 border border-primary/30 flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-primary" />
+                  <ZapIcon className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <div className="font-bold font-mono text-sm tracking-tight">VIT<span className="text-primary">_OS</span></div>
-                  <div className="text-[9px] font-mono text-muted-foreground/60 tracking-widest uppercase">Sports Intelligence</div>
+                  <div className="font-bold font-mono text-sm tracking-tight">VIT</div>
+                  <div className="text-[9px] font-mono text-muted-foreground/60 tracking-widest uppercase">Analytics</div>
                 </div>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} className="h-8 w-8">
-                <X className="w-4 h-4" />
+                <XIcon className="w-4 h-4" />
               </Button>
             </div>
             <nav className="flex-1 p-3 overflow-y-auto vit-scrollbar">
@@ -254,7 +258,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <div className={`inline-flex items-center rounded px-1 py-0 text-[9px] font-mono border mt-0.5 ${tierBadge.cls}`}>{tierBadge.label}</div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7 flex-shrink-0">
-                  <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
+                  <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground" />
                 </Button>
               </div>
             </div>
@@ -289,11 +293,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex items-center gap-0.5 flex-shrink-0">
               <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-7 w-7" aria-label="Toggle theme">
-                {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-yellow-400/70" /> : <Moon className="w-3.5 h-3.5 text-blue-400/70" />}
+                {theme === "dark" ? <SunIcon className="w-3.5 h-3.5 text-yellow-400/70" /> : <MoonIcon className="w-3.5 h-3.5 text-blue-400/70" />}
               </Button>
               <NotificationBell />
               <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7">
-                <LogOut className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
+                <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
               </Button>
             </div>
           </div>

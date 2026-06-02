@@ -373,7 +373,7 @@ export default function ValidatorsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Validator Network</h1>
-        <p className="text-muted-foreground font-mono text-sm">Decentralized intelligence consensus nodes</p>
+        <p className="text-muted-foreground font-mono text-sm">Decentralized analytics consensus nodes</p>
       </div>
 
       {economy && (

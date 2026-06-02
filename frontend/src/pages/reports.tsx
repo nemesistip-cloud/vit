@@ -367,7 +367,7 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-2xl font-mono font-bold uppercase tracking-tight flex items-center gap-2">
             <Activity className="w-6 h-6 text-primary" />
-            Intelligence Reports
+            Analytics Reports
           </h1>
           <p className="text-sm font-mono text-muted-foreground mt-1">
             Real-time AI agent outputs · auto-refreshes every 30s

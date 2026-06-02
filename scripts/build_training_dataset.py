@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VIT Sports Intelligence Network — Large Dataset Builder
+VIT Sports Analytics Network — Large Dataset Builder
 Merges all available CSVs into one unified historical_matches.json
 for ensemble model training.
 

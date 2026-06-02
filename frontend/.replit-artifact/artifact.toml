@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "VIT Sports Intelligence Network"
+title = "VIT Sports Analytics Network"
 version = "1.0.0"
 id = "artifacts/vit-sports"
 router = "path"

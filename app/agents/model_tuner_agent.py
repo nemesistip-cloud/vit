@@ -25,7 +25,7 @@ class ModelTunerAgent(BaseAgent):
         )
 
     async def run_cycle(self) -> Dict[str, Any]:
-        """Runs the tuning analysis cycle."""
+        """Runs the tuning analytics cycle."""
         # This agent runs once every 24 hours
         last_run = self.state.get("last_run_at")
         if last_run:

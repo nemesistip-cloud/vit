@@ -57,7 +57,7 @@ class ContentHashRegistry(Base):
     registered_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     last_verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
-    # Tachyon Fabric Extensions
+    # Storage System Extensions
     is_tachyon: Mapped[bool] = mapped_column(default=False)
     tachyon_shards: Mapped[Optional[int]] = mapped_column(nullable=True)
     tachyon_parity_shards: Mapped[Optional[int]] = mapped_column(nullable=True)

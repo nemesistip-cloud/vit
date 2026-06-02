@@ -1,4 +1,4 @@
-# $VIT Tokenomics: The Intelligence Fuel
+# $VIT Tokenomics: The Analytics Fuel
 
 ## Utility
 1. **Access**: Pay $VIT for high-confidence premium signals.
