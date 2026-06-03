@@ -5,3 +5,5 @@
 - [SPA fallback RuntimeError](spa-fallback.md) — serve_spa in main.py crashes when frontend/dist/index.html missing; fixed to return 404 JSON.
 - [Test batch OOM limit](test-batching.md) — full pytest suite OOMs the container; run in batches of ≤9 files with --no-cov for reliability.
 - [Google Cloud lazy imports](gcs-lazy-import.md) — gcs_storage.py and gcp_secrets.py must use lazy imports guarded by availability flags or they block the entire app on cold start.
+- [Analytics router double-registration](analytics-router-reg.md) — dynamic import section includes analytics_router without /api prefix; never add a second include_router call for the same object, fix the original instead.
+- [WalletUserSubscription fields](wallet-subscription-fields.md) — WalletUserSubscription uses expires_at + status=="active", NOT end_date/is_active; subscription expiry checks must import from app.modules.wallet.models.

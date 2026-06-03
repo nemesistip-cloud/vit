@@ -371,19 +371,19 @@ class NotificationService:
     async def check_subscription_expiry(db: AsyncSession) -> None:
         """Warn users whose subscription expires within 3 days."""
         try:
-            from app.db.models import UserSubscription
+            from app.modules.wallet.models import WalletUserSubscription
             now = datetime.now(timezone.utc)
             soon = now + timedelta(days=3)
             result = await db.execute(
-                select(UserSubscription).where(
-                    UserSubscription.is_active == True,
-                    UserSubscription.end_date <= soon,
-                    UserSubscription.end_date > now,
+                select(WalletUserSubscription).where(
+                    WalletUserSubscription.status == "active",
+                    WalletUserSubscription.expires_at <= soon,
+                    WalletUserSubscription.expires_at > now,
                 )
             )
             subs = list(result.scalars().all())
             for sub in subs:
-                days_left = max(0, (sub.end_date - now).days)
+                days_left = max(0, (sub.expires_at - now).days)
                 await NotificationService.notify_subscription_expiry(
                     db,
                     user_id=sub.user_id,

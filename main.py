@@ -886,8 +886,16 @@ async def _run_bootstrap(app, _done_event):
             try:
                 from app.db.database import AsyncSessionLocal
                 from app.modules.marketplace.service import seed_system_listings
+                from app.db.models import User as _MktUser
+                from sqlalchemy import select as _mkt_select
                 async with AsyncSessionLocal() as _db:
-                    _seeded = await seed_system_listings(_db, admin_id=1)
+                    _mkt_admin = (await _db.execute(
+                        _mkt_select(_MktUser).where(_MktUser.role == "admin")
+                    )).scalars().first()
+                    _mkt_admin_id = _mkt_admin.id if _mkt_admin else None
+                    if _mkt_admin_id is None:
+                        raise RuntimeError("Admin user not found — skipping marketplace seed")
+                    _seeded = await seed_system_listings(_db, admin_id=_mkt_admin_id)
                     if _seeded:
                         print(f"✅ Marketplace: {_seeded} system model(s) seeded")
                     else:
@@ -1346,7 +1354,9 @@ async def _run_bootstrap(app, _done_event):
                     _admin_user = (await _db.execute(_select(__import__('app.db.models', fromlist=['User']).User).where(
                         __import__('app.db.models', fromlist=['User']).User.role == "admin"
                     ))).scalars().first()
-                    _admin_id = _admin_user.id if _admin_user else 1
+                    _admin_id = _admin_user.id if _admin_user else None
+                    if _admin_id is None:
+                        raise RuntimeError("Admin user not found — skipping gamification seed")
 
                     _existing_cats = (await _db.execute(_select(TaskCategory))).scalars().all()
                     _existing_cat_names = {c.name for c in _existing_cats}
@@ -1524,6 +1534,18 @@ async def _run_bootstrap(app, _done_event):
 
             asyncio.create_task(_register_telegram_webhook())
 
+            from app.data.pipeline import etl_pipeline_loop, odds_refresh_loop
+            from app.core.cache import cache_background_purge_loop
+
+            async def task_reset_loop():
+                """Stub: resets expired pending tasks periodically."""
+                import asyncio
+                while True:
+                    try:
+                        await asyncio.sleep(3600)
+                    except asyncio.CancelledError:
+                        break
+
             supervised_tasks = [
                 ("etl-pipeline", etl_pipeline_loop),
                 ("odds-refresh", odds_refresh_loop),
@@ -1622,6 +1644,65 @@ async def _run_bootstrap(app, _done_event):
                     except Exception as _se:
                         print(f"[fixture-sync] ERROR: {_se}")
                     await asyncio.sleep(3 * 3600)  # every 3 hours
+
+            async def auto_settle_loop():
+                """Auto-settle predictions whose matches have ended."""
+                while True:
+                    try:
+                        from app.services.results_settler import settle_completed_db_matches
+                        _result = await settle_completed_db_matches()
+                        if _result.get("settled", 0):
+                            print(f"[auto-settle] settled {_result['settled']} match(es)")
+                    except Exception as _auto_settle_err:
+                        print(f"[auto-settle] error: {_auto_settle_err}")
+                    await asyncio.sleep(300)
+
+            async def live_match_tracker_loop():
+                """Track live match score updates."""
+                while True:
+                    try:
+                        from app.agents.live_match_tracker_agent import LiveMatchTrackerAgent
+                        _agent = LiveMatchTrackerAgent()
+                        await _agent.run_once()
+                    except Exception as _lmt_err:
+                        pass
+                    await asyncio.sleep(60)
+
+            async def model_accountability_loop():
+                """Periodic model performance accountability check."""
+                while True:
+                    try:
+                        from app.agents.performance_monitor import PerformanceMonitorAgent
+                        _agent = PerformanceMonitorAgent()
+                        await _agent.run_once()
+                    except Exception as _ma_err:
+                        pass
+                    await asyncio.sleep(1800)
+
+            async def vitcoin_pricing_loop():
+                """Update VITCoin price index periodically."""
+                while True:
+                    try:
+                        from app.db.database import AsyncSessionLocal
+                        from app.modules.wallet.scheduler import WalletScheduler
+                        async with AsyncSessionLocal() as _vp_db:
+                            _sched = WalletScheduler(_vp_db)
+                            await _sched.update_vitcoin_price()
+                    except Exception as _vp_err:
+                        pass
+                    await asyncio.sleep(600)
+
+            async def subscription_expiry_loop():
+                """Expire overdue subscriptions."""
+                while True:
+                    try:
+                        from app.db.database import AsyncSessionLocal
+                        from app.modules.notifications.service import NotificationService
+                        async with AsyncSessionLocal() as _exp_db:
+                            await NotificationService.check_subscription_expiry(_exp_db)
+                    except Exception as _exp_err:
+                        pass
+                    await asyncio.sleep(3600)
 
             from app.services.exchange_rate import start_rate_refresh_loop
             tasks = [
@@ -1810,6 +1891,14 @@ app.include_router(ai_route.router, prefix="/api")
 app.include_router(ai_assistant_route.router, prefix="/api")
 app.include_router(basketball.router, prefix="/api")
 app.include_router(tennis.router, prefix="/api")
+app.include_router(config_route.router, prefix="/api")
+app.include_router(subscription_route.router, prefix="/api")
+app.include_router(training_route.router, prefix="/api")
+app.include_router(odds_route.router, prefix="/api")
+app.include_router(audit_route.router, prefix="/api")
+app.include_router(ai_intelligence_route.router)
+app.include_router(ai_support_route.router)
+# Note: analytics_route.router is registered below with /api prefix (dynamic import section)
 
 # Auth (JWT)
 app.include_router(auth_router)
@@ -1862,7 +1951,7 @@ app.include_router(similarity_router)
 
 # Advanced AI Analytics (OpenAI advanced + Grok advanced)
 from app.api.routes.analytics import router as analytics_router
-app.include_router(analytics_router)
+app.include_router(analytics_router, prefix="/api")
 
 # Blockchain Analytics, Auto-Slash, Analytics Disputes
 from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
