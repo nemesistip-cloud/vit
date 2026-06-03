@@ -262,7 +262,7 @@ STRIPE_WEBHOOK_SECRET: str    = get_env("STRIPE_WEBHOOK_SECRET", "")
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.
 REDIS_URL: str             = _clean_redis_url(get_env("REDIS_URL", ""))
 
-DATABASE_URL: str          = get_env("VIT_DATABASE_URL", "") or get_env("DATABASE_URL", "") or "sqlite+aiosqlite:///./vit.db"
+DATABASE_URL: str          = get_env("SUPABASE_DATABASE_URL", "") or get_env("VIT_DATABASE_URL", "") or get_env("DATABASE_URL", "") or "sqlite+aiosqlite:///./vit.db"
 
 # Resend.com — transactional email (welcome, password reset, alerts)
 RESEND_API_KEY: str        = get_env("RESEND_API_KEY", "")
