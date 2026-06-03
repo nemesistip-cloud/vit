@@ -45,7 +45,7 @@ packages = ["cargo", "freetype", "glibcLocales", "lcms2", "libiconv", "libimageq
 
 [deployment]
 deploymentTarget = "vm"
-run = ["bash", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port 5000"]
+run = ["bash", "scripts/start_production.sh"]
 build = ["bash", "-c", "cd frontend && npm install --prefer-offline --silent && npm run build"]
 
 [userenv]

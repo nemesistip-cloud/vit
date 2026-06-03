@@ -55,6 +55,10 @@ if _is_sqlite:
         cursor.execute("PRAGMA temp_store=MEMORY")
         cursor.close()
 else:
+    import ssl as _ssl
+    _ssl_ctx = _ssl.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = _ssl.CERT_NONE
     # Reduced pool sizes for Render Free Tier (25 connection limit)
     engine = create_async_engine(
         DATABASE_URL,
@@ -66,7 +70,7 @@ else:
         pool_timeout=30,
         pool_pre_ping=True,
         pool_use_lifo=True,
-        connect_args={"ssl": True},
+        connect_args={"ssl": _ssl_ctx},
     )
 
 # Session factory

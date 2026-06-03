@@ -262,7 +262,69 @@ STRIPE_WEBHOOK_SECRET: str    = get_env("STRIPE_WEBHOOK_SECRET", "")
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.
 REDIS_URL: str             = _clean_redis_url(get_env("REDIS_URL", ""))
 
-DATABASE_URL: str          = get_env("SUPABASE_DATABASE_URL", "") or get_env("VIT_DATABASE_URL", "") or get_env("DATABASE_URL", "") or "sqlite+aiosqlite:///./vit.db"
+def _resolve_database_url() -> str:
+    """Return the best available database URL.
+
+    If the URL points to a direct Supabase host (db.<ref>.supabase.co) which
+    is unreachable from many hosted environments, automatically rewrite it to
+    the Session Pooler URL (aws-*.pooler.supabase.com) which is IPv4-reachable.
+
+    Handles passwords that contain '@' by splitting on the LAST '@' to find
+    the host, rather than relying on standard URL parsing which breaks on such
+    passwords.
+    """
+    import re
+    raw = (
+        get_env("SUPABASE_DATABASE_URL", "")
+        or get_env("VIT_DATABASE_URL", "")
+        or get_env("DATABASE_URL", "")
+        or "sqlite+aiosqlite:///./vit.db"
+    )
+
+    # Only attempt rewrite for postgresql:// URLs pointing at direct Supabase
+    scheme_match = re.match(r'^(postgresql(?:\+\w+)?://)', raw)
+    if not scheme_match:
+        return raw
+
+    scheme = scheme_match.group(1)
+    after_scheme = raw[len(scheme):]  # everything after "postgresql://"
+
+    # Split on the LAST '@' to correctly separate userinfo from host
+    # (handles passwords that contain '@')
+    if '@' not in after_scheme:
+        return raw
+    userinfo, hostpart = after_scheme.rsplit('@', 1)
+
+    # Check if host is a direct Supabase host: db.<ref>.supabase.co
+    host_match = re.match(r'^db\.([a-z0-9]+)\.supabase\.co(:\d+)?(/\S*)?$', hostpart)
+    if not host_match:
+        return raw  # Not a direct Supabase URL — leave unchanged
+
+    ref = host_match.group(1)
+    port = host_match.group(2) or ":5432"
+    db = host_match.group(3) or "/postgres"
+
+    # Extract user from userinfo (user:password — password may contain ':')
+    if ':' in userinfo:
+        user, password = userinfo.split(':', 1)
+    else:
+        user, password = userinfo, ""
+
+    # URL-encode special characters in password so parsers aren't confused by
+    # characters like '@', ':', '/' that are valid in passwords but break URLs.
+    from urllib.parse import quote as _quote
+    encoded_password = _quote(password, safe="")
+    encoded_user = _quote(f"{user}.{ref}", safe=".")
+
+    # Pooler format: postgres.<ref>:PASS@aws-1-eu-central-1.pooler.supabase.com
+    pooler_host = "aws-1-eu-central-1.pooler.supabase.com"
+    rewritten = f"{scheme}{encoded_user}:{encoded_password}@{pooler_host}{port}{db}"
+    sys.stderr.write(
+        "[INFO] Supabase direct URL auto-rewritten to Session Pooler for IPv4 compatibility.\n"
+    )
+    return rewritten
+
+DATABASE_URL: str          = _resolve_database_url()
 
 # Resend.com — transactional email (welcome, password reset, alerts)
 RESEND_API_KEY: str        = get_env("RESEND_API_KEY", "")
