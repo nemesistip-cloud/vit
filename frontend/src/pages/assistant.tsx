@@ -11,7 +11,6 @@ import {
   type AssistantTurn,
 } from "@/api-client";
 import { toast } from "sonner";
-import {
 
 const SUGGESTED_PROMPTS = [
   "Find upcoming high-value matches.",
@@ -45,12 +44,15 @@ const MODES: { id: Mode; label: string; sublabel: string; free: boolean }[] = [
 export default function AssistantPage() {
   const [input, setInput]     = useState("");
   const [messages, setMessages] = useState<ExtendedAssistantTurn[]>([]);
+  const [mode, setMode]       = useState<Mode>("gemini");
+  const [isPending, setIsPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const status = useAssistantStatus();
   const chat   = useAssistantChat();
 
   const backendReady = status.data?.available ?? false;
+  const isReady = mode === "gemini" ? backendReady : true;
 
   const currentMode = MODES.find((m) => m.id === mode)!;
 
@@ -69,10 +71,13 @@ export default function AssistantPage() {
     setMessages(nextHistory);
     setInput("");
 
+    setIsPending(true);
     if (mode === "claude" || mode === "grok") {
       try {
-        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+        const result = await chat.mutateAsync({ message: trimmed, history: messages.map(m => ({ role: m.role, content: m.content })) }) as any;
+        setMessages((prev) => [...prev, { role: "assistant", content: result.reply, thoughts: result.thoughts }]);
       } catch (e: any) {
+        const msg = e?.message || "Failed to reach the assistant";
         setMessages((prev) => [
           ...prev,
           {
@@ -82,6 +87,7 @@ export default function AssistantPage() {
         ]);
         toast.error(msg);
       } finally {
+        setIsPending(false);
       }
     } else {
       try {
@@ -99,6 +105,8 @@ export default function AssistantPage() {
           },
         ]);
         toast.error(msg);
+      } finally {
+        setIsPending(false);
       }
     }
   }
@@ -189,6 +197,7 @@ export default function AssistantPage() {
           Powered by{" "}
           <span className="text-primary font-semibold">{currentMode.sublabel}</span>
           {currentMode.free
+            ? " · Free · No API key required"
             : " · Backend · Full Tool Calling Support"}
         </span>
       </div>
@@ -259,6 +268,7 @@ export default function AssistantPage() {
                   </p>
                   <p className="font-mono text-xs text-muted-foreground">
                     {currentMode.free
+                      ? "Ask any question — fast, unlimited, no signup required."
                       : "I can now autonomously fetch live matches, analyze system health, and track market trends using platform tools."}
                   </p>
                 </div>
@@ -308,6 +318,7 @@ export default function AssistantPage() {
                   ? `Ask ${currentMode.label} anything about VIT Sports…`
                   : mode === "gemini"
                   ? "Backend AI not configured"
+                  : "Select a mode to begin"
               }
               disabled={!isReady || isPending}
               className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 max-h-32"

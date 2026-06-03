@@ -23,7 +23,7 @@ interface AIInsightComparisonProps {
 export const AIInsightComparison: React.FC<AIInsightComparisonProps> = ({ matchId }) => {
   const { data, isLoading } = useQuery<any>({
     queryKey: ["ai-insights", matchId],
-    queryFn: () => apiGet(\`/api/predict/\${matchId}/insights\`),
+    queryFn: () => apiGet(`/api/predict/${matchId}/insights`),
     enabled: !!matchId,
   });
 

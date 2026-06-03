@@ -68,7 +68,7 @@ const BetRoomsPage = lazyRetry(() => import("@/pages/bet-rooms"));
 const WatchlistPage = lazyRetry(() => import("@/pages/watchlist"));
 const StoragePage = lazyRetry(() => import("@/pages/storage"));
 const ProphecyChainPage = lazyRetry(() => import("@/pages/prophecy-chain"));
-const ValueAnalyticsPage = lazyRetry(() => import("@/pages/value-analytics"));
+const ValueAnalyticsPage = lazyRetry(() => import("@/pages/value-intelligence"));
 const ElectionsPage = lazyRetry(() => import("@/pages/elections"));
 const PolicyPage = lazyRetry(() => import("@/pages/policy"));
 const RemittancePage = lazyRetry(() => import("@/pages/remittance"));

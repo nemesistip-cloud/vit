@@ -3,8 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { Redirect } from "wouter";
-import {
-  MatchAnalytics,
 import { toast } from "sonner";
 import {
   Card,
@@ -80,33 +78,63 @@ interface AISourcePred {
 
 type SlotStatus = "pending" | "running" | "ingesting" | "done" | "failed" | "skipped";
 
+interface MatchAnalytics {
+  home_prob: number;
+  draw_prob: number;
+  away_prob: number;
+  confidence: number;
+  reason: string | null;
+  raw_content: string | null;
+  key_factors?: string[];
+}
+
 interface SlotResult {
   status: SlotStatus;
   analytics: MatchAnalytics | null;
   error?: string;
 }
 
+type MatchResults = Record<string, SlotResult>;
 
+interface AITask {
+  match: AISourceMatch;
+  model: string;
+}
+
+interface ModelConfig {
+  id: string;
+  label: string;
+  model: string;
+  color: string;
+}
+
+const MODELS: ModelConfig[] = [
+  { id: "gemini", label: "Gemini", model: "gemini-2.0-flash", color: "text-blue-400" },
+  { id: "grok", label: "Grok", model: "grok-3-mini", color: "text-purple-400" },
+  { id: "claude", label: "Claude", model: "claude-3-5-haiku", color: "text-amber-400" },
 ];
+
 const DELAY_MS = 3500;
 
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
-
+function AccountStatusWidget() {
+  const { user } = useAuth();
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
+    const ok = !!user;
     setSignedIn(ok);
     if (ok) {
       setUsername(user?.username ?? null);
     } else {
       setUsername(null);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -133,6 +161,7 @@ function sleep(ms: number) {
     <div className="flex items-center gap-2 flex-wrap bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2">
       <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
       {signedIn === null ? (
+        <span className="text-xs text-gray-500">Checking…</span>
       ) : signedIn && username ? (
         <>
           <span className="text-xs text-gray-300">
@@ -199,6 +228,15 @@ function SlotBadge({ status }: { status: SlotStatus }) {
 
 // ─── Probability Bar ──────────────────────────────────────────────────────────
 
+function ProbBar({ home, draw, away }: { home: number; draw: number; away: number }) {
+  return (
+    <div className="flex rounded overflow-hidden h-2 w-full mt-1">
+      <div className="bg-emerald-500" style={{ width: `${home * 100}%` }} title={`Home ${fmtPct(home)}`} />
+      <div className="bg-gray-500"   style={{ width: `${draw * 100}%` }} title={`Draw ${fmtPct(draw)}`} />
+      <div className="bg-rose-500"   style={{ width: `${away * 100}%` }} title={`Away ${fmtPct(away)}`} />
+    </div>
+  );
+}
 
 // ─── Quantum Shard Visualization ──────────────────────────────────────────
 
@@ -206,6 +244,7 @@ function QuantumShardMonitor({
   tasks,
   results
 }: {
+  tasks: AITask[];
   results: Map<number, MatchResults>
 }) {
   const activeShards = tasks.filter(t => {
@@ -252,6 +291,7 @@ function MatchCard({
 }: {
   match: AISourceMatch;
   results: MatchResults;
+  activeModels: string[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const anyRunning = activeModels.some(
@@ -798,6 +838,11 @@ export default function AISourcesPage() {
 
   const matches = matchesQ.data?.matches ?? [];
 
+  const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set(MODELS.map(m => m.id)));
+  const [activeTasks, setActiveTasks] = useState<AITask[]>([]);
+  const activeModels = MODELS.filter(m => selectedModels.has(m.id)).map(m => m.id);
+
+  const updateSlot = (matchId: number, model: string, patch: Partial<SlotResult>) => {
     setResults((prev) => {
       const next = new Map(prev);
       const existing = next.get(matchId) ?? {};
@@ -811,14 +856,13 @@ export default function AISourcesPage() {
 
   const runAgents = useCallback(async () => {
     if (!matches.length) { toast.error("No matches loaded yet"); return; }
-      return;
-    }
     if (activeModels.length === 0) { toast.error("Select at least one AI model"); return; }
 
     shouldStop.current = false;
     setAgentStatus("running");
     setResults(new Map());
 
+    const allTasks: AITask[] = [];
     matches.forEach(m => {
       activeModels.forEach(mod => {
         allTasks.push({ match: m, model: mod });
@@ -832,17 +876,20 @@ export default function AISourcesPage() {
     const limit = quantumMode ? concurrency : 1;
     const taskQueue = [...allTasks];
 
+    const executeTask = async (task: AITask) => {
       if (shouldStop.current) return;
       const { match, model } = task;
 
       updateSlot(match.id, model, { status: "running", analytics: null });
       try {
-          match.home_team,
-          match.away_team,
-          match.league ?? "Unknown League",
-          0.34, 0.33, 0.33,
-          model
-        );
+        const result = await apiPost<MatchAnalytics>("/api/admin/ai-sources/analyze", {
+          match_id: match.id,
+          home_team: match.home_team,
+          away_team: match.away_team,
+          league: match.league ?? "Unknown League",
+          model,
+        });
+        const analytics = result ?? { home_prob: 0.34, draw_prob: 0.33, away_prob: 0.33, confidence: 0.5, reason: null, raw_content: null };
 
         if (shouldStop.current) return;
         updateSlot(match.id, model, { status: "ingesting", analytics });
@@ -899,12 +946,14 @@ export default function AISourcesPage() {
     } else {
       toast.success(`Quantum Sourcing Complete - ${completed} tasks processed`);
     }
+  }, [matches, activeModels, quantumMode, concurrency]);
 
   const stopAgents = () => {
     shouldStop.current = true;
     toast.info("Stopping Quantum shards…");
   };
 
+  const toggleModel = (m: string) => {
     setSelectedModels((prev) => {
       const next = new Set(prev);
       if (next.has(m)) next.delete(m);
@@ -1046,8 +1095,10 @@ export default function AISourcesPage() {
               </div>
             </div>
 
+            {quantumMode && (
               <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded p-2.5 text-xs text-amber-300">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Quantum mode enabled — multiple AI shards process matches in parallel.</span>
               </div>
             )}
 
