@@ -196,7 +196,7 @@ export default function TasksPage() {
       queryClient.invalidateQueries({ queryKey: ["user-task-stats"] });
 
       if (data.is_completed) {
-        toast.success(`Task completed! Earned ${data.vit_earned} VIT and ${data.xp_earned} XP!`, {
+        toast.success(`Task completed! Earned ${data.vit_earned} VIT and ${data.xp_earned} Intelligence Points!`, {
           icon: <Trophy className="h-4 w-4" />,
         });
       } else {
@@ -289,9 +289,9 @@ export default function TasksPage() {
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Tasks</h1>
+        <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Tasks</h1>
         <p className="text-muted-foreground">
-          Complete tasks to earn VIT rewards and XP. Build your reputation and unlock new features.
+          Complete tasks to earn VIT rewards and Intelligence Points. Build your reputation and unlock new features.
         </p>
       </div>
 
@@ -300,14 +300,14 @@ export default function TasksPage() {
         {[
           { label: "Completed",  value: userStats?.total_completions ?? 0,                       icon: CheckCircle, tint: "text-emerald-400", bg: "bg-emerald-500/10", ring: "border-emerald-500/30" },
           { label: "VIT Earned", value: (userStats?.total_vit_earned ?? 0).toFixed(2),           icon: Zap,         tint: "text-yellow-400",  bg: "bg-yellow-500/10",  ring: "border-yellow-500/30" },
-          { label: "XP Earned",  value: userStats?.total_xp_earned ?? 0,                         icon: Trophy,      tint: "text-blue-400",    bg: "bg-blue-500/10",    ring: "border-blue-500/30" },
+          { label: "Intelligence Points Earned",  value: userStats?.total_xp_earned ?? 0,                         icon: Trophy,      tint: "text-blue-400",    bg: "bg-blue-500/10",    ring: "border-blue-500/30" },
           { label: "Attempted",  value: userStats?.total_tasks_attempted ?? 0,                   icon: Target,      tint: "text-cyan-400",    bg: "bg-cyan-500/10",    ring: "border-cyan-500/30" },
         ].map((kpi) => (
           <Card key={kpi.label} className={`${kpi.ring} transition-colors`}>
             <CardContent className="p-4 flex items-center justify-between">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono truncate">{kpi.label}</div>
-                <div className={`text-3xl font-bold mt-1 ${kpi.tint} font-mono tabular-nums`}>{kpi.value}</div>
+                <div className={`text-2xl font-bold font-mono tracking-tight text-foreground mt-1 ${kpi.tint} font-mono tabular-nums`}>{kpi.value}</div>
               </div>
               <div className={`p-2.5 rounded-lg ${kpi.bg}`}>
                 <kpi.icon className={`w-5 h-5 ${kpi.tint}`} />
@@ -398,7 +398,7 @@ export default function TasksPage() {
                       {task.xp_reward > 0 && (
                         <div className="flex items-center gap-1">
                           <Trophy className="h-4 w-4 text-blue-500" />
-                          <span className="font-medium">{task.xp_reward} XP</span>
+                          <span className="font-medium">{task.xp_reward} Intelligence Points</span>
                         </div>
                       )}
                     </div>
@@ -490,7 +490,7 @@ export default function TasksPage() {
                       {task.xp_reward > 0 && (
                         <div className="flex items-center gap-1">
                           <Trophy className="h-4 w-4 text-blue-500" />
-                          <span className="font-medium">{task.xp_reward} XP</span>
+                          <span className="font-medium">{task.xp_reward} Intelligence Points</span>
                         </div>
                       )}
                     </div>

@@ -101,7 +101,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
         </div>
         <div>
           <h3 className="text-lg font-mono font-bold text-foreground mb-1">
-            {this.state.isChunkError ? "Update Available" : "Something went wrong"}
+            {this.state.isChunkError ? "Update Available" : "Operation failed. Check your connection and retry."}
           </h3>
           <p className="text-sm text-muted-foreground font-mono max-w-sm">
             {this.state.isChunkError

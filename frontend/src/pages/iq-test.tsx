@@ -104,7 +104,7 @@ export default function IQTestPage() {
           <div className="w-20 h-20 bg-purple-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
             <Brain className="w-10 h-10 text-purple-400" />
           </div>
-          <CardTitle className="text-3xl font-bold">VIT IQ Test</CardTitle>
+          <CardTitle className="text-3xl font-bold">VIT Intelligence Assessment</CardTitle>
           <CardDescription className="mt-4 text-lg text-zinc-400">
             Assess your sports prediction aptitude. Wordle meets Mensa.
           </CardDescription>

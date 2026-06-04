@@ -74,14 +74,14 @@ export default function ReferralPage() {
     navigator.clipboard.writeText(myCode.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success("Code copied!");
+    toast.success("Address copied to clipboard to clipboard");
   };
 
   const shareLink = () => {
     if (!myCode) return;
     const url = `${window.location.origin}${myCode.share_url}`;
     navigator.clipboard.writeText(url);
-    toast.success("Share link copied!");
+    toast.success("Address copied to clipboard");
   };
 
   if (codeError) {
@@ -90,7 +90,7 @@ export default function ReferralPage() {
         <Card className="border-border/50">
           <CardContent className="py-10 text-center space-y-3">
             <Gift className="w-10 h-10 text-muted-foreground mx-auto" />
-            <h1 className="text-xl font-bold font-mono tracking-tight">Referral Program Disabled</h1>
+            <h1 className="text-xl font-bold font-mono tracking-tight">Network Referral Disabled</h1>
             <p className="text-sm text-muted-foreground font-mono">
               {(referralError as Error)?.message ?? "Referrals are currently unavailable."}
             </p>
@@ -107,7 +107,7 @@ export default function ReferralPage() {
           <Users className="w-5 h-5 text-green-400" />
         </div>
         <div>
-          <h1 className="text-xl font-bold font-mono tracking-tight">Referral Program</h1>
+          <h1 className="text-xl font-bold font-mono tracking-tight">Network Referral</h1>
           <p className="text-sm text-muted-foreground font-mono">
             Invite friends — earn VITCoin bonuses for every successful referral
           </p>
@@ -137,7 +137,7 @@ export default function ReferralPage() {
             Your Referral Code
           </CardTitle>
           <CardDescription className="font-mono text-xs">
-            Share this code with friends. Both of you get {myCode?.bonus_per_referral_vit ?? 50} VITCoin when they sign up.
+            Share this code with friends. Intelligence Agenth of you get {myCode?.bonus_per_referral_vit ?? 50} VITCoin when they sign up.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

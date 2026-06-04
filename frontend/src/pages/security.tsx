@@ -127,7 +127,7 @@ export default function SecurityPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-2">
           <ShieldAlert className="w-6 h-6 text-red-400" />
           Security Layer
         </h1>

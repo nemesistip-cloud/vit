@@ -210,7 +210,7 @@ export default function NetworkPage() {
             <Network className="h-8 w-8 text-primary" />
             VIT Network
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest mt-1">
             Decentralized node registry, DID identity layer, and network growth metrics
           </p>
         </div>

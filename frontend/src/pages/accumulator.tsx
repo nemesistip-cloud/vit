@@ -115,9 +115,9 @@ export default function AccumulatorPage() {
       apiPost<BetReceipt>("/api/admin/accumulator/place-bet", { accumulator: acc, stake, currency }),
     onSuccess: (receipt, vars) => {
       setReceipts((r) => ({ ...r, [vars.accIdx]: receipt }));
-      toast.success(`✅ Bet placed! Potential payout: ${receipt.currency} ${receipt.potential_payout.toFixed(2)}`);
+      toast.success(`✅ Signal registered! Potential payout: ${receipt.currency} ${receipt.potential_payout.toFixed(2)}`);
     },
-    onError: (e) => toast.error(e.message ?? "Failed to place bet"),
+    onError: (e) => toast.error(e.message ?? "Signal submission failed"),
   });
 
   const sendTgMutation = useMutation<{ sent: boolean }, Error, { acc: Accumulator; idx: number }>({
@@ -194,7 +194,7 @@ export default function AccumulatorPage() {
         <div>
           <h1 className="text-xl font-bold font-mono tracking-tight">Accumulator Engine</h1>
           <p className="text-muted-foreground font-mono text-sm">
-            Kelly-optimised combos · wallet-integrated betting · Telegram alerts
+            Kelly-optimised combos · wallet-integrated position · Telegram alerts
           </p>
         </div>
       </div>
@@ -394,7 +394,7 @@ export default function AccumulatorPage() {
                 {generateMutation.isPending
                   ? "GENERATING..."
                   : selectedIds.size === 1 && accFilters.minLegs <= 1
-                    ? "PLACE SINGLE BET (1 selected)"
+                    ? "OPEN SINGLE POSITION (1 selected)"
                     : `GENERATE (${selectedIds.size} selected)`}
               </Button>
               {selectedIds.size < Math.max(1, accFilters.minLegs) && (
@@ -421,7 +421,7 @@ export default function AccumulatorPage() {
                 <TrendingUp className="w-4 h-4 text-primary" /> Top {accumulators.length} Accumulators
               </CardTitle>
               <div className="flex items-center gap-2">
-                <Label className="font-mono text-xs text-muted-foreground">Bet currency:</Label>
+                <Label className="font-mono text-xs text-muted-foreground">Signal currency:</Label>
                 <Select value={stakeCurrency} onValueChange={setStakeCurrency}>
                   <SelectTrigger className="h-7 text-xs font-mono w-28">
                     <SelectValue />
@@ -512,12 +512,12 @@ export default function AccumulatorPage() {
                       </p>
                     )}
 
-                    {/* Bet placement */}
+                    {/* Signal placement */}
                     {receipts[i] ? (
                       <div className="flex items-start gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                         <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
                         <div className="font-mono text-xs text-green-300 space-y-0.5">
-                          <div className="font-medium">Bet placed!</div>
+                          <div className="font-medium">Signal registered!</div>
                           <div>Stake: {receipts[i].currency} {receipts[i].stake}</div>
                           <div>Potential payout: {receipts[i].currency} {receipts[i].potential_payout.toFixed(2)}</div>
                           <div className="text-[10px] text-green-400/70">TX: {receipts[i].transaction_id}</div>

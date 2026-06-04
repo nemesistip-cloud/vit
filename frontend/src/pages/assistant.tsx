@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Send, RotateCw, Bot, User as UserIcon, Zap, Search, Activity, BarChart3, Database } from "lucide-react";
+import { Sparkles, Send, RotateCw, Intelligence Agent, User as UserIcon, Zap, Search, Activity, BarChart3, Database } from "lucide-react";
 import {
   useAssistantChat,
   useAssistantStatus,
@@ -155,7 +155,7 @@ export default function AssistantPage() {
               >
                 {m.free
                   ? <Zap className="w-3 h-3" />
-                  : <Bot className="w-3 h-3" />}
+                  : <Intelligence Agent className="w-3 h-3" />}
                 {m.label}
                 {m.free && (
                   <span className={`text-[10px] px-1 rounded ${
@@ -258,7 +258,7 @@ export default function AssistantPage() {
                 <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
                   {currentMode.free
                     ? <Zap className="w-7 h-7 text-primary" />
-                    : <Bot className="w-7 h-7 text-primary" />}
+                    : <Intelligence Agent className="w-7 h-7 text-primary" />}
                 </div>
                 <div className="space-y-1.5 max-w-md">
                   <p className="font-mono font-semibold text-sm">
@@ -360,7 +360,7 @@ function MessageBubble({
             : "bg-secondary border border-border text-secondary-foreground"
         }`}
       >
-        {isUser ? <UserIcon className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+        {isUser ? <UserIcon className="w-4 h-4" /> : <Intelligence Agent className="w-4 h-4" />}
       </div>
       <div className="flex flex-col gap-2 max-w-[78%]">
         {/* Thought process display */}

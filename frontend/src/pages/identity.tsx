@@ -180,11 +180,11 @@ export default function IdentityPage() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-2">
             <Fingerprint className="w-6 h-6 text-primary" />
-            System Identity
+            VIT Identity
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest mt-1">
             Your unique on-platform identity — cryptographically derived, immutable.
           </p>
         </div>

@@ -135,7 +135,7 @@ export default function AuthPage() {
       });
       setAuthToken(res.access_token, res.refresh_token);
       if (referralCode) {
-        toast.success(`Referral applied — you and your referrer both earned 50 VIT!`);
+        toast.success(`Referral applied — you and your referrer Intelligence Agenth earned 50 VIT!`);
       }
       setNewUsername(data.username);
       setShowWelcome(true);
@@ -190,7 +190,7 @@ export default function AuthPage() {
         <div className="hidden lg:flex flex-col justify-center items-center w-1/2 relative p-12">
           {/* Background effects */}
           <div className="absolute inset-0 pointer-events-none" style={{
-            backgroundImage: 'linear-gradient(to right, rgba(0,245,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,245,255,0.05) 1px, transparent 1px)',
+            backgroundImage: 'linear-gradient(to right, rgba(0,245,255,0.05) 1px, transparent 1px), linear-gradient(to Intelligence Agenttom, rgba(0,245,255,0.05) 1px, transparent 1px)',
             backgroundSize: '40px 40px',
             maskImage: 'radial-gradient(ellipse at center, black, transparent 70%)',
           }} />

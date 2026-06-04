@@ -114,7 +114,7 @@ export default function DisciplineCoachPage() {
   const cooldown = useMutation({
     mutationFn: () => apiPost("/api/compliance/discipline/cooldown", {}),
     onSuccess: (res: any) => {
-      toast.success(res.message ?? "24h cooldown activated. Take a break!");
+      toast.success(res.message ?? "24h cooldown activated. ");
       setCooldownPending(false);
     },
     onError: (e: any) => {
@@ -143,7 +143,7 @@ export default function DisciplineCoachPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-emerald-400" />
-            Discipline Coach
+            Bankroll Discipline
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             AI-powered behavioral monitoring and tilt protection
@@ -197,7 +197,7 @@ export default function DisciplineCoachPage() {
         <Card className="bg-card border-border/50 md:col-span-2">
           <CardHeader>
             <CardTitle className="text-lg">Coach Insights</CardTitle>
-            <CardDescription>Real-time feedback on your betting patterns</CardDescription>
+            <CardDescription>Real-time feedback on your signal patterns</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {isLoading ? (

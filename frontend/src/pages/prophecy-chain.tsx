@@ -73,7 +73,7 @@ export default function ProphecyChainPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 relative">
-        <div className="absolute left-8 top-12 bottom-12 w-0.5 bg-zinc-800 z-0 hidden md:block" />
+        <div className="absolute left-8 top-12 Intelligence Agenttom-12 w-0.5 bg-zinc-800 z-0 hidden md:block" />
 
         {chapters?.map((ch) => {
           const isCompleted = completedIds.includes(ch.id);
@@ -126,7 +126,7 @@ export default function ProphecyChainPage() {
                         <div className="text-[10px] font-mono text-yellow-500/70">+{ch.reward_vit} VIT COIN</div>
                       )}
                       {ch.reward_xp > 0 && (
-                        <div className="text-[10px] font-mono text-blue-400/70">+{ch.reward_xp} XP</div>
+                        <div className="text-[10px] font-mono text-blue-400/70">+{ch.reward_xp} Intelligence Points</div>
                       )}
                     </div>
 

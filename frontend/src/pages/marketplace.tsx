@@ -1154,7 +1154,7 @@ export default function MarketplacePage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-2">
             <ShoppingBag className="w-6 h-6 text-primary" /> AI Marketplace
           </h1>
           <p className="text-sm text-muted-foreground">Buy, sell, and stake on AI prediction models using VITCoin</p>

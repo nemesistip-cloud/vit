@@ -178,7 +178,7 @@ export default function MatchesPage() {
       {/* ── Header ──────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">
             {isSports ? "Sports Analysis Hub" : "Niche Market Discovery"}
           </h1>
           <p className="text-muted-foreground font-mono text-sm flex items-center gap-2 flex-wrap">

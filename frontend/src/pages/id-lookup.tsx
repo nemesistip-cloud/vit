@@ -105,7 +105,7 @@ function IDCard({ card }: { card: PublicIDCard }) {
               </div>
               <div>
                 <p className="font-bold text-foreground text-lg leading-tight">{card.display_name}</p>
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">VIT Platform Member</p>
+                <p className="text-xs text-muted-foreground font-mono mt-0.5">VIT Network Member</p>
               </div>
             </div>
             <Badge variant="outline" className={`${tier.color} ${tier.bg} border-0 gap-1 shrink-0 mt-1`}>
@@ -348,7 +348,7 @@ export default function IDLookupPage() {
                 Enter a VIT System ID above to resolve a public identity card.
               </p>
               <p className="text-xs text-muted-foreground/60 font-mono">
-                System IDs are issued to all VIT platform members. They are publicly resolvable but contain no private information.
+                System IDs are issued to all VIT Network members. They are publicly resolvable but contain no private information.
               </p>
             </div>
 

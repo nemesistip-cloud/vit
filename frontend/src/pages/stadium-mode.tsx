@@ -10,9 +10,9 @@ export default function StadiumModePage() {
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-2">
             <Map className="w-6 h-6 text-orange-400" />
-            Stadium Mode
+            Live Attendance Mode
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Optimized for live event attendance (low battery, high contrast)

@@ -29,7 +29,7 @@ function RoomCardSkeleton() {
   );
 }
 
-export default function BetRoomsPage() {
+export default function SignalRoomsPage() {
   const { user } = useAuth();
 
   // Fetch leaderboard data to show real top predictors
@@ -129,7 +129,7 @@ export default function BetRoomsPage() {
       <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-primary/5 border border-primary/20 text-sm font-mono text-muted-foreground">
         <Zap className="w-4 h-4 text-primary flex-shrink-0" />
         <span>
-          Bet Rooms are powered by real VIT leaderboard data. Full social staking and copy-prediction launches in v6.0 —
+          Signal Rooms are powered by real VIT leaderboard data. Full social staking and copy-prediction launches in v6.0 —
           <Link href="/marketplace" className="text-primary ml-1 hover:underline">browse the marketplace</Link> in the meantime.
         </span>
       </div>
@@ -231,7 +231,7 @@ export default function BetRoomsPage() {
                     <span className="text-primary font-bold">{(u.accuracy_rate * 100).toFixed(1)}%</span>
                   )}
                   {u.xp != null && (
-                    <span className="text-yellow-400">{u.xp.toLocaleString()} XP</span>
+                    <span className="text-yellow-400">{u.xp.toLocaleString()} Intelligence Points</span>
                   )}
                 </div>
               </div>

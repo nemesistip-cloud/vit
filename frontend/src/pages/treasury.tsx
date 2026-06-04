@@ -104,7 +104,7 @@ export default function TreasuryPage() {
     mutationFn: (data: { title: string; description: string; pool_type: string; requested_amount: number }) =>
       apiPost<{ proposal_id: number; status: string }>(API.treasuryGrants, data),
     onSuccess: (d) => {
-      toast({ title: "Grant proposal submitted", description: `Proposal #${d.proposal_id} — ${d.status}` });
+      toast({ title: "Grant proposal submitted", description: `Protocol Proposal #${d.proposal_id} — ${d.status}` });
       setGrantTitle(""); setGrantDesc(""); setGrantAmount("");
     },
     onError: (e: Error) => toast({ title: "Submission failed", description: e.message, variant: "destructive" }),
@@ -154,7 +154,7 @@ export default function TreasuryPage() {
           <TabsTrigger value="pools">Pools</TabsTrigger>
           <TabsTrigger value="deposit">Deposit</TabsTrigger>
           <TabsTrigger value="epoch">Epoch Rewards</TabsTrigger>
-          <TabsTrigger value="grants">Grant Proposals</TabsTrigger>
+          <TabsTrigger value="grants">Grant Protocol Proposals</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pools" className="mt-4 space-y-3">
@@ -281,7 +281,7 @@ export default function TreasuryPage() {
         <TabsContent value="grants" className="mt-4">
           <Card className="bg-slate-800/50 border-slate-700 max-w-lg">
             <CardHeader>
-              <CardTitle className="text-white text-base">Submit Grant Proposal</CardTitle>
+              <CardTitle className="text-white text-base">Submit Grant Protocol Proposal</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -322,7 +322,7 @@ export default function TreasuryPage() {
                 disabled={grantMutation.isPending || !grantTitle || !grantAmount}
                 className="bg-purple-700 hover:bg-purple-600 text-white w-full"
               >
-                {grantMutation.isPending ? "Submitting…" : "Submit Proposal"}
+                {grantMutation.isPending ? "Submitting…" : "Submit Protocol Proposal"}
               </Button>
             </CardContent>
           </Card>

@@ -150,7 +150,7 @@ export function WalletConnectButton({
   function copyAddr() {
     if (!address) return;
     navigator.clipboard.writeText(address);
-    toast.success("Address copied");
+    toast.success("Address copied to clipboard");
   }
 
   function openExplorer() {

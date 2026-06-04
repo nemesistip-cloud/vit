@@ -8,7 +8,7 @@ const content: Record<string, { title: string; subtitle: string; sections: { hea
     title: "About VIT Sports Analytics Network",
     subtitle: "A sports analytics platform combining ML predictions, analyst training, VITCoin incentives, and transparent marketplace economics.",
     sections: [
-      { heading: "Mission", body: "VIT helps sports analysts, developers, and validators collaborate around measurable prediction analytics instead of opaque tips or unverifiable claims." },
+      { heading: "Mission", body: "VIT helps sports analysts, developers, and validators collaborate around measurable prediction analytics instead of opaque signals or unverifiable claims." },
       { heading: "Platform", body: "The network includes a 13-model prediction ensemble, analyst training workflows, marketplace listings, wallet rewards, governance, and safety controls." },
       { heading: "Marketplace", body: "Developers can submit model packages for review, and approved models can earn VITCoin when used or trained through supported platform flows." },
     ],
@@ -18,7 +18,7 @@ const content: Record<string, { title: string; subtitle: string; sections: { hea
     subtitle: "Rules for using VIT Sports Analytics Network.",
     sections: [
       { heading: "Eligibility", body: "You are responsible for complying with local laws and must not use the platform where sports prediction, token rewards, or related services are restricted." },
-      { heading: "No guaranteed outcomes", body: "Predictions, odds analytics, and model outputs are informational only. VIT does not guarantee profit, accuracy, or betting outcomes." },
+      { heading: "No guaranteed outcomes", body: "Predictions, odds analytics, and model outputs are informational only. VIT does not guarantee profit, accuracy, or signal outcomes." },
       { heading: "Marketplace submissions", body: "Model creators must own or have rights to uploaded files. Submissions may be reviewed, rejected, suspended, or removed for safety, quality, or compliance reasons." },
       { heading: "Rewards and fees", body: "VITCoin rewards, listing fees, call fees, and protocol shares may change through platform configuration or governance decisions." },
       { heading: "Account safety", body: "Users must protect credentials, avoid abuse, and not upload malicious code, stolen data, or artifacts that violate third-party rights." },
