@@ -19,6 +19,7 @@ class Proposal(Base):
     __tablename__ = "gov_proposals"
 
     id              : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    market_id       : Mapped[str]      = mapped_column(String(36), ForeignKey("markets.id"), nullable=True)
     proposer_id     : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     title           : Mapped[str]      = mapped_column(String(256), nullable=False)
@@ -52,6 +53,7 @@ class Proposal(Base):
 
     proposer = relationship("User", foreign_keys=[proposer_id])
     votes    = relationship("Vote", back_populates="proposal", cascade="all, delete-orphan")
+    market   = relationship("app.db.models.Market")
 
     __table_args__ = (
         Index("idx_gov_proposal_status",      "status"),

@@ -1,14 +1,60 @@
 # app/db/models.py
+import uuid
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, JSON, Text, Index, CheckConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
 
 
+class Market(Base):
+    """
+    Base Market table to support multiple market types (Niche vs Sports).
+    Requirement A.2 & A.3
+    """
+    __tablename__ = "markets"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    market_type = Column(String(20), nullable=False, index=True)  # niche | sports
+    category = Column(String(50), nullable=True)  # e.g., football, basketball, election, governance
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(50), default="open")  # open, closed, settled, void
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    matches = relationship("Match", back_populates="market")
+
+
+class MarketMapping(Base):
+    """
+    Infrastructure for mapping internal markets to external providers.
+    Requirement A.4
+    """
+    __tablename__ = "market_mappings"
+
+    id = Column(Integer, primary_key=True)
+    internal_market_id = Column(String(36), ForeignKey("markets.id"), nullable=False, index=True)
+    provider_name = Column(String(50), nullable=False)
+    external_match_id = Column(String(100), nullable=True)
+    external_selection_id = Column(String(100), nullable=True)
+
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    market = relationship("Market")
+
+
 class Match(Base):
     __tablename__ = "matches"
 
     id = Column(Integer, primary_key=True, index=True)
+    market_id = Column(String(36), ForeignKey("markets.id"), nullable=True)
+
+    # market_type: niche | sports
+    market_type = Column(String(20), default="sports", nullable=False, index=True)
+
     external_id = Column(String, unique=True, nullable=True, index=True)  # For API integration
     home_team = Column(String, nullable=False)
     away_team = Column(String, nullable=False)
@@ -46,13 +92,15 @@ class Match(Base):
 
     predictions = relationship("Prediction", back_populates="match", uselist=True)
     clv_entries = relationship("CLVEntry", back_populates="match")
+    market = relationship("Market", back_populates="matches")
 
 
 class Prediction(Base):
     __tablename__ = "predictions"
 
     id = Column(Integer, primary_key=True, index=True)
-    match_id = Column(Integer, ForeignKey("matches.id"), nullable=False)
+    match_id = Column(Integer, ForeignKey("matches.id"), nullable=True)
+    market_id = Column(String(36), ForeignKey("markets.id"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     request_hash = Column(String, unique=True, nullable=True, index=True)
 

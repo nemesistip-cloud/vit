@@ -126,10 +126,11 @@ class ValidatorPrediction(Base):
 
 
 class ConsensusPrediction(Base):
-    """Final blended AI + validator prediction for a match."""
+    """Final blended AI + validator prediction for a market."""
     __tablename__ = "consensus_predictions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    market_id: Mapped[str] = mapped_column(String(36), ForeignKey("markets.id"), unique=True, nullable=True)
     match_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     match_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
@@ -187,10 +188,11 @@ class OracleResult(Base):
 
 
 class MatchSettlement(Base):
-    """Settlement record after a match result is confirmed."""
+    """Settlement record after a market result is confirmed."""
     __tablename__ = "match_settlements"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    market_id: Mapped[str] = mapped_column(String(36), ForeignKey("markets.id"), unique=True, nullable=True)
     match_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     consensus_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("consensus_predictions.id"), nullable=False
@@ -213,14 +215,17 @@ class MatchSettlement(Base):
 
 
 class UserStake(Base):
-    """A user's VITCoin stake on a match outcome."""
+    """A user's VITCoin stake on a niche market outcome."""
     __tablename__ = "user_stakes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    match_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Sports are excluded from internal financial infrastructure.
+    # Staking is only allowed on niche markets.
+    market_id: Mapped[str] = mapped_column(String(36), ForeignKey("markets.id"), nullable=False)
+    match_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     # Extended market support: home|draw|away|over_25|under_25|btts_yes|btts_no|ah_home|ah_away|cs_NM
     prediction: Mapped[str] = mapped_column(String(20), nullable=False)
     stake_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
