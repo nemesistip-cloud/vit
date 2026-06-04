@@ -36,6 +36,7 @@ import app.modules.bridge.models
 import app.modules.developer.models
 import app.modules.governance.models
 import app.modules.referral.models
+import app.modules.sports.models
 import app.modules.tasks.models
 import app.modules.did.models
 import app.modules.network.models
@@ -102,6 +103,9 @@ from app.modules.elections.routes import router as elections_router
 from app.modules.policy.routes import router as policy_router
 from app.modules.remittance.routes import router as remittance_router
 from app.iot.router import router as iot_router
+from app.api.routes.sports import router as sports_router
+from app.api.routes.sports_webhooks import router as sports_webhooks_router
+from app.api.routes.affiliate import router as affiliate_router
 from tachyon.api.router import router as tachyon_router
 from app.agents.coordinator import AgentCoordinator
 
@@ -1923,6 +1927,9 @@ app.include_router(governance_router)
 app.include_router(verification_router)
 app.include_router(totp_router)
 app.include_router(referral_router)
+app.include_router(sports_router, prefix="/api")
+app.include_router(sports_webhooks_router, prefix="/api")
+app.include_router(affiliate_router, prefix="/api")
 app.include_router(leaderboard_router)
 app.include_router(exports_router)
 app.include_router(agents_router, prefix="/api")
