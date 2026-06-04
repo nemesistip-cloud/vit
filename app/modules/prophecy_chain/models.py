@@ -34,6 +34,7 @@ class UserProphecyProgress(Base):
     current_chapter_id = Column(Integer, ForeignKey("prophecy_chapters.id"))
 
     chapters_completed = Column(JSON, default=list)  # List of chapter IDs
+    chapters_claimed = Column(JSON, default=list)    # List of chapter IDs
 
     total_qualified_predictions = Column(Integer, default=0)
     total_qualified_wins = Column(Integer, default=0)
