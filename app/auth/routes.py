@@ -351,9 +351,21 @@ async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_
 
     try:
         # Verify the ID token
-        idinfo = id_token.verify_oauth2_token(
-            body.id_token, google_requests.Request(), google_client_id
-        )
+        # Attempt verification with standard Google library first
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                body.id_token, google_requests.Request(), google_client_id
+            )
+        except Exception as e:
+            # Fallback: Try verifying via Firebase if standard verification fails
+            # (Useful for tokens issued via Firebase Auth)
+            from app.auth.firebase_utils import verify_firebase_id_token
+            decoded = verify_firebase_id_token(body.id_token)
+            if not decoded:
+                raise e
+            idinfo = decoded
+            # Map firebase fields to expected idinfo fields
+            idinfo["sub"] = idinfo.get("sub") or idinfo.get("user_id")
 
         if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
             raise ValueError("Wrong issuer.")

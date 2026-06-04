@@ -1,0 +1,56 @@
+import logging
+from typing import Any, Dict, Optional
+import firebase_admin
+from firebase_admin import credentials, firestore
+from app.config import GOOGLE_APPLICATION_CREDENTIALS, GCS_PROJECT_ID
+
+logger = logging.getLogger(__name__)
+
+_db: Optional[Any] = None
+
+def init_firestore():
+    global _db
+    if _db is not None:
+        return _db
+
+    try:
+        # Use default credentials if available, otherwise explicit path
+        if not firebase_admin._apps:
+            if GOOGLE_APPLICATION_CREDENTIALS:
+                cred = credentials.Certificate(GOOGLE_APPLICATION_CREDENTIALS)
+                firebase_admin.initialize_app(cred, {
+                    'projectId': GCS_PROJECT_ID,
+                })
+            else:
+                # Fallback to default credentials (works on GCP environments)
+                firebase_admin.initialize_app()
+
+        _db = firestore.client()
+        logger.info("Firestore Admin SDK initialized successfully")
+        return _db
+    except Exception as e:
+        logger.warning(f"Firestore initialization failed: {e}. Real-time features will be disabled.")
+        return None
+
+def sync_to_firestore(collection: str, doc_id: str, data: Dict[str, Any]):
+    """Sync a record to Firestore."""
+    db = init_firestore()
+    if not db:
+        return
+
+    try:
+        doc_ref = db.collection(collection).document(str(doc_id))
+        doc_ref.set(data, merge=True)
+    except Exception as e:
+        logger.error(f"Error syncing to Firestore ({collection}/{doc_id}): {e}")
+
+def delete_from_firestore(collection: str, doc_id: str):
+    """Delete a record from Firestore."""
+    db = init_firestore()
+    if not db:
+        return
+
+    try:
+        db.collection(collection).document(str(doc_id)).delete()
+    except Exception as e:
+        logger.error(f"Error deleting from Firestore ({collection}/{doc_id}): {e}")
