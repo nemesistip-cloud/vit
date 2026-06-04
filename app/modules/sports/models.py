@@ -8,14 +8,15 @@ class MarketMapping(Base):
     Essential for affiliate deep-link generation.
     """
     __tablename__ = "market_mappings"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("matches.id"), index=True)
-    provider_name = Column(String(50), nullable=False) # e.g., 'betway', 'sportybet', 'theoddsapi'
+    provider_name = Column(String(50), nullable=False)
     external_match_id = Column(String(100), index=True)
     external_selection_id = Column(String(100))
-    market_type = Column(String(50)) # e.g., '1x2', 'over_under'
-    selection_name = Column(String(50)) # e.g., 'home', 'over_2.5'
+    market_type = Column(String(50))
+    selection_name = Column(String(50))
 
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
