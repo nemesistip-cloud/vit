@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   useGetMatch, useGetConsensusPrediction, useStakeOnPrediction, useGetWallet,
-  useGetOddsInjuries, useGetOddsAuditLog,
+  useGetOddsInjuries, useGetOddsAuditLog, useGenerateSlip
 } from "@/api-client";
 import { AIInsightComparison } from "@/components/AIInsightComparison";
 import { MatchAssistantCard } from "@/components/MatchAssistantCard";
@@ -40,6 +40,7 @@ export default function MatchDetailPage() {
   const { data: consensus } = useGetConsensusPrediction(matchId);
   const { data: wallet } = useGetWallet();
   const stake = useStakeOnPrediction();
+  const generateSlip = useGenerateSlip();
   const { data: injuries } = useGetOddsInjuries({ team: match?.home_team });
   const { data: auditLog } = useGetOddsAuditLog();
 
@@ -121,6 +122,33 @@ export default function MatchDetailPage() {
       toast.error(e.message || "Stake failed");
     }
   };
+
+  const handleGenerateSlip = async (provider?: string) => {
+    if (!selectedSide) {
+      toast.error("Select a selection first");
+      return;
+    }
+    try {
+      const res = await generateSlip.mutateAsync({
+        match_id: matchId,
+        prediction: selectedSide,
+        provider
+      });
+
+      toast.success("Affiliate slip generated successfully");
+
+      // In a real app, we might open a modal or redirect.
+      // For this prototype, we'll open the first available link.
+      const links = Object.values(res.affiliate_links);
+      if (links.length > 0) {
+        window.open(links[0], "_blank");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to generate slip");
+    }
+  };
+
+  const isSports = match?.market_type === "sports" || match?.sport !== "niche";
 
   return (
     <div className="space-y-6">
@@ -486,15 +514,31 @@ export default function MatchDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-card/50 backdrop-blur border-primary/20 shadow-[0_0_30px_rgba(0,255,255,0.05)]">
+          <Card className={`bg-card/50 backdrop-blur ${isSports ? "border-primary/40 shadow-[0_0_30px_rgba(0,255,255,0.1)]" : "border-secondary/20"} overflow-hidden`}>
+            {isSports && (
+              <div className="bg-primary/20 px-3 py-1.5 flex items-center gap-2 border-b border-primary/30">
+                <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[10px] font-mono font-bold text-primary uppercase tracking-widest">Affiliate Execution Layer</span>
+              </div>
+            )}
             <CardHeader className="border-b border-border/50 pb-4">
               <CardTitle className="font-mono uppercase flex items-center">
-                <Coins className="w-5 h-5 mr-2 text-secondary" />
-                Stake VITCoin
+                {isSports ? (
+                  <><Zap className="w-5 h-5 mr-2 text-primary" /> Execute Selection</>
+                ) : (
+                  <><Coins className="w-5 h-5 mr-2 text-secondary" /> Stake VITCoin</>
+                )}
               </CardTitle>
-              <CardDescription className="font-mono">
-                Balance: {Number(wallet?.vitcoin_balance ?? 0).toLocaleString()} VIT
-              </CardDescription>
+              {!isSports && (
+                <CardDescription className="font-mono">
+                  Balance: {Number(wallet?.vitcoin_balance ?? 0).toLocaleString()} VIT
+                </CardDescription>
+              )}
+              {isSports && (
+                <CardDescription className="font-mono text-[10px] uppercase text-muted-foreground leading-tight">
+                  No wallet interaction. Predictions are fulfilled via external affiliate partners.
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
               {match.actual_outcome ? (
@@ -714,20 +758,23 @@ export default function MatchDetailPage() {
                     </div>
                   )}
 
-                  <div>
-                    <label className="text-xs font-mono text-muted-foreground uppercase mb-1 block">Amount (VITCoin)</label>
-                    <Input
-                      type="number"
-                      value={stakeAmount}
-                      onChange={(e) => setStakeAmount(e.target.value)}
-                      className="font-mono text-lg bg-background/50 border-primary/20 h-12"
-                      min="1"
-                    />
-                  </div>
+                  {!isSports && (
+                    <div>
+                      <label className="text-xs font-mono text-muted-foreground uppercase mb-1 block">Amount (VITCoin)</label>
+                      <Input
+                        type="number"
+                        value={stakeAmount}
+                        onChange={(e) => setStakeAmount(e.target.value)}
+                        className="font-mono text-lg bg-background/50 border-primary/20 h-12"
+                        min="1"
+                      />
+                    </div>
+                  )}
+
                   {selectedSide && (
-                    <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 font-mono text-xs flex items-center justify-between">
-                      <span className="text-muted-foreground uppercase">Selected</span>
-                      <span className="text-primary font-bold uppercase">
+                    <div className={`rounded-lg border px-3 py-2 font-mono text-xs flex items-center justify-between ${isSports ? "border-primary/40 bg-primary/10" : "border-secondary/30 bg-secondary/5"}`}>
+                      <span className="text-muted-foreground uppercase">Selection</span>
+                      <span className={`${isSports ? "text-primary" : "text-secondary"} font-bold uppercase`}>
                         {(selectedSide as string).startsWith("cs_")
                           ? `Score ${(selectedSide as string).replace("cs_", "").replace("-", " – ")}`
                           : (selectedSide as string).replace(/_/g, " ")}
@@ -735,13 +782,33 @@ export default function MatchDetailPage() {
                       </span>
                     </div>
                   )}
-                  <Button
-                    className="w-full h-12 font-mono uppercase tracking-widest text-sm"
-                    onClick={handleStake}
-                    disabled={stake.isPending || !selectedSide}
-                  >
-                    {stake.isPending ? "PROCESSING_TX..." : "EXECUTE_STAKE"}
-                  </Button>
+
+                  {isSports ? (
+                    <div className="space-y-2">
+                      <Button
+                        className="w-full h-12 font-mono uppercase tracking-widest text-sm gap-2"
+                        onClick={() => handleGenerateSlip()}
+                        disabled={generateSlip.isPending || !selectedSide}
+                      >
+                        {generateSlip.isPending ? (
+                          <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                        ) : (
+                          <><TrendingUp className="w-4 h-4" /> Generate Slip & Open Affiliate</>
+                        )}
+                      </Button>
+                      <p className="text-[9px] font-mono text-center text-muted-foreground uppercase tracking-tighter">
+                        Redirects to verified bookmaker partners (Betway, SportyBet, Bet9ja)
+                      </p>
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full h-12 font-mono uppercase tracking-widest text-sm bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                      onClick={handleStake}
+                      disabled={stake.isPending || !selectedSide}
+                    >
+                      {stake.isPending ? "PROCESSING_TX..." : "EXECUTE_STAKE"}
+                    </Button>
+                  )}
                 </>
               )}
             </CardContent>
