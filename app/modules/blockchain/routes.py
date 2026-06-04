@@ -127,6 +127,25 @@ async def stake_on_prediction(
     if amount > MAX_STAKE_VITCOIN:
         raise HTTPException(400, f"Maximum single stake is {MAX_STAKE_VITCOIN} VITCoin")
 
+    from app.db.models import Market
+    match_row = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
+    if not match_row:
+        raise HTTPException(404, "Match not found")
+
+    # Team C: Wallet Protection Layer & Team A: Financial Infrastructure Exclusion
+    # Sports prediction flows function as analysis and affiliate-redirection infrastructure.
+    # No direct sports wagering funds are held, processed, or settled by VIT.
+    if match_row.market_type == "sports":
+        raise HTTPException(
+            status_code=403,
+            detail="Direct staking is not allowed on sports markets. Please use affiliate links for sports predictions."
+        )
+
+    market_id = match_row.market_id
+    if not market_id:
+        # Fallback for niche markets without explicit market_id
+        raise HTTPException(400, "Niche market not properly configured for staking")
+
     cp_res = await db.execute(
         select(ConsensusPrediction).where(ConsensusPrediction.match_id == match_id)
     )
@@ -136,11 +155,6 @@ async def stake_on_prediction(
     # fixture. Without this, only matches that already received a validator
     # prediction can be staked on, which blocks normal user flow.
     if not cp:
-        match_exists = (
-            await db.execute(select(Match.id).where(Match.id == match_id))
-        ).scalar_one_or_none()
-        if not match_exists:
-            raise HTTPException(404, "Match not found")
         try:
             cp = await calculate_consensus(match_id, db)
         except Exception as exc:
@@ -151,7 +165,6 @@ async def stake_on_prediction(
         raise HTTPException(400, f"Match is {cp.status} — staking is closed")
 
     # Block staking after kickoff — stops in-play / post-result staking abuse
-    match_row = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
     if match_row and match_row.kickoff_time:
         kt = match_row.kickoff_time
         if kt.tzinfo is None:
@@ -172,6 +185,7 @@ async def stake_on_prediction(
 
     stake = UserStake(
         user_id=current_user.id,
+        market_id=market_id,
         match_id=match_id,
         prediction=body.prediction,
         stake_amount=amount,
