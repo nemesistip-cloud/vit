@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.governance.models import GovernanceConfig, Proposal, Vote
@@ -286,7 +286,7 @@ async def _auto_close_if_needed(db: AsyncSession, proposal: Proposal) -> None:
 async def execute_proposal(
     db: AsyncSession,
     proposal_id: int,
-    executor_id: int,
+    executor_id: Optional[int] = None,
 ) -> Proposal:
     proposal = await get_proposal(db, proposal_id)
     if not proposal:
@@ -302,21 +302,63 @@ async def execute_proposal(
         remaining = proposal.timelock_seconds - int((now - passed_at).total_seconds())
         raise ValueError(f"Timelock active. Execute in {remaining}s.")
 
-    # Apply change_payload to GovernanceConfig if present
-    note = "Executed with no parameter changes."
+    note = "Executed."
+    payload = {}
     if proposal.change_payload:
         try:
             payload = json.loads(proposal.change_payload)
-            changed = []
-            for key, value in payload.items():
-                cfg = await get_config(db, key)
-                if cfg:
-                    cfg.value      = str(value)
-                    cfg.updated_by = executor_id
-                    changed.append(f"{key}={value}")
-            note = f"Config updated: {', '.join(changed)}" if changed else "No matching config keys found."
         except Exception as e:
             note = f"Payload parse error: {e}"
+
+    category = proposal.category
+    changed = []
+
+    if category == "fee_change":
+        from app.modules.wallet.models import PlatformConfig
+        for key, value in payload.items():
+            res = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "fee_rates"))
+            cfg = res.scalar_one_or_none()
+            if cfg:
+                new_val = dict(cfg.value)
+                new_val[key] = value
+                cfg.value = new_val
+                changed.append(f"fee_rates.{key}={value}")
+
+    elif category == "weight_change":
+        from app.modules.ai.models import ModelMetadata
+        for key, value in payload.items():
+            await db.execute(
+                update(ModelMetadata).where(ModelMetadata.key == key).values(weight=float(value))
+            )
+            changed.append(f"model_weight.{key}={value}")
+
+    elif category == "feature_toggle":
+        from app.modules.wallet.models import PlatformConfig
+        for key, value in payload.items():
+            res = await db.execute(select(PlatformConfig).where(PlatformConfig.key == key))
+            cfg = res.scalar_one_or_none()
+            if cfg:
+                cfg.value = value
+                changed.append(f"{key}={value}")
+            else:
+                db.add(PlatformConfig(key=key, value=value))
+                changed.append(f"new_config.{key}={value}")
+
+    elif category == "agent_config":
+        from app.agents import ml_config
+        ml_config.update(payload)
+        changed.append(f"ml_config_patched={list(payload.keys())}")
+
+    if not changed and payload:
+        for key, value in payload.items():
+            cfg = await get_config(db, key)
+            if cfg:
+                cfg.value      = str(value)
+                cfg.updated_by = executor_id
+                changed.append(f"gov_cfg.{key}={value}")
+
+    if changed:
+        note = f"Executed changes: {', '.join(changed)}"
 
     proposal.status        = "executed"
     proposal.executed_at   = now
@@ -324,7 +366,7 @@ async def execute_proposal(
 
     await db.commit()
     await db.refresh(proposal)
-    logger.info(f"Governance: proposal {proposal_id} executed by user {executor_id}: {note}")
+    logger.info(f"Governance: proposal {proposal_id} executed: {note}")
     return proposal
 
 

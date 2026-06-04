@@ -138,6 +138,14 @@ class WalletService:
     async def deposit(self, wallet_id, user_id, currency, amount, reference=None) -> WalletTransaction:
         return await self.credit(wallet_id, user_id, currency, amount, "deposit", reference=reference)
 
+    async def deposit_vitcoin(self, user_id, amount, description=None, tx_type="reward", metadata=None) -> "WalletTransaction":
+        wallet = await self.get_or_create_wallet(user_id)
+        from app.modules.wallet.models import Currency
+        return await self.credit(
+            wallet.id, user_id, Currency.VITCOIN, Decimal(str(amount)),
+            tx_type, reference=description, metadata=metadata
+        )
+
     async def withdraw(self, wallet_id, user_id, currency, amount, reference=None) -> WalletTransaction:
         return await self.debit(wallet_id, user_id, currency, amount, "withdrawal", reference=reference)
 

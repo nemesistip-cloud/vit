@@ -49,12 +49,16 @@ import app.modules.subchain.models
 import app.modules.agent_registry.models
 import app.modules.storage_verification.models
 import app.modules.prophecy_chain.models
+import app.modules.community.models
+import app.modules.watchlist.models
 import app.modules.academy.models
 import app.modules.ai_core.models
 import app.modules.quant.models
 
 # ===== CORE ROUTES =====
 from app.api.routes import (
+    watchlist,
+    wrapped,
     predict, result, history, admin, ai_feed, ai as ai_route,
     config as config_route, training as training_route, analytics as analytics_route,
     odds_compare as odds_route, subscription as subscription_route,
@@ -102,6 +106,7 @@ from app.modules.network.routes import router as network_router
 from app.modules.elections.routes import router as elections_router
 from app.modules.policy.routes import router as policy_router
 from app.modules.remittance.routes import router as remittance_router
+from app.modules.community.routes import router as community_router
 from app.iot.router import router as iot_router
 from app.api.routes.sports import router as sports_router
 from app.api.routes.sports_webhooks import router as sports_webhooks_router
@@ -1941,6 +1946,9 @@ app.include_router(network_router)
 app.include_router(elections_router, prefix="/api")
 app.include_router(policy_router, prefix="/api")
 app.include_router(remittance_router, prefix="/api")
+app.include_router(community_router, prefix="/api")
+app.include_router(watchlist.router, prefix="/api")
+app.include_router(wrapped.router, prefix="/api")
 app.include_router(tachyon_router, prefix="/api/tachyon")
 
 # VIT Quant Engine — Phase 2
