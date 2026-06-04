@@ -70,7 +70,6 @@ _ALWAYS_OPEN = (
     "/auth/register", "/auth/login", "/auth/refresh",
     "/system/status", "/api/system/status",
     "/api/config/public",
-    "/api/ai-upload",
 )
 
 # Only enforce auth on these API route prefixes

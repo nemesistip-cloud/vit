@@ -89,7 +89,6 @@ from app.auth.totp import router as totp_router
 from app.modules.referral.routes import router as referral_router
 from app.api.routes.leaderboard import router as leaderboard_router
 from app.api.routes.exports import router as exports_router
-from app.api.routes.admin_ai_sources import router as admin_ai_sources_router
 from app.api.routes.model_breakdown import router as model_breakdown_router
 from app.api.routes.admin_clv import router as admin_clv_router
 from app.api.routes.agents import router as agents_router

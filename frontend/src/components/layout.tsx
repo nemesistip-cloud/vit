@@ -137,22 +137,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
   if (!user) return <>{children}</>;
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
-  const hasTier = (t: string) => (user?.subscription_tier ?? "viewer") === t || user?.role === "admin";
   const isAdmin      = user?.role === "admin";
-  const canUploadAi  = isAdmin || hasTier("analyst");
   const tierKey      = isAdmin ? "admin" : (user?.subscription_tier ?? "viewer");
   const tierBadge    = TIER_BADGE[tierKey] ?? TIER_BADGE.viewer;
 
-  const proGroup: NavGroup = {
-    name: "Pro",
-    items: [
-      ...(NAV_GROUPS.find(g => g.name === "Pro")?.items ?? []),
-      ...(canUploadAi ? [{ name: "AI Sources", href: "/ai-sources", icon: Brain }] : []),
-    ],
-  };
-
   const allGroups: NavGroup[] = [
-    ...NAV_GROUPS.map(g => (g.name === "Pro" ? proGroup : g)),
+    ...NAV_GROUPS,
     ...(isAdmin
       ? [{
           name: "Admin",
