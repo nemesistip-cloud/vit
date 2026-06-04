@@ -150,6 +150,8 @@ export default function MatchesPage() {
     return aKo - bKo;
   });
 
+  const isSports = sortedMatches.length > 0 && (sortedMatches[0].market_type === "sports" || sortedMatches[0].sport !== "niche");
+
   const liveCount = allMatches.filter(isMatchLive).length;
 
   const handleSync = async () => {
@@ -176,7 +178,9 @@ export default function MatchesPage() {
       {/* ── Header ──────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Analytics Feed</h1>
+          <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">
+            {isSports ? "Sports Analysis Hub" : "Niche Market Discovery"}
+          </h1>
           <p className="text-muted-foreground font-mono text-sm flex items-center gap-2 flex-wrap">
             {statusFilter === "completed"
               ? `${sortedMatches.length} of ${completed.length} completed fixtures`

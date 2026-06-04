@@ -568,6 +568,19 @@ export default function WalletPage() {
         </Button>
       </div>
 
+      {/* ── Wallet Protection Layer Notice ── */}
+      <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-3 flex items-start gap-3">
+        <ShieldCheck className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <div className="text-sm font-mono font-bold text-blue-400 uppercase tracking-wider">Wallet Protection Layer Active</div>
+          <p className="text-[10px] font-mono text-muted-foreground leading-normal">
+            Financial infrastructure is strictly limited to <span className="text-secondary font-bold">Niche Prediction Markets</span> (Governance, Elections, Merit).
+            <br />
+            Sports markets function as analytics-only infrastructure with affiliate-redirection. No sports wagering funds are held or processed here.
+          </p>
+        </div>
+      </div>
+
       {/* ── Hero Card: Portfolio + VIT Sparkline ── */}
       <Card className="border-secondary/30 bg-gradient-to-br from-secondary/5 to-card vit-glow-gold overflow-hidden">
         <CardContent className="p-6">

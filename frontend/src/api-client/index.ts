@@ -138,6 +138,7 @@ export const API = {
   // Storage Verification (v5.0.0)
   storageStats: "/api/storage/stats",
   storageRegister: "/api/storage/content/register",
+  generateSlip: "/api/predictions/generate-slip",
 };
 
 export const getGetMeQueryKey = () => [API.me];
@@ -250,6 +251,20 @@ export function useSyncFixtures() {
       queryClient.invalidateQueries({ queryKey: [API.matches] });
       queryClient.invalidateQueries({ queryKey: ["matches-recent"] });
     },
+  });
+}
+
+export function useGenerateSlip() {
+  return useMutation<{
+    slip_id: string;
+    affiliate_links: Record<string, string>;
+    message: string;
+  }, Error, {
+    match_id: string;
+    prediction: string;
+    provider?: string;
+  }>({
+    mutationFn: (data) => apiPost(API.generateSlip, data),
   });
 }
 
