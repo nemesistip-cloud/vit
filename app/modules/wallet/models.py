@@ -104,10 +104,42 @@ class Wallet(Base):
 
     transactions = relationship("WalletTransaction", back_populates="wallet", cascade="all, delete-orphan")
     withdrawal_requests = relationship("WithdrawalRequest", back_populates="wallet")
+    profile = relationship("WalletProfile", back_populates="wallet", uselist=False, cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_wallets_user_id", "user_id"),
         Index("idx_wallets_is_frozen", "is_frozen"),
+    )
+
+
+class WalletProfile(Base):
+    """Behavior-aware financial identity for a wallet."""
+    __tablename__ = "wallet_profiles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    wallet_id: Mapped[str] = mapped_column(String(36), ForeignKey("wallets.id", ondelete="CASCADE"), unique=True, nullable=False)
+
+    vit_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
+    risk_score: Mapped[float] = mapped_column(Float, default=0.0)
+    activity_score: Mapped[float] = mapped_column(Float, default=0.0)
+    trading_style: Mapped[str] = mapped_column(String(20), default="neutral")  # scalper, holder, neutral
+
+    # Behavior metrics
+    total_trades: Mapped[int] = mapped_column(Integer, default=0)
+    total_trade_volume: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
+    avg_trade_size: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
+    avg_holding_duration_seconds: Mapped[float] = mapped_column(Float, default=0.0)
+    holding_duration_count: Mapped[int] = mapped_column(Integer, default=0)
+    volatility_exposure: Mapped[float] = mapped_column(Float, default=0.0)
+
+    last_trade_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    wallet = relationship("Wallet", back_populates="profile")
+
+    __table_args__ = (
+        Index("idx_wallet_profiles_wallet_id", "wallet_id"),
     )
 
 

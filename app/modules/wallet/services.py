@@ -5,14 +5,17 @@ import logging
 import uuid
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.modules.wallet.intelligence import TradeEvent
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.modules.wallet.models import (
     Wallet, WalletTransaction, WalletSubscriptionPlan, WalletUserSubscription,
-    Currency, WithdrawalRequest,
+    Currency, WithdrawalRequest, WalletProfile,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,13 +82,47 @@ class WalletService:
         return from_usd / to_usd
 
     async def get_or_create_wallet(self, user_id: int) -> Wallet:
-        result = await self.db.execute(select(Wallet).where(Wallet.user_id == user_id))
+        result = await self.db.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .outerjoin(WalletProfile)
+        )
         wallet = result.scalar_one_or_none()
         if not wallet:
             wallet = Wallet(user_id=user_id)
             self.db.add(wallet)
             await self.db.flush()
+
+            # Initialize profile
+            profile = WalletProfile(wallet_id=wallet.id)
+            self.db.add(profile)
+            await self.db.flush()
+        elif not wallet.profile:
+            profile = WalletProfile(wallet_id=wallet.id)
+            self.db.add(profile)
+            await self.db.flush()
         return wallet
+
+    async def get_profile(self, wallet_id: str) -> WalletProfile:
+        result = await self.db.execute(select(WalletProfile).where(WalletProfile.wallet_id == wallet_id))
+        profile = result.scalar_one_or_none()
+        if not profile:
+            profile = WalletProfile(wallet_id=wallet_id)
+            self.db.add(profile)
+            await self.db.flush()
+        return profile
+
+    async def update_wallet_behavior(self, wallet_id: str, trade_event: "TradeEvent") -> WalletProfile:
+        from app.modules.wallet.intelligence import update_wallet_behavior as _update_behavior
+        profile = await self.get_profile(wallet_id)
+        # Update VIT balance from wallet before calculating behavior
+        wallet = await self.db.get(Wallet, wallet_id)
+        if wallet:
+            profile.vit_balance = wallet.vitcoin_balance
+
+        updated_profile = _update_behavior(profile, trade_event)
+        await self.db.flush()
+        return updated_profile
 
     async def get_balance(self, wallet_id: str, currency: Currency) -> Decimal:
         wallet = await self.db.get(Wallet, wallet_id)
