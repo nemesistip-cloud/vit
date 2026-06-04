@@ -30,7 +30,6 @@ const BridgePage = lazyRetry(() => import("@/pages/bridge"));
 const DeveloperPage = lazyRetry(() => import("@/pages/developer"));
 const GovernancePage = lazyRetry(() => import("@/pages/governance"));
 const AdminPage = lazyRetry(() => import("@/pages/admin"));
-const AISourcesPage = lazyRetry(() => import("@/pages/ai-sources"));
 const AccumulatorPage = lazyRetry(() => import("@/pages/accumulator"));
 const BacktestPage = lazyRetry(() => import("@/pages/backtest"));
 const OddsPage = lazyRetry(() => import("@/pages/odds"));
@@ -203,9 +202,6 @@ function Router() {
       </Route>
       <Route path="/admin">
         <Layout><ProtectedRoute component={AdminPage} /></Layout>
-      </Route>
-      <Route path="/ai-sources">
-        <Layout><ProtectedRoute component={AISourcesPage} /></Layout>
       </Route>
       <Route path="/accumulator">
         <Layout><ProtectedRoute component={AccumulatorPage} /></Layout>
