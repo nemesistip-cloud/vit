@@ -8,8 +8,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PORT="${PORT:-5000}"
-APP_VERSION="5.0.0"
+PORT="${PORT:-8080}"
+APP_VERSION="5.5.0"
 
 # Signal to app that we are in production — triggers full model loading,
 # disables ephemeral JWT key warnings, and activates all 13 ensemble models.
