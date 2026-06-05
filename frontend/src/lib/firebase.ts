@@ -36,12 +36,15 @@ if (isFirebaseConfigured) {
       }).catch(() => {});
     }
   } catch (e) {
-    console.warn("Firebase initialization failed:", e);
+    console.error("Firebase initialization failed. Configuration may be invalid.", e);
     app = null;
   }
 }
 
 export const auth = isFirebaseConfigured && app ? getAuth(app) : null;
+
+// Helper to check if Firebase is fully operational
+export const isFirebaseReady = () => isFirebaseConfigured && !!app;
 export const googleProvider = isFirebaseConfigured ? new GoogleAuthProvider() : null;
 export const db = isFirebaseConfigured && app ? getFirestore(app) : null;
 export { analytics };

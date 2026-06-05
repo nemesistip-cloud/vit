@@ -67,6 +67,8 @@ from app.api.routes import (
     basketball, tennis,
 )
 
+from app.services.firestore_events import setup_firestore_events
+from app.tasks.ticker_sync import start_ticker_sync
 from app.auth.routes import router as auth_router
 from app.modules.wallet.routes import router as wallet_router
 from app.modules.wallet.admin_routes import router as wallet_admin_router
@@ -227,6 +229,8 @@ async def lifespan(app: FastAPI):
 
     # 2. Configure logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
+    setup_firestore_events()
+    start_ticker_sync()
 
     print_config_status()
     print(f"🚀 VIT Network v{APP_VERSION} starting (NATIVE AI MODE)...")
