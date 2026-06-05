@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,11 +54,11 @@ const _DIFFICULTY_COLOUR: Record<string, string> = {
 
 
 const EXTERNAL_PROVIDERS = [
-  { id:"ayet",    name:"Ayet Studios",  icon:"🎮", color:"#f59e0b", desc:"Complete offers & surveys for VITCoin",  rate:"Up to 50 VIT/offer" },
-  { id:"tapjoy",  name:"Tapjoy",        icon:"📱", color:"#10b981", desc:"Install apps and complete challenges",   rate:"Up to 30 VIT/install" },
-  { id:"revu",    name:"RevU",          icon:"📊", color:"#6366f1", desc:"Market research & consumer surveys",    rate:"5–20 VIT/survey" },
-  { id:"bitlabs", name:"BitLabs",       icon:"💡", color:"#ec4899", desc:"Premium targeted surveys",              rate:"10–40 VIT/survey" },
-  { id:"cpx",     name:"CPX Research",  icon:"🔬", color:"#06b6d4", desc:"Academic & consumer research panels",  rate:"5–25 VIT/survey" },
+  { id:"ayet",    name:"Ayet Studios",  icon:"🎮", color:"#f59e0b", desc:"Complete offers & surveys for VITCoin",  rate:"Up to 50 VIT/offer", base_url: "https://www.ayetstudios.com/offers/web_view/" },
+  { id:"tapjoy",  name:"Tapjoy",        icon:"📱", color:"#10b981", desc:"Install apps and complete challenges",   rate:"Up to 30 VIT/install", base_url: "https://offerwall.tapjoy.com/offerwall/" },
+  { id:"revu",    name:"RevU",          icon:"📊", color:"#6366f1", desc:"Market research & consumer surveys",    rate:"5–20 VIT/survey", base_url: "https://publishers.revenueuniverse.com/wall/" },
+  { id:"bitlabs", name:"BitLabs",       icon:"💡", color:"#ec4899", desc:"Premium targeted surveys",              rate:"10–40 VIT/survey", base_url: "https://web.bitlabs.ai/" },
+  { id:"cpx",     name:"CPX Research",  icon:"🔬", color:"#06b6d4", desc:"Academic & consumer research panels",  rate:"5–25 VIT/survey", base_url: "https://offers.cpx-research.com/index.php" },
 ];
 
 function OfferCard({
@@ -141,7 +142,7 @@ function OfferCard({
 }
 
 
-function ProviderCard({ provider }: { provider: typeof EXTERNAL_PROVIDERS[0] }) {
+function ProviderCard({ provider, onOpen }: { provider: typeof EXTERNAL_PROVIDERS[0], onOpen: (p: typeof EXTERNAL_PROVIDERS[0]) => void }) {
   return (
     <Card className="border-border/50 hover:border-primary/40 transition-all hover:shadow-lg group overflow-hidden bg-card/40 backdrop-blur-sm">
       <CardContent className="p-4 flex items-center gap-4">
@@ -161,7 +162,12 @@ function ProviderCard({ provider }: { provider: typeof EXTERNAL_PROVIDERS[0] }) 
             <span className="text-[10px] font-mono text-yellow-500 font-bold">{provider.rate}</span>
           </div>
         </div>
-        <Button size="sm" variant="outline" className="h-8 font-mono text-[10px] uppercase border-primary/20 hover:bg-primary/10">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 font-mono text-[10px] uppercase border-primary/20 hover:bg-primary/10"
+          onClick={() => onOpen(provider)}
+        >
           Open
         </Button>
       </CardContent>
@@ -196,7 +202,27 @@ function HistoryRow({ item }: { item: EarnHistoryItem }) {
 }
 
 export default function OfferwallPage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
+
+  const handleOpenProvider = (p: typeof EXTERNAL_PROVIDERS[0]) => {
+    if (!user?.id) {
+      toast.error("Please log in to access partner offers.");
+      return;
+    }
+
+    // Construct authenticated deep-link (common patterns for offerwalls)
+    let url = p.base_url;
+    const uid = user.id;
+
+    if (p.id === "ayet") url += `?uid=${uid}`;
+    else if (p.id === "tapjoy") url += `?snuid=${uid}`;
+    else if (p.id === "revu") url += `?uid=${uid}`;
+    else if (p.id === "bitlabs") url += `?uid=${uid}`;
+    else if (p.id === "cpx") url += `?external_user_id=${uid}`;
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
@@ -303,7 +329,7 @@ export default function OfferwallPage() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {EXTERNAL_PROVIDERS.map((p) => (
-            <ProviderCard key={p.id} provider={p} />
+            <ProviderCard key={p.id} provider={p} onOpen={handleOpenProvider} />
           ))}
         </div>
       </div>
