@@ -3,9 +3,9 @@ import { Users, MessageSquare, Shield, Star } from "lucide-react";
 
 export default function CommunityPage() {
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-Intelligence Agenttom-4 duration-500">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Community Circles</h1>
+        <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Intelligence Circles</h1>
         <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">Collaborative Analytics & Social Proof</p>
       </header>
 
@@ -14,14 +14,14 @@ export default function CommunityPage() {
           <CardHeader>
             <CardTitle className="text-sm font-mono flex items-center gap-2">
               <Users className="w-4 h-4 text-primary" />
-              Trending Circles
+              Trending Intelligence Circles
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {[
               { name: "Lagos Arbitrage Squad", members: "1.2k", signal: "92%" },
               { name: "Naira Policy Analysts", members: "450", signal: "88%" },
-              { name: "Elite Betting Shop Agents", members: "2k+", signal: "95%" },
+              { name: "Elite Signal Shop Agents", members: "2k+", signal: "95%" },
             ].map((circle) => (
               <div key={circle.name} className="p-3 rounded-xl bg-background/40 border border-border/20 hover:border-primary/40 cursor-pointer transition-all">
                 <div className="flex justify-between items-start mb-2">

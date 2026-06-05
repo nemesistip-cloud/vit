@@ -36,7 +36,7 @@ const MARKET_LABEL: Record<string, string> = {
   home_win: "Home Win",
   away_win: "Away Win",
   draw: "Draw",
-  btts: "Both Teams to Score",
+  btts: "Intelligence Agenth Teams to Score",
   btts_yes: "BTTS – Yes",
   btts_no: "BTTS – No",
   over_2_5: "Over 2.5 Goals",
@@ -874,12 +874,12 @@ export default function PredictionsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-mono font-bold uppercase tracking-tight flex items-center gap-3">
+        <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-3">
           <TrendingUp className="w-7 h-7 text-primary" />
-          Active Operations
+          Signal History
         </h1>
         <p className="text-muted-foreground font-mono text-sm">
-          Prediction ledger, results comparison, and ticket builder — track every call against the actual outcome.
+          Signal ledger, results comparison, and ticket builder — track every call against the actual outcome.
         </p>
       </div>
 

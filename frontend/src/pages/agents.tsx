@@ -53,7 +53,7 @@ const AGENT_META: Record<string, { label: string; category: string; icon: React.
   "kyc-screener":          { label: "KYC Auto-Screener",      category: "Compliance",   icon: <ShieldCheck className="w-4 h-4" />, description: "Vision AI screens identity submissions" },
   "fraud-review":          { label: "Fraud Reviewer",         category: "Compliance",   icon: <ShieldCheck className="w-4 h-4" />, description: "AI risk narrative + auto-resolve fraud flags" },
   "audit-sentinel":        { label: "Audit Sentinel",         category: "Compliance",   icon: <Eye className="w-4 h-4" />,         description: "Nightly audit log monitoring" },
-  "prediction-moderator":  { label: "Prediction Moderator",   category: "Quality",      icon: <CheckCircle2 className="w-4 h-4" />, description: "AI quality-gates prediction submissions" },
+  "prediction-moderator":  { label: "Signal Moderation Agent",   category: "Quality",      icon: <CheckCircle2 className="w-4 h-4" />, description: "AI quality-gates prediction submissions" },
   "withdrawal-gatekeeper": { label: "Withdrawal Gatekeeper",  category: "Finance",      icon: <DollarSign className="w-4 h-4" />,  description: "Rule cascade auto-approval for withdrawals" },
   "revenue-optimizer":     { label: "Revenue Optimizer",      category: "Finance",      icon: <DollarSign className="w-4 h-4" />,  description: "Daily revenue analytics and pricing recs" },
   "accumulator-publisher": { label: "Accumulator Publisher",  category: "Publishing",   icon: <Zap className="w-4 h-4" />,         description: "Auto-publishes best accumulators to Telegram" },
@@ -324,7 +324,7 @@ export default function AgentsPage() {
         <div>
           <div className="flex items-center gap-2">
             <Cpu className="w-6 h-6 text-cyan-400" />
-            <h1 className="text-2xl font-bold text-white">Agent Control Room</h1>
+            <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Intelligence Agent Control Room</h1>
           </div>
           <p className="text-slate-400 text-sm mt-0.5">
             {coordinator ? (

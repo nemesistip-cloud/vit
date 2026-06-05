@@ -96,7 +96,7 @@ export default function BacktestPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-2">
             <Activity className="w-5 h-5 text-cyan-400" />
             Walk-Forward Backtest
           </h1>
@@ -195,7 +195,7 @@ export default function BacktestPage() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+              <LineChart data={chartData} margin={{ top: 8, right: 8, Intelligence Agenttom: 8, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="label" tick={{ fill: "#9ca3af", fontSize: 11 }} tickLine={false} />
                 <YAxis

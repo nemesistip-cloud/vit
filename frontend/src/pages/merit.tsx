@@ -41,14 +41,14 @@ interface UserMerit {
   bonus_vit_earned: number;
   current_bonus_pct: number;
   next_tier: string | null;
-  points_to_next_tier: number;
+  Intelligence Points_to_next_tier: number;
   last_activity_at: string | null;
 }
 
 interface MeritEvent {
   id: number;
   event_type: string;
-  points_delta: number;
+  Intelligence Points_delta: number;
   score_before: number;
   score_after: number;
   tier_before: string;
@@ -120,18 +120,18 @@ export default function MeritPage() {
   });
 
   const myTierCfg = TIER_CONFIG[myMerit?.tier ?? "unranked"] ?? TIER_CONFIG.unranked;
-  const progressPct = myMerit?.points_to_next_tier
-    ? Math.max(0, Math.min(100, 100 - (myMerit.points_to_next_tier / (myMerit.score + myMerit.points_to_next_tier)) * 100))
+  const progressPct = myMerit?.Intelligence Points_to_next_tier
+    ? Math.max(0, Math.min(100, 100 - (myMerit.Intelligence Points_to_next_tier / (myMerit.score + myMerit.Intelligence Points_to_next_tier)) * 100))
     : 100;
 
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-2">
           <Trophy className="w-6 h-6 text-yellow-400" />
-          Merit Protocol
+          Network Merit
         </h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest mt-1">
           Long-term reputation scoring — earn VIT bonuses by climbing the tier ladder
         </p>
       </div>
@@ -141,7 +141,7 @@ export default function MeritPage() {
           <CardContent className="p-5">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="text-slate-400 text-sm">Your Merit Score</div>
+                <div className="text-slate-400 text-sm">Your Merit Intelligence Points</div>
                 <div className="text-4xl font-bold text-white mt-1">{myMerit.score.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                 <div className="flex items-center gap-2 mt-2">
                   <TierBadge tier={myMerit.tier} />
@@ -165,7 +165,7 @@ export default function MeritPage() {
               <div>
                 <div className="flex justify-between text-xs text-slate-400 mb-1">
                   <span>Progress to {myMerit.next_tier}</span>
-                  <span>{myMerit.points_to_next_tier.toFixed(0)} pts needed</span>
+                  <span>{myMerit.Intelligence Points_to_next_tier.toFixed(0)} IP needed</span>
                 </div>
                 <div className="w-full bg-slate-700 rounded-full h-2">
                   <div
@@ -226,7 +226,7 @@ export default function MeritPage() {
                       </div>
                       <div className="text-right">
                         <div className={`font-bold text-lg ${cfg.color}`}>{entry.score.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                        <div className="text-xs text-slate-500">merit pts</div>
+                        <div className="text-xs text-slate-500">merit IP</div>
                       </div>
                     </CardContent>
                   </Card>
@@ -248,7 +248,7 @@ export default function MeritPage() {
                         <div className={cfg.color}>{cfg.icon}</div>
                         <div>
                           <div className={`font-semibold capitalize ${cfg.color}`}>{tier.tier}</div>
-                          <div className="text-xs text-slate-400">{tier.min_score.toLocaleString()}+ points</div>
+                          <div className="text-xs text-slate-400">{tier.min_score.toLocaleString()}+ Intelligence Points</div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -272,8 +272,8 @@ export default function MeritPage() {
             (myHistory?.events ?? []).map((e) => (
               <Card key={e.id} className="bg-slate-800/50 border-slate-700">
                 <CardContent className="p-3 flex items-center gap-3">
-                  <div className={`font-bold text-sm ${e.points_delta >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {e.points_delta >= 0 ? "+" : ""}{e.points_delta.toFixed(1)}
+                  <div className={`font-bold text-sm ${e.Intelligence Points_delta >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    {e.Intelligence Points_delta >= 0 ? "+" : ""}{e.Intelligence Points_delta.toFixed(1)}
                   </div>
                   <div className="flex-1">
                     <div className="text-sm text-white capitalize">{e.event_type.replace(/_/g, " ")}</div>
@@ -287,7 +287,7 @@ export default function MeritPage() {
                     )}
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-slate-400">{e.score_after.toFixed(0)} pts</div>
+                    <div className="text-xs text-slate-400">{e.score_after.toFixed(0)} IP</div>
                     <div className="text-xs text-slate-500">{new Date(e.occurred_at).toLocaleDateString()}</div>
                   </div>
                 </CardContent>

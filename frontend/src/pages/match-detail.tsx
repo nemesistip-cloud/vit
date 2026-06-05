@@ -355,7 +355,7 @@ export default function MatchDetailPage() {
                   </h4>
                   <div className="flex flex-wrap gap-4 font-mono text-sm">
                     <div>
-                      <span className="text-muted-foreground uppercase text-xs">Bet Side: </span>
+                      <span className="text-muted-foreground uppercase text-xs">Position Side: </span>
                       <span className="font-bold uppercase">{match.bet_side}</span>
                     </div>
                     {match.entry_odds && (
@@ -628,7 +628,7 @@ export default function MatchDetailPage() {
                       )}
                       {(match as any).btts_prob != null && (
                         <div>
-                          <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Both Teams to Score</p>
+                          <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Intelligence Agenth Teams to Score</p>
                           <div className="grid grid-cols-2 gap-2">
                             {([
                               { side: "btts_yes" as StakeSide, label: "BTTS Yes", prob: (match as any).btts_prob },

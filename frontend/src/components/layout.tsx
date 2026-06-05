@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { TERMS } from "@/lib/terminology";
+import { apiGet } from "@/lib/apiClient";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { isTWA } from "@/lib/twa";
 import { useAuth } from "@/lib/auth";
@@ -26,14 +29,14 @@ type NavGroup = { name: string; items: NavItem[] };
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    name: "Bet",
+    name: "Signal",
     items: [
       { name: "Dashboard",      href: "/dashboard",          icon: Home },
       { name: "Project Teams",   href: "/community",          icon: Users },
       { name: "Matches",        href: "/matches",            icon: Activity },
       { name: "Analytics",    href: "/value-analytics", icon: Shield },
       { name: "Predictions",    href: "/predictions",        icon: CheckSquare },
-      { name: "Quality Feed",   href: "/quality-feed",       icon: Target },
+      { name: "Elite Signal Feed",   href: "/quality-feed",       icon: Target },
       { name: "Accumulator",    href: "/accumulator",        icon: Layers },
       { name: "Odds Intel",     href: "/odds",               icon: TrendingUp },
       { name: "Backtest",       href: "/backtest",           icon: LineChart },
@@ -61,11 +64,11 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Model Performance",href: "/model-performance",  icon: PieChart },
       { name: "Intel Reports",    href: "/reports",            icon: Radio },
       { name: "Research",         href: "/research",           icon: FlaskConical },
-      { name: "Stadium Mode",     href: "/stadium",            icon: Map },
-      { name: "VIT Analytics Test",      href: "/iq-test",            icon: Brain },
-      { name: "Oracle's Mic",     href: "/oracle-mic",         icon: Mic2 },
+      { name: "Live Attendance Mode",     href: "/stadium",            icon: Map },
+      { name: "Intelligence Assessment",      href: "/iq-test",            icon: Brain },
+      { name: "Network Broadcasts",     href: "/oracle-mic",         icon: Mic2 },
       { name: "Debate Arena",     href: "/debates",            icon: Sword },
-      { name: "Bet Rooms",        href: "/rooms",              icon: MessageSquare },
+      { name: "Signal Rooms",        href: "/rooms",              icon: MessageSquare },
       { name: "Prophecy Chain",   href: "/prophecy",           icon: Sparkles },
       { name: "Marketplace",      href: "/marketplace",        icon: ShoppingBag },
       { name: "Validators",       href: "/validators",         icon: ShieldCheck },
@@ -91,8 +94,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "My Identity",      href: "/identity",        icon: Fingerprint },
       { name: "KYC Verify",       href: "/kyc",             icon: BadgeCheck },
-      { name: "Discipline Coach", href: "/discipline-coach",icon: Bot },
-      { name: "My Wrapped",       href: "/wrapped",         icon: Smartphone },
+      { name: "Bankroll Discipline", href: "/discipline-coach",icon: Bot },
+      { name: "Year in Review",       href: "/wrapped",         icon: Smartphone },
       { name: "Subscription",     href: "/subscription",    icon: CreditCard },
       { name: "Settings",         href: "/settings",        icon: Settings },
     ],
@@ -108,10 +111,11 @@ const MOBILE_BOTTOM_NAV = [
 ];
 
 const TIER_BADGE: Record<string, { label: string; cls: string }> = {
-  elite:   { label: "Elite",   cls: "bg-yellow-400/10 text-yellow-400 border-yellow-400/25" },
-  pro:     { label: "Pro",     cls: "bg-primary/10 text-primary border-primary/25" },
-  analyst: { label: "Analyst", cls: "bg-purple-400/10 text-purple-400 border-purple-400/25" },
-  viewer:  { label: "Viewer",  cls: "bg-muted/30 text-muted-foreground border-border" },
+  elite:   { label: "Intelligence Pro",   cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
+  pro:     { label: "Intelligence Pro",     cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
+  analyst: { label: "Intelligence Analyst", cls: "text-blue-400 border-blue-500/40 bg-blue-500/10" },
+  validator: { label: "Network Validator", cls: "text-amber-400 border-amber-500/40 bg-amber-500/10" },
+  viewer:  { label: "Intelligence Free",  cls: "text-zinc-400 border-zinc-600" },
   admin:   { label: "Admin",   cls: "bg-rose-400/10 text-rose-400 border-rose-400/25" },
 };
 
@@ -128,6 +132,58 @@ function UserInitials({ name }: { name: string }) {
   );
 }
 
+
+function Footer() {
+  const { data: oracleStats } = useQuery({
+    queryKey: ["/api/oracle/stats"],
+    queryFn: () => apiGet<any>("/api/oracle/stats"),
+    refetchInterval: 60000,
+  });
+
+  const { data: networkStats } = useQuery({
+    queryKey: ["/api/network/stats"],
+    queryFn: () => apiGet<any>("/api/network/stats"),
+    refetchInterval: 60000,
+  });
+
+  const oracleStatus = oracleStats?.status ?? "—";
+  const nodeCount = networkStats?.node_count ?? "—";
+
+  return (
+    <footer className="mt-auto py-8 px-4 border-t border-white/5 bg-card/20">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="space-y-1 text-center md:text-left">
+          <div className="text-xs font-mono font-bold text-foreground">
+            {TERMS.platform.name} — {TERMS.platform.version}
+          </div>
+          <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+            © 2025 {TERMS.platform.shortName}. {TERMS.platform.tagline}.
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-4 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/3 border border-white/5">
+            Oracle Status: <span className={oracleStatus === "Live" ? "text-emerald-400" : "text-amber-400"}>{oracleStatus}</span>
+            <span className={`w-1.5 h-1.5 rounded-full ${oracleStatus === "Live" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/3 border border-white/5">
+            Network Nodes: <span className="text-foreground">{nodeCount}</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/3 border border-white/5">
+            Engine: <span className="text-emerald-400">Active</span>
+          </div>
+        </div>
+
+        <div className="flex gap-4 text-[10px] font-mono uppercase tracking-widest">
+          <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
+          <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+          <Link href="/developer" className="hover:text-primary transition-colors">Developer API</Link>
+          <Link href="/network" className="hover:text-primary transition-colors">Network Status</Link>
+        </div>
+      </div>
+    </footer>
+  );
+}
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
@@ -300,6 +356,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-y-auto bg-background vit-scrollbar">
           <div className="p-4 lg:p-6 max-w-7xl mx-auto pb-24 lg:pb-8">
             {children}
+            <Footer />
           </div>
         </main>
       </div>

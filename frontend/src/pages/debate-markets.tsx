@@ -75,7 +75,7 @@ export default function DebateMarketsPage() {
         <div>
           <h1 className="text-2xl font-bold font-mono uppercase tracking-tight flex items-center gap-2">
             <MessageSquare className="w-6 h-6 text-purple-400" />
-            Debate Markets
+            Signal Debates
           </h1>
           <p className="text-muted-foreground font-mono text-sm mt-1">
             Community governance votes and model performance debates
@@ -84,7 +84,7 @@ export default function DebateMarketsPage() {
         <Link href="/governance">
           <Button size="sm" className="font-mono text-xs gap-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20" variant="outline">
             <Brain className="w-3.5 h-3.5" />
-            View DAO Governance
+            View VIT Protocol Council Governance
           </Button>
         </Link>
       </div>
@@ -93,7 +93,7 @@ export default function DebateMarketsPage() {
       <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-purple-500/5 border border-purple-500/20 text-sm font-mono text-muted-foreground">
         <Zap className="w-4 h-4 text-purple-400 flex-shrink-0" />
         <span>
-          Debate Markets pull from live governance proposals and real model metrics.
+          Signal Debates pull from live governance proposals and real model metrics.
           Full staking debate engine launches in v6.0 — vote on{" "}
           <Link href="/governance" className="text-purple-400 hover:underline">governance proposals</Link> now.
         </span>
@@ -181,7 +181,7 @@ export default function DebateMarketsPage() {
             </div>
             <Link href="/governance">
               <Button size="sm" variant="outline" className="font-mono text-xs border-purple-500/30 text-purple-400">
-                Go to Governance DAO
+                Go to Governance VIT Protocol Council
               </Button>
             </Link>
           </CardContent>

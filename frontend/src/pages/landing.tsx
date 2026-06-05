@@ -104,15 +104,15 @@ const buildFeatures = (modelCount: number) => [
 ];
 
 const CAPABILITY_PILLS = [
-  { label: "VIT Brain (Mistral/Ollama)", color: "text-primary  border-primary/30  bg-primary/8"  },
+  { label: "VIT Intelligence Engine", color: "text-primary  border-primary/30  bg-primary/8"  },
   { label: "VIT Memory (RAG)",         color: "text-teal-400 border-teal-400/30 bg-teal-400/8" },
-  { label: "22 Live Agents",           color: "text-cyan-400 border-cyan-400/30 bg-cyan-400/8" },
+  { label: "VIT Autonomous Network",           color: "text-cyan-400 border-cyan-400/30 bg-cyan-400/8" },
   { label: "Elections",         color: "text-purple-400 border-purple-400/30 bg-purple-400/8" },
   { label: "Policy Sentiment",         color: "text-indigo-400 border-indigo-400/30 bg-indigo-400/8" },
   { label: "VITCoin Economy",          color: "text-green-400 border-green-400/30 bg-green-400/8" },
   { label: "On-Chain Verification",    color: "text-amber-400 border-amber-400/30 bg-amber-400/8" },
-  { label: "Remittance Layer",         color: "text-secondary border-secondary/30 bg-secondary/8" },
-  { label: "W3C DIDs",                 color: "text-slate-400 border-slate-400/30 bg-slate-400/8" },
+  { label: "Finance & Transfers",         color: "text-secondary border-secondary/30 bg-secondary/8" },
+  { label: "VIT Identity",                 color: "text-slate-400 border-slate-400/30 bg-slate-400/8" },
   { label: "Signal Marketplace",       color: "text-yellow-400 border-yellow-400/30 bg-yellow-400/8" },
 ];
 
@@ -204,23 +204,23 @@ export default function LandingPage() {
             {publicCfg?.platform.version ?? 'v5.2.0'} — The Intelligence Super App
           </Badge>
           <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tight mb-6 leading-[1.1]">
-            Professional <br />
-            <span className="vit-gradient-text">Analytics Analytics</span>
+            Institutional-Grade <br />
+            <span className="vit-gradient-text">Sports Intelligence</span>
           </h1>
           <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-            A decentralised network providing professional AI analytics across sports,
-            elections, finance, and policy. Secured by VIT Blockchain.
+            A 13-model AI ensemble. Real-time signal generation.
+            Network-verified outcomes. Built for precision.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register">
               <Button size="lg" className="font-mono gap-2 px-8 h-14 text-md shadow-xl vit-glow-cyan">
-                Launch App
+                Access the Network
                 <ArrowRight className="w-5 h-5" />
               </Button>
             </Link>
             <a href="#features">
               <Button size="lg" variant="outline" className="font-mono px-8 h-14 text-md bg-background/50 backdrop-blur-sm border-white/5">
-                Explore Network
+                View Live Signals
               </Button>
             </a>
           </div>
@@ -242,10 +242,10 @@ export default function LandingPage() {
       <section className="py-20 border-b border-border/50">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <StatCounter value={stats?.predictions_display ?? "1.2M+"} label="Predictions On-Chain" />
-            <StatCounter value={stats?.accuracy_display ?? "84.2%"} label="Verified Accuracy" />
-            <StatCounter value={stats?.total_staked_display ?? "$4.8M"} label="Total Value Locked" />
-            <StatCounter value={`${modelCount}`} label="Active AI Agents" />
+            <StatCounter value={stats?.predictions_display ?? "1.2M+"} label="Signals Generated" />
+            <StatCounter value={stats?.accuracy_display ?? "84.2%"} label="Signal Accuracy" />
+            <StatCounter value={stats?.total_staked_display ?? "$4.8M"} label="Network Members" />
+            <StatCounter value={`${modelCount}`} label="Active Intelligence Models" />
           </div>
         </div>
       </section>

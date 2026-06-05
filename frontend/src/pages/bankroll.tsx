@@ -118,7 +118,7 @@ export default function BankrollPage() {
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-2">
           <Wallet className="w-6 h-6 text-cyan-400" />
           Bankroll Management
         </h1>
@@ -147,7 +147,7 @@ export default function BankrollPage() {
           {
             label: "All-Time ROI",
             value: `${profitSign(stats?.all_time.roi_pct ?? 0)}${(stats?.all_time.roi_pct ?? 0).toFixed(1)}%`,
-            sub: `${stats?.all_time.total ?? 0} bets settled`,
+            sub: `${stats?.all_time.total ?? 0} signals settled`,
             icon: <Activity className="w-4 h-4 text-purple-400" />,
             color: profitColor(stats?.all_time.roi_pct ?? 0),
           },
@@ -201,7 +201,7 @@ export default function BankrollPage() {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={history} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <AreaChart data={history} margin={{ top: 4, right: 8, left: -10, Intelligence Agenttom: 0 }}>
                   <defs>
                     <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
@@ -235,7 +235,7 @@ export default function BankrollPage() {
               Kelly Calculator
             </CardTitle>
             <CardDescription className="text-xs text-zinc-500">
-              Optimal stake sizing for any bet
+              Optimal stake sizing for any signal
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -269,13 +269,13 @@ export default function BankrollPage() {
               <div className="space-y-2 pt-2 border-t border-zinc-800">
                 <div className="flex items-center gap-2 mb-2">
                   {kellyResult.positive_ev ? (
-                    <><CheckCircle className="w-4 h-4 text-emerald-400" /><span className="text-emerald-400 text-xs font-medium">Positive EV Bet</span></>
+                    <><CheckCircle className="w-4 h-4 text-emerald-400" /><span className="text-emerald-400 text-xs font-medium">Positive EV Signal</span></>
                   ) : (
                     <><AlertTriangle className="w-4 h-4 text-red-400" /><span className="text-red-400 text-xs font-medium">Negative EV — Avoid</span></>
                   )}
                 </div>
                 {[
-                  { label: "Edge", value: `${kellyResult.edge_pct >= 0 ? "+" : ""}${kellyResult.edge_pct.toFixed(2)}%`, color: kellyResult.positive_ev ? "text-emerald-400" : "text-red-400" },
+                  { label: "Edge", value: `${kellyResult.edge_pct >= 0 ? "+" : ""}${kellyResult.edge_pct >= 0 ? "▲" : "▼"}{kellyResult.edge_pct.toFixed(2)}%`, color: kellyResult.positive_ev ? "text-emerald-400" : "text-red-400" },
                   { label: "Full Kelly", value: `${kellyResult.full_kelly_pct.toFixed(2)}%`, color: "text-white" },
                   { label: "¼ Kelly (safe)", value: `${kellyResult.quarter_kelly_pct.toFixed(2)}%`, color: "text-cyan-400" },
                   { label: "Recommended Stake", value: `$${kellyResult.recommended_stake.toFixed(2)}`, color: "text-cyan-400" },
@@ -323,7 +323,7 @@ export default function BankrollPage() {
                 <div className="text-zinc-400 text-xs uppercase tracking-wider mb-3">{title}</div>
                 <div className="space-y-2">
                   {[
-                    { label: "Total Bets", value: (d?.total ?? 0).toString() },
+                    { label: "Total Signals", value: (d?.total ?? 0).toString() },
                     { label: "Wins", value: (d?.wins ?? 0).toString(), color: "text-emerald-400" },
                     { label: "Losses", value: (d?.losses ?? 0).toString(), color: "text-red-400" },
                     { label: "Win Rate", value: `${d?.win_rate ?? 0}%`, color: (d?.win_rate ?? 0) >= 50 ? "text-emerald-400" : "text-red-400" },

@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity, Brain, AlertTriangle, BarChart3, RefreshCw,
   ChevronDown, ChevronUp, Radio, Target, Zap, Shield,
-  TrendingUp, Clock, Bot, Newspaper, Play, Cpu, RotateCcw,
+  TrendingUp, Clock, Intelligence Agent, Newspaper, Play, Cpu, RotateCcw,
   GripVertical,
 } from "lucide-react";
 import { vitWS } from "@/lib/websocket";
@@ -70,7 +70,7 @@ const AGENT_CONFIG: Record<string, { label: string; color: string; icon: React.F
   "accumulator-publisher":{ label: "Accumulator",     color: "text-emerald-400", icon: Target,        bg: "border-emerald-500/30 bg-emerald-500/5" },
 };
 
-const DEFAULT_CONFIG = { label: "Agent", color: "text-gray-400", icon: Bot, bg: "border-gray-500/30 bg-gray-500/5" };
+const DEFAULT_CONFIG = { label: "Agent", color: "text-gray-400", icon: Intelligence Agent, bg: "border-gray-500/30 bg-gray-500/5" };
 
 const SEVERITY_CLS: Record<string, string> = {
   CRITICAL: "text-red-400 border-red-500/40 bg-red-500/10",
@@ -142,8 +142,8 @@ function ReportCard({ report }: { report: AgentReport }) {
   const riskLevel   = meta.risk_level ?? meta.severity;
   const riskCls     = RISK_CLS[riskLevel?.toUpperCase()] ?? SEVERITY_CLS[riskLevel?.toUpperCase()];
   const keyFactors: string[] = meta.key_factors ?? [];
-  const inPlayBet   = meta.in_play_bet;
-  const valuePick   = meta.value_pick ?? meta.betting_implication;
+  const inPlaySignal   = meta.in_play_signal;
+  const valuePick   = meta.value_pick ?? meta.signal_implication;
   const momentum    = meta.momentum;
   const teamStats   = meta.stats;
   const matchLabel  = meta.match ?? (meta.team ? `Team: ${meta.team}` : null);
@@ -210,13 +210,13 @@ function ReportCard({ report }: { report: AgentReport }) {
           </div>
         )}
 
-        {/* Value Pick / In-Play Bet */}
-        {(valuePick || inPlayBet) && expanded && (
+        {/* Value Signal / In-Play Signal */}
+        {(valuePick || inPlaySignal) && expanded && (
           <div className={`p-2.5 rounded-lg border-l-2 ${cfg.color.replace("text-", "border-")} bg-background/30`}>
             <p className="text-[10px] font-mono uppercase text-muted-foreground mb-1">
-              {inPlayBet ? "In-Play Opportunity" : "Value Pick"}
+              {inPlaySignal ? "In-Play Signal" : "Value Signal"}
             </p>
-            <p className="text-sm font-semibold">{inPlayBet || valuePick}</p>
+            <p className="text-sm font-semibold">{inPlaySignal || valuePick}</p>
           </div>
         )}
 

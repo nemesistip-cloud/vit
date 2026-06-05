@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Target, TrendingUp, Zap, Sparkles, Filter, Info, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
-interface QualityBet {
+interface EliteSignal {
   id: number;
   match: string;
   league: string;
@@ -24,7 +24,7 @@ interface QualityBet {
 export default function QualityFeedPage() {
   const [riskProfile, setRiskProfile] = useState("balanced");
 
-  const { data, isLoading } = useQuery<{ items: QualityBet[] }>({
+  const { data, isLoading } = useQuery<{ items: EliteSignal[] }>({
     queryKey: ["quality-feed", riskProfile],
     queryFn: () => apiGet(`/api/quality-feed/curated?risk_profile=${riskProfile}&min_edge=0.04`),
     staleTime: 30_000,
@@ -36,9 +36,9 @@ export default function QualityFeedPage() {
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter italic flex items-center gap-3">
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center gap-3">
             <Target className="w-8 h-8 text-cyan-400" />
-            Quality Bet Feed
+            Elite Signal Feed
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Human-AI hybrid filtering: only the top 1% of +EV opportunities.
@@ -89,7 +89,7 @@ export default function QualityFeedPage() {
                   </div>
                   <div>
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Edge</p>
-                    <p className="font-mono text-xl font-bold text-emerald-400">+{(bet.edge * 100).toFixed(1)}%</p>
+                    <p className="font-mono text-xl font-bold text-emerald-400">+▲{(bet.edge * 100).toFixed(1)}%</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Confidence</p>
@@ -97,7 +97,7 @@ export default function QualityFeedPage() {
                   </div>
                   <div className="flex justify-end">
                     <Button className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl px-6 h-12 shadow-lg shadow-cyan-500/20">
-                      Stake {Math.round(bet.suggested_stake_pct * 100)}%
+                      Allocation {Math.round(bet.suggested_stake_pct * 100)}%
                     </Button>
                   </div>
                 </div>
@@ -105,7 +105,7 @@ export default function QualityFeedPage() {
               <div className="px-6 py-3 bg-zinc-950/50 border-t border-border/30 flex items-center gap-3">
                 <Sparkles className="w-4 h-4 text-yellow-500" />
                 <p className="text-xs text-zinc-400 italic">
-                  <span className="text-zinc-200 font-bold not-italic mr-1">WHY THIS BET:</span>
+                  <span className="text-zinc-200 font-bold not-italic mr-1">WHY THIS SIGNAL:</span>
                   {bet.rationale}
                 </p>
               </div>

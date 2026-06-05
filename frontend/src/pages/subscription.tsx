@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TERMS } from "@/lib/terminology";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +27,7 @@ const PLAN_COLORS: Record<string, { border: string; glow: string; badge: string 
 
 // PLAN_ORDER and FEATURE_LABELS now come from /config/public via usePublicConfig().
 // Local fallbacks below are used only on first paint while the config is loading.
-const FALLBACK_PLAN_ORDER = ["free", "analyst", "pro", "validator", "elite"];
+const FALLBACK_PLAN_ORDER = ["free", "analyst", "pro", "validator", "pro"];
 const FALLBACK_FEATURE_LABELS: Record<string, string> = {
   predictions:          "Match Predictions",
   basic_history:        "Prediction History",
@@ -111,7 +112,7 @@ export default function SubscriptionPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Subscription Plans</h1>
+        <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Subscription Plans</h1>
         <p className="text-muted-foreground font-mono text-sm">Unlock the full power of VIT Sports Analytics.</p>
       </div>
 
@@ -198,12 +199,12 @@ export default function SubscriptionPage() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2 mb-2">
                     <Icon className={`w-5 h-5 ${
-                      plan.name === "validator" || plan.name === "elite" ? "text-secondary"
+                      plan.name === "validator" || plan.name === "pro" ? "text-secondary"
                       : plan.name === "pro" ? "text-primary"
                       : plan.name === "analyst" ? "text-blue-400"
                       : "text-muted-foreground"
                     }`} />
-                    <CardTitle className="font-mono font-bold uppercase tracking-wider">{plan.display_name}</CardTitle>
+                    <CardTitle className="font-mono font-bold uppercase tracking-wider">{TERMS.tiers[plan.name as keyof typeof TERMS.tiers] || plan.name}</CardTitle>
                   </div>
                   <p className="text-muted-foreground font-mono text-xs">{plan.description}</p>
                 </CardHeader>
@@ -264,12 +265,12 @@ export default function SubscriptionPage() {
                     ) : isUpgrade ? (
                       <Button
                         className="w-full font-mono text-xs gap-1.5"
-                        variant={plan.name === "validator" || plan.name === "elite" ? "secondary" : "default"}
+                        variant={plan.name === "validator" || plan.name === "pro" ? "secondary" : "default"}
                         onClick={() => handleUpgrade(plan.name)}
                         disabled={upgrading === plan.name || checkoutMutation.isPending}
                       >
                         <ExternalLink className="w-3 h-3" />
-                        {upgrading === plan.name ? "Redirecting to payment..." : `Upgrade to ${plan.display_name}`}
+                        {upgrading === plan.name ? "Redirecting to payment..." : `Upgrade to ${TERMS.tiers[plan.name as keyof typeof TERMS.tiers] || plan.name}`}
                       </Button>
                     ) : null}
                   </div>

@@ -163,7 +163,7 @@ function BacktestPanel({ token }: { token: string }) {
         <>
           {/* Stats row */}
           <div className="flex flex-wrap gap-6 mb-4 pb-3 border-b border-border/50">
-            <Chip label="Bets" value={data.count} />
+            <Chip label="Signals" value={data.count} />
             <Chip label="Win rate" value={`${data.win_rate_pct}%`} />
             <Chip
               label="Flat ROI"
@@ -292,7 +292,7 @@ function MonteCarloPanel({ token }: { token: string }) {
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-mono uppercase text-muted-foreground">Bets/trial</span>
+          <span className="text-[10px] font-mono uppercase text-muted-foreground">Signals/trial</span>
           <select
             value={bets}
             onChange={(e) => setBets(Number(e.target.value))}
@@ -486,7 +486,7 @@ function EVScannerPanel({ token }: { token: string }) {
                   <td className="py-1 pr-3 text-right">{(s.model_prob * 100).toFixed(1)}%</td>
                   <td className="py-1 pr-3 text-right">{s.market_odds}</td>
                   <td className={`py-1 pr-3 text-right ${s.edge_pct > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                    {s.edge_pct > 0 ? "+" : ""}{s.edge_pct}%
+                    {s.edge_pct > 0 ? "+" : ""}{s.edge_pct > 0 ? "▲" : "▼"}{s.edge_pct}%
                   </td>
                   <td className={`py-1 text-right font-bold ${s.ev > 0 ? "text-emerald-400" : "text-rose-400"}`}>
                     {s.ev > 0 ? "+" : ""}{s.ev}
@@ -588,7 +588,7 @@ function StrategyPanel({ token }: { token: string }) {
                 {isOpen && (
                   <div className="px-3 pb-3 pt-0 flex flex-wrap gap-4 border-t border-border/30">
                     <Chip label="Win rate" value={`${s.win_rate_pct}%`} positive={s.win_rate_pct > 50} />
-                    <Chip label="Bets" value={String(s.count)} />
+                    <Chip label="Signals" value={String(s.count)} />
                     <Chip
                       label="Net profit"
                       value={`${s.total_profit > 0 ? "+" : ""}${s.total_profit.toFixed(4)}`}

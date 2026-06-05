@@ -136,7 +136,7 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-mono font-bold uppercase tracking-tight">Analytics Suite</h1>
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Analytics Suite</h1>
           <p className="text-muted-foreground font-mono text-sm">Performance analytics & edge tracking.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -273,7 +273,7 @@ export default function AnalyticsPage() {
           ) : roi?.total === 0 || !roi ? (
             <Card className="bg-card/50 border-muted">
               <CardContent className="py-8 text-center font-mono text-muted-foreground text-sm">
-                No settled bets yet. ROI tracking begins after first settlement.
+                No settled signals yet. ROI tracking begins after first settlement.
               </CardContent>
             </Card>
           ) : (
@@ -670,7 +670,7 @@ export default function AnalyticsPage() {
                                     {(winRate * 100).toFixed(1)}% W/R
                                   </span>
                                 ) : (
-                                  <span className="text-muted-foreground">No settled bets</span>
+                                  <span className="text-muted-foreground">No settled signals</span>
                                 )}
                               </div>
                             </div>

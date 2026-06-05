@@ -77,7 +77,7 @@ export default function OraclesMicPage() {
               <div className="flex-1 text-center md:text-left space-y-4">
                 <div>
                   <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter italic leading-tight">
-                    {currentEp?.title ?? "VIT Oracle's Mic"}
+                    {currentEp?.title ?? "VIT Network Broadcasts"}
                   </h1>
                   <p className="text-cyan-400 font-mono text-sm mt-1">
                     Hosted by {currentEp?.host ?? "Veteran Analyst"}

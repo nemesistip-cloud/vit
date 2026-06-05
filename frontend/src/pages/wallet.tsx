@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  useGetWallet, useListTransactions, useInitiateDeposit, useWithdraw, useConvertCurrency, useGetVitcoinPrice,
+  useGetWallet, useListTransactions, useInitiateDeposit, useTransfer Out, useConvertCurrency, useGetVitcoinPrice,
 } from "@/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -104,7 +104,7 @@ function SparklineChart({ data }: { data: { price_usd: number; calculated_at: st
   const trend = chartData[chartData.length - 1].v >= chartData[0].v;
   return (
     <ResponsiveContainer width="100%" height={64}>
-      <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+      <AreaChart data={chartData} margin={{ top: 2, right: 0, Intelligence Agenttom: 0, left: 0 }}>
         <defs>
           <linearGradient id="vitGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={trend ? "#ffd700" : "#ef4444"} stopOpacity={0.3} />
@@ -274,7 +274,7 @@ function VolumeBarChart({ txList, SYM }: { txList: any[]; SYM: Record<string, st
 
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <BarChart data={byCurrency} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+      <BarChart data={byCurrency} margin={{ top: 4, right: 8, Intelligence Agenttom: 0, left: 0 }}>
         <XAxis dataKey="name" tick={{ fontSize: 10, fontFamily: "monospace", fill: "#6b7280" }} />
         <YAxis tick={{ fontSize: 9, fontFamily: "monospace", fill: "#6b7280" }} />
         <ReTooltip
@@ -307,7 +307,7 @@ export default function WalletPage() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const { data: withdrawalsData, isLoading: loadingWithdrawals } = useQuery<{
+  const { data: withdrawalsData, isLoading: loadingTransfers } = useQuery<{
     withdrawals: {
       id: string; currency: string; amount: number; fee: number; net_amount: number;
       destination: string; destination_type: string; status: string; auto_approved: boolean;
@@ -333,7 +333,7 @@ export default function WalletPage() {
 
   const { mutate: getStarsInvoice, isPending: gettingInvoice } = useTelegramStarsInvoice();
   const initiateDeposit = useInitiateDeposit();
-  const withdraw = useWithdraw();
+  const withdraw = useTransfer Out();
   const convert = useConvertCurrency();
 
   const [kycOpen, setKycOpen] = useState(false);
@@ -355,10 +355,10 @@ export default function WalletPage() {
   const [depositCurrency, setDepositCurrency] = useState("NGN");
   const [depositAmount, setDepositAmount] = useState("");
   const [depositMethod, setDepositMethod] = useState("paystack");
-  const [withdrawCurrency, setWithdrawCurrency] = useState("NGN");
-  const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [withdrawDest, setWithdrawDest] = useState("");
-  const [withdrawDestType, setWithdrawDestType] = useState("bank_account");
+  const [withdrawCurrency, setTransfer OutCurrency] = useState("NGN");
+  const [withdrawAmount, setTransfer OutAmount] = useState("");
+  const [withdrawDest, setTransfer OutDest] = useState("");
+  const [withdrawDestType, setTransfer OutDestType] = useState("bank_account");
   const [convertFrom, setConvertFrom] = useState("NGN");
   const [convertTo, setConvertTo] = useState("VITCoin");
   const [convertAmount, setConvertAmount] = useState("");
@@ -448,7 +448,7 @@ export default function WalletPage() {
   })();
 
   const handleDeposit = async () => {
-    if (!depositAmount || parseFloat(depositAmount) <= 0) { toast.error("Enter a valid amount"); return; }
+    if (!depositAmount || parseFloat(depositAmount) <= 0) { toast.error("Invalid amount"); return; }
     try {
       if (depositMethod === "telegram_stars") {
         getStarsInvoice({ stars_amount: Math.round(parseFloat(depositAmount)) }, {
@@ -456,7 +456,7 @@ export default function WalletPage() {
             if (window.Telegram?.WebApp) {
               window.Telegram.WebApp.openInvoice(data.invoice_link, (status: string) => {
                 if (status === "paid") {
-                  toast.success("Payment successful!");
+                  toast.success("Signal registered");
                   queryClient.invalidateQueries({ queryKey: ["/api/wallet/me"] });
                 } else if (status === "failed") {
                   toast.error("Payment failed");
@@ -486,7 +486,7 @@ export default function WalletPage() {
     }
   };
 
-  const handleWithdraw = async () => {
+  const handleTransfer Out = async () => {
     if (!withdrawAmount || !withdrawDest) { toast.error("Fill in amount and destination"); return; }
     try {
       const result = await withdraw.mutateAsync({
@@ -495,17 +495,17 @@ export default function WalletPage() {
         destination: withdrawDest,
         destination_type: withdrawDestType,
       });
-      toast.success(`Withdrawal of ${withdrawAmount} ${withdrawCurrency} submitted — ID: ${result.request_id?.slice(0, 8)}…`);
-      setWithdrawAmount(""); setWithdrawDest("");
+      toast.success(`Transfer of ${withdrawAmount} ${withdrawCurrency} submitted — ID: ${result.request_id?.slice(0, 8)}…`);
+      setTransfer OutAmount(""); setTransfer OutDest("");
       queryClient.invalidateQueries({ queryKey: ["/api/wallet/me"] });
       queryClient.invalidateQueries({ queryKey: ["my-withdrawals"] });
     } catch (e: any) {
-      toast.error(e.message || "Withdrawal failed");
+      toast.error(e.message || "Transfer failed");
     }
   };
 
   const handleConvert = async () => {
-    if (!convertAmount || parseFloat(convertAmount) <= 0) { toast.error("Enter a valid amount"); return; }
+    if (!convertAmount || parseFloat(convertAmount) <= 0) { toast.error("Invalid amount"); return; }
     try {
       const result = await convert.mutateAsync({
         from_currency: convertFrom,
@@ -552,7 +552,7 @@ export default function WalletPage() {
         <div>
           <h1 className="text-2xl md:text-3xl font-mono font-bold tracking-tight flex items-center gap-2">
             <Wallet className="w-6 h-6 text-secondary" />
-            Wallet & Treasury
+            Network Wallet
           </h1>
           <p className="text-muted-foreground font-mono text-xs mt-1">
             {wallet.kyc_verified ? (
@@ -819,16 +819,16 @@ export default function WalletPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Withdraw */}
+        {/* Transfer Out */}
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline" className="h-12 font-mono gap-2 w-full border-border/60">
-              <Send className="w-4 h-4" /> Withdraw
+              <Send className="w-4 h-4" /> Transfer Out
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle className="font-mono flex items-center gap-2"><Send className="w-4 h-4" /> Withdraw Funds</DialogTitle>
+              <DialogTitle className="font-mono flex items-center gap-2"><Send className="w-4 h-4" /> Transfer Out Funds</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               {!wallet.kyc_verified && (
@@ -840,7 +840,7 @@ export default function WalletPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs font-mono text-muted-foreground uppercase mb-2">Currency</div>
-                  <Select value={withdrawCurrency} onValueChange={setWithdrawCurrency}>
+                  <Select value={withdrawCurrency} onValueChange={setTransfer OutCurrency}>
                     <SelectTrigger className="font-mono text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CURRENCIES.map((c) => <SelectItem key={c} value={c} className="font-mono">{c}</SelectItem>)}
@@ -853,14 +853,14 @@ export default function WalletPage() {
                     type="number"
                     placeholder="0.00"
                     value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    onChange={(e) => setTransfer OutAmount(e.target.value)}
                     className="font-mono text-sm"
                   />
                 </div>
               </div>
               <div>
                 <div className="text-xs font-mono text-muted-foreground uppercase mb-2">Destination Type</div>
-                <Select value={withdrawDestType} onValueChange={setWithdrawDestType}>
+                <Select value={withdrawDestType} onValueChange={setTransfer OutDestType}>
                   <SelectTrigger className="font-mono"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="bank_account" className="font-mono">Bank Account</SelectItem>
@@ -874,14 +874,14 @@ export default function WalletPage() {
                 <Input
                   placeholder={withdrawDestType === "bank_account" ? "Account number" : "Wallet address"}
                   value={withdrawDest}
-                  onChange={(e) => setWithdrawDest(e.target.value)}
+                  onChange={(e) => setTransfer OutDest(e.target.value)}
                   className="font-mono text-sm"
                 />
               </div>
               {withdrawAmount && parseFloat(withdrawAmount) > 0 && (
                 <div className="rounded-lg bg-muted/30 border border-border/50 p-3 text-xs font-mono space-y-1.5">
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Withdrawal fee (1.5%)</span>
+                    <span>Transfer fee (1.5%)</span>
                     <span>{SYM[withdrawCurrency] ?? ""}{(parseFloat(withdrawAmount) * 0.015).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-foreground border-t border-border/50 pt-1.5">
@@ -894,10 +894,10 @@ export default function WalletPage() {
               <Button
                 variant="outline"
                 className="w-full font-mono h-11 gap-2 border-destructive/30 text-destructive hover:bg-destructive/10"
-                onClick={handleWithdraw}
+                onClick={handleTransfer Out}
                 disabled={withdraw.isPending || !wallet.kyc_verified}
               >
-                {withdraw.isPending ? "Processing…" : !wallet.kyc_verified ? "KYC Required" : "Request Withdrawal"}
+                {withdraw.isPending ? "Processing…" : !wallet.kyc_verified ? "KYC Required" : "Request Transfer"}
               </Button>
             </div>
           </DialogContent>
@@ -995,7 +995,7 @@ export default function WalletPage() {
         <ExchangeRatePanel rates={exchangeRatesData?.rates} ngnRate={ngnRate} vitPrice={vitPrice} />
       </div>
 
-      {/* ── Tabs: Transactions | Withdrawals | Analytics ── */}
+      {/* ── Tabs: Transactions | Transfers | Analytics ── */}
       <Tabs defaultValue="transactions">
         <TabsList className="font-mono text-xs gap-1 h-9">
           <TabsTrigger value="transactions" className="gap-1.5 text-xs">
@@ -1007,7 +1007,7 @@ export default function WalletPage() {
           </TabsTrigger>
           <TabsTrigger value="withdrawals" className="gap-1.5 text-xs">
             <History className="w-3 h-3" />
-            Withdrawals
+            Transfers
           </TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5 text-xs">
             <BarChart3 className="w-3 h-3" />
@@ -1142,17 +1142,17 @@ export default function WalletPage() {
           </Card>
         </TabsContent>
 
-        {/* ── Withdrawals Tab ── */}
+        {/* ── Transfers Tab ── */}
         <TabsContent value="withdrawals" className="mt-3">
           <Card className="bg-card/50 backdrop-blur border-border">
             <CardHeader className="pb-3 border-b border-border/40">
               <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
                 <History className="w-4 h-4 text-muted-foreground" />
-                Withdrawal History
+                Transfer History
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {loadingWithdrawals ? (
+              {loadingTransfers ? (
                 <div className="p-4 space-y-3">
                   {Array.from({ length: 3 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3">
@@ -1277,7 +1277,7 @@ export default function WalletPage() {
                       prefix: "",
                     },
                     {
-                      label: "Total Withdrawn",
+                      label: "Total Transfer Outn",
                       value: txList.filter(t => t.type === "withdrawal").reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0),
                       color: "text-destructive",
                       prefix: "",
