@@ -104,7 +104,7 @@ function SparklineChart({ data }: { data: { price_usd: number; calculated_at: st
   const trend = chartData[chartData.length - 1].v >= chartData[0].v;
   return (
     <ResponsiveContainer width="100%" height={64}>
-      <AreaChart data={chartData} margin={{ top: 2, right: 0, Intelligence Agenttom: 0, left: 0 }}>
+      <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="vitGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={trend ? "#ffd700" : "#ef4444"} stopOpacity={0.3} />
@@ -274,7 +274,7 @@ function VolumeBarChart({ txList, SYM }: { txList: any[]; SYM: Record<string, st
 
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <BarChart data={byCurrency} margin={{ top: 4, right: 8, Intelligence Agenttom: 0, left: 0 }}>
+      <BarChart data={byCurrency} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <XAxis dataKey="name" tick={{ fontSize: 10, fontFamily: "monospace", fill: "#6b7280" }} />
         <YAxis tick={{ fontSize: 9, fontFamily: "monospace", fill: "#6b7280" }} />
         <ReTooltip

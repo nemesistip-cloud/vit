@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
-  ShieldCheck, AlertTriangle, CheckCircle2, Clock,
+  ShieldCheck, AlertTriangle, CheckCircle2, Clock, RefreshCw,
   XCircle, Upload, Camera, FileText, User, Calendar,
   Globe, CreditCard, ChevronRight, Info
 } from "lucide-react";
@@ -43,9 +43,9 @@ const DOCUMENT_TYPES = [
 
 const STATUS_CONFIG: Record<string, { label: string; icon: typeof ShieldCheck; color: string; bg: string; border: string }> = {
   none:          { label: "Not Submitted",    icon: AlertTriangle, color: "text-muted-foreground", bg: "bg-muted/20",          border: "border-border" },
-  pending:       { label: "Under Review",     icon: Clock,         color: "text-yellow-400",        bg: "bg-yellow-500/10",     border: "border-yellow-500/30" },
+  pending:       { label: "Under Review",     icon: Clock, RefreshCw,         color: "text-yellow-400",        bg: "bg-yellow-500/10",     border: "border-yellow-500/30" },
   auto_approved: { label: "Auto Verified",    icon: CheckCircle2,  color: "text-emerald-400",       bg: "bg-emerald-500/10",    border: "border-emerald-500/30" },
-  manual_review: { label: "Manual Review",    icon: Clock,         color: "text-blue-400",          bg: "bg-blue-500/10",       border: "border-blue-500/30" },
+  manual_review: { label: "Manual Review",    icon: Clock, RefreshCw,         color: "text-blue-400",          bg: "bg-blue-500/10",       border: "border-blue-500/30" },
   approved:      { label: "Verified",         icon: ShieldCheck,   color: "text-emerald-400",       bg: "bg-emerald-500/10",    border: "border-emerald-500/30" },
   rejected:      { label: "Rejected",         icon: XCircle,       color: "text-red-400",           bg: "bg-red-500/10",        border: "border-red-500/30" },
 };
@@ -140,7 +140,101 @@ function StatusBanner({ status }: { status: KYCStatus }) {
   );
 }
 
+function LivenessCapture({ onCapture, onClear, capturedImage }: { onCapture: (blob: string) => void, onClear: () => void, capturedImage: string | null }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+
+  const startCamera = async () => {
+    setIsStarting(true);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      setStream(s);
+      if (videoRef.current) videoRef.current.srcObject = s;
+    } catch (err) {
+      console.error("Camera access failed", err);
+      toast.error("Could not access camera. Please ensure permissions are granted.");
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+  };
+
+  const capture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        onCapture(dataUrl);
+        stopCamera();
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">
+        <Camera className="w-4 h-4" />
+        Liveness Verification
+      </div>
+
+      <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-border group">
+        {capturedImage ? (
+          <>
+            <img src={capturedImage} className="w-full h-full object-cover" alt="Captured liveness" />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute bottom-3 right-3 gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => { onClear(); startCamera(); }}
+            >
+              <RefreshCw className="w-4 h-4" /> Retake
+            </Button>
+          </>
+        ) : stream ? (
+          <>
+            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+              <Button onClick={capture} className="rounded-full w-12 h-12 p-0 bg-white hover:bg-white/90 border-4 border-primary/30 shadow-xl">
+                <div className="w-6 h-6 rounded-full bg-primary" />
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-center p-6">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Camera className="w-8 h-8 text-primary" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Biometric Liveness Check</p>
+              <p className="text-xs text-muted-foreground max-w-[240px]">We need a live selfie to verify your identity. Your data is processed locally.</p>
+            </div>
+            <Button onClick={startCamera} disabled={isStarting} variant="outline" className="gap-2">
+              {isStarting ? "Accessing..." : "Enable Camera"}
+            </Button>
+          </div>
+        )}
+      </div>
+      <canvas ref={canvasRef} className="hidden" />
+    </div>
+  );
+}
+
+
 function KYCForm({ onSuccess }: { onSuccess: () => void }) {
+  const [livenessData, setLivenessData] = useState<string | null>(null);
   const [form, setForm] = useState({
     full_name:       "",
     date_of_birth:   "",
@@ -151,7 +245,7 @@ function KYCForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   const submit = useMutation({
-    mutationFn: (payload: typeof form) =>
+    mutationFn: (payload: any) =>
       apiPost<KYCStatus>("/api/kyc/submit", payload),
     onSuccess: (data) => {
       if (data.status === "auto_approved") {
@@ -176,7 +270,11 @@ function KYCForm({ onSuccess }: { onSuccess: () => void }) {
       toast.error("Please fill in all required fields.");
       return;
     }
-    submit.mutate(form);
+    if (!livenessData) {
+      toast.error("Liveness verification is required. Please capture a selfie.");
+      return;
+    }
+    submit.mutate({ ...form, livenessData });
   };
 
   return (
@@ -272,6 +370,15 @@ function KYCForm({ onSuccess }: { onSuccess: () => void }) {
             />
           </div>
         </div>
+      </div>
+
+      {/* Liveness Check */}
+      <div className="pt-2 border-t border-border">
+        <LivenessCapture
+          capturedImage={livenessData}
+          onCapture={setLivenessData}
+          onClear={() => setLivenessData(null)}
+        />
       </div>
 
       {/* Privacy notice */}

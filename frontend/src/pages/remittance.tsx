@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export default function RemittancePage() {
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-Intelligence Agenttom-4 duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Finance & Remittances</h1>
         <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">Seamless cross-border value transfer</p>

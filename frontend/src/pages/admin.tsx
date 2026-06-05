@@ -36,7 +36,7 @@ import {
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
   Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info,
-  Intelligence Agent, Loader2,
+  Brain, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -922,17 +922,17 @@ function SystemTab() {
           {isLoading ? (
             <div className="flex justify-center py-6"><div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {Object.entries(flagsData?.flags ?? {}).map(([key, val]) => {
                 const isOn = typeof val === "object" ? val.value : val;
                 const desc = typeof val === "object" ? val.description : key;
                 return (
-                  <div key={key} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
-                    <div>
-                      <div className="text-white font-mono text-sm">{key}</div>
-                      <div className="text-xs text-gray-500">{desc}</div>
+                  <div key={key} className="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900/50 hover:border-gray-700 transition-colors">
+                    <div className="min-w-0 flex-1 mr-4">
+                      <div className="text-white font-mono text-sm truncate" title={key}>{key}</div>
+                      <div className="text-[10px] text-gray-500 line-clamp-1 mt-0.5" title={desc}>{desc}</div>
                     </div>
-                    <Switch checked={isOn} onCheckedChange={v => flagMutation.mutate({ key, value: v })} />
+                    <Switch checked={isOn} onCheckedChange={v => flagMutation.mutate({ key, value: v })} className="shrink-0" />
                   </div>
                 );
               })}
@@ -952,56 +952,75 @@ function SystemTab() {
             Keys already in <span className="text-cyan-400 font-medium">Replit Secrets</span> always take priority and are shown with a cyan badge.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-6">
           {sortedGroups.map(group => (
-            <div key={group}>
-              <div className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2 px-1">{group}</div>
-              <div className="space-y-1">
+            <div key={group} className="space-y-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-2 px-1 flex items-center gap-2">
+                <div className="h-px flex-1 bg-gray-800" />
+                {group}
+                <div className="h-px flex-1 bg-gray-800" />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {keysByGroup[group].map(k => (
-                  <div key={k.name} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-800 hover:border-gray-700">
+                  <div key={k.name} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 px-4 rounded-xl border border-gray-800 bg-gray-900/40 hover:border-gray-700 transition-all gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="text-white text-sm font-medium">{k.label}</div>
-                        {k.required && <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">Required</span>}
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <div className="text-white text-sm font-bold tracking-tight">{k.label}</div>
+                        {k.required && (
+                          <span className="text-[9px] uppercase font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded leading-none">
+                            Required
+                          </span>
+                        )}
                         {k.source === "replit_secret" && (
-                          <span className="text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            <Shield className="w-2.5 h-2.5" /> Replit Secret
+                          <span className="text-[9px] uppercase font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.5 rounded flex items-center gap-1 leading-none">
+                            <Shield className="w-2.5 h-2.5" /> Replit
                           </span>
                         )}
                         {k.source === "database" && (
-                          <span className="text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            <Database className="w-2.5 h-2.5" /> Database
+                          <span className="text-[9px] uppercase font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded flex items-center gap-1 leading-none">
+                            <Database className="w-2.5 h-2.5" /> DB
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 truncate mt-0.5">{k.description}</div>
+                      <div className="text-[11px] text-gray-500 line-clamp-1 italic" title={k.description}>
+                        {k.description}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-3 shrink-0">
-                      <span className="font-mono text-xs text-gray-400 hidden sm:block">
-                        {showKey[k.name] ? (k.masked || "Not set") : (k.configured ? "••••••••" : "Not set")}
-                      </span>
-                      {k.configured && (
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500 hover:text-white"
-                          onClick={() => setShowKey(s => ({ ...s, [k.name]: !s[k.name] }))}>
-                          {showKey[k.name] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+
+                    <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                      <div className="flex flex-col items-end mr-1">
+                        <span className="font-mono text-[10px] text-gray-400">
+                          {showKey[k.name] ? (k.masked || "Not set") : (k.configured ? "••••••••" : "Not set")}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 bg-gray-950/50 rounded-lg p-1 border border-gray-800">
+                        {k.configured && (
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500 hover:text-white"
+                            onClick={() => setShowKey(s => ({ ...s, [k.name]: !s[k.name] }))}>
+                            {showKey[k.name] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </Button>
+                        )}
+
+                        {k.source === "database" && (
+                          <Button size="sm" variant="ghost"
+                            className="h-7 w-7 p-0 text-gray-500 hover:text-red-400"
+                            title="Remove from database"
+                            onClick={() => deleteKeyMutation.mutate(k.name)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+
+                        <Button size="sm" variant="outline"
+                          className="h-7 px-3 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-400 text-[10px] font-bold uppercase tracking-wider"
+                          onClick={() => { setEditingKey(k); setNewKeyValue(""); setShowNewKey(false); }}>
+                          {k.configured ? "Update" : "Set"}
                         </Button>
-                      )}
+                      </div>
+
                       {k.configured
-                        ? <CheckCircle className="w-4 h-4 text-emerald-400" />
-                        : <XCircle className="w-4 h-4 text-gray-600" />}
-                      {k.source === "database" && (
-                        <Button size="sm" variant="ghost"
-                          className="h-7 w-7 p-0 text-gray-500 hover:text-red-400"
-                          title="Remove from database"
-                          onClick={() => deleteKeyMutation.mutate(k.name)}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline"
-                        className="h-7 px-2 border-amber-500/30 text-amber-400 hover:border-amber-400 text-xs"
-                        onClick={() => { setEditingKey(k); setNewKeyValue(""); setShowNewKey(false); }}>
-                        <Edit className="w-3 h-3 mr-1" /> {k.configured ? "Update" : "Set"}
-                      </Button>
+                        ? <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                        : <XCircle className="w-4 h-4 text-gray-700 shrink-0" />}
                     </div>
                   </div>
                 ))}
@@ -1045,7 +1064,7 @@ function SystemTab() {
               </div>
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded p-3 text-xs text-emerald-300 space-y-1">
                 <div className="flex items-center gap-1.5 font-medium"><Database className="w-3 h-3" /> Saved to database — survives restarts</div>
-                <div className="text-emerald-400/80">The key is encrypted with AES-256 and loaded automatically on every server start. No need to also add it to Replit Secrets (though Replit Secrets always take priority if Intelligence Agenth exist).</div>
+                <div className="text-emerald-400/80">The key is encrypted with AES-256 and loaded automatically on every server start. No need to also add it to Replit Secrets (though Replit Secrets always take priority if Agents exist).</div>
               </div>
             </div>
             <DialogFooter className="gap-2">
@@ -1442,7 +1461,7 @@ function CSVUploadCard() {
         </CardTitle>
         <CardDescription className="text-gray-400">
           Bulk-import fixtures from a CSV file — runs ML predictions immediately on import.
-          Supports Intelligence Agenth standard format and shorthand <span className="font-mono text-purple-300">#,date,time,home,away,league,H,D,A</span>.
+          Supports Agents standard format and shorthand <span className="font-mono text-purple-300">#,date,time,home,away,league,H,D,A</span>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1556,7 +1575,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
                         {r.status}
                       </span>
                       {r.message && (
-                        <span className="ml-1.5 text-[10px] text-gray-500 max-w-[120px] truncate inline-block align-Intelligence Agenttom" title={r.message}>{r.message}</span>
+                        <span className="ml-1.5 text-[10px] text-gray-500 max-w-[120px] truncate inline-block align-bottom" title={r.message}>{r.message}</span>
                       )}
                     </td>
                     <td className="p-2 text-center hidden lg:table-cell font-mono text-[10px] whitespace-nowrap">
@@ -2379,7 +2398,7 @@ function ModelsTab() {
     refetchInterval: 30000,
   });
   // The endpoint returns either {models: [...]} or a bare array depending on
-  // the route version — handle Intelligence Agenth so we don't crash if it changes shape.
+  // the route version — handle Agents so we don't crash if it changes shape.
   const perfData: any[] = Array.isArray(perfRaw)
     ? perfRaw
     : Array.isArray(perfRaw?.models)
@@ -4061,7 +4080,7 @@ function MLAgentsTab() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Intelligence Agent className="w-5 h-5 text-purple-400" />
+            <Brain className="w-5 h-5 text-purple-400" />
             ML Autonomous Agent Pipeline
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -4358,7 +4377,7 @@ export default function AdminPage() {
       tabs: [
         { value: "models",      label: "Models",      icon: Cpu },
         { value: "calibration", label: "Calibration", icon: Activity },
-        { value: "agents",      label: "Agents",      icon: Intelligence Agent },
+        { value: "agents",      label: "Agents",      icon: Brain },
       ],
     },
     {
@@ -4448,7 +4467,7 @@ export default function AdminPage() {
 
         {/* Active group accent */}
         {activeGroup && (
-          <div className={`absolute Intelligence Agenttom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent ${
+          <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent ${
             activeGroup.label === "OVERVIEW"     ? "via-cyan-500/50" :
             activeGroup.label === "INTELLIGENCE" ? "via-purple-500/50" :
             activeGroup.label === "OPERATIONS"   ? "via-emerald-500/50" :

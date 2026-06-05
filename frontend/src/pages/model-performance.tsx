@@ -219,7 +219,7 @@ export default function ModelPerformancePage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -10, Intelligence Agenttom: 40 }}>
+              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -10, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                 <XAxis
                   dataKey="name"
