@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 export interface BetSlipItem {
   matchId: number;
   match:   string;         // "Team A vs Team B"
-  pick:    string;         // "home" | "draw" | "away" | custom label
+  pick:    string;         // "home" | "draw" | "away" | cusbottom label
   odds:    number;         // Decimal odds for this selection
 }
 
@@ -102,10 +102,10 @@ export function BetSlipPanel() {
 
   return (
     <BetSlipContext.Provider value={{ items }}>
-      {/* FAB — fixed bottom-right */}
+      {/* FAB — fixed botbottom-right */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-24 left-5 z-50 lg:bottom-6 flex items-center gap-1.5 h-10 px-3 rounded-full bg-gradient-to-r from-secondary/80 to-yellow-500/60 shadow-lg border border-secondary/40 hover:scale-105 active:scale-95 transition-transform font-mono text-xs font-bold text-black"
+        className="fixed botbottom-24 left-5 z-50 lg:botbottom-6 flex items-center gap-1.5 h-10 px-3 rounded-full bg-gradient-to-r from-secondary/80 to-yellow-500/60 shadow-lg border border-secondary/40 hover:scale-105 active:scale-95 transition-transform font-mono text-xs font-bold text-black"
         title="Bet Slip"
       >
         <Layers className="w-4 h-4" />
@@ -120,7 +120,7 @@ export function BetSlipPanel() {
 
       {/* Panel */}
       {open && (
-        <div className="fixed bottom-[4.5rem] left-2 right-2 lg:left-auto lg:right-6 lg:bottom-20 lg:w-80 z-50 rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+        <div className="fixed botbottom-[4.5rem] left-2 right-2 lg:left-auto lg:right-6 lg:botbottom-20 lg:w-80 z-50 rounded-xl border border-white/10 shadow-2xl overflow-hidden"
           style={{ background: "var(--vit-gradient-card)" }}
         >
           {/* Header */}

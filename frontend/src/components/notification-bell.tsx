@@ -143,7 +143,7 @@ export function NotificationBell() {
       qc.invalidateQueries({ queryKey: ["notifications", "prefs"] });
     },
     onError: (err: any) =>
-      toast.error(err?.message ?? "Could not link — make sure you started the bot first."),
+      toast.error(err?.message ?? "Could not link — make sure you started the Bot first."),
   });
 
   // WebSocket for real-time push with exponential-backoff reconnect
@@ -404,7 +404,7 @@ export function NotificationBell() {
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Option 1 — Bot Link</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Click the link below to open the VIT bot in Telegram, then tap
+                  Click the link below to open the VIT Bot in Telegram, then tap
                   <strong className="text-foreground"> Start</strong>. Your account will be
                   linked automatically.
                 </p>

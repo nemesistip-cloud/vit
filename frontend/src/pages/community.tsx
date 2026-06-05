@@ -3,7 +3,7 @@ import { Users, MessageSquare, Shield, Star } from "lucide-react";
 
 export default function CommunityPage() {
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-Intelligence Agenttom-4 duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Intelligence Circles</h1>
         <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">Collaborative Analytics & Social Proof</p>

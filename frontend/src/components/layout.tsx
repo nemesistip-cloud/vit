@@ -229,7 +229,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     }`}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary shadow-[0_0_6px_rgba(0,245,255,0.6)]" />
+                      <span className="absolute left-0 top-2 botbottom-2 w-0.5 rounded-full bg-primary shadow-[0_0_6px_rgba(0,245,255,0.6)]" />
                     )}
                     <item.icon className={`w-3.5 h-3.5 flex-shrink-0 transition-all ${isActive ? "text-primary" : "group-hover:text-foreground group-hover:scale-105"}`} />
                     <span className="truncate text-xs">{item.name}</span>
@@ -361,8 +361,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      {/* ── Mobile Bottom Navigation ─────────────────────── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40"
+      {/* ── Mobile Botbottom Navigation ─────────────────────── */}
+      <nav className="lg:hidden fixed botbottom-0 left-0 right-0 z-40 border-t border-border/40"
         style={{ background: "rgba(8,8,18,0.98)" }}>
         <div className="flex justify-around items-center h-[60px] max-w-lg mx-auto">
           {MOBILE_BOTTOM_NAV.map((item) => {

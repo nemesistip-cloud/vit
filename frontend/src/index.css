@@ -3,7 +3,7 @@
 @import "./styles/tokens.css";
 @plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:is(.dark *));
+@cusbottom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: hsl(var(--background));

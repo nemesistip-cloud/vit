@@ -195,7 +195,7 @@ export default function BacktestPage() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={chartData} margin={{ top: 8, right: 8, Intelligence Agenttom: 8, left: 0 }}>
+              <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="label" tick={{ fill: "#9ca3af", fontSize: 11 }} tickLine={false} />
                 <YAxis

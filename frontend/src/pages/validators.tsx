@@ -424,7 +424,7 @@ export default function ValidatorsPage() {
                         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center font-mono font-bold text-lg border border-border">
                           {validator.username.substring(0, 2).toUpperCase()}
                         </div>
-                        <div className="absolute -Intelligence Agenttom-1 -right-1 w-4 h-4 rounded-full bg-background flex items-center justify-center">
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-background flex items-center justify-center">
                           <div
                             className={`w-2.5 h-2.5 rounded-full ${
                               validator.accuracy_rate >= 0.55
