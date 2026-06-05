@@ -7,7 +7,7 @@ import {
   GitBranch, Network, Code2, Activity, Layers,
   ChevronDown, ChevronUp, Star, ArrowRight, Sparkles,
   Vote, ShieldCheck, BarChart2, Key, Server, Radio,
-  FlaskConical, Target, BookOpen, CreditCard, Bot,
+  FlaskConical, Target, BookOpen, CreditCard, Brain,
   TrendingUp, Blocks, Link2, Atom, Triangle,
 } from "lucide-react";
 
@@ -84,7 +84,7 @@ const PHASES: RoadmapPhase[] = [
       { label: "Referral system, offerwall & task engine",                              status: "done",  icon: FlaskConical },
       { label: "Bridge interface + Treasury management",                                status: "done",  icon: Link2 },
       { label: "Base L2 chain-status service (RPC + VIT contract address wired)",       status: "done",  icon: Blocks },
-      { label: "Production deployment: gunicorn + uvicorn Bots on Replit VM",        status: "done",  icon: Server },
+      { label: "Production deployment: gunicorn + uvicorn s on Replit VM",        status: "done",  icon: Server },
     ],
   },
   {
@@ -160,7 +160,7 @@ const PHASES: RoadmapPhase[] = [
       { label: "AI subnets: specialized prediction zones with dedicated validators",    status: "vision", icon: Brain },
       { label: "Decentralized AI compute marketplace: GPU rental via VIT staking",     status: "vision", icon: Cpu },
       { label: "Federated ML training: models trained across validator nodes",          status: "vision", icon: BookOpen },
-      { label: "Autonomous prediction agents with on-chain execution rights",           status: "vision", icon: Bot },
+      { label: "Autonomous prediction agents with on-chain execution rights",           status: "vision", icon: Brain },
       { label: "ZK-proof verification of AI model outputs (trustless inference)",      status: "vision", icon: Shield },
       { label: "Professional analytics API: hedge fund + sportsbook grade data",      status: "vision", icon: TrendingUp },
       { label: "Cross-chain AI oracle network: VIT data available via IBC to all chains", status: "vision", icon: Network },

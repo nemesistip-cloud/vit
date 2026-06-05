@@ -26,7 +26,7 @@ const PROJECT_TEAMS = [
     members: [
       {
         name: "VIT AI Agent",
-        role: "Automated Contributor",
+        role: "Aubottomated Contributor",
         specialty: "Continuous Training & Evaluation",
         avatar: "",
         github: "https://github.com/nemesistip-cloud/vit"
@@ -40,7 +40,7 @@ const PROJECT_TEAMS = [
     description: "Google Cloud Platform management and scaling.",
     members: [
       {
-        name: "GCP Automation",
+        name: "GCP Aubottomation",
         role: "Deployment Lead",
         specialty: "Cloud Run & Secret Manager",
         avatar: "",

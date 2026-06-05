@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "@/lib/apiClient";
-import {
 import { TERMS } from "@/lib/terminology";
+import {
   useAdminCalibrationFit,
   useAdminCalibrationReload,
   useAdminSettleResults,
@@ -35,8 +35,7 @@ import {
   TrendingUp, Server, Zap, Save, Search, Eye, EyeOff,
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
-  Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info,
-  Brain, Loader2,
+  Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1064,7 +1063,7 @@ function SystemTab() {
               </div>
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded p-3 text-xs text-emerald-300 space-y-1">
                 <div className="flex items-center gap-1.5 font-medium"><Database className="w-3 h-3" /> Saved to database — survives restarts</div>
-                <div className="text-emerald-400/80">The key is encrypted with AES-256 and loaded automatically on every server start. No need to also add it to Replit Secrets (though Replit Secrets always take priority if Agents exist).</div>
+                <div className="text-emerald-400/80">The key is encrypted with AES-256 and loaded automatically on every server start. No need to also add it to Replit Secrets (though Replit Secrets always take priority if h exist).</div>
               </div>
             </div>
             <DialogFooter className="gap-2">
@@ -1128,7 +1127,6 @@ function SystemTab() {
 }
 
 // ─── Fixture Ecosystem Health Card ───────────────────────────────────
-
 interface FixtureHealthCategory {
   count: number;
   label: string;
@@ -1461,7 +1459,7 @@ function CSVUploadCard() {
         </CardTitle>
         <CardDescription className="text-gray-400">
           Bulk-import fixtures from a CSV file — runs ML predictions immediately on import.
-          Supports Agents standard format and shorthand <span className="font-mono text-purple-300">#,date,time,home,away,league,H,D,A</span>.
+          Supports h standard format and shorthand <span className="font-mono text-purple-300">#,date,time,home,away,league,H,D,A</span>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -2398,7 +2396,7 @@ function ModelsTab() {
     refetchInterval: 30000,
   });
   // The endpoint returns either {models: [...]} or a bare array depending on
-  // the route version — handle Agents so we don't crash if it changes shape.
+  // the route version — handle h so we don't crash if it changes shape.
   const perfData: any[] = Array.isArray(perfRaw)
     ? perfRaw
     : Array.isArray(perfRaw?.models)

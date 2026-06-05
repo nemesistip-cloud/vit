@@ -36,7 +36,7 @@ const MARKET_LABEL: Record<string, string> = {
   home_win: "Home Win",
   away_win: "Away Win",
   draw: "Draw",
-  btts: "both Teams to Score",
+  btts: "h Teams to Score",
   btts_yes: "BTTS – Yes",
   btts_no: "BTTS – No",
   over_2_5: "Over 2.5 Goals",

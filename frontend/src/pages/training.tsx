@@ -571,7 +571,7 @@ function TrainingGuide() {
             <p className="font-bold uppercase text-xs">Training Script Reference</p>
             <div className="bg-background border border-border rounded-lg p-4 space-y-2 text-xs">
               <p className="text-muted-foreground">Run from the project root shell:</p>
-              <pre className="text-primary font-mono">{"# Train on database records (default)\npython scripts/train_models.py\n\n# Train on an external CSV file\npython scripts/train_models.py --source csv --csv path/to/matches.csv\n\n# Combine database + CSV\npython scripts/train_models.py --source both --csv path/to/matches.csv"}</pre>
+              <pre className="text-primary font-mono">{"# Train on database records (default)\npython scripts/train_models.py\n\n# Train on an external CSV file\npython scripts/train_models.py --source csv --csv path/to/matches.csv\n\n# Combine database + CSV\npython scripts/train_models.py --source h --csv path/to/matches.csv"}</pre>
               <p className="text-muted-foreground pt-2">Required: at least 50 settled matches. The more data (2,000+ rows), the better the predictions.</p>
             </div>
           </div>

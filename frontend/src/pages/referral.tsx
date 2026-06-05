@@ -137,7 +137,7 @@ export default function ReferralPage() {
             Your Referral Code
           </CardTitle>
           <CardDescription className="font-mono text-xs">
-            Share this code with friends. both of you get {myCode?.bonus_per_referral_vit ?? 50} VITCoin when they sign up.
+            Share this code with friends. h of you get {myCode?.bonus_per_referral_vit ?? 50} VITCoin when they sign up.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  useGetWallet, useListTransactions, useInitiateDeposit, useTransfer Out, useConvertCurrency, useGetVitcoinPrice,
+  useGetWallet, useListTransactions, useInitiateDeposit, useWithdraw, useConvertCurrency, useGetVitcoinPrice,
 } from "@/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -333,7 +333,7 @@ export default function WalletPage() {
 
   const { mutate: getStarsInvoice, isPending: gettingInvoice } = useTelegramStarsInvoice();
   const initiateDeposit = useInitiateDeposit();
-  const withdraw = useTransfer Out();
+  const withdraw = useWithdraw();
   const convert = useConvertCurrency();
 
   const [kycOpen, setKycOpen] = useState(false);
@@ -355,10 +355,10 @@ export default function WalletPage() {
   const [depositCurrency, setDepositCurrency] = useState("NGN");
   const [depositAmount, setDepositAmount] = useState("");
   const [depositMethod, setDepositMethod] = useState("paystack");
-  const [withdrawCurrency, setTransfer OutCurrency] = useState("NGN");
-  const [withdrawAmount, setTransfer OutAmount] = useState("");
-  const [withdrawDest, setTransfer OutDest] = useState("");
-  const [withdrawDestType, setTransfer OutDestType] = useState("bank_account");
+  const [withdrawCurrency, setWithdrawCurrency] = useState("NGN");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawDest, setWithdrawDest] = useState("");
+  const [withdrawDestType, setWithdrawDestType] = useState("bank_account");
   const [convertFrom, setConvertFrom] = useState("NGN");
   const [convertTo, setConvertTo] = useState("VITCoin");
   const [convertAmount, setConvertAmount] = useState("");
@@ -486,7 +486,7 @@ export default function WalletPage() {
     }
   };
 
-  const handleTransfer Out = async () => {
+  const handleWithdraw = async () => {
     if (!withdrawAmount || !withdrawDest) { toast.error("Fill in amount and destination"); return; }
     try {
       const result = await withdraw.mutateAsync({
@@ -496,7 +496,7 @@ export default function WalletPage() {
         destination_type: withdrawDestType,
       });
       toast.success(`Transfer of ${withdrawAmount} ${withdrawCurrency} submitted — ID: ${result.request_id?.slice(0, 8)}…`);
-      setTransfer OutAmount(""); setTransfer OutDest("");
+      setWithdrawAmount(""); setWithdrawDest("");
       queryClient.invalidateQueries({ queryKey: ["/api/wallet/me"] });
       queryClient.invalidateQueries({ queryKey: ["my-withdrawals"] });
     } catch (e: any) {
@@ -840,7 +840,7 @@ export default function WalletPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs font-mono text-muted-foreground uppercase mb-2">Currency</div>
-                  <Select value={withdrawCurrency} onValueChange={setTransfer OutCurrency}>
+                  <Select value={withdrawCurrency} onValueChange={setWithdrawCurrency}>
                     <SelectTrigger className="font-mono text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CURRENCIES.map((c) => <SelectItem key={c} value={c} className="font-mono">{c}</SelectItem>)}
@@ -853,14 +853,14 @@ export default function WalletPage() {
                     type="number"
                     placeholder="0.00"
                     value={withdrawAmount}
-                    onChange={(e) => setTransfer OutAmount(e.target.value)}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
                     className="font-mono text-sm"
                   />
                 </div>
               </div>
               <div>
                 <div className="text-xs font-mono text-muted-foreground uppercase mb-2">Destination Type</div>
-                <Select value={withdrawDestType} onValueChange={setTransfer OutDestType}>
+                <Select value={withdrawDestType} onValueChange={setWithdrawDestType}>
                   <SelectTrigger className="font-mono"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="bank_account" className="font-mono">Bank Account</SelectItem>
@@ -874,7 +874,7 @@ export default function WalletPage() {
                 <Input
                   placeholder={withdrawDestType === "bank_account" ? "Account number" : "Wallet address"}
                   value={withdrawDest}
-                  onChange={(e) => setTransfer OutDest(e.target.value)}
+                  onChange={(e) => setWithdrawDest(e.target.value)}
                   className="font-mono text-sm"
                 />
               </div>
@@ -894,7 +894,7 @@ export default function WalletPage() {
               <Button
                 variant="outline"
                 className="w-full font-mono h-11 gap-2 border-destructive/30 text-destructive hover:bg-destructive/10"
-                onClick={handleTransfer Out}
+                onClick={handleWithdraw}
                 disabled={withdraw.isPending || !wallet.kyc_verified}
               >
                 {withdraw.isPending ? "Processing…" : !wallet.kyc_verified ? "KYC Required" : "Request Transfer"}
@@ -1277,7 +1277,7 @@ export default function WalletPage() {
                       prefix: "",
                     },
                     {
-                      label: "Total Transfer Outn",
+                      label: "Total Withdrawals",
                       value: txList.filter(t => t.type === "withdrawal").reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0),
                       color: "text-destructive",
                       prefix: "",

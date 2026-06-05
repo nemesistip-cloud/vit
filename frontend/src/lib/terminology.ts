@@ -30,7 +30,7 @@ export const TERMS = {
     unstake: "Release Stake",
   },
   agents: {
-    "live-match-tracker": "Live Match Bot",
+    "live-match-tracker": "Live Match ",
     "match-scout": "Pre-Match Scout Agent",
     "news-sentinel": "Injury & News Sentinel",
     "odds-anomaly": "Market Anomaly Detector",
@@ -40,7 +40,7 @@ export const TERMS = {
     "retrain-trigger": "Retraining Trigger Agent",
     "fixture-gap": "Fixture Gap Scanner",
     "accumulator-publisher": "Accumulator Publisher Agent",
-    "revenue-optimizer": "Revenue Bot",
+    "revenue-optimizer": "Revenue ",
     "governance-executor": "Protocol Execution Agent",
     "self-healing": "Network Self-Healing Agent",
     "audit-sentinel": "Security Audit Agent",

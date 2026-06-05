@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity, Brain, AlertTriangle, BarChart3, RefreshCw,
   ChevronDown, ChevronUp, Radio, Target, Zap, Shield,
-  TrendingUp, Clock, Bot, Newspaper, Play, Cpu, RotateCcw,
+  TrendingUp, Clock, Info, Newspaper, Play, Cpu, RotateCcw,
   GripVertical,
 } from "lucide-react";
 import { vitWS } from "@/lib/websocket";
@@ -70,7 +70,7 @@ const AGENT_CONFIG: Record<string, { label: string; color: string; icon: React.F
   "accumulator-publisher":{ label: "Accumulator",     color: "text-emerald-400", icon: Target,        bg: "border-emerald-500/30 bg-emerald-500/5" },
 };
 
-const DEFAULT_CONFIG = { label: "Agent", color: "text-gray-400", icon: Bot, bg: "border-gray-500/30 bg-gray-500/5" };
+const DEFAULT_CONFIG = { label: "Agent", color: "text-gray-400", icon: Info, bg: "border-gray-500/30 bg-gray-500/5" };
 
 const SEVERITY_CLS: Record<string, string> = {
   CRITICAL: "text-red-400 border-red-500/40 bg-red-500/10",

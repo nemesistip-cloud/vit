@@ -324,7 +324,7 @@ export default function AgentsPage() {
         <div>
           <div className="flex items-center gap-2">
             <Cpu className="w-6 h-6 text-cyan-400" />
-            <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Agent Control Room</h1>
+            <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground"> Control Room</h1>
           </div>
           <p className="text-slate-400 text-sm mt-0.5">
             {coordinator ? (

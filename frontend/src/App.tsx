@@ -338,7 +338,7 @@ function App() {
                   <Router />
                 </ErrorBoundary>
                 <Toaster
-                  position="bottom-right"
+                  position="botbottom-right"
                   toastOptions={{
                     classNames: {
                       toast: "font-mono text-xs",

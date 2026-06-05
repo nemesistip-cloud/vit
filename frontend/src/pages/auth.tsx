@@ -135,7 +135,7 @@ export default function AuthPage() {
       });
       setAuthToken(res.access_token, res.refresh_token);
       if (referralCode) {
-        toast.success(`Referral applied — you and your referrer both earned 50 VIT!`);
+        toast.success(`Referral applied — you and your referrer h earned 50 VIT!`);
       }
       setNewUsername(data.username);
       setShowWelcome(true);
