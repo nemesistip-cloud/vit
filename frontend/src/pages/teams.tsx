@@ -26,7 +26,7 @@ const PROJECT_TEAMS = [
     members: [
       {
         name: "VIT AI Agent",
-        role: "Automated Contributor",
+        role: "Aubottomated Contributor",
         specialty: "Continuous Training & Evaluation",
         avatar: "",
         github: "https://github.com/nemesistip-cloud/vit"
@@ -40,7 +40,7 @@ const PROJECT_TEAMS = [
     description: "Google Cloud Platform management and scaling.",
     members: [
       {
-        name: "GCP Automation",
+        name: "GCP Aubottomation",
         role: "Deployment Lead",
         specialty: "Cloud Run & Secret Manager",
         avatar: "",
@@ -69,7 +69,7 @@ const PROJECT_TEAMS = [
 
 export default function TeamsPage() {
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-Intelligence Agenttom-4 duration-500 max-w-6xl mx-auto p-4 lg:p-8">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto p-4 lg:p-8">
       <header className="space-y-2">
         <div className="flex items-center gap-3">
           <Users className="w-8 h-8 text-primary" />

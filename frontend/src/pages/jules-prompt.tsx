@@ -397,7 +397,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
 
       <div style={{
         background: "linear-gradient(90deg, #0d1117 0%, #1a1f2e 50%, #0d1117 100%)",
-        borderIntelligence Agenttom: "1px solid #1e3a1e",
+        borderbottom: "1px solid #1e3a1e",
         padding: "24px 32px",
         position: "sticky",
         top: 0,
@@ -451,12 +451,12 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
 
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "32px 24px" }}>
 
-        <div style={{ marginIntelligence Agenttom: "40px" }}>
+        <div style={{ marginbottom: "40px" }}>
           <div style={{
             fontSize: "11px",
             color: "#556655",
             letterSpacing: "3px",
-            marginIntelligence Agenttom: "16px",
+            marginbottom: "16px",
             textTransform: "uppercase",
           }}>
             ▸ NEW SPORTS COVERAGE
@@ -485,7 +485,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
                   boxShadow: activeSport === s.id ? `0 0 20px ${s.color}33` : "none",
                 }}
               >
-                <div style={{ fontSize: "28px", marginIntelligence Agenttom: "8px" }}>{s.emoji}</div>
+                <div style={{ fontSize: "28px", marginbottom: "8px" }}>{s.emoji}</div>
                 <div style={{
                   fontSize: "12px",
                   fontWeight: "bold",
@@ -517,10 +517,10 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
               border: `1px solid ${s.color}44`,
               borderRadius: "16px",
               padding: "24px",
-              marginIntelligence Agenttom: "32px",
+              marginbottom: "32px",
               animation: "fadeIn 0.2s ease",
             }}>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginIntelligence Agenttom: "20px" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginbottom: "20px" }}>
                 <span style={{ fontSize: "24px" }}>{s.emoji}</span>
                 <span style={{ color: s.color, fontWeight: "bold", fontSize: "16px", letterSpacing: "1px" }}>
                   {s.name.toUpperCase()}
@@ -538,9 +538,9 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginIntelligence Agenttom: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginbottom: "20px" }}>
                 <div>
-                  <div style={{ fontSize: "10px", color: "#556655", letterSpacing: "2px", marginIntelligence Agenttom: "8px" }}>
+                  <div style={{ fontSize: "10px", color: "#556655", letterSpacing: "2px", marginbottom: "8px" }}>
                     DATA SOURCES
                   </div>
                   {s.dataSources.map((d, i) => (
@@ -548,14 +548,14 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
                       fontSize: "11px",
                       color: "#aaa",
                       padding: "4px 0",
-                      borderIntelligence Agenttom: "1px solid #1a1a1a",
+                      borderbottom: "1px solid #1a1a1a",
                     }}>
                       → {d}
                     </div>
                   ))}
                 </div>
                 <div>
-                  <div style={{ fontSize: "10px", color: "#556655", letterSpacing: "2px", marginIntelligence Agenttom: "8px" }}>
+                  <div style={{ fontSize: "10px", color: "#556655", letterSpacing: "2px", marginbottom: "8px" }}>
                     KEY MODEL FEATURES
                   </div>
                   {s.modelFeatures.map((f, i) => (
@@ -563,7 +563,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
                       fontSize: "11px",
                       color: "#aaa",
                       padding: "4px 0",
-                      borderIntelligence Agenttom: "1px solid #1a1a1a",
+                      borderbottom: "1px solid #1a1a1a",
                     }}>
                       ◆ {f}
                     </div>
@@ -572,7 +572,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
               </div>
 
               <div>
-                <div style={{ fontSize: "10px", color: "#556655", letterSpacing: "2px", marginIntelligence Agenttom: "10px" }}>
+                <div style={{ fontSize: "10px", color: "#556655", letterSpacing: "2px", marginbottom: "10px" }}>
                   TODO CHECKLIST
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
@@ -595,7 +595,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
               </div>
 
               <div style={{ marginTop: "16px" }}>
-                <div style={{ fontSize: "10px", color: "#556655", letterSpacing: "2px", marginIntelligence Agenttom: "8px" }}>
+                <div style={{ fontSize: "10px", color: "#556655", letterSpacing: "2px", marginbottom: "8px" }}>
                   CSV SCHEMA ({s.csvColumns.length} COLUMNS)
                 </div>
                 <div style={{
@@ -621,7 +621,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
             fontSize: "11px",
             color: "#556655",
             letterSpacing: "3px",
-            marginIntelligence Agenttom: "16px",
+            marginbottom: "16px",
           }}>
             ▸ FULL ECOSYSTEM SUPPORT — 5 PHASES
           </div>
@@ -684,7 +684,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
                         display: "flex",
                         gap: "12px",
                         padding: "8px 0",
-                        borderIntelligence Agenttom: j < phase.tasks.length - 1 ? "1px solid #111" : "none",
+                        borderbottom: j < phase.tasks.length - 1 ? "1px solid #111" : "none",
                         fontSize: "12px",
                         color: "#ccc",
                       }}>
@@ -719,7 +719,7 @@ All models must follow the existing VIT_OS pipeline conventions and be compatibl
           flexWrap: "wrap",
         }}>
           <div>
-            <div style={{ fontSize: "14px", color: "#00ff88", fontWeight: "bold", marginIntelligence Agenttom: "4px" }}>
+            <div style={{ fontSize: "14px", color: "#00ff88", fontWeight: "bold", marginbottom: "4px" }}>
               Ready to send to Jules?
             </div>
             <div style={{ fontSize: "11px", color: "#556655", letterSpacing: "1px" }}>

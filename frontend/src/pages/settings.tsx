@@ -41,7 +41,7 @@ interface NotificationPreferences {
 }
 
 interface TelegramLinkInfo {
-  Intelligence Agent_username: string;
+  _username: string;
   link_url: string;
   code: string;
   expires_in: number;
@@ -109,7 +109,7 @@ function NotificationsCard() {
     mutationFn: () => apiGet<TelegramLinkInfo>("/api/notifications/telegram/link-info"),
     onSuccess: (data) => {
       window.open(data.link_url, "_blank", "noopener,noreferrer");
-      toast.info("Telegram link opened! Click 'Start' in the Intelligence Agent to complete linking.", {
+      toast.info("Telegram link opened! Click 'Start' in the  to complete linking.", {
         duration: 8000,
       });
     },
@@ -287,7 +287,7 @@ function NotificationsCard() {
               <div className="flex items-center gap-2 p-3 bg-muted/20 border border-border/50 rounded-lg">
                 <MessageCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <p className="text-xs font-mono text-muted-foreground flex-1">
-                  Link your Telegram to receive DM alerts from the VIT Intelligence Agent.
+                  Link your Telegram to receive DM alerts from the VIT .
                 </p>
               </div>
               <div className="flex gap-2">
@@ -299,7 +299,7 @@ function NotificationsCard() {
                   disabled={linkInfoMutation.isPending}
                 >
                   <Link2 className="w-3.5 h-3.5" />
-                  {linkInfoMutation.isPending ? "Opening…" : "Link via Intelligence Agent"}
+                  {linkInfoMutation.isPending ? "Opening…" : "Link via "}
                 </Button>
                 <Button
                   variant="ghost"
@@ -313,7 +313,7 @@ function NotificationsCard() {
               {showManualInput && (
                 <div className="space-y-2">
                   <Label className="font-mono text-xs text-muted-foreground">
-                    Enter your Telegram Chat ID (find it via @userinfoIntelligence Agent)
+                    Enter your Telegram Chat ID (find it via @userinfo)
                   </Label>
                   <div className="flex gap-2">
                     <Input

@@ -628,7 +628,7 @@ export default function MatchDetailPage() {
                       )}
                       {(match as any).btts_prob != null && (
                         <div>
-                          <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Intelligence Agenth Teams to Score</p>
+                          <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">h Teams to Score</p>
                           <div className="grid grid-cols-2 gap-2">
                             {([
                               { side: "btts_yes" as StakeSide, label: "BTTS Yes", prob: (match as any).btts_prob },

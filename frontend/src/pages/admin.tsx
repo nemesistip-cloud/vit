@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "@/lib/apiClient";
-import {
 import { TERMS } from "@/lib/terminology";
+import {
   useAdminCalibrationFit,
   useAdminCalibrationReload,
   useAdminSettleResults,
@@ -35,8 +35,7 @@ import {
   TrendingUp, Server, Zap, Save, Search, Eye, EyeOff,
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
-  Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info,
-  Intelligence Agent, Loader2,
+  Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1045,7 +1044,7 @@ function SystemTab() {
               </div>
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded p-3 text-xs text-emerald-300 space-y-1">
                 <div className="flex items-center gap-1.5 font-medium"><Database className="w-3 h-3" /> Saved to database — survives restarts</div>
-                <div className="text-emerald-400/80">The key is encrypted with AES-256 and loaded automatically on every server start. No need to also add it to Replit Secrets (though Replit Secrets always take priority if Intelligence Agenth exist).</div>
+                <div className="text-emerald-400/80">The key is encrypted with AES-256 and loaded automatically on every server start. No need to also add it to Replit Secrets (though Replit Secrets always take priority if h exist).</div>
               </div>
             </div>
             <DialogFooter className="gap-2">
@@ -1109,7 +1108,6 @@ function SystemTab() {
 }
 
 // ─── Fixture Ecosystem Health Card ───────────────────────────────────
-
 interface FixtureHealthCategory {
   count: number;
   label: string;
@@ -1442,7 +1440,7 @@ function CSVUploadCard() {
         </CardTitle>
         <CardDescription className="text-gray-400">
           Bulk-import fixtures from a CSV file — runs ML predictions immediately on import.
-          Supports Intelligence Agenth standard format and shorthand <span className="font-mono text-purple-300">#,date,time,home,away,league,H,D,A</span>.
+          Supports h standard format and shorthand <span className="font-mono text-purple-300">#,date,time,home,away,league,H,D,A</span>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1556,7 +1554,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
                         {r.status}
                       </span>
                       {r.message && (
-                        <span className="ml-1.5 text-[10px] text-gray-500 max-w-[120px] truncate inline-block align-Intelligence Agenttom" title={r.message}>{r.message}</span>
+                        <span className="ml-1.5 text-[10px] text-gray-500 max-w-[120px] truncate inline-block align-bottom" title={r.message}>{r.message}</span>
                       )}
                     </td>
                     <td className="p-2 text-center hidden lg:table-cell font-mono text-[10px] whitespace-nowrap">
@@ -2379,7 +2377,7 @@ function ModelsTab() {
     refetchInterval: 30000,
   });
   // The endpoint returns either {models: [...]} or a bare array depending on
-  // the route version — handle Intelligence Agenth so we don't crash if it changes shape.
+  // the route version — handle h so we don't crash if it changes shape.
   const perfData: any[] = Array.isArray(perfRaw)
     ? perfRaw
     : Array.isArray(perfRaw?.models)
@@ -4061,7 +4059,7 @@ function MLAgentsTab() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Intelligence Agent className="w-5 h-5 text-purple-400" />
+            <Brain className="w-5 h-5 text-purple-400" />
             ML Autonomous Agent Pipeline
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -4358,7 +4356,7 @@ export default function AdminPage() {
       tabs: [
         { value: "models",      label: "Models",      icon: Cpu },
         { value: "calibration", label: "Calibration", icon: Activity },
-        { value: "agents",      label: "Agents",      icon: Intelligence Agent },
+        { value: "agents",      label: "Agents",      icon: Brain },
       ],
     },
     {
@@ -4448,7 +4446,7 @@ export default function AdminPage() {
 
         {/* Active group accent */}
         {activeGroup && (
-          <div className={`absolute Intelligence Agenttom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent ${
+          <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent ${
             activeGroup.label === "OVERVIEW"     ? "via-cyan-500/50" :
             activeGroup.label === "INTELLIGENCE" ? "via-purple-500/50" :
             activeGroup.label === "OPERATIONS"   ? "via-emerald-500/50" :

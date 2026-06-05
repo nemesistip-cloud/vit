@@ -412,7 +412,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
 
             {/* Recommendation */}
             <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-3 relative overflow-hidden">
-               <div className="absolute -bottom-2 -right-2 opacity-10">
+               <div className="absolute -botbottom-2 -right-2 opacity-10">
                  <Target className="w-16 h-16 text-primary" />
                </div>
                <span className="text-[9px] text-primary font-black uppercase tracking-widest">Consensus Recommendation</span>
@@ -533,7 +533,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
                         </div>
 
                         {isSelected && (
-                          <div className="absolute bottom-2 right-2">
+                          <div className="absolute botbottom-2 right-2">
                             <div className="bg-primary p-0.5 rounded-full shadow-[0_0_10px_rgba(0,255,255,0.5)]">
                               <CheckCircle2 className="w-3 h-3 text-[#0a0a0b]" />
                             </div>
@@ -594,7 +594,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
 
           {/* Execution Summary */}
           {selectedSide && potentialPayout > 0 && (
-            <div className="relative overflow-hidden rounded-2xl border-2 border-primary/30 bg-primary/5 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="relative overflow-hidden rounded-2xl border-2 border-primary/30 bg-primary/5 p-6 animate-in fade-in slide-in-from-botbottom-4 duration-500">
               <div className="absolute top-0 right-0 p-4 opacity-5">
                 <ShieldCheck className="w-20 h-20 text-white" />
               </div>
