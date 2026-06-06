@@ -13,8 +13,6 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
-      - key: PORT
-        value: "5000"
       - key: USE_REAL_ML_MODELS
         value: "true"
       - key: ML_MODEL_CACHE_ENABLED
@@ -51,10 +49,6 @@ services:
         fromDatabase:
           name: vit-postgres
           property: connectionString
-        sync: false
-        sync: false
-        sync: false
-        sync: false
       - key: ODDS_API_KEY
         sync: false
       - key: TELEGRAM_BOT_TOKEN
@@ -83,8 +77,6 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python3 -m tachyon.main
     envVars:
-      - key: PORT
-        value: "8080"
       - key: PYTHONPATH
         value: "."
   - type: redis

@@ -2308,7 +2308,7 @@ async def health(db: AsyncSession = Depends(get_db)):
         pass
 
     return HealthResponse(
-        status="ok" if db_ok and models > 0 else "degraded",
+        status="ok" if db_ok and models > 0 else ("starting" if db_ok else "degraded"),
         version=APP_VERSION,
         models_loaded=models,
         db_connected=db_ok,
