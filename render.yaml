@@ -80,7 +80,7 @@ services:
     runtime: python
     region: oregon
     plan: starter
-    buildCommand: pip install fastapi uvicorn httpx
+    buildCommand: pip install -r requirements.txt
     startCommand: python3 -m tachyon.main
     envVars:
       - key: PORT
