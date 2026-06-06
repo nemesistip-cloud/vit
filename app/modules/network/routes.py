@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.modules.network.models import NodeActivity, NetworkSnapshot
+from app.modules.storage_verification.service import get_storage_stats
 
 router = APIRouter(prefix="/api/network", tags=["VIT Network"])
 logger = logging.getLogger(__name__)
@@ -108,6 +109,12 @@ async def network_stats(db: AsyncSession = Depends(get_db)):
         ((total_contrib - prev_contrib) / max(prev_contrib, 1)) * 100, 2
     ) if prev_contrib else 0.0
 
+    storage_stats = {}
+    try:
+        storage_stats = await get_storage_stats(db)
+    except Exception as e:
+        logger.error(f"Failed to fetch storage stats: {e}")
+
     return {
         "total_nodes": total_nodes,
         "active_nodes": active_nodes,
@@ -117,6 +124,7 @@ async def network_stats(db: AsyncSession = Depends(get_db)):
         "network_health_score": round(health_score, 1),
         "growth_rate_24h_pct": growth_rate,
         "activity_breakdown_24h": type_breakdown,
+        "storage_stats": storage_stats,
         "snapshot_at": now.isoformat(),
     }
 

@@ -1,4 +1,12 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+import hashlib
+
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.database import get_db
+from app.modules.storage_verification.service import register_content
+from app.api.deps import get_current_user_optional
+from tachyon.core.shredder import TachyonShredder
+
 from typing import List, Dict
 import uuid
 import os
@@ -24,11 +32,18 @@ scheduler = TachyonScheduler(_providers)
 _manifests: Dict[str, Dict] = {}
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user = Depends(get_current_user_optional)
+):
     file_id = str(uuid.uuid4())
     content = await file.read()
 
-    # Burst Upload (Simulated parallel)
+    # Calculate file hash for registry
+    file_hash = "0x" + hashlib.sha3_256(content).hexdigest()
+
+    # Burst Upload
     results = await scheduler.upload_burst(content, file_id)
 
     num_frags = (len(content) + 4095) // 4096
@@ -44,6 +59,29 @@ async def upload_file(file: UploadFile = File(...)):
         "provider_mapping": mapping
     }
     _manifests[file_id] = manifest
+
+    # Register in Storage Verification
+    try:
+        # Use first fragment hash as QSH for the registry entry
+        fragments = TachyonShredder.shred(content)
+        qsh = TachyonShredder.get_fragment_hash(fragments[0]) if fragments else None
+
+        await register_content(
+            db=db,
+            content_hash=file_hash,
+            content_type=file.content_type or "application/octet-stream",
+            description=f"Tachyon upload: {file.filename}",
+            size_bytes=len(content),
+            owner_user_id=user.id if user else None,
+            is_tachyon=True,
+            tachyon_shards=num_frags,
+            tachyon_parity_shards=parity_shards,
+            quantum_state_hash=qsh
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to register tachyon content: {e}")
+
     return manifest
 
 @router.get("/download/{file_id}")

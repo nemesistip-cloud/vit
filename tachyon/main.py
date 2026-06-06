@@ -1,3 +1,4 @@
+import asyncio
 import subprocess
 import sys
 
@@ -12,12 +13,19 @@ import os
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from tachyon.api import router as api_router
+from tachyon.core.worker import TachyonVerificationWorker
 
 app = FastAPI(title="Storage System Coordination Service", version="1.0.0")
 
 @app.get("/")
 async def root():
     return RedirectResponse(url="/health")
+
+
+@app.on_event("startup")
+async def startup_event():
+    worker = TachyonVerificationWorker(interval_seconds=3600)
+    asyncio.create_task(worker.start())
 
 @app.get("/health")
 async def health():
