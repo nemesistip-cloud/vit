@@ -1,5 +1,6 @@
 import asyncio
 from typing import List, Dict, Any, Optional
+import logging
 from tachyon.core.shredder import TachyonShredder
 
 class TachyonScheduler:
@@ -51,6 +52,11 @@ class TachyonScheduler:
             if isinstance(res, Exception):
                 processed_fragments.append(None)
             else:
+                # Integrity check
+                if res and len(res) == 4096:
+                    actual_hash = TachyonShredder.get_fragment_hash(res)
+                    # In a real system, we would verify against the manifest hash
+                    # logging.getLogger(__name__).debug(f"Fragment verified: {actual_hash}")
                 processed_fragments.append(res)
 
         if not processed_fragments:

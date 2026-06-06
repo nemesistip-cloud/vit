@@ -50,3 +50,4 @@ uvicorn[standard]
 web3>=6.0.0
 xgboost
 firebase-admin>=6.5.0
+aiofiles
