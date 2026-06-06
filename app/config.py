@@ -90,9 +90,9 @@ def _get_secure_secret_key() -> str:
     if get_env("REPLIT_DEPLOYMENT") or get_env("ENVIRONMENT").lower() == "production":
         sys.stderr.write(
             "\n[CRITICAL] JWT_SECRET_KEY is not configured. "
-            "Set it in environment variables before deploying. "
-            "Using an EPHEMERAL key for now to allow startup.\n"
+            "Deployment aborted to prevent session instability.\n"
         )
+        raise RuntimeError("JWT_SECRET_KEY is required in production.")
 
     # Development/Missing-Secret fallback: warn loudly but continue.
     sys.stderr.write(
