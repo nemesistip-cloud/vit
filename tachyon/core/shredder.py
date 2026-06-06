@@ -129,6 +129,7 @@ if __name__ == "__main__":
     shredder = TachyonShredder()
     test_data = b"Storage System test data " * 200
     frags, p = shredder.encode(test_data)
-    print(f"Fragments: {len(frags)}, Parity Size: {len(p)}")
-    assert len(p) == CHUNK_SIZE
+    print(f"Fragments: {len(frags)}, Parity Shards: {len(p)}")
+    assert len(p) == shredder.parity_shards
+    assert len(p[0]) == CHUNK_SIZE
     print("Shredder logic verified.")

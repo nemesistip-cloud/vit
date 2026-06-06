@@ -6,11 +6,14 @@ from typing import Optional, Dict
 logger = logging.getLogger(__name__)
 
 # Tachyon endpoint defaults to the internal API route if not overridden
-TACHYON_ENDPOINT = os.getenv("TACHYON_ENDPOINT", "http://localhost:5000/api/tachyon")
+PORT = os.getenv("PORT", "5000")
+TACHYON_ENDPOINT = os.getenv("TACHYON_ENDPOINT", f"http://localhost:{PORT}/api/tachyon")
 
 class TachyonClient:
     async def upload_model(self, file_path: str) -> Optional[str]:
-        if not os.path.exists(file_path): return None
+        if not os.path.exists(file_path):
+            logger.error(f"Upload failed: File not found at {file_path}")
+            return None
         try:
             filename = os.path.basename(file_path)
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -19,7 +22,10 @@ class TachyonClient:
                     resp = await client.post(f"{TACHYON_ENDPOINT}/upload", files=files)
                 if resp.status_code == 200:
                     return resp.json()["file_id"]
-        except Exception: pass
+                else:
+                    logger.error(f"Upload failed with status {resp.status_code}: {resp.text}")
+        except Exception as e:
+            logger.exception(f"Exception during Tachyon upload: {e}")
         return None
 
     async def download_model(self, file_id: str, target_path: str) -> bool:
@@ -30,7 +36,10 @@ class TachyonClient:
                     with open(target_path, "wb") as f:
                         f.write(resp.content)
                     return True
-        except Exception: pass
+                else:
+                    logger.error(f"Download failed with status {resp.status_code}: {resp.text}")
+        except Exception as e:
+            logger.exception(f"Exception during Tachyon download: {e}")
         return False
 
 tachyon_client = TachyonClient()
