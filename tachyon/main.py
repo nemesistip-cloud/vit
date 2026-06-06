@@ -1,3 +1,13 @@
+import subprocess
+import sys
+
+# Runtime dependency check for Render environments
+try:
+    import multipart
+except ImportError:
+    print("[tachyon] Installing missing dependency: python-multipart")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-multipart"])
+
 import os
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
