@@ -35,6 +35,7 @@ pytest-asyncio
 pytest-cov
 python-dotenv
 python-jose[cryptography]
+reedsolo
 python-multipart
 qrcode
 redis
