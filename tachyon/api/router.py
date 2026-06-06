@@ -4,7 +4,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.modules.storage_verification.service import register_content
-from app.api.deps import get_current_user_optional
+from app.api.deps import get_optional_user
 from tachyon.core.shredder import TachyonShredder
 
 from typing import List, Dict
@@ -35,7 +35,7 @@ _manifests: Dict[str, Dict] = {}
 async def upload_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    user = Depends(get_current_user_optional)
+    user = Depends(get_optional_user)
 ):
     file_id = str(uuid.uuid4())
     content = await file.read()

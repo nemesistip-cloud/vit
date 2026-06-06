@@ -1,15 +1,28 @@
 import asyncio
 import subprocess
 import sys
+import os
 
 # Runtime dependency check for Render environments
-try:
-    import multipart
-except ImportError:
-    print("[tachyon] Installing missing dependency: python-multipart")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-multipart"])
+# We check and install multiple critical dependencies before any other imports
+def install_dependencies():
+    required = ["python-multipart", "sqlalchemy", "reedsolo", "aiofiles"]
+    for pkg in required:
+        try:
+            if pkg == "python-multipart":
+                import multipart
+            elif pkg == "sqlalchemy":
+                import sqlalchemy
+            elif pkg == "reedsolo":
+                import reedsolo
+            elif pkg == "aiofiles":
+                import aiofiles
+        except ImportError:
+            print(f"[tachyon] Installing missing dependency: {pkg}")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
 
-import os
+install_dependencies()
+
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from tachyon.api import router as api_router
