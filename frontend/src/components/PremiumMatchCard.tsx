@@ -44,7 +44,7 @@ function SourceBadge({ source }: { source?: string }) {
 function getQualityGrade(confidence: number, modelConsensus?: any) {
   // When model_consensus is absent (predictions not yet run through the full
   // ensemble) default agreement to 50 — a neutral baseline — so that grade is
-  // driven primarily by confidence rather than always botbottoming out at D.
+  // driven primarily by confidence rather than always bottoming out at D.
   const agrPct = modelConsensus?.agreement_pct ?? 50;
   const score = confidence * 0.6 + (agrPct / 100) * 0.4;
   // Thresholds are calibrated for football predictions where confidence
