@@ -35,6 +35,14 @@ def _extract_user_id(request: Request) -> str | None:
     except Exception: pass
     return None
 
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP, preferring X-Forwarded-For from proxies (e.g. Render)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        # X-Forwarded-For: client, proxy1, proxy2
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
 _redis_client = None
 _redis_checked = False
 
@@ -90,9 +98,12 @@ class RateLimitMiddleware:
     PREDICT_JWT_LIMIT    = 120
     WINDOW_SECONDS = 60
     EVICT_INTERVAL = 300
-    _BYPASS = (
+    _BYPASS_PREFIXES = (
         "/health", "/docs", "/openapi.json", "/redoc", "/static", "/favicon",
-        "/ws", "/webhook", "/api/public", "/notifications/ws",
+        "/ws", "/webhook", "/api/public", "/notifications/ws", "/assets", "/scripts",
+    )
+    _BYPASS_EXTENSIONS = (
+        ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".json", ".map",
     )
 
     def __init__(self, app: ASGIApp) -> None:
@@ -130,12 +141,13 @@ class RateLimitMiddleware:
         request = Request(scope, receive)
         path = request.url.path
 
-        if any(path.startswith(b) for b in self._BYPASS):
+        # Enhanced bypass: prefix check + extension check
+        if any(path.startswith(b) for b in self._BYPASS_PREFIXES) or any(path.endswith(e) for e in self._BYPASS_EXTENSIONS):
             await self.app(scope, receive, send)
             return
 
         api_key    = request.headers.get("x-api-key", "")
-        ip         = request.client.host if request.client else "unknown"
+        ip         = _get_client_ip(request)
         is_predict = "/predict" in path
         user_key = _extract_user_id(request)
 

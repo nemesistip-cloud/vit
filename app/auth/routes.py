@@ -219,7 +219,13 @@ _LOCKOUT_MINUTES = 15
 async def login(body: LoginRequest, request: Request = None, db: AsyncSession = Depends(get_db)):
     # ── SEC-10: IP-level in-memory rate limit (quick, O(1)) ─────────────
     from app.core.rate_limit import check_login_allowed, record_login_failure as _ip_fail, clear_login_failures as _ip_clear
-    client_ip = request.client.host if request and request.client else None
+    client_ip = None
+    if request:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+        elif request.client:
+            client_ip = request.client.host
     try:
         check_login_allowed(None, client_ip)  # IP-only check first — fast
     except ValueError as exc:
