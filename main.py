@@ -544,13 +544,14 @@ async def _run_bootstrap(app, _done_event):
                     ("deposit_limits", {"min_usd": 1, "min_ngn": 500, "max_usd": 10000}, "Deposit limits"),
                     ("vitcoin_supply", {"initial": 1000000, "burned": 0, "reserved": 100000}, "VITCoin supply parameters"),
                     ("platform_treasury", {"address": "vit_treasury_001"}, "Platform treasury wallet reference"),
-                    ("exchange_rates", {"usd_ngn": 1580, "usd_pi": 0.5, "usd_usdt": 1.0}, "Fiat/crypto exchange rates"),
+
                     ("vitcoin_price_formula", {"window_days": 30, "method": "revenue_backed"}, "VITCoin price calculation parameters"),
                     ("vitcoin_price_floor", {"amount": "0.10"}, "Minimum VITCoin price in USD"),
                     ("exchange_rates_usd",
                      {"NGN": 0.000633, "USD": 1.0, "USDT": 1.0, "PI": 0.314159, "VITCoin": 0.10},
                      "Per-currency rate to 1 USD (used by the conversion engine)"),
                     ("conversion_fee_pct", {"value": 0.5}, "Currency conversion fee percentage"),
+                    ("welcome_bonus_vit", {"amount": "100"}, "VITCoin welcome bonus for new accounts"),
                 ]
                 async with AsyncSessionLocal() as _db:
                     for key, value, desc in _default_configs:
@@ -708,42 +709,43 @@ async def _run_bootstrap(app, _done_event):
                 import uuid as _uuid
                 from decimal import Decimal as _Decimal
                 from app.db.database import AsyncSessionLocal
-                from app.db.models import User as _User
-                from app.modules.wallet.models import Wallet as _Wallet
+                from app.db.models import User as _User, WalletTransaction as _WT
+                from app.modules.wallet.models import Wallet as _Wallet, PlatformConfig as _PC
                 from sqlalchemy import select as _select
 
                 async with AsyncSessionLocal() as _db:
-                    # Fetch welcome bonus config
-                    from app.modules.wallet.models import PlatformConfig as _PC
-                    _bonus_row = (await _db.execute(
-                        _select(_PC).where(_PC.key == "welcome_bonus_vit")
-                    )).scalar_one_or_none()
-                    _welcome_bonus = _Decimal("100.00000000")
-                    if _bonus_row and _bonus_row.value:
-                        try:
-                            if isinstance(_bonus_row.value, dict):
-                                _welcome_bonus = _Decimal(str(_bonus_row.value.get("amount", _bonus_row.value.get("value", 100))))
-                            else:
-                                _welcome_bonus = _Decimal(str(_bonus_row.value))
-                        except Exception:
-                            pass
+                    # Optimized backfill with bulk check
+                    _existing_wallet_user_ids = set(
+                        (await _db.execute(_select(_Wallet.user_id))).scalars().all()
+                    )
+                    _users_needing_wallets = (await _db.execute(
+                        _select(_User).where(_User.id.not_in(_existing_wallet_user_ids))
+                    )).scalars().all()
 
-                    _users = (await _db.execute(_select(_User))).scalars().all()
-                    _created = 0
-                    for _u in _users:
-                        _existing_wallet = (await _db.execute(
-                            _select(_Wallet).where(_Wallet.user_id == _u.id)
+                    if _users_needing_wallets:
+                        _bonus_row = (await _db.execute(
+                            _select(_PC).where(_PC.key == "welcome_bonus_vit")
                         )).scalar_one_or_none()
-                        if not _existing_wallet:
-                            _db.add(_Wallet(
-                                id=str(_uuid.uuid4()),
-                                user_id=_u.id,
-                                vitcoin_balance=_welcome_bonus,
+                        _welcome_bonus = _Decimal("100.00000000")
+                        if _bonus_row and _bonus_row.value:
+                            try:
+                                if isinstance(_bonus_row.value, dict):
+                                    _welcome_bonus = _Decimal(str(_bonus_row.value.get("amount", _bonus_row.value.get("value", 100))))
+                                else:
+                                    _welcome_bonus = _Decimal(str(_bonus_row.value))
+                            except Exception:
+                                pass
+
+                        for _u in _users_needing_wallets:
+                            _new_wallet_id = str(_uuid.uuid4())
+                            _db.add(_Wallet(id=_new_wallet_id, user_id=_u.id, vitcoin_balance=_welcome_bonus))
+                            _db.add(_WT(
+                                wallet_id=_new_wallet_id, user_id=_u.id, type="welcome_bonus",
+                                amount=_welcome_bonus, currency="VITCoin", status="confirmed", reference="welcome_bonus",
+                                processed_at=datetime.now(timezone.utc).replace(tzinfo=None)
                             ))
-                            _created += 1
-                    if _created:
                         await _db.commit()
-                        print(f"✅ Wallets backfilled for {_created} existing user(s)")
+                        print(f"✅ Wallets backfilled for {len(_users_needing_wallets)} existing user(s)")
             except Exception as _e:
                 print(f"⚠️  Wallet backfill failed: {_e}")
 
