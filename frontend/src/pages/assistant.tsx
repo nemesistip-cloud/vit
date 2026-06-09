@@ -13,16 +13,16 @@ import {
 import { toast } from "sonner";
 
 const SUGGESTED_PROMPTS = [
-  "Find upcoming high-value matches.",
-  "Check the status of the autonomous agents.",
+  "Show upcoming fixtures with high SVI.",
+  "Audit system health and SVI status.",
   "What are the latest market trends and CLV stats?",
   "Give me insights for match ID 1.",
   "How does the VIT trust system work?",
 ];
 
 const ASSISTANT_FEATURES = [
-  "Natural-language assistant chat",
-  "Tool-enabled live odds lookups",
+  "Native Agentic Intelligence (v5.5.0)",
+  "Real-time SVI and Market Monitoring",
   "Live score and fixture insights",
   "Upcoming match discovery",
   "Match-level AI predictions and insights",

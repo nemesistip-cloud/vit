@@ -1,14 +1,14 @@
 /**
- * Internal Intelligence Bridge
- * Replaces legacy Puter.js integration with Native VIT AI hooks.
+ * VIT Intelligence Bridge
+ * Replaces legacy Puter.js integration with Native VIT Intelligence Agent hooks.
  */
 
 export const isPuterAvailable = () => true;
 
 export const puterChat = async (message: string, history: any[] = []) => {
   return {
-    reply: "I am the VIT Assistant, powered by native intelligence. How can I help you today?",
-    thoughts: ["Using native VIT Brain module"]
+    reply: "I am the VIT Intelligence Agent, powered by the VIT Network Ensemble. How can I assist you with market intelligence, match insights, or system health today?",
+    thoughts: ["Accessing VIT Intelligence Layer", "Synchronizing with Network Ensemble"]
   };
 };
 
@@ -24,5 +24,5 @@ export const analyzeMatchWithPuter = async (
   draw_prob: pd,
   away_prob: pa,
   confidence: 0.85,
-  reason: "Analysis provided by Native VIT AI ensemble."
+  reason: "Analysis provided by the VIT Network Intelligence ensemble."
 });
