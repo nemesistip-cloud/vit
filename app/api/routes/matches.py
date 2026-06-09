@@ -242,16 +242,21 @@ async def get_upcoming_matches(
     league: Optional[str] = Query(None),
     sport: Optional[str] = Query(None, description="Filter by sport: football, basketball, tennis, cricket, etc."),
     days: int = Query(14, ge=1, le=60),
+    hours: Optional[int] = Query(None, ge=1, le=168, description="Limit to next N hours (overrides days when set)"),
     limit: int = Query(100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    _cache_key = f"matches:upcoming:{league or 'all'}:{sport or 'all'}:{days}:{limit}"
+    _cache_key = f"matches:upcoming:{league or 'all'}:{sport or 'all'}:{hours or days}:{limit}"
     _cached = await cache.get(_cache_key)
     if _cached is not None:
         return _cached
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    future = now + timedelta(days=days)
+    # If hours param is specified use it; otherwise fall back to days
+    if hours is not None:
+        future = now + timedelta(hours=hours)
+    else:
+        future = now + timedelta(days=days)
     # Include matches that started up to 90 minutes ago but aren't settled yet
     recent_cutoff = now - timedelta(minutes=90)
 

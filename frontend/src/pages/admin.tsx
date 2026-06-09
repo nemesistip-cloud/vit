@@ -36,7 +36,7 @@ import {
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
   Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info, Loader2,
-  Network, Plug,
+  Network, Plug, Gift,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -4799,9 +4799,10 @@ function IntegrationsTab() {
     "Blockchain":     { icon: Network,    color: "text-teal-400",   bg: "bg-teal-500/10",   border: "border-teal-500/30",   description: "Base L2 RPC endpoint and VITCoin ERC-20 contract address for on-chain verification and bridge."    },
     "Infrastructure": { icon: Server,     color: "text-rose-400",   bg: "bg-rose-500/10",   border: "border-rose-500/30",   description: "Redis connection URL and SMTP credentials for background jobs and email delivery."                  },
     "Security":       { icon: Shield,     color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/30",    description: "JWT signing key and legacy admin API key. JWT Secret is required in production."                    },
+    "Offerwall":      { icon: Gift,       color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/30", description: "Partner offerwall API keys for Ayet Studios, BitLabs, CPX Research, Revenue Universe, and Tapjoy. Add keys to enable offers on the Earn page." },
   };
 
-  const GROUP_ORDER = ["Pi Network", "Payments", "Sports Data", "Messaging", "VIT AI", "Blockchain", "Infrastructure", "Security"];
+  const GROUP_ORDER = ["Pi Network", "Payments", "Sports Data", "Offerwall", "Messaging", "VIT AI", "Blockchain", "Infrastructure", "Security"];
 
   // Payment sub-providers for cleaner display within the Payments group
   const PAYMENT_SUBS: Record<string, { color: string; keys: string[] }> = {

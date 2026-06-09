@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Coins, Clock, CheckCircle, Trophy, Gift, TrendingUp, Zap, Loader2 } from "lucide-react";
+import { Coins, Clock, CheckCircle, Trophy, Gift, TrendingUp, Zap, Loader2, Lock, Settings } from "lucide-react";
 import { toast } from "sonner";
 
 interface Offer {
@@ -36,6 +36,17 @@ interface RewardsSummary {
   available_offers: number;
 }
 
+interface OfferwallProvider {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  desc: string;
+  rate: string;
+  configured: boolean;
+  url: string | null;
+}
+
 const _CATEGORY_ICONS: Record<string, React.ReactNode> = {
   survey: <Gift className="w-4 h-4" />,
   quiz: <Trophy className="w-4 h-4" />,
@@ -52,14 +63,6 @@ const _DIFFICULTY_COLOUR: Record<string, string> = {
   hard: "text-red-400 border-red-400/30",
 };
 
-
-const EXTERNAL_PROVIDERS = [
-  { id:"ayet",    name:"Ayet Studios",  icon:"🎮", color:"#f59e0b", desc:"Complete offers & surveys for VITCoin",  rate:"Up to 50 VIT/offer", base_url: "https://www.ayetstudios.com/offers/web_view/" },
-  { id:"tapjoy",  name:"Tapjoy",        icon:"📱", color:"#10b981", desc:"Install apps and complete challenges",   rate:"Up to 30 VIT/install", base_url: "https://offerwall.tapjoy.com/offerwall/" },
-  { id:"revu",    name:"RevU",          icon:"📊", color:"#6366f1", desc:"Market research & consumer surveys",    rate:"5–20 VIT/survey", base_url: "https://publishers.revenueuniverse.com/wall/" },
-  { id:"bitlabs", name:"BitLabs",       icon:"💡", color:"#ec4899", desc:"Premium targeted surveys",              rate:"10–40 VIT/survey", base_url: "https://web.bitlabs.ai/" },
-  { id:"cpx",     name:"CPX Research",  icon:"🔬", color:"#06b6d4", desc:"Academic & consumer research panels",  rate:"5–25 VIT/survey", base_url: "https://offers.cpx-research.com/index.php" },
-];
 
 function OfferCard({
   offer,
@@ -142,20 +145,50 @@ function OfferCard({
 }
 
 
-function ProviderCard({ provider, onOpen }: { provider: typeof EXTERNAL_PROVIDERS[0], onOpen: (p: typeof EXTERNAL_PROVIDERS[0]) => void }) {
+function ProviderCard({ provider }: { provider: OfferwallProvider }) {
+  const handleOpen = () => {
+    if (!provider.configured || !provider.url) {
+      toast.info(`${provider.name} is not configured. An admin must add the API key in the Admin → Integrations panel.`);
+      return;
+    }
+    window.open(provider.url, "_blank", "noopener,noreferrer");
+  };
+
   return (
-    <Card className="border-border/50 hover:border-primary/40 transition-all hover:shadow-lg group overflow-hidden bg-card/40 backdrop-blur-sm">
+    <Card className={`border-border/50 transition-all group overflow-hidden bg-card/40 backdrop-blur-sm ${
+      provider.configured
+        ? "hover:border-primary/40 hover:shadow-lg"
+        : "opacity-70"
+    }`}>
       <CardContent className="p-4 flex items-center gap-4">
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-inner shrink-0"
+          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-inner shrink-0 relative"
           style={{ backgroundColor: `${provider.color}20`, border: `1px solid ${provider.color}40` }}
         >
           {provider.icon}
+          {!provider.configured && (
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center">
+              <Lock className="w-3 h-3 text-gray-400" />
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-mono font-bold text-sm text-foreground group-hover:text-primary transition-colors">
-            {provider.name}
-          </h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className={`font-mono font-bold text-sm transition-colors ${
+              provider.configured ? "text-foreground group-hover:text-primary" : "text-muted-foreground"
+            }`}>
+              {provider.name}
+            </h3>
+            {provider.configured ? (
+              <Badge variant="outline" className="text-[9px] font-mono text-emerald-400 border-emerald-400/30 py-0">
+                Active
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[9px] font-mono text-gray-500 border-gray-700 py-0">
+                Not configured
+              </Badge>
+            )}
+          </div>
           <p className="text-[10px] text-muted-foreground font-mono truncate">{provider.desc}</p>
           <div className="flex items-center gap-1.5 mt-1">
             <Coins className="w-3 h-3 text-yellow-400" />
@@ -164,11 +197,16 @@ function ProviderCard({ provider, onOpen }: { provider: typeof EXTERNAL_PROVIDER
         </div>
         <Button
           size="sm"
-          variant="outline"
-          className="h-8 font-mono text-[10px] uppercase border-primary/20 hover:bg-primary/10"
-          onClick={() => onOpen(provider)}
+          variant={provider.configured ? "outline" : "ghost"}
+          className={`h-8 font-mono text-[10px] uppercase shrink-0 ${
+            provider.configured
+              ? "border-primary/20 hover:bg-primary/10"
+              : "border-gray-700 text-gray-500 cursor-not-allowed"
+          }`}
+          onClick={handleOpen}
+          title={provider.configured ? `Open ${provider.name}` : `Configure ${provider.name} API key in Admin → Integrations`}
         >
-          Open
+          {provider.configured ? "Open" : <><Settings className="w-3 h-3 mr-1" />Setup</>}
         </Button>
       </CardContent>
     </Card>
@@ -205,24 +243,6 @@ export default function OfferwallPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  const handleOpenProvider = (p: typeof EXTERNAL_PROVIDERS[0]) => {
-    if (!user?.id) {
-      toast.error("Please log in to access partner offers.");
-      return;
-    }
-
-    // Construct authenticated deep-link (common patterns for offerwalls)
-    let url = p.base_url;
-    const uid = user.id;
-
-    if (p.id === "ayet") url += `?uid=${uid}`;
-    else if (p.id === "tapjoy") url += `?snuid=${uid}`;
-    else if (p.id === "revu") url += `?uid=${uid}`;
-    else if (p.id === "bitlabs") url += `?uid=${uid}`;
-    else if (p.id === "cpx") url += `?external_user_id=${uid}`;
-
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
@@ -239,6 +259,12 @@ export default function OfferwallPage() {
   const { data: history, isLoading: historyLoading } = useQuery<EarnHistoryItem[]>({
     queryKey: ["rewards-history"],
     queryFn: () => apiGet("/api/rewards/history"),
+  });
+
+  const { data: providersData, isLoading: providersLoading } = useQuery<{ providers: OfferwallProvider[] }>({
+    queryKey: ["rewards-providers"],
+    queryFn: () => apiGet("/api/rewards/providers"),
+    staleTime: 60_000,
   });
 
   const claimMutation = useMutation({
@@ -271,6 +297,9 @@ export default function OfferwallPage() {
     setClaimingId(offerId);
     claimMutation.mutate(offerId);
   };
+
+  const providers = providersData?.providers ?? [];
+  const configuredCount = providers.filter(p => p.configured).length;
 
   return (
     <div className="space-y-6 p-4 max-w-4xl mx-auto">
@@ -319,21 +348,42 @@ export default function OfferwallPage() {
         )}
       </div>
 
-      {/* Offer catalog */}
-
       {/* External Offerwalls */}
       <div>
-        <h2 className="text-sm font-mono font-semibold mb-3 flex items-center gap-2">
-          <Zap className="w-4 h-4 text-primary" />
-          Partner Offer Walls
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {EXTERNAL_PROVIDERS.map((p) => (
-            <ProviderCard key={p.id} provider={p} onOpen={handleOpenProvider} />
-          ))}
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-mono font-semibold flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary" />
+            Partner Offer Walls
+          </h2>
+          {!providersLoading && providers.length > 0 && (
+            <span className="text-[10px] font-mono text-muted-foreground">
+              {configuredCount}/{providers.length} providers active
+            </span>
+          )}
         </div>
+
+        {providersLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          </div>
+        ) : providers.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {providers.map((p) => (
+              <ProviderCard key={p.id} provider={p} />
+            ))}
+          </div>
+        ) : (
+          <Card className="border-border/50 bg-card/40">
+            <CardContent className="py-8 text-center space-y-2">
+              <Lock className="w-8 h-8 text-muted-foreground mx-auto" />
+              <p className="text-muted-foreground font-mono text-sm">No offerwall providers are configured.</p>
+              <p className="text-muted-foreground font-mono text-xs">An admin can add provider API keys in Admin → System → API Keys.</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
+      {/* Internal offer catalog */}
       <div>
         <h2 className="text-sm font-mono font-semibold mb-3 flex items-center gap-2">
           <Gift className="w-4 h-4 text-primary" />

@@ -46,6 +46,49 @@ _KEY_REGISTRY = [
         "required":    False,
         "group":       "VIT AI",
     },
+    # ── Offerwall / Rewards Providers ─────────────────────────────────────
+    {
+        "name":        "AYET_API_TOKEN",
+        "label":       "Ayet Studios API Token",
+        "description": "Token for Ayet Studios offerwall (required to load offers in the earn page)",
+        "required":    False,
+        "group":       "Offerwall",
+    },
+    {
+        "name":        "BITLABS_APP_TOKEN",
+        "label":       "BitLabs App Token",
+        "description": "App token for BitLabs targeted surveys offerwall",
+        "required":    False,
+        "group":       "Offerwall",
+    },
+    {
+        "name":        "CPX_RESEARCH_APP_ID",
+        "label":       "CPX Research App ID",
+        "description": "App ID for CPX Research survey panel",
+        "required":    False,
+        "group":       "Offerwall",
+    },
+    {
+        "name":        "CPX_RESEARCH_SECURE_HASH_KEY",
+        "label":       "CPX Research Hash Key",
+        "description": "Secret key for CPX Research postback signature verification",
+        "required":    False,
+        "group":       "Offerwall",
+    },
+    {
+        "name":        "REVU_PUBLISHER_ID",
+        "label":       "RevU Publisher ID",
+        "description": "Publisher ID for Revenue Universe (RevU) survey wall",
+        "required":    False,
+        "group":       "Offerwall",
+    },
+    {
+        "name":        "TAPJOY_SDK_KEY",
+        "label":       "Tapjoy SDK Key",
+        "description": "SDK key for Tapjoy in-app offerwall",
+        "required":    False,
+        "group":       "Offerwall",
+    },
     {
         "name":        "GCS_BUCKET_NAME",
         "label":       "GCS Model Bucket",
@@ -237,15 +280,26 @@ _KEY_REGISTRY = [
 ]
 
 @router.get("/api-keys")
-async def list_api_keys():
+async def list_api_keys(current_user=Depends(get_current_admin)):
+    from app.services.secrets_manager import get_db_secret_keys
+    db_keys: set = await get_db_secret_keys()
     keys = []
     for entry in _KEY_REGISTRY:
-        name = entry.get("name")
-        val = os.getenv(name) if name else None
+        name = entry.get("name", "")
+        env_val = os.getenv(name, "").strip() if name else ""
+        in_db   = name in db_keys
+        configured = bool(env_val) or in_db
+        if env_val:
+            source = "replit_secret"
+        elif in_db:
+            source = "database"
+        else:
+            source = "unset"
         keys.append({
             **entry,
-            "configured": bool(val),
-            "masked": "••••" if val else ""
+            "configured": configured,
+            "masked": "••••" if configured else "",
+            "source": source,
         })
     return {"keys": keys}
 
@@ -498,6 +552,138 @@ async def clear_cache(current_user=Depends(get_current_admin)):
 async def create_backup(current_user=Depends(get_current_admin)):
     return {"status": "success", "backup": f"backup_{int(datetime.now().timestamp())}.sql"}
 
+# ── Feature Flags ──────────────────────────────────────────────────────────
+
+_FEATURE_FLAGS_REGISTRY = [
+    {"key": "USE_REAL_ML_MODELS",        "description": "Use trained sklearn/XGBoost weights instead of algorithmic fallbacks"},
+    {"key": "ENABLE_ML_TRAINING",        "description": "Allow background re-training jobs to run"},
+    {"key": "ENABLE_AUTO_SYNC",          "description": "Automatically sync fixtures every 3 hours"},
+    {"key": "ENABLE_LIVE_ODDS",          "description": "Fetch and display live betting odds"},
+    {"key": "ENABLE_PREDICTION_SEEDING", "description": "Auto-seed ML predictions for newly fetched fixtures"},
+    {"key": "ENABLE_KYC_CHECKS",         "description": "Require KYC verification before staking"},
+    {"key": "ENABLE_BLOCKCHAIN",         "description": "On-chain settlement and VITCoin transfers"},
+    {"key": "ENABLE_WEBSOCKETS",         "description": "Real-time score and odds updates via WebSocket"},
+    {"key": "ENABLE_ANALYTICS",          "description": "Track user analytics and betting patterns"},
+    {"key": "ENABLE_REFERRALS",          "description": "Referral programme — reward users for inviting friends"},
+]
+
+
+@router.get("/system/flags")
+async def get_feature_flags(current_user=Depends(get_current_admin)):
+    """Return all known feature flags with their current state."""
+    flags: dict = {}
+    for entry in _FEATURE_FLAGS_REGISTRY:
+        key = entry["key"]
+        value = os.getenv(key, "false").lower() in ("true", "1", "yes")
+        flags[key] = {"value": value, "description": entry["description"]}
+    return {"flags": flags}
+
+
+@router.put("/system/flags")
+async def update_feature_flags(
+    body: dict,
+    current_user=Depends(get_current_admin),
+):
+    """Toggle feature flags. Body: { flags: { FLAG_KEY: bool } }"""
+    from app.core.feature_flags import FeatureFlags
+    from app.services.secrets_manager import save_secret_to_db
+
+    updates: dict = body.get("flags", {})
+    if not updates:
+        raise HTTPException(400, "No flags provided")
+
+    updated = {}
+    for key, value in updates.items():
+        if key not in {f["key"] for f in _FEATURE_FLAGS_REGISTRY}:
+            continue
+        str_val = "true" if value else "false"
+        os.environ[key] = str_val
+        await save_secret_to_db(key, str_val)
+        updated[key] = value
+
+    # Bust the FeatureFlags in-process cache so the new values take effect immediately
+    FeatureFlags.reset()
+    return {"status": "ok", "updated": updated}
+
+
+# ── API Keys bulk update / delete ──────────────────────────────────────────
+
+@router.post("/api-keys/update")
+async def bulk_update_api_keys(
+    body: dict,
+    current_user=Depends(get_current_admin),
+):
+    """Bulk-update API keys. Body: { updates: { KEY_NAME: "value" } }
+    Saves each key encrypted to the DB and injects into the running process immediately.
+    """
+    from app.services.secrets_manager import save_secret_to_db
+
+    updates: dict = body.get("updates", {})
+    if not updates:
+        raise HTTPException(400, "No updates provided")
+
+    saved: dict = {}
+    errors: dict = {}
+    warnings: dict = {}
+
+    allowed_keys = {e["name"] for e in _KEY_REGISTRY}
+
+    for key, value in updates.items():
+        if not isinstance(value, str) or not value.strip():
+            errors[key] = "value cannot be empty"
+            continue
+        if key not in allowed_keys:
+            warnings[key] = f"'{key}' is not in the key registry — saving anyway"
+
+        try:
+            clean_val = value.strip()
+            await save_secret_to_db(key, clean_val)
+            # Inject into live process so it takes effect without restart
+            os.environ[key] = clean_val
+            saved[key] = "••••" + clean_val[-4:] if len(clean_val) > 4 else "••••"
+
+            # Audit
+            audit = AuditLog(
+                action="api_key_updated",
+                actor=current_user.username,
+                resource="api_key",
+                resource_id=key,
+                details={"masked": saved[key]},
+                status="success",
+            )
+        except Exception as exc:
+            errors[key] = str(exc)
+
+    return {
+        "updated": saved,
+        "errors": errors,
+        "warnings": warnings,
+        "message": f"{len(saved)} key(s) saved and active immediately",
+    }
+
+
+@router.delete("/api-keys/{name}")
+async def delete_api_key(
+    name: str,
+    current_user=Depends(get_current_admin),
+):
+    """Remove a DB-stored API key (the env var remains until next restart)."""
+    from app.services.secrets_manager import delete_secret_from_db
+
+    existed = await delete_secret_from_db(name)
+    if not existed:
+        raise HTTPException(404, f"Key '{name}' not found in database")
+
+    audit = AuditLog(
+        action="api_key_deleted",
+        actor=current_user.username,
+        resource="api_key",
+        resource_id=name,
+        details={},
+        status="success",
+    )
+    return {"status": "ok", "key": name, "message": f"'{name}' removed from database (env var still active until restart)"}
+
 @router.post("/matches/fetch-fixtures")
 async def fetch_fixtures(count: int = 50, days: int = 14, current_user=Depends(get_current_admin)):
     return {"status": "success", "stored": 0, "skipped_existing": 0}
@@ -643,6 +829,10 @@ EDITABLE_INTEGRATION_KEYS = {
     "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
     "FOOTBALL_DATA_API_KEY", "THESPORTSDB_API_KEY", "ODDS_API_KEY",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "RESEND_API_KEY",
+    # Offerwall / Rewards providers
+    "AYET_API_TOKEN", "BITLABS_APP_TOKEN",
+    "CPX_RESEARCH_APP_ID", "CPX_RESEARCH_SECURE_HASH_KEY",
+    "REVU_PUBLISHER_ID", "TAPJOY_SDK_KEY",
 }
 
 
@@ -812,3 +1002,45 @@ async def get_pi_payment(payment_id: str, current_user=Depends(get_current_admin
     if result.get("error"):
         raise HTTPException(502, result["error"])
     return result
+
+
+# ── Offerwall provider status / authenticated URLs ─────────────────────────
+
+@router.get("/offerwall/providers")
+async def get_offerwall_providers(current_user=Depends(get_current_admin)):
+    """Return all offerwall providers with their configuration status.
+    Does NOT expose secret tokens — only indicates whether each key is set.
+    """
+    providers = [
+        {
+            "id":          "ayet",
+            "name":        "Ayet Studios",
+            "env_key":     "AYET_API_TOKEN",
+            "configured":  bool(os.getenv("AYET_API_TOKEN", "").strip()),
+        },
+        {
+            "id":          "bitlabs",
+            "name":        "BitLabs",
+            "env_key":     "BITLABS_APP_TOKEN",
+            "configured":  bool(os.getenv("BITLABS_APP_TOKEN", "").strip()),
+        },
+        {
+            "id":          "cpx",
+            "name":        "CPX Research",
+            "env_key":     "CPX_RESEARCH_APP_ID",
+            "configured":  bool(os.getenv("CPX_RESEARCH_APP_ID", "").strip()),
+        },
+        {
+            "id":          "revu",
+            "name":        "Revenue Universe",
+            "env_key":     "REVU_PUBLISHER_ID",
+            "configured":  bool(os.getenv("REVU_PUBLISHER_ID", "").strip()),
+        },
+        {
+            "id":          "tapjoy",
+            "name":        "Tapjoy",
+            "env_key":     "TAPJOY_SDK_KEY",
+            "configured":  bool(os.getenv("TAPJOY_SDK_KEY", "").strip()),
+        },
+    ]
+    return {"providers": providers}
