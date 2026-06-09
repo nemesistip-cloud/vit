@@ -688,6 +688,50 @@ async def pi_network_status(current_user=Depends(get_current_admin)):
     }
 
 
+@router.get("/integrations/webhook-events")
+async def list_webhook_events(
+    provider: Optional[str] = None,
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Return paginated webhook delivery events, newest first."""
+    from app.modules.wallet.models import WebhookEvent
+    from sqlalchemy import desc as _desc
+    base_q = select(WebhookEvent)
+    if provider:
+        base_q = base_q.where(WebhookEvent.provider == provider)
+    total = (await db.execute(
+        select(func.count()).select_from(base_q.subquery())
+    )).scalar_one()
+    rows = (await db.execute(
+        base_q.order_by(_desc(WebhookEvent.received_at)).limit(limit).offset(offset)
+    )).scalars().all()
+    return {
+        "events": [
+            {
+                "id": e.id,
+                "provider": e.provider,
+                "event_type": e.event_type,
+                "reference": e.reference,
+                "amount": str(e.amount) if e.amount is not None else None,
+                "currency": e.currency,
+                "status": e.status,
+                "sig_verified": e.sig_verified,
+                "outcome": e.outcome,
+                "error_msg": e.error_msg,
+                "payload_summary": e.payload_summary,
+                "received_at": e.received_at.isoformat() if e.received_at else None,
+            }
+            for e in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
 @router.get("/pi/payments/{payment_id}")
 async def get_pi_payment(payment_id: str, current_user=Depends(get_current_admin)):
     """Fetch a Pi Network payment by ID (uses Pi Server API)."""

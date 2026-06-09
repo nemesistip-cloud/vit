@@ -344,3 +344,30 @@ class VITCoinPriceHistory(Base):
     __table_args__ = (
         Index("idx_vitcoin_price_calculated_at", "calculated_at"),
     )
+
+
+class WebhookEvent(Base):
+    """Incoming payment-provider webhook delivery log."""
+    __tablename__ = "webhook_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    event_type: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    reference: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 8), nullable=True)
+    currency: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="received")
+    sig_verified: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    outcome: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    error_msg: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payload_summary: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_webhook_events_provider", "provider"),
+        Index("idx_webhook_events_reference", "reference"),
+        Index("idx_webhook_events_received_at", "received_at"),
+        Index("idx_webhook_events_provider_received", "provider", "received_at"),
+    )

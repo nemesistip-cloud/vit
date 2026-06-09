@@ -4348,6 +4348,236 @@ function AdminHealthPills() {
   );
 }
 
+// ─── Webhook Log Viewer ────────────────────────────────────────────────
+
+type WebhookEventRow = {
+  id: number;
+  provider: string;
+  event_type: string | null;
+  reference: string | null;
+  amount: string | null;
+  currency: string | null;
+  status: string;
+  sig_verified: boolean | null;
+  outcome: string | null;
+  error_msg: string | null;
+  payload_summary: Record<string, unknown> | null;
+  received_at: string | null;
+};
+
+const PROVIDER_COLORS: Record<string, string> = {
+  stripe:       "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+  paystack:     "bg-green-500/15 text-green-300 border-green-500/30",
+  flutterwave:  "bg-orange-500/15 text-orange-300 border-orange-500/30",
+  pi:           "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  usdt:         "bg-teal-500/15 text-teal-300 border-teal-500/30",
+};
+
+const OUTCOME_COLORS: Record<string, string> = {
+  credited:             "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  withdrawal_processed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  approved:             "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  subscription_activated: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  refunded:             "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  payment_failed:       "bg-red-500/15 text-red-400 border-red-500/30",
+  approve_failed:       "bg-red-500/15 text-red-400 border-red-500/30",
+  complete_failed:      "bg-red-500/15 text-red-400 border-red-500/30",
+  cancelled:            "bg-gray-600/30 text-gray-400 border-gray-600",
+  unhandled:            "bg-gray-600/30 text-gray-400 border-gray-600",
+  already_processed:    "bg-gray-600/30 text-gray-400 border-gray-600",
+  not_found:            "bg-gray-600/30 text-gray-400 border-gray-600",
+  pending:              "bg-amber-500/15 text-amber-400 border-amber-500/30",
+};
+
+function WebhookLogViewer() {
+  const qc = useQueryClient();
+  const [filterProvider, setFilterProvider] = useState<string>("all");
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  const { data, isLoading, isFetching } = useQuery<{ events: WebhookEventRow[]; total: number }>({
+    queryKey: ["webhook-events", filterProvider],
+    queryFn: () => {
+      const params = filterProvider !== "all" ? `?provider=${filterProvider}&limit=100` : "?limit=100";
+      return apiGet(`/api/admin/integrations/webhook-events${params}`);
+    },
+    refetchInterval: 30000,
+  });
+
+  const events = data?.events ?? [];
+  const total  = data?.total ?? 0;
+
+  function fmtTime(iso: string | null) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+
+  function fmtRef(ref: string | null) {
+    if (!ref) return "—";
+    return ref.length > 20 ? `${ref.slice(0, 8)}…${ref.slice(-6)}` : ref;
+  }
+
+  const PROVIDER_TABS = ["all", "stripe", "paystack", "flutterwave", "pi", "usdt"];
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <CardTitle className="text-white flex items-center gap-2 text-sm">
+            <Activity className="w-4 h-4 text-cyan-400" />
+            Webhook Delivery Log
+            {total > 0 && (
+              <span className="text-xs font-normal text-gray-500 ml-1">{total} total</span>
+            )}
+            {isFetching && !isLoading && (
+              <Loader2 className="w-3 h-3 animate-spin text-gray-500 ml-1" />
+            )}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline"
+              className="border-gray-600 text-gray-400 hover:text-white h-7 px-2 gap-1 text-xs"
+              onClick={() => qc.invalidateQueries({ queryKey: ["webhook-events"] })}>
+              <RefreshCw className="w-3 h-3" /> Refresh
+            </Button>
+          </div>
+        </div>
+        <CardDescription className="text-gray-500 text-xs mt-1">
+          Live log of all incoming payment webhooks. Auto-refreshes every 30 seconds. Signature verification status and processing outcome are shown per event.
+        </CardDescription>
+
+        {/* Provider filter tabs */}
+        <div className="flex items-center gap-1 mt-2 flex-wrap">
+          {PROVIDER_TABS.map(p => (
+            <button
+              key={p}
+              onClick={() => setFilterProvider(p)}
+              className={`px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wide transition-colors border ${
+                filterProvider === p
+                  ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                  : "bg-transparent border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400"
+              }`}>
+              {p === "all" ? "All" : p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+
+      <CardContent className="pt-0">
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : events.length === 0 ? (
+          <div className="text-center py-10 text-gray-600">
+            <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <div className="text-sm">No webhook events recorded yet</div>
+            <div className="text-xs mt-1">Events will appear here as soon as a payment webhook arrives</div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-800">
+                  <th className="py-2 px-2 font-medium">Time</th>
+                  <th className="py-2 px-2 font-medium">Provider</th>
+                  <th className="py-2 px-2 font-medium">Event</th>
+                  <th className="py-2 px-2 font-medium">Reference</th>
+                  <th className="py-2 px-2 font-medium text-right">Amount</th>
+                  <th className="py-2 px-2 font-medium">Sig</th>
+                  <th className="py-2 px-2 font-medium">Outcome</th>
+                  <th className="py-2 px-2 font-medium w-6" />
+                </tr>
+              </thead>
+              <tbody>
+                {events.map(e => (
+                  <>
+                    <tr
+                      key={e.id}
+                      className={`border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors ${expandedRow === e.id ? "bg-gray-800/40" : ""}`}
+                      onClick={() => setExpandedRow(expandedRow === e.id ? null : e.id)}>
+                      <td className="py-2 px-2 text-gray-500 whitespace-nowrap font-mono">
+                        {fmtTime(e.received_at)}
+                      </td>
+                      <td className="py-2 px-2">
+                        <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wide ${PROVIDER_COLORS[e.provider] ?? "bg-gray-700/40 text-gray-400 border-gray-600"}`}>
+                          {e.provider}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-gray-300 max-w-[160px]">
+                        <span className="truncate block font-mono text-[10px]" title={e.event_type ?? ""}>
+                          {e.event_type ?? <span className="text-gray-600">—</span>}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-gray-400 font-mono">
+                        <span title={e.reference ?? ""}>{fmtRef(e.reference)}</span>
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-gray-300">
+                        {e.amount
+                          ? <>{parseFloat(e.amount).toLocaleString(undefined, { maximumFractionDigits: 6 })}<span className="text-gray-600 ml-1 text-[9px]">{e.currency}</span></>
+                          : <span className="text-gray-700">—</span>}
+                      </td>
+                      <td className="py-2 px-2">
+                        {e.sig_verified === null
+                          ? <span className="text-gray-600 text-[10px]">n/a</span>
+                          : e.sig_verified
+                          ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                          : <XCircle className="w-3.5 h-3.5 text-red-400" />}
+                      </td>
+                      <td className="py-2 px-2">
+                        {e.outcome ? (
+                          <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${OUTCOME_COLORS[e.outcome] ?? "bg-gray-700/40 text-gray-400 border-gray-600"}`}>
+                            {e.outcome.replace(/_/g, " ")}
+                          </span>
+                        ) : <span className="text-gray-700">—</span>}
+                      </td>
+                      <td className="py-2 px-2">
+                        <ChevronRight className={`w-3 h-3 text-gray-600 transition-transform ${expandedRow === e.id ? "rotate-90" : ""}`} />
+                      </td>
+                    </tr>
+                    {expandedRow === e.id && (
+                      <tr key={`${e.id}-detail`} className="bg-gray-800/30">
+                        <td colSpan={8} className="px-4 py-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {e.error_msg && (
+                              <div className="col-span-full bg-red-500/10 border border-red-500/20 rounded p-2 text-xs text-red-300">
+                                <span className="font-semibold">Error:</span> {e.error_msg}
+                              </div>
+                            )}
+                            {e.reference && (
+                              <div>
+                                <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Full Reference</div>
+                                <code className="text-gray-300 font-mono text-[11px] break-all">{e.reference}</code>
+                              </div>
+                            )}
+                            {e.payload_summary && Object.keys(e.payload_summary).length > 0 && (
+                              <div>
+                                <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Payload Summary</div>
+                                <pre className="text-gray-400 font-mono text-[10px] leading-relaxed bg-gray-900/60 rounded p-2 overflow-x-auto">
+                                  {JSON.stringify(e.payload_summary, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            <div>
+                              <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Received At</div>
+                              <code className="text-gray-400 font-mono text-[11px]">
+                                {e.received_at ? new Date(e.received_at).toISOString() : "—"}
+                              </code>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Integrations Tab ─────────────────────────────────────────────────
 
 function IntegrationsTab() {
@@ -4612,6 +4842,9 @@ function IntegrationsTab() {
           </Card>
         );
       })}
+
+      {/* ── Webhook Delivery Log ──────────────────────────────────────── */}
+      <WebhookLogViewer />
 
       {/* Edit / Set Key Dialog */}
       {editingKey && (
