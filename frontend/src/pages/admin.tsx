@@ -4389,6 +4389,150 @@ const OUTCOME_COLORS: Record<string, string> = {
   pending:              "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 
+// ── Free-tier 12-competition sync panel ──────────────────────────────────────
+const FD12_COMPETITIONS = [
+  { league: "premier_league",    code: "PL",  label: "Premier League",          flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+  { league: "championship",      code: "ELC", label: "Championship",             flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+  { league: "bundesliga",        code: "BL1", label: "Bundesliga",               flag: "🇩🇪" },
+  { league: "serie_a",           code: "SA",  label: "Serie A",                  flag: "🇮🇹" },
+  { league: "la_liga",           code: "PD",  label: "La Liga",                  flag: "🇪🇸" },
+  { league: "ligue_1",           code: "FL1", label: "Ligue 1",                  flag: "🇫🇷" },
+  { league: "eredivisie",        code: "DED", label: "Eredivisie",               flag: "🇳🇱" },
+  { league: "primeira_liga",     code: "PPL", label: "Primeira Liga",            flag: "🇵🇹" },
+  { league: "brasileirao",       code: "BSA", label: "Brasileirão Série A",      flag: "🇧🇷" },
+  { league: "champions_league",  code: "CL",  label: "UEFA Champions League",    flag: "🏆" },
+  { league: "euro_championship", code: "EC",  label: "UEFA Euro",                flag: "🇪🇺" },
+  { league: "world_cup",         code: "WC",  label: "FIFA World Cup",           flag: "🌍" },
+];
+
+type FD12Result = {
+  league: string; code: string;
+  upserted: number; skipped: number;
+  errors: string[]; status: "ok" | "partial" | "error";
+};
+
+type FD12Response = {
+  status: string;
+  total_upserted: number; total_skipped: number;
+  error_count: number; duration_seconds: number;
+  competitions: FD12Result[];
+};
+
+function FD12SyncPanel() {
+  const [syncing, setSyncing]         = useState(false);
+  const [result,  setResult]          = useState<FD12Response | null>(null);
+  const [days,    setDays]            = useState(14);
+
+  const resultMap = Object.fromEntries((result?.competitions ?? []).map(c => [c.league, c]));
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const data = await apiPost(`/api/admin/fixtures/sync-fd12?days=${days}`, {}) as FD12Response;
+      setResult(data);
+      if (data.status === "success")
+        toast.success(`Synced ${data.total_upserted} new fixtures across 12 competitions in ${data.duration_seconds}s`);
+      else if (data.status === "partial")
+        toast.success(`Partial sync: ${data.total_upserted} upserted, ${data.error_count} competition(s) had errors`);
+      else
+        toast.error("Sync failed — check FOOTBALL_DATA_API_KEY");
+    } catch (e: any) {
+      toast.error(e?.message || "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 space-y-3">
+      {/* divider */}
+      <div className="flex items-center gap-2">
+        <div className="h-px flex-1 bg-gray-800" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+          <Activity className="w-3 h-3" /> Fixture Sync — All 12 Free Competitions
+        </span>
+        <div className="h-px flex-1 bg-gray-800" />
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <span>Days ahead:</span>
+          {[7, 14, 21].map(d => (
+            <button key={d}
+              onClick={() => setDays(d)}
+              className={`px-2 py-0.5 rounded border text-[10px] font-bold transition-colors ${
+                days === d
+                  ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                  : "border-gray-700 text-gray-500 hover:border-gray-600"
+              }`}>{d}d</button>
+          ))}
+        </div>
+        <Button size="sm" variant="outline"
+          className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 text-xs gap-1.5 ml-auto"
+          disabled={syncing}
+          onClick={handleSync}>
+          {syncing
+            ? <><Loader2 className="w-3 h-3 animate-spin" />Syncing… (may take ~90s)</>
+            : <><RefreshCw className="w-3 h-3" />Sync All 12 Competitions</>}
+        </Button>
+      </div>
+
+      {/* summary bar (visible after first sync) */}
+      {result && (
+        <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-xs font-mono ${
+          result.status === "success" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" :
+          result.status === "partial" ? "bg-amber-500/10 border-amber-500/30 text-amber-300"    :
+                                        "bg-red-500/10 border-red-500/30 text-red-300"
+        }`}>
+          <span className="font-bold uppercase">{result.status}</span>
+          <span>+{result.total_upserted} new</span>
+          <span className="text-gray-500">·</span>
+          <span>{result.total_skipped} existing</span>
+          <span className="text-gray-500">·</span>
+          <span>{result.error_count} errors</span>
+          <span className="text-gray-500">·</span>
+          <span>{result.duration_seconds}s</span>
+        </div>
+      )}
+
+      {/* per-competition grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+        {FD12_COMPETITIONS.map(comp => {
+          const r = resultMap[comp.league];
+          const statusColor =
+            !r       ? "border-gray-800 bg-gray-900/30 text-gray-600" :
+            r.status === "ok"      ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"  :
+            r.status === "partial" ? "border-amber-500/30 bg-amber-500/5 text-amber-400"         :
+                                     "border-red-500/30 bg-red-500/5 text-red-400";
+          return (
+            <div key={comp.code}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${statusColor}`}
+              title={r?.errors?.length ? r.errors.join("; ") : undefined}>
+              <span className="text-sm leading-none">{comp.flag}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold leading-tight truncate">{comp.label}</div>
+                <div className="text-[9px] font-mono opacity-60 leading-tight">
+                  {comp.code}
+                  {r && <span className="ml-1">· +{r.upserted}</span>}
+                </div>
+              </div>
+              {r ? (
+                r.status === "ok"      ? <CheckCircle className="w-3 h-3 shrink-0 text-emerald-400" /> :
+                r.status === "partial" ? <AlertCircle  className="w-3 h-3 shrink-0 text-amber-400"  /> :
+                                         <XCircle      className="w-3 h-3 shrink-0 text-red-400"    />
+              ) : (
+                syncing
+                  ? <Loader2 className="w-3 h-3 shrink-0 animate-spin opacity-30" />
+                  : <div className="w-3 h-3 rounded-full border border-gray-700 shrink-0" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function WebhookLogViewer() {
   const qc = useQueryClient();
   const [filterProvider, setFilterProvider] = useState<string>("all");
@@ -4764,7 +4908,8 @@ function IntegrationsTab() {
         const meta      = PROVIDER_META[group] ?? { icon: Settings, color: "text-gray-400", bg: "bg-gray-700/30", border: "border-gray-700", description: "" };
         const MetaIcon  = meta.icon;
         const badge     = statusBadge(keys);
-        const isPayments = group === "Payments";
+        const isPayments    = group === "Payments";
+        const isSportsData  = group === "Sports Data";
 
         return (
           <Card key={group} className={`bg-gray-900 border ${meta.border}`}>
@@ -4838,6 +4983,7 @@ function IntegrationsTab() {
                   {keys.map(k => <KeyRow key={k.key} k={k} />)}
                 </div>
               )}
+              {isSportsData && <FD12SyncPanel />}
             </CardContent>
           </Card>
         );

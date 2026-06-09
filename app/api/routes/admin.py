@@ -503,6 +503,78 @@ async def fetch_fixtures(count: int = 50, days: int = 14, current_user=Depends(g
     return {"status": "success", "stored": 0, "skipped_existing": 0}
 
 
+@router.post("/fixtures/sync-fd12")
+async def sync_fd12_fixtures(
+    days: int = 14,
+    current_user=Depends(get_current_admin),
+):
+    """Fetch upcoming fixtures from all 12 football-data.org free-tier competitions.
+
+    Returns per-competition upserted/skipped counts plus any errors.
+    Respects the 10 calls/min rate limit with a 6-second gap between competitions.
+    """
+    import os, asyncio as _asyncio
+    from datetime import datetime as _dt, timedelta as _td
+
+    api_key = os.getenv("FOOTBALL_DATA_API_KEY", "").strip()
+    if not api_key:
+        return {"status": "error", "message": "FOOTBALL_DATA_API_KEY not configured"}
+
+    from app.services.football_api import FootballDataClient
+    from app.db.database import AsyncSessionLocal
+    from app.data.pipeline import SUPPORTED_LEAGUES, _process_league
+    from app.core.dependencies import get_data_loader
+
+    loader = get_data_loader()
+    if loader is None:
+        return {"status": "error", "message": "DataLoader unavailable — API key may be invalid or not loaded yet"}
+
+    started_at = _dt.utcnow()
+    results: list = []
+    total_upserted = 0
+    total_skipped  = 0
+    all_errors: list = []
+
+    for i, league in enumerate(SUPPORTED_LEAGUES):
+        if i > 0:
+            await _asyncio.sleep(7)   # ~6s gap → stays under 10 req/min
+        try:
+            upserted, skipped, errors = await _process_league(loader, league)
+            total_upserted += upserted
+            total_skipped  += skipped
+            all_errors.extend(errors)
+            results.append({
+                "league": league,
+                "code": FootballDataClient.COMPETITIONS.get(league, league.upper()),
+                "upserted": upserted,
+                "skipped": skipped,
+                "errors": errors,
+                "status": "ok" if not errors else "partial",
+            })
+            logger.info(f"[fd12] {league}: upserted={upserted} skipped={skipped}")
+        except Exception as exc:
+            err_msg = str(exc)
+            all_errors.append(f"{league}: {err_msg}")
+            results.append({
+                "league": league,
+                "code": FootballDataClient.COMPETITIONS.get(league, league.upper()),
+                "upserted": 0, "skipped": 0,
+                "errors": [err_msg], "status": "error",
+            })
+            logger.warning(f"[fd12] {league} failed: {exc}")
+
+    duration = round((_dt.utcnow() - started_at).total_seconds(), 1)
+    return {
+        "status": "success" if not all_errors else ("partial" if total_upserted > 0 else "failed"),
+        "total_upserted": total_upserted,
+        "total_skipped":  total_skipped,
+        "error_count":    len(all_errors),
+        "duration_seconds": duration,
+        "days_ahead": days,
+        "competitions": results,
+    }
+
+
 @router.post("/sync-fixtures")
 async def sync_fixtures(
     days: int = 90,
