@@ -417,16 +417,80 @@ async def usdt_webhook(body: USDTWebhookBody):
 
 class PiWebhookBody(BaseModel):
     payment_id: str
+    event_type: Optional[str] = None   # payment_approved | payment_ready_for_server_completion | payment_cancelled
     approved: bool = False
+    txid: Optional[str] = None         # on-chain txid from Pi Blockchain
+    user_uid: Optional[str] = None
 
 
 @router.post("/pi")
-async def pi_webhook(body: PiWebhookBody):
-    if not body.approved:
-        return {"status": "not_approved"}
+async def pi_webhook(request: Request):
+    """
+    Pi Network Server-to-App webhook.
 
-    credited = await _credit_wallet_by_reference(body.payment_id)
-    return {"status": "confirmed" if credited else "not_found"}
+    Events handled:
+      payment_approved                     → server-side approve via Pi API
+      payment_ready_for_server_completion  → complete payment + credit wallet
+      payment_cancelled                    → log only
+    """
+    from app.services.pi_network import (
+        approve_payment as _pi_approve,
+        complete_payment as _pi_complete,
+        verify_webhook_signature as _pi_verify_sig,
+    )
+
+    body_bytes = await request.body()
+    sig = request.headers.get("x-pi-network-signature", "")
+    if sig and not _pi_verify_sig(body_bytes, sig):
+        raise HTTPException(400, "Invalid Pi Network webhook signature")
+
+    try:
+        payload = json.loads(body_bytes)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+
+    event_type = payload.get("event_type", "")
+    payment = payload.get("payment", {}) or {}
+    payment_id = payment.get("identifier") or payload.get("payment_id", "")
+    txid = payment.get("transaction", {}).get("txid") if isinstance(payment.get("transaction"), dict) else payload.get("txid")
+    amount = float(payment.get("amount", 0))
+
+    logger.info(f"Pi webhook: event={event_type} payment_id={payment_id} amount={amount}")
+
+    if event_type == "payment_approved":
+        result = await _pi_approve(payment_id)
+        if result.get("error"):
+            logger.error(f"Pi approve failed: {result['error']}")
+        return {"status": "ok", "action": "approved", "payment_id": payment_id}
+
+    if event_type == "payment_ready_for_server_completion":
+        if not txid:
+            logger.error(f"Pi completion webhook missing txid for payment {payment_id}")
+            return {"status": "error", "message": "txid missing"}
+        result = await _pi_complete(payment_id, txid)
+        if result.get("error"):
+            logger.error(f"Pi complete failed: {result['error']}")
+            return {"status": "error", "message": result["error"]}
+        # Credit the user's wallet
+        credited = await _credit_wallet_by_reference(payment_id)
+        if not credited and txid:
+            credited = await _credit_wallet_by_reference(txid)
+        return {"status": "ok", "action": "completed", "credited": credited, "payment_id": payment_id}
+
+    if event_type == "payment_cancelled":
+        logger.info(f"Pi payment cancelled: payment_id={payment_id}")
+        return {"status": "ok", "action": "cancelled"}
+
+    # Legacy simple webhook (direct payment_id + approved fields)
+    if not event_type:
+        approved = payload.get("approved", False)
+        payment_id_simple = payload.get("payment_id", "")
+        if not approved:
+            return {"status": "not_approved"}
+        credited = await _credit_wallet_by_reference(payment_id_simple)
+        return {"status": "confirmed" if credited else "not_found"}
+
+    return {"status": "ok", "event_type": event_type, "handled": False}
 
 
 # ── Flutterwave ─────────────────────────────────────────────────────────

@@ -40,14 +40,21 @@ LEAGUE_DISPLAY_NAMES = {
 }
 
 COMPETITIONS = {
-    "premier_league": "PL",
-    "la_liga": "PD",
-    "bundesliga": "BL1",
-    "serie_a": "SA",
-    "ligue_1": "FL1",
-    "eredivisie": "DED",
-    "championship": "ELC",
-    "primeira_liga": "PPL",
+    # Domestic leagues
+    "premier_league":   "PL",
+    "la_liga":          "PD",
+    "bundesliga":       "BL1",
+    "serie_a":          "SA",
+    "ligue_1":          "FL1",
+    "eredivisie":       "DED",
+    "championship":     "ELC",
+    "primeira_liga":    "PPL",
+    # European club competitions
+    "champions_league": "CL",
+    "europa_league":    "EL",
+    # International tournaments — World Cup + Euros available when active
+    "fifa_world_cup":   "WC",
+    "uefa_euro":        "EC",
 }
 
 # DEFAULT_MARKETS list is externalised to app/config/markets.json

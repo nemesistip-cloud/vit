@@ -227,6 +227,24 @@ async def lifespan(app: FastAPI):
     # 1. Load secrets from GCP Secret Manager (if available)
     await load_all_secrets()
 
+    # 1b. Load admin-saved integration keys from DB into os.environ
+    try:
+        from app.db.database import AsyncSessionLocal as _ASL
+        from app.modules.wallet.models import PlatformConfig as _PC
+        from sqlalchemy import select as _sel
+        async with _ASL() as _kdb:
+            _rows = (await _kdb.execute(
+                _sel(_PC).where(_PC.key.like("integration:%"))
+            )).scalars().all()
+            for _row in _rows:
+                env_key = _row.key.replace("integration:", "")
+                if env_key and not os.environ.get(env_key):
+                    os.environ[env_key] = str(_row.value)
+        if _rows:
+            print(f"  ✅ Loaded {len(_rows)} integration key(s) from DB")
+    except Exception as _ki_err:
+        pass  # DB might not be ready yet; keys will load from env
+
     # 2. Configure logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
     setup_firestore_events()

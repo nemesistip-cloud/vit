@@ -58,6 +58,21 @@ LEAGUES: Dict[str, int] = {
     "liga_mx":              4350,
     "brasileirao":          4351,
     "argentine_primera":    4406,
+    "copa_libertadores":    4353,
+    "colombian_primera":    4396,
+    "chilean_primera":      4398,
+    # International competitions
+    "fifa_world_cup":       4407,
+    "uefa_euro":            4408,
+    "uefa_nations_league":  4568,
+    "afcon":                4430,
+    "copa_america":         4343,
+    "concacaf_gold_cup":    4481,
+    "afc_asian_cup":        4454,
+    # World Cup 2026 qualifiers (by confederation)
+    "wc_qual_europe":       4409,
+    "wc_qual_africa":       4429,
+    "wc_qual_south_america": 4410,
 }
 
 # ── Multi-sport league IDs ──────────────────────────────────────────────────
@@ -148,6 +163,20 @@ LEAGUE_DISPLAY: Dict[str, str] = {
     "liga_mx":              "Liga MX",
     "brasileirao":          "Brasileirão",
     "argentine_primera":    "Argentine Primera División",
+    "copa_libertadores":    "Copa Libertadores",
+    "colombian_primera":    "Colombian Primera A",
+    "chilean_primera":      "Chilean Primera División",
+    # International
+    "fifa_world_cup":       "FIFA World Cup",
+    "uefa_euro":            "UEFA European Championship",
+    "uefa_nations_league":  "UEFA Nations League",
+    "afcon":                "Africa Cup of Nations (AFCON)",
+    "copa_america":         "Copa América",
+    "concacaf_gold_cup":    "CONCACAF Gold Cup",
+    "afc_asian_cup":        "AFC Asian Cup",
+    "wc_qual_europe":       "World Cup Qual. — Europe",
+    "wc_qual_africa":       "World Cup Qual. — Africa",
+    "wc_qual_south_america":"World Cup Qual. — CONMEBOL",
     # Basketball
     "nba":                  "NBA",
     "euroleague":           "EuroLeague",
@@ -278,6 +307,30 @@ def _league_slug(name: str) -> str:
         return "brasileirao"
     if "argentine" in n or "primera división" in n:
         return "argentine_primera"
+    if "copa libertadores" in n or "libertadores" in n:
+        return "copa_libertadores"
+    if "copa america" in n or "copa américa" in n:
+        return "copa_america"
+    if "world cup" in n and "qualifier" not in n and "qualification" not in n:
+        return "fifa_world_cup"
+    if "world cup" in n and ("qualifier" in n or "qualification" in n):
+        if "europe" in n or "uefa" in n:
+            return "wc_qual_europe"
+        if "africa" in n or "caf" in n:
+            return "wc_qual_africa"
+        if "south america" in n or "conmebol" in n:
+            return "wc_qual_south_america"
+        return "fifa_world_cup"
+    if "european championship" in n or "euro 20" in n or "uefa euro" in n:
+        return "uefa_euro"
+    if "nations league" in n and "uefa" in n:
+        return "uefa_nations_league"
+    if "africa cup" in n or "afcon" in n or "can 20" in n:
+        return "afcon"
+    if "gold cup" in n or "concacaf" in n:
+        return "concacaf_gold_cup"
+    if "asian cup" in n or "afc asian" in n:
+        return "afc_asian_cup"
     return name.lower().replace(" ", "_")
 
 

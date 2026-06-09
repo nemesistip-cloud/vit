@@ -183,6 +183,57 @@ _KEY_REGISTRY = [
         "required":    False,
         "group":       "Sports Data",
     },
+    # ── Pi Network ─────────────────────────────────────────────────────
+    {
+        "name":        "PI_APP_ID",
+        "label":       "Pi App ID",
+        "description": "App identifier from Pi Developer Portal (developer.pi)",
+        "required":    False,
+        "group":       "Pi Network",
+    },
+    {
+        "name":        "PI_APP_SECRET",
+        "label":       "Pi App Secret",
+        "description": "Server-side secret key for Pi Network API (used to approve / complete payments)",
+        "required":    False,
+        "group":       "Pi Network",
+    },
+    {
+        "name":        "PI_WEBHOOK_SECRET",
+        "label":       "Pi Webhook Secret",
+        "description": "HMAC secret to verify incoming Pi webhook signatures",
+        "required":    False,
+        "group":       "Pi Network",
+    },
+    {
+        "name":        "PI_SANDBOX_MODE",
+        "label":       "Pi Sandbox Mode",
+        "description": "Set to 'false' for Mainnet. Default is 'true' (Sandbox / Testnet)",
+        "required":    False,
+        "group":       "Pi Network",
+    },
+    # ── Flutterwave ────────────────────────────────────────────────────
+    {
+        "name":        "FLW_SECRET_KEY",
+        "label":       "Flutterwave Secret Key",
+        "description": "Server secret key (FLWSECK_…) for initiating MoMo / card charges and transfers",
+        "required":    False,
+        "group":       "Payments",
+    },
+    {
+        "name":        "FLW_PUBLIC_KEY",
+        "label":       "Flutterwave Public Key",
+        "description": "Client-facing public key (FLWPUBK_…) for front-end SDK initialisation",
+        "required":    False,
+        "group":       "Payments",
+    },
+    {
+        "name":        "FLW_WEBHOOK_SECRET",
+        "label":       "Flutterwave Webhook Secret",
+        "description": "Sent as the 'verif-hash' header on every Flutterwave webhook call",
+        "required":    False,
+        "group":       "Payments",
+    },
 ]
 
 @router.get("/api-keys")
@@ -230,11 +281,16 @@ async def get_config_status(current_user=Depends(get_current_admin)):
         _status("STRIPE_WEBHOOK_SECRET",  "Stripe Webhooks",     required=False),
         _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),
         _status("PAYSTACK_WEBHOOK_SECRET","Paystack Webhooks",   required=False),
+        _status("FLW_SECRET_KEY",         "Flutterwave (MoMo)",  required=False),
+        _status("FLW_WEBHOOK_SECRET",     "Flutterwave Webhooks",required=False),
+        _status("PI_APP_ID",              "Pi Network App",      required=False),
+        _status("PI_APP_SECRET",          "Pi Network Secret",   required=False),
 
         _status("BASE_RPC_URL",           "Base L2 RPC",         required=False),
         _status("VIT_CONTRACT_ADDRESS",   "VITCoin Contract",    required=False),
         _status("REDIS_URL",              "Redis",               required=False),
         _status("SMTP_HOST",              "Email / SMTP",        required=False),
+        _status("RESEND_API_KEY",         "Resend Email",        required=False),
         _status("TELEGRAM_BOT_TOKEN",     "Telegram Bot",        required=False),
     ]
 
@@ -446,18 +502,197 @@ async def create_backup(current_user=Depends(get_current_admin)):
 async def fetch_fixtures(count: int = 50, days: int = 14, current_user=Depends(get_current_admin)):
     return {"status": "success", "stored": 0, "skipped_existing": 0}
 
+
 @router.post("/sync-fixtures")
-async def sync_fixtures(current_user=Depends(get_current_admin)):
-    return {"status": "success", "fixtures": {"inserted": 0}, "predictions": {"seeded": 0}}
+async def sync_fixtures(
+    days: int = 90,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Trigger an immediate fixture sync from TheSportsDB + Football-Data.org.
+
+    Covers all leagues including international competitions (World Cup, AFCON,
+    UEFA Euro, Copa América, Nations League, Copa Libertadores).
+    Runs both phases and returns a summary.
+    """
+    from app.services.sportsdb_api import sync_upcoming_fixtures
+    try:
+        result = await sync_upcoming_fixtures(db, days_ahead=days)
+    except Exception as sync_err:
+        logger.error(f"[admin] sync_fixtures error: {sync_err}")
+        result = {"inserted": 0, "updated": 0, "skipped": 0, "total_fetched": 0, "error": str(sync_err)}
+
+    # Seed predictions for newly inserted fixtures
+    seeded = 0
+    try:
+        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        seeded = await seed_predictions_for_upcoming(db)
+    except Exception as seed_err:
+        logger.warning(f"[admin] prediction seeder failed: {seed_err}")
+
+    return {
+        "status": "success",
+        "fixtures": result,
+        "predictions_seeded": seeded,
+        "days_ahead": days,
+    }
+
 
 @router.get("/leagues")
 async def list_leagues(current_user=Depends(get_current_admin)):
-    return []
+    from app.services.sportsdb_api import LEAGUE_DISPLAY, LEAGUES
+    return [
+        {"slug": slug, "name": LEAGUE_DISPLAY.get(slug, slug), "id": lid}
+        for slug, lid in LEAGUES.items()
+    ]
+
 
 @router.get("/markets")
 async def list_markets(current_user=Depends(get_current_admin)):
     return []
 
+
 @router.get("/marketplace/pending")
 async def list_pending_listings(current_user=Depends(get_current_admin)):
     return []
+
+
+# ── Integration settings (admin-configurable via PlatformConfig) ─────────
+
+class IntegrationSettingUpdate(BaseModel):
+    key: str
+    value: str
+
+
+EDITABLE_INTEGRATION_KEYS = {
+    "PI_APP_ID", "PI_APP_SECRET", "PI_WEBHOOK_SECRET", "PI_SANDBOX_MODE",
+    "FLW_SECRET_KEY", "FLW_PUBLIC_KEY", "FLW_WEBHOOK_SECRET",
+    "PAYSTACK_SECRET_KEY", "PAYSTACK_WEBHOOK_SECRET",
+    "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
+    "FOOTBALL_DATA_API_KEY", "THESPORTSDB_API_KEY", "ODDS_API_KEY",
+    "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "RESEND_API_KEY",
+}
+
+
+@router.get("/integrations/settings")
+async def get_integration_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Return all integration keys with their configured status (masked values)."""
+    from app.modules.wallet.models import PlatformConfig
+    result = await db.execute(
+        select(PlatformConfig).where(PlatformConfig.key.in_(
+            [f"integration:{k}" for k in EDITABLE_INTEGRATION_KEYS]
+        ))
+    )
+    db_rows = {row.key.replace("integration:", ""): row.value for row in result.scalars().all()}
+
+    settings = []
+    for entry in _KEY_REGISTRY:
+        name = entry["name"]
+        env_val = os.getenv(name, "")
+        db_val = db_rows.get(name, "")
+        is_set = bool(env_val or db_val)
+        settings.append({
+            "key": name,
+            "label": entry.get("label", name),
+            "group": entry.get("group", "Other"),
+            "description": entry.get("description", ""),
+            "required": entry.get("required", False),
+            "configured": is_set,
+            "source": "env" if env_val else ("db" if db_val else "none"),
+        })
+    return {"settings": settings, "total": len(settings)}
+
+
+@router.put("/integrations/settings")
+async def update_integration_setting(
+    body: IntegrationSettingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Store an integration key in PlatformConfig (DB-backed, survives restarts)."""
+    from app.modules.wallet.models import PlatformConfig
+    if body.key not in EDITABLE_INTEGRATION_KEYS:
+        raise HTTPException(400, f"Key '{body.key}' is not an editable integration setting")
+    if not body.value.strip():
+        raise HTTPException(400, "value cannot be empty")
+
+    db_key = f"integration:{body.key}"
+    row = (await db.execute(
+        select(PlatformConfig).where(PlatformConfig.key == db_key)
+    )).scalar_one_or_none()
+
+    if row:
+        row.value = body.value.strip()
+    else:
+        db.add(PlatformConfig(key=db_key, value=body.value.strip()))
+
+    # Also inject into the running process env so it takes effect immediately
+    os.environ[body.key] = body.value.strip()
+
+    await db.commit()
+
+    # Audit
+    audit = AuditLog(
+        action="integration_key_updated",
+        actor=current_user.username,
+        resource="integration",
+        resource_id=body.key,
+        details={"masked_value": "••••" + body.value.strip()[-4:] if len(body.value.strip()) > 4 else "••••"},
+        status="success",
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {"status": "ok", "key": body.key, "message": f"{body.key} updated and active immediately"}
+
+
+@router.delete("/integrations/settings/{key}")
+async def delete_integration_setting(
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Remove a DB-stored integration key (env var remains until restart)."""
+    from app.modules.wallet.models import PlatformConfig
+    if key not in EDITABLE_INTEGRATION_KEYS:
+        raise HTTPException(400, f"Key '{key}' is not an editable integration setting")
+
+    db_key = f"integration:{key}"
+    row = (await db.execute(
+        select(PlatformConfig).where(PlatformConfig.key == db_key)
+    )).scalar_one_or_none()
+    if row:
+        await db.delete(row)
+        await db.commit()
+    return {"status": "ok", "key": key, "message": f"{key} removed from DB (env var still active until restart)"}
+
+
+# ── Pi Network — payment lifecycle admin helpers ───────────────────────
+
+@router.get("/pi/status")
+async def pi_network_status(current_user=Depends(get_current_admin)):
+    """Show Pi Network integration configuration status."""
+    from app.services.pi_network import is_configured, _get_config
+    cfg = _get_config()
+    return {
+        "configured": is_configured(),
+        "sandbox_mode": cfg["sandbox"],
+        "app_id_set": bool(cfg["app_id"]),
+        "app_secret_set": bool(cfg["app_secret"]),
+        "webhook_secret_set": bool(cfg["webhook_secret"]),
+        "api_base": "https://api.minepi.com",
+        "docs": "https://developers.minepi.com/doc/payment",
+    }
+
+
+@router.get("/pi/payments/{payment_id}")
+async def get_pi_payment(payment_id: str, current_user=Depends(get_current_admin)):
+    """Fetch a Pi Network payment by ID (uses Pi Server API)."""
+    from app.services.pi_network import get_payment
+    result = await get_payment(payment_id)
+    if result.get("error"):
+        raise HTTPException(502, result["error"])
+    return result

@@ -256,6 +256,13 @@ FLW_SECRET_KEY: str           = get_env("FLW_SECRET_KEY", "")
 FLW_PUBLIC_KEY: str           = get_env("FLW_PUBLIC_KEY", "")
 FLW_WEBHOOK_SECRET: str       = get_env("FLW_WEBHOOK_SECRET", "")
 
+# Pi Network — Blockchain-based payments via the Pi Browser SDK
+# Docs: https://developers.minepi.com/doc/payment
+PI_APP_ID: str        = get_env("PI_APP_ID", "")
+PI_APP_SECRET: str    = get_env("PI_APP_SECRET", "")
+PI_WEBHOOK_SECRET: str = get_env("PI_WEBHOOK_SECRET", "")
+PI_SANDBOX_MODE: str  = get_env("PI_SANDBOX_MODE", "true")
+
 
 # Redis — optional; enables distributed rate limiting, caching, and Celery tasks.
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.
@@ -394,6 +401,8 @@ def print_config_status() -> None:
     print(f"  {'✅' if THE_ODDS_API_KEY else '❌'} Odds API:           {'Configured' if THE_ODDS_API_KEY else 'Missing (odds disabled)'}")
     print(f"  {'✅' if PAYSTACK_SECRET_KEY else '❌'} Paystack:           {'Configured' if PAYSTACK_SECRET_KEY else 'Missing (NGN payments disabled)'}")
     print(f"  {'✅' if STRIPE_SECRET_KEY else '❌'} Stripe:             {'Configured' if STRIPE_SECRET_KEY else 'Missing (USD payments disabled)'}")
+    print(f"  {'✅' if FLW_SECRET_KEY else '⚠️ '} Flutterwave/MoMo:  {'Configured' if FLW_SECRET_KEY else 'Missing (MoMo deposits disabled)'}")
+    print(f"  {'✅' if PI_APP_ID else '⚠️ '} Pi Network:         {'Configured (sandbox)' if PI_APP_ID and PI_SANDBOX_MODE.lower() in ('1','true','yes') else 'Configured (mainnet)' if PI_APP_ID else 'Missing (Pi payments disabled)'}")
     print(f"  {'✅' if RESEND_API_KEY else '❌'} RESEND Email:       {'Configured' if RESEND_API_KEY else 'Missing (email disabled)'}")
     print(f"  ✅ TheSportsDB:       Always available (free key)")
     print(f"  ✅ Settlement mode:   {settle_mode}")

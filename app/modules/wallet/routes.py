@@ -1035,6 +1035,75 @@ async def get_telegram_stars_invoice(
 
 # ── Mobile Money (Flutterwave) Deposit ─────────────────────────────────
 
+# ── Pi Network Deposit ───────────────────────────────────────────────────
+
+class PiDepositRequest(BaseModel):
+    amount: float = Field(..., gt=0, description="Amount in Pi")
+    memo: Optional[str] = Field(None, description="Optional memo / note on the Pi transaction")
+
+
+@router.post("/deposit/pi")
+async def initiate_pi_deposit(
+    request: PiDepositRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Initiate a Pi Network deposit.
+
+    Returns a payment ID and instructions for the Pi Browser SDK to complete.
+    The wallet is credited automatically when the Pi webhook fires with
+    event_type=payment_ready_for_server_completion.
+    """
+    import uuid as _uuid
+    from app.services.pi_network import is_configured, _api_base
+    from app.modules.wallet.models import WalletTransaction as _WalletTx
+
+    service = WalletService(db)
+    wallet = await service.get_or_create_wallet(current_user.id)
+    ref = f"PI-{current_user.id}-{_uuid.uuid4().hex[:10].upper()}"
+
+    pi_configured = is_configured()
+
+    try:
+        pending_tx = _WalletTx(
+            id=str(_uuid.uuid4()),
+            user_id=current_user.id,
+            wallet_id=wallet.id,
+            type="deposit",
+            currency="PI",
+            amount=Decimal(str(request.amount)),
+            direction="credit",
+            status="pending",
+            reference=ref,
+            tx_metadata={
+                "method": "pi_network",
+                "memo": request.memo or f"VIT deposit {ref}",
+                "pi_configured": pi_configured,
+            },
+        )
+        db.add(pending_tx)
+        await db.commit()
+    except Exception as _tx_err:
+        logger.error(f"Failed to record Pi deposit pending tx: {_tx_err}")
+        await db.rollback()
+
+    return {
+        "status": "pending",
+        "reference": ref,
+        "amount": request.amount,
+        "currency": "PI",
+        "method": "pi_network",
+        "memo": request.memo or f"VIT deposit {ref}",
+        "pi_configured": pi_configured,
+        "webhook_url": "/api/webhooks/pi",
+        "note": "Use the Pi Browser SDK to create a payment using this reference as the memo. The wallet credits automatically on webhook confirmation.",
+        "sdk_docs": "https://developers.minepi.com/doc/javascript#ref-paymentcallbacks",
+    }
+
+
+# ── Mobile Money (Flutterwave) Deposit ─────────────────────────────────
+
 class MoMoDepositRequest(BaseModel):
     amount: float = Field(..., gt=0)
     currency: str = Field("NGN", description="NGN, GHS, KES, UGX, TZS")
