@@ -27,6 +27,9 @@ from app.config import PAYSTACK_WEBHOOK_SECRET as _PAYSTACK_WEBHOOK_SECRET, USDT
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 logger = logging.getLogger(__name__)
 
+# ── Flutterwave ──────────────────────────────────────────────────────────
+from app.modules.wallet.flutterwave import verify_webhook_signature as _flw_verify_sig
+
 
 async def _credit_wallet_by_reference(reference: str) -> bool:
     """Find a pending transaction by reference and credit the wallet."""
@@ -164,6 +167,78 @@ async def _activate_subscription(user_id: int, plan: str, billing: str) -> bool:
         return False
 
 
+async def _fail_pending_transaction(payment_intent_id: str) -> bool:
+    """Mark a pending deposit transaction as failed when Stripe reports payment_intent.payment_failed."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(WalletTransaction).where(
+                WalletTransaction.status == "pending",
+                WalletTransaction.tx_metadata.op("->>")(  # type: ignore[attr-defined]
+                    "payment_intent_id"
+                ) == payment_intent_id,
+            )
+        )
+        tx = result.scalar_one_or_none()
+        if not tx:
+            # Try matching by reference as fallback
+            result2 = await db.execute(
+                select(WalletTransaction).where(
+                    WalletTransaction.reference.contains(payment_intent_id[:10]),
+                    WalletTransaction.status == "pending",
+                )
+            )
+            tx = result2.scalars().first()
+        if not tx:
+            logger.warning(f"_fail_pending_transaction: no pending tx for pi={payment_intent_id}")
+            return False
+        tx.status = "failed"
+        tx.processed_at = datetime.now(timezone.utc)
+        await db.commit()
+        logger.info(f"Marked tx {tx.id} as failed (Stripe pi={payment_intent_id})")
+        return True
+
+
+async def _reverse_confirmed_transaction(charge_id: str, refund_amt: float) -> bool:
+    """Reverse a confirmed deposit transaction after a Stripe refund."""
+    from decimal import Decimal
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(WalletTransaction).where(
+                WalletTransaction.status == "confirmed",
+                WalletTransaction.type == "deposit",
+            ).order_by(WalletTransaction.processed_at.desc()).limit(50)
+        )
+        txs = result.scalars().all()
+        # Match by charge_id in metadata or by amount proximity
+        tx = None
+        for t in txs:
+            meta = t.tx_metadata or {}
+            if meta.get("charge_id") == charge_id or meta.get("stripe_charge") == charge_id:
+                tx = t
+                break
+        if not tx and txs:
+            # Fallback: match nearest amount
+            refund_d = Decimal(str(round(refund_amt, 2)))
+            for t in txs:
+                if abs(t.amount - refund_d) < Decimal("0.02"):
+                    tx = t
+                    break
+        if not tx:
+            logger.warning(f"_reverse_confirmed_transaction: no matching tx for charge={charge_id}")
+            return False
+        wallet_result = await db.execute(select(Wallet).where(Wallet.id == tx.wallet_id))
+        wallet = wallet_result.scalar_one_or_none()
+        if wallet:
+            balance_attr = f"{tx.currency.lower()}_balance"
+            current = getattr(wallet, balance_attr, Decimal("0")) or Decimal("0")
+            debit = min(Decimal(str(refund_amt)), tx.amount)
+            setattr(wallet, balance_attr, max(Decimal("0"), current - debit))
+        tx.status = "reversed"
+        await db.commit()
+        logger.info(f"Reversed tx {tx.id} amount={refund_amt} (Stripe charge={charge_id})")
+        return True
+
+
 async def _mark_withdrawal_processed(reference: str) -> bool:
     """Mark a withdrawal transaction as processed."""
     async with AsyncSessionLocal() as db:
@@ -297,8 +372,17 @@ async def stripe_webhook(
         return {"status": "ok", "processed": processed}
 
     if event_type == "payment_intent.payment_failed":
-        logger.warning(f"Stripe payment failed: {obj.get('id', '')}")
-        return {"status": "ok", "note": "payment_failed logged"}
+        pi_id = obj.get("id", "")
+        logger.warning(f"Stripe payment failed: {pi_id}")
+        updated = await _fail_pending_transaction(pi_id)
+        return {"status": "ok", "note": "payment_failed", "updated": updated}
+
+    if event_type == "charge.refunded":
+        charge_id = obj.get("id", "")
+        refund_amt = obj.get("amount_refunded", 0) / 100.0
+        logger.info(f"Stripe charge refunded: {charge_id} amount={refund_amt}")
+        reversed_tx = await _reverse_confirmed_transaction(charge_id, refund_amt)
+        return {"status": "ok", "note": "charge_refunded", "reversed": reversed_tx}
 
     return {"status": "ok", "event": event_type, "handled": False}
 
@@ -343,3 +427,48 @@ async def pi_webhook(body: PiWebhookBody):
 
     credited = await _credit_wallet_by_reference(body.payment_id)
     return {"status": "confirmed" if credited else "not_found"}
+
+
+# ── Flutterwave ─────────────────────────────────────────────────────────
+
+@router.post("/flutterwave")
+async def flutterwave_webhook(request: Request):
+    """Flutterwave webhook handler for MoMo and card payments."""
+    body = await request.body()
+    signature = request.headers.get("verif-hash", "")
+
+    if not _flw_verify_sig(body, signature):
+        raise HTTPException(400, "Invalid Flutterwave signature")
+
+    try:
+        payload = json.loads(body)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+
+    event = payload.get("event", "")
+    data = payload.get("data", {})
+    status = data.get("status", "")
+    tx_ref = data.get("tx_ref", data.get("txRef", ""))
+    flw_ref = data.get("flw_ref", data.get("flwRef", ""))
+    amount = data.get("amount", 0)
+
+    logger.info(f"Flutterwave webhook: event={event} status={status} tx_ref={tx_ref}")
+
+    if event in ("charge.completed", "transfer.completed") and status == "successful":
+        # Credit wallet by our internal reference
+        credited = await _credit_wallet_by_reference(tx_ref)
+        if not credited and flw_ref:
+            credited = await _credit_wallet_by_reference(flw_ref)
+        return {"status": "ok", "credited": credited, "tx_ref": tx_ref}
+
+    if event == "transfer.completed" and status == "successful":
+        # Withdrawal processed
+        processed = await _mark_withdrawal_processed(tx_ref)
+        return {"status": "ok", "processed": processed}
+
+    if event == "transfer.failed" or (event == "charge.completed" and status == "failed"):
+        logger.warning(f"Flutterwave transaction failed: tx_ref={tx_ref}")
+        await _fail_pending_transaction(tx_ref)
+        return {"status": "ok", "note": "transaction_failed"}
+
+    return {"status": "ok", "event": event, "handled": False}

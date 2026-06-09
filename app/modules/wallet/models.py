@@ -29,6 +29,10 @@ class Currency(PyEnum):
     USDT = "USDT"
     PI = "PI"
     VITCOIN = "VITCoin"
+    KES = "KES"
+    GHS = "GHS"
+    UGX = "UGX"
+    TZS = "TZS"
 
 
 class TransactionType(PyEnum):
@@ -77,6 +81,7 @@ class DestinationType(PyEnum):
     USDT_ADDRESS = "usdt_address"
     PI_WALLET = "pi_wallet"
     PAYPAL = "paypal"
+    MOBILE_MONEY = "mobile_money"
     OTHER = "other"
 
 

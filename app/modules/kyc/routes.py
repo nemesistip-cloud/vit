@@ -237,6 +237,28 @@ async def submit_kyc(
         KYCStatus.REJECTED:       "Your submission could not be verified. Please check the details and resubmit.",
     }
 
+    # ── KYC Status Notification ──────────────────────────────────────────
+    try:
+        from app.modules.notifications.service import NotificationService as _NS
+        from app.modules.notifications.models import NotificationType as _NT, NotificationChannel as _NC
+        _kyc_titles = {
+            KYCStatus.AUTO_APPROVED: "✅ KYC Approved",
+            KYCStatus.MANUAL_REVIEW: "⏳ KYC Under Review",
+            KYCStatus.REJECTED:      "❌ KYC Rejected",
+        }
+        await _NS.create(
+            db=db,
+            user_id=current_user.id,
+            type=_NT.SYSTEM,
+            context={"message": messages.get(status, "Submission received.")},
+            title=_kyc_titles.get(status, "KYC Update"),
+            body=messages.get(status, "Submission received."),
+            channel=_NC.IN_APP,
+        )
+        await db.commit()
+    except Exception as _kn_err:
+        logger.warning("[kyc] status notification failed: %s", _kn_err)
+
     return {
         "status":     status.value,
         "risk_score": result["risk_score"],

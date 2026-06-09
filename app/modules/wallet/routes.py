@@ -1031,3 +1031,94 @@ async def get_telegram_stars_invoice(
         raise HTTPException(status_code=503, detail="Failed to create Telegram Stars invoice")
 
     return {"invoice_link": invoice_link}
+
+
+# ── Mobile Money (Flutterwave) Deposit ─────────────────────────────────
+
+class MoMoDepositRequest(BaseModel):
+    amount: float = Field(..., gt=0)
+    currency: str = Field("NGN", description="NGN, GHS, KES, UGX, TZS")
+    phone_number: str = Field(..., description="Phone number in international format, e.g. +2348012345678")
+    network: Optional[str] = Field(None, description="MTN, mtn, mpesa, airtel — auto-detected if omitted")
+
+
+@router.post("/deposit/momo")
+async def initiate_momo_deposit(
+    request: MoMoDepositRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Initiate a Mobile Money deposit via Flutterwave (MTN, M-Pesa, Airtel, Tigo)."""
+    import uuid as _uuid
+    from app.modules.wallet.flutterwave import initiate_momo_deposit as _flw_momo
+    from app.modules.wallet.models import WalletTransaction as _WalletTx
+    from app.config import REPLIT_DEV_DOMAIN, PUBLIC_APP_URL
+
+    currency = request.currency.upper()
+    MOMO_CURRENCIES = {"NGN", "GHS", "KES", "UGX", "TZS"}
+    if currency not in MOMO_CURRENCIES:
+        raise HTTPException(400, f"MoMo deposits only support: {', '.join(MOMO_CURRENCIES)}")
+
+    service = WalletService(db)
+    wallet = await service.get_or_create_wallet(current_user.id)
+    ref = f"MOMO-{current_user.id}-{_uuid.uuid4().hex[:8].upper()}"
+    app_domain = REPLIT_DEV_DOMAIN or PUBLIC_APP_URL or "vitnetwork.app"
+    redirect_url = f"https://{app_domain}/wallet?deposit=momo_success&ref={ref}"
+
+    result = await _flw_momo(
+        amount=request.amount,
+        currency=currency,
+        phone_number=request.phone_number,
+        network=request.network,
+        email=current_user.email,
+        reference=ref,
+        redirect_url=redirect_url,
+    )
+
+    if result.get("error"):
+        # Record failed attempt
+        logger.warning(f"MoMo deposit initiation failed user={current_user.id}: {result['error']}")
+        return {
+            "status": "error",
+            "message": result["error"],
+            "reference": ref,
+            "payment_link": None,
+        }
+
+    # Record pending transaction
+    try:
+        pending_tx = _WalletTx(
+            id=str(_uuid.uuid4()),
+            user_id=current_user.id,
+            wallet_id=wallet.id,
+            type="deposit",
+            currency=currency,
+            amount=Decimal(str(request.amount)),
+            direction="credit",
+            status="pending",
+            reference=ref,
+            tx_metadata={
+                "method": "flutterwave_momo",
+                "phone_number": request.phone_number,
+                "network": request.network,
+                "flw_ref": result.get("flw_ref"),
+                "payment_link": result.get("payment_link"),
+            },
+        )
+        db.add(pending_tx)
+        await db.commit()
+    except Exception as _tx_err:
+        logger.error(f"Failed to record MoMo pending tx: {_tx_err}")
+        await db.rollback()
+
+    return {
+        "status": "pending",
+        "reference": ref,
+        "payment_link": result.get("payment_link"),
+        "flw_ref": result.get("flw_ref"),
+        "currency": currency,
+        "amount": request.amount,
+        "method": "flutterwave_momo",
+        "phone_number": request.phone_number,
+        "note": "Check your phone for a payment prompt and approve the transaction.",
+    }

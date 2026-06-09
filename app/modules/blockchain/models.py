@@ -362,3 +362,38 @@ class AgentApplication(Base):
         Index("idx_agent_app_user", "user_id"),
         Index("idx_agent_app_status", "status"),
     )
+
+
+class ValidatorAppeal(Base):
+    """Appeal record submitted by a slashed validator requesting reinstatement."""
+    __tablename__ = "validator_appeals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    validator_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("validator_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    slash_event_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("validator_slash_events.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Appeal content
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+
+    # Status: pending | approved | rejected
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    admin_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Restake amount if approved
+    restake_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
+
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_appeal_validator", "validator_id"),
+        Index("idx_appeal_user", "user_id"),
+        Index("idx_appeal_status", "status"),
+    )

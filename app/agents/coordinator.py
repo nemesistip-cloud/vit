@@ -211,7 +211,9 @@ class AgentCoordinator:
             "match-scout",
             "oracle-node",
             "kyc-screener",
-            "academic-tutor"
+            "academic-tutor",
+            "governance-executor",
+            "retrain-trigger",
         ]
 
     def start(self, task_list: Optional[List[asyncio.Task]] = None) -> List[asyncio.Task]:

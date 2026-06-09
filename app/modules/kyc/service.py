@@ -190,14 +190,49 @@ def _check_liveness(selfie_data: dict | None) -> tuple[bool, int, str]:
     if not image:
         return False, 40, "no image/video found in selfie payload"
 
-    if isinstance(image, str) and len(image) < 200:
-        return False, 30, "selfie data payload too small (possible empty upload)"
+    if isinstance(image, str):
+        img_len = len(image)
+        if img_len < 100:
+            return False, 60, "selfie data payload too small (likely empty upload)"
+        if img_len < 500:
+            return False, 30, "selfie data payload suspiciously small"
+        if img_len < 2000:
+            return True, 15, "selfie data present but small (low-resolution image?)"
 
-    # Soft check for metadata
-    if not selfie_data.get("metadata") and not selfie_data.get("timestamp"):
-        return True, 5, "liveness metadata missing (soft warning)"
+    # Check for liveness signals
+    has_metadata = bool(selfie_data.get("metadata"))
+    has_timestamp = bool(selfie_data.get("timestamp"))
+    has_action = bool(selfie_data.get("action") or selfie_data.get("challenge"))
+    liveness_score = selfie_data.get("liveness_score") or selfie_data.get("score")
 
-    return True, 0, "ok"
+    if liveness_score is not None:
+        try:
+            score = float(liveness_score)
+            if score < 0.5:
+                return False, 35, f"liveness score too low ({score:.2f} < 0.50)"
+            if score < 0.7:
+                return True, 15, f"liveness score borderline ({score:.2f})"
+        except (TypeError, ValueError):
+            pass
+
+    if not has_metadata and not has_timestamp:
+        return True, 10, "liveness metadata missing (soft warning)"
+
+    if has_action:
+        return True, 0, "ok"
+
+    return True, 5, "liveness challenge not recorded (soft warning)"
+
+
+def _fuzzy_name_similarity(name_a: str, name_b: str) -> float:
+    """Simple character-level similarity check between two normalized names."""
+    a = _normalise(name_a)
+    b = _normalise(name_b)
+    if not a or not b:
+        return 0.0
+    # Common prefix length / max length
+    common = sum(ca == cb for ca, cb in zip(a, b))
+    return common / max(len(a), len(b))
 
 async def verify_offline(payload: dict[str, Any], db=None, user_id=None) -> dict[str, Any]:
     """

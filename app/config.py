@@ -251,6 +251,11 @@ PAYSTACK_WEBHOOK_SECRET: str = get_env("PAYSTACK_WEBHOOK_SECRET", "")
 STRIPE_SECRET_KEY: str        = get_env("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET: str    = get_env("STRIPE_WEBHOOK_SECRET", "")
 
+# Flutterwave — Africa mobile money (MoMo), M-Pesa, MTN, Airtel
+FLW_SECRET_KEY: str           = get_env("FLW_SECRET_KEY", "")
+FLW_PUBLIC_KEY: str           = get_env("FLW_PUBLIC_KEY", "")
+FLW_WEBHOOK_SECRET: str       = get_env("FLW_WEBHOOK_SECRET", "")
+
 
 # Redis — optional; enables distributed rate limiting, caching, and Celery tasks.
 # Sanitised by _clean_redis_url() to handle malformed CLI-style env values.

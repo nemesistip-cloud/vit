@@ -382,6 +382,28 @@ async def _run_bootstrap(app, _done_event):
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0"))
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id VARCHAR(255)"))
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(255)"))
+                        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS withdrawals_frozen BOOLEAN NOT NULL DEFAULT FALSE"))
+                        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_flagged BOOLEAN NOT NULL DEFAULT FALSE"))
+                        # ── validator_appeals table (v5.5.0) ──────────────────────
+                        try:
+                            await conn.execute(text("""
+                                CREATE TABLE IF NOT EXISTS validator_appeals (
+                                    id VARCHAR(36) PRIMARY KEY,
+                                    validator_id VARCHAR(36) NOT NULL REFERENCES validator_profiles(id) ON DELETE CASCADE,
+                                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                    slash_event_id VARCHAR(36) REFERENCES validator_slash_events(id) ON DELETE SET NULL,
+                                    reason TEXT NOT NULL,
+                                    evidence_url VARCHAR(512),
+                                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                                    admin_note TEXT,
+                                    reviewed_by INTEGER REFERENCES users(id),
+                                    restake_amount NUMERIC(20,8) DEFAULT 0,
+                                    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                                    reviewed_at TIMESTAMP WITH TIME ZONE
+                                )
+                            """))
+                        except Exception as _va_e:
+                            print(f"⚠️  validator_appeals migration skipped: {_va_e}")
                         # ── marketplace_listings new columns (PostgreSQL) ───────────
                         try:
                             for col, ddl in [
@@ -1716,6 +1738,20 @@ async def _run_bootstrap(app, _done_event):
                         pass
                     await asyncio.sleep(3600)
 
+            async def bridge_relayer_loop():
+                """Auto-relay bridge transactions that have been locked > 30 minutes."""
+                while True:
+                    try:
+                        from app.db.database import AsyncSessionLocal
+                        from app.modules.bridge.service import auto_relay_pending
+                        async with AsyncSessionLocal() as _br_db:
+                            result = await auto_relay_pending(_br_db, max_age_minutes=30)
+                            if result["total_checked"] > 0:
+                                logger.info("[bridge-relayer] %s", result)
+                    except Exception as _br_err:
+                        logger.warning("[bridge-relayer] loop error: %s", _br_err)
+                    await asyncio.sleep(1800)  # run every 30 minutes
+
             from app.services.exchange_rate import start_rate_refresh_loop
             tasks = [
                 asyncio.create_task(auto_settle_loop(), name="auto-settle"),
@@ -1726,6 +1762,7 @@ async def _run_bootstrap(app, _done_event):
                 asyncio.create_task(start_rate_refresh_loop(), name="exchange-rate-oracle"),
                 asyncio.create_task(sync_upcoming_loop(), name="fixture-sync"),
                 asyncio.create_task(historical_backfill_task(), name="historical-backfill"),
+                asyncio.create_task(bridge_relayer_loop(), name="bridge-relayer"),
             ]
 
             # ── Autonomous performance agents ─────────────────────────────────────
@@ -1916,6 +1953,7 @@ app.include_router(ai_support_route.router)
 # Auth (JWT)
 app.include_router(auth_router)
 app.include_router(wallet_router)
+app.include_router(webhooks_router)
 app.include_router(marketplace_router)
 app.include_router(merchant_router)
 app.include_router(blockchain_router)
