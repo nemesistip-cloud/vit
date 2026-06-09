@@ -160,7 +160,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
             )}> NETWORK</span>
           </div>
           <span className="text-[7.5px] uppercase tracking-[0.22em] text-muted-foreground/55 font-mono -mt-0.5 whitespace-nowrap">
-            Professional · Analytics · System
+            Sports · Intelligence · Network
           </span>
         </div>
       )}

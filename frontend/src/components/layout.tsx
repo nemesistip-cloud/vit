@@ -34,7 +34,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Dashboard",      href: "/dashboard",          icon: Home },
       { name: "Project Teams",   href: "/community",          icon: Users },
       { name: "Matches",        href: "/matches",            icon: Activity },
-      { name: "Analytics",    href: "/value-analytics", icon: Shield },
+      { name: "Value Analytics", href: "/value-analytics", icon: Shield },
       { name: "Predictions",    href: "/predictions",        icon: CheckSquare },
       { name: "Elite Signal Feed",   href: "/quality-feed",       icon: Target },
       { name: "Accumulator",    href: "/accumulator",        icon: Layers },
@@ -60,7 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "AI Assistant",     href: "/assistant",          icon: Sparkles },
       { name: "Training",         href: "/training",           icon: BookOpen },
-      { name: "Analytics",        href: "/analytics",          icon: BarChart2 },
+      { name: "Performance Analytics", href: "/analytics",      icon: BarChart2 },
       { name: "Model Performance",href: "/model-performance",  icon: PieChart },
       { name: "Intel Reports",    href: "/reports",            icon: Radio },
       { name: "Research",         href: "/research",           icon: FlaskConical },
@@ -111,12 +111,12 @@ const MOBILE_BOTTOM_NAV = [
 ];
 
 const TIER_BADGE: Record<string, { label: string; cls: string }> = {
-  elite:   { label: "Intelligence Pro",   cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
-  pro:     { label: "Intelligence Pro",     cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
-  analyst: { label: "Intelligence Analyst", cls: "text-blue-400 border-blue-500/40 bg-blue-500/10" },
-  validator: { label: "Network Validator", cls: "text-amber-400 border-amber-500/40 bg-amber-500/10" },
-  viewer:  { label: "Intelligence Free",  cls: "text-zinc-400 border-zinc-600" },
-  admin:   { label: "Admin",   cls: "bg-rose-400/10 text-rose-400 border-rose-400/25" },
+  elite:   { label: "Pro",       cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
+  pro:     { label: "Pro",       cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
+  analyst: { label: "Analyst",   cls: "text-blue-400 border-blue-500/40 bg-blue-500/10" },
+  validator: { label: "Validator", cls: "text-amber-400 border-amber-500/40 bg-amber-500/10" },
+  viewer:  { label: "Free",      cls: "text-zinc-400 border-zinc-600" },
+  admin:   { label: "Admin",     cls: "bg-rose-400/10 text-rose-400 border-rose-400/25" },
 };
 
 function UserInitials({ name }: { name: string }) {
@@ -157,7 +157,7 @@ function Footer() {
             {TERMS.platform.name} — {TERMS.platform.version}
           </div>
           <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-            © 2025 {TERMS.platform.shortName}. {TERMS.platform.tagline}.
+            © 2026 {TERMS.platform.shortName}. {TERMS.platform.tagline}.
           </div>
         </div>
 

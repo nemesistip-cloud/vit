@@ -4438,7 +4438,7 @@ export default function AdminPage() {
               <div className="font-bold text-white text-base leading-tight tracking-wide">
                 ADMIN <span className="text-cyan-400">CONTROL CENTER</span>
               </div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Sports Analytics Network</div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Network — v5.5.0</div>
             </div>
           </div>
 
