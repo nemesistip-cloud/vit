@@ -53,6 +53,7 @@ def _wins_settled_streak(rows) -> tuple[int, int, int]:
     return wins, settled, streak
 
 
+@router.get("")
 @router.get("/summary")
 async def get_dashboard_summary(
     current_user=Depends(get_current_user),
