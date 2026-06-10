@@ -88,6 +88,17 @@ class WalletResponse(BaseModel):
 
 # ── Endpoints ──────────────────────────────────────────────────────────
 
+@router.get("/vitcoin-balance")
+async def get_vitcoin_balance(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias: return VITCoin balance for the current user."""
+    service = WalletService(db)
+    wallet = await service.get_or_create_wallet(current_user.id)
+    return {"vitcoin_balance": float(wallet.vitcoin_balance), "user_id": current_user.id}
+
+
 @router.get("/me", response_model=WalletResponse)
 async def get_my_wallet(
     current_user=Depends(get_current_user),
