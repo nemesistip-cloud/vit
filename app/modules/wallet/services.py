@@ -82,10 +82,10 @@ class WalletService:
         return from_usd / to_usd
 
     async def get_or_create_wallet(self, user_id: int) -> Wallet:
+        from sqlalchemy.exc import IntegrityError as _IntegrityError
+        # Simple lookup without join to avoid multi-row issues with outerjoin
         result = await self.db.execute(
-            select(Wallet)
-            .where(Wallet.user_id == user_id)
-            .outerjoin(WalletProfile)
+            select(Wallet).where(Wallet.user_id == user_id)
         )
         wallet = result.scalar_one_or_none()
         if not wallet:
@@ -104,26 +104,58 @@ class WalletService:
                 except Exception:
                     pass
             wallet.vitcoin_balance = welcome_bonus
-            self.db.add(wallet)
-            await self.db.flush()
+            try:
+                self.db.add(wallet)
+                await self.db.flush()
+            except _IntegrityError:
+                # Wallet created concurrently or already exists — re-fetch
+                await self.db.rollback()
+                result = await self.db.execute(
+                    select(Wallet).where(Wallet.user_id == user_id)
+                )
+                wallet = result.scalar_one()
 
-            # Add transaction record
-            tx = WalletTransaction(
-                wallet_id=wallet.id, user_id=user_id, type="welcome_bonus",
-                amount=welcome_bonus, currency="VITCoin", status="confirmed", reference="welcome_bonus",
-                processed_at=datetime.now(timezone.utc).replace(tzinfo=None)
+            # Add welcome bonus transaction only if not already present
+            tx_check = await self.db.execute(
+                select(WalletTransaction).where(
+                    WalletTransaction.wallet_id == wallet.id,
+                    WalletTransaction.reference == "welcome_bonus",
+                )
             )
-            self.db.add(tx)
-            await self.db.flush()
+            if not tx_check.scalar_one_or_none():
+                tx = WalletTransaction(
+                    wallet_id=wallet.id, user_id=user_id, type="welcome_bonus",
+                    amount=welcome_bonus, currency="VITCoin", status="confirmed",
+                    reference="welcome_bonus",
+                    processed_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                )
+                self.db.add(tx)
+                try:
+                    await self.db.flush()
+                except _IntegrityError:
+                    await self.db.rollback()
 
-            # Initialize profile
-            profile = WalletProfile(wallet_id=wallet.id)
-            self.db.add(profile)
-            await self.db.flush()
-        elif not wallet.profile:
-            profile = WalletProfile(wallet_id=wallet.id)
-            self.db.add(profile)
-            await self.db.flush()
+            # Initialize profile if missing
+            prof_check = await self.db.execute(
+                select(WalletProfile).where(WalletProfile.wallet_id == wallet.id)
+            )
+            if not prof_check.scalar_one_or_none():
+                try:
+                    self.db.add(WalletProfile(wallet_id=wallet.id))
+                    await self.db.flush()
+                except _IntegrityError:
+                    await self.db.rollback()
+        else:
+            # Ensure profile exists
+            prof_check = await self.db.execute(
+                select(WalletProfile).where(WalletProfile.wallet_id == wallet.id)
+            )
+            if not prof_check.scalar_one_or_none():
+                try:
+                    self.db.add(WalletProfile(wallet_id=wallet.id))
+                    await self.db.flush()
+                except Exception:
+                    pass
         return wallet
 
     async def get_profile(self, wallet_id: str) -> WalletProfile:
