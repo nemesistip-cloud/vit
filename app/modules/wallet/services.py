@@ -90,7 +90,30 @@ class WalletService:
         wallet = result.scalar_one_or_none()
         if not wallet:
             wallet = Wallet(user_id=user_id)
+            # Fetch welcome bonus config
+            from app.modules.wallet.models import PlatformConfig as _PC
+            result = await self.db.execute(select(_PC).where(_PC.key == "welcome_bonus_vit"))
+            bonus_row = result.scalar_one_or_none()
+            welcome_bonus = Decimal("100.00000000")
+            if bonus_row and bonus_row.value:
+                try:
+                    if isinstance(bonus_row.value, dict):
+                        welcome_bonus = Decimal(str(bonus_row.value.get("amount", 100)))
+                    else:
+                        welcome_bonus = Decimal(str(bonus_row.value))
+                except Exception:
+                    pass
+            wallet.vitcoin_balance = welcome_bonus
             self.db.add(wallet)
+            await self.db.flush()
+
+            # Add transaction record
+            tx = WalletTransaction(
+                wallet_id=wallet.id, user_id=user_id, type="welcome_bonus",
+                amount=welcome_bonus, currency="VITCoin", status="confirmed", reference="welcome_bonus",
+                processed_at=datetime.now(timezone.utc).replace(tzinfo=None)
+            )
+            self.db.add(tx)
             await self.db.flush()
 
             # Initialize profile
