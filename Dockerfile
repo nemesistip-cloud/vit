@@ -24,7 +24,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/
-RUN cd frontend && pnpm install --frozen-lockfile --no-optional
+RUN cd frontend && pnpm install --frozen-lockfile
 
 COPY frontend/ frontend/
 RUN cd frontend && pnpm run build
