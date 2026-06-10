@@ -17,16 +17,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g pnpm@9
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY frontend/package.json frontend/
-RUN cd frontend && npm install --no-audit --no-fund
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/
+RUN cd frontend && pnpm install --frozen-lockfile --no-optional
 
 COPY frontend/ frontend/
-RUN cd frontend && npm run build
+RUN cd frontend && pnpm run build
 
 COPY . .
 
