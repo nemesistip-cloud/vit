@@ -22,8 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY frontend/package.json frontend/package-lock.json frontend/
-RUN cd frontend && npm ci --prefer-offline --no-audit --no-fund
+COPY frontend/package.json frontend/
+RUN cd frontend && npm install --no-audit --no-fund
 
 COPY frontend/ frontend/
 RUN cd frontend && npm run build
