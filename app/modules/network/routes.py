@@ -45,6 +45,7 @@ class NodeActivityRequest(BaseModel):
 # ── Endpoints ───────────────────────────────────────────────────────────────
 
 @router.get("/stats")
+@router.get("/health")
 async def network_stats(db: AsyncSession = Depends(get_db)):
     """Overall network health snapshot."""
     now = _utcnow()
