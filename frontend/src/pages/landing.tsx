@@ -40,7 +40,7 @@ const buildFeatures = (modelCount: number) => [
   {
     icon: Brain,
     title: "VIT Brain AI Ensemble",
-    desc: `Powered by an internal Mistral/Ollama core and VIT Memory (RAG). Every signal is processed through ${modelCount} specialized AI agents with calibrated weights for maximum precision.`,
+    desc: `Powered by an internal Mistral/Ollama core and VIT Memory (RAG). Every signal runs through a ${modelCount}-model ensemble with calibrated weights and domain-specific fine-tuning for maximum precision.`,
     color: "text-primary",
     bg: "bg-primary/10 border-primary/20",
     tag: "CORE ANALYTICS",
@@ -79,8 +79,8 @@ const buildFeatures = (modelCount: number) => [
   },
   {
     icon: Network,
-    title: "22-Agent Network",
-    desc: "Live trackers, news sentinels, sentiment crawlers, and anomaly detectors. 22 autonomous agents feed continuous data streams into the VIT Brain to maintain our competitive edge.",
+    title: "Autonomous Agent Network",
+    desc: "Live match trackers, news sentinels, sentiment crawlers, and anomaly detectors running 24/7. Autonomous agents feed continuous data streams into the VIT Brain to maintain our edge.",
     color: "text-rose-400",
     bg: "bg-rose-500/10 border-rose-500/20",
     tag: "NETWORK",
@@ -156,7 +156,7 @@ export default function LandingPage() {
     queryFn: () => apiGet("/api/public/landing"),
   });
   const { data: publicCfg } = usePublicConfig();
-  const modelCount   = publicCfg?.platform.model_count       ?? 22;
+  const modelCount   = publicCfg?.platform.model_count       ?? 13;
   const welcomeBonus = publicCfg?.platform.welcome_bonus_vit ?? 100;
   const FEATURES     = buildFeatures(modelCount);
   const visibleFeatures = showAllFeatures ? FEATURES : FEATURES.slice(0, 6);
@@ -201,7 +201,7 @@ export default function LandingPage() {
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/5 rounded-full blur-[120px] -z-10" />
         <div className="max-w-5xl mx-auto text-center">
           <Badge variant="outline" className="mb-6 font-mono py-1.5 px-4 text-[10px] tracking-[0.2em] uppercase border-primary/30 bg-primary/5 text-primary">
-            {publicCfg?.platform.version ?? 'v5.2.0'} — The Intelligence Super App
+            {publicCfg?.platform.version ?? 'v5.5.0'} — The Intelligence Super App
           </Badge>
           <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tight mb-6 leading-[1.1]">
             Institutional-Grade <br />
@@ -244,7 +244,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <StatCounter value={stats?.predictions_display ?? "1.2M+"} label="Signals Generated" />
             <StatCounter value={stats?.accuracy_display ?? "84.2%"} label="Signal Accuracy" />
-            <StatCounter value={stats?.total_staked_display ?? "$4.8M"} label="Network Members" />
+            <StatCounter value={stats?.total_staked_display ?? "$4.8M"} label="Total Staked" />
             <StatCounter value={`${modelCount}`} label="Active Intelligence Models" />
           </div>
         </div>
@@ -538,7 +538,7 @@ export default function LandingPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 All systems operational
               </span>
-              <span>{publicCfg?.platform.version ?? 'v5.2.0'}</span>
+              <span>{publicCfg?.platform.version ?? 'v5.5.0'}</span>
             </div>
           </div>
         </div>

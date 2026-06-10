@@ -15,6 +15,7 @@ from app.modules.wallet.models import (
     WalletUserSubscription,
     Wallet,
 )
+from app.modules.ai.svi import SyntheticValueIndex
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,18 @@ class WalletScheduler:
         self.db = db
 
     async def update_vitcoin_price(self) -> Optional[Decimal]:
-        """Calculate and persist the current VITCoin price (revenue-backed formula)."""
+        """
+        Calculate and persist the current VITCoin price.
+
+        Formula Upgrade (v5.5.0):
+        The old formula (revenue / supply) was vulnerable to zero-revenue collapses.
+        The new hybrid formula incorporates:
+        1. Annualized Revenue (30-day rolling * 12)
+        2. Platform Collateral (Total USD deposits)
+        3. Synthetic Value Index (SVI) as a health multiplier
+
+        Final Price = ((Annualized Revenue + Total Collateral) / Circulating Supply) * SVI_Modifier
+        """
         config_result = await self.db.execute(
             select(PlatformConfig).where(PlatformConfig.key == "vitcoin_price_formula")
         )
@@ -38,6 +50,7 @@ class WalletScheduler:
         window_days = config.value.get("window_days", 30)
         cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
 
+        # 1. Rolling Revenue (Annualized)
         fee_result = await self.db.execute(
             select(func.sum(WalletTransaction.amount)).where(
                 WalletTransaction.type == "fee",
@@ -46,14 +59,46 @@ class WalletScheduler:
             )
         )
         rolling_revenue = fee_result.scalar() or Decimal("0")
+        annualized_revenue = rolling_revenue * Decimal("12")
 
+        # 2. Total Collateral (Total USD/USDT Deposited)
+        collateral_result = await self.db.execute(
+            select(func.sum(WalletTransaction.amount)).where(
+                WalletTransaction.type == "deposit",
+                WalletTransaction.status == "confirmed",
+                WalletTransaction.currency.in_(["USD", "USDT"])
+            )
+        )
+        total_collateral = collateral_result.scalar() or Decimal("0")
+
+        # 3. Circulating Supply
         supply_result = await self.db.execute(
-            select(func.sum(Wallet.vitcoin_balance))
+            select(func.sum(Wallet.vitcoin_balance + Wallet.staked_vitcoin_balance))
         )
         circulating_supply = supply_result.scalar() or Decimal("0")
 
-        raw_price = (rolling_revenue / circulating_supply) if circulating_supply > 0 else Decimal("0")
+        if circulating_supply <= 0:
+            logger.warning("Zero circulating supply — skipping price update")
+            return None
 
+        # 4. SVI Health Modifier
+        try:
+            svi_report = await SyntheticValueIndex.get_market_health_report(self.db)
+            svi = Decimal(str(svi_report.get("svi", "1.0")))
+            # SVI Modifier: SVI reflects supply/collateral ratio.
+            # We use it to damp or amplify the valuation based on system health.
+            svi_modifier = Decimal("1.0") / svi if svi > 0 else Decimal("1.0")
+        except Exception:
+            svi_modifier = Decimal("1.0")
+
+        # Core Valuation Formula
+        # Valuation = (Revenue potential + Real Assets) / Total Supply
+        raw_valuation = (annualized_revenue + total_collateral) / circulating_supply
+
+        # Apply modifier to reflect "Synthetic Value" health
+        final_valuation = raw_valuation * svi_modifier
+
+        # Floor Price fallback
         floor_result = await self.db.execute(
             select(PlatformConfig).where(PlatformConfig.key == "vitcoin_price_floor")
         )
@@ -64,7 +109,7 @@ class WalletScheduler:
             else Decimal("0.001")
         )
 
-        final_price = max(raw_price, price_floor)
+        final_price = max(final_valuation, price_floor)
 
         record = VITCoinPriceHistory(
             price_usd=final_price,
@@ -74,8 +119,8 @@ class WalletScheduler:
         self.db.add(record)
         await self.db.commit()
 
-        logger.info(f"VITCoin price updated: ${final_price:.8f} USD "
-                    f"(revenue ${rolling_revenue:.2f}, supply {circulating_supply:.0f})")
+        logger.info(f"VITCoin Valuation Upgrade (v5.5.0): ${final_price:.8f} USD "
+                    f"(Rev_Ann ${annualized_revenue:.2f}, Collateral ${total_collateral:.2f}, SVI_Mod {svi_modifier:.2f})")
         return final_price
 
     async def process_subscription_renewals(self) -> int:

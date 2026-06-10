@@ -13,16 +13,16 @@ import {
 import { toast } from "sonner";
 
 const SUGGESTED_PROMPTS = [
-  "Find upcoming high-value matches.",
-  "Check the status of the autonomous agents.",
+  "Show upcoming fixtures with high SVI.",
+  "Audit system health and SVI status.",
   "What are the latest market trends and CLV stats?",
   "Give me insights for match ID 1.",
   "How does the VIT trust system work?",
 ];
 
 const ASSISTANT_FEATURES = [
-  "Natural-language assistant chat",
-  "Tool-enabled live odds lookups",
+  "Native Agentic Intelligence (v5.5.0)",
+  "Real-time SVI and Market Monitoring",
   "Live score and fixture insights",
   "Upcoming match discovery",
   "Match-level AI predictions and insights",
@@ -136,7 +136,7 @@ export default function AssistantPage() {
             AI Assistant <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary border-primary/30">AGENTIC</Badge>
           </h1>
           <p className="text-sm text-muted-foreground font-mono mt-1">
-            Agentic copilot for the VIT Sports Analytics Network.
+            Agentic AI copilot for the VIT Network.
           </p>
         </div>
 
@@ -315,7 +315,7 @@ export default function AssistantPage() {
               rows={1}
               placeholder={
                 isReady
-                  ? `Ask ${currentMode.label} anything about VIT Sports…`
+                  ? `Ask ${currentMode.label} anything about VIT Network…`
                   : mode === "gemini"
                   ? "Backend AI not configured"
                   : "Select a mode to begin"

@@ -7,6 +7,7 @@ Webhook signature verification:
 - Pi:       Pi Network payment approval
 """
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -14,6 +15,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, Header
@@ -26,6 +28,43 @@ from app.config import PAYSTACK_WEBHOOK_SECRET as _PAYSTACK_WEBHOOK_SECRET, USDT
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 logger = logging.getLogger(__name__)
+
+
+async def _log_event(
+    *,
+    provider: str,
+    event_type: Optional[str] = None,
+    reference: Optional[str] = None,
+    amount: Optional[float] = None,
+    currency: Optional[str] = None,
+    status: str = "received",
+    sig_verified: Optional[bool] = None,
+    outcome: Optional[str] = None,
+    error_msg: Optional[str] = None,
+    payload_summary: Optional[dict] = None,
+) -> None:
+    """Persist a webhook delivery record. Silently swallows errors so it never breaks a handler."""
+    try:
+        from app.modules.wallet.models import WebhookEvent
+        async with AsyncSessionLocal() as db:
+            db.add(WebhookEvent(
+                provider=provider,
+                event_type=event_type,
+                reference=reference,
+                amount=Decimal(str(amount)) if amount is not None else None,
+                currency=currency,
+                status=status,
+                sig_verified=sig_verified,
+                outcome=outcome,
+                error_msg=error_msg,
+                payload_summary=payload_summary,
+            ))
+            await db.commit()
+    except Exception as _e:
+        logger.debug(f"_log_event swallowed error: {_e}")
+
+# ── Flutterwave ──────────────────────────────────────────────────────────
+from app.modules.wallet.flutterwave import verify_webhook_signature as _flw_verify_sig
 
 
 async def _credit_wallet_by_reference(reference: str) -> bool:
@@ -164,6 +203,78 @@ async def _activate_subscription(user_id: int, plan: str, billing: str) -> bool:
         return False
 
 
+async def _fail_pending_transaction(payment_intent_id: str) -> bool:
+    """Mark a pending deposit transaction as failed when Stripe reports payment_intent.payment_failed."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(WalletTransaction).where(
+                WalletTransaction.status == "pending",
+                WalletTransaction.tx_metadata.op("->>")(  # type: ignore[attr-defined]
+                    "payment_intent_id"
+                ) == payment_intent_id,
+            )
+        )
+        tx = result.scalar_one_or_none()
+        if not tx:
+            # Try matching by reference as fallback
+            result2 = await db.execute(
+                select(WalletTransaction).where(
+                    WalletTransaction.reference.contains(payment_intent_id[:10]),
+                    WalletTransaction.status == "pending",
+                )
+            )
+            tx = result2.scalars().first()
+        if not tx:
+            logger.warning(f"_fail_pending_transaction: no pending tx for pi={payment_intent_id}")
+            return False
+        tx.status = "failed"
+        tx.processed_at = datetime.now(timezone.utc)
+        await db.commit()
+        logger.info(f"Marked tx {tx.id} as failed (Stripe pi={payment_intent_id})")
+        return True
+
+
+async def _reverse_confirmed_transaction(charge_id: str, refund_amt: float) -> bool:
+    """Reverse a confirmed deposit transaction after a Stripe refund."""
+    from decimal import Decimal
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(WalletTransaction).where(
+                WalletTransaction.status == "confirmed",
+                WalletTransaction.type == "deposit",
+            ).order_by(WalletTransaction.processed_at.desc()).limit(50)
+        )
+        txs = result.scalars().all()
+        # Match by charge_id in metadata or by amount proximity
+        tx = None
+        for t in txs:
+            meta = t.tx_metadata or {}
+            if meta.get("charge_id") == charge_id or meta.get("stripe_charge") == charge_id:
+                tx = t
+                break
+        if not tx and txs:
+            # Fallback: match nearest amount
+            refund_d = Decimal(str(round(refund_amt, 2)))
+            for t in txs:
+                if abs(t.amount - refund_d) < Decimal("0.02"):
+                    tx = t
+                    break
+        if not tx:
+            logger.warning(f"_reverse_confirmed_transaction: no matching tx for charge={charge_id}")
+            return False
+        wallet_result = await db.execute(select(Wallet).where(Wallet.id == tx.wallet_id))
+        wallet = wallet_result.scalar_one_or_none()
+        if wallet:
+            balance_attr = f"{tx.currency.lower()}_balance"
+            current = getattr(wallet, balance_attr, Decimal("0")) or Decimal("0")
+            debit = min(Decimal(str(refund_amt)), tx.amount)
+            setattr(wallet, balance_attr, max(Decimal("0"), current - debit))
+        tx.status = "reversed"
+        await db.commit()
+        logger.info(f"Reversed tx {tx.id} amount={refund_amt} (Stripe charge={charge_id})")
+        return True
+
+
 async def _mark_withdrawal_processed(reference: str) -> bool:
     """Mark a withdrawal transaction as processed."""
     async with AsyncSessionLocal() as db:
@@ -198,15 +309,30 @@ async def paystack_webhook(request: Request):
         raise HTTPException(400, "Invalid JSON body")
 
     event = payload.get("event", "")
+    reference = payload.get("data", {}).get("reference", "")
+    amount_data = payload.get("data", {}).get("amount", None)
+    currency_data = payload.get("data", {}).get("currency", None)
+    outcome = "unhandled"
 
     if event == "charge.success":
-        reference = payload.get("data", {}).get("reference", "")
-        await _credit_wallet_by_reference(reference)
+        credited = await _credit_wallet_by_reference(reference)
+        outcome = "credited" if credited else "already_processed"
 
     elif event == "transfer.success":
-        reference = payload.get("data", {}).get("reference", "")
         await _mark_withdrawal_processed(reference)
+        outcome = "withdrawal_processed"
 
+    asyncio.create_task(_log_event(
+        provider="paystack",
+        event_type=event,
+        reference=reference or None,
+        amount=float(amount_data) if amount_data else None,
+        currency=currency_data,
+        status="processed",
+        sig_verified=True,
+        outcome=outcome,
+        payload_summary={"event": event, "reference": reference},
+    ))
     return {"status": "ok"}
 
 
@@ -272,9 +398,28 @@ async def stripe_webhook(
     obj = payload.get("data", {}).get("object", {})
     logger.info(f"Stripe webhook event: {event_type}")
 
+    _log_ref = obj.get("id", "")
+    _log_amt = obj.get("amount", 0) / 100.0 if obj.get("amount") else None
+    _log_currency = obj.get("currency", "usd").upper() if obj.get("currency") else "USD"
+
+    async def _stripe_log(outcome: str, error_msg: Optional[str] = None) -> None:
+        asyncio.create_task(_log_event(
+            provider="stripe",
+            event_type=event_type,
+            reference=_log_ref or None,
+            amount=_log_amt,
+            currency=_log_currency,
+            status="processed",
+            sig_verified=True,
+            outcome=outcome,
+            error_msg=error_msg,
+            payload_summary={"type": event_type, "id": obj.get("id", "")},
+        ))
+
     if event_type == "payment_intent.succeeded":
         reference = obj.get("metadata", {}).get("reference", obj.get("id", ""))
         credited = await _credit_wallet_by_reference(reference)
+        await _stripe_log("credited" if credited else "already_processed")
         return {"status": "ok", "credited": credited}
 
     if event_type in ("charge.succeeded", "checkout.session.completed"):
@@ -282,7 +427,6 @@ async def stripe_webhook(
         reference = metadata.get("reference", obj.get("id", ""))
         credited = await _credit_wallet_by_reference(reference)
 
-        # If this is a VIT subscription checkout, also activate the plan
         vit_plan    = metadata.get("vit_plan", "")
         vit_user_id = metadata.get("vit_user_id", "")
         vit_billing = metadata.get("vit_billing", "monthly")
@@ -290,16 +434,30 @@ async def stripe_webhook(
             activated = await _activate_subscription(int(vit_user_id), vit_plan, vit_billing)
             logger.info(f"Stripe subscription activation: user={vit_user_id} plan={vit_plan} activated={activated}")
 
+        await _stripe_log("credited" if credited else "subscription_activated" if vit_plan else "already_processed")
         return {"status": "ok", "credited": credited}
 
     if event_type == "payout.paid":
         processed = await _mark_withdrawal_processed(obj.get("id", ""))
+        await _stripe_log("withdrawal_processed" if processed else "not_found")
         return {"status": "ok", "processed": processed}
 
     if event_type == "payment_intent.payment_failed":
-        logger.warning(f"Stripe payment failed: {obj.get('id', '')}")
-        return {"status": "ok", "note": "payment_failed logged"}
+        pi_id = obj.get("id", "")
+        logger.warning(f"Stripe payment failed: {pi_id}")
+        updated = await _fail_pending_transaction(pi_id)
+        await _stripe_log("payment_failed")
+        return {"status": "ok", "note": "payment_failed", "updated": updated}
 
+    if event_type == "charge.refunded":
+        charge_id = obj.get("id", "")
+        refund_amt = obj.get("amount_refunded", 0) / 100.0
+        logger.info(f"Stripe charge refunded: {charge_id} amount={refund_amt}")
+        reversed_tx = await _reverse_confirmed_transaction(charge_id, refund_amt)
+        await _stripe_log("refunded")
+        return {"status": "ok", "note": "charge_refunded", "reversed": reversed_tx}
+
+    await _stripe_log("unhandled")
     return {"status": "ok", "event": event_type, "handled": False}
 
 
@@ -319,6 +477,17 @@ async def usdt_webhook(body: USDTWebhookBody):
     except (ValueError, TypeError):
         min_conf = USDT_MIN_CONFIRMATIONS
     if body.confirmations < min_conf:
+        asyncio.create_task(_log_event(
+            provider="usdt",
+            event_type="deposit",
+            reference=body.tx_hash,
+            amount=body.amount,
+            currency="USDT",
+            status="waiting_confirmations",
+            sig_verified=None,
+            outcome="pending",
+            payload_summary={"confirmations": body.confirmations, "required": min_conf},
+        ))
         return {
             "status": "waiting_confirmations",
             "required": min_conf,
@@ -326,6 +495,17 @@ async def usdt_webhook(body: USDTWebhookBody):
         }
 
     credited = await _credit_wallet_by_reference(body.tx_hash)
+    asyncio.create_task(_log_event(
+        provider="usdt",
+        event_type="deposit",
+        reference=body.tx_hash,
+        amount=body.amount,
+        currency="USDT",
+        status="processed",
+        sig_verified=None,
+        outcome="credited" if credited else "not_found",
+        payload_summary={"address": body.address, "confirmations": body.confirmations},
+    ))
     return {"status": "confirmed" if credited else "not_found"}
 
 
@@ -333,13 +513,215 @@ async def usdt_webhook(body: USDTWebhookBody):
 
 class PiWebhookBody(BaseModel):
     payment_id: str
+    event_type: Optional[str] = None   # payment_approved | payment_ready_for_server_completion | payment_cancelled
     approved: bool = False
+    txid: Optional[str] = None         # on-chain txid from Pi Blockchain
+    user_uid: Optional[str] = None
 
 
 @router.post("/pi")
-async def pi_webhook(body: PiWebhookBody):
-    if not body.approved:
-        return {"status": "not_approved"}
+async def pi_webhook(request: Request):
+    """
+    Pi Network Server-to-App webhook.
 
-    credited = await _credit_wallet_by_reference(body.payment_id)
-    return {"status": "confirmed" if credited else "not_found"}
+    Events handled:
+      payment_approved                     → server-side approve via Pi API
+      payment_ready_for_server_completion  → complete payment + credit wallet
+      payment_cancelled                    → log only
+    """
+    from app.services.pi_network import (
+        approve_payment as _pi_approve,
+        complete_payment as _pi_complete,
+        verify_webhook_signature as _pi_verify_sig,
+    )
+
+    body_bytes = await request.body()
+    sig = request.headers.get("x-pi-network-signature", "")
+    if sig and not _pi_verify_sig(body_bytes, sig):
+        raise HTTPException(400, "Invalid Pi Network webhook signature")
+
+    try:
+        payload = json.loads(body_bytes)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+
+    event_type = payload.get("event_type", "")
+    payment = payload.get("payment", {}) or {}
+    payment_id = payment.get("identifier") or payload.get("payment_id", "")
+    txid = payment.get("transaction", {}).get("txid") if isinstance(payment.get("transaction"), dict) else payload.get("txid")
+    amount = float(payment.get("amount", 0))
+
+    logger.info(f"Pi webhook: event={event_type} payment_id={payment_id} amount={amount}")
+
+    _pi_sig_ok = not sig or True   # sig already verified above; True if sig absent (optional field)
+
+    if event_type == "payment_approved":
+        result = await _pi_approve(payment_id)
+        err = result.get("error")
+        if err:
+            logger.error(f"Pi approve failed: {err}")
+        asyncio.create_task(_log_event(
+            provider="pi",
+            event_type=event_type,
+            reference=payment_id or None,
+            amount=amount if amount else None,
+            currency="PI",
+            status="processed",
+            sig_verified=_pi_sig_ok,
+            outcome="approved" if not err else "approve_failed",
+            error_msg=err,
+            payload_summary={"payment_id": payment_id, "amount": amount},
+        ))
+        return {"status": "ok", "action": "approved", "payment_id": payment_id}
+
+    if event_type == "payment_ready_for_server_completion":
+        if not txid:
+            logger.error(f"Pi completion webhook missing txid for payment {payment_id}")
+            asyncio.create_task(_log_event(
+                provider="pi", event_type=event_type, reference=payment_id or None,
+                amount=amount if amount else None, currency="PI", status="error",
+                sig_verified=_pi_sig_ok, outcome="missing_txid",
+                error_msg="txid missing in payload",
+            ))
+            return {"status": "error", "message": "txid missing"}
+        result = await _pi_complete(payment_id, txid)
+        if result.get("error"):
+            logger.error(f"Pi complete failed: {result['error']}")
+            asyncio.create_task(_log_event(
+                provider="pi", event_type=event_type, reference=payment_id or None,
+                amount=amount if amount else None, currency="PI", status="error",
+                sig_verified=_pi_sig_ok, outcome="complete_failed",
+                error_msg=result["error"],
+            ))
+            return {"status": "error", "message": result["error"]}
+        credited = await _credit_wallet_by_reference(payment_id)
+        if not credited and txid:
+            credited = await _credit_wallet_by_reference(txid)
+        asyncio.create_task(_log_event(
+            provider="pi",
+            event_type=event_type,
+            reference=payment_id or None,
+            amount=amount if amount else None,
+            currency="PI",
+            status="processed",
+            sig_verified=_pi_sig_ok,
+            outcome="credited" if credited else "already_processed",
+            payload_summary={"payment_id": payment_id, "txid": txid, "amount": amount},
+        ))
+        return {"status": "ok", "action": "completed", "credited": credited, "payment_id": payment_id}
+
+    if event_type == "payment_cancelled":
+        logger.info(f"Pi payment cancelled: payment_id={payment_id}")
+        asyncio.create_task(_log_event(
+            provider="pi", event_type=event_type, reference=payment_id or None,
+            amount=amount if amount else None, currency="PI", status="processed",
+            sig_verified=_pi_sig_ok, outcome="cancelled",
+        ))
+        return {"status": "ok", "action": "cancelled"}
+
+    # Legacy simple webhook (direct payment_id + approved fields)
+    if not event_type:
+        approved = payload.get("approved", False)
+        payment_id_simple = payload.get("payment_id", "")
+        if not approved:
+            asyncio.create_task(_log_event(
+                provider="pi", event_type="legacy", reference=payment_id_simple or None,
+                status="received", sig_verified=_pi_sig_ok, outcome="not_approved",
+            ))
+            return {"status": "not_approved"}
+        credited = await _credit_wallet_by_reference(payment_id_simple)
+        asyncio.create_task(_log_event(
+            provider="pi", event_type="legacy", reference=payment_id_simple or None,
+            status="processed", sig_verified=_pi_sig_ok,
+            outcome="credited" if credited else "not_found",
+        ))
+        return {"status": "confirmed" if credited else "not_found"}
+
+    asyncio.create_task(_log_event(
+        provider="pi", event_type=event_type, reference=payment_id or None,
+        status="received", sig_verified=_pi_sig_ok, outcome="unhandled",
+    ))
+    return {"status": "ok", "event_type": event_type, "handled": False}
+
+
+# ── Flutterwave ─────────────────────────────────────────────────────────
+
+@router.post("/flutterwave")
+async def flutterwave_webhook(request: Request):
+    """Flutterwave webhook handler for MoMo and card payments."""
+    body = await request.body()
+    signature = request.headers.get("verif-hash", "")
+
+    if not _flw_verify_sig(body, signature):
+        raise HTTPException(400, "Invalid Flutterwave signature")
+
+    try:
+        payload = json.loads(body)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+
+    event = payload.get("event", "")
+    data = payload.get("data", {})
+    status = data.get("status", "")
+    tx_ref = data.get("tx_ref", data.get("txRef", ""))
+    flw_ref = data.get("flw_ref", data.get("flwRef", ""))
+    amount = data.get("amount", 0)
+
+    logger.info(f"Flutterwave webhook: event={event} status={status} tx_ref={tx_ref}")
+
+    if event in ("charge.completed", "transfer.completed") and status == "successful":
+        credited = await _credit_wallet_by_reference(tx_ref)
+        if not credited and flw_ref:
+            credited = await _credit_wallet_by_reference(flw_ref)
+        asyncio.create_task(_log_event(
+            provider="flutterwave",
+            event_type=event,
+            reference=tx_ref or flw_ref or None,
+            amount=float(amount) if amount else None,
+            currency=data.get("currency"),
+            status="processed",
+            sig_verified=True,
+            outcome="credited" if credited else "already_processed",
+            payload_summary={"event": event, "status": status, "tx_ref": tx_ref},
+        ))
+        return {"status": "ok", "credited": credited, "tx_ref": tx_ref}
+
+    if event == "transfer.completed" and status == "successful":
+        processed = await _mark_withdrawal_processed(tx_ref)
+        asyncio.create_task(_log_event(
+            provider="flutterwave",
+            event_type=event,
+            reference=tx_ref or None,
+            amount=float(amount) if amount else None,
+            currency=data.get("currency"),
+            status="processed",
+            sig_verified=True,
+            outcome="withdrawal_processed" if processed else "not_found",
+        ))
+        return {"status": "ok", "processed": processed}
+
+    if event == "transfer.failed" or (event == "charge.completed" and status == "failed"):
+        logger.warning(f"Flutterwave transaction failed: tx_ref={tx_ref}")
+        await _fail_pending_transaction(tx_ref)
+        asyncio.create_task(_log_event(
+            provider="flutterwave",
+            event_type=event,
+            reference=tx_ref or None,
+            amount=float(amount) if amount else None,
+            currency=data.get("currency"),
+            status="failed",
+            sig_verified=True,
+            outcome="payment_failed",
+        ))
+        return {"status": "ok", "note": "transaction_failed"}
+
+    asyncio.create_task(_log_event(
+        provider="flutterwave",
+        event_type=event,
+        reference=tx_ref or None,
+        status="received",
+        sig_verified=True,
+        outcome="unhandled",
+        payload_summary={"event": event, "status": status},
+    ))
+    return {"status": "ok", "event": event, "handled": False}

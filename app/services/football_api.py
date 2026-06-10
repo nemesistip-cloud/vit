@@ -55,25 +55,35 @@ class FootballDataClient:
     BASE_URL = "https://api.football-data.org/v4"
 
     # Competition codes mapping
+    # Free-tier competitions (12 total on football-data.org free plan)
+    FREE_TIER_CODES = ["PL", "ELC", "BL1", "SA", "PD", "FL1", "DED", "PPL", "BSA", "CL", "EC", "WC"]
+
     COMPETITIONS = {
+        # Free-tier leagues
         "premier_league":       "PL",
-        "la_liga":              "PD",
+        "championship":         "ELC",
         "bundesliga":           "BL1",
         "serie_a":              "SA",
+        "la_liga":              "PD",
         "ligue_1":              "FL1",
         "eredivisie":           "DED",
-        "championship":         "ELC",
         "primeira_liga":        "PPL",
-        "scottish_premiership": "SPL",
-        "belgian_pro_league":   "BJL",
-        "ucl":                  "CL",
-        "uel":                  "EL",
-        "champions_league":     "CL",
-        "europa_league":        "EL",
-        "conference_league":    "ECL",
-        "super_lig":            "TR1",
         "brasileirao":          "BSA",
         "brazil_serie_a":       "BSA",
+        "champions_league":     "CL",
+        "ucl":                  "CL",
+        "euro_championship":    "EC",
+        "european_championship":"EC",
+        "euros":                "EC",
+        "world_cup":            "WC",
+        "fifa_world_cup":       "WC",
+        # Additional paid-tier (fall back gracefully via 400 handler)
+        "uel":                  "EL",
+        "europa_league":        "EL",
+        "conference_league":    "ECL",
+        "scottish_premiership": "SPL",
+        "belgian_pro_league":   "BJL",
+        "super_lig":            "TR1",
         "mls":                  "MLS",
     }
 

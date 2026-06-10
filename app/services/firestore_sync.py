@@ -7,14 +7,17 @@ from app.config import GOOGLE_APPLICATION_CREDENTIALS, GCS_PROJECT_ID
 logger = logging.getLogger(__name__)
 
 _db: Optional[Any] = None
+_init_attempted: bool = False
 
 def init_firestore():
-    global _db
+    global _db, _init_attempted
     if _db is not None:
         return _db
+    if _init_attempted:
+        return None
 
+    _init_attempted = True
     try:
-        # Use default credentials if available, otherwise explicit path
         if not firebase_admin._apps:
             if GOOGLE_APPLICATION_CREDENTIALS:
                 cred = credentials.Certificate(GOOGLE_APPLICATION_CREDENTIALS)
@@ -22,7 +25,6 @@ def init_firestore():
                     'projectId': GCS_PROJECT_ID,
                 })
             else:
-                # Fallback to default credentials (works on GCP environments)
                 firebase_admin.initialize_app()
 
         _db = firestore.client()

@@ -1,10 +1,8 @@
-# app/services/exchange_rate.py
 """
 Live exchange rate oracle.
 
 Periodically fetches USD→NGN from Frankfurter (free, no key required) and
-updates the WalletService in-memory rate table so conversions use current
-market rates rather than hardcoded fallbacks.
+updates the PlatformConfig so conversions use current market rates.
 
 Refresh interval: every 30 minutes.
 On fetch failure: keeps the last known rate (logs a warning).
@@ -12,9 +10,12 @@ On fetch failure: keeps the last known rate (logs a warning).
 
 import asyncio
 import logging
+import json
 from decimal import Decimal
+from datetime import datetime, timezone
 
 import httpx
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -44,22 +45,31 @@ async def _fetch_ngn_per_usd() -> Decimal | None:
     return None
 
 
-async def _update_wallet_service(ngn_per_usd: Decimal) -> None:
-    """Push the new rate into WalletService's in-memory table."""
-    from app.modules.wallet.services import WalletService
-    new_rate = Decimal("1") / ngn_per_usd
-    WalletService._RATES_TO_USD["NGN"] = new_rate
-    logger.info(
-        "[exchange_rate] Updated NGN rate: 1 NGN = %.8f USD  (1 USD ≈ %.2f NGN)",
-        new_rate, ngn_per_usd,
-    )
+async def _update_platform_config(ngn_per_usd: Decimal) -> None:
+    """Push the new rate into PlatformConfig 'exchange_rates_usd'."""
+    from app.db.database import AsyncSessionLocal
+    from app.modules.wallet.models import PlatformConfig
 
+    new_ngn_rate = Decimal("1") / ngn_per_usd
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "exchange_rates_usd"))
+        config = result.scalar_one_or_none()
+        if config:
+            val = dict(config.value)
+            val["NGN"] = float(round(new_ngn_rate, 10))
+            config.value = val
+            await db.commit()
+            logger.info(
+                "[exchange_rate] Updated PlatformConfig NGN rate: 1 NGN = %.10f USD (1 USD ≈ %.2f NGN)",
+                new_ngn_rate, ngn_per_usd,
+            )
 
 async def refresh_once() -> None:
-    """Fetch rates and update the wallet service once."""
+    """Fetch rates and update the platform config once."""
     ngn_per_usd = await _fetch_ngn_per_usd()
     if ngn_per_usd:
-        await _update_wallet_service(ngn_per_usd)
+        await _update_platform_config(ngn_per_usd)
     else:
         logger.warning(
             "[exchange_rate] Rate fetch failed — keeping previous NGN rate."
@@ -69,7 +79,6 @@ async def refresh_once() -> None:
 async def start_rate_refresh_loop() -> None:
     """
     Background task: refresh exchange rates every 30 minutes.
-    Designed to be launched via asyncio.create_task() inside the app lifespan.
     """
     logger.info("[exchange_rate] Starting exchange rate refresh loop (interval=%ds)", _REFRESH_INTERVAL_SECONDS)
     await refresh_once()

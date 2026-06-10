@@ -22,7 +22,7 @@ from app.agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
-AUTO_CALIBRATE_MIN_SAMPLES = 30  # minimum settled matches before auto-calibration
+AUTO_CALIBRATE_MIN_SAMPLES = 10  # minimum settled matches before auto-calibration (lowered for early-stage)
 
 
 class RetrainTriggerAgent(BaseAgent):
@@ -49,8 +49,8 @@ class RetrainTriggerAgent(BaseAgent):
         from app.agents.ml_config import get as get_ml_config
 
         cfg             = get_ml_config()
-        cooldown_hours  = int(cfg.get("retrain_cooldown_hours", 24))
-        min_flag_cycles = int(cfg.get("min_flag_cycles", 2))
+        cooldown_hours  = int(cfg.get("retrain_cooldown_hours", 12))  # faster cycle
+        min_flag_cycles = int(cfg.get("min_flag_cycles", 1))  # trigger on first flag
         auto_enabled    = bool(cfg.get("auto_retrain_enabled", True))
 
         coordinator = get_coordinator()

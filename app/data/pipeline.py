@@ -29,13 +29,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 SUPPORTED_LEAGUES = [
-    "premier_league",
-    "la_liga",
-    "bundesliga",
-    "serie_a",
-    "ligue_1",
-    "eredivisie",
-    "primeira_liga",
+    # ── Free-tier leagues (football-data.org free plan: 12 competitions) ──
+    "premier_league",     # PL  — England Premier League
+    "championship",       # ELC — England Championship
+    "bundesliga",         # BL1 — Germany Bundesliga
+    "serie_a",            # SA  — Italy Serie A
+    "la_liga",            # PD  — Spain La Liga
+    "ligue_1",            # FL1 — France Ligue 1
+    "eredivisie",         # DED — Netherlands Eredivisie
+    "primeira_liga",      # PPL — Portugal Primeira Liga
+    "brasileirao",        # BSA — Brazil Série A
+    "champions_league",   # CL  — UEFA Champions League
+    "euro_championship",  # EC  — UEFA European Championship (tournament cycle)
+    "world_cup",          # WC  — FIFA World Cup (tournament cycle)
 ]
 
 ETL_INTERVAL_HOURS = 6

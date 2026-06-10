@@ -64,6 +64,8 @@ async def run_auto_slash(db: AsyncSession) -> dict:
 
     now = datetime.now(timezone.utc)
 
+    warned: list[dict] = []
+
     for vpr in validators:
         if vpr.total_predictions < _MIN_SLASH_PREDICTIONS:
             continue
@@ -71,6 +73,34 @@ async def run_auto_slash(db: AsyncSession) -> dict:
         slash_pct = Decimal("0")
         slash_reason = None
         should_jail = False
+
+        # ── Grace period warning: notify before actual slash ─────────────
+        WARN_THRESHOLD = SLASH_THRESHOLD + Decimal("0.10")  # warn at 0.35
+        if (
+            SLASH_THRESHOLD <= vpr.trust_score < WARN_THRESHOLD
+            and vpr.status == ValidatorStatus.ACTIVE.value
+        ):
+            warned.append({"validator_id": vpr.id, "user_id": vpr.user_id, "trust_score": float(vpr.trust_score)})
+            try:
+                from app.modules.notifications.service import NotificationService as _NS
+                from app.db.models import User as _User
+                from app.db.database import AsyncSessionLocal
+                async with AsyncSessionLocal() as _warn_db:
+                    await _NS.create(
+                        db=_warn_db,
+                        user_id=vpr.user_id,
+                        type="system",
+                        title="⚠️ Validator Trust Score Warning",
+                        body=(
+                            f"Your trust score is {float(vpr.trust_score):.2f}, approaching the "
+                            f"slash threshold of {float(SLASH_THRESHOLD):.2f}. "
+                            "Improve your prediction accuracy to avoid stake penalties."
+                        ),
+                        channel="in_app",
+                    )
+                    await _warn_db.commit()
+            except Exception as _wn_err:
+                logger.warning("[auto-slash] warning notification failed: %s", _wn_err)
 
         # R1: Trust score breach
         if vpr.trust_score < SLASH_THRESHOLD:
@@ -153,8 +183,10 @@ async def run_auto_slash(db: AsyncSession) -> dict:
         "slashed": len(slashed),
         "jailed": len(jailed),
         "inactivated": len(inactivated),
+        "warned": len(warned),
         "details": slashed,
         "inactivated_details": inactivated,
+        "warned_details": warned,
         "ran_at": now.isoformat(),
     }
     logger.info("[auto-slash] Run complete: %s", summary)

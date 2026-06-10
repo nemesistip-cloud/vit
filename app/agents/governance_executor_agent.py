@@ -38,10 +38,46 @@ class GovernanceExecutorAgent(BaseAgent):
         from app.services.alerts import TelegramAlert, AlertPriority
         from sqlalchemy import select
 
-        executed = skipped = failed = 0
+        executed = skipped = failed = closed = 0
         now = datetime.now(timezone.utc)
 
         async with AsyncSessionLocal() as db:
+            # ── Auto-close expired active proposals ─────────────────────
+            try:
+                expired_res = await db.execute(
+                    select(Proposal)
+                    .where(
+                        Proposal.status == "active",
+                        Proposal.voting_ends_at.isnot(None),
+                        Proposal.voting_ends_at < now,
+                    )
+                    .limit(MAX_PER_CYCLE)
+                )
+                expired = expired_res.scalars().all()
+                for ep in expired:
+                    # Determine outcome: passed if votes_for > votes_against and quorum met
+                    quorum = getattr(ep, "quorum_required", 1000.0) or 1000.0
+                    total_votes = (ep.votes_for or 0) + (ep.votes_against or 0)
+                    if (ep.votes_for or 0) > (ep.votes_against or 0) and total_votes >= quorum:
+                        ep.status = "passed"
+                        logger.info(
+                            "[governance-executor] proposal=%d PASSED at deadline "
+                            "(for=%.0f against=%.0f quorum=%.0f)",
+                            ep.id, ep.votes_for or 0, ep.votes_against or 0, quorum,
+                        )
+                    else:
+                        ep.status = "failed"
+                        logger.info(
+                            "[governance-executor] proposal=%d FAILED at deadline "
+                            "(for=%.0f against=%.0f quorum=%.0f total=%.0f)",
+                            ep.id, ep.votes_for or 0, ep.votes_against or 0, quorum, total_votes,
+                        )
+                    closed += 1
+                if closed:
+                    await db.commit()
+            except Exception as _close_err:
+                logger.error("[governance-executor] auto-close error: %s", _close_err)
+
             res = await db.execute(
                 select(Proposal)
                 .where(Proposal.status == "passed")
@@ -102,7 +138,7 @@ class GovernanceExecutorAgent(BaseAgent):
                         proposal.id, e,
                     )
 
-        result = {"proposals_checked": len(proposals), "executed": executed, "skipped": skipped, "failed": failed}
-        if executed > 0:
+        result = {"proposals_checked": len(proposals), "executed": executed, "skipped": skipped, "failed": failed, "auto_closed": closed}
+        if executed > 0 or closed > 0:
             logger.info("[governance-executor] cycle: %s", result)
         return result

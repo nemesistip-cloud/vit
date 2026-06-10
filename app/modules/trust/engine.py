@@ -502,18 +502,15 @@ async def _apply_trust_actions(
         # Tier 1: freeze withdrawals at score < 15
         if composite < 15:
             if not getattr(user, "withdrawals_frozen", False):
-                try:
-                    user.withdrawals_frozen = True
-                    log.warning(
-                        "[trust] FROZEN withdrawals for user %s (score=%.1f)", user_id, composite
-                    )
-                    notify_msgs.append((
-                        "Withdrawals Temporarily Frozen",
-                        "Your withdrawal access has been restricted due to unusual activity. "
-                        "Please contact support to resolve this.",
-                    ))
-                except AttributeError:
-                    pass  # column not yet migrated — skip silently
+                user.withdrawals_frozen = True
+                log.warning(
+                    "[trust] FROZEN withdrawals for user %s (score=%.1f)", user_id, composite
+                )
+                notify_msgs.append((
+                    "Withdrawals Temporarily Frozen",
+                    "Your withdrawal access has been restricted due to unusual activity. "
+                    "Please contact support to resolve this.",
+                ))
 
         # Tier 2: suspend account at score < 30 with open flags
         if composite < 30 and total_open_flags > 0:
@@ -532,18 +529,15 @@ async def _apply_trust_actions(
         # Tier 3: flag for review at score < 50
         if composite < 50:
             if not getattr(user, "is_flagged", False):
-                try:
-                    user.is_flagged = True
-                    log.info(
-                        "[trust] FLAGGED user %s for review (score=%.1f)", user_id, composite
-                    )
-                    notify_msgs.append((
-                        "Account Flagged for Review",
-                        "Your account has been flagged for a routine security review. "
-                        "This usually resolves automatically as your trust score improves.",
-                    ))
-                except AttributeError:
-                    pass  # column not yet migrated — skip silently
+                user.is_flagged = True
+                log.info(
+                    "[trust] FLAGGED user %s for review (score=%.1f)", user_id, composite
+                )
+                notify_msgs.append((
+                    "Account Flagged for Review",
+                    "Your account has been flagged for a routine security review. "
+                    "This usually resolves automatically as your trust score improves.",
+                ))
 
         if notify_msgs:
             await db.commit()

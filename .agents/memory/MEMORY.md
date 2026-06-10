@@ -7,3 +7,9 @@
 - [Google Cloud lazy imports](gcs-lazy-import.md) — gcs_storage.py and gcp_secrets.py must use lazy imports guarded by availability flags or they block the entire app on cold start.
 - [Analytics router double-registration](analytics-router-reg.md) — dynamic import section includes analytics_router without /api prefix; never add a second include_router call for the same object, fix the original instead.
 - [WalletUserSubscription fields](wallet-subscription-fields.md) — WalletUserSubscription uses expires_at + status=="active", NOT end_date/is_active; subscription expiry checks must import from app.modules.wallet.models.
+- [Webhook router registration gap](webhook-router-reg.md) — wallet webhooks router (app/modules/wallet/webhooks.py) was imported but never registered; always add app.include_router(webhooks_router) in main.py after adding a new router.
+- [Bridge BridgeTransaction id type](bridge-tx-id-type.md) — BridgeTransaction.id is Integer (int), not string; never slice it as tx.id[:8], use str(tx.id) or f"prefix-{tx.id}".
+- [v5.5.0 upgrade patterns](v5-5-0-upgrades.md) — key integration points for MoMo/Flutterwave, ValidatorAppeal, bridge relayer, and KYC liveness scoring added in v5.5.0.
+- [Admin router prefix](admin-router-prefix.md) — admin router registered with prefix="/api" in main.py; all routes are /api/admin/... not /admin/...; verify with /openapi.json not assumptions.
+- [Pi Network integration](pi-network-integration.md) — Pi Network uses Key-based server auth (Authorization: Key <APP_SECRET>); webhook events are payment_approved / payment_ready_for_server_completion / payment_cancelled; config vars: PI_APP_ID, PI_APP_SECRET, PI_WEBHOOK_SECRET, PI_SANDBOX_MODE.
+- [Integration keys DB loader](integration-keys-db.md) — admin-saved integration keys stored under PlatformConfig key "integration:{ENV_VAR}"; loaded into os.environ at lifespan startup before print_config_status fires.

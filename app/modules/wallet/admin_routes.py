@@ -61,12 +61,75 @@ async def approve_withdrawal(
         raise HTTPException(404, "Request not found")
     if req.status not in ("pending", "manual_review"):
         raise HTTPException(400, "Already processed")
+
+    # ── Execute real payout via Paystack / Stripe ────────────────────────
+    payout_ref = None
+    payout_error = None
+    try:
+        from app.config import PAYSTACK_SECRET_KEY, STRIPE_SECRET_KEY
+        import httpx as _httpx
+        currency = (req.currency or "NGN").upper()
+        if currency in ("NGN", "GHS", "KES", "UGX", "TZS") and PAYSTACK_SECRET_KEY:
+            # Paystack Transfer
+            amount_subunit = int(float(req.net_amount) * 100)
+            async with _httpx.AsyncClient(timeout=15) as _c:
+                resp = await _c.post(
+                    "https://api.paystack.co/transfer",
+                    headers={"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"},
+                    json={
+                        "source": "balance",
+                        "amount": amount_subunit,
+                        "recipient": req.destination,
+                        "reference": f"WD-{req.id}",
+                        "reason": f"VIT withdrawal #{req.id}",
+                        "currency": currency,
+                    },
+                )
+            if resp.status_code in (200, 201):
+                payout_ref = resp.json().get("data", {}).get("transfer_code", f"WD-{req.id}")
+            else:
+                payout_error = f"Paystack transfer error {resp.status_code}: {resp.text[:120]}"
+        elif currency == "USD" and STRIPE_SECRET_KEY:
+            # Stripe Payout — requires connected account
+            amount_cents = int(float(req.net_amount) * 100)
+            async with _httpx.AsyncClient(timeout=15) as _c:
+                resp = await _c.post(
+                    "https://api.stripe.com/v1/payouts",
+                    auth=(STRIPE_SECRET_KEY, ""),
+                    data={
+                        "amount": str(amount_cents),
+                        "currency": "usd",
+                        "description": f"VIT withdrawal #{req.id}",
+                        "metadata[withdrawal_id]": req.id,
+                    },
+                )
+            if resp.status_code == 200:
+                payout_ref = resp.json().get("id", f"WD-{req.id}")
+            else:
+                payout_error = f"Stripe payout error {resp.status_code}: {resp.text[:120]}"
+    except Exception as _pe:
+        payout_error = str(_pe)[:200]
+
     req.status = "processed"
     req.reviewed_by = user.id
-    req.review_note = note
+    req.review_note = (note or "") + (f" | payout_ref={payout_ref}" if payout_ref else "") + (f" | payout_error={payout_error}" if payout_error else "")
     req.processed_at = datetime.now(timezone.utc)
     await db.commit()
-    return {"status": "processed"}
+
+    # Notify user
+    try:
+        from app.modules.notifications.service import NotificationService as _NS
+        from app.modules.notifications.models import NotificationType as _NT, NotificationChannel as _NC
+        await _NS.create(db=db, user_id=req.user_id, type=_NT.WALLET_ACTIVITY,
+            context={"action": "Withdrawal processed", "amount": float(req.net_amount), "currency": req.currency},
+            title="Withdrawal Approved",
+            body=f"Your withdrawal of {float(req.net_amount):.2f} {req.currency} has been approved and processed.",
+            channel=_NC.IN_APP)
+        await db.commit()
+    except Exception:
+        pass
+
+    return {"status": "processed", "payout_ref": payout_ref, "payout_error": payout_error}
 
 
 @router.post("/withdrawals/{request_id}/reject")
@@ -83,15 +146,46 @@ async def reject_withdrawal(
         raise HTTPException(404, "Request not found")
     if req.status not in ("pending", "manual_review"):
         raise HTTPException(400, "Already processed")
+    # ── Refund reserved funds back to wallet ─────────────────────────────
     wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == req.user_id))
     wallet = wallet_result.scalar_one_or_none()
     if wallet:
         field = f"{req.currency.lower()}_balance"
-        setattr(wallet, field, getattr(wallet, field) + req.amount)
+        current = getattr(wallet, field, Decimal("0")) or Decimal("0")
+        setattr(wallet, field, current + req.amount)
+        # Record reversal transaction for audit
+        from app.modules.wallet.models import WalletTransaction
+        reversal_tx = WalletTransaction(
+            user_id=req.user_id,
+            wallet_id=wallet.id,
+            type="withdrawal",
+            currency=req.currency,
+            amount=req.amount,
+            direction="credit",
+            status="confirmed",
+            reference=f"rejection-refund:{req.id}",
+            tx_metadata={"reason": "withdrawal_rejected", "request_id": req.id, "review_note": note or ""},
+            processed_at=datetime.now(timezone.utc),
+        )
+        db.add(reversal_tx)
     req.status = "rejected"
     req.reviewed_by = user.id
     req.review_note = note
     await db.commit()
+
+    # Notify user
+    try:
+        from app.modules.notifications.service import NotificationService as _NS
+        from app.modules.notifications.models import NotificationType as _NT, NotificationChannel as _NC
+        await _NS.create(db=db, user_id=req.user_id, type=_NT.WALLET_ACTIVITY,
+            context={"action": "Withdrawal rejected", "amount": float(req.amount), "currency": req.currency},
+            title="Withdrawal Rejected",
+            body=f"Your withdrawal request of {float(req.amount):.2f} {req.currency} was rejected. Funds have been returned to your wallet.",
+            channel=_NC.IN_APP)
+        await db.commit()
+    except Exception:
+        pass
+
     return {"status": "rejected"}
 
 

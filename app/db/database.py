@@ -55,10 +55,20 @@ if _is_sqlite:
         cursor.execute("PRAGMA temp_store=MEMORY")
         cursor.close()
 else:
-    import ssl as _ssl
-    _ssl_ctx = _ssl.create_default_context()
-    _ssl_ctx.check_hostname = False
-    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+    # Replit's internal PostgreSQL (host "helium") does not support SSL.
+    # External cloud databases (Cloud Run, Render) require SSL.
+    _pg_host = urlparse(DATABASE_URL).hostname or ""
+    _needs_ssl = _pg_host not in ("helium", "localhost", "127.0.0.1")
+
+    if _needs_ssl:
+        import ssl as _ssl
+        _ssl_ctx = _ssl.create_default_context()
+        _ssl_ctx.check_hostname = False
+        _ssl_ctx.verify_mode = _ssl.CERT_NONE
+        _connect_args = {"ssl": _ssl_ctx}
+    else:
+        _connect_args = {}
+
     # Reduced pool sizes for Render Free Tier (25 connection limit)
     engine = create_async_engine(
         DATABASE_URL,
@@ -70,7 +80,7 @@ else:
         pool_timeout=30,
         pool_pre_ping=True,
         pool_use_lifo=True,
-        connect_args={"ssl": _ssl_ctx},
+        connect_args=_connect_args,
     )
 
 # Session factory

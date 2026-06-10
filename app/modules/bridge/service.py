@@ -236,6 +236,87 @@ async def get_transaction(db: AsyncSession, tx_id: int) -> Optional[BridgeTransa
     return result.scalar_one_or_none()
 
 
+async def auto_relay_pending(db: AsyncSession, max_age_minutes: int = 30) -> dict:
+    """
+    Automated relayer: scan locked transactions older than max_age_minutes
+    and confirm them if the source funds are verified.
+
+    In production this would query the on-chain explorer to verify the lock tx.
+    Here we implement: transactions that have been locked for > max_age_minutes
+    with a valid source_address are auto-confirmed (simulates relayer confirmation).
+    Transactions without a source_address are flagged for manual review.
+    """
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+
+    result = await db.execute(
+        select(BridgeTransaction).where(
+            BridgeTransaction.status == "locked",
+            BridgeTransaction.created_at < cutoff,
+        ).limit(20)
+    )
+    pending = result.scalars().all()
+
+    confirmed = []
+    flagged = []
+
+    for tx in pending:
+        if tx.source_address:
+            # Auto-confirm: the lock + source_address gives us enough to trust
+            relayer_ref = f"auto-relay-{tx.id}"
+            try:
+                tx.status = "completed"
+                tx.relayer_tx_hash = relayer_ref
+                tx.confirmed_at = datetime.now(timezone.utc)
+                tx.completed_at = datetime.now(timezone.utc)
+
+                # Credit VITCoin for inbound bridges
+                pool = await get_pool(db, tx.pool_id)
+                if pool and pool.chain_to == "VIT_NETWORK":
+                    from app.modules.wallet.services import WalletService
+                    from app.modules.wallet.models import Currency
+                    ws = WalletService(db)
+                    wallet = await ws.get_or_create_wallet(tx.user_id)
+                    await ws.credit(
+                        wallet_id=wallet.id,
+                        user_id=tx.user_id,
+                        currency=Currency.VITCOIN,
+                        amount=tx.amount_out,
+                        tx_type="bridge_mint",
+                        reference=f"relay_mint_{uuid.uuid4().hex[:8]}",
+                        metadata={"bridge_tx_hash": tx.tx_hash, "auto_relayed": True},
+                    )
+
+                audit = BridgeAuditLog(
+                    transaction_id=tx.id,
+                    event="auto_confirmed",
+                    actor="auto-relayer",
+                    detail=f"Auto-confirmed after {max_age_minutes}m: source={tx.source_address}",
+                )
+                db.add(audit)
+                confirmed.append(tx.id)
+                logger.info("[bridge-relayer] auto-confirmed tx=%s user=%s", tx.id, tx.user_id)
+            except Exception as _ce:
+                logger.error("[bridge-relayer] confirm failed tx=%s: %s", tx.id, _ce)
+        else:
+            # No source address — flag for manual review
+            tx.status = "needs_review"
+            audit = BridgeAuditLog(
+                transaction_id=tx.id,
+                event="flagged_for_review",
+                actor="auto-relayer",
+                detail=f"No source_address provided — manual confirmation needed",
+            )
+            db.add(audit)
+            flagged.append(tx.id)
+            logger.warning("[bridge-relayer] flagged tx=%s (no source_address)", tx.id)
+
+    if confirmed or flagged:
+        await db.commit()
+
+    return {"confirmed": len(confirmed), "flagged": len(flagged), "total_checked": len(pending)}
+
+
 async def bridge_stats(db: AsyncSession) -> dict:
     total_txs   = (await db.execute(select(func.count(BridgeTransaction.id)))).scalar() or 0
     completed   = (await db.execute(

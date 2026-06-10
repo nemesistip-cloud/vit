@@ -36,6 +36,7 @@ import {
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
   Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info, Loader2,
+  Network, Plug, Gift,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -4347,6 +4348,719 @@ function AdminHealthPills() {
   );
 }
 
+// ─── Webhook Log Viewer ────────────────────────────────────────────────
+
+type WebhookEventRow = {
+  id: number;
+  provider: string;
+  event_type: string | null;
+  reference: string | null;
+  amount: string | null;
+  currency: string | null;
+  status: string;
+  sig_verified: boolean | null;
+  outcome: string | null;
+  error_msg: string | null;
+  payload_summary: Record<string, unknown> | null;
+  received_at: string | null;
+};
+
+const PROVIDER_COLORS: Record<string, string> = {
+  stripe:       "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+  paystack:     "bg-green-500/15 text-green-300 border-green-500/30",
+  flutterwave:  "bg-orange-500/15 text-orange-300 border-orange-500/30",
+  pi:           "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  usdt:         "bg-teal-500/15 text-teal-300 border-teal-500/30",
+};
+
+const OUTCOME_COLORS: Record<string, string> = {
+  credited:             "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  withdrawal_processed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  approved:             "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  subscription_activated: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  refunded:             "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  payment_failed:       "bg-red-500/15 text-red-400 border-red-500/30",
+  approve_failed:       "bg-red-500/15 text-red-400 border-red-500/30",
+  complete_failed:      "bg-red-500/15 text-red-400 border-red-500/30",
+  cancelled:            "bg-gray-600/30 text-gray-400 border-gray-600",
+  unhandled:            "bg-gray-600/30 text-gray-400 border-gray-600",
+  already_processed:    "bg-gray-600/30 text-gray-400 border-gray-600",
+  not_found:            "bg-gray-600/30 text-gray-400 border-gray-600",
+  pending:              "bg-amber-500/15 text-amber-400 border-amber-500/30",
+};
+
+// ── Free-tier 12-competition sync panel ──────────────────────────────────────
+const FD12_COMPETITIONS = [
+  { league: "premier_league",    code: "PL",  label: "Premier League",          flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+  { league: "championship",      code: "ELC", label: "Championship",             flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+  { league: "bundesliga",        code: "BL1", label: "Bundesliga",               flag: "🇩🇪" },
+  { league: "serie_a",           code: "SA",  label: "Serie A",                  flag: "🇮🇹" },
+  { league: "la_liga",           code: "PD",  label: "La Liga",                  flag: "🇪🇸" },
+  { league: "ligue_1",           code: "FL1", label: "Ligue 1",                  flag: "🇫🇷" },
+  { league: "eredivisie",        code: "DED", label: "Eredivisie",               flag: "🇳🇱" },
+  { league: "primeira_liga",     code: "PPL", label: "Primeira Liga",            flag: "🇵🇹" },
+  { league: "brasileirao",       code: "BSA", label: "Brasileirão Série A",      flag: "🇧🇷" },
+  { league: "champions_league",  code: "CL",  label: "UEFA Champions League",    flag: "🏆" },
+  { league: "euro_championship", code: "EC",  label: "UEFA Euro",                flag: "🇪🇺" },
+  { league: "world_cup",         code: "WC",  label: "FIFA World Cup",           flag: "🌍" },
+];
+
+type FD12Result = {
+  league: string; code: string;
+  upserted: number; skipped: number;
+  errors: string[]; status: "ok" | "partial" | "error";
+};
+
+type FD12Response = {
+  status: string;
+  total_upserted: number; total_skipped: number;
+  error_count: number; duration_seconds: number;
+  competitions: FD12Result[];
+};
+
+function FD12SyncPanel() {
+  const [syncing, setSyncing]         = useState(false);
+  const [result,  setResult]          = useState<FD12Response | null>(null);
+  const [days,    setDays]            = useState(14);
+
+  const resultMap = Object.fromEntries((result?.competitions ?? []).map(c => [c.league, c]));
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const data = await apiPost(`/api/admin/fixtures/sync-fd12?days=${days}`, {}) as FD12Response;
+      setResult(data);
+      if (data.status === "success")
+        toast.success(`Synced ${data.total_upserted} new fixtures across 12 competitions in ${data.duration_seconds}s`);
+      else if (data.status === "partial")
+        toast.success(`Partial sync: ${data.total_upserted} upserted, ${data.error_count} competition(s) had errors`);
+      else
+        toast.error("Sync failed — check FOOTBALL_DATA_API_KEY");
+    } catch (e: any) {
+      toast.error(e?.message || "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 space-y-3">
+      {/* divider */}
+      <div className="flex items-center gap-2">
+        <div className="h-px flex-1 bg-gray-800" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+          <Activity className="w-3 h-3" /> Fixture Sync — All 12 Free Competitions
+        </span>
+        <div className="h-px flex-1 bg-gray-800" />
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <span>Days ahead:</span>
+          {[7, 14, 21].map(d => (
+            <button key={d}
+              onClick={() => setDays(d)}
+              className={`px-2 py-0.5 rounded border text-[10px] font-bold transition-colors ${
+                days === d
+                  ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                  : "border-gray-700 text-gray-500 hover:border-gray-600"
+              }`}>{d}d</button>
+          ))}
+        </div>
+        <Button size="sm" variant="outline"
+          className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 text-xs gap-1.5 ml-auto"
+          disabled={syncing}
+          onClick={handleSync}>
+          {syncing
+            ? <><Loader2 className="w-3 h-3 animate-spin" />Syncing… (may take ~90s)</>
+            : <><RefreshCw className="w-3 h-3" />Sync All 12 Competitions</>}
+        </Button>
+      </div>
+
+      {/* summary bar (visible after first sync) */}
+      {result && (
+        <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-xs font-mono ${
+          result.status === "success" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" :
+          result.status === "partial" ? "bg-amber-500/10 border-amber-500/30 text-amber-300"    :
+                                        "bg-red-500/10 border-red-500/30 text-red-300"
+        }`}>
+          <span className="font-bold uppercase">{result.status}</span>
+          <span>+{result.total_upserted} new</span>
+          <span className="text-gray-500">·</span>
+          <span>{result.total_skipped} existing</span>
+          <span className="text-gray-500">·</span>
+          <span>{result.error_count} errors</span>
+          <span className="text-gray-500">·</span>
+          <span>{result.duration_seconds}s</span>
+        </div>
+      )}
+
+      {/* per-competition grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+        {FD12_COMPETITIONS.map(comp => {
+          const r = resultMap[comp.league];
+          const statusColor =
+            !r       ? "border-gray-800 bg-gray-900/30 text-gray-600" :
+            r.status === "ok"      ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"  :
+            r.status === "partial" ? "border-amber-500/30 bg-amber-500/5 text-amber-400"         :
+                                     "border-red-500/30 bg-red-500/5 text-red-400";
+          return (
+            <div key={comp.code}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${statusColor}`}
+              title={r?.errors?.length ? r.errors.join("; ") : undefined}>
+              <span className="text-sm leading-none">{comp.flag}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold leading-tight truncate">{comp.label}</div>
+                <div className="text-[9px] font-mono opacity-60 leading-tight">
+                  {comp.code}
+                  {r && <span className="ml-1">· +{r.upserted}</span>}
+                </div>
+              </div>
+              {r ? (
+                r.status === "ok"      ? <CheckCircle className="w-3 h-3 shrink-0 text-emerald-400" /> :
+                r.status === "partial" ? <AlertCircle  className="w-3 h-3 shrink-0 text-amber-400"  /> :
+                                         <XCircle      className="w-3 h-3 shrink-0 text-red-400"    />
+              ) : (
+                syncing
+                  ? <Loader2 className="w-3 h-3 shrink-0 animate-spin opacity-30" />
+                  : <div className="w-3 h-3 rounded-full border border-gray-700 shrink-0" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WebhookLogViewer() {
+  const qc = useQueryClient();
+  const [filterProvider, setFilterProvider] = useState<string>("all");
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  const { data, isLoading, isFetching } = useQuery<{ events: WebhookEventRow[]; total: number }>({
+    queryKey: ["webhook-events", filterProvider],
+    queryFn: () => {
+      const params = filterProvider !== "all" ? `?provider=${filterProvider}&limit=100` : "?limit=100";
+      return apiGet(`/api/admin/integrations/webhook-events${params}`);
+    },
+    refetchInterval: 30000,
+  });
+
+  const events = data?.events ?? [];
+  const total  = data?.total ?? 0;
+
+  function fmtTime(iso: string | null) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+
+  function fmtRef(ref: string | null) {
+    if (!ref) return "—";
+    return ref.length > 20 ? `${ref.slice(0, 8)}…${ref.slice(-6)}` : ref;
+  }
+
+  const PROVIDER_TABS = ["all", "stripe", "paystack", "flutterwave", "pi", "usdt"];
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <CardTitle className="text-white flex items-center gap-2 text-sm">
+            <Activity className="w-4 h-4 text-cyan-400" />
+            Webhook Delivery Log
+            {total > 0 && (
+              <span className="text-xs font-normal text-gray-500 ml-1">{total} total</span>
+            )}
+            {isFetching && !isLoading && (
+              <Loader2 className="w-3 h-3 animate-spin text-gray-500 ml-1" />
+            )}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline"
+              className="border-gray-600 text-gray-400 hover:text-white h-7 px-2 gap-1 text-xs"
+              onClick={() => qc.invalidateQueries({ queryKey: ["webhook-events"] })}>
+              <RefreshCw className="w-3 h-3" /> Refresh
+            </Button>
+          </div>
+        </div>
+        <CardDescription className="text-gray-500 text-xs mt-1">
+          Live log of all incoming payment webhooks. Auto-refreshes every 30 seconds. Signature verification status and processing outcome are shown per event.
+        </CardDescription>
+
+        {/* Provider filter tabs */}
+        <div className="flex items-center gap-1 mt-2 flex-wrap">
+          {PROVIDER_TABS.map(p => (
+            <button
+              key={p}
+              onClick={() => setFilterProvider(p)}
+              className={`px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wide transition-colors border ${
+                filterProvider === p
+                  ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                  : "bg-transparent border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400"
+              }`}>
+              {p === "all" ? "All" : p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+
+      <CardContent className="pt-0">
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : events.length === 0 ? (
+          <div className="text-center py-10 text-gray-600">
+            <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <div className="text-sm">No webhook events recorded yet</div>
+            <div className="text-xs mt-1">Events will appear here as soon as a payment webhook arrives</div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-800">
+                  <th className="py-2 px-2 font-medium">Time</th>
+                  <th className="py-2 px-2 font-medium">Provider</th>
+                  <th className="py-2 px-2 font-medium">Event</th>
+                  <th className="py-2 px-2 font-medium">Reference</th>
+                  <th className="py-2 px-2 font-medium text-right">Amount</th>
+                  <th className="py-2 px-2 font-medium">Sig</th>
+                  <th className="py-2 px-2 font-medium">Outcome</th>
+                  <th className="py-2 px-2 font-medium w-6" />
+                </tr>
+              </thead>
+              <tbody>
+                {events.map(e => (
+                  <>
+                    <tr
+                      key={e.id}
+                      className={`border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors ${expandedRow === e.id ? "bg-gray-800/40" : ""}`}
+                      onClick={() => setExpandedRow(expandedRow === e.id ? null : e.id)}>
+                      <td className="py-2 px-2 text-gray-500 whitespace-nowrap font-mono">
+                        {fmtTime(e.received_at)}
+                      </td>
+                      <td className="py-2 px-2">
+                        <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wide ${PROVIDER_COLORS[e.provider] ?? "bg-gray-700/40 text-gray-400 border-gray-600"}`}>
+                          {e.provider}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-gray-300 max-w-[160px]">
+                        <span className="truncate block font-mono text-[10px]" title={e.event_type ?? ""}>
+                          {e.event_type ?? <span className="text-gray-600">—</span>}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-gray-400 font-mono">
+                        <span title={e.reference ?? ""}>{fmtRef(e.reference)}</span>
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-gray-300">
+                        {e.amount
+                          ? <>{parseFloat(e.amount).toLocaleString(undefined, { maximumFractionDigits: 6 })}<span className="text-gray-600 ml-1 text-[9px]">{e.currency}</span></>
+                          : <span className="text-gray-700">—</span>}
+                      </td>
+                      <td className="py-2 px-2">
+                        {e.sig_verified === null
+                          ? <span className="text-gray-600 text-[10px]">n/a</span>
+                          : e.sig_verified
+                          ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                          : <XCircle className="w-3.5 h-3.5 text-red-400" />}
+                      </td>
+                      <td className="py-2 px-2">
+                        {e.outcome ? (
+                          <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${OUTCOME_COLORS[e.outcome] ?? "bg-gray-700/40 text-gray-400 border-gray-600"}`}>
+                            {e.outcome.replace(/_/g, " ")}
+                          </span>
+                        ) : <span className="text-gray-700">—</span>}
+                      </td>
+                      <td className="py-2 px-2">
+                        <ChevronRight className={`w-3 h-3 text-gray-600 transition-transform ${expandedRow === e.id ? "rotate-90" : ""}`} />
+                      </td>
+                    </tr>
+                    {expandedRow === e.id && (
+                      <tr key={`${e.id}-detail`} className="bg-gray-800/30">
+                        <td colSpan={8} className="px-4 py-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {e.error_msg && (
+                              <div className="col-span-full bg-red-500/10 border border-red-500/20 rounded p-2 text-xs text-red-300">
+                                <span className="font-semibold">Error:</span> {e.error_msg}
+                              </div>
+                            )}
+                            {e.reference && (
+                              <div>
+                                <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Full Reference</div>
+                                <code className="text-gray-300 font-mono text-[11px] break-all">{e.reference}</code>
+                              </div>
+                            )}
+                            {e.payload_summary && Object.keys(e.payload_summary).length > 0 && (
+                              <div>
+                                <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Payload Summary</div>
+                                <pre className="text-gray-400 font-mono text-[10px] leading-relaxed bg-gray-900/60 rounded p-2 overflow-x-auto">
+                                  {JSON.stringify(e.payload_summary, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            <div>
+                              <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Received At</div>
+                              <code className="text-gray-400 font-mono text-[11px]">
+                                {e.received_at ? new Date(e.received_at).toISOString() : "—"}
+                              </code>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Integrations Tab ─────────────────────────────────────────────────
+
+function IntegrationsTab() {
+  const qc = useQueryClient();
+
+  type IntegrationKey = {
+    key: string; label: string; group: string; description: string;
+    required: boolean; configured: boolean; source: "env" | "db" | "none";
+  };
+
+  const [editingKey, setEditingKey] = useState<IntegrationKey | null>(null);
+  const [newValue, setNewValue] = useState("");
+  const [showNewValue, setShowNewValue] = useState(false);
+  const [testingPi, setTestingPi] = useState(false);
+  const [piStatus, setPiStatus] = useState<any>(null);
+
+  const { data, isLoading } = useQuery<{ settings: IntegrationKey[]; total: number }>({
+    queryKey: ["integration-settings"],
+    queryFn: () => apiGet("/api/admin/integrations/settings"),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: string }) =>
+      apiPut("/api/admin/integrations/settings", { key, value }),
+    onSuccess: (_d, vars) => {
+      toast.success(`${vars.key} saved — active immediately`);
+      qc.invalidateQueries({ queryKey: ["integration-settings"] });
+      qc.invalidateQueries({ queryKey: ["admin-config-status"] });
+      setEditingKey(null);
+      setNewValue("");
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to save key"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (key: string) => apiDelete(`/api/admin/integrations/settings/${key}`),
+    onSuccess: (_d, key) => {
+      toast.success(`${key} removed from database`);
+      qc.invalidateQueries({ queryKey: ["integration-settings"] });
+      qc.invalidateQueries({ queryKey: ["admin-config-status"] });
+    },
+    onError: () => toast.error("Failed to remove key"),
+  });
+
+  const testPiConnection = async () => {
+    setTestingPi(true);
+    try {
+      const result: any = await apiGet("/api/admin/pi/status");
+      setPiStatus(result);
+      toast.success(result?.configured ? "Pi Network keys are configured" : "Pi Network keys are missing");
+    } catch (e: any) {
+      toast.error(e?.message || "Pi status check failed");
+    } finally {
+      setTestingPi(false);
+    }
+  };
+
+  // Group settings by their group field
+  const grouped = (data?.settings ?? []).reduce<Record<string, IntegrationKey[]>>((acc, s) => {
+    if (!acc[s.group]) acc[s.group] = [];
+    acc[s.group].push(s);
+    return acc;
+  }, {});
+
+  // Provider metadata — icon, color, description per group
+  const PROVIDER_META: Record<string, {
+    icon: React.ElementType; color: string; bg: string; border: string; description: string;
+    testAction?: () => void; testLabel?: string; testLoading?: boolean;
+  }> = {
+    "Pi Network":     { icon: Zap,        color: "text-amber-400",  bg: "bg-amber-500/10",  border: "border-amber-500/30",  description: "Accept Pi cryptocurrency from Pi Network users. Set App ID and Secret from developer.pi.",         testAction: testPiConnection, testLabel: "Test Connection", testLoading: testingPi },
+    "Payments":       { icon: CreditCard, color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/30",   description: "Stripe (USD subscriptions), Paystack (NGN deposits), and Flutterwave (MoMo / card) processors." },
+    "Sports Data":    { icon: Activity,   color: "text-cyan-400",   bg: "bg-cyan-500/10",   border: "border-cyan-500/30",   description: "Football-Data.org, The Odds API, and TheSportsDB for fixtures, live odds, and match data."         },
+    "Messaging":      { icon: Send,       color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/30",  description: "Telegram bot for signal alerts and Resend for transactional email (verification, password reset)."  },
+    "VIT AI":         { icon: Brain,      color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/30", description: "Native ML model flags and Google Cloud Storage bucket for syncing trained model weights."            },
+    "Blockchain":     { icon: Network,    color: "text-teal-400",   bg: "bg-teal-500/10",   border: "border-teal-500/30",   description: "Base L2 RPC endpoint and VITCoin ERC-20 contract address for on-chain verification and bridge."    },
+    "Infrastructure": { icon: Server,     color: "text-rose-400",   bg: "bg-rose-500/10",   border: "border-rose-500/30",   description: "Redis connection URL and SMTP credentials for background jobs and email delivery."                  },
+    "Security":       { icon: Shield,     color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/30",    description: "JWT signing key and legacy admin API key. JWT Secret is required in production."                    },
+    "Offerwall":      { icon: Gift,       color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/30", description: "Partner offerwall API keys for Ayet Studios, BitLabs, CPX Research, Revenue Universe, and Tapjoy. Add keys to enable offers on the Earn page." },
+  };
+
+  const GROUP_ORDER = ["Pi Network", "Payments", "Sports Data", "Offerwall", "Messaging", "VIT AI", "Blockchain", "Infrastructure", "Security"];
+
+  // Payment sub-providers for cleaner display within the Payments group
+  const PAYMENT_SUBS: Record<string, { color: string; keys: string[] }> = {
+    "Stripe":      { color: "text-indigo-400", keys: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"] },
+    "Paystack":    { color: "text-green-400",  keys: ["PAYSTACK_SECRET_KEY", "PAYSTACK_WEBHOOK_SECRET"] },
+    "Flutterwave": { color: "text-orange-400", keys: ["FLW_SECRET_KEY", "FLW_PUBLIC_KEY", "FLW_WEBHOOK_SECRET"] },
+  };
+
+  function statusBadge(keys: IntegrationKey[]) {
+    const n = keys.filter(k => k.configured).length;
+    if (n === keys.length) return { label: "Connected", cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" };
+    if (n > 0)             return { label: "Partial",   cls: "bg-amber-500/15 text-amber-400 border-amber-500/30"     };
+    return                        { label: "Not set",   cls: "bg-gray-700/40 text-gray-500 border-gray-700"           };
+  }
+
+  function KeyRow({ k }: { k: IntegrationKey }) {
+    return (
+      <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg border border-gray-800/80 bg-gray-900/30 hover:bg-gray-900/60 transition-colors">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <span className="text-white text-xs font-semibold">{k.label}</span>
+            {k.required && (
+              <span className="text-[9px] uppercase font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-1 py-0.5 rounded leading-none">
+                Required
+              </span>
+            )}
+            {k.source === "env" && (
+              <span className="text-[9px] uppercase font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 px-1 py-0.5 rounded flex items-center gap-1 leading-none">
+                <Shield className="w-2 h-2" /> Env
+              </span>
+            )}
+            {k.source === "db" && (
+              <span className="text-[9px] uppercase font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1 py-0.5 rounded flex items-center gap-1 leading-none">
+                <Database className="w-2 h-2" /> DB
+              </span>
+            )}
+          </div>
+          <div className="text-[10px] text-gray-600 font-mono leading-tight">{k.description}</div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {k.source === "db" && (
+            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-gray-600 hover:text-red-400"
+              title="Remove from database" onClick={() => deleteMutation.mutate(k.key)}>
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          )}
+          <Button size="sm" variant="outline"
+            className={`h-6 px-2.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+              k.configured
+                ? "border-gray-600 text-gray-400 hover:border-amber-500/40 hover:text-amber-400"
+                : "border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+            }`}
+            onClick={() => { setEditingKey(k); setNewValue(""); setShowNewValue(false); }}>
+            {k.configured ? "Update" : "Set"}
+          </Button>
+          {k.configured
+            ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            : <XCircle    className="w-3.5 h-3.5 text-gray-700 shrink-0" />}
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const orderedGroups = GROUP_ORDER.filter(g => grouped[g]);
+  const totalConfigured  = (data?.settings ?? []).filter(s => s.configured).length;
+  const totalKeys        = data?.total ?? 0;
+
+  return (
+    <div className="space-y-5">
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-white font-bold text-lg flex items-center gap-2">
+            <Plug className="w-5 h-5 text-cyan-400" /> Integration Settings
+          </h2>
+          <p className="text-gray-400 text-sm mt-0.5">
+            Manage payment providers, data APIs, and third-party services.
+            Keys saved here are encrypted in the database and active immediately — no restart needed.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="text-xs font-mono text-gray-500 bg-gray-800 border border-gray-700 rounded px-2 py-1">
+            <span className="text-white">{totalConfigured}</span>/{totalKeys} configured
+          </div>
+          <Button size="sm" variant="outline" className="border-gray-600 text-gray-400 hover:text-white gap-1.5"
+            onClick={() => qc.invalidateQueries({ queryKey: ["integration-settings"] })}>
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Provider Cards */}
+      {orderedGroups.map(group => {
+        const keys      = grouped[group] ?? [];
+        const meta      = PROVIDER_META[group] ?? { icon: Settings, color: "text-gray-400", bg: "bg-gray-700/30", border: "border-gray-700", description: "" };
+        const MetaIcon  = meta.icon;
+        const badge     = statusBadge(keys);
+        const isPayments    = group === "Payments";
+        const isSportsData  = group === "Sports Data";
+
+        return (
+          <Card key={group} className={`bg-gray-900 border ${meta.border}`}>
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-lg ${meta.bg} flex items-center justify-center shrink-0`}>
+                    <MetaIcon className={`w-5 h-5 ${meta.color}`} />
+                  </div>
+                  <div>
+                    <CardTitle className="text-white text-sm flex items-center gap-2 flex-wrap">
+                      {group}
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${badge.cls}`}>
+                        {badge.label}
+                      </span>
+                    </CardTitle>
+                    <CardDescription className="text-gray-500 text-xs mt-0.5">{meta.description}</CardDescription>
+                  </div>
+                </div>
+                {meta.testAction && (
+                  <Button size="sm" variant="outline"
+                    className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs shrink-0"
+                    disabled={meta.testLoading}
+                    onClick={meta.testAction}>
+                    {meta.testLoading
+                      ? <><Loader2 className="w-3 h-3 animate-spin mr-1.5" />Testing…</>
+                      : <><Activity className="w-3 h-3 mr-1.5" />{meta.testLabel}</>}
+                  </Button>
+                )}
+              </div>
+
+              {/* Pi Network status result */}
+              {group === "Pi Network" && piStatus && (
+                <div className={`mt-3 p-3 rounded-lg border text-xs font-mono ${
+                  piStatus.configured
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                    : "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                }`}>
+                  {piStatus.configured
+                    ? `✅ Configured · App ID: ${piStatus.app_id ?? "set"} · Sandbox: ${piStatus.sandbox_mode ?? "true"}`
+                    : "⚠️  Pi Network keys not fully configured — Pi deposits are disabled until all keys are set"}
+                </div>
+              )}
+            </CardHeader>
+
+            <CardContent className="pt-0 space-y-2">
+              {isPayments ? (
+                /* Split Payments into Stripe / Paystack / Flutterwave sub-sections */
+                Object.entries(PAYMENT_SUBS).map(([provName, prov]) => {
+                  const provKeys = keys.filter(k => prov.keys.includes(k.key));
+                  if (provKeys.length === 0) return null;
+                  const pb = statusBadge(provKeys);
+                  return (
+                    <div key={provName} className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-px flex-1 bg-gray-800" />
+                        <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${prov.color}`}>
+                          {provName}
+                          <span className={`px-1.5 py-0.5 rounded border text-[9px] ${pb.cls}`}>{pb.label}</span>
+                        </span>
+                        <div className="h-px flex-1 bg-gray-800" />
+                      </div>
+                      <div className="space-y-1.5">
+                        {provKeys.map(k => <KeyRow key={k.key} k={k} />)}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="space-y-1.5">
+                  {keys.map(k => <KeyRow key={k.key} k={k} />)}
+                </div>
+              )}
+              {isSportsData && <FD12SyncPanel />}
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {/* ── Webhook Delivery Log ──────────────────────────────────────── */}
+      <WebhookLogViewer />
+
+      {/* Edit / Set Key Dialog */}
+      {editingKey && (
+        <Dialog open onOpenChange={() => setEditingKey(null)}>
+          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <Key className="w-4 h-4 text-amber-400" />
+                {editingKey.configured ? "Update" : "Set"} — {editingKey.label}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-400 leading-relaxed">{editingKey.description}</p>
+              <div className="space-y-2">
+                <Label className="text-gray-300 text-sm">Value</Label>
+                <div className="relative">
+                  <Input
+                    type={showNewValue ? "text" : "password"}
+                    placeholder={`Enter value for ${editingKey.key}`}
+                    value={newValue}
+                    onChange={e => setNewValue(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && newValue.trim() && !saveMutation.isPending)
+                        saveMutation.mutate({ key: editingKey.key, value: newValue.trim() });
+                    }}
+                    className="bg-gray-800 border-gray-600 text-white pr-10 font-mono text-sm"
+                    autoFocus
+                  />
+                  <Button size="sm" variant="ghost"
+                    className="absolute right-1 top-1 h-7 w-7 p-0 text-gray-500 hover:text-white"
+                    onClick={() => setShowNewValue(v => !v)}>
+                    {showNewValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-600">
+                  Environment variable: <span className="font-mono text-amber-400">{editingKey.key}</span>
+                </p>
+              </div>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-xs text-emerald-300 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-semibold">
+                  <Database className="w-3 h-3" /> Saved to database — survives restarts
+                </div>
+                <div className="text-emerald-400/80">
+                  Encrypted with AES-256 and injected into the running process immediately.
+                  Keys set here override nothing set in Replit Secrets (Secrets always take priority).
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" className="border-gray-600 text-gray-300"
+                onClick={() => setEditingKey(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-amber-500 text-black hover:bg-amber-400 font-bold"
+                disabled={!newValue.trim() || saveMutation.isPending}
+                onClick={() => saveMutation.mutate({ key: editingKey.key, value: newValue.trim() })}>
+                {saveMutation.isPending
+                  ? <><Loader2 className="w-3 h-3 animate-spin mr-1.5" />Saving…</>
+                  : <><Save className="w-3 h-3 mr-1.5" />Save & Apply</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
 // ─── Root Admin Page ──────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -4401,8 +5115,9 @@ export default function AdminPage() {
       label: "SYSTEM",
       color: "text-rose-400",
       tabs: [
-        { value: "system", label: "System", icon: Settings },
-        { value: "audit",  label: "Audit",  icon: ShieldCheck },
+        { value: "integrations", label: "Integrations", icon: Plug },
+        { value: "system",       label: "System",       icon: Settings },
+        { value: "audit",        label: "Audit",        icon: ShieldCheck },
       ],
     },
   ];
@@ -4438,7 +5153,7 @@ export default function AdminPage() {
               <div className="font-bold text-white text-base leading-tight tracking-wide">
                 ADMIN <span className="text-cyan-400">CONTROL CENTER</span>
               </div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Sports Analytics Network</div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Network — v5.5.0</div>
             </div>
           </div>
 
@@ -4519,6 +5234,7 @@ export default function AdminPage() {
           <TabsContent value="markets"><MarketsTab /></TabsContent>
           <TabsContent value="currency"><CurrencyTab /></TabsContent>
           <TabsContent value="subscriptions"><SubscriptionsTab /></TabsContent>
+          <TabsContent value="integrations"><IntegrationsTab /></TabsContent>
           <TabsContent value="system"><SystemTab /></TabsContent>
           <TabsContent value="audit"><AuditTab /></TabsContent>
           <TabsContent value="agents"><MLAgentsTab /></TabsContent>

@@ -293,6 +293,25 @@ async def login(body: LoginRequest, request: Request = None, db: AsyncSession = 
     refresh_token = create_refresh_token({"sub": str(user.id)})
     await _write_audit(db, "user.login", user.email, "auth", str(user.id))
 
+    # ── Login email notification (async fire-and-forget) ─────────────────
+    try:
+        import asyncio as _asyncio
+        from app.modules.notifications.service import NotificationService as _NS
+        from app.modules.notifications.models import NotificationType as _NT, NotificationChannel as _NC
+        _asyncio.ensure_future(
+            _NS.create(
+                db=db,
+                user_id=user.id,
+                type=_NT.SYSTEM,
+                context={"message": f"New login detected from {client_ip or 'unknown IP'}. If this wasn't you, secure your account immediately."},
+                title="New Login Detected",
+                body=f"Your account was accessed from {client_ip or 'unknown IP'} at {now.strftime('%Y-%m-%d %H:%M UTC')}.",
+                channel=_NC.IN_APP,
+            )
+        )
+    except Exception:
+        pass
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,

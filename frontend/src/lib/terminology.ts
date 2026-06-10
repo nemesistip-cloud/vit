@@ -1,17 +1,17 @@
 export const TERMS = {
   platform: {
-    name: "VIT Sports Intelligence Network",
+    name: "VIT Network",
     shortName: "VIT Network",
     tagline: "Institutional-Grade Sports Intelligence",
-    version: "v5.5",
+    version: "v5.5.0",
   },
   tiers: {
-    free: "Intelligence Free",
-    analyst: "Intelligence Analyst",
-    pro: "Intelligence Pro",
-    validator: "Network Validator",
-    elite: "Intelligence Pro",
-    viewer: "Intelligence Free",
+    free: "Free",
+    analyst: "Analyst",
+    pro: "Pro",
+    validator: "Validator",
+    elite: "Pro",
+    viewer: "Free",
   },
   currency: {
     name: "VITCoin",
@@ -30,7 +30,7 @@ export const TERMS = {
     unstake: "Release Stake",
   },
   agents: {
-    "live-match-tracker": "Live Match ",
+    "live-match-tracker": "Live Match Tracker",
     "match-scout": "Pre-Match Scout Agent",
     "news-sentinel": "Injury & News Sentinel",
     "odds-anomaly": "Market Anomaly Detector",
@@ -40,7 +40,7 @@ export const TERMS = {
     "retrain-trigger": "Retraining Trigger Agent",
     "fixture-gap": "Fixture Gap Scanner",
     "accumulator-publisher": "Accumulator Publisher Agent",
-    "revenue-optimizer": "Revenue ",
+    "revenue-optimizer": "Revenue Optimizer",
     "governance-executor": "Protocol Execution Agent",
     "self-healing": "Network Self-Healing Agent",
     "audit-sentinel": "Security Audit Agent",

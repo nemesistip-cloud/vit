@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
+import os
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import List
@@ -196,6 +198,81 @@ async def my_completions(
         for r in records
     ]
     return {"items": items, "total": total, "offset": offset, "limit": limit}
+
+
+@router.get("/providers")
+async def get_offerwall_providers(current_user=Depends(get_current_user)):
+    """Return offerwall providers with their configuration status and authenticated URLs.
+    The URL includes the required API token/app ID so the frontend can open directly.
+    Returns configured=False when a provider key is missing — frontend shows a setup prompt.
+    """
+    uid = str(current_user.id)
+
+    def _cpx_hash(app_id: str, user_id: str, hash_key: str) -> str:
+        raw = f"{app_id}-{user_id}{hash_key}"
+        return hashlib.md5(raw.encode()).hexdigest()
+
+    providers = []
+
+    ayet_token = os.getenv("AYET_API_TOKEN", "").strip()
+    providers.append({
+        "id": "ayet", "name": "Ayet Studios",
+        "icon": "🎮", "color": "#f59e0b",
+        "desc": "Complete offers & surveys for VITCoin",
+        "rate": "Up to 50 VIT/offer",
+        "configured": bool(ayet_token),
+        "url": f"https://www.ayetstudios.com/offers/web_view/{ayet_token}?pub_id={uid}" if ayet_token else None,
+    })
+
+    bitlabs_token = os.getenv("BITLABS_APP_TOKEN", "").strip()
+    providers.append({
+        "id": "bitlabs", "name": "BitLabs",
+        "icon": "💡", "color": "#ec4899",
+        "desc": "Premium targeted surveys",
+        "rate": "10–40 VIT/survey",
+        "configured": bool(bitlabs_token),
+        "url": f"https://web.bitlabs.ai/?token={bitlabs_token}&uid={uid}" if bitlabs_token else None,
+    })
+
+    cpx_app_id    = os.getenv("CPX_RESEARCH_APP_ID", "").strip()
+    cpx_hash_key  = os.getenv("CPX_RESEARCH_SECURE_HASH_KEY", "").strip()
+    if cpx_app_id:
+        secure = _cpx_hash(cpx_app_id, uid, cpx_hash_key) if cpx_hash_key else ""
+        cpx_url = f"https://offers.cpx-research.com/index.php?app_id={cpx_app_id}&ext_user_id={uid}"
+        if secure:
+            cpx_url += f"&secure_hash={secure}"
+    else:
+        cpx_url = None
+    providers.append({
+        "id": "cpx", "name": "CPX Research",
+        "icon": "🔬", "color": "#06b6d4",
+        "desc": "Academic & consumer research panels",
+        "rate": "5–25 VIT/survey",
+        "configured": bool(cpx_app_id),
+        "url": cpx_url,
+    })
+
+    revu_pub_id = os.getenv("REVU_PUBLISHER_ID", "").strip()
+    providers.append({
+        "id": "revu", "name": "RevU",
+        "icon": "📊", "color": "#6366f1",
+        "desc": "Market research & consumer surveys",
+        "rate": "5–20 VIT/survey",
+        "configured": bool(revu_pub_id),
+        "url": f"https://publishers.revenueuniverse.com/wall/{revu_pub_id}?user_id={uid}" if revu_pub_id else None,
+    })
+
+    tapjoy_key = os.getenv("TAPJOY_SDK_KEY", "").strip()
+    providers.append({
+        "id": "tapjoy", "name": "Tapjoy",
+        "icon": "📱", "color": "#10b981",
+        "desc": "Install apps and complete challenges",
+        "rate": "Up to 30 VIT/install",
+        "configured": bool(tapjoy_key),
+        "url": f"https://offerwall.tapjoy.com/offerwall/?sdk_key={tapjoy_key}&snuid={uid}" if tapjoy_key else None,
+    })
+
+    return {"providers": providers}
 
 
 @router.get("/summary")

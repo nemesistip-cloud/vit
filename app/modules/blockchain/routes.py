@@ -22,6 +22,8 @@ from app.modules.blockchain.models import (
     ValidatorPrediction,
     ValidatorProfile,
     ValidatorStatus,
+    ValidatorAppeal,
+    ValidatorSlashEvent,
 )
 from app.modules.notifications.service import NotificationService
 from app.modules.wallet.models import Currency, TransactionType, Wallet, WalletTransaction
@@ -967,3 +969,209 @@ async def apply_to_be_agent(
         "message": "Application submitted for review",
         "application_id": app.id
     }
+
+
+# ── Validator Appeal System ─────────────────────────────────────────────
+
+class AppealSubmitRequest(BaseModel):
+    reason: str = Field(..., min_length=20, max_length=2000)
+    evidence_url: Optional[str] = Field(None, max_length=512)
+    slash_event_id: Optional[str] = None
+
+
+@router.post("/validators/appeal")
+async def submit_validator_appeal(
+    body: AppealSubmitRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit an appeal after being slashed. One pending appeal allowed at a time."""
+    res = await db.execute(
+        select(ValidatorProfile).where(ValidatorProfile.user_id == current_user.id)
+    )
+    vp = res.scalar_one_or_none()
+    if not vp:
+        raise HTTPException(404, "No validator profile found")
+    if vp.status != ValidatorStatus.SLASHED.value:
+        raise HTTPException(400, "Appeals can only be submitted after a slash event")
+
+    # Check for existing pending appeal
+    existing = await db.execute(
+        select(ValidatorAppeal).where(
+            ValidatorAppeal.validator_id == vp.id,
+            ValidatorAppeal.status == "pending",
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(409, "You already have a pending appeal. Wait for it to be reviewed.")
+
+    # Resolve most recent slash event if not specified
+    slash_event_id = body.slash_event_id
+    if not slash_event_id:
+        se_res = await db.execute(
+            select(ValidatorSlashEvent)
+            .where(ValidatorSlashEvent.validator_id == vp.id)
+            .order_by(ValidatorSlashEvent.slashed_at.desc())
+            .limit(1)
+        )
+        se = se_res.scalar_one_or_none()
+        slash_event_id = se.id if se else None
+
+    appeal = ValidatorAppeal(
+        validator_id=vp.id,
+        user_id=current_user.id,
+        slash_event_id=slash_event_id,
+        reason=body.reason,
+        evidence_url=body.evidence_url,
+        status="pending",
+    )
+    db.add(appeal)
+    await db.commit()
+    await db.refresh(appeal)
+
+    return {
+        "ok": True,
+        "appeal_id": appeal.id,
+        "status": appeal.status,
+        "message": "Your appeal has been submitted and will be reviewed by the admin team.",
+    }
+
+
+@router.get("/validators/appeal")
+async def get_my_appeal(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the current user's most recent validator appeal."""
+    res = await db.execute(
+        select(ValidatorProfile).where(ValidatorProfile.user_id == current_user.id)
+    )
+    vp = res.scalar_one_or_none()
+    if not vp:
+        raise HTTPException(404, "No validator profile found")
+
+    appeal_res = await db.execute(
+        select(ValidatorAppeal)
+        .where(ValidatorAppeal.validator_id == vp.id)
+        .order_by(ValidatorAppeal.submitted_at.desc())
+        .limit(1)
+    )
+    appeal = appeal_res.scalar_one_or_none()
+    if not appeal:
+        return {"appeal": None}
+    return {
+        "appeal": {
+            "id": appeal.id,
+            "status": appeal.status,
+            "reason": appeal.reason,
+            "evidence_url": appeal.evidence_url,
+            "admin_note": appeal.admin_note,
+            "submitted_at": appeal.submitted_at.isoformat(),
+            "reviewed_at": appeal.reviewed_at.isoformat() if appeal.reviewed_at else None,
+        }
+    }
+
+
+class AppealReviewRequest(BaseModel):
+    decision: str = Field(..., pattern="^(approved|rejected)$")
+    admin_note: str = ""
+    restake_amount: float = 0.0
+
+
+@router.post("/admin/appeals/{appeal_id}/review")
+async def review_validator_appeal(
+    appeal_id: str,
+    body: AppealReviewRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin reviews a validator appeal. Approved → restore SUSPENDED status + optional restake."""
+    appeal_res = await db.execute(
+        select(ValidatorAppeal).where(ValidatorAppeal.id == appeal_id)
+    )
+    appeal = appeal_res.scalar_one_or_none()
+    if not appeal:
+        raise HTTPException(404, "Appeal not found")
+    if appeal.status != "pending":
+        raise HTTPException(409, "Appeal already reviewed")
+
+    appeal.status = body.decision
+    appeal.admin_note = body.admin_note
+    appeal.reviewed_by = admin.id
+    appeal.reviewed_at = datetime.now(timezone.utc)
+
+    if body.decision == "approved":
+        # Restore validator to SUSPENDED (not ACTIVE — needs admin reactivation)
+        vp_res = await db.execute(
+            select(ValidatorProfile).where(ValidatorProfile.id == appeal.validator_id)
+        )
+        vp = vp_res.scalar_one_or_none()
+        if vp:
+            vp.status = ValidatorStatus.SUSPENDED.value
+
+            # Optionally credit a restake amount
+            if body.restake_amount > 0:
+                restake = Decimal(str(body.restake_amount))
+                appeal.restake_amount = restake
+                wallet_res = await db.execute(
+                    select(Wallet).where(Wallet.user_id == appeal.user_id)
+                )
+                wallet = wallet_res.scalar_one_or_none()
+                if wallet:
+                    try:
+                        await WalletService(db).credit(
+                            wallet_id=wallet.id,
+                            user_id=appeal.user_id,
+                            currency=Currency.VITCOIN,
+                            amount=restake,
+                            tx_type=TransactionType.REWARD.value,
+                            reference=f"appeal-restake:{appeal.id}",
+                            metadata={"appeal_id": appeal.id, "reason": "appeal_approved"},
+                        )
+                    except Exception as _rs_err:
+                        logger.warning("[appeal] restake credit failed: %s", _rs_err)
+
+        await NotificationService.notify_validator_status(
+            db, appeal.user_id, status="appeal_approved",
+            detail=(
+                f"Your appeal has been approved. Your validator status has been restored to 'suspended'. "
+                f"An admin can reactivate you to resume predictions."
+                + (f" {restake} VIT has been credited to your wallet." if body.restake_amount > 0 else "")
+            ),
+        )
+    else:
+        await NotificationService.notify_validator_status(
+            db, appeal.user_id, status="appeal_rejected",
+            detail=f"Your validator appeal was not approved. {body.admin_note or ''}",
+        )
+
+    await db.commit()
+    return {"ok": True, "decision": body.decision, "appeal_id": appeal_id}
+
+
+@router.get("/admin/appeals")
+async def list_pending_appeals(
+    status: str = "pending",
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """List validator appeals by status."""
+    res = await db.execute(
+        select(ValidatorAppeal)
+        .where(ValidatorAppeal.status == status)
+        .order_by(ValidatorAppeal.submitted_at.asc())
+        .limit(50)
+    )
+    appeals = res.scalars().all()
+    return [
+        {
+            "id": a.id,
+            "validator_id": a.validator_id,
+            "user_id": a.user_id,
+            "reason": a.reason,
+            "evidence_url": a.evidence_url,
+            "status": a.status,
+            "submitted_at": a.submitted_at.isoformat(),
+        }
+        for a in appeals
+    ]

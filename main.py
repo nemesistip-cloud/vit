@@ -227,6 +227,24 @@ async def lifespan(app: FastAPI):
     # 1. Load secrets from GCP Secret Manager (if available)
     await load_all_secrets()
 
+    # 1b. Load admin-saved integration keys from DB into os.environ
+    try:
+        from app.db.database import AsyncSessionLocal as _ASL
+        from app.modules.wallet.models import PlatformConfig as _PC
+        from sqlalchemy import select as _sel
+        async with _ASL() as _kdb:
+            _rows = (await _kdb.execute(
+                _sel(_PC).where(_PC.key.like("integration:%"))
+            )).scalars().all()
+            for _row in _rows:
+                env_key = _row.key.replace("integration:", "")
+                if env_key and not os.environ.get(env_key):
+                    os.environ[env_key] = str(_row.value)
+        if _rows:
+            print(f"  ✅ Loaded {len(_rows)} integration key(s) from DB")
+    except Exception as _ki_err:
+        pass  # DB might not be ready yet; keys will load from env
+
     # 2. Configure logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
     setup_firestore_events()
@@ -382,6 +400,28 @@ async def _run_bootstrap(app, _done_event):
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0"))
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id VARCHAR(255)"))
                         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(255)"))
+                        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS withdrawals_frozen BOOLEAN NOT NULL DEFAULT FALSE"))
+                        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_flagged BOOLEAN NOT NULL DEFAULT FALSE"))
+                        # ── validator_appeals table (v5.5.0) ──────────────────────
+                        try:
+                            await conn.execute(text("""
+                                CREATE TABLE IF NOT EXISTS validator_appeals (
+                                    id VARCHAR(36) PRIMARY KEY,
+                                    validator_id VARCHAR(36) NOT NULL REFERENCES validator_profiles(id) ON DELETE CASCADE,
+                                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                    slash_event_id VARCHAR(36) REFERENCES validator_slash_events(id) ON DELETE SET NULL,
+                                    reason TEXT NOT NULL,
+                                    evidence_url VARCHAR(512),
+                                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                                    admin_note TEXT,
+                                    reviewed_by INTEGER REFERENCES users(id),
+                                    restake_amount NUMERIC(20,8) DEFAULT 0,
+                                    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                                    reviewed_at TIMESTAMP WITH TIME ZONE
+                                )
+                            """))
+                        except Exception as _va_e:
+                            print(f"⚠️  validator_appeals migration skipped: {_va_e}")
                         # ── marketplace_listings new columns (PostgreSQL) ───────────
                         try:
                             for col, ddl in [
@@ -504,13 +544,14 @@ async def _run_bootstrap(app, _done_event):
                     ("deposit_limits", {"min_usd": 1, "min_ngn": 500, "max_usd": 10000}, "Deposit limits"),
                     ("vitcoin_supply", {"initial": 1000000, "burned": 0, "reserved": 100000}, "VITCoin supply parameters"),
                     ("platform_treasury", {"address": "vit_treasury_001"}, "Platform treasury wallet reference"),
-                    ("exchange_rates", {"usd_ngn": 1580, "usd_pi": 0.5, "usd_usdt": 1.0}, "Fiat/crypto exchange rates"),
+
                     ("vitcoin_price_formula", {"window_days": 30, "method": "revenue_backed"}, "VITCoin price calculation parameters"),
                     ("vitcoin_price_floor", {"amount": "0.10"}, "Minimum VITCoin price in USD"),
                     ("exchange_rates_usd",
                      {"NGN": 0.000633, "USD": 1.0, "USDT": 1.0, "PI": 0.314159, "VITCoin": 0.10},
                      "Per-currency rate to 1 USD (used by the conversion engine)"),
                     ("conversion_fee_pct", {"value": 0.5}, "Currency conversion fee percentage"),
+                    ("welcome_bonus_vit", {"amount": "100"}, "VITCoin welcome bonus for new accounts"),
                 ]
                 async with AsyncSessionLocal() as _db:
                     for key, value, desc in _default_configs:
@@ -668,42 +709,43 @@ async def _run_bootstrap(app, _done_event):
                 import uuid as _uuid
                 from decimal import Decimal as _Decimal
                 from app.db.database import AsyncSessionLocal
-                from app.db.models import User as _User
-                from app.modules.wallet.models import Wallet as _Wallet
+                from app.db.models import User as _User, WalletTransaction as _WT
+                from app.modules.wallet.models import Wallet as _Wallet, PlatformConfig as _PC
                 from sqlalchemy import select as _select
 
                 async with AsyncSessionLocal() as _db:
-                    # Fetch welcome bonus config
-                    from app.modules.wallet.models import PlatformConfig as _PC
-                    _bonus_row = (await _db.execute(
-                        _select(_PC).where(_PC.key == "welcome_bonus_vit")
-                    )).scalar_one_or_none()
-                    _welcome_bonus = _Decimal("100.00000000")
-                    if _bonus_row and _bonus_row.value:
-                        try:
-                            if isinstance(_bonus_row.value, dict):
-                                _welcome_bonus = _Decimal(str(_bonus_row.value.get("amount", _bonus_row.value.get("value", 100))))
-                            else:
-                                _welcome_bonus = _Decimal(str(_bonus_row.value))
-                        except Exception:
-                            pass
+                    # Optimized backfill with bulk check
+                    _existing_wallet_user_ids = set(
+                        (await _db.execute(_select(_Wallet.user_id))).scalars().all()
+                    )
+                    _users_needing_wallets = (await _db.execute(
+                        _select(_User).where(_User.id.not_in(_existing_wallet_user_ids))
+                    )).scalars().all()
 
-                    _users = (await _db.execute(_select(_User))).scalars().all()
-                    _created = 0
-                    for _u in _users:
-                        _existing_wallet = (await _db.execute(
-                            _select(_Wallet).where(_Wallet.user_id == _u.id)
+                    if _users_needing_wallets:
+                        _bonus_row = (await _db.execute(
+                            _select(_PC).where(_PC.key == "welcome_bonus_vit")
                         )).scalar_one_or_none()
-                        if not _existing_wallet:
-                            _db.add(_Wallet(
-                                id=str(_uuid.uuid4()),
-                                user_id=_u.id,
-                                vitcoin_balance=_welcome_bonus,
+                        _welcome_bonus = _Decimal("100.00000000")
+                        if _bonus_row and _bonus_row.value:
+                            try:
+                                if isinstance(_bonus_row.value, dict):
+                                    _welcome_bonus = _Decimal(str(_bonus_row.value.get("amount", _bonus_row.value.get("value", 100))))
+                                else:
+                                    _welcome_bonus = _Decimal(str(_bonus_row.value))
+                            except Exception:
+                                pass
+
+                        for _u in _users_needing_wallets:
+                            _new_wallet_id = str(_uuid.uuid4())
+                            _db.add(_Wallet(id=_new_wallet_id, user_id=_u.id, vitcoin_balance=_welcome_bonus))
+                            _db.add(_WT(
+                                wallet_id=_new_wallet_id, user_id=_u.id, type="welcome_bonus",
+                                amount=_welcome_bonus, currency="VITCoin", status="confirmed", reference="welcome_bonus",
+                                processed_at=datetime.now(timezone.utc).replace(tzinfo=None)
                             ))
-                            _created += 1
-                    if _created:
                         await _db.commit()
-                        print(f"✅ Wallets backfilled for {_created} existing user(s)")
+                        print(f"✅ Wallets backfilled for {len(_users_needing_wallets)} existing user(s)")
             except Exception as _e:
                 print(f"⚠️  Wallet backfill failed: {_e}")
 
@@ -1716,6 +1758,20 @@ async def _run_bootstrap(app, _done_event):
                         pass
                     await asyncio.sleep(3600)
 
+            async def bridge_relayer_loop():
+                """Auto-relay bridge transactions that have been locked > 30 minutes."""
+                while True:
+                    try:
+                        from app.db.database import AsyncSessionLocal
+                        from app.modules.bridge.service import auto_relay_pending
+                        async with AsyncSessionLocal() as _br_db:
+                            result = await auto_relay_pending(_br_db, max_age_minutes=30)
+                            if result["total_checked"] > 0:
+                                logger.info("[bridge-relayer] %s", result)
+                    except Exception as _br_err:
+                        logger.warning("[bridge-relayer] loop error: %s", _br_err)
+                    await asyncio.sleep(1800)  # run every 30 minutes
+
             from app.services.exchange_rate import start_rate_refresh_loop
             tasks = [
                 asyncio.create_task(auto_settle_loop(), name="auto-settle"),
@@ -1726,6 +1782,7 @@ async def _run_bootstrap(app, _done_event):
                 asyncio.create_task(start_rate_refresh_loop(), name="exchange-rate-oracle"),
                 asyncio.create_task(sync_upcoming_loop(), name="fixture-sync"),
                 asyncio.create_task(historical_backfill_task(), name="historical-backfill"),
+                asyncio.create_task(bridge_relayer_loop(), name="bridge-relayer"),
             ]
 
             # ── Autonomous performance agents ─────────────────────────────────────
@@ -1916,6 +1973,7 @@ app.include_router(ai_support_route.router)
 # Auth (JWT)
 app.include_router(auth_router)
 app.include_router(wallet_router)
+app.include_router(webhooks_router)
 app.include_router(marketplace_router)
 app.include_router(merchant_router)
 app.include_router(blockchain_router)
