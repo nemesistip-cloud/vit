@@ -1,5 +1,13 @@
 FROM python:3.11-slim
 
+LABEL org.opencontainers.image.title="VIT Network"
+LABEL org.opencontainers.image.description="AI-powered sports intelligence platform — Python/FastAPI backend"
+LABEL org.opencontainers.image.version="5.5.0"
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
+LABEL org.opencontainers.image.source="https://github.com/nemesistip-cloud/vit"
+LABEL org.opencontainers.image.url="https://vitnetwork.io"
+LABEL org.opencontainers.image.vendor="VIT Network"
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
