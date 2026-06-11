@@ -389,6 +389,10 @@ class OddsAPIClient:
                 logger.warning("Odds API quota exhausted")
                 self.__class__._key_invalid = True
                 return {}
+            elif e.response is not None and e.response.status_code == 404:
+                # Sport/league not available (out of season or invalid key) — skip silently
+                logger.debug(f"Odds API 404 for {endpoint} — league may be out of season, skipping")
+                return {}
             elif e.response is not None and e.response.status_code == 429:
                 logger.warning("Odds API rate limit exceeded")
             raise
