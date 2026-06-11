@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Production startup — FastAPI only (uvicorn on port $PORT).
 # The built frontend (frontend/dist) is served directly by FastAPI's StaticFiles mount.
-# This script is used by Replit deployment; never run Vite in production.
+# frontend/dist is pre-built at build time and committed to the repo.
 #
 # NOTE: Single worker only — the app has background agents, WebSocket connections,
 # and in-memory state (rate limiter, Elo store) that must live in one process.
@@ -11,9 +11,6 @@ cd "$(dirname "$0")/.."
 PORT="${PORT:-10000}"
 APP_VERSION="5.5.0"
 
-# Signal to app that we are in production — triggers full model loading,
-# disables ephemeral JWT key warnings, and activates all 13 ensemble models.
-# Works on Replit (REPLIT_DEPLOYMENT is set automatically) AND on Render/VPS.
 export ENVIRONMENT="${ENVIRONMENT:-production}"
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
 export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-true}"
@@ -24,21 +21,7 @@ echo "[production] Environment: ${ENVIRONMENT} | Port: ${PORT}"
 if [ -d "frontend/dist" ]; then
     echo "[production] Frontend assets found in frontend/dist"
 else
-    echo "[production] frontend/dist not found — building frontend now..."
-    if command -v node &>/dev/null; then
-        cd frontend
-        if [ -f "pnpm-lock.yaml" ] && command -v pnpm &>/dev/null; then
-            pnpm install --frozen-lockfile && pnpm run build
-        elif [ -f "package-lock.json" ]; then
-            npm ci --prefer-offline --no-audit --no-fund && npm run build
-        else
-            npm install --prefer-offline --no-audit --no-fund && npm run build
-        fi
-        cd ..
-        echo "[production] Frontend build complete"
-    else
-        echo "[production] WARNING: node not available — frontend will not be served."
-    fi
+    echo "[production] WARNING: frontend/dist not found. Frontend may not be served."
 fi
 
 echo "[production] Running database schema setup..."
@@ -84,29 +67,52 @@ async def ensure_schema():
 
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-                # PostgreSQL-safe column additions
-                sql_cmds = [
-                    "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER",
-                    "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN",
-                    "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS settled_profit DOUBLE PRECISION",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0",
-                    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT",
-                    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT",
-                    "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS staked_vitcoin_balance NUMERIC(20, 8) DEFAULT 0",
-                    "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS direction VARCHAR(10)",
-                    "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS currency VARCHAR(10)",
-                    "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS note TEXT",
-                    "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS reference VARCHAR(100)",
-                    "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS recipient_address VARCHAR(255)",
-                    "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS sender_address VARCHAR(255)"
-                ]
-                for cmd in sql_cmds:
-                    await conn.exec_driver_sql(cmd)
+                dialect = conn.dialect.name if hasattr(conn, 'dialect') else ''
+                if dialect == 'sqlite':
+                    # SQLite: check each column before adding (no IF NOT EXISTS support)
+                    pred_cols = {row[1] for row in (await conn.exec_driver_sql('PRAGMA table_info(predictions)')).fetchall()}
+                    for col, ddl in [('user_id', 'INTEGER'), ('was_correct', 'BOOLEAN'), ('settled_profit', 'REAL')]:
+                        if col not in pred_cols:
+                            await conn.exec_driver_sql(f'ALTER TABLE predictions ADD COLUMN {col} {ddl}')
+                    user_cols = {row[1] for row in (await conn.exec_driver_sql('PRAGMA table_info(users)')).fetchall()}
+                    for col, ddl in [
+                        ('kyc_status', "VARCHAR(20) DEFAULT 'none'"),
+                        ('kyc_submitted_at', 'DATETIME'),
+                        ('kyc_data', 'JSON'),
+                        ('current_streak', 'INTEGER DEFAULT 0'),
+                        ('best_streak', 'INTEGER DEFAULT 0'),
+                        ('total_xp', 'INTEGER DEFAULT 0'),
+                    ]:
+                        if col not in user_cols:
+                            await conn.exec_driver_sql(f'ALTER TABLE users ADD COLUMN {col} {ddl}')
+                    task_cols = {row[1] for row in (await conn.exec_driver_sql('PRAGMA table_info(tasks)')).fetchall()}
+                    for col, ddl in [('action_url', 'TEXT'), ('action_label', 'TEXT')]:
+                        if col not in task_cols:
+                            await conn.exec_driver_sql(f'ALTER TABLE tasks ADD COLUMN {col} {ddl}')
+                else:
+                    # PostgreSQL: IF NOT EXISTS is supported
+                    sql_cmds = [
+                        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER",
+                        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN",
+                        "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS settled_profit DOUBLE PRECISION",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0",
+                        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT",
+                        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT",
+                        "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS staked_vitcoin_balance NUMERIC(20, 8) DEFAULT 0",
+                        "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS direction VARCHAR(10)",
+                        "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS currency VARCHAR(10)",
+                        "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS note TEXT",
+                        "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS reference VARCHAR(100)",
+                        "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS recipient_address VARCHAR(255)",
+                        "ALTER TABLE remittance_transactions ADD COLUMN IF NOT EXISTS sender_address VARCHAR(255)"
+                    ]
+                    for cmd in sql_cmds:
+                        await conn.exec_driver_sql(cmd)
 
             await engine.dispose()
             print("[production] Database schema ready")
