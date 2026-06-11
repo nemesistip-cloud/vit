@@ -2269,6 +2269,14 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
         "plans": plans,
     }
 
+@app.get("/ping", include_in_schema=False)
+async def ping():
+    """Always-available liveness probe — responds immediately without DB.
+    Use this as the Render health check path so the service is not killed
+    while the DB is still warming up during startup."""
+    return {"ok": True}
+
+
 @app.get("/readiness", include_in_schema=False)
 @app.get("/api/readiness", include_in_schema=False)
 async def readiness(db: AsyncSession = Depends(get_db)):
