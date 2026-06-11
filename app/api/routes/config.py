@@ -80,6 +80,13 @@ async def _get_kv(db: AsyncSession, key: str, default):
     val = row.value
     if val is None:
         return default
+    # Unwrap dict wrappers — handles {"value": X}, {"amount": X}, {"rate": X}
+    # and prevents TypeError when float()/int() is called on the result
+    if isinstance(val, dict):
+        for k in ("value", "amount", "rate"):
+            if k in val and not isinstance(val[k], dict):
+                return val[k]
+        return default
     return val
 
 
@@ -163,10 +170,15 @@ async def _build_config(db: AsyncSession) -> Dict[str, Any]:
 
 @router.get("/public")
 async def public_config(db: AsyncSession = Depends(get_db)):
+    import logging as _log
     now = time.time()
     if _CACHE["data"] is not None and (now - _CACHE["ts"]) < _CACHE_TTL_SECONDS:
         return _CACHE["data"]
-    data = await _build_config(db)
+    try:
+        data = await _build_config(db)
+    except Exception as exc:
+        _log.getLogger(__name__).error("[config/public] _build_config failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Config build failed: {type(exc).__name__}")
     _CACHE["data"] = data
     _CACHE["ts"] = now
     return data
