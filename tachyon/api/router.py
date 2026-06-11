@@ -175,12 +175,21 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         select(__import__("sqlalchemy").func.count(TachyonManifest.file_id))
     )
     db_manifest_count = count_result.scalar() or 0
+    gdrive_nodes = sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))
+    disk_nodes   = len(_providers) - gdrive_nodes
+    if gdrive_nodes and disk_nodes:
+        backend = f"gdrive({gdrive_nodes}) + disk({disk_nodes})"
+    elif gdrive_nodes:
+        backend = f"gdrive({gdrive_nodes})"
+    else:
+        backend = f"disk({disk_nodes})"
+
     return {
         "network_bandwidth": "3.2 Tbps",
         "active_nodes": len(_providers),
         "fragments_processed": db_manifest_count,
         "status": "operational",
         "manifest_count": db_manifest_count,
-        "storage_backend": "disk",
+        "storage_backend": backend,
         "storage_path": _STORAGE_ROOT,
     }
