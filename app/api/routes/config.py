@@ -329,7 +329,7 @@ async def public_landing(db: AsyncSession = Depends(get_db)):
     return {
         "stats": {
             "predictions_display": _fmt_num(total_preds),
-            "accuracy_display": f"{accuracy}%" if settled_total > 0 else "84.2%",
+            "accuracy_display": f"{accuracy}%" if settled_total > 0 else "N/A",
             "total_staked_display": _fmt_usd(total_staked_vit),
             "ai_models": active_agents,
             "ai_models_ready": models_ready or active_agents,
