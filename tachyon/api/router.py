@@ -46,8 +46,8 @@ if _ONEDRIVE_ID:
 _DISK_MIN = max(0, 3 - len(_providers))
 _providers += [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(_DISK_MIN)]
 
-_backends = ([f"gdrive({sum(1 for p in _providers if isinstance(p, GoogleDriveProvider)})}" ] if _GDRIVE_SA    else []) + \
-            ([f"dropbox({sum(1 for p in _providers if isinstance(p, DropboxProvider)})}"  ] if _DROPBOX_TOK  else []) + \
+_backends = ([f"gdrive({sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))})"] if _GDRIVE_SA    else []) + \
+            ([f"dropbox({sum(1 for p in _providers if isinstance(p, DropboxProvider))})"]  if _DROPBOX_TOK  else []) + \
             ([f"onedrive({sum(1 for p in _providers if isinstance(p, OneDriveProvider))})"] if _ONEDRIVE_ID  else []) + \
             [f"disk({sum(1 for p in _providers if isinstance(p, DiskProvider))})"]
 logger.info("[tachyon] providers: %s  total=%d", " + ".join(_backends), len(_providers))
