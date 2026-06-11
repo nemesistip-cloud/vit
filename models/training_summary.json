@@ -1,135 +1,109 @@
 {
-  "trained_at": "2026-05-04T09:37:21Z",
+  "trained_at": "2026-06-11T13:56:57Z",
   "training_samples": 6743,
   "ensemble": {
     "results": {
       "logistic_v2": {
         "model_name": "LogisticRegression",
-        "accuracy": 0.52,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9776,
-        "brier_score": 0.1935,
-        "elapsed_s": 0.07,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "rf_v2": {
         "model_name": "RandomForest",
-        "accuracy": 0.5425,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9574,
-        "brier_score": 0.1895,
-        "elapsed_s": 0.12,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "xgb_v2": {
         "model_name": "XGBoost",
-        "accuracy": 0.515,
-        "ou_accuracy": 0.515,
-        "log_loss": 1.0053,
-        "brier_score": 0.1995,
-        "elapsed_s": 0.08,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "poisson_v2": {
         "model_name": "PoissonGoals",
-        "accuracy": 0.5425,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9577,
-        "brier_score": 0.1892,
-        "elapsed_s": 0.09,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "elo_v2": {
         "model_name": "EloRating",
-        "accuracy": 0.5425,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9749,
-        "brier_score": 0.1932,
-        "elapsed_s": 0.09,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "dixon_coles_v2": {
         "model_name": "DixonColes",
-        "accuracy": 0.545,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9571,
-        "brier_score": 0.1891,
-        "elapsed_s": 0.09,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "lstm_v2": {
         "model_name": "LSTM",
-        "accuracy": 0.54,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9564,
-        "brier_score": 0.1892,
-        "elapsed_s": 0.28,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "transformer_v2": {
         "model_name": "Transformer",
-        "accuracy": 0.5325,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9556,
-        "brier_score": 0.189,
-        "elapsed_s": 0.27,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "ensemble_v2": {
         "model_name": "NeuralEnsemble",
-        "accuracy": 0.5475,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9557,
-        "brier_score": 0.1889,
-        "elapsed_s": 0.09,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "market_v2": {
         "model_name": "MarketImplied",
-        "accuracy": 0.5475,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9553,
-        "brier_score": 0.1888,
-        "elapsed_s": 0.07,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "bayes_v2": {
         "model_name": "BayesianNet",
-        "accuracy": 0.495,
-        "ou_accuracy": 0.515,
-        "log_loss": 1.0029,
-        "brier_score": 0.199,
-        "elapsed_s": 0.07,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "hybrid_v2": {
         "model_name": "HybridStack",
-        "accuracy": 0.5275,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9612,
-        "brier_score": 0.1901,
-        "elapsed_s": 0.36,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       },
       "llm_consensus_v1": {
         "model_name": "LLMConsensus",
-        "accuracy": 0.5475,
-        "ou_accuracy": 0.515,
-        "log_loss": 0.9553,
-        "brier_score": 0.1888,
-        "elapsed_s": 0.08,
-        "status": "ok"
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
       }
     },
-    "avg_accuracy": 0.5342,
-    "avg_ou_accuracy": 0.515,
-    "models_ok": 13,
-    "models_failed": 0,
-    "saved_pkls": 13,
-    "job_id": "train_1777887436"
+    "avg_accuracy": 0.0,
+    "avg_ou_accuracy": 0.0,
+    "models_ok": 0,
+    "models_failed": 13,
+    "saved_pkls": 0,
+    "job_id": "train_1781186093"
   },
   "market": {
-    "error": "No module named 'torch'"
+    "btts": {
+      "model_key": "btts_v2",
+      "val_accuracy": 0.5256,
+      "log_loss": 0.6938,
+      "train_samples": 5394,
+      "val_samples": 1349,
+      "total_samples": 6743,
+      "saved_to": "/app/models/btts_v2.pkl"
+    },
+    "over_under": {
+      "model_key": "over_under_v2",
+      "val_accuracy": 0.2498,
+      "log_loss": 1.59,
+      "train_samples": 5394,
+      "val_samples": 1349,
+      "total_samples": 6743,
+      "saved_to": "/app/models/over_under_v2.pkl"
+    },
+    "correct_score": {
+      "model_key": "correct_score_v2",
+      "val_accuracy": 0.1127,
+      "log_loss": 3.5349,
+      "train_samples": 5394,
+      "val_samples": 1349,
+      "total_samples": 6743,
+      "saved_to": "/app/models/correct_score_v2.pkl"
+    }
   },
   "use_real_ml": true
 }
