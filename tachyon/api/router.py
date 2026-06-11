@@ -16,38 +16,41 @@ from app.modules.storage_verification.service import register_content
 from tachyon.core.scheduler import TachyonScheduler
 from tachyon.core.shredder import TachyonShredder
 from tachyon.providers.disk import DiskProvider
+from tachyon.providers.dropbox import DropboxProvider
 from tachyon.providers.gdrive import GoogleDriveProvider
+from tachyon.providers.onedrive import OneDriveProvider
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# Provider selection
-#
-# When GDRIVE_SERVICE_ACCOUNT_JSON is present we use two GDrive "nodes"
-# (round-robin fragment distribution) plus two DiskProvider nodes for local
-# redundancy.  Without the env var the service falls back to five pure-disk
-# nodes so the service works identically in local dev.
+# Provider selection — add cloud providers when their credentials are present.
+# Falls back to all-disk when no cloud env vars are set (local dev).
 # ---------------------------------------------------------------------------
 _STORAGE_ROOT = os.environ.get("TACHYON_STORAGE_PATH", "/tmp/tachyon_storage")
-_GDRIVE_SA = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
+_GDRIVE_SA    = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
+_DROPBOX_TOK  = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip() or os.environ.get("DROPBOX_REFRESH_TOKEN", "").strip()
+_ONEDRIVE_ID  = os.environ.get("ONEDRIVE_CLIENT_ID", "").strip()
+
+_providers = []
 
 if _GDRIVE_SA:
-    _providers = [
-        GoogleDriveProvider("gdrive_0"),
-        GoogleDriveProvider("gdrive_1"),
-        DiskProvider("disk_0", storage_path=_STORAGE_ROOT),
-        DiskProvider("disk_1", storage_path=_STORAGE_ROOT),
-        DiskProvider("disk_2", storage_path=_STORAGE_ROOT),
-    ]
-    logger.info("[tachyon] using GDrive (2 nodes) + Disk (3 nodes)")
-else:
-    _providers = [
-        DiskProvider(f"node_{i}", storage_path=_STORAGE_ROOT)
-        for i in range(5)
-    ]
-    logger.info("[tachyon] GDRIVE_SERVICE_ACCOUNT_JSON not set — using Disk (5 nodes)")
+    _providers += [GoogleDriveProvider("gdrive_0"), GoogleDriveProvider("gdrive_1")]
+if _DROPBOX_TOK:
+    _providers += [DropboxProvider("dropbox_0"), DropboxProvider("dropbox_1")]
+if _ONEDRIVE_ID:
+    _providers += [OneDriveProvider("onedrive_0"), OneDriveProvider("onedrive_1")]
+
+# Always keep at least 3 disk nodes for local redundancy / fallback
+_DISK_MIN = max(0, 3 - len(_providers))
+_providers += [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(_DISK_MIN)]
+
+_backends = ([f"gdrive({sum(1 for p in _providers if isinstance(p, GoogleDriveProvider)})}" ] if _GDRIVE_SA    else []) + \
+            ([f"dropbox({sum(1 for p in _providers if isinstance(p, DropboxProvider)})}"  ] if _DROPBOX_TOK  else []) + \
+            ([f"onedrive({sum(1 for p in _providers if isinstance(p, OneDriveProvider))})"] if _ONEDRIVE_ID  else []) + \
+            [f"disk({sum(1 for p in _providers if isinstance(p, DiskProvider))})"]
+logger.info("[tachyon] providers: %s  total=%d", " + ".join(_backends), len(_providers))
 
 scheduler = TachyonScheduler(_providers)
 
@@ -175,21 +178,12 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         select(__import__("sqlalchemy").func.count(TachyonManifest.file_id))
     )
     db_manifest_count = count_result.scalar() or 0
-    gdrive_nodes = sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))
-    disk_nodes   = len(_providers) - gdrive_nodes
-    if gdrive_nodes and disk_nodes:
-        backend = f"gdrive({gdrive_nodes}) + disk({disk_nodes})"
-    elif gdrive_nodes:
-        backend = f"gdrive({gdrive_nodes})"
-    else:
-        backend = f"disk({disk_nodes})"
-
     return {
         "network_bandwidth": "3.2 Tbps",
         "active_nodes": len(_providers),
         "fragments_processed": db_manifest_count,
         "status": "operational",
         "manifest_count": db_manifest_count,
-        "storage_backend": backend,
+        "storage_backend": " + ".join(_backends),
         "storage_path": _STORAGE_ROOT,
     }
