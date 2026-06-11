@@ -1,5 +1,5 @@
 # app/api/routes/training.py
-from app.services.gcs_storage import gcs_storage
+from app.services.tachyon_client import tachyon_client
 import asyncio
 # VIT Sports Analytics Network — v3.0.0 (Beast Mode)
 # Training Pipeline: trigger retraining, simulation engine, bootstrap training,
@@ -169,16 +169,13 @@ def _save_model_pkl(model_obj, key: str, job_id: str, metrics: Optional[dict] = 
         joblib.dump(payload, archive_path)
         joblib.dump(payload, active_path)
         logger.info(f"Saved model weights for '{key}' → {active_filename} and {archive_filename}")
-            # Task 3D: Upload to GCS and cleanup
+            # Task 3D: Upload to Tachyon and cleanup
         try:
             loop = asyncio.get_event_loop()
-            loop.create_task(gcs_storage.upload_model(active_path, active_filename))
-            loop.create_task(gcs_storage.upload_model(archive_path, archive_filename))
-            # We keep active locally for immediate use, but archive can be cleaned
-            # os.remove(archive_path) # Requirement says "Delete the local file after successful GCS upload"
-            # To avoid race, we could use a proper background task, but this fits the directive.
-        except Exception as gcs_err:
-            logger.error("[training-gcs] GCS sync failed: %s", gcs_err)
+            loop.create_task(tachyon_client.upload_model(active_path))
+            loop.create_task(tachyon_client.upload_model(archive_path))
+        except Exception as tachyon_err:
+            logger.error("[training-tachyon] Tachyon sync failed: %s", tachyon_err)
 
         return {"active": active_filename, "archive": archive_filename}
     except Exception as _e:
