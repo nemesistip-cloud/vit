@@ -207,10 +207,11 @@ export function BetSlipPanel() {
               </div>
               <Button
                 size="sm"
-                className="w-full font-mono text-xs font-bold bg-gradient-to-r from-secondary to-yellow-500 text-black hover:opacity-90 border-0"
-                onClick={() => { alert("Connect wallet to place accumulator bets. Feature coming soon!"); }}
+                disabled
+                title="Accumulator staking is being rolled out — check back soon"
+                className="w-full font-mono text-xs font-bold bg-gradient-to-r from-secondary to-yellow-500 text-black opacity-60 cursor-not-allowed border-0"
               >
-                Place Accumulator ({items.length} selections)
+                Place Accumulator — Coming Soon
               </Button>
             </div>
           )}
