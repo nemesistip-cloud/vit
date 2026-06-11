@@ -12,8 +12,8 @@ PORT="${PORT:-10000}"
 APP_VERSION="5.5.0"
 
 export ENVIRONMENT="${ENVIRONMENT:-production}"
-export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
-export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-true}"
+export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-false}"
+export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-false}"
 
 echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Environment: ${ENVIRONMENT} | Port: ${PORT}"
