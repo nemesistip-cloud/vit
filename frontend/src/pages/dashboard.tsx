@@ -50,7 +50,7 @@ function AIConfidenceWidget() {
   const activeCount = models.filter((m: any) => m.accuracy > 0).length;
   const ensembleAccuracy = models.length > 0
     ? (models.reduce((acc: number, m: any) => acc + (m.accuracy || 0), 0) / models.length * 100).toFixed(1)
-    : "84.2";
+    : "--";
 
   return (
     <Card className="bg-card/50 border-border/40 overflow-hidden relative group">
