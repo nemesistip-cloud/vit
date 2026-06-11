@@ -6,7 +6,7 @@ import uuid
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_optional_user
@@ -175,7 +175,7 @@ async def download_file(file_id: str, db: AsyncSession = Depends(get_db)):
 @router.get("/status")
 async def get_status(db: AsyncSession = Depends(get_db)):
     count_result = await db.execute(
-        select(__import__("sqlalchemy").func.count(TachyonManifest.file_id))
+        select(func.count(TachyonManifest.file_id))
     )
     db_manifest_count = count_result.scalar() or 0
     return {

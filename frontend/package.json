@@ -1,6 +1,6 @@
 {
   "name": "@workspace/vit-sports",
-  "version": "5.2.0",
+  "version": "5.5.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",

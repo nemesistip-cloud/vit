@@ -2392,17 +2392,24 @@ async def system_status():
     return {"status": "ok", "version": APP_VERSION}
 
 
+@app.get("/", include_in_schema=False)
 @app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa(full_path: str):
+async def serve_spa(full_path: str = ""):
     from fastapi.responses import JSONResponse
     dist = os.path.join(os.path.dirname(__file__), "frontend", "dist")
-    file_path = os.path.join(dist, full_path)
-    if os.path.isfile(file_path):
-        return FileResponse(file_path)
+
+    # If a specific file exists, serve it
+    if full_path:
+        file_path = os.path.join(dist, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+
+    # Fallback to index.html for SPA routing
     index_path = os.path.join(dist, "index.html")
-    if not os.path.isfile(index_path):
-        return JSONResponse({"detail": "Not Found"}, status_code=404)
-    return FileResponse(index_path)
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+
+    return JSONResponse({"detail": "Not Found", "message": "Frontend build not found. Run npm run build."}, status_code=404)
 
 if __name__ == "__main__":
     import uvicorn
