@@ -14,11 +14,11 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: USE_REAL_ML_MODELS
-        value: "true"
+        value: "false"
       - key: ML_MODEL_CACHE_ENABLED
-        value: "true"
+        value: "false"
       - key: ENABLED_AGENTS
-        value: "performance-monitor,live-match-tracker,network-guardian,weight-optimizer,match-scout,oracle-node,kyc-screener"
+        value: "performance-monitor,live-match-tracker"
       - key: ENABLED_MODELS
         value: "logistic_v2,poisson_v2,elo_v2,dixon_coles_v2,market_implied_v2"
       - key: BLOCKCHAIN_ENABLED
@@ -39,6 +39,10 @@ services:
         value: vit_admin
       - key: BASE_CHAIN_ID
         value: "8453"
+      - key: PYTHONOPTIMIZE
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
       - key: JWT_SECRET_KEY
         sync: false
       - key: DATABASE_URL
