@@ -8,7 +8,7 @@ services:
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_production.sh
 
-    healthCheckPath: /health
+    healthCheckPath: /ping
 
     envVars:
       - key: ENVIRONMENT
@@ -62,6 +62,24 @@ services:
       - key: GCS_BUCKET_NAME
         sync: false
       - key: GCS_PROJECT_ID
+        sync: false
+      - key: GDRIVE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: DROPBOX_ACCESS_TOKEN
+        sync: false
+      - key: DROPBOX_APP_KEY
+        sync: false
+      - key: DROPBOX_APP_SECRET
+        sync: false
+      - key: DROPBOX_REFRESH_TOKEN
+        sync: false
+      - key: ONEDRIVE_CLIENT_ID
+        sync: false
+      - key: ONEDRIVE_CLIENT_SECRET
+        sync: false
+      - key: ONEDRIVE_TENANT_ID
+        sync: false
+      - key: ONEDRIVE_USER_ID
         sync: false
       - key: REDIS_URL
         fromService:
