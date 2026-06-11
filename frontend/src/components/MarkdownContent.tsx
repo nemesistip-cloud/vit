@@ -31,7 +31,7 @@ const markdownComponents: Components = {
           style={oneDark}
           language={language ?? "text"}
           PreTag="div"
-          cusbottomStyle={codeBlockStyle}
+          customStyle={codeBlockStyle}
         >
           {text}
         </SyntaxHighlighter>

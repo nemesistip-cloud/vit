@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 export interface BetSlipItem {
   matchId: number;
   match:   string;         // "Team A vs Team B"
-  pick:    string;         // "home" | "draw" | "away" | cusbottom label
+  pick:    string;         // "home" | "draw" | "away" | custom label
   odds:    number;         // Decimal odds for this selection
 }
 
