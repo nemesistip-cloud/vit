@@ -560,19 +560,18 @@ async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
     today = datetime.now(timezone.utc).date()
     dates = [today - timedelta(days=i) for i in range(1, days_back + 1)]
 
-    # Fetch in chunks of 2 days concurrently — free-tier allows ~1 req/sec
-    # Larger batches cause 429s. Increase sleep between chunks for safety.
-    chunk_size = 2
+    # Sequential one-day-at-a-time with 3s delay — free-tier TheSportsDB
+    # allows ~1 req/sec; concurrent batches reliably trigger 429 with
+    # retry-after=100+ seconds which stalls the entire bootstrap.
     all_events: List[Dict] = []
     seen: set = set()
 
-    for chunk_start in range(0, len(dates), chunk_size):
-        chunk = dates[chunk_start: chunk_start + chunk_size]
-        tasks = [fetch_events_by_date(d) for d in chunk]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for day_evs in results:
-            if not isinstance(day_evs, list):
-                continue
+    for i, d in enumerate(dates):
+        try:
+            day_evs = await fetch_events_by_date(d)
+        except Exception:
+            day_evs = []
+        if isinstance(day_evs, list):
             for ev in day_evs:
                 if ev.get("status") != "settled" or not ev.get("actual_outcome"):
                     continue
@@ -580,8 +579,8 @@ async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
                 if key not in seen:
                     seen.add(key)
                     all_events.append(ev)
-        # 3-second pause between each 2-day chunk to stay within free-tier limits
-        if chunk_start + chunk_size < len(dates):
+        # 3-second pause between every request to stay within free-tier limits
+        if i < len(dates) - 1:
             await asyncio.sleep(3.0)
 
     logger.info("[sportsdb] fetch_historical_range(%dd): %d settled events", days_back, len(all_events))
