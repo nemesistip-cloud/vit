@@ -91,10 +91,19 @@ async def _get_kv(db: AsyncSession, key: str, default):
 
 
 async def _build_config(db: AsyncSession) -> Dict[str, Any]:
-    # FX rates
-    ngn_usd_rate = float(await _get_kv(db, "ngn_usd_rate", 0.000633) or 0.000633)
-    pi_usd_rate  = float(await _get_kv(db, "pi_usd_rate",  0.314159) or 0.314159)
-    welcome_bonus_vit = int(float(await _get_kv(db, "welcome_bonus_vit", 100) or 100))
+    # FX rates - Ensure default values are converted properly to avoid TypeError
+    def _to_float(v, fallback):
+        try:
+            if v is None: return float(fallback)
+            if isinstance(v, (int, float)): return float(v)
+            if isinstance(v, str): return float(v)
+            return float(fallback)
+        except (ValueError, TypeError):
+            return float(fallback)
+
+    ngn_usd_rate = _to_float(await _get_kv(db, "ngn_usd_rate", 0.000633), 0.000633)
+    pi_usd_rate  = _to_float(await _get_kv(db, "pi_usd_rate",  0.314159), 0.314159)
+    welcome_bonus_vit = int(_to_float(await _get_kv(db, "welcome_bonus_vit", 100), 100))
 
     # Live VIT price
     vit_usd = 0.10

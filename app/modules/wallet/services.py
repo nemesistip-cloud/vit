@@ -1,93 +1,75 @@
-# app/modules/wallet/services.py
-"""Wallet business logic and transaction handling."""
-
 import logging
-import uuid
-from decimal import Decimal
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple, Dict, Any, TYPE_CHECKING
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.modules.wallet.models import (
+    Wallet, WalletTransaction, Currency, WithdrawalRequest, WalletProfile,
+    WalletUserSubscription
+)
+from app.modules.wallet.intelligence import update_wallet_behavior
 
 if TYPE_CHECKING:
     from app.modules.wallet.intelligence import TradeEvent
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-
-from app.modules.wallet.models import (
-    Wallet, WalletTransaction, WalletSubscriptionPlan, WalletUserSubscription,
-    Currency, WithdrawalRequest, WalletProfile,
-)
-
 logger = logging.getLogger(__name__)
 
-
 class WalletService:
-    """Core wallet operations."""
-
-    # Default exchange rates relative to USD (1 unit of currency = X USD).
-    _DEFAULT_RATES_TO_USD: dict = {
-        "NGN":     Decimal("0.000633"),
-        "USD":     Decimal("1.0"),
-        "USDT":    Decimal("1.0"),
-        "PI":      Decimal("0.314159"),
-        "VITCoin": Decimal("0.10"),
-    }
-
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    @staticmethod
-    def _rate_lookup(rates: dict, currency_value: str):
-        if currency_value in rates:
-            return rates[currency_value]
-        cv = currency_value.lower()
-        for k, v in rates.items():
-            if k.lower() == cv:
-                return v
-        return None
+    async def get_balance(self, wallet_id: str, currency: Currency) -> Decimal:
+        wallet = await self.db.get(Wallet, wallet_id)
+        if not wallet:
+            raise ValueError("Wallet not found")
+        attr = f"{currency.value.lower()}_balance"
+        return getattr(wallet, attr)
 
-    async def _get_rates_to_usd(self) -> dict:
-        try:
-            from app.modules.wallet.models import PlatformConfig as _PC
-            result = await self.db.execute(select(_PC).where(_PC.key == "exchange_rates_usd"))
-            row = result.scalar_one_or_none()
-            merged = dict(self._DEFAULT_RATES_TO_USD)
-            if row and isinstance(row.value, dict):
-                lower_to_canon = {k.lower(): k for k in merged.keys()}
-                for k, v in row.value.items():
-                    try:
-                        canon = lower_to_canon.get(k.lower(), k)
-                        merged[canon] = Decimal(str(v))
-                    except Exception:
-                        pass
-            try:
-                from app.modules.wallet.models import VITCoinPriceHistory as _VPH
-                live = await self.db.execute(select(_VPH).order_by(_VPH.calculated_at.desc()).limit(1))
-                latest = live.scalar_one_or_none()
-                if latest and latest.price_usd and Decimal(latest.price_usd) > Decimal("0"):
-                    merged["VITCoin"] = Decimal(latest.price_usd)
-            except Exception:
-                pass
-            return merged
-        except Exception as _e:
-            logger.warning("EXCHANGE_RATE_FALLBACK failure: %s", _e)
-            return dict(self._DEFAULT_RATES_TO_USD)
+    async def _get_rates_to_usd(self) -> Dict[str, Decimal]:
+        """Fetch all currency -> USD rates from PlatformConfig."""
+        from app.modules.wallet.models import PlatformConfig
+        row = (await self.db.execute(
+            select(PlatformConfig).where(PlatformConfig.key == "exchange_rates_usd")
+        )).scalar_one_or_none()
 
-    async def get_exchange_rate(self, from_currency: "Currency", to_currency: "Currency") -> Decimal:
+        default_rates = {
+            "ngn": Decimal("0.000633"),
+            "usd": Decimal("1.0"),
+            "usdt": Decimal("1.0"),
+            "pi": Decimal("0.314159"),
+            "vitcoin": Decimal("0.10"),
+        }
+
+        if not row or not row.value:
+            return default_rates
+
+        rates = {}
+        for k, v in default_rates.items():
+            rates[k] = Decimal(str(row.value.get(k, v)))
+        return rates
+
+    async def get_exchange_rate(self, from_currency: Currency, to_currency: Currency) -> Decimal:
         rates = await self._get_rates_to_usd()
-        from_usd = self._rate_lookup(rates, from_currency.value)
-        to_usd   = self._rate_lookup(rates, to_currency.value)
+        from_usd = rates.get(from_currency.value.lower())
+        to_usd = rates.get(to_currency.value.lower())
         if from_usd is None or to_usd is None:
             raise ValueError(f"Rate not found for {from_currency.value} or {to_currency.value}")
         return from_usd / to_usd
 
     async def get_or_create_wallet(self, user_id: int) -> Wallet:
         from sqlalchemy.exc import IntegrityError as _IntegrityError
-        # Simple lookup without join to avoid multi-row issues with outerjoin
+        # Use selectinload to eagerly load the profile and avoid lazy-loading Greenlet errors
         result = await self.db.execute(
-            select(Wallet).where(Wallet.user_id == user_id)
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .options(selectinload(Wallet.profile))
         )
         wallet = result.scalar_one_or_none()
+
         if not wallet:
             wallet = Wallet(user_id=user_id)
             # Fetch welcome bonus config
@@ -108,14 +90,14 @@ class WalletService:
                 self.db.add(wallet)
                 await self.db.flush()
             except _IntegrityError:
-                # Wallet created concurrently or already exists — re-fetch
                 await self.db.rollback()
                 result = await self.db.execute(
                     select(Wallet).where(Wallet.user_id == user_id)
+                    .options(selectinload(Wallet.profile))
                 )
                 wallet = result.scalar_one()
 
-            # Add welcome bonus transaction only if not already present
+            # Add welcome bonus transaction
             tx_check = await self.db.execute(
                 select(WalletTransaction).where(
                     WalletTransaction.wallet_id == wallet.id,
@@ -136,62 +118,33 @@ class WalletService:
                     await self.db.rollback()
 
             # Initialize profile if missing
-            prof_check = await self.db.execute(
-                select(WalletProfile).where(WalletProfile.wallet_id == wallet.id)
-            )
-            if not prof_check.scalar_one_or_none():
+            if not wallet.profile:
                 try:
                     self.db.add(WalletProfile(wallet_id=wallet.id))
                     await self.db.flush()
+                    # Refresh to populate wallet.profile
+                    await self.db.refresh(wallet, ["profile"])
                 except _IntegrityError:
                     await self.db.rollback()
         else:
-            # Ensure profile exists
-            prof_check = await self.db.execute(
-                select(WalletProfile).where(WalletProfile.wallet_id == wallet.id)
-            )
-            if not prof_check.scalar_one_or_none():
-                try:
-                    self.db.add(WalletProfile(wallet_id=wallet.id))
-                    await self.db.flush()
-                except Exception:
-                    pass
+            # Ensure profile exists for existing wallet
+            if not wallet.profile:
+                # Double check with a query just in case of racing/refresh issues
+                prof_check = await self.db.execute(
+                    select(WalletProfile).where(WalletProfile.wallet_id == wallet.id)
+                )
+                if not prof_check.scalar_one_or_none():
+                    try:
+                        self.db.add(WalletProfile(wallet_id=wallet.id))
+                        await self.db.flush()
+                        await self.db.refresh(wallet, ["profile"])
+                    except Exception:
+                        pass
         return wallet
 
-    async def get_profile(self, wallet_id: str) -> WalletProfile:
-        result = await self.db.execute(select(WalletProfile).where(WalletProfile.wallet_id == wallet_id))
-        profile = result.scalar_one_or_none()
-        if not profile:
-            profile = WalletProfile(wallet_id=wallet_id)
-            self.db.add(profile)
-            await self.db.flush()
-        return profile
-
-    async def update_wallet_behavior(self, wallet_id: str, trade_event: "TradeEvent") -> WalletProfile:
-        from app.modules.wallet.intelligence import update_wallet_behavior as _update_behavior
-        profile = await self.get_profile(wallet_id)
-        # Update VIT balance from wallet before calculating behavior
+    async def credit(self, wallet_id, user_id, currency, amount, tx_type, reference=None, fee_amount=Decimal("0"), fee_currency=None, metadata=None) -> WalletTransaction:
         wallet = await self.db.get(Wallet, wallet_id)
-        if wallet:
-            profile.vit_balance = wallet.vitcoin_balance
-
-        updated_profile = _update_behavior(profile, trade_event)
-        await self.db.flush()
-        return updated_profile
-
-    async def get_balance(self, wallet_id: str, currency: Currency) -> Decimal:
-        wallet = await self.db.get(Wallet, wallet_id)
-        if not wallet: return Decimal("0")
-        attr = f"{currency.value.lower()}_balance"
-        return getattr(wallet, attr, Decimal("0"))
-
-    async def credit(self, wallet_id, user_id, currency, amount, tx_type, reference=None, metadata=None, fee_amount=Decimal("0"), fee_currency=None) -> WalletTransaction:
-        """Internal helper for balance credits."""
-        if amount <= 0: raise ValueError("Amount must be positive")
-        result = await self.db.execute(select(Wallet).where(Wallet.id == wallet_id).with_for_update())
-        wallet = result.scalar_one_or_none()
         if not wallet: raise ValueError("Wallet not found")
-        if wallet.is_frozen: raise ValueError("Wallet frozen")
         attr = f"{currency.value.lower()}_balance"
         setattr(wallet, attr, getattr(wallet, attr) + amount)
         tx = WalletTransaction(
@@ -204,17 +157,13 @@ class WalletService:
         await self.db.flush()
         return tx
 
-    async def debit(self, wallet_id, user_id, currency, amount, tx_type, reference=None, metadata=None, fee_amount=Decimal("0"), fee_currency=None) -> WalletTransaction:
-        """Internal helper for balance debits."""
-        if amount <= 0: raise ValueError("Amount must be positive")
-        result = await self.db.execute(select(Wallet).where(Wallet.id == wallet_id).with_for_update())
-        wallet = result.scalar_one_or_none()
+    async def debit(self, wallet_id, user_id, currency, amount, tx_type, reference=None, fee_amount=Decimal("0"), fee_currency=None, metadata=None) -> WalletTransaction:
+        wallet = await self.db.get(Wallet, wallet_id)
         if not wallet: raise ValueError("Wallet not found")
-        if wallet.is_frozen: raise ValueError("Wallet frozen")
         attr = f"{currency.value.lower()}_balance"
-        curr_bal = getattr(wallet, attr)
-        if curr_bal < amount: raise ValueError(f"Insufficient {currency.value} balance")
-        setattr(wallet, attr, curr_bal - amount)
+        current = getattr(wallet, attr)
+        if current < amount: raise ValueError(f"Insufficient {currency.value} balance")
+        setattr(wallet, attr, current - amount)
         tx = WalletTransaction(
             user_id=user_id, wallet_id=wallet_id, type=tx_type, currency=currency.value,
             amount=amount, direction="debit", status="confirmed", reference=reference,
@@ -225,14 +174,11 @@ class WalletService:
         await self.db.flush()
         return tx
 
-    # ── Core Transaction Engine (v2.0) ────────────────────────────────────────
-
     async def deposit(self, wallet_id, user_id, currency, amount, reference=None) -> WalletTransaction:
         return await self.credit(wallet_id, user_id, currency, amount, "deposit", reference=reference)
 
     async def deposit_vitcoin(self, user_id, amount, description=None, tx_type="reward", metadata=None) -> "WalletTransaction":
         wallet = await self.get_or_create_wallet(user_id)
-        from app.modules.wallet.models import Currency
         return await self.credit(
             wallet.id, user_id, Currency.VITCOIN, Decimal(str(amount)),
             tx_type, reference=description, metadata=metadata
@@ -346,6 +292,23 @@ class WalletService:
         res = await self.db.execute(query.order_by(WalletTransaction.created_at.desc()).offset(offset).limit(limit))
         return total, res.scalars().all()
 
+    async def get_profile(self, wallet_id: str) -> WalletProfile:
+        result = await self.db.execute(select(WalletProfile).where(WalletProfile.wallet_id == wallet_id))
+        profile = result.scalar_one_or_none()
+        if not profile:
+            profile = WalletProfile(wallet_id=wallet_id)
+            self.db.add(profile)
+            await self.db.flush()
+        return profile
+
+    async def update_wallet_behavior(self, wallet_id: str, trade_event: "TradeEvent") -> WalletProfile:
+        profile = await self.get_profile(wallet_id)
+        wallet = await self.db.get(Wallet, wallet_id)
+        if wallet:
+            profile.vit_balance = wallet.vitcoin_balance
+        updated_profile = update_wallet_behavior(profile, trade_event)
+        return updated_profile
+
 
 class WithdrawalService:
     def __init__(self, db, wallet_service):
@@ -360,9 +323,9 @@ class WithdrawalService:
 
         _KYC_THRESHOLD_USD = Decimal("10.00")
         rates = await self.wallet_service._get_rates_to_usd()
-        amount_usd = amount * rates.get(currency.value, Decimal("1.0"))
+        amount_usd = amount * rates.get(currency.value.lower(), Decimal("1.0"))
         if amount_usd > _KYC_THRESHOLD_USD and kyc_status not in ("approved", "verified"):
-            raise ValueError("KYC required for >$10 withdrawals")
+            raise ValueError("KYC required for >0 withdrawals")
 
         balance = await self.wallet_service.get_balance(wallet_id, currency)
         if balance < amount: raise ValueError("Insufficient balance")

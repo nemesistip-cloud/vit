@@ -4,9 +4,8 @@ import sys
 import os
 
 # Runtime dependency check for Render environments
-# We check and install multiple critical dependencies before any other imports
 def install_dependencies():
-    required = ["python-multipart", "sqlalchemy", "reedsolo", "aiofiles"]
+    required = ["python-multipart", "sqlalchemy", "reedsolo", "aiofiles", "python-dotenv"]
     for pkg in required:
         try:
             if pkg == "python-multipart":
@@ -17,11 +16,20 @@ def install_dependencies():
                 import reedsolo
             elif pkg == "aiofiles":
                 import aiofiles
+            elif pkg == "python-dotenv":
+                import dotenv
         except ImportError:
             print(f"[tachyon] Installing missing dependency: {pkg}")
             subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
 
 install_dependencies()
+
+# Load environment variables if dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
