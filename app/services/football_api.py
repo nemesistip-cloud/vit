@@ -153,18 +153,18 @@ class FootballDataClient:
             self.__class__._consecutive_timeouts = 0
             return response.json()
 
-        except (httpx.ConnectTimeout, httpx.ConnectError, httpx.ReadTimeout) as e:
+        except (httpx.ConnectTimeout, httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError) as e:
             self.__class__._consecutive_timeouts += 1
             if self.__class__._consecutive_timeouts >= self.__class__._TIMEOUT_THRESHOLD:
                 self.__class__._timeout_circuit_open = True
                 logger.warning(
-                    "Football Data API is unreachable after %d consecutive timeouts — "
+                    "Football Data API is unreachable after %d consecutive errors — "
                     "suspending requests for this session. The host may be blocking this environment.",
                     self.__class__._consecutive_timeouts,
                 )
             else:
                 logger.warning(
-                    "Football Data API timeout (%s) — attempt %d/%d",
+                    "Football Data API connection error (%s) — attempt %d/%d",
                     type(e).__name__, self.__class__._consecutive_timeouts, self.__class__._TIMEOUT_THRESHOLD,
                 )
             return {}
