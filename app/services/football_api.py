@@ -51,6 +51,7 @@ class FootballDataClient:
     _consecutive_timeouts: int = 0        # class-level: timeout counter
     _timeout_circuit_open: bool = False   # class-level: skip after repeated timeouts
     _TIMEOUT_THRESHOLD: int = 3           # open circuit after this many consecutive timeouts
+    _rate_limited_until: float = 0.0      # class-level: epoch time until which 429 suspends requests
 
     BASE_URL = "https://api.football-data.org/v4"
 
@@ -139,7 +140,11 @@ class FootballDataClient:
     @rate_limit_backoff
     async def _request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """Make authenticated request to football-data.org"""
+        import time as _time
         if self.__class__._key_forbidden or self.__class__._timeout_circuit_open:
+            return {}
+        if self.__class__._rate_limited_until > _time.time():
+            logger.debug("Football Data API suspended due to rate limit — skipping request")
             return {}
 
         url = f"{self.BASE_URL}{endpoint}"
@@ -188,8 +193,12 @@ class FootballDataClient:
                 logger.warning(f"Endpoint not found: {endpoint}")
                 return {}
             elif e.response.status_code == 429:
-                logger.warning("Rate limit exceeded")
-                raise  # Re-raise for retry decorator
+                import time as _time
+                self.__class__._rate_limited_until = _time.time() + 60
+                logger.warning(
+                    "Football Data API rate limit hit — suspending requests for 60 seconds"
+                )
+                return {}
             raise
 
     async def get_competition_id(self, competition_name: str) -> Optional[str]:
