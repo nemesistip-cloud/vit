@@ -362,11 +362,21 @@ async def _register_pkl_as_plugin(listing: AIModelListing) -> Optional[str]:
     Load a marketplace .pkl into the live orchestrator as a plugin model.
     Returns the model key that was registered, or None on failure.
     """
-    # Task 3D: Download from GCS if needed
-    from app.modules.marketplace.gcs_integration import prepare_model_for_loading
-    gcs_path = await prepare_model_for_loading(listing)
-    if gcs_path:
-        pkl_abs = gcs_path
+    # Download from Tachyon if the model isn't on local disk yet
+    if listing.gcs_uri and listing.gcs_uri.startswith("tachyon://") and listing.pkl_path:
+        local_dir = os.path.join(_MODELS_DIR, listing.pkl_path)
+        if not os.path.isdir(local_dir):
+            try:
+                from app.services.tachyon_client import tachyon_client
+                tachyon_id = listing.gcs_uri.split("://")[1].split("/")[0]
+                os.makedirs(local_dir, exist_ok=True)
+                primary_fname = listing.gcs_uri.split("/")[-1] or "model.pkl"
+                target_path = os.path.join(local_dir, primary_fname)
+                await tachyon_client.download_model(tachyon_id, target_path)
+                logger.info(f"Downloaded listing {listing.id} from Tachyon → {target_path}")
+            except Exception as _te:
+                logger.warning(f"Tachyon download failed for listing {listing.id}: {_te}")
+
     if not listing.pkl_path:
         return None
 
