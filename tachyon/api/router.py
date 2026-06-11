@@ -16,23 +16,39 @@ from app.modules.storage_verification.service import register_content
 from tachyon.core.scheduler import TachyonScheduler
 from tachyon.core.shredder import TachyonShredder
 from tachyon.providers.disk import DiskProvider
+from tachyon.providers.gdrive import GoogleDriveProvider
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# Providers — DiskProvider instances give real persistence on the local
-# filesystem.  Five "nodes" each write to their own sub-directory so the
-# round-robin fragment distribution mirrors multi-cloud redundancy without
-# requiring external credentials.  Swap any DiskProvider for a real cloud
-# provider (GDriveProvider, etc.) once credentials are available.
+# Provider selection
+#
+# When GDRIVE_SERVICE_ACCOUNT_JSON is present we use two GDrive "nodes"
+# (round-robin fragment distribution) plus two DiskProvider nodes for local
+# redundancy.  Without the env var the service falls back to five pure-disk
+# nodes so the service works identically in local dev.
 # ---------------------------------------------------------------------------
 _STORAGE_ROOT = os.environ.get("TACHYON_STORAGE_PATH", "/tmp/tachyon_storage")
-_providers = [
-    DiskProvider(f"node_{i}", storage_path=_STORAGE_ROOT)
-    for i in range(5)
-]
+_GDRIVE_SA = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
+
+if _GDRIVE_SA:
+    _providers = [
+        GoogleDriveProvider("gdrive_0"),
+        GoogleDriveProvider("gdrive_1"),
+        DiskProvider("disk_0", storage_path=_STORAGE_ROOT),
+        DiskProvider("disk_1", storage_path=_STORAGE_ROOT),
+        DiskProvider("disk_2", storage_path=_STORAGE_ROOT),
+    ]
+    logger.info("[tachyon] using GDrive (2 nodes) + Disk (3 nodes)")
+else:
+    _providers = [
+        DiskProvider(f"node_{i}", storage_path=_STORAGE_ROOT)
+        for i in range(5)
+    ]
+    logger.info("[tachyon] GDRIVE_SERVICE_ACCOUNT_JSON not set — using Disk (5 nodes)")
+
 scheduler = TachyonScheduler(_providers)
 
 # In-memory warm cache — populated on first access so downloads after a
