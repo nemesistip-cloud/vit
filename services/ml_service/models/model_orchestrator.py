@@ -125,6 +125,18 @@ class ModelOrchestrator:
                 "parent_version": parent_version
             }
 
+
+        # Load Phase 2 specialized market models
+        self.market_models = {}
+        for m_key in ["btts_v2", "over_under_v2", "correct_score_v2"]:
+            try:
+                p = self._try_load_pkl(m_key, models_dir, cache_on)
+                if p:
+                    self.market_models[m_key] = p["model"]
+                    logger.info(f"✅ Loaded specialized market model: {m_key}")
+            except Exception as e:
+                logger.warning(f"Failed to load market model {m_key}: {e}")
+
         n_pkl = sum(self._pkl_loaded.values())
         logger.info(
             f"Orchestrator ready: {len(self.models)}/{_TOTAL_MODEL_SPECS} models "
@@ -192,21 +204,12 @@ class ModelOrchestrator:
             return None
 
         feature_map = {
-            "home_form_pts_5":   1.30,  "away_form_pts_5":   1.20,
-            "home_form_pts_10":  1.30,  "away_form_pts_10":  1.20,
-            "home_gf_pg_5":      1.45,  "away_gf_pg_5":      1.20,
-            "home_ga_pg_5":      1.20,  "away_ga_pg_5":      1.45,
-            "home_gf_pg_10":     1.45,  "away_gf_pg_10":     1.20,
-            "home_ga_pg_10":     1.20,  "away_ga_pg_10":     1.45,
-            "h2h_home_win_pct":  base_hp,
-            "h2h_draw_pct":      base_dp,
-            "h2h_away_win_pct":  base_ap,
-            "h2h_home_goals_pg": 1.45,
-            "h2h_away_goals_pg": 1.20,
-            "home_adv_league":   0.40,
-            "elo_diff":          (lam_h - lam_a) * 80.0,
-            "lambda_home_est":   lam_h,
-            "lambda_away_est":   lam_a,
+            "home_odds": 2.30, "draw_odds": 3.30, "away_odds": 3.10,
+            "home_implied": base_hp, "draw_implied": base_dp, "away_implied": base_ap,
+            "lam_h": lam_h, "lam_a": lam_a,
+            "over_25_implied": 0.50,
+            "strength_ratio": lam_h / max(0.1, lam_a),
+            "lambda_home_est": lam_h, "lambda_away_est": lam_a, "elo_diff": (lam_h - lam_a) * 80.0,
         }
 
         if isinstance(match_features, dict) and match_features:
@@ -329,7 +332,7 @@ class ModelOrchestrator:
                 try:
                     from app.services.calibration import CalibratorRegistry
                     reg = CalibratorRegistry.get()
-                    (hp, dp, ap), calibration_meta = reg.apply(key, hp, dp, ap)
+                    (hp, dp, ap), calibration_meta = reg.apply(meta["model_name"], hp, dp, ap)
                 except Exception: pass
 
                 preds_h.append(hp); preds_d.append(dp); preds_a.append(ap)
@@ -350,22 +353,61 @@ class ModelOrchestrator:
         raw_hp = sum(preds_h[i] * weights[i] for i in range(n)) / total_w
         raw_dp = sum(preds_d[i] * weights[i] for i in range(n)) / total_w
         raw_ap = sum(preds_a[i] * weights[i] for i in range(n)) / total_w
+
+        # Initial averages for goals markets
         final_ou = sum(preds_ou[i] * weights[i] for i in range(n)) / total_w
         final_btts = sum(preds_btts[i] * weights[i] for i in range(n)) / total_w
 
         var_h = sum((preds_h[i] - raw_hp)**2 * weights[i] for i in range(n)) / total_w
         diversity_factor = max(0.88, 1.0 - var_h * 3.0)
+
+        # Normalise 1X2 probabilities
         final_hp, final_dp, final_ap = _normalise(
             raw_hp * diversity_factor + (1-diversity_factor)/3,
             raw_dp * diversity_factor + (1-diversity_factor)/3,
             raw_ap * diversity_factor + (1-diversity_factor)/3
         )
 
+        # Build default score matrix as fallback
         score_matrix = _build_score_matrix(lam_h, lam_a, _CS_MAX_GOALS)
-        ah_ladder = _build_ah_ladder(score_matrix)
         cs_dict, top_cs, top_cs_p = _correct_score_probs(score_matrix)
-        overall_conf = _confidence_from_probs(final_hp, final_dp, final_ap)
 
+        # Use specialized market models if available, else fallback to ensemble average
+        if self.market_models.get("over_under_v2") or self.market_models.get("btts_v2") or self.market_models.get("correct_score_v2"):
+            try:
+                from app.ai.market_models import build_feature_vector, _OU_FEATURE_KEYS, _BTTS_FEATURE_KEYS, _CS_FEATURE_KEYS
+                mkt_feat = {
+                    "home_xg_per_game": lam_h, "away_xg_per_game": lam_a,
+                    "home_xg_against_per_game": lam_a, "away_xg_against_per_game": lam_h,
+                    "home_form_gf": lam_h, "away_form_gf": lam_a,
+                    "market_home_prob_vf": final_hp, "market_draw_prob_vf": final_dp, "market_away_prob_vf": final_ap,
+                    "lambda_home": lam_h, "lambda_away": lam_a,
+                    "xg_total_expected": lam_h + lam_a, "xg_dominance": lam_h / max(0.1, lam_a),
+                    "home_form_games": 5.0, "away_form_games": 5.0, "h2h_btts_rate": 0.5, "h2h_avg_goals": 2.5,
+                    "market_over25_prob_vf": 0.5, "market_btts_prob_vf": 0.5
+                }
+
+                if self.market_models.get("over_under_v2"):
+                    o_vec = build_feature_vector(mkt_feat, _OU_FEATURE_KEYS)
+                    final_ou = float(self.market_models["over_under_v2"].predict_proba(o_vec)[0, 1])
+
+                if self.market_models.get("btts_v2"):
+                    b_vec = build_feature_vector(mkt_feat, _BTTS_FEATURE_KEYS)
+                    final_btts = float(self.market_models["btts_v2"].predict_proba(b_vec)[0, 1])
+
+                if self.market_models.get("correct_score_v2"):
+                    c_vec = build_feature_vector(mkt_feat, _CS_FEATURE_KEYS)
+                    top_cs_list = self.market_models["correct_score_v2"].top_scores(c_vec, n=10)
+                    top_cs = top_cs_list[0]["score"]
+                    top_cs_p = top_cs_list[0]["probability"]
+                    # Update cs_dict with top 10 from specialized model
+                    for item in top_cs_list:
+                        cs_dict[item["score"]] = item["probability"]
+            except Exception as e:
+                logger.warning(f"Specialized market inference failed: {e}")
+
+        ah_ladder = _build_ah_ladder(score_matrix)
+        overall_conf = _confidence_from_probs(final_hp, final_dp, final_ap)
         # Bootstrap-like CI (simulated for contract compliance)
         ci = {
             "home": {"low": round(final_hp - 0.04, 4), "mid": round(final_hp, 4), "high": round(final_hp + 0.04, 4)},

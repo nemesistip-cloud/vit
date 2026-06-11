@@ -325,7 +325,7 @@ def main():
     log.info("\nFitting stacked meta-models …")
     base = [poisson, dc, elo, bayes, lstm, trf]
     stacked_train = np.hstack([m.predict_proba(X_train) for m in base])
-    meta = LogisticRegression(max_iter=500, multi_class="multinomial",
+    meta = LogisticRegression(max_iter=500,
                               C=1.0, solver="lbfgs")
     meta.fit(stacked_train, y_train)
     ensemble = StackedMetaModel(base_models=base, meta=meta)
@@ -333,7 +333,7 @@ def main():
 
     base_h = base + [market]
     stacked_train_h = np.hstack([m.predict_proba(X_train) for m in base_h])
-    meta_h = LogisticRegression(max_iter=500, multi_class="multinomial",
+    meta_h = LogisticRegression(max_iter=500,
                                 C=0.5, solver="lbfgs")
     meta_h.fit(stacked_train_h, y_train)
     hybrid = StackedMetaModel(base_models=base_h, meta=meta_h)

@@ -79,14 +79,17 @@ async def _load_training_data(db) -> List[Dict]:
         records = []
         for r in rows:
             d = dict(zip(cols, r))
+            hp = d.get("home_prob") or 0.333
+            dp = d.get("draw_prob") or 0.333
+            ap = d.get("away_prob") or 0.334
+            lam_h = hp * 2.5
+            lam_a = ap * 2.0
             feat = {
-                "market_home_prob_vf":   d.get("home_prob") or 0.333,
-                "market_draw_prob_vf":   d.get("draw_prob") or 0.333,
-                "market_away_prob_vf":   d.get("away_prob") or 0.334,
-                "market_over25_prob_vf": d.get("over_25_prob") or 0.5,
-                "market_btts_prob_vf":   d.get("btts_prob") or 0.5,
-                "lambda_home":           (d.get("home_prob") or 0.33) * 2.5,
-                "lambda_away":           (d.get("away_prob") or 0.33) * 2.0,
+                "home_xg_per_game": lam_h, "away_xg_per_game": lam_a,
+                "market_home_prob_vf": hp, "market_draw_prob_vf": dp, "market_away_prob_vf": ap,
+                "market_over25_prob_vf": 0.5, "market_btts_prob_vf": 0.5,
+                "lambda_home": lam_h, "lambda_away": lam_a,
+                "xg_total_expected": lam_h + lam_a, "xg_dominance": lam_h / max(0.1, lam_a),
             }
             d["features"] = feat
             records.append(d)
@@ -120,14 +123,11 @@ def _load_from_hist_json() -> List[Dict]:
         if m.get("actual_outcome") not in ("home", "draw", "away"):
             continue
 
-        odds = m.get("market_odds") or {}
         vfp  = m.get("vig_free_probs") or {}
         hp   = float(vfp.get("home", 0.333))
         dp   = float(vfp.get("draw", 0.333))
         ap   = float(vfp.get("away", 0.334))
-        total = hg + ag
 
-        # Build synthetic Poisson lambdas from market probs
         lam_h = max(0.1, hp * 2.5)
         lam_a = max(0.1, ap * 2.0)
 
@@ -145,13 +145,16 @@ def _load_from_hist_json() -> List[Dict]:
             "h2h_btts_rate":             0.5,
             "h2h_avg_goals":             2.5,
             "poisson_btts_prob":         min(0.95, lam_h * lam_a / 4.0),
-            "poisson_over25_prob":       float(m.get("over_25", 0)),
+            "poisson_over25_prob":       0.5,
             "lambda_home":               lam_h,
             "lambda_away":               lam_a,
             "ref_discipline_index":      0.5,
             "ref_fouls_per_game":        24.0,
-            "market_btts_prob_vf":       float(1 if (hg > 0 and ag > 0) else 0),
-            "market_over25_prob_vf":     float(m.get("over_25", 0)),
+            "market_btts_prob_vf":       0.5,
+            "market_over25_prob_vf":     0.5,
+            "market_home_prob_vf":       hp,
+            "market_draw_prob_vf":       dp,
+            "market_away_prob_vf":       ap,
             "home_injury_score":         0.0,
             "away_injury_score":         0.0,
             "home_rest_days":            4.0,
@@ -164,29 +167,17 @@ def _load_from_hist_json() -> List[Dict]:
             "home_form_ppg":             hp * 3.0,
             "away_form_ppg":             ap * 3.0,
             "injury_balance":            0.0,
-            # OU-specific
-            "ref_penalty_rate_per_game": 0.15,
-            "steam_home":                0.0,
-            "steam_away":                0.0,
-            "odds_drift_home":           0.0,
-            "odds_drift_away":           0.0,
-            "odds_velocity_total":       0.0,
             "home_goal_threat":          lam_h * 0.8,
             "away_goal_threat":          lam_a * 0.8,
-            # CS-specific
-            "xg_dominance":              lam_h - lam_a,
-            "h2h_home_win_rate":         hp,
-            "h2h_draw_rate":             dp,
-            "h2h_away_win_rate":         ap,
-            "market_home_prob_vf":       hp,
-            "market_draw_prob_vf":       dp,
-            "market_away_prob_vf":       ap,
-            "home_position":             10.0,
-            "away_position":             10.0,
-            "position_gap":              0.0,
+            "home_position":             10,
+            "away_position":             10,
+            "position_gap":              0,
             "ref_yellows_per_game":      3.5,
+            "xg_dominance":              lam_h / max(0.1, lam_a),
+            "h2h_home_win_rate":         0.4,
+            "h2h_draw_rate":             0.3,
+            "h2h_away_win_rate":         0.3,
         }
-
         records.append({
             "home_goals": hg,
             "away_goals":  ag,
@@ -246,7 +237,7 @@ def load_market_model(model_cls, model_key: str, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# Generic sklearn training loop
+# Training logic
 # ---------------------------------------------------------------------------
 
 def _train_sklearn_model(
