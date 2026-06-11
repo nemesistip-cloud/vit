@@ -1,7 +1,7 @@
 # app/agents/model_tuner_agent.py
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,8 +29,8 @@ class ModelTunerAgent(BaseAgent):
         # This agent runs once every 24 hours
         last_run = self.state.get("last_run_at")
         if last_run:
-            last_run_dt = datetime.fromisoformat(last_run)
-            if datetime.now() - last_run_dt < timedelta(hours=24):
+            last_run_dt = datetime.fromisoformat(last_run).replace(tzinfo=None)
+            if datetime.now(timezone.utc).replace(tzinfo=None) - last_run_dt < timedelta(hours=24):
                 return {"status": "skipped", "reason": "Cooldown (24h)"}
 
         from app.db.database import AsyncSessionLocal
@@ -41,7 +41,7 @@ class ModelTunerAgent(BaseAgent):
 
             suggestions = await self._get_tuning_suggestions(perf_data)
 
-            self.state["last_run_at"] = datetime.now().isoformat()
+            self.state["last_run_at"] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
             self.state["last_suggestions"] = suggestions
 
             return {
@@ -54,7 +54,7 @@ class ModelTunerAgent(BaseAgent):
         """Fetches recent performance metrics for all models."""
         # Fetch last 30 days of performance
         stmt = select(ModelPerformance).where(
-            ModelPerformance.timestamp > datetime.now() - timedelta(days=30)
+            ModelPerformance.timestamp > datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
         ).order_by(ModelPerformance.timestamp.desc())
 
         result = await db.execute(stmt)
