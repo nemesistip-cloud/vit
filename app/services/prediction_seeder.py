@@ -192,7 +192,7 @@ async def seed_upcoming_predictions(
     """
     from datetime import datetime, timezone, timedelta
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     cutoff = now + timedelta(days=14)
 
     upcoming_res = await db.execute(
