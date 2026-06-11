@@ -234,7 +234,7 @@ async def list_matches_root(
     db: AsyncSession = Depends(get_db),
 ):
     """Root matches endpoint — returns upcoming fixtures (alias of /upcoming)."""
-    return await get_upcoming_matches(league=league, sport=sport, days=days, limit=limit, db=db)
+    return await get_upcoming_matches(league=league, sport=sport, hours=None, days=days, limit=limit, db=db)
 
 
 @router.get("/upcoming")
