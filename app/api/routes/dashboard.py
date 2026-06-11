@@ -210,6 +210,19 @@ async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: Async
     try:
         result = await db.execute(select(User).where(User.is_active == True, User.is_banned == False))
         users = result.scalars().all()
+
+        # Bulk-fetch user profits via CLVEntry → Prediction join to avoid N+1
+        profit_by_user: dict = {}
+        try:
+            profit_rows = (await db.execute(
+                select(Prediction.user_id, func.sum(CLVEntry.profit).label("total_profit"))
+                .join(CLVEntry, CLVEntry.prediction_id == Prediction.id)
+                .group_by(Prediction.user_id)
+            )).all()
+            profit_by_user = {row.user_id: float(row.total_profit or 0.0) for row in profit_rows}
+        except Exception:
+            pass
+
         leaderboard = []
         for u in users:
             settled_rows = await _settled_predictions_for_user(db, u.id)
@@ -219,7 +232,8 @@ async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: Async
             win_rate = round(user_wins / total_settled, 4) if total_settled > 0 else 0.0
             leaderboard.append({
                 "username": u.username, "xp": xp, "win_rate": win_rate, "level": "Novice",
-                "predictions": total_preds, "streak": streak, "user_profit": 0.0,
+                "predictions": total_preds, "streak": streak,
+                "user_profit": profit_by_user.get(u.id, 0.0),
             })
         leaderboard.sort(key=lambda x: x["xp"], reverse=True)
         leaderboard = leaderboard[:limit]
