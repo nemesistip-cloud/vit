@@ -99,16 +99,16 @@ class ModelOrchestrator:
 
             if use_real:
                 payload = self._try_load_pkl(key, models_dir, cache_on)
-                if payload is None and os.getenv("GCS_BUCKET_NAME"):
-                    payload = self._try_gcs_load(key, cache_on)
+                if payload is None:
+                    payload = self._try_tachyon_load(key, cache_on)
 
                 if payload is not None:
                     self._attach_sklearn_payload(model_obj, key, payload)
                     loaded = True
                 elif parent_version:
                     payload = self._try_load_pkl(parent_version, models_dir, cache_on)
-                    if payload is None and os.getenv("GCS_BUCKET_NAME"):
-                        payload = self._try_gcs_load(parent_version, cache_on)
+                    if payload is None:
+                        payload = self._try_tachyon_load(parent_version, cache_on)
 
                     if payload is not None:
                         self._attach_sklearn_payload(model_obj, key, payload)
@@ -143,19 +143,22 @@ class ModelOrchestrator:
             f"({n_pkl} with real trained weights)"
         )
 
-    def _try_gcs_load(self, key: str, cache_on: bool) -> Optional[Dict]:
+    def _try_tachyon_load(self, key: str, cache_on: bool) -> Optional[Dict]:
+        """Attempt to pull a trained model from Tachyon distributed storage."""
         try:
-            from app.services.gcs_storage import gcs_storage
+            from app.services.tachyon_client import tachyon_client
             from services.ml_service.model_loader import load_model
             local_tmp = os.path.join("/tmp", "vit_models", f"{key}.pkl")
             os.makedirs(os.path.dirname(local_tmp), exist_ok=True)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(gcs_storage.download_model(f"{key}.pkl", local_tmp))
+            success = loop.run_until_complete(tachyon_client.download_model(key, local_tmp))
             loop.close()
+            if not success:
+                return None
             return load_model(key, cache_enabled=cache_on)
         except Exception as exc:
-            logger.debug(f"GCS load failed for {key}: {exc}")
+            logger.debug(f"Tachyon load failed for {key}: {exc}")
             return None
 
     def _try_load_pkl(self, key: str, legacy_models_dir: str, cache_on: bool) -> Optional[Dict]:
