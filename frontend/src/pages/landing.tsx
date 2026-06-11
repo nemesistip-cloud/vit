@@ -243,7 +243,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <StatCounter value={stats?.predictions_display ?? "1.2M+"} label="Signals Generated" />
-            <StatCounter value={stats?.accuracy_display ?? "84.2%"} label="Signal Accuracy" />
+            <StatCounter value={stats?.accuracy_display ?? "N/A"} label="Signal Accuracy" />
             <StatCounter value={stats?.total_staked_display ?? "$4.8M"} label="Total Staked" />
             <StatCounter value={`${modelCount}`} label="Active Intelligence Models" />
           </div>
