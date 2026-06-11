@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PORT="${PORT:-8080}"
+PORT="${PORT:-10000}"
 APP_VERSION="5.5.0"
 
 # Signal to app that we are in production — triggers full model loading,

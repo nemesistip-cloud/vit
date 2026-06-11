@@ -2406,7 +2406,9 @@ async def serve_spa(full_path: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    port = int(os.getenv("PORT", 10000))
+    print(f"[vit] Starting server on port {port}...")
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 def _sanitize_validation_errors(errors: list) -> list:
     """Helper to clean up pydantic validation errors for public response."""
