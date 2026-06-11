@@ -16,7 +16,7 @@ from app.db.models import User
 from app.api.deps import get_current_user, get_current_admin
 from app.modules.marketplace.models import AIModelListing
 from app.modules.marketplace import service as svc
-from app.services.gcs_storage import gcs_storage
+from app.services.tachyon_client import tachyon_client
 
 logger = logging.getLogger(__name__)
 
@@ -89,22 +89,25 @@ async def upload_model_file(
             lpath = os.path.join(package_dir, fname)
             with open(lpath, "wb") as f: f.write(content)
 
-            # Sync to GCS
-            await gcs_storage.upload_model(lpath, f"{upload_id}/{fname}")
-            files_meta.append({"filename": fname, "primary": fname == primary_file})
+            # Sync to Tachyon distributed storage
+            tachyon_file_id = await tachyon_client.upload_model(lpath)
+            files_meta.append({"filename": fname, "primary": fname == primary_file, "tachyon_id": tachyon_file_id})
 
-        gcs_uri = f"gs://{os.getenv('GCS_BUCKET_NAME') or 'vit-models'}/{upload_id}/{primary_file or 'model.pkl'}"
+        primary_fname = primary_file or (files_meta[0]["filename"] if files_meta else "model.pkl")
+        primary_meta = next((m for m in files_meta if m.get("primary") or m["filename"] == primary_fname), {})
+        tachyon_id = primary_meta.get("tachyon_id") or upload_id
+        tachyon_uri = f"tachyon://{tachyon_id}/{primary_fname}"
 
         listing = await svc.create_listing(
             db, creator_id=current_user.id, name=name, description=description,
             category=category, tags=tags, price_per_call=Decimal(str(price_per_call)),
             model_key=model_key, pkl_path=upload_id, pkl_sha256=package_sha.hexdigest(),
-            gcs_uri=gcs_uri, webhook_url=webhook_url
+            gcs_uri=tachyon_uri, webhook_url=webhook_url
         )
 
         import shutil
         shutil.rmtree(package_dir, ignore_errors=True)
-        return {**_fmt_listing(listing), "message": "Model uploaded and synced to GCS."}
+        return {**_fmt_listing(listing), "message": "Model uploaded and synced to Tachyon."}
     except Exception as e:
         import shutil
         shutil.rmtree(package_dir, ignore_errors=True)
