@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func
@@ -36,7 +36,7 @@ class AIProfilerService:
                 new_weight *= 0.8
 
             perf.current_weight = new_weight
-            perf.last_updated = datetime.now()
+            perf.last_updated = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await self.db.commit()
         logger.info(f"Updated weights for {len(performances)} AI sources")
@@ -116,14 +116,14 @@ class AIProfilerService:
         performances = result.scalars().all()
 
         report = {
-            "generated_at": datetime.now(),
+            "generated_at": datetime.now(timezone.utc).replace(tzinfo=None),
             "ai_sources": len(performances),
             "sources": []
         }
 
         for perf in performances:
             # Get recent predictions (last 30 days)
-            thirty_days_ago = datetime.now() - timedelta(days=30)
+            thirty_days_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
             recent_result = await self.db.execute(
                 select(func.count(AIPrediction.id))
                 .where(AIPrediction.source == perf.source)
@@ -145,7 +145,7 @@ class AIProfilerService:
 
     async def detect_drift(self, source: str, window_days: int = 30) -> Dict:
         """Detect performance drift over time"""
-        cutoff_date = datetime.now() - timedelta(days=window_days)
+        cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=window_days)
 
         # Get predictions in windows
         result = await self.db.execute(
