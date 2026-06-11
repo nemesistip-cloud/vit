@@ -445,6 +445,19 @@ async def list_users(
     result = await db.execute(query.order_by(User.id.desc()).limit(limit).offset(offset))
     users = result.scalars().all()
 
+    # Bulk-fetch wallet balances so we don't N+1 the DB
+    wallet_map: dict = {}
+    try:
+        from app.modules.wallet.models import Wallet
+        user_ids = [u.id for u in users]
+        if user_ids:
+            wallet_rows = (await db.execute(
+                select(Wallet.user_id, Wallet.vitcoin_balance).where(Wallet.user_id.in_(user_ids))
+            )).all()
+            wallet_map = {row.user_id: float(row.vitcoin_balance) for row in wallet_rows}
+    except Exception:
+        pass
+
     return {
         "users": [
             {
@@ -459,7 +472,7 @@ async def list_users(
                 "is_banned": u.is_banned,
                 "created_at": u.created_at.isoformat() if u.created_at else None,
                 "last_login": u.last_login.isoformat() if u.last_login else None,
-                "vitcoin_balance": 0
+                "vitcoin_balance": wallet_map.get(u.id, 0.0),
             } for u in users
         ],
         "total": total
@@ -546,7 +559,27 @@ async def list_audit_logs(
 
 @router.post("/system/cache/clear")
 async def clear_cache(current_user=Depends(get_current_admin)):
-    return {"status": "success", "message": "Cache cleared"}
+    cleared: list[str] = []
+    try:
+        from app.api.routes.dashboard import _price_cache
+        _price_cache["data"] = None
+        _price_cache["timestamp"] = None
+        cleared.append("dashboard_price_cache")
+    except Exception:
+        pass
+    try:
+        from app.services.ft_backfill import _form_cache  # type: ignore
+        _form_cache.clear()
+        cleared.append("form_cache")
+    except Exception:
+        pass
+    try:
+        from app.services.vit_analytics import _insight_cache  # type: ignore
+        _insight_cache.clear()
+        cleared.append("insight_cache")
+    except Exception:
+        pass
+    return {"status": "success", "message": "Cache cleared", "cleared": cleared}
 
 @router.post("/system/backup")
 async def create_backup(current_user=Depends(get_current_admin)):
@@ -685,8 +718,36 @@ async def delete_api_key(
     return {"status": "ok", "key": name, "message": f"'{name}' removed from database (env var still active until restart)"}
 
 @router.post("/matches/fetch-fixtures")
-async def fetch_fixtures(count: int = 50, days: int = 14, current_user=Depends(get_current_admin)):
-    return {"status": "success", "stored": 0, "skipped_existing": 0}
+async def fetch_fixtures(
+    count: int = 50,
+    days: int = 14,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Trigger an immediate fixture sync from TheSportsDB + Football-Data.org."""
+    from app.services.sportsdb_api import sync_upcoming_fixtures
+    try:
+        result = await sync_upcoming_fixtures(db, days_ahead=days)
+    except Exception as sync_err:
+        logger.error(f"[admin] fetch_fixtures error: {sync_err}")
+        result = {"inserted": 0, "updated": 0, "skipped": 0, "total_fetched": 0, "error": str(sync_err)}
+
+    seeded = 0
+    try:
+        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        seeded = await seed_predictions_for_upcoming(db)
+    except Exception as seed_err:
+        logger.warning(f"[admin] prediction seeder failed: {seed_err}")
+
+    stored = result.get("inserted", 0) + result.get("updated", 0)
+    return {
+        "status": "success",
+        "stored": stored,
+        "skipped_existing": result.get("skipped", 0),
+        "fixtures": result,
+        "predictions_seeded": seeded,
+        "days_ahead": days,
+    }
 
 
 @router.post("/fixtures/sync-fd12")
@@ -806,13 +867,62 @@ async def list_leagues(current_user=Depends(get_current_admin)):
 
 
 @router.get("/markets")
-async def list_markets(current_user=Depends(get_current_admin)):
-    return []
+async def list_markets(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """List all markets in the DB."""
+    from app.db.models import Market
+    rows = (await db.execute(
+        select(Market).order_by(Market.created_at.desc()).limit(500)
+    )).scalars().all()
+    return [
+        {
+            "id": m.id,
+            "market_type": m.market_type,
+            "category": m.category,
+            "title": m.title,
+            "description": m.description,
+            "status": m.status,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in rows
+    ]
 
 
 @router.get("/marketplace/pending")
-async def list_pending_listings(current_user=Depends(get_current_admin)):
-    return []
+async def list_pending_listings(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """List marketplace listings awaiting admin approval."""
+    from app.modules.marketplace.models import AIModelListing
+    rows = (await db.execute(
+        select(AIModelListing)
+        .where(AIModelListing.approval_status == "pending")
+        .order_by(AIModelListing.created_at.desc())
+        .limit(200)
+    )).scalars().all()
+    return [
+        {
+            "id": r.id,
+            "name": r.name,
+            "slug": r.slug,
+            "description": r.description,
+            "category": r.category,
+            "creator_id": r.creator_id,
+            "price_per_call": float(r.price_per_call),
+            "approval_status": r.approval_status,
+            "approval_note": r.approval_note,
+            "is_active": r.is_active,
+            "is_verified": r.is_verified,
+            "usage_count": r.usage_count,
+            "avg_rating": r.avg_rating,
+            "total_staked": float(r.total_staked),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
 
 
 # ── Integration settings (admin-configurable via PlatformConfig) ─────────
