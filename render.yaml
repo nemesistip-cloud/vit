@@ -8,7 +8,7 @@ services:
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_production.sh
 
-    healthCheckPath: /health
+    healthCheckPath: /ping
 
     envVars:
       - key: ENVIRONMENT
@@ -74,6 +74,7 @@ services:
     runtime: python
     region: oregon
     plan: starter
+    healthCheckPath: /health
     buildCommand: pip install -r requirements.txt
     startCommand: python3 -m tachyon.main
     envVars:
