@@ -24,7 +24,21 @@ echo "[production] Environment: ${ENVIRONMENT} | Port: ${PORT}"
 if [ -d "frontend/dist" ]; then
     echo "[production] Frontend assets found in frontend/dist"
 else
-    echo "[production] WARNING: frontend/dist not found. Frontend may not be served."
+    echo "[production] frontend/dist not found — building frontend now..."
+    if command -v node &>/dev/null; then
+        cd frontend
+        if [ -f "pnpm-lock.yaml" ] && command -v pnpm &>/dev/null; then
+            pnpm install --frozen-lockfile && pnpm run build
+        elif [ -f "package-lock.json" ]; then
+            npm ci --prefer-offline --no-audit --no-fund && npm run build
+        else
+            npm install --prefer-offline --no-audit --no-fund && npm run build
+        fi
+        cd ..
+        echo "[production] Frontend build complete"
+    else
+        echo "[production] WARNING: node not available — frontend will not be served."
+    fi
 fi
 
 echo "[production] Running database schema setup..."
