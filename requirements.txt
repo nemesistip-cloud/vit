@@ -11,9 +11,11 @@ email-validator>=2.0
 eth-account>=0.8.0
 fastapi
 fpdf2
+dropbox
 google-api-python-client
 google-auth
 google-cloud-secret-manager
+msal
 google-cloud-storage
 greenlet
 gunicorn
