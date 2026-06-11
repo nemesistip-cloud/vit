@@ -24,7 +24,7 @@ backend/models/trained/*.pkl
 
 # Frontend build output & dependencies
 frontend/node_modules/
-frontend/dist/
+
 frontend/.vite/
 node_modules/
 
