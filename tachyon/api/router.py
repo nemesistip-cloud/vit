@@ -1,49 +1,101 @@
 import hashlib
-
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.database import get_db
-from app.modules.storage_verification.service import register_content
-from app.api.deps import get_optional_user
-from tachyon.core.shredder import TachyonShredder
-
-from typing import List, Dict
-import uuid
+import json
+import logging
 import os
-import asyncio
+import uuid
+from typing import Dict, List
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_optional_user
+from app.db.database import get_db
+from app.modules.storage_verification.models import TachyonManifest
+from app.modules.storage_verification.service import register_content
 from tachyon.core.scheduler import TachyonScheduler
-from tachyon.providers.gdrive import GoogleDriveProvider
-from tachyon.providers.onedrive import OneDriveProvider
-from tachyon.providers.dropbox import DropboxProvider
+from tachyon.core.shredder import TachyonShredder
+from tachyon.providers.disk import DiskProvider
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Global scheduler for the coordination plane
+# ---------------------------------------------------------------------------
+# Providers — DiskProvider instances give real persistence on the local
+# filesystem.  Five "nodes" each write to their own sub-directory so the
+# round-robin fragment distribution mirrors multi-cloud redundancy without
+# requiring external credentials.  Swap any DiskProvider for a real cloud
+# provider (GDriveProvider, etc.) once credentials are available.
+# ---------------------------------------------------------------------------
+_STORAGE_ROOT = os.environ.get("TACHYON_STORAGE_PATH", "/tmp/tachyon_storage")
 _providers = [
-    GoogleDriveProvider("gdrive_1"),
-    GoogleDriveProvider("gdrive_2"),
-    OneDriveProvider("onedrive_1"),
-    OneDriveProvider("onedrive_2"),
-    DropboxProvider("dropbox_1")
+    DiskProvider(f"node_{i}", storage_path=_STORAGE_ROOT)
+    for i in range(5)
 ]
 scheduler = TachyonScheduler(_providers)
 
-# Manifest store
-_manifests: Dict[str, Dict] = {}
+# In-memory warm cache — populated on first access so downloads after a
+# cold start still work (manifest is fetched from DB then cached here).
+_cache: Dict[str, Dict] = {}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _load_manifest(file_id: str, db: AsyncSession) -> Dict | None:
+    """Return manifest dict from warm cache or DB."""
+    if file_id in _cache:
+        return _cache[file_id]
+    row = (
+        await db.execute(
+            select(TachyonManifest).where(TachyonManifest.file_id == file_id)
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    manifest = {
+        "file_id": row.file_id,
+        "filename": row.filename,
+        "size_bytes": row.size_bytes,
+        "fragment_names": row.fragment_names,
+        "provider_mapping": row.provider_mapping,
+    }
+    _cache[file_id] = manifest
+    return manifest
+
+
+async def _save_manifest(manifest: Dict, db: AsyncSession, owner_id: int | None):
+    """Persist manifest to DB and warm cache."""
+    row = TachyonManifest(
+        file_id=manifest["file_id"],
+        filename=manifest["filename"],
+        size_bytes=manifest["size_bytes"],
+        fragment_names=manifest["fragment_names"],
+        provider_mapping=manifest["provider_mapping"],
+        owner_user_id=owner_id,
+    )
+    db.add(row)
+    await db.commit()
+    _cache[manifest["file_id"]] = manifest
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    user = Depends(get_optional_user)
+    user=Depends(get_optional_user),
 ):
     file_id = str(uuid.uuid4())
     content = await file.read()
 
-    # Calculate file hash for registry
     file_hash = "0x" + hashlib.sha3_256(content).hexdigest()
 
-    # Burst Upload
     results = await scheduler.upload_burst(content, file_id)
 
     num_frags = (len(content) + 4095) // 4096
@@ -56,16 +108,17 @@ async def upload_file(
         "filename": file.filename,
         "size_bytes": len(content),
         "fragment_names": fragment_names,
-        "provider_mapping": mapping
+        "provider_mapping": mapping,
     }
-    _manifests[file_id] = manifest
 
-    # Register in Storage Verification
     try:
-        # Use first fragment hash as QSH for the registry entry
+        await _save_manifest(manifest, db, owner_id=user.id if user else None)
+    except Exception as exc:
+        logger.error("[tachyon] manifest persist failed: %s", exc)
+
+    try:
         fragments = TachyonShredder.shred(content)
         qsh = TachyonShredder.get_fragment_hash(fragments[0]) if fragments else None
-
         await register_content(
             db=db,
             content_hash=file_hash,
@@ -76,35 +129,42 @@ async def upload_file(
             is_tachyon=True,
             tachyon_shards=num_frags,
             tachyon_parity_shards=parity_shards,
-            quantum_state_hash=qsh
+            quantum_state_hash=qsh,
         )
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"Failed to register tachyon content: {e}")
+    except Exception as exc:
+        logger.error("[tachyon] content registry failed: %s", exc)
 
     return manifest
 
+
 @router.get("/download/{file_id}")
-async def download_file(file_id: str):
-    manifest = _manifests.get(file_id)
+async def download_file(file_id: str, db: AsyncSession = Depends(get_db)):
+    manifest = await _load_manifest(file_id, db)
     if not manifest:
         raise HTTPException(status_code=404, detail="Manifest not found")
 
     data = await scheduler.download_burst(
         manifest["fragment_names"],
         manifest["provider_mapping"],
-        manifest["size_bytes"]
+        manifest["size_bytes"],
     )
 
     from fastapi.responses import Response
     return Response(content=data, media_type="application/octet-stream")
 
+
 @router.get("/status")
-async def get_status():
+async def get_status(db: AsyncSession = Depends(get_db)):
+    count_result = await db.execute(
+        select(__import__("sqlalchemy").func.count(TachyonManifest.file_id))
+    )
+    db_manifest_count = count_result.scalar() or 0
     return {
         "network_bandwidth": "3.2 Tbps",
-        "active_nodes": 124500,
-        "fragments_processed": 10**12,
+        "active_nodes": len(_providers),
+        "fragments_processed": db_manifest_count,
         "status": "operational",
-        "manifest_count": len(_manifests)
+        "manifest_count": db_manifest_count,
+        "storage_backend": "disk",
+        "storage_path": _STORAGE_ROOT,
     }
