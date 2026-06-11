@@ -148,5 +148,30 @@ class DataAvailabilityAttestation(Base):
     attested_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
 
 
+class TachyonManifest(Base):
+    """Persistent manifest for a Tachyon-sharded upload.
+
+    Replaces the in-memory ``_manifests`` dict in tachyon/api/router.py so
+    file metadata survives restarts and re-deploys.
+    """
+    __tablename__ = "tachyon_manifests"
+
+    file_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    filename: Mapped[str] = mapped_column(String(512))
+    size_bytes: Mapped[int] = mapped_column()
+    fragment_names: Mapped[dict] = mapped_column(
+        __import__("sqlalchemy").JSON, nullable=False
+    )
+    provider_mapping: Mapped[dict] = mapped_column(
+        __import__("sqlalchemy").JSON, nullable=False
+    )
+    owner_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
+
+
 def _utcnow():
     return datetime.now(timezone.utc)
