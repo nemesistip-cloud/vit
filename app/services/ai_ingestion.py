@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
@@ -54,7 +54,7 @@ class AIIngestionService:
                 pred.raw_content = raw_content
             if submitted_by is not None:
                 pred.submitted_by = submitted_by
-            pred.timestamp = datetime.now()
+            pred.timestamp = datetime.now(timezone.utc).replace(tzinfo=None)
         else:
             # Create
             pred = AIPrediction(
