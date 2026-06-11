@@ -1,0 +1,17 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: '*/14 * * * *'  # every 14 minutes — prevents Render free-tier spin-down
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Deployment
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://vit-hmt1.onrender.com/ping)
+          echo "Status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "WARNING: /ping returned $STATUS"
+          fi
