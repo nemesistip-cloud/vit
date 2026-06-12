@@ -347,6 +347,12 @@ async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
             r = await client.get(url)
             if r.status_code == 429:
                 retry_after = r.headers.get("retry-after", "?")
+            # honour the retry-after header (cap at 30s to avoid stalling startup)
+                try:
+                    _ra = int(r.headers.get("retry-after", "5"))
+                    import asyncio as _a; await _a.sleep(min(_ra, 30))
+                except Exception:
+                    pass
                 logger.warning(
                     "[sportsdb] rate-limited (429) on %s (retry-after=%s) — skipping",
                     path, retry_after,
@@ -384,7 +390,7 @@ async def fetch_next_events() -> List[Dict]:
                     mapped["league"] = slug
                 events.append(mapped)
         if i < len(league_items) - 1:
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(2.5)
     logger.info("[sportsdb] fetch_next_events: %d events across %d leagues", len(events), len(LEAGUES))
     return events
 
@@ -402,7 +408,7 @@ async def fetch_past_events() -> List[Dict]:
                     mapped["league"] = slug
                 events.append(mapped)
         if i < len(league_items) - 1:
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(2.5)
     logger.info("[sportsdb] fetch_past_events: %d events across %d leagues", len(events), len(LEAGUES))
     return events
 
@@ -428,7 +434,7 @@ async def fetch_upcoming_range(days: int = 60) -> List[Dict]:
     dates = [today + timedelta(days=i) for i in range(1, days + 1)]
 
     # Batch in groups of 3 concurrent requests — free-tier is rate-limited
-    batch_size = 3
+    batch_size = 2
     events: List[Dict] = []
     seen: set = set()
 
@@ -445,7 +451,7 @@ async def fetch_upcoming_range(days: int = 60) -> List[Dict]:
                         events.append(ev)
         # 2-second pause between each batch to respect free-tier rate limits
         if start + batch_size < len(dates):
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(2.5)
 
     logger.info("[sportsdb] fetch_upcoming_range(%dd): %d events", days, len(events))
     return events
@@ -522,7 +528,7 @@ async def fetch_season_fixtures(days_ahead: int = 90) -> List[Dict]:
 
         # Throttle between each league to stay within free-tier rate limits
         if i < len(league_items) - 1:
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(2.5)
 
     logger.info(
         "[sportsdb] fetch_season_fixtures(days_ahead=%d): %d upcoming fixtures across %d leagues",
@@ -581,7 +587,7 @@ async def fetch_historical_range(days_back: int = 180) -> List[Dict]:
                     all_events.append(ev)
         # 3-second pause between every request to stay within free-tier limits
         if i < len(dates) - 1:
-            await asyncio.sleep(3.0)
+            await asyncio.sleep(4.0)
 
     logger.info("[sportsdb] fetch_historical_range(%dd): %d settled events", days_back, len(all_events))
     return all_events
