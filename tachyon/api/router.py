@@ -24,10 +24,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Provider selection — add cloud providers when their credentials are present.
-# Falls back to all-disk when no cloud env vars are set (local dev).
-# ---------------------------------------------------------------------------
 _STORAGE_ROOT = os.environ.get("TACHYON_STORAGE_PATH", "/tmp/tachyon_storage")
 _GDRIVE_SA    = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
 _DROPBOX_TOK  = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip() or os.environ.get("DROPBOX_REFRESH_TOKEN", "").strip()
@@ -42,7 +38,6 @@ if _DROPBOX_TOK:
 if _ONEDRIVE_ID:
     _providers += [OneDriveProvider("onedrive_0"), OneDriveProvider("onedrive_1")]
 
-# Always keep at least 3 disk nodes for local redundancy / fallback
 _DISK_MIN = max(0, 3 - len(_providers))
 _providers += [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(_DISK_MIN)]
 
@@ -54,17 +49,10 @@ logger.info("[tachyon] providers: %s  total=%d", " + ".join(_backends), len(_pro
 
 scheduler = TachyonScheduler(_providers)
 
-# In-memory warm cache — populated on first access so downloads after a
-# cold start still work (manifest is fetched from DB then cached here).
 _cache: Dict[str, Dict] = {}
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 async def _load_manifest(file_id: str, db: AsyncSession) -> Dict | None:
-    """Return manifest dict from warm cache or DB."""
     if file_id in _cache:
         return _cache[file_id]
     row = (
@@ -86,7 +74,6 @@ async def _load_manifest(file_id: str, db: AsyncSession) -> Dict | None:
 
 
 async def _save_manifest(manifest: Dict, db: AsyncSession, owner_id: int | None):
-    """Persist manifest to DB and warm cache."""
     row = TachyonManifest(
         file_id=manifest["file_id"],
         filename=manifest["filename"],
@@ -153,7 +140,14 @@ async def upload_file(
     except Exception as exc:
         logger.error("[tachyon] content registry failed: %s", exc)
 
-    return manifest
+    return {
+        "file_id": manifest["file_id"],
+        "filename": manifest["filename"],
+        "size_bytes": manifest["size_bytes"],
+        "fragment_count": len(fragment_names),
+        "fragment_names": manifest["fragment_names"],
+        "created_at": None,
+    }
 
 
 @router.get("/download/{file_id}")
@@ -172,18 +166,80 @@ async def download_file(file_id: str, db: AsyncSession = Depends(get_db)):
     return Response(content=data, media_type="application/octet-stream")
 
 
+@router.get("/manifests")
+async def list_manifests(
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all stored file manifests from the database."""
+    stmt = (
+        select(TachyonManifest)
+        .order_by(TachyonManifest.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+    total = (await db.execute(select(func.count(TachyonManifest.file_id)))).scalar() or 0
+    return {
+        "total": total,
+        "items": [
+            {
+                "file_id": r.file_id,
+                "filename": r.filename,
+                "size_bytes": r.size_bytes,
+                "fragment_count": len(r.fragment_names) if isinstance(r.fragment_names, list) else 0,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "owner_user_id": r.owner_user_id,
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.delete("/manifests/{file_id}")
+async def delete_manifest(file_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a manifest from the database and warm cache."""
+    row = (
+        await db.execute(
+            select(TachyonManifest).where(TachyonManifest.file_id == file_id)
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Manifest not found")
+    await db.delete(row)
+    await db.commit()
+    _cache.pop(file_id, None)
+    return {"deleted": file_id}
+
+
 @router.get("/status")
 async def get_status(db: AsyncSession = Depends(get_db)):
     count_result = await db.execute(
         select(func.count(TachyonManifest.file_id))
     )
     db_manifest_count = count_result.scalar() or 0
+
+    total_bytes_result = await db.execute(
+        select(func.sum(TachyonManifest.size_bytes))
+    )
+    total_bytes = total_bytes_result.scalar() or 0
+
+    provider_breakdown = {}
+    for p in _providers:
+        kind = type(p).__name__.replace("Provider", "")
+        provider_breakdown[kind] = provider_breakdown.get(kind, 0) + 1
+
     return {
         "network_bandwidth": "3.2 Tbps",
         "active_nodes": len(_providers),
         "fragments_processed": db_manifest_count,
         "status": "operational",
         "manifest_count": db_manifest_count,
+        "total_bytes": total_bytes,
         "storage_backend": " + ".join(_backends),
         "storage_path": _STORAGE_ROOT,
+        "provider_breakdown": provider_breakdown,
+        "cloud_enabled": bool(_GDRIVE_SA or _DROPBOX_TOK or _ONEDRIVE_ID),
     }
