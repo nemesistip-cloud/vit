@@ -6,6 +6,7 @@ import uuid
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -212,6 +213,68 @@ async def delete_manifest(file_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
     _cache.pop(file_id, None)
     return {"deleted": file_id}
+
+
+class LinkProviderRequest(BaseModel):
+    provider: str
+    credentials: Dict[str, str]
+
+
+@router.post("/providers/link")
+async def link_provider(req: "LinkProviderRequest", db: AsyncSession = Depends(get_db)):
+    """Save a cloud storage provider credential to PlatformConfig so it persists across restarts."""
+    from app.modules.wallet.models import PlatformConfig
+
+    PROVIDER_ENV_MAP = {
+        "gdrive": {"GDRIVE_SERVICE_ACCOUNT_JSON": "service_account_json"},
+        "dropbox": {
+            "DROPBOX_ACCESS_TOKEN": "access_token",
+            "DROPBOX_APP_KEY": "app_key",
+            "DROPBOX_APP_SECRET": "app_secret",
+            "DROPBOX_REFRESH_TOKEN": "refresh_token",
+        },
+        "onedrive": {
+            "ONEDRIVE_CLIENT_ID": "client_id",
+            "ONEDRIVE_CLIENT_SECRET": "client_secret",
+            "ONEDRIVE_TENANT_ID": "tenant_id",
+            "ONEDRIVE_USER_ID": "user_id",
+        },
+    }
+
+    if req.provider not in PROVIDER_ENV_MAP:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {req.provider}")
+
+    env_map = PROVIDER_ENV_MAP[req.provider]
+    saved = []
+    for env_key, cred_key in env_map.items():
+        value = req.credentials.get(cred_key, "").strip()
+        if not value:
+            continue
+        config_key = f"integration:{env_key}"
+        existing = (await db.execute(
+            select(PlatformConfig).where(PlatformConfig.key == config_key)
+        )).scalar_one_or_none()
+        if existing:
+            existing.value = value
+        else:
+            db.add(PlatformConfig(key=config_key, value=value))
+        import os
+        os.environ[env_key] = value
+        saved.append(env_key)
+
+    await db.commit()
+    return {"linked": req.provider, "saved_keys": saved, "restart_required": True}
+
+
+@router.get("/providers")
+async def list_providers():
+    """Return which cloud providers are currently configured."""
+    return {
+        "gdrive": {"configured": bool(_GDRIVE_SA), "nodes": sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))},
+        "dropbox": {"configured": bool(_DROPBOX_TOK), "nodes": sum(1 for p in _providers if isinstance(p, DropboxProvider))},
+        "onedrive": {"configured": bool(_ONEDRIVE_ID), "nodes": sum(1 for p in _providers if isinstance(p, OneDriveProvider))},
+        "disk": {"configured": True, "nodes": sum(1 for p in _providers if isinstance(p, DiskProvider))},
+    }
 
 
 @router.get("/status")

@@ -2400,9 +2400,67 @@ async def health(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/system/status", tags=["System"])
-async def system_status():
-    """Lightweight public health/status endpoint — no auth required."""
-    return {"status": "ok", "version": APP_VERSION}
+async def system_status(db: AsyncSession = Depends(get_db)):
+    """Public system health/status endpoint — returns live platform stats for the ecosystem ticker."""
+    from app.db.models import User
+    from sqlalchemy import func, select, text
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = now - timedelta(days=30)
+
+    total_users = 0
+    active_users_30d = 0
+    active_validators = 0
+    total_staked_vit = 0.0
+    total_predictions_all = 0
+
+    try:
+        total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
+    except Exception:
+        pass
+
+    try:
+        from app.db.models import Prediction
+        total_predictions_all = (await db.execute(select(func.count(Prediction.id)))).scalar() or 0
+        active_users_30d = (
+            await db.execute(
+                select(func.count(func.distinct(Prediction.user_id)))
+                .where(Prediction.timestamp >= thirty_days_ago.replace(tzinfo=None))
+            )
+        ).scalar() or 0
+    except Exception:
+        pass
+
+    try:
+        from app.modules.blockchain.models import ValidatorNode, ValidatorStatus
+        active_validators = (
+            await db.execute(
+                select(func.count(ValidatorNode.id)).where(
+                    ValidatorNode.status == ValidatorStatus.ACTIVE.value
+                )
+            )
+        ).scalar() or 0
+    except Exception:
+        pass
+
+    try:
+        from app.modules.wallet.models import Wallet
+        total_staked_vit = float(
+            (await db.execute(select(func.sum(Wallet.vitcoin_balance)))).scalar() or 0
+        )
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "total_users": total_users,
+        "active_users_30d": active_users_30d,
+        "active_validators": active_validators,
+        "total_staked_vit": round(total_staked_vit, 4),
+        "total_predictions": total_predictions_all,
+    }
 
 
 @app.get("/", include_in_schema=False)

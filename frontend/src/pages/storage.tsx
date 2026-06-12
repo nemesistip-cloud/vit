@@ -5,6 +5,13 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Database,
   Zap,
   ShieldCheck,
@@ -31,6 +38,11 @@ import {
   ArrowUpDown,
   Clock,
   Info,
+  Plus,
+  Link as LinkIcon,
+  Activity,
+  Cpu,
+  Server,
 } from "lucide-react";
 
 interface TachyonStatus {
@@ -65,6 +77,198 @@ interface StorageStats {
 
 type Tab = 'upload' | 'files' | 'swarm';
 type SortKey = 'date' | 'name' | 'size';
+
+interface ProviderConfig {
+  gdrive: { configured: boolean; nodes: number };
+  dropbox: { configured: boolean; nodes: number };
+  onedrive: { configured: boolean; nodes: number };
+  disk: { configured: boolean; nodes: number };
+}
+
+// ── Link Provider Dialog ──────────────────────────────────────────────────────
+type CloudProvider = 'gdrive' | 'dropbox' | 'onedrive';
+
+interface ProviderOption {
+  id: CloudProvider;
+  label: string;
+  letter: string;
+  color: string;
+  fields: { key: string; label: string; placeholder: string; multiline?: boolean }[];
+}
+
+const CLOUD_PROVIDERS: ProviderOption[] = [
+  {
+    id: 'gdrive',
+    label: 'Google Drive',
+    letter: 'G',
+    color: 'bg-blue-900/50 text-blue-300 border-blue-700/40',
+    fields: [
+      { key: 'service_account_json', label: 'Service Account JSON', placeholder: '{"type":"service_account",...}', multiline: true },
+    ],
+  },
+  {
+    id: 'dropbox',
+    label: 'Dropbox',
+    letter: 'Db',
+    color: 'bg-sky-900/50 text-sky-300 border-sky-700/40',
+    fields: [
+      { key: 'access_token', label: 'Access Token', placeholder: 'sl.B...' },
+      { key: 'refresh_token', label: 'Refresh Token (optional)', placeholder: '' },
+      { key: 'app_key', label: 'App Key (optional)', placeholder: '' },
+      { key: 'app_secret', label: 'App Secret (optional)', placeholder: '' },
+    ],
+  },
+  {
+    id: 'onedrive',
+    label: 'OneDrive',
+    letter: 'O',
+    color: 'bg-indigo-900/50 text-indigo-300 border-indigo-700/40',
+    fields: [
+      { key: 'client_id', label: 'Client ID', placeholder: 'xxxxxxxx-xxxx-...' },
+      { key: 'client_secret', label: 'Client Secret', placeholder: '' },
+      { key: 'tenant_id', label: 'Tenant ID', placeholder: 'xxxxxxxx-xxxx-...' },
+      { key: 'user_id', label: 'User ID / Email', placeholder: 'user@tenant.onmicrosoft.com' },
+    ],
+  },
+];
+
+function LinkProviderDialog({
+  open,
+  onClose,
+  onLinked,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onLinked: () => void;
+}) {
+  const [selectedProvider, setSelectedProvider] = useState<CloudProvider | null>(null);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const providerDef = CLOUD_PROVIDERS.find(p => p.id === selectedProvider);
+
+  const handleLink = async () => {
+    if (!selectedProvider || !providerDef) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/tachyon/providers/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: selectedProvider, credentials: fields }),
+      });
+      if (!r.ok) {
+        const d = await r.json();
+        throw new Error(d.detail || 'Failed to link provider');
+      }
+      setSuccess(true);
+      setTimeout(() => {
+        onLinked();
+        onClose();
+        setSuccess(false);
+        setSelectedProvider(null);
+        setFields({});
+      }, 1800);
+    } catch (e: any) {
+      setError(e?.message || 'Link failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-lg bg-background border-border/60">
+        <DialogHeader>
+          <DialogTitle className="font-mono text-sm uppercase tracking-widest flex items-center gap-2">
+            <Plus className="w-4 h-4 text-primary" /> Link Cloud Provider
+          </DialogTitle>
+          <DialogDescription className="font-mono text-[10px] text-muted-foreground">
+            Connect a cloud storage backend for persistent swarm nodes. Changes take effect on next restart.
+          </DialogDescription>
+        </DialogHeader>
+
+        {!selectedProvider ? (
+          <div className="space-y-2 mt-2">
+            {CLOUD_PROVIDERS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => { setSelectedProvider(p.id); setFields({}); setError(null); }}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all hover:border-primary/40 hover:bg-primary/5 ${p.color}`}
+              >
+                <span className="w-9 h-9 rounded-md flex items-center justify-center font-mono font-bold text-sm border border-current/20 bg-current/10">
+                  {p.letter}
+                </span>
+                <div className="text-left">
+                  <div className="text-sm font-mono font-bold">{p.label}</div>
+                  <div className="text-[10px] font-mono opacity-70">{p.fields.length} credential{p.fields.length !== 1 ? 's' : ''} required</div>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 ml-auto rotate-[-90deg]" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4 mt-2">
+            <button
+              onClick={() => { setSelectedProvider(null); setError(null); }}
+              className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground hover:text-foreground"
+            >
+              ← back to provider list
+            </button>
+
+            <div className="text-xs font-mono font-bold text-foreground flex items-center gap-2">
+              <LinkIcon className="w-3.5 h-3.5 text-primary" /> {providerDef?.label} credentials
+            </div>
+
+            {providerDef?.fields.map(f => (
+              <div key={f.key} className="space-y-1.5">
+                <label className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{f.label}</label>
+                {f.multiline ? (
+                  <textarea
+                    rows={4}
+                    value={fields[f.key] || ''}
+                    onChange={e => setFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                    placeholder={f.placeholder}
+                    className="w-full rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-[11px] font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 resize-none"
+                  />
+                ) : (
+                  <input
+                    type={f.key.toLowerCase().includes('secret') || f.key.toLowerCase().includes('token') ? 'password' : 'text'}
+                    value={fields[f.key] || ''}
+                    onChange={e => setFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                    placeholder={f.placeholder}
+                    className="w-full rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-[11px] font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50"
+                  />
+                )}
+              </div>
+            ))}
+
+            {error && (
+              <div className="text-[10px] font-mono text-destructive flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> {error}
+              </div>
+            )}
+            {success && (
+              <div className="text-[10px] font-mono text-green-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Provider linked! Restart will activate new nodes.
+              </div>
+            )}
+
+            <Button
+              onClick={handleLink}
+              disabled={saving || success}
+              className="w-full font-mono text-xs h-9"
+            >
+              {saving ? <><RefreshCw className="w-3 h-3 mr-1.5 animate-spin" /> Saving…</> : `Link ${providerDef?.label}`}
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -129,6 +333,7 @@ const StoragePage: React.FC = () => {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('date');
+  const [linkProviderOpen, setLinkProviderOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -303,6 +508,9 @@ const StoragePage: React.FC = () => {
           <Button variant="outline" size="sm" onClick={() => { fetchStatus(); fetchStats(); }} className="font-mono text-xs h-8">
             <RefreshCw className="w-3 h-3 mr-1.5" /> Sync
           </Button>
+          <Button size="sm" onClick={() => setLinkProviderOpen(true)} className="font-mono text-xs h-8 bg-primary text-primary-foreground hover:bg-primary/90">
+            <Plus className="w-3 h-3 mr-1.5" /> Link Provider
+          </Button>
         </div>
       </div>
 
@@ -357,6 +565,66 @@ const StoragePage: React.FC = () => {
             </div>
             <div className="text-[10px] font-mono text-muted-foreground mt-0.5 truncate" title={backendLabel}>
               {backendLabel}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── EEC Recovery + Swarm + Throughput ──────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* EEC Recovery */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-primary uppercase tracking-widest font-bold">
+              <Zap className="w-3 h-3" /> EEC Recovery
+            </div>
+            <div className="text-xl font-bold font-mono uppercase tracking-tight">Reed-Solomon</div>
+            <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+              Multi-Fragment Fault Tolerance Active
+            </div>
+            <Progress value={status?.status === 'operational' ? 100 : 40} className="h-1.5 mt-1" />
+          </CardContent>
+        </Card>
+
+        {/* Managed Swarm */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest font-bold">
+              <Server className="w-3 h-3" /> Managed Swarm
+            </div>
+            <div className="text-xl font-bold font-mono">{status?.active_nodes ?? '…'} Providers</div>
+            <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+              Parallel Burst Transfer Active
+            </div>
+            <div className="flex gap-1.5 flex-wrap mt-1">
+              {Object.entries(providerBreakdown).map(([kind, count]) => {
+                const letter = kind === 'GoogleDrive' ? 'G' : kind === 'Dropbox' ? 'Db' : kind === 'OneDrive' ? 'O' : 'D';
+                const color = kind === 'GoogleDrive' ? 'bg-blue-900/60 text-blue-300 border-blue-700/30' :
+                  kind === 'Dropbox' ? 'bg-sky-900/60 text-sky-300 border-sky-700/30' :
+                  kind === 'OneDrive' ? 'bg-indigo-900/60 text-indigo-300 border-indigo-700/30' :
+                  'bg-slate-800 text-slate-300 border-slate-600/30';
+                return (
+                  <span key={kind} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${color}`}>
+                    {letter}: {count}
+                  </span>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Network Throughput */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest font-bold">
+              <Activity className="w-3 h-3" /> Network Throughput
+            </div>
+            <div className="text-xl font-bold font-mono">{status?.network_bandwidth ?? '—'}</div>
+            <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+              Global Coordinated Capacity
+            </div>
+            <div className={`text-[10px] font-mono font-bold mt-1 ${status?.status === 'operational' ? 'text-green-400' : 'text-yellow-400'}`}>
+              ● Coordination Plane {status?.status === 'operational' ? 'Stable' : 'Initialising'}
             </div>
           </CardContent>
         </Card>
@@ -795,6 +1063,11 @@ const StoragePage: React.FC = () => {
           </div>
         </div>
       )}
+      <LinkProviderDialog
+        open={linkProviderOpen}
+        onClose={() => setLinkProviderOpen(false)}
+        onLinked={() => { fetchStatus(); fetchStats(); }}
+      />
     </div>
   );
 };

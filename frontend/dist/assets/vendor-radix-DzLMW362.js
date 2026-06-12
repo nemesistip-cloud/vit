@@ -23,23 +23,23 @@ import{r as Ms,g as As,a as c,j as h,R as En,b as Ae}from"./vendor-query-D7QCUse
     margin-right: `).concat(a,"px ").concat(r,`;
     `),n==="padding"&&"padding-right: ".concat(a,"px ").concat(r,";")].filter(Boolean).join(""),`
   }
-
+  
   .`).concat(Ct,` {
     right: `).concat(a,"px ").concat(r,`;
   }
-
+  
   .`).concat(bt,` {
     margin-right: `).concat(a,"px ").concat(r,`;
   }
-
+  
   .`).concat(Ct," .").concat(Ct,` {
     right: 0 `).concat(r,`;
   }
-
+  
   .`).concat(bt," .").concat(bt,` {
     margin-right: 0 `).concat(r,`;
   }
-
+  
   body[`).concat(Ve,`] {
     `).concat(ol,": ").concat(a,`px;
   }
