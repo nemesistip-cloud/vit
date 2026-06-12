@@ -56,6 +56,16 @@ services:
       # Months of historical data to backfill on first boot (fewer = faster boot)
       - key: BOOTSTRAP_MATCH_MONTHS
         value: "3"
+      # ── Tachyon Storage System ─────────────────────────────────────────────
+      # Tachyon runs INSIDE the main vit service (router mounted at /api/tachyon).
+      # No separate service needed — the standalone tachyon service was removed.
+      # With no cloud credentials set, falls back to 3 disk nodes at /tmp/tachyon_storage.
+      # Set GDRIVE_SERVICE_ACCOUNT_JSON / DROPBOX_ACCESS_TOKEN / ONEDRIVE_CLIENT_ID
+      # in the Render dashboard for persistent cloud-backed storage.
+      - key: TACHYON_STORAGE_ENABLED
+        value: "true"
+      - key: TACHYON_STORAGE_PATH
+        value: "/tmp/tachyon_storage"
       # ── Secrets (must be set manually in Render dashboard) ────────────────
       # CRITICAL: JWT_SECRET_KEY MUST be set — without it sessions are lost on every restart.
       - key: JWT_SECRET_KEY
@@ -106,17 +116,6 @@ services:
           name: vit-redis
           property: connectionString
 
-  - type: web
-    name: tachyon
-    runtime: python
-    region: ohio
-    plan: starter
-    healthCheckPath: /health
-    buildCommand: pip install -r requirements.txt
-    startCommand: python3 -m tachyon.main
-    envVars:
-      - key: PYTHONPATH
-        value: "."
   - type: redis
     name: vit-redis
     region: ohio
