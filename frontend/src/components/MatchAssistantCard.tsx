@@ -171,7 +171,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
   const ready = status.data?.available ?? false;
 
   return (
-    <Card className="border-primary/20 bg-card/80 backdrop-blur">
+    <Card className="border-primary/20 bg-card/80 ">
       <CardHeader
         className="cursor-pointer select-none"
         onClick={() => setOpen((o) => !o)}

@@ -207,7 +207,7 @@ function LivenessCapture({ onCapture, onClear, capturedImage }: { onCapture: (bl
           <>
             <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
             <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-              <Button onClick={capture} className="rounded-full w-12 h-12 p-0 bg-white hover:bg-white/90 border-4 border-primary/30 shadow-xl">
+              <Button onClick={capture} className="rounded-full w-12 h-12 p-0 bg-white hover:bg-white/90 border-4 border-primary/30 ">
                 <div className="w-6 h-6 rounded-full bg-primary" />
               </Button>
             </div>

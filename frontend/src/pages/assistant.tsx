@@ -236,7 +236,7 @@ export default function AssistantPage() {
       </div>
 
       {/* Chat card */}
-      <Card className="overflow-hidden rounded-2xl border-border/50 shadow-2xl bg-card/60 backdrop-blur-md rounded-2xl border-border/50 shadow-2xl bg-card/60 backdrop-blur-md">
+      <Card className="overflow-hidden rounded-2xl border-border/50  bg-card/60  rounded-2xl border-border/50  bg-card/60 ">
         <CardHeader className="border-b">
           <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">
             Conversation
@@ -382,7 +382,7 @@ function MessageBubble({
         )}
 
         <div
-          className={`rounded-xl px-4 py-3 shadow-sm text-sm font-mono leading-relaxed ${
+          className={`rounded-xl px-4 py-3  text-sm font-mono leading-relaxed ${
             isUser
               ? "bg-primary text-primary-foreground"
               : "bg-card border border-border"

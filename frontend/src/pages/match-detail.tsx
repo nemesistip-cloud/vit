@@ -156,7 +156,7 @@ export default function MatchDetailPage() {
         <ChevronLeft className="w-4 h-4 mr-2" /> Back to Feed
       </Button>
 
-      <Card className="bg-card/80 backdrop-blur border-primary/30 overflow-hidden relative">
+      <Card className="bg-card/80  border-primary/30 overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/5 pointer-events-none" />
         <CardContent className="p-8 relative z-10">
           <div className="flex flex-col items-center justify-center space-y-4">
@@ -215,7 +215,7 @@ export default function MatchDetailPage() {
                 league={match?.league ?? undefined}
               />
 
-              <Card className="bg-card/50 backdrop-blur border-border">
+              <Card className="bg-card/50  border-border">
                 <CardHeader className="border-b border-border/50 pb-4">
                   <CardTitle className="font-mono uppercase flex items-center">
                     <BrainCircuit className="w-5 h-5 mr-2 text-primary" />
@@ -389,7 +389,7 @@ export default function MatchDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/50  border-border">
             <CardHeader className="border-b border-border/50 pb-4">
               <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
                 <BarChart2 className="w-4 h-4 text-primary" /> Child Model Analytics
@@ -446,7 +446,7 @@ export default function MatchDetailPage() {
           </Card>
 
           {headToHead && headToHead.count > 0 && (
-            <Card className="bg-card/50 backdrop-blur border-border">
+            <Card className="bg-card/50  border-border">
               <CardHeader className="border-b border-border/50 pb-4">
                 <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-primary" /> Head to Head
@@ -478,7 +478,7 @@ export default function MatchDetailPage() {
           )}
 
           {consensus && (
-            <Card className="bg-card/50 backdrop-blur border-border">
+            <Card className="bg-card/50  border-border">
               <CardHeader className="border-b border-border/50 pb-4">
                 <CardTitle className="font-mono uppercase flex items-center">
                   <ShieldCheck className="w-5 h-5 mr-2 text-secondary" />
@@ -514,7 +514,7 @@ export default function MatchDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className={`bg-card/50 backdrop-blur ${isSports ? "border-primary/40 shadow-[0_0_30px_rgba(0,255,255,0.1)]" : "border-secondary/20"} overflow-hidden`}>
+          <Card className={`bg-card/50  ${isSports ? "border-primary/40 " : "border-secondary/20"} overflow-hidden`}>
             {isSports && (
               <div className="bg-primary/20 px-3 py-1.5 flex items-center gap-2 border-b border-primary/30">
                 <ShieldCheck className="w-3.5 h-3.5 text-primary" />
@@ -567,7 +567,7 @@ export default function MatchDetailPage() {
                         onClick={() => { setStakeTab(t); setSelectedSide(null); }}
                         className={`flex-1 text-[10px] font-mono uppercase py-1.5 rounded transition-all ${
                           stakeTab === t
-                            ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_8px_rgba(0,255,255,0.1)]"
+                            ? "bg-primary/20 text-primary border border-primary/40 "
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -588,7 +588,7 @@ export default function MatchDetailPage() {
                         <button key={side} type="button" onClick={() => setSelectedSide(side)}
                           className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
                             selectedSide === side
-                              ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
+                              ? "border-primary bg-primary/10 "
                               : "border-border bg-card/50 hover:border-primary/40"
                           }`}
                         >
@@ -615,7 +615,7 @@ export default function MatchDetailPage() {
                               <button key={side} type="button" onClick={() => setSelectedSide(side)}
                                 className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
                                   selectedSide === side
-                                    ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
+                                    ? "border-primary bg-primary/10 "
                                     : "border-border bg-card/50 hover:border-primary/40"
                                 }`}
                               >
@@ -637,7 +637,7 @@ export default function MatchDetailPage() {
                               <button key={side} type="button" onClick={() => setSelectedSide(side)}
                                 className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
                                   selectedSide === side
-                                    ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
+                                    ? "border-primary bg-primary/10 "
                                     : "border-border bg-card/50 hover:border-primary/40"
                                 }`}
                               >
@@ -693,7 +693,7 @@ export default function MatchDetailPage() {
                           <button key={side} type="button" onClick={() => setSelectedSide(side)}
                             className={`flex flex-col items-center gap-1 p-3 rounded-lg border font-mono transition-all ${
                               selectedSide === side
-                                ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(0,255,255,0.15)]"
+                                ? "border-primary bg-primary/10 "
                                 : "border-border bg-card/50 hover:border-primary/40"
                             }`}
                           >
@@ -740,7 +740,7 @@ export default function MatchDetailPage() {
                             <button key={score} type="button" onClick={() => setSelectedSide(key)}
                               className={`flex flex-col items-center p-2 rounded border font-mono text-xs transition-all ${
                                 isSelected
-                                  ? `bg-primary/10 border-primary shadow-[0_0_8px_rgba(0,255,255,0.12)]`
+                                  ? `bg-primary/10 border-primary `
                                   : `bg-card/40 ${accentCls} hover:bg-muted/20`
                               }`}
                             >
@@ -814,7 +814,7 @@ export default function MatchDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/50  border-border">
             <CardHeader className="border-b border-border/50 pb-4">
               <CardTitle className="font-mono uppercase text-sm flex items-center">
                 <TrendingUp className="w-4 h-4 mr-2" />
@@ -881,7 +881,7 @@ export default function MatchDetailPage() {
         </TabsContent>
 
         <TabsContent value="injuries" className="mt-6">
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/50  border-border">
             <CardHeader>
               <CardTitle className="font-mono uppercase">Injury Reports</CardTitle>
               <CardDescription>Latest injury updates for participating teams</CardDescription>
@@ -919,7 +919,7 @@ export default function MatchDetailPage() {
         </TabsContent>
 
         <TabsContent value="audit" className="mt-6">
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/50  border-border">
             <CardHeader>
               <CardTitle className="font-mono uppercase">Odds Audit Log</CardTitle>
               <CardDescription className="font-mono text-xs">

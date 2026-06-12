@@ -798,7 +798,7 @@ export default function OddsPage() {
         </p>
       </div>
 
-      <Card className="bg-card/50 backdrop-blur border-border">
+      <Card className="bg-card/50  border-border">
         <CardHeader className="pb-0">
           <div className="flex flex-wrap gap-2">
             {TABS.map(tab => {

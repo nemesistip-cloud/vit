@@ -582,7 +582,7 @@ export default function WalletPage() {
       </div>
 
       {/* ── Hero Card: Portfolio + VIT Sparkline ── */}
-      <Card className="border-secondary/30 bg-gradient-to-br from-secondary/5 to-card vit-glow-gold overflow-hidden">
+      <Card className="border-secondary/30 bg-gradient-to-br from-secondary/5 to-card  overflow-hidden">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row gap-6">
             <div className="flex-1">
@@ -648,7 +648,7 @@ export default function WalletPage() {
             key={b.currency}
             className={`rounded-xl border p-4 space-y-1.5 transition-all ${
               b.highlight
-                ? "border-secondary/40 bg-secondary/5 vit-glow-gold"
+                ? "border-secondary/40 bg-secondary/5 "
                 : "border-border/60 bg-card/40 hover:border-border"
             }`}
           >
@@ -1017,7 +1017,7 @@ export default function WalletPage() {
 
         {/* ── Transactions Tab ── */}
         <TabsContent value="transactions" className="mt-3">
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/50  border-border">
             <CardHeader className="pb-3 border-b border-border/40">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="relative flex-1">
@@ -1144,7 +1144,7 @@ export default function WalletPage() {
 
         {/* ── Transfers Tab ── */}
         <TabsContent value="withdrawals" className="mt-3">
-          <Card className="bg-card/50 backdrop-blur border-border">
+          <Card className="bg-card/50  border-border">
             <CardHeader className="pb-3 border-b border-border/40">
               <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
                 <History className="w-4 h-4 text-muted-foreground" />
@@ -1238,7 +1238,7 @@ export default function WalletPage() {
         {/* ── Analytics Tab ── */}
         <TabsContent value="analytics" className="mt-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-card/50 backdrop-blur border-border">
+            <Card className="bg-card/50  border-border">
               <CardHeader className="pb-3 border-b border-border/40">
                 <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
                   <Coins className="w-4 h-4 text-muted-foreground" />
@@ -1249,7 +1249,7 @@ export default function WalletPage() {
                 <SpendingPieChart txList={txList} />
               </CardContent>
             </Card>
-            <Card className="bg-card/50 backdrop-blur border-border">
+            <Card className="bg-card/50  border-border">
               <CardHeader className="pb-3 border-b border-border/40">
                 <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-muted-foreground" />
@@ -1260,7 +1260,7 @@ export default function WalletPage() {
                 <VolumeBarChart txList={txList} SYM={SYM} />
               </CardContent>
             </Card>
-            <Card className="bg-card/50 backdrop-blur border-border md:col-span-2">
+            <Card className="bg-card/50  border-border md:col-span-2">
               <CardHeader className="pb-3 border-b border-border/40">
                 <CardTitle className="font-mono uppercase text-sm flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-muted-foreground" />

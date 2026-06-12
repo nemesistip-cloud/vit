@@ -231,7 +231,7 @@ const StoragePage: React.FC = () => {
           </h2>
           <div className="space-y-3">
             {files.map((f) => (
-              <Card key={f.file_id} className="bg-card/30 border-border/20 backdrop-blur-sm">
+              <Card key={f.file_id} className="bg-card/30 border-border/20 ">
                 <CardContent className="p-4 flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded bg-background/50 flex items-center justify-center">

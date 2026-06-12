@@ -105,7 +105,7 @@ export function BetSlipPanel() {
       {/* FAB — fixed bottom-right */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-24 left-5 z-50 lg:bottom-6 flex items-center gap-1.5 h-10 px-3 rounded-full bg-gradient-to-r from-secondary/80 to-yellow-500/60 shadow-lg border border-secondary/40 hover:scale-105 active:scale-95 transition-transform font-mono text-xs font-bold text-black"
+        className="fixed bottom-24 left-5 z-50 lg:bottom-6 flex items-center gap-1.5 h-10 px-3 rounded-full bg-gradient-to-r from-secondary/80 to-yellow-500/60  border border-secondary/40 hover:scale-105 active:scale-95 transition-transform font-mono text-xs font-bold text-black"
         title="Bet Slip"
       >
         <Layers className="w-4 h-4" />
@@ -120,7 +120,7 @@ export function BetSlipPanel() {
 
       {/* Panel */}
       {open && (
-        <div className="fixed bottom-[4.5rem] left-2 right-2 lg:left-auto lg:right-6 lg:bottom-20 lg:w-80 z-50 rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+        <div className="fixed bottom-[4.5rem] left-2 right-2 lg:left-auto lg:right-6 lg:bottom-20 lg:w-80 z-50 rounded-xl border border-white/10  overflow-hidden"
           style={{ background: "var(--vit-gradient-card)" }}
         >
           {/* Header */}

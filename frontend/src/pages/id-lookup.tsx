@@ -95,7 +95,7 @@ function IDCard({ card }: { card: PublicIDCard }) {
     <div className="max-w-md w-full mx-auto space-y-4">
       {/* Card */}
       <div className={`relative rounded-2xl border ${tier.border} overflow-hidden bg-gradient-to-br ${tier.gradient} p-px`}>
-        <div className="rounded-2xl bg-card/90 backdrop-blur-sm p-6 space-y-5">
+        <div className="rounded-2xl bg-card/90  p-6 space-y-5">
 
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
@@ -265,7 +265,7 @@ export default function IDLookupPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top bar */}
-      <header className="border-b border-border/50 bg-card/60 backdrop-blur-sm">
+      <header className="border-b border-border/50 bg-card/60 ">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2 group">
             <Fingerprint className="w-5 h-5 text-primary" />

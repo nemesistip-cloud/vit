@@ -60,7 +60,7 @@ const PHASES: RoadmapPhase[] = [
     color: "text-emerald-400",
     borderColor: "border-emerald-500/40",
     bgColor: "bg-emerald-500/5",
-    glowColor: "shadow-emerald-500/10",
+    glowColor: "/10",
     techStack: ["FastAPI", "PostgreSQL", "React/Vite", "Redis", "Python ML", "WebSockets"],
     architectureNote: "Full-stack AI platform running 13 autonomous prediction models. All core infrastructure is live and production-ready.",
     items: [
@@ -98,7 +98,7 @@ const PHASES: RoadmapPhase[] = [
     color: "text-amber-400",
     borderColor: "border-amber-500/40",
     bgColor: "bg-amber-500/5",
-    glowColor: "shadow-amber-500/10",
+    glowColor: "/10",
     techStack: ["Base L2", "Solidity", "Hardhat", "Ethers.js", "MetaMask", "The Graph"],
     architectureNote: "Deploy VITCoin on Base L2 for ecosystem adoption. Base gives low fees, Ethereum tooling compatibility, and a proven developer ecosystem — the pragmatic bootstrap chain before the sovereign Cosmos app-chain.",
     items: [
@@ -125,7 +125,7 @@ const PHASES: RoadmapPhase[] = [
     color: "text-blue-400",
     borderColor: "border-blue-500/40",
     bgColor: "bg-blue-500/5",
-    glowColor: "shadow-blue-500/10",
+    glowColor: "/10",
     techStack: ["Cosmos SDK", "CometBFT", "CosmWasm", "Rust", "Ethermint", "IBC", "Go"],
     architectureNote: "VIT becomes a sovereign Cosmos app-chain. Custom consensus rules, low predictable fees, AI-native execution environment, and IBC interoperability with the entire Cosmos ecosystem (Osmosis, ATOM, Celestia, etc).",
     items: [
@@ -153,7 +153,7 @@ const PHASES: RoadmapPhase[] = [
     color: "text-purple-400",
     borderColor: "border-purple-500/40",
     bgColor: "bg-purple-500/5",
-    glowColor: "shadow-purple-500/10",
+    glowColor: "/10",
     techStack: ["Rust", "Python", "Kafka", "WASM", "ZK Proofs", "Federated Learning"],
     architectureNote: "VIT becomes AI-native infrastructure — not just a blockchain that hosts an AI app, but a chain where the consensus mechanism itself is informed by AI oracle outputs. Validators, agents, and models form a unified analytics economy.",
     items: [
@@ -242,7 +242,7 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
   const pct = Math.round((done / total) * 100);
 
   return (
-    <Card className={`border ${phase.borderColor} ${phase.bgColor} shadow-lg ${phase.glowColor}`}>
+    <Card className={`border ${phase.borderColor} ${phase.bgColor}  ${phase.glowColor}`}>
       <CardHeader
         className="pb-4 cursor-pointer select-none"
         onClick={() => setOpen(o => !o)}

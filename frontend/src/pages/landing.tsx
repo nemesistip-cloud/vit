@@ -177,7 +177,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground vit-page-container">
       {/* ── Navbar ──────────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 ">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <BrandLogo withWordmark size={30} />
           <div className="hidden md:flex items-center gap-8 text-xs font-mono tracking-widest uppercase">
@@ -190,7 +190,7 @@ export default function LandingPage() {
               <Button variant="ghost" className="font-mono text-xs uppercase tracking-widest">Sign In</Button>
             </Link>
             <Link href="/register">
-              <Button size="sm" className="font-mono text-xs uppercase tracking-widest px-6 vit-glow-cyan">Get Started</Button>
+              <Button size="sm" className="font-mono text-xs uppercase tracking-widest px-6 ">Get Started</Button>
             </Link>
           </div>
         </div>
@@ -198,7 +198,7 @@ export default function LandingPage() {
 
       {/* ── Hero Section ────────────────────────────────── */}
       <section className="relative pt-32 pb-20 px-4 md:px-8 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/5 rounded-full blur-[120px] -z-10" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/5 rounded-full  -z-10" />
         <div className="max-w-5xl mx-auto text-center">
           <Badge variant="outline" className="mb-6 font-mono py-1.5 px-4 text-[10px] tracking-[0.2em] uppercase border-primary/30 bg-primary/5 text-primary">
             {publicCfg?.platform.version ?? 'v5.5.0'} — The Intelligence Super App
@@ -213,13 +213,13 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register">
-              <Button size="lg" className="font-mono gap-2 px-8 h-14 text-md shadow-xl vit-glow-cyan">
+              <Button size="lg" className="font-mono gap-2 px-8 h-14 text-md  ">
                 Access the Network
                 <ArrowRight className="w-5 h-5" />
               </Button>
             </Link>
             <a href="#features">
-              <Button size="lg" variant="outline" className="font-mono px-8 h-14 text-md bg-background/50 backdrop-blur-sm border-white/5">
+              <Button size="lg" variant="outline" className="font-mono px-8 h-14 text-md bg-background/50  border-white/5">
                 View Live Signals
               </Button>
             </a>
@@ -290,7 +290,7 @@ export default function LandingPage() {
 
       {/* ── AI Engine Deep Dive ─────────────────────────── */}
       <section id="ai" className="py-24 px-4 md:px-8 bg-primary/5 border-y border-primary/10 overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full  -translate-y-1/2 translate-x-1/4" />
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div>
             <Badge className="mb-4 bg-primary text-primary-foreground font-mono">INTERNAL ARCHITECTURE</Badge>
@@ -318,7 +318,7 @@ export default function LandingPage() {
               ))}
             </ul>
             <Link href="/register">
-              <Button className="font-mono gap-2 h-12 px-6 vit-glow-cyan">
+              <Button className="font-mono gap-2 h-12 px-6 ">
                 View Model Leaderboard
                 <ChevronRight className="w-4 h-4" />
               </Button>
@@ -326,8 +326,8 @@ export default function LandingPage() {
           </div>
 
           <div className="relative">
-            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-cyan-500 rounded-3xl blur opacity-20" />
-            <div className="relative rounded-3xl border border-white/10 bg-vit-gray-950 p-8 shadow-2xl">
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-cyan-500 rounded-3xl  opacity-20" />
+            <div className="relative rounded-3xl border border-white/10 bg-vit-gray-950 p-8 ">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
                   <Cpu className="w-5 h-5 text-primary" />
@@ -435,7 +435,7 @@ export default function LandingPage() {
                 key={plan.name}
                 className={`rounded-xl border p-6 flex flex-col transition-all duration-250 hover:-translate-y-1 ${
                   plan.highlight
-                    ? "border-primary/40 bg-primary/5 shadow-lg vit-glow-cyan"
+                    ? "border-primary/40 bg-primary/5  "
                     : "border-border bg-card/50"
                 }`}
               >
@@ -488,7 +488,7 @@ export default function LandingPage() {
             Join a live network of AI agents to beat the market. Free to start. No credit card required.
           </p>
           <Link href="/register">
-            <Button size="lg" className="font-mono gap-2 px-10 h-14 text-lg shadow-xl vit-glow-cyan">
+            <Button size="lg" className="font-mono gap-2 px-10 h-14 text-lg  ">
               Create Free Account
               <ArrowRight className="w-5 h-5" />
             </Button>

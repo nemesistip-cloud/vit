@@ -80,7 +80,7 @@ function OfferCard({
 
   return (
     <Card
-      className={`rounded-2xl border-border/50 hover:border-primary/50 transition-all hover:shadow-xl bg-card/60 backdrop-blur-md ${
+      className={`rounded-2xl border-border/50 hover:border-primary/50 transition-all hover: bg-card/60  ${
         isCompleted ? "opacity-60" : ""
       }`}
     >
@@ -155,14 +155,14 @@ function ProviderCard({ provider }: { provider: OfferwallProvider }) {
   };
 
   return (
-    <Card className={`border-border/50 transition-all group overflow-hidden bg-card/40 backdrop-blur-sm ${
+    <Card className={`border-border/50 transition-all group overflow-hidden bg-card/40  ${
       provider.configured
-        ? "hover:border-primary/40 hover:shadow-lg"
+        ? "hover:border-primary/40 hover:"
         : "opacity-70"
     }`}>
       <CardContent className="p-4 flex items-center gap-4">
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-inner shrink-0 relative"
+          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl  shrink-0 relative"
           style={{ backgroundColor: `${provider.color}20`, border: `1px solid ${provider.color}40` }}
         >
           {provider.icon}
@@ -318,7 +318,7 @@ export default function OfferwallPage() {
           ))
         ) : (
           <>
-            <Card className="rounded-2xl border-border/50 hover:shadow-xl bg-card/60 backdrop-blur-md">
+            <Card className="rounded-2xl border-border/50 hover: bg-card/60 ">
               <CardContent className="pt-4 pb-3">
                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-1">Total Earned</p>
                 <div className="flex items-center gap-1.5">
@@ -330,14 +330,14 @@ export default function OfferwallPage() {
                 <p className="text-[10px] text-muted-foreground font-mono">VITCoin</p>
               </CardContent>
             </Card>
-            <Card className="rounded-2xl border-border/50 hover:shadow-xl bg-card/60 backdrop-blur-md">
+            <Card className="rounded-2xl border-border/50 hover: bg-card/60 ">
               <CardContent className="pt-4 pb-3">
                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-1">Completed</p>
                 <span className="text-lg font-mono font-bold">{summary?.completed_offers ?? 0}</span>
                 <p className="text-[10px] text-muted-foreground font-mono">offers</p>
               </CardContent>
             </Card>
-            <Card className="rounded-2xl border-border/50 hover:shadow-xl bg-card/60 backdrop-blur-md">
+            <Card className="rounded-2xl border-border/50 hover: bg-card/60 ">
               <CardContent className="pt-4 pb-3">
                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-1">Available</p>
                 <span className="text-lg font-mono font-bold">{summary?.available_offers ?? 0}</span>
@@ -408,7 +408,7 @@ export default function OfferwallPage() {
             ))}
           </div>
         ) : (
-          <Card className="rounded-2xl border-border/50 hover:shadow-xl bg-card/60 backdrop-blur-md">
+          <Card className="rounded-2xl border-border/50 hover: bg-card/60 ">
             <CardContent className="py-8 text-center">
               <p className="text-muted-foreground font-mono text-sm">No offers available right now. Check back soon.</p>
             </CardContent>
@@ -422,7 +422,7 @@ export default function OfferwallPage() {
           <CheckCircle className="w-4 h-4 text-primary" />
           Earn History
         </h2>
-        <Card className="rounded-2xl border-border/50 hover:shadow-xl bg-card/60 backdrop-blur-md">
+        <Card className="rounded-2xl border-border/50 hover: bg-card/60 ">
           <CardContent className="pt-4">
             {historyLoading ? (
               <div className="space-y-2">

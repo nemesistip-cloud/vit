@@ -68,7 +68,7 @@ export default function ElectionsPage() {
           { label: "Web Intelligence", value: "Active", icon: Users, color: "text-purple-400" },
           { label: "Verified Data", value: "100%", icon: ShieldCheck, color: "text-yellow-400" },
         ].map((stat) => (
-          <Card key={stat.label} className="bg-card/50 border-border/40 backdrop-blur-sm">
+          <Card key={stat.label} className="bg-card/50 border-border/40 ">
             <CardContent className="p-4 flex items-center gap-4">
               <div className={`p-2 rounded-lg bg-background/50 ${stat.color}`}>
                 <stat.icon className="w-5 h-5" />
@@ -84,7 +84,7 @@ export default function ElectionsPage() {
 
       <div className="grid grid-cols-1 gap-6">
         {events.map((event) => (
-          <Card key={event.id} className="bg-card/50 border-border/40 backdrop-blur-sm overflow-hidden border-l-4 border-l-secondary">
+          <Card key={event.id} className="bg-card/50 border-border/40  overflow-hidden border-l-4 border-l-secondary">
             <div className="p-6 border-b border-border/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <div className="flex items-center gap-2">

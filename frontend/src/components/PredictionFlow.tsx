@@ -284,8 +284,8 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
         <DialogContent className="max-w-md bg-[#0a0a0b] border-[#1a1a1c] font-mono p-8 overflow-hidden">
           <div className="flex flex-col items-center justify-center space-y-10 py-6">
             <div className="relative">
-              <div className="absolute inset-0 bg-primary/20 blur-[40px] rounded-full animate-pulse" />
-              <div className="relative bg-[#0d0d0e] border border-primary/40 rounded-3xl p-8 shadow-2xl">
+              <div className="absolute inset-0 bg-primary/20  rounded-full animate-pulse" />
+              <div className="relative bg-[#0d0d0e] border border-primary/40 rounded-3xl p-8 ">
                 <BrainCircuit className="w-14 h-14 text-primary animate-pulse" />
                 <div className="absolute -top-1 -right-1">
                   <span className="relative flex h-4 w-4">
@@ -345,7 +345,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               </div>
               <div className="w-full bg-[#1a1a1c] h-1.5 rounded-full overflow-hidden p-[2px]">
                 <div
-                  className="bg-gradient-to-r from-primary/50 to-primary h-full rounded-full transition-all duration-700 ease-in-out shadow-[0_0_10px_rgba(0,255,255,0.5)]"
+                  className="bg-gradient-to-r from-primary/50 to-primary h-full rounded-full transition-all duration-700 ease-in-out "
                   style={{ width: `${((processingStep + 1) / PROCESSING_STEPS.length) * 100}%` }}
                 />
               </div>
@@ -359,9 +359,9 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
   if (predictionResult) {
     return (
       <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-md bg-[#0a0a0b] border-[#1a1a1c] font-mono p-0 overflow-hidden shadow-[0_0_80px_rgba(0,255,255,0.15)]">
+        <DialogContent className="max-w-md bg-[#0a0a0b] border-[#1a1a1c] font-mono p-0 overflow-hidden ">
           <div className="bg-primary/10 border-b border-primary/20 p-6 flex flex-col items-center gap-2">
-            <div className="bg-primary text-[#0a0a0b] p-2 rounded-2xl shadow-[0_0_20px_rgba(0,255,255,0.4)]">
+            <div className="bg-primary text-[#0a0a0b] p-2 rounded-2xl ">
               <ShieldCheck className="w-8 h-8" />
             </div>
             <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white mt-2">Analytics Report</h2>
@@ -428,7 +428,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
             </div>
 
             <Button
-              className="w-full h-14 bg-white text-[#0a0a0b] hover:bg-white/90 rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl"
+              className="w-full h-14 bg-white text-[#0a0a0b] hover:bg-white/90 rounded-2xl font-black uppercase tracking-[0.2em] text-xs "
               onClick={onClose}
             >
               Confirm & Continue
@@ -442,8 +442,8 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md bg-[#0a0a0b] border-[#1a1a1c] font-mono max-h-[92vh] overflow-y-auto p-0 gap-0 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-        <div className="sticky top-0 z-20 bg-[#0a0a0b]/80 backdrop-blur-xl border-b border-[#1a1a1c] p-5 flex items-center justify-between">
+      <DialogContent className="max-w-md bg-[#0a0a0b] border-[#1a1a1c] font-mono max-h-[92vh] overflow-y-auto p-0 gap-0 ">
+        <div className="sticky top-0 z-20 bg-[#0a0a0b]/80  border-b border-[#1a1a1c] p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 p-2 rounded-xl border border-primary/20">
               <BrainCircuit className="w-5 h-5 text-primary" />
@@ -504,12 +504,12 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
                         onClick={() => setSelectedSide(side)}
                         className={`group relative flex flex-col items-center justify-center gap-2 p-5 rounded-2xl border transition-all duration-300 ${
                           isSelected
-                            ? "border-primary bg-primary/10 shadow-[0_0_30px_rgba(0,255,255,0.15)] ring-1 ring-primary/50"
+                            ? "border-primary bg-primary/10  ring-1 ring-primary/50"
                             : "border-[#1a1a1c] bg-[#0d0d0e] hover:border-[#2a2a2c] hover:bg-[#0f0f10]"
                         }`}
                       >
                         {isRecommended && (
-                          <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-[#0a0a0b] text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase shadow-[0_0_15px_rgba(0,255,255,0.5)] z-10 flex items-center gap-1">
+                          <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-[#0a0a0b] text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase  z-10 flex items-center gap-1">
                             <Zap className="w-2.5 h-2.5 fill-current" />
                             ALPHA
                           </div>
@@ -534,7 +534,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
 
                         {isSelected && (
                           <div className="absolute bottom-2 right-2">
-                            <div className="bg-primary p-0.5 rounded-full shadow-[0_0_10px_rgba(0,255,255,0.5)]">
+                            <div className="bg-primary p-0.5 rounded-full ">
                               <CheckCircle2 className="w-3 h-3 text-[#0a0a0b]" />
                             </div>
                           </div>
@@ -569,7 +569,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
                   onClick={() => setStake(String(p))}
                   className={`py-2.5 text-[10px] font-black rounded-xl border transition-all ${
                     stake === String(p)
-                      ? "border-primary bg-primary/10 text-primary shadow-[0_0_15px_rgba(0,255,255,0.1)]"
+                      ? "border-primary bg-primary/10 text-primary "
                       : "border-[#1a1a1c] bg-[#0a0a0b] text-muted-foreground hover:border-[#2a2a2c]"
                   }`}
                 >
@@ -618,7 +618,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
           {/* Strategic Action */}
           <div className="flex flex-col gap-3 pb-8">
             <Button
-              className={`h-16 rounded-2xl font-black uppercase tracking-[0.3em] text-xs transition-all duration-300 shadow-2xl relative overflow-hidden group ${
+              className={`h-16 rounded-2xl font-black uppercase tracking-[0.3em] text-xs transition-all duration-300  relative overflow-hidden group ${
                 !selectedSide || !stake
                   ? "bg-[#1a1a1c] text-muted-foreground cursor-not-allowed"
                   : "bg-primary text-[#0a0a0b] hover:scale-[1.02] hover:brightness-110 active:scale-[0.98]"

@@ -191,25 +191,25 @@ function DashboardTab() {
     {
       label: "Total Users", value: stats?.users ?? 0, icon: Users,
       gradient: "from-cyan-500/10 to-transparent", border: "border-cyan-500/20",
-      glow: "shadow-[0_0_20px_rgba(6,182,212,0.08)]", iconColor: "text-cyan-400",
+      glow: "", iconColor: "text-cyan-400",
       valueCls: "text-cyan-400",
     },
     {
       label: "Total Matches", value: stats?.matches ?? 0, icon: BarChart2,
       gradient: "from-purple-500/10 to-transparent", border: "border-purple-500/20",
-      glow: "shadow-[0_0_20px_rgba(168,85,247,0.08)]", iconColor: "text-purple-400",
+      glow: "", iconColor: "text-purple-400",
       valueCls: "text-purple-300",
     },
     {
       label: "Training Jobs", value: stats?.training_jobs ?? 0, icon: Cpu,
       gradient: "from-emerald-500/10 to-transparent", border: "border-emerald-500/20",
-      glow: "shadow-[0_0_20px_rgba(52,211,153,0.08)]", iconColor: "text-emerald-400",
+      glow: "", iconColor: "text-emerald-400",
       valueCls: "text-emerald-300",
     },
     {
       label: "Active Plans", value: stats?.active_plans ?? 0, icon: CreditCard,
       gradient: "from-amber-500/10 to-transparent", border: "border-amber-500/20",
-      glow: "shadow-[0_0_20px_rgba(245,158,11,0.08)]", iconColor: "text-amber-400",
+      glow: "", iconColor: "text-amber-400",
       valueCls: "text-amber-300",
     },
   ];
@@ -287,7 +287,7 @@ function DashboardTab() {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${
                       row.optional && !row.ok ? "bg-gray-600" :
                       row.limited ? "bg-amber-400" :
-                      row.ok ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-red-400 animate-pulse"
+                      row.ok ? "bg-emerald-400 " : "bg-red-400 animate-pulse"
                     }`} />
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-gray-300 truncate">{row.label}</div>
@@ -2649,7 +2649,7 @@ function ModelsTab() {
                       <div className="text-[10px] uppercase tracking-wider text-gray-400 font-mono truncate">{kpi.label}</div>
                       <div className={`text-3xl font-bold mt-1 ${toneClass.text} font-mono tabular-nums`}>{kpi.value}</div>
                     </div>
-                    <div className={`p-2.5 rounded-lg ${toneClass.bg} ${kpi.pulse ? "vit-animate-pulse-glow" : ""}`}>
+                    <div className={`p-2.5 rounded-lg ${toneClass.bg} ${kpi.pulse ? "" : ""}`}>
                       <kpi.icon className={`w-5 h-5 ${toneClass.text}`} />
                     </div>
                   </CardContent>
@@ -2698,7 +2698,7 @@ function ModelsTab() {
             </CardHeader>
             <CardContent className="p-0">
               {atRiskCount > 0 && (
-                <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm flex items-center gap-2 vit-animate-pulse-glow">
+                <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm flex items-center gap-2 ">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   <span className="font-semibold">{atRiskCount}</span>
                   <span>
@@ -2765,7 +2765,7 @@ function ModelsTab() {
                       const statusBadge = {
                         healthy: { label: "Healthy", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", dot: "bg-emerald-400" },
                         watch:   { label: streak > 0 ? `Watch · day ${streak}/7` : "Watch", cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", dot: "bg-amber-400" },
-                        risk:    { label: demotedLabel, cls: "bg-red-500/20 text-red-400 border-red-500/30 vit-animate-pulse-glow", dot: "bg-red-400 animate-pulse" },
+                        risk:    { label: demotedLabel, cls: "bg-red-500/20 text-red-400 border-red-500/30 ", dot: "bg-red-400 animate-pulse" },
                         new:     { label: "Insufficient",  cls: "bg-gray-500/20 text-gray-400 border-gray-500/30", dot: "bg-gray-500" },
                       }[status];
                       const showStreakDots = m.is_active && streak > 0;
@@ -4338,7 +4338,7 @@ function AdminHealthPills() {
         }`}>
           <span className={`w-1.5 h-1.5 rounded-full ${
             p.ok === null ? "bg-gray-500" :
-            p.ok ? "bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" :
+            p.ok ? "bg-emerald-400 " :
             p.optional ? "bg-gray-500" : "bg-red-400 animate-pulse"
           }`} />
           {p.label}
@@ -5123,11 +5123,11 @@ export default function AdminPage() {
   ];
 
   const groupColor: Record<string, string> = {
-    OVERVIEW:     "data-[state=active]:bg-cyan-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(6,182,212,0.4)]",
-    INTELLIGENCE: "data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_12px_rgba(168,85,247,0.4)]",
-    OPERATIONS:   "data-[state=active]:bg-emerald-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(52,211,153,0.4)]",
-    FINANCE:      "data-[state=active]:bg-amber-500 data-[state=active]:text-black data-[state=active]:shadow-[0_0_12px_rgba(245,158,11,0.4)]",
-    SYSTEM:       "data-[state=active]:bg-rose-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_12px_rgba(244,63,94,0.4)]",
+    OVERVIEW:     "data-[state=active]:bg-cyan-500 data-[state=active]:text-black data-[state=active]:",
+    INTELLIGENCE: "data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:",
+    OPERATIONS:   "data-[state=active]:bg-emerald-500 data-[state=active]:text-black data-[state=active]:",
+    FINANCE:      "data-[state=active]:bg-amber-500 data-[state=active]:text-black data-[state=active]:",
+    SYSTEM:       "data-[state=active]:bg-rose-500 data-[state=active]:text-white data-[state=active]:",
   };
 
   const activeGroup = tabGroups.find(g => g.tabs.some(t => t.value === activeTab));
@@ -5144,7 +5144,7 @@ export default function AdminPage() {
           {/* Left: branding */}
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="absolute inset-0 rounded-lg bg-cyan-500/20 blur-sm" />
+              <div className="absolute inset-0 rounded-lg bg-cyan-500/20 " />
               <div className="relative w-9 h-9 rounded-lg border border-cyan-500/40 bg-gray-900 flex items-center justify-center">
                 <Shield className="w-5 h-5 text-cyan-400" />
               </div>
@@ -5170,7 +5170,7 @@ export default function AdminPage() {
             </div>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border ${
               isSuperAdmin
-                ? "bg-amber-500 text-black border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                ? "bg-amber-500 text-black border-amber-400 "
                 : "bg-cyan-500/20 text-cyan-400 border-cyan-500/40"
             }`}>
               {user.username[0]?.toUpperCase()}
