@@ -34,6 +34,9 @@ LEAGUE_DISPLAY_NAMES = {
     "liga_mx":              "Liga MX",
     "brasileirao":          "Brasileirão",
     "argentine_primera":    "Argentine Primera División",
+    "nba":                  "NBA",
+    "atp":                  "ATP World Tour",
+    "wta":                  "WTA Tour",
     # legacy aliases
     "ucl": "Champions League",
     "uel": "Europa League",
@@ -394,7 +397,7 @@ async def get_recent_matches(
     )
     if sport:
         if sport == "football":
-            q = q.where(or_(Match.sport == "football", Match.sport.is_(None)))
+            q = q.where(or_(Match.sport == "football", Match.sport.is_(None), Match.sport == ""))
         else:
             q = q.where(Match.sport == sport)
     if league:
@@ -435,17 +438,21 @@ async def get_recent_matches(
 @router.get("/completed")
 async def get_completed_matches(
     limit: int = Query(50, ge=1, le=200),
+    sport: Optional[str] = Query(None),
+    league: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     # Show: completed matches (with actual outcomes), ordered most recent first
-    q = (
-        select(Match, Prediction)
-        .outerjoin(Prediction, Match.id == Prediction.match_id)
-        .where(Match.actual_outcome.isnot(None))
-        .order_by(Match.kickoff_time.desc())
-        .limit(limit)
-    )
+    q = select(Match, Prediction).outerjoin(Prediction, Match.id == Prediction.match_id).where(Match.actual_outcome.isnot(None))
+    if sport:
+        if sport == "football":
+            q = q.where(or_(Match.sport == "football", Match.sport.is_(None), Match.sport == ""))
+        else:
+            q = q.where(Match.sport == sport)
+    if league:
+        q = q.where(Match.league == league)
+    q = q.order_by(Match.kickoff_time.desc()).limit(limit)
     result = await db.execute(q)
     rows = result.all()
     markets = await _load_markets(db)
@@ -463,11 +470,17 @@ async def get_completed_matches(
 
 
 @router.get("/leagues/list")
-async def list_leagues(db: AsyncSession = Depends(get_db)):
+async def list_leagues(sport: Optional[str] = Query(None), db: AsyncSession = Depends(get_db)):
     """Return all distinct leagues with display names."""
-    result = await db.execute(
+    q = (
         select(Match.league).distinct().where(Match.league.isnot(None))
     )
+    if sport:
+        if sport == "football":
+            q = q.where(or_(Match.sport == "football", Match.sport.is_(None), Match.sport == ""))
+        else:
+            q = q.where(Match.sport == sport)
+    result = await db.execute(q)
     keys = [row[0] for row in result.all()]
     return {
         "leagues": [
