@@ -6,6 +6,7 @@ Looks in (in order of priority):
   2. <workspace_root>/models/  (default — where pkl files are committed)
   3. <workspace_root>/models/trained/  (legacy location)
   4. services/ml_service/models/  (old layout)
+  5. Tachyon Storage Swarm (if TACHYON_STORAGE_ENABLED=true and pkl not found locally)
 
 Caches models in memory so they are only read from disk once.
 Returns None if the file is missing or fails to load, allowing
@@ -13,6 +14,8 @@ the orchestrator to fall back to its algorithmic models.
 """
 import logging
 import os
+import tempfile
+import concurrent.futures
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -47,9 +50,57 @@ def _find_pkl(model_key: str) -> Optional[Path]:
     return None
 
 
+def _tachyon_download(model_key: str) -> Optional[Path]:
+    """Try to fetch a pkl from the Tachyon storage swarm.
+
+    Runs the async TachyonClient in a fresh thread so it can create its own
+    event loop — safe to call from both sync and async contexts.
+    Returns the local temp path on success, or None if unavailable.
+    """
+    if os.getenv("TACHYON_STORAGE_ENABLED") != "true":
+        return None
+
+    tmp = tempfile.mktemp(suffix=f"_{model_key}.pkl")
+
+    async def _fetch() -> bool:
+        try:
+            from app.services.tachyon_client import TachyonClient
+            client = TachyonClient()
+            return await client.download_model(model_key, tmp)
+        except Exception as _e:
+            logger.debug("[tachyon] download attempt for '%s' raised: %s", model_key, _e)
+            return False
+
+    def _run_in_thread() -> bool:
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_fetch())
+        finally:
+            loop.close()
+
+    try:
+        logger.info("[tachyon] '%s' not found locally — querying Storage Swarm...", model_key)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            ok = pool.submit(_run_in_thread).result(timeout=30)
+        if ok and os.path.exists(tmp):
+            logger.info("[tachyon] ✅ downloaded '%s' from Storage Swarm → %s", model_key, tmp)
+            return Path(tmp)
+    except Exception as _e:
+        logger.warning("[tachyon] Storage Swarm lookup failed for '%s': %s", model_key, _e)
+
+    # Clean up temp file if download failed
+    try:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+    except OSError:
+        pass
+    return None
+
+
 def load_model(model_key: str, cache_enabled: bool = True) -> Optional[Dict[str, Any]]:
     """
-    Load a trained model payload from the models directory.
+    Load a trained model payload from the models directory or Tachyon swarm.
 
     Payload must be a dict with at least a 'model' key.
     Raw sklearn estimators are wrapped automatically so the rest of the
@@ -59,12 +110,12 @@ def load_model(model_key: str, cache_enabled: bool = True) -> Optional[Dict[str,
         return _MODEL_CACHE[model_key]
 
     pkl_path = _find_pkl(model_key)
-    if pkl_path is None:
-        # F21: Fallback to Storage System if enabled
-        if os.getenv("TACHYON_STORAGE_ENABLED") == "true":
-             logger.info(f"🔍 ModelLoader: {model_key} not found locally, checking Storage System Swarm...")
-             # In production, this would use tachyon_client to fetch the model
 
+    # F21 — Tachyon Storage System fallback
+    if pkl_path is None:
+        pkl_path = _tachyon_download(model_key)
+
+    if pkl_path is None:
         logger.debug(f"No trained pkl found for '{model_key}' in {[str(d) for d in _candidate_dirs()]}")
         return None
 
