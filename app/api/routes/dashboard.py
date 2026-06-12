@@ -134,7 +134,13 @@ async def get_dashboard_vitcoin_price(db: AsyncSession = Depends(get_db)):
             # so change_24h has data to diff against on subsequent calls.
             try:
                 from decimal import Decimal as _D
-                new_row = VITCoinPriceHistory(price_usd=_D(str(current)))
+                circ = await engine.get_circulating_supply()
+                rev = await engine.get_rolling_revenue()
+                new_row = VITCoinPriceHistory(
+                    price_usd=_D(str(current)),
+                    circulating_supply=circ,
+                    rolling_revenue_usd=rev,
+                )
                 db.add(new_row)
                 await db.commit()
             except Exception as _he:
