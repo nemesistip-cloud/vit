@@ -224,12 +224,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     onClick={onClick}
                     className={`group relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-mono font-medium transition-all duration-150 cursor-pointer ${
                       isActive
-                        ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(0,245,255,0.08)] vit-animate-slide-left"
+                        ? "bg-primary/10 text-primary border border-primary/20  "
                         : "text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent hover:border-white/5"
                     }`}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary shadow-[0_0_6px_rgba(0,245,255,0.6)]" />
+                      <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary " />
                     )}
                     <item.icon className={`w-3.5 h-3.5 flex-shrink-0 transition-all ${isActive ? "text-primary" : "group-hover:text-foreground group-hover:scale-105"}`} />
                     <span className="truncate text-xs">{item.name}</span>
@@ -277,7 +277,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/75" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-72 flex flex-col shadow-2xl vit-animate-slide-down"
+          <div className="absolute left-0 top-0 h-full w-72 flex flex-col  "
             style={{ background: "var(--vit-gradient-sidebar)" }}>
             <div className="flex items-center justify-between p-4 border-b border-white/5">
               <div className="flex items-center gap-2.5">
@@ -361,7 +361,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      {/* ── Mobile Botbottom Navigation ─────────────────────── */}
+      {/* ── Mobile Bottom Navigation ─────────────────────── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40"
         style={{ background: "rgba(8,8,18,0.98)" }}>
         <div className="flex justify-around items-center h-[60px] max-w-lg mx-auto">
@@ -373,7 +373,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   isActive ? "text-primary" : "text-muted-foreground/60 hover:text-muted-foreground"
                 }`}>
                   {isActive && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(0,245,255,0.6)]" />
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full " />
                   )}
                   <item.icon className={`w-4.5 h-4.5 transition-transform ${isActive ? "scale-110" : ""}`} style={{ width: 18, height: 18 }} />
                   <span className="text-[9px] font-mono uppercase tracking-wide text-center">{item.name}</span>

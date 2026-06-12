@@ -404,12 +404,12 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
       />
 
       <Card className={`
-        bg-card/60 backdrop-blur-md border-border/50 shadow-xl h-full flex flex-col
-        transition-all duration-300 group rounded-2xl border-border/50 shadow-xl hover:shadow-2xl bg-card/60 backdrop-blur-md
-        hover:-translate-y-1.5 hover:shadow-2xl
+        bg-card/60  border-border/50  h-full flex flex-col
+        transition-all duration-300 group rounded-2xl border-border/50  hover: bg-card/60
+        hover:-translate-y-1.5 hover:
         ${isLive
-          ? "border-green-500/40 hover:border-green-400/60 hover:shadow-[0_4px_24px_rgba(74,222,128,0.12)]"
-          : "hover:border-primary/50 hover:shadow-[0_4px_20px_rgba(0,245,255,0.08)]"
+          ? "border-green-500/40 hover:border-green-400/60 hover:"
+          : "hover:border-primary/50 hover:"
         }
       `}>
         <CardContent className="p-0 flex flex-col h-full">
@@ -419,7 +419,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
             {isLive && (
               <div className="flex items-center justify-between px-3 py-1.5 bg-green-500/10 border-b border-green-500/20">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_6px_rgba(74,222,128,0.8)]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse " />
                   <span className="text-[10px] font-mono font-bold text-green-400 uppercase tracking-wider">Live</span>
                   <LiveMinute kickoff={match.kickoff_time} />
                 </div>

@@ -241,14 +241,14 @@ export default function MatchesPage() {
           <Input
             id="match-search"
             placeholder="Search teams or league…"
-            className="pl-10 font-mono bg-card/40 border-border/40 rounded-xl h-10 shadow-sm"
+            className="pl-10 font-mono bg-card/40 border-border/40 rounded-xl h-10 "
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <div className="flex gap-2">
           <Select value={leagueFilter} onValueChange={setLeagueFilter}>
-            <SelectTrigger className="flex-1 font-mono bg-card/40 border-border/40 rounded-xl text-xs min-w-0 shadow-sm">
+            <SelectTrigger className="flex-1 font-mono bg-card/40 border-border/40 rounded-xl text-xs min-w-0 ">
               <SelectValue placeholder="All Leagues" />
             </SelectTrigger>
             <SelectContent>
@@ -259,7 +259,7 @@ export default function MatchesPage() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 font-mono bg-card/40 border-border/40 rounded-xl text-xs min-w-0 shadow-sm">
+            <SelectTrigger className="flex-1 font-mono bg-card/40 border-border/40 rounded-xl text-xs min-w-0 ">
               <SelectValue placeholder="All Matches" />
             </SelectTrigger>
             <SelectContent>
@@ -275,7 +275,7 @@ export default function MatchesPage() {
             </SelectContent>
           </Select>
           <Select value={daysFilter} onValueChange={setDaysFilter}>
-            <SelectTrigger className="font-mono bg-card/50 text-xs w-[120px] flex-shrink-0 rounded-xl bg-card/40 border-border/40 shadow-sm">
+            <SelectTrigger className="font-mono bg-card/50 text-xs w-[120px] flex-shrink-0 rounded-xl bg-card/40 border-border/40 ">
               <CalendarDays className="w-3 h-3 mr-1 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>

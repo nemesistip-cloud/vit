@@ -49,7 +49,7 @@ export default function QualityFeedPage() {
             <button
               key={p}
               onClick={() => setRiskProfile(p)}
-              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${riskProfile === p ? "bg-cyan-600 text-white shadow-lg shadow-cyan-500/20" : "text-zinc-500 hover:text-zinc-300"}`}
+              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${riskProfile === p ? "bg-cyan-600 text-white  /20" : "text-zinc-500 hover:text-zinc-300"}`}
             >
               {p}
             </button>
@@ -96,7 +96,7 @@ export default function QualityFeedPage() {
                     <p className="font-mono text-xl font-bold text-purple-400">{(bet.confidence * 100).toFixed(0)}%</p>
                   </div>
                   <div className="flex justify-end">
-                    <Button className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl px-6 h-12 shadow-lg shadow-cyan-500/20">
+                    <Button className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl px-6 h-12  /20">
                       Allocation {Math.round(bet.suggested_stake_pct * 100)}%
                     </Button>
                   </div>

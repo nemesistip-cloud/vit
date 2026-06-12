@@ -25,7 +25,7 @@ function StatCard({ label, value, sub, icon: Icon, color = "text-primary" }: {
   icon: React.ElementType; color?: string;
 }) {
   return (
-    <Card className="bg-card/50 backdrop-blur border-primary/10">
+    <Card className="bg-card/50  border-primary/10">
       <CardHeader className="flex flex-row items-center justify-between pb-1">
         <CardTitle className="text-xs font-mono uppercase text-muted-foreground">{label}</CardTitle>
         <Icon className={`w-4 h-4 ${color}`} />

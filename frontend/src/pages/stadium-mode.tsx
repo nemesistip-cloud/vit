@@ -72,7 +72,7 @@ export default function StadiumModePage() {
         <p className="text-sm text-zinc-400 max-w-md mt-2">
           Predict the next event in the stadium to win exclusive rewards and VIP upgrades.
         </p>
-        <button className="mt-6 px-8 py-3 bg-orange-500 hover:bg-orange-400 text-white rounded-xl font-bold transition-all transform active:scale-95 shadow-lg shadow-orange-500/20">
+        <button className="mt-6 px-8 py-3 bg-orange-500 hover:bg-orange-400 text-white rounded-xl font-bold transition-all transform active:scale-95  /20">
           Predict Next Corner
         </button>
       </div>

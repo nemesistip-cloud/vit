@@ -63,7 +63,7 @@ function IDCard({ data }: { data: SystemIDData }) {
 
   return (
     <div className={`relative rounded-2xl border ${tier.border} overflow-hidden bg-gradient-to-br ${tier.gradient} p-px`}>
-      <div className="rounded-2xl bg-card/80 backdrop-blur-sm p-6 space-y-5">
+      <div className="rounded-2xl bg-card/80  p-6 space-y-5">
         {/* Header row */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">

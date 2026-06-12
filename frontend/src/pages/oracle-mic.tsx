@@ -70,7 +70,7 @@ export default function OraclesMicPage() {
           ) : (
             <div className="flex flex-col md:flex-row items-center gap-8">
               {/* Album art */}
-              <div className="w-48 h-48 bg-gradient-to-br from-cyan-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-cyan-500/20 shrink-0">
+              <div className="w-48 h-48 bg-gradient-to-br from-cyan-600 to-purple-600 rounded-2xl flex items-center justify-center  /20 shrink-0">
                 <Mic2 className="w-20 h-20 text-white opacity-80" />
               </div>
 
@@ -103,7 +103,7 @@ export default function OraclesMicPage() {
                   </Button>
                   <Button
                     size="icon"
-                    className="w-16 h-16 rounded-full bg-white text-black hover:bg-zinc-200 shadow-lg"
+                    className="w-16 h-16 rounded-full bg-white text-black hover:bg-zinc-200 "
                     onClick={() => setIsPlaying(!isPlaying)}
                   >
                     {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}

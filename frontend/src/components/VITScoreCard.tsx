@@ -22,10 +22,10 @@ interface VITScoreCardProps {
 }
 
 const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; glow: string }> = {
-  ELITE:     { label: "ELITE",     color: "text-yellow-400",        bg: "bg-yellow-400/10",  border: "border-yellow-400/40",  glow: "shadow-yellow-400/20" },
-  STRONG:    { label: "STRONG",    color: "text-emerald-400",       bg: "bg-emerald-500/10", border: "border-emerald-500/40", glow: "shadow-emerald-400/20" },
-  SOLID:     { label: "SOLID",     color: "text-blue-400",          bg: "bg-blue-500/10",    border: "border-blue-500/40",    glow: "shadow-blue-400/20" },
-  WATCHLIST: { label: "WATCHLIST", color: "text-amber-400",         bg: "bg-amber-500/10",   border: "border-amber-500/40",   glow: "shadow-amber-400/10" },
+  ELITE:     { label: "ELITE",     color: "text-yellow-400",        bg: "bg-yellow-400/10",  border: "border-yellow-400/40",  glow: "/20" },
+  STRONG:    { label: "STRONG",    color: "text-emerald-400",       bg: "bg-emerald-500/10", border: "border-emerald-500/40", glow: "/20" },
+  SOLID:     { label: "SOLID",     color: "text-blue-400",          bg: "bg-blue-500/10",    border: "border-blue-500/40",    glow: "/20" },
+  WATCHLIST: { label: "WATCHLIST", color: "text-amber-400",         bg: "bg-amber-500/10",   border: "border-amber-500/40",   glow: "/10" },
   SKIP:      { label: "SKIP",      color: "text-muted-foreground",  bg: "bg-muted/20",       border: "border-border",         glow: "" },
 };
 
@@ -87,7 +87,7 @@ export function VITScoreCard({
     <div className={cn(
       "rounded-xl border p-4 space-y-4",
       tier.bg, tier.border,
-      tier.glow ? `shadow-lg ${tier.glow}` : "",
+      tier.glow ? ` ${tier.glow}` : "",
       className
     )}>
       <div className="flex items-center justify-between">

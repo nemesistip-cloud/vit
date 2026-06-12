@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, TrendingUp, Target, BarChart3, Share2, Sparkles, ChevronRight, ChevronLeft, Brain, Coins, Activity } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 export default function PredictionWrappedPage() {
   const [slide, setSlide] = useState(0);
@@ -142,14 +141,9 @@ export default function PredictionWrappedPage() {
 
       {/* Slide card */}
       <div className="w-full aspect-[4/5] relative">
-        <AnimatePresence mode="wait">
-          <motion.div
+          <div
             key={slide}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.25 }}
-            className={`w-full h-full bg-gradient-to-b ${data[slide].color} border border-border/50 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center space-y-6 shadow-2xl overflow-hidden relative`}
+            className={`w-full h-full bg-gradient-to-b ${data[slide].color} border border-border/50 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center space-y-6  overflow-hidden relative`}
           >
             <div className="absolute inset-0 pointer-events-none opacity-10"
               style={{
@@ -158,7 +152,7 @@ export default function PredictionWrappedPage() {
             />
 
             <div className="relative z-10 flex flex-col items-center space-y-6">
-              <div className="p-5 bg-white/5 rounded-full backdrop-blur-xl">
+              <div className="p-5 bg-white/5 rounded-full ">
                 {data[slide].icon}
               </div>
 
@@ -173,14 +167,13 @@ export default function PredictionWrappedPage() {
               </div>
 
               {data[slide].stat !== "—" && (
-                <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 backdrop-blur-sm">
+                <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 ">
                   <div className="text-2xl font-bold font-mono text-primary">{data[slide].stat}</div>
                   <div className="text-[10px] font-mono text-muted-foreground uppercase mt-0.5">{data[slide].stat_label}</div>
                 </div>
               )}
             </div>
-          </motion.div>
-        </AnimatePresence>
+          </div>
       </div>
 
       {/* Navigation */}
@@ -195,7 +188,7 @@ export default function PredictionWrappedPage() {
         </Button>
         {slide < data.length - 1 ? (
           <Button
-            className="h-12 font-mono text-sm rounded-2xl vit-glow-cyan"
+            className="h-12 font-mono text-sm rounded-2xl "
             onClick={() => setSlide(s => s + 1)}
           >
             Next <ChevronRight className="ml-2 w-4 h-4" />

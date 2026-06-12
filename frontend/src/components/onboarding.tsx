@@ -30,8 +30,8 @@ export function WelcomeModal({ username, onClose, onStartTour }: WelcomeModalPro
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative bg-card border border-border rounded-2xl max-w-md w-full p-8 shadow-2xl vit-animate-scale-in ${celebrating ? "vit-animate-celebrate" : ""}`}>
+      <div className="absolute inset-0 bg-black/70 " onClick={onClose} />
+      <div className={`relative bg-card border border-border rounded-2xl max-w-md w-full p-8   ${celebrating ? "" : ""}`}>
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
@@ -61,7 +61,7 @@ export function WelcomeModal({ username, onClose, onStartTour }: WelcomeModalPro
         <div className="text-center">
           {/* Icon */}
           <div className="relative inline-flex mb-6">
-            <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 rounded-2xl flex items-center justify-center vit-glow-cyan">
+            <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 rounded-2xl flex items-center justify-center ">
               <Sparkles className="w-10 h-10 text-primary" />
             </div>
             <span className="absolute -top-2 -right-2 text-2xl">🎉</span>
@@ -165,8 +165,8 @@ export function OnboardingTour({ onComplete, onSkip, onNavigate }: TourProps) {
 
   return (
     <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onSkip} />
-      <div className="relative bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-2xl vit-animate-slide-up">
+      <div className="absolute inset-0 bg-black/60 " onClick={onSkip} />
+      <div className="relative bg-card border border-border rounded-2xl max-w-sm w-full p-6  ">
 
         {/* Progress */}
         <div className="flex items-center justify-between mb-6">
@@ -253,8 +253,8 @@ export function FirstPredictionFlow({ match, onConfirm, onClose }: FirstPredicti
   if (confirmed) {
     return (
       <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-        <div className="relative bg-card border border-primary/40 rounded-2xl max-w-sm w-full p-8 text-center shadow-2xl vit-glow-cyan vit-animate-scale-in">
+        <div className="absolute inset-0 bg-black/70 " />
+        <div className="relative bg-card border border-primary/40 rounded-2xl max-w-sm w-full p-8 text-center   ">
           <div className="text-5xl mb-4">🎯</div>
           <h3 className="text-xl font-bold font-mono text-primary mb-2">Prediction Placed!</h3>
           <p className="text-sm text-muted-foreground">
@@ -269,8 +269,8 @@ export function FirstPredictionFlow({ match, onConfirm, onClose }: FirstPredicti
 
   return (
     <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-2xl max-w-sm w-full shadow-2xl vit-animate-slide-up overflow-hidden">
+      <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl max-w-sm w-full   overflow-hidden">
         <div className="p-6 border-b border-border">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-mono text-muted-foreground uppercase">Your First Prediction</span>
@@ -294,7 +294,7 @@ export function FirstPredictionFlow({ match, onConfirm, onClose }: FirstPredicti
                   onClick={() => setSelected(side)}
                   className={`rounded-lg border p-3 text-center transition-all duration-200 ${
                     selected === side
-                      ? "border-primary/60 bg-primary/10 shadow-sm vit-glow-cyan"
+                      ? "border-primary/60 bg-primary/10  "
                       : "border-border bg-background/50 hover:border-border"
                   }`}
                 >

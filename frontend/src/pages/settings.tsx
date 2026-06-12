@@ -78,7 +78,7 @@ function ToggleRow({
         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
       >
         <span
-          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white  ring-0 transition duration-200 ease-in-out ${
             checked ? "translate-x-4" : "translate-x-0"
           }`}
         />

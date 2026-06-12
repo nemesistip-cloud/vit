@@ -26,7 +26,7 @@ const PROJECT_TEAMS = [
     members: [
       {
         name: "VIT AI Agent",
-        role: "Aubottomated Contributor",
+        role: "Automated Contributor",
         specialty: "Continuous Training & Evaluation",
         avatar: "",
         github: "https://github.com/nemesistip-cloud/vit"
@@ -40,7 +40,7 @@ const PROJECT_TEAMS = [
     description: "Google Cloud Platform management and scaling.",
     members: [
       {
-        name: "GCP Aubottomation",
+        name: "GCP Automation",
         role: "Deployment Lead",
         specialty: "Cloud Run & Secret Manager",
         avatar: "",
@@ -145,7 +145,7 @@ export default function TeamsPage() {
              <Badge variant="outline" className="font-mono text-[10px]">AI-Governed</Badge>
           </div>
         </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] -mr-32 -mt-32" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full  -mr-32 -mt-32" />
       </section>
     </div>
   );

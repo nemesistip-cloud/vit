@@ -62,7 +62,7 @@ export default function PolicyPage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 bg-card/50 border-border/40 backdrop-blur-sm">
+        <Card className="lg:col-span-2 bg-card/50 border-border/40 ">
           <CardHeader>
             <CardTitle className="text-sm font-mono flex items-center gap-2 uppercase">
               <Scale className="w-4 h-4 text-orange-400" />
@@ -147,7 +147,7 @@ export default function PolicyPage() {
         </Card>
 
         <div className="space-y-6">
-          <Card className="bg-card/50 border-border/40 backdrop-blur-sm">
+          <Card className="bg-card/50 border-border/40 ">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-mono flex items-center gap-2 uppercase tracking-wider">
                 <Zap className="w-3 h-3 text-yellow-400" />

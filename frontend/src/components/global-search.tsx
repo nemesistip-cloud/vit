@@ -155,7 +155,7 @@ export function GlobalSearch() {
       style={{ background: "rgba(0,0,0,0.82)" }}
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+        className="w-full max-w-lg rounded-xl border border-white/10  overflow-hidden"
         style={{ background: "var(--vit-gradient-card)" }}
       >
         {/* Search input bar */}

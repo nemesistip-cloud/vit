@@ -70,7 +70,7 @@ async def _call_gemini_agentic(
         # using the REST API for Gemini 2.0 Flash.
 
         system_instructions = (
-            "You are the VIT Network Intelligence Agent (v5.5.0). "
+            "You are the VIT Network Bot (v5.5.0). "
             "You have access to the VIT Network's internal tools and real-time data. "
             "Use these tools to provide accurate, data-driven answers about sports, "
             "market health (SVI), and system status. "
@@ -97,7 +97,7 @@ async def _handle_agentic_query(
     context: Optional[str] = None,
 ) -> Dict[str, Any]:
     msg = message.lower()
-    thoughts = ["Initiating VIT Intelligence Agent", "Accessing internal neural matrix"]
+    thoughts = ["Initiating VIT Bot", "Accessing internal neural matrix"]
 
     # Try Gemini Agentic first if key exists
     # gemini_resp = await _call_gemini_agentic(message, history, context, db)
@@ -214,7 +214,7 @@ async def _handle_agentic_query(
     return {
         "available": True,
         "reply": (
-            f"I am the VIT Intelligence Agent (v{health['system_version']}).\n\n"
+            f"I am the VIT Bot (v{health['system_version']}).\n\n"
             f"The network is currently **{health['status']}** with **{health['ai_models_ready']} active models**.\n"
             f"The Synthetic Value Index (SVI) is **{health['svi']:.4f}** ({health['svi_status']}).\n\n"
             f"How can I assist you with market intelligence, match insights, or system health today?"
@@ -231,7 +231,7 @@ async def _llm_chat(message: str, history: Optional[List[dict]], context: Option
     try:
         import httpx
         system_prompt = (
-            "You are the VIT Network Intelligence Agent — an expert embedded in the VIT Sports Analytics Network (v5.5.0). "
+            "You are the VIT Network Bot — an expert embedded in the VIT Sports Analytics Network (v5.5.0). "
             "You help users understand match predictions, ML model outputs, market probabilities (SVI), "
             "and platform features. Use markdown for structure."
         )
@@ -272,7 +272,7 @@ async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), 
         logger.error(f"Assistant chat error: {e}", exc_info=True)
         return {
             "available": True,
-            "reply": "The VIT Intelligence Agent is temporarily unavailable. Please try again later.",
+            "reply": "The VIT Bot is temporarily unavailable. Please try again later.",
             "thoughts": ["Error encountered"],
         }
 
@@ -285,6 +285,6 @@ async def assistant_status(db: AsyncSession = Depends(get_db), _user=Depends(ver
         "backend_ai_available": True,
         "provider": "gemini" if os.getenv("GEMINI_API_KEY") else ("openai" if os.getenv("OPENAI_API_KEY") else "native"),
         "llm_configured": llm_configured,
-        "message": f"VIT Intelligence Agent v{health['system_version']} ready.",
+        "message": f"VIT Bot v{health['system_version']} ready.",
         "health": health,
     }

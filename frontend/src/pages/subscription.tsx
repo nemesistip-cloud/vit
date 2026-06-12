@@ -19,10 +19,10 @@ const PLAN_ICONS: Record<string, React.ElementType> = {
 
 const PLAN_COLORS: Record<string, { border: string; glow: string; badge: string }> = {
   free:      { border: "border-muted",             glow: "",                               badge: "bg-muted text-muted-foreground"         },
-  analyst:   { border: "border-blue-500/50",        glow: "shadow-blue-500/10 shadow-lg",   badge: "bg-blue-500/20 text-blue-400"           },
-  pro:       { border: "border-primary/50",         glow: "shadow-primary/10 shadow-lg",    badge: "bg-primary/20 text-primary"             },
-  validator: { border: "border-secondary/60",       glow: "shadow-secondary/10 shadow-lg",  badge: "bg-secondary/20 text-secondary"         },
-  elite:     { border: "border-secondary/60",       glow: "shadow-secondary/10 shadow-lg",  badge: "bg-secondary/20 text-secondary"         },
+  analyst:   { border: "border-blue-500/50",        glow: "/10 ",   badge: "bg-blue-500/20 text-blue-400"           },
+  pro:       { border: "border-primary/50",         glow: "/10 ",    badge: "bg-primary/20 text-primary"             },
+  validator: { border: "border-secondary/60",       glow: "/10 ",  badge: "bg-secondary/20 text-secondary"         },
+  elite:     { border: "border-secondary/60",       glow: "/10 ",  badge: "bg-secondary/20 text-secondary"         },
 };
 
 // PLAN_ORDER and FEATURE_LABELS now come from /config/public via usePublicConfig().
@@ -183,7 +183,7 @@ export default function SubscriptionPage() {
             return (
               <Card
                 key={plan.name}
-                className={`bg-card/50 backdrop-blur flex flex-col relative ${colors.border} ${colors.glow} ${isCurrent ? "ring-1 ring-primary/40" : ""}`}
+                className={`bg-card/50  flex flex-col relative ${colors.border} ${colors.glow} ${isCurrent ? "ring-1 ring-primary/40" : ""}`}
               >
                 {isCurrent && (
                   <div className="absolute -top-3 right-4">

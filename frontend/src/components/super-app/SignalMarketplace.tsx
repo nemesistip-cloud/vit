@@ -32,7 +32,7 @@ export function SignalMarketplace() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {(signals && signals.length > 0 ? signals : fallbackSignals).map((signal) => (
-          <Card key={signal.id} className="bg-card/40 border-border/30 backdrop-blur-sm group hover:border-primary/50 transition-all">
+          <Card key={signal.id} className="bg-card/40 border-border/30  group hover:border-primary/50 transition-all">
             <CardHeader className="pb-2">
               <div className="flex justify-between items-start mb-2">
                 <Badge variant="outline" className="text-[9px] font-mono uppercase tracking-widest">{signal.category}</Badge>
@@ -61,7 +61,7 @@ export function SignalMarketplace() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {signals.map((signal) => (
-        <Card key={signal.id} className="bg-card/40 border-border/30 backdrop-blur-sm group hover:border-primary/50 transition-all">
+        <Card key={signal.id} className="bg-card/40 border-border/30  group hover:border-primary/50 transition-all">
           <CardHeader className="pb-2">
             <div className="flex justify-between items-start mb-2">
               <Badge variant="outline" className="text-[9px] font-mono uppercase tracking-widest">{signal.category}</Badge>

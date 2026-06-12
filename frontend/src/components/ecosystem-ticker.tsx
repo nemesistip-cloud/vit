@@ -14,7 +14,7 @@ interface TickerItem {
 
 function TickerSegment({ items }: { items: TickerItem[] }) {
   return (
-    <>
+    <div className="flex items-center">
       {items.map((item) => (
         <span key={item.id} className="inline-flex items-center gap-1.5 px-5">
           <span className={`${item.color} flex items-center gap-1`}>
@@ -33,7 +33,7 @@ function TickerSegment({ items }: { items: TickerItem[] }) {
           <span className="text-border/50 ml-3">·</span>
         </span>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -123,15 +123,14 @@ export function EcosystemTicker() {
   ];
 
   return (
-    <div className="border-b border-border/40 bg-sidebar/60 backdrop-blur-sm overflow-hidden">
+    <div className="border-b border-border/40 bg-sidebar/60 overflow-hidden">
       <div className="flex items-center">
         <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border-r border-primary/20">
-          <span className="vit-live-dot" />
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-primary">Live</span>
         </div>
-        <div className="vit-ticker-wrap flex-1">
-          <div className="vit-ticker-content py-1.5">
-            <TickerSegment items={items} />
+        <div className="vit-ticker-wrap flex-1 overflow-x-auto scrollbar-none">
+          <div className="vit-ticker-content py-1.5 flex whitespace-nowrap">
             <TickerSegment items={items} />
           </div>
         </div>

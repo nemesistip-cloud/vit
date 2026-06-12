@@ -94,7 +94,7 @@ export function KellyCalculatorModal() {
       style={{ background: "rgba(0,0,0,0.85)" }}
     >
       <div
-        className="w-full max-w-sm rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+        className="w-full max-w-sm rounded-xl border border-white/10  overflow-hidden"
         style={{ background: "var(--vit-gradient-card)" }}
       >
         {/* Header */}
@@ -234,7 +234,7 @@ export function KellyFAB() {
     <button
       onClick={openKellyCalculator}
       title="Kelly Calculator (stake sizing)"
-      className="fixed bottom-24 right-5 z-50 lg:bottom-6 w-11 h-11 rounded-full bg-gradient-to-br from-primary/80 to-purple-500/80 shadow-lg border border-primary/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+      className="fixed bottom-24 right-5 z-50 lg:bottom-6 w-11 h-11 rounded-full bg-gradient-to-br from-primary/80 to-purple-500/80  border border-primary/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
     >
       <Calculator className="w-4.5 h-4.5 text-primary-foreground" style={{ width: 18, height: 18 }} />
     </button>

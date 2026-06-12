@@ -224,7 +224,7 @@ export default function AuthPage() {
           </div>
 
           <div className="w-full max-w-sm mt-16 lg:mt-0">
-            <Card className="border-border/60 bg-card shadow-2xl">
+            <Card className="border-border/60 bg-card ">
               <Tabs defaultValue="login" className="w-full">
                 <CardHeader className="pb-0 pt-6 px-6">
                   <TabsList className="grid w-full grid-cols-2 bg-background/60 border border-border/50">
