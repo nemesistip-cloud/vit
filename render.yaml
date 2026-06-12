@@ -2,7 +2,7 @@ services:
   - type: web
     name: vit
     runtime: python
-    region: oregon
+    region: ohio
     plan: starter
 
     buildCommand: bash scripts/build.sh
@@ -17,10 +17,15 @@ services:
         value: "false"
       - key: ML_MODEL_CACHE_ENABLED
         value: "false"
+      # ── Agent configuration ────────────────────────────────────────────────
+      # These 8 agents form the memory-safe core set for free/starter plans.
+      # Use ENABLED_AGENTS=all to enable all 23 agents (requires more RAM).
       - key: ENABLED_AGENTS
-        value: "performance-monitor,live-match-tracker"
+        value: "performance-monitor,live-match-tracker,network-guardian,weight-optimizer,match-scout,oracle-node,kyc-screener,academic-tutor"
+      # ── ML model configuration ─────────────────────────────────────────────
+      # All 13 registered model keys. market_v2 = MarketImplied (not market_implied_v2).
       - key: ENABLED_MODELS
-        value: "logistic_v2,poisson_v2,elo_v2,dixon_coles_v2,market_implied_v2"
+        value: "xgb_v2,lstm_v2,poisson_v2,hybrid_v2,transformer_v2,ensemble_v2,dixon_coles_v2,bayes_v2,market_v2,rf_v2,logistic_v2,elo_v2,llm_consensus_v2"
       - key: BLOCKCHAIN_ENABLED
         value: "true"
       - key: AUTH_ENABLED
@@ -43,6 +48,16 @@ services:
         value: "1"
       - key: PYTHONDONTWRITEBYTECODE
         value: "1"
+      # ── TheSportsDB ────────────────────────────────────────────────────────
+      # Free public key = "3". Upgrade to a paid key for higher rate limits.
+      - key: THESPORTSDB_API_KEY
+        value: "3"
+      # ── Bootstrap ─────────────────────────────────────────────────────────
+      # Months of historical data to backfill on first boot (fewer = faster boot)
+      - key: BOOTSTRAP_MATCH_MONTHS
+        value: "3"
+      # ── Secrets (must be set manually in Render dashboard) ────────────────
+      # CRITICAL: JWT_SECRET_KEY MUST be set — without it sessions are lost on every restart.
       - key: JWT_SECRET_KEY
         sync: false
       - key: DATABASE_URL
@@ -94,7 +109,7 @@ services:
   - type: web
     name: tachyon
     runtime: python
-    region: oregon
+    region: ohio
     plan: starter
     healthCheckPath: /health
     buildCommand: pip install -r requirements.txt
@@ -104,7 +119,7 @@ services:
         value: "."
   - type: redis
     name: vit-redis
-    region: oregon
+    region: ohio
     plan: free
     ipAllowList: []
 
