@@ -24,6 +24,7 @@ import app.modules.bridge.models
 import app.modules.developer.models
 import app.modules.governance.models
 import app.modules.rewards.models
+import app.modules.freemium.models
 from app.db.database import DATABASE_URL
 
 config = context.config
