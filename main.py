@@ -2110,6 +2110,148 @@ app.include_router(prophecy_chain_router, prefix="/api")
 
 # Stripe Webhooks — subscription payment events
 from app.api.routes.stripe_webhooks import router as stripe_webhooks_router
+from app.api.routes import admin_audit_predictions as admin_audit_route
+app.include_router(admin_audit_route.router, prefix="/api")
+app.include_router(ai_route.router, prefix="/api")
+app.include_router(ai_assistant_route.router, prefix="/api")
+app.include_router(basketball.router, prefix="/api")
+app.include_router(tennis.router, prefix="/api")
+app.include_router(config_route.router, prefix="/api")
+app.include_router(subscription_route.router, prefix="/api")
+app.include_router(training_route.router, prefix="/api")
+app.include_router(odds_route.router, prefix="/api")
+app.include_router(audit_route.router, prefix="/api")
+app.include_router(ai_intelligence_route.router)
+app.include_router(ai_support_route.router)
+# Note: analytics_route.router is registered below with /api prefix (dynamic import section)
+
+# Auth (JWT)
+app.include_router(auth_router)
+app.include_router(wallet_router)
+app.include_router(webhooks_router)
+app.include_router(marketplace_router)
+app.include_router(merchant_router)
+app.include_router(blockchain_router)
+app.include_router(oracle_router)
+app.include_router(training_module_router)
+app.include_router(ai_engine_router)
+app.include_router(dashboard_router)
+app.include_router(pipeline_router)
+app.include_router(notifications_router)
+app.include_router(notifications_ws_router)
+app.include_router(tasks_router)
+app.include_router(postbacks_router)
+app.include_router(admin_rewards_router, prefix="/api")
+app.include_router(rewards_router)
+app.include_router(trust_router)
+app.include_router(bridge_router)
+app.include_router(developer_router)
+app.include_router(governance_router)
+app.include_router(verification_router)
+app.include_router(totp_router)
+app.include_router(referral_router)
+app.include_router(sports_router, prefix="/api")
+app.include_router(sports_webhooks_router, prefix="/api")
+app.include_router(affiliate_router, prefix="/api")
+app.include_router(leaderboard_router)
+app.include_router(exports_router)
+app.include_router(agents_router, prefix="/api")
+app.include_router(iot_router, prefix="/api")
+app.include_router(did_router)
+app.include_router(identity_router)
+app.include_router(kyc_router)
+app.include_router(network_router)
+app.include_router(elections_router, prefix="/api")
+app.include_router(policy_router, prefix="/api")
+app.include_router(remittance_router, prefix="/api")
+app.include_router(community_router, prefix="/api")
+app.include_router(watchlist.router, prefix="/api")
+app.include_router(wrapped.router, prefix="/api")
+app.include_router(tachyon_router, prefix="/api/tachyon")
+
+# User-contributed storage node network
+from app.api.routes.storage_nodes import router as storage_nodes_router
+from app.modules.storage_verification.models import UserStorageNode  # noqa: F401 — ensures create_all picks it up
+app.include_router(storage_nodes_router)
+
+# VIT Quant Engine — Phase 2
+from app.modules.quant.routes import router as quant_router
+app.include_router(quant_router)
+
+# Phase 2 — Specialized Market Model Training
+from app.api.routes.market_training import router as market_training_router
+app.include_router(market_training_router)
+
+# Phase 4 — Vector Similarity Engine
+from app.api.routes.similarity import router as similarity_router
+app.include_router(similarity_router)
+
+# Advanced AI Analytics (OpenAI advanced + Grok advanced)
+from app.api.routes.analytics import router as analytics_router
+app.include_router(analytics_router, prefix="/api")
+
+# Blockchain Analytics, Auto-Slash, Analytics Disputes
+from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
+app.include_router(blockchain_analytics_router)
+
+# VIT Cloud System — Smart Contract Engine
+from app.modules.smart_contracts.routes import router as smart_contracts_router
+app.include_router(smart_contracts_router)
+
+# VIT Cloud System — Treasury
+from app.modules.treasury.routes import router as treasury_router
+app.include_router(treasury_router)
+
+# VIT Cloud System — Merit Protocol
+from app.modules.merit.routes import router as merit_router
+app.include_router(merit_router)
+
+# VIT Cloud System — AI Verification Layer
+from app.modules.ai_verification.routes import router as ai_verification_router
+app.include_router(ai_verification_router)
+
+# VIT Cloud System — Security Layer (anti-Sybil, multi-sig, fraud, freeze)
+from app.modules.security.routes import router as security_router
+app.include_router(security_router)
+
+# VIT Cloud System — Sub-Chain Architecture
+from app.modules.subchain.routes import router as subchain_router
+app.include_router(subchain_router)
+
+# VIT Cloud System — AI Agent Registry
+from app.modules.agent_registry.routes import router as agent_registry_router
+app.include_router(agent_registry_router)
+
+# VIT Cloud System — Decentralized Storage Verification
+from app.modules.storage_verification.routes import router as storage_router
+app.include_router(storage_router)
+
+# Phase 3 — Model Performance Dashboard + Bankroll Management
+from app.api.routes.model_performance import router as model_perf_router
+from app.api.routes.bankroll import router as bankroll_router
+app.include_router(model_perf_router)
+app.include_router(bankroll_router)
+
+from app.api.routes.quality_feed import router as quality_feed_router
+app.include_router(quality_feed_router, prefix="/api")
+
+# Prophecy Branch — Academy, AI Core, AI Upload
+from app.modules.academy.routes import router as academy_router
+# from app.modules.academy.communities import router as campus_circles_router
+# from app.modules.academy.gigs import router as campus_gigs_router
+# from app.modules.academy.campus import router as campus_hub_router
+from app.modules.ai_core.routes import router as ai_core_router
+from app.modules.prophecy_chain.routes import router as prophecy_chain_router
+
+app.include_router(academy_router)
+# app.include_router(campus_circles_router)
+# app.include_router(campus_gigs_router)
+# app.include_router(campus_hub_router)
+app.include_router(ai_core_router)
+app.include_router(prophecy_chain_router, prefix="/api")
+
+# Stripe Webhooks — subscription payment events
+from app.api.routes.stripe_webhooks import router as stripe_webhooks_router
 app.include_router(stripe_webhooks_router)
 
 

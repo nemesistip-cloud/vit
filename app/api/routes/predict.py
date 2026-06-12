@@ -23,7 +23,8 @@ from app.services.market_utils import MarketUtils
 from app.api.middleware.auth import verify_api_key
 from app.api.deps import get_optional_user
 from app.services.alerts import BetAlert
-from app.core.dependencies import get_orchestrator_dep, get_telegram_dep
+from app.core.dependencies import get_orchestrator_dep
+from app.services.multi_sport_orchestrator import MultiSportOrchestrator, get_telegram_dep
 
 from app.tasks.clv import update_clv_task
 from app.tasks.edges import recalculate_edges_task
