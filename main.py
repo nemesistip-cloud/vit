@@ -1490,9 +1490,6 @@ async def _run_bootstrap(app, _done_event):
                 from app.modules.prophecy_chain.services.seeder import seed_prophecy_chapters
                 async with AsyncSessionLocal() as _db:
                     _n = await seed_prophecy_chapters(_db)
-                    # Seed Freemium Data
-                    from app.modules.freemium.seeder import seed_freemium_data
-                    await seed_freemium_data(_db)
                     if _n:
                         print(f"✅ Prophecy Chain: {_n} chapters seeded")
                     else:
@@ -2030,6 +2027,11 @@ app.include_router(watchlist.router, prefix="/api")
 app.include_router(wrapped.router, prefix="/api")
 app.include_router(tachyon_router, prefix="/api/tachyon")
 
+# User-contributed storage node network
+from app.api.routes.storage_nodes import router as storage_nodes_router
+from app.modules.storage_verification.models import UserStorageNode  # noqa: F401 — ensures create_all picks it up
+app.include_router(storage_nodes_router)
+
 # VIT Quant Engine — Phase 2
 from app.modules.quant.routes import router as quant_router
 app.include_router(quant_router)
@@ -2107,10 +2109,7 @@ app.include_router(ai_core_router)
 app.include_router(prophecy_chain_router, prefix="/api")
 
 # Stripe Webhooks — subscription payment events
-# Freemium — IQ Test and Oracle Mic
-from app.modules.freemium.routes import router as freemium_router
 from app.api.routes.stripe_webhooks import router as stripe_webhooks_router
-app.include_router(freemium_router)
 app.include_router(stripe_webhooks_router)
 
 

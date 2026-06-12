@@ -206,26 +206,183 @@ async def form_narrative(body: Any, _user=Depends(verify_api_key)):
         return {"form_rating": 5.0}
 
 
-# ── Stub endpoints (require external data sources) ────────────────────────────
+# ── Live intelligence endpoints (DuckDuckGo + native AI) ─────────────────────
 
 @router.post("/governance")
 async def governance_analytics(body: Any, _user=Depends(verify_api_key)):
-    return {"recommendation": "neutral"}
+    """Governance / policy sentiment powered by real-time web search + AI."""
+    try:
+        from app.services.web_search import _ddg_search
+        from app.services.ai_client import call_ai
+
+        topic = ""
+        if isinstance(body, dict):
+            topic = body.get("topic") or body.get("query") or body.get("subject") or ""
+
+        query = f"governance policy decision {topic} 2025 sentiment analysis" if topic else "crypto governance protocol decisions sentiment 2025"
+        snippets = await _ddg_search(query, max_results=6)
+        context = "\n".join(f"- {s}" for s in snippets)
+
+        prompt = f"""Analyze governance/policy sentiment from recent web intelligence.
+Topic: {topic or 'general protocol governance'}
+
+Recent context:
+{context}
+
+Return ONLY valid JSON (no markdown):
+{{
+  "recommendation": "bullish|bearish|neutral|cautious",
+  "confidence": 0.0,
+  "sentiment_score": 0.0,
+  "key_signals": ["signal1", "signal2"],
+  "rationale": "one sentence",
+  "data_points": {len(snippets)}
+}}"""
+        raw = await call_ai(prompt)
+        clean = raw.strip().replace("```json", "").replace("```", "").strip()
+        import json as _json
+        result = _json.loads(clean)
+        result["source"] = "ddg+native_ai"
+        return result
+    except Exception as exc:
+        logger.warning("governance_analytics fallback: %s", exc)
+        return {
+            "recommendation": "neutral",
+            "confidence": 0.5,
+            "sentiment_score": 0.5,
+            "key_signals": [],
+            "rationale": "Web intelligence temporarily unavailable",
+            "source": "fallback",
+        }
 
 
 @router.post("/sentiment")
 async def social_sentiment(body: Any, _user=Depends(verify_api_key)):
-    return {"sentiment_score": 0.5, "source": "unavailable", "note": "External sentiment API not configured."}
+    """Social/market sentiment for a team, token, or topic — DuckDuckGo + AI."""
+    try:
+        from app.services.web_search import _ddg_search
+        from app.services.ai_client import call_ai
+        import json as _json
+
+        subject = ""
+        if isinstance(body, dict):
+            subject = body.get("subject") or body.get("query") or body.get("team") or body.get("token") or ""
+
+        query = f"{subject} sentiment public opinion 2025" if subject else "crypto sports prediction market sentiment 2025"
+        snippets = await _ddg_search(query, max_results=8)
+        context = "\n".join(f"- {s}" for s in snippets)
+
+        prompt = f"""Analyze social sentiment for: {subject or 'general market'}.
+
+Recent web context:
+{context}
+
+Return ONLY valid JSON (no markdown):
+{{
+  "sentiment_score": 0.0,
+  "label": "very_positive|positive|neutral|negative|very_negative",
+  "confidence": 0.0,
+  "buzz_level": "low|medium|high",
+  "key_themes": ["theme1", "theme2"],
+  "rationale": "one sentence",
+  "data_points_analyzed": {len(snippets)}
+}}"""
+        raw = await call_ai(prompt)
+        clean = raw.strip().replace("```json", "").replace("```", "").strip()
+        result = _json.loads(clean)
+        result["source"] = "ddg+native_ai"
+        return result
+    except Exception as exc:
+        logger.warning("social_sentiment fallback: %s", exc)
+        return {
+            "sentiment_score": 0.5,
+            "label": "neutral",
+            "confidence": 0.4,
+            "buzz_level": "low",
+            "key_themes": [],
+            "rationale": "Web intelligence temporarily unavailable",
+            "source": "fallback",
+        }
 
 
 @router.post("/news-momentum")
 async def news_momentum(body: Any, _user=Depends(verify_api_key)):
-    return {"predicted_movement": "stable", "note": "External news API not configured."}
+    """Real-time news momentum for a team, player, or market — DuckDuckGo."""
+    try:
+        from app.services.web_search import _ddg_search
+        from app.services.ai_client import call_ai
+        import json as _json
+
+        subject = ""
+        if isinstance(body, dict):
+            subject = body.get("subject") or body.get("team") or body.get("query") or ""
+
+        query = f"{subject} latest news today momentum" if subject else "sports prediction AI news today"
+        snippets = await _ddg_search(query, max_results=6)
+        context = "\n".join(f"- {s}" for s in snippets)
+
+        prompt = f"""Analyze news momentum for: {subject or 'general sports/crypto market'}.
+
+Recent headlines:
+{context}
+
+Return ONLY valid JSON (no markdown):
+{{
+  "predicted_movement": "strongly_bullish|bullish|stable|bearish|strongly_bearish",
+  "momentum_score": 0.0,
+  "velocity": "accelerating|stable|decelerating",
+  "headline_count": {len(snippets)},
+  "top_headline": "most impactful headline",
+  "rationale": "one sentence"
+}}"""
+        raw = await call_ai(prompt)
+        clean = raw.strip().replace("```json", "").replace("```", "").strip()
+        result = _json.loads(clean)
+        result["source"] = "ddg+native_ai"
+        return result
+    except Exception as exc:
+        logger.warning("news_momentum fallback: %s", exc)
+        return {"predicted_movement": "stable", "momentum_score": 0.5, "source": "fallback"}
 
 
 @router.post("/breaking-news")
 async def breaking_news_scan(body: Any, _user=Depends(verify_api_key)):
-    return {"alert_level": "none", "note": "Real-time news scanning requires external API configuration."}
+    """Scan for breaking news alerts on a topic — real DuckDuckGo search."""
+    try:
+        from app.services.web_search import _ddg_search
+        from app.services.ai_client import call_ai
+        import json as _json
+
+        subject = ""
+        if isinstance(body, dict):
+            subject = body.get("subject") or body.get("topic") or body.get("team") or ""
+
+        query = f"breaking news {subject} today" if subject else "sports football breaking news today"
+        snippets = await _ddg_search(query, max_results=5)
+        context = "\n".join(f"- {s}" for s in snippets)
+
+        prompt = f"""Scan for breaking news alerts. Subject: {subject or 'sports/crypto general'}.
+
+Recent results:
+{context}
+
+Return ONLY valid JSON (no markdown):
+{{
+  "alert_level": "critical|high|medium|low|none",
+  "alert_type": "injury|suspension|transfer|financial|weather|other|none",
+  "headline": "most breaking headline or empty string",
+  "impact": "description of betting/market impact",
+  "confidence": 0.0,
+  "snippets_analyzed": {len(snippets)}
+}}"""
+        raw = await call_ai(prompt)
+        clean = raw.strip().replace("```json", "").replace("```", "").strip()
+        result = _json.loads(clean)
+        result["source"] = "ddg+native_ai"
+        return result
+    except Exception as exc:
+        logger.warning("breaking_news fallback: %s", exc)
+        return {"alert_level": "none", "alert_type": "none", "headline": "", "source": "fallback"}
 
 
 @router.get("/health")
@@ -239,8 +396,9 @@ async def ai_intel_health():
             "accumulator": "value_edge_filter",
             "market_regime": "vig_analysis",
             "form_narrative": "results_based",
-            "sentiment": "unavailable",
-            "news_momentum": "unavailable",
-            "breaking_news": "unavailable",
+            "sentiment": "ddg+native_ai",
+            "news_momentum": "ddg+native_ai",
+            "breaking_news": "ddg+native_ai",
+            "governance": "ddg+native_ai",
         },
     }

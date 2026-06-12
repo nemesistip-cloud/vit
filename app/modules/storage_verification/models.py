@@ -175,3 +175,38 @@ class TachyonManifest(Base):
 
 def _utcnow():
     return datetime.now(timezone.utc)
+
+
+class NodeStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    OFFLINE = "offline"
+    SUSPENDED = "suspended"
+
+
+class UserStorageNode(Base):
+    """
+    A user-contributed cloud storage account that powers the Tachyon swarm.
+    Users link their personal Google Drive / Dropbox / OneDrive and earn
+    VITCoin (TSC) for every GB they contribute and every proof-of-storage
+    challenge they pass.
+    """
+    __tablename__ = "user_storage_nodes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    provider: Mapped[str] = mapped_column(String(32))
+    alias: Mapped[str] = mapped_column(String(128))
+    config_key: Mapped[str] = mapped_column(String(256), unique=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+
+    gb_contributed: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
+    gb_used: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
+    tsc_earned: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
+    tsc_pending: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
+    reliability_score: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("1.0000"))
+    verification_count: Mapped[int] = mapped_column(default=0)
+    verification_pass: Mapped[int] = mapped_column(default=0)
+
+    last_verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow)

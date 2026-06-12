@@ -13,7 +13,7 @@ import {
   TrendingUp, Layers, Bell, Settings, Sun, Moon, Target,
   Sparkles, Brain, Zap, Radio, Network, DatabaseZap, FlaskConical,
   Map, Fingerprint, BadgeCheck, Bot, Vault, Star, ShieldAlert, FileCode2,
-  ChevronRight, Smartphone, Sword, MessageSquare,
+  ChevronRight, Smartphone, Sword, MessageSquare, HardDrive,
   LineChart, Landmark, Eye, Mic2, Route, ListChecks, PieChart,
   Users, Zap as ZapIcon, X as XIcon, ChevronRight as ChevronRightIcon,
   Moon as MoonIcon, Sun as SunIcon, LogOut as LogOutIcon, Menu as MenuIcon
@@ -79,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "VIT Analytics",      href: "/oracle",          icon: DatabaseZap },
       { name: "Node Network",    href: "/network",         icon: Network },
+      { name: "Storage Nodes",   href: "/node-network",    icon: HardDrive },
       { name: "Smart Contracts", href: "/smart-contracts", icon: FileCode2 },
       { name: "Treasury",        href: "/treasury",        icon: Vault },
       { name: "Trust & Safety",  href: "/trust",           icon: Lock },

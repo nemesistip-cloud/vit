@@ -66,6 +66,7 @@ const DebateMarketsPage = lazyRetry(() => import("@/pages/debate-markets"));
 const BetRoomsPage = lazyRetry(() => import("@/pages/bet-rooms"));
 const WatchlistPage = lazyRetry(() => import("@/pages/watchlist"));
 const StoragePage = lazyRetry(() => import("@/pages/storage"));
+const NodeNetworkPage = lazyRetry(() => import("@/pages/node-network"));
 const ProphecyChainPage = lazyRetry(() => import("@/pages/prophecy-chain"));
 const ValueAnalyticsPage = lazyRetry(() => import("@/pages/value-intelligence"));
 const ElectionsPage = lazyRetry(() => import("@/pages/elections"));
@@ -307,6 +308,9 @@ function Router() {
       </Route>
       <Route path="/storage">
         <Layout><ProtectedRoute component={StoragePage} /></Layout>
+      </Route>
+      <Route path="/node-network">
+        <Layout><ProtectedRoute component={NodeNetworkPage} /></Layout>
       </Route>
       <Route path="/prophecy">
         <Layout><ProtectedRoute component={ProphecyChainPage} /></Layout>
