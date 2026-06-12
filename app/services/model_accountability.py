@@ -17,8 +17,60 @@ class ModelAccountability:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def seed_from_registry(self) -> int:
+        """Ensure every active ModelMetadata row has a matching ModelPerformance row.
+
+        Called at startup (and lazily from update_model_weights) so the weight
+        optimizer always has rows to work with, even on a fresh deployment where
+        no predictions have been settled yet.
+
+        Returns the number of newly created rows (0 if all already present).
+        """
+        from app.modules.ai.models import ModelMetadata
+        from app.modules.ai.registry import MODEL_SPECS
+
+        result = await self.db.execute(
+            select(ModelMetadata).where(ModelMetadata.is_active == True)
+        )
+        meta_rows = result.scalars().all()
+
+        # Build set of already-tracked model names
+        existing = await self.db.execute(select(ModelPerformance.model_name))
+        existing_names = {row[0] for row in existing.fetchall()}
+
+        inserted = 0
+        for meta in meta_rows:
+            if meta.key in existing_names:
+                continue
+            # Use spec weight as the initial current_weight so
+            # the model starts at its design-spec contribution.
+            spec_weight = MODEL_SPECS.get(meta.key, {}).get("spec_weight", 0.08)
+            perf = ModelPerformance(
+                model_name=meta.key,
+                model_type=meta.model_type or "unknown",
+                current_weight=spec_weight,
+                min_weight_threshold=max(spec_weight * 0.25, 0.01),
+                weight_decay_rate=0.05,
+                performance_window=50,  # lower than default 100 so tracking kicks in sooner
+            )
+            self.db.add(perf)
+            inserted += 1
+            logger.info("[accountability] seeded ModelPerformance row for %s (weight=%.4f)", meta.key, spec_weight)
+
+        if inserted:
+            await self.db.commit()
+            logger.info("[accountability] seeded %d ModelPerformance rows from registry", inserted)
+        return inserted
+
     async def update_model_weights(self):
-        """Update model weights based on recent performance"""
+        """Update model weights based on recent performance.
+
+        Auto-seeds ModelPerformance rows from the registry first so this
+        method always has rows to work with on fresh deployments.
+        """
+        # Auto-seed missing rows before querying (idempotent — safe to call every cycle)
+        await self.seed_from_registry()
+
         # Get all models
         result = await self.db.execute(select(ModelPerformance))
         models = result.scalars().all()
