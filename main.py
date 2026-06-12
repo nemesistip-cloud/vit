@@ -936,7 +936,6 @@ async def _run_bootstrap(app, _done_event):
             except Exception as _e:
                 print(f"⚠️  AI Registry bootstrap failed: {_e}")
 
-
             # Seed ModelPerformance rows from registry (idempotent — creates rows for
             # all 13 models so weight-optimizer has entries to track from day one)
             try:
@@ -949,6 +948,7 @@ async def _run_bootstrap(app, _done_event):
                         print("✅ ModelPerformance: all 13 models already tracked")
             except Exception as _e:
                 print(f"⚠️  ModelPerformance seeding failed: {_e}")
+
             # Seed system marketplace listings (idempotent)
             try:
                 from app.db.database import AsyncSessionLocal
