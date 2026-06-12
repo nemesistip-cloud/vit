@@ -130,6 +130,16 @@ async def get_dashboard_vitcoin_price(db: AsyncSession = Depends(get_db)):
                 prev = float(history[1].price_usd)
                 if prev > 0:
                     change_24h = round((current - prev) / prev * 100, 4)
+            # Save a new price history record every 5 minutes (same cadence as cache TTL)
+            # so change_24h has data to diff against on subsequent calls.
+            try:
+                from decimal import Decimal as _D
+                new_row = VITCoinPriceHistory(price_usd=_D(str(current)))
+                db.add(new_row)
+                await db.commit()
+            except Exception as _he:
+                logger.debug(f"Price history insert skipped: {_he}")
+                await db.rollback()
         except Exception:
             pass
         data = {"price": current, "price_usd": current, "change_24h": change_24h, "source": source, "calculated_at": now.isoformat()}

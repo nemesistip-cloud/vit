@@ -80,7 +80,9 @@ async def oracle_stats(db: AsyncSession = Depends(get_db)):
         for r in all_results[:20]
     ]
 
+    status = "Live" if accepted > 0 or total > 0 else "Standby"
     return {
+        "status": status,
         "total_submissions": total,
         "accepted_submissions": accepted,
         "disputed_submissions": disputed,

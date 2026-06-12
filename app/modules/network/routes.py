@@ -118,6 +118,7 @@ async def network_stats(db: AsyncSession = Depends(get_db)):
 
     return {
         "total_nodes": total_nodes,
+        "node_count": total_nodes,
         "active_nodes": active_nodes,
         "total_contributions": total_contrib,
         "contributions_24h": contrib_24h,
