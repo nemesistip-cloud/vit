@@ -169,13 +169,6 @@ def _save_model_pkl(model_obj, key: str, job_id: str, metrics: Optional[dict] = 
         joblib.dump(payload, archive_path)
         joblib.dump(payload, active_path)
         logger.info(f"Saved model weights for '{key}' → {active_filename} and {archive_filename}")
-            # Task 3D: Upload to Tachyon and cleanup
-        try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(tachyon_client.upload_model(active_path))
-            loop.create_task(tachyon_client.upload_model(archive_path))
-        except Exception as tachyon_err:
-            logger.error("[training-tachyon] Tachyon sync failed: %s", tachyon_err)
 
         return {"active": active_filename, "archive": archive_filename}
     except Exception as _e:
@@ -514,6 +507,34 @@ async def _run_training_body(job_id: str, job: dict, config, orchestrator, start
             "ts":     time.time(),
         })
         logger.info(f"Saved {len(saved_pkls)} model weight files for job {job_id}")
+
+        # ── Sequential tachyon upload (one file at a time to avoid OOM) ──────
+        async def _tachyon_upload_sequential(paths: list):
+            for p in paths:
+                try:
+                    fid = await tachyon_client.upload_model(p)
+                    if fid:
+                        logger.info("[tachyon] uploaded %s → file_id=%s", os.path.basename(p), fid)
+                    else:
+                        logger.warning("[tachyon] upload returned None for %s", os.path.basename(p))
+                except Exception as _te:
+                    logger.error("[tachyon] upload failed for %s: %s", os.path.basename(p), _te)
+                await asyncio.sleep(0.5)  # yield to event loop between uploads
+
+        all_pkl_paths = []
+        for info in saved_pkls.values():
+            for fname in (info.get("active"), info.get("archive")):
+                if fname:
+                    p = os.path.join(_MODELS_DIR, fname)
+                    if os.path.exists(p):
+                        all_pkl_paths.append(p)
+
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_tachyon_upload_sequential(all_pkl_paths))
+            logger.info("[tachyon] queued sequential upload of %d pkl files", len(all_pkl_paths))
+        except Exception as _te:
+            logger.error("[tachyon] failed to queue upload task: %s", _te)
 
     weights_reloaded = _reload_trained_weights(orchestrator)
     job["summary"]["weights_reloaded"] = weights_reloaded
