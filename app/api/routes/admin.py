@@ -380,6 +380,48 @@ async def reload_models():
     if orch: orch.load_all_models()
     return {"status": "reloaded"}
 
+
+@router.post("/models/train")
+async def train_all_models(
+    key: Optional[str] = None,
+    current_user=Depends(get_current_admin),
+):
+    """
+    Trigger bootstrap training across all (or one) ensemble models.
+    Delegates to the training pipeline's bootstrap runner.
+    Returns a job_id that can be polled at GET /api/training/status/{job_id}.
+    """
+    import uuid
+    from app.core.dependencies import get_orchestrator as _get_orch
+
+    orch = _get_orch()
+    if not orch:
+        raise HTTPException(status_code=503, detail="Model orchestrator not available")
+
+    job_id = f"admin-train-{uuid.uuid4().hex[:8]}"
+
+    # Delegate to the training bootstrap runner in a background task
+    async def _run():
+        import asyncio
+        try:
+            from app.api.routes.training import _run_bootstrap, BootstrapConfig
+            from app.db.database import AsyncSessionLocal
+            config = BootstrapConfig()
+            async with AsyncSessionLocal() as db:
+                await _run_bootstrap(job_id, config, orch)
+        except Exception as e:
+            logger.error(f"[admin/models/train] bootstrap error: {e}")
+
+    import asyncio
+    asyncio.create_task(_run())
+
+    return {
+        "status": "started",
+        "job_id": job_id,
+        "message": f"Training job {job_id} started. Poll /api/training/status/{job_id} for progress.",
+        "models_targeted": key or "all",
+    }
+
 @router.get("/stats")
 async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):
     """Provides dashboard overview statistics including user growth and prediction accuracy."""
