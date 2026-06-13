@@ -34,5 +34,17 @@ SPORT_MARKETS = {
     ],
 }
 
+    "rugby": [
+        "match_winner",            # no draw (golden point / extra time settles ties)
+        "handicap",
+        "total_points_over_under",
+        "first_try_scorer",
+    ],
+    "rugby_union": [
+        "match_winner",
+        "handicap",
+        "total_points_over_under",
+    ],
+
 def get_markets_for_sport(sport: str) -> list:
     return SPORT_MARKETS.get(sport.lower(), SPORT_MARKETS["soccer"])

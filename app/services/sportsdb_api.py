@@ -118,6 +118,8 @@ SPORT_LEAGUES: Dict[str, Dict[str, int]] = {
         "premiership_rugby": 4305,
         "super_rugby":       4306,
         "nrl":               4382,
+        "french_top_14":     4333,
+        "pro14_urc":         4308,
     },
 }
 
@@ -255,6 +257,17 @@ def _map_event(ev: Dict) -> Optional[Dict]:
     league_name = ev.get("strLeague") or ""
     league_slug = _league_slug(league_name)
 
+    # Determine sport from strSport; fall back to LEAGUE_SPORT_MAP for accuracy
+    _str_sport = (ev.get("strSport") or "").strip().lower()
+    _SPORT_NAME_MAP = {
+        "soccer": "football", "american football": "american_football",
+        "rugby league": "rugby", "rugby union": "rugby", "rugby": "rugby",
+        "basketball": "basketball", "tennis": "tennis",
+        "cricket": "cricket", "baseball": "baseball",
+        "ice hockey": "ice_hockey", "mma": "mma", "formula 1": "formula1",
+    }
+    sport_detected = _SPORT_NAME_MAP.get(_str_sport) or LEAGUE_SPORT_MAP.get(league_slug, "football")
+
     return {
         "external_id": str(ev.get("idEvent", "")),
         "home_team":   home,
@@ -265,6 +278,7 @@ def _map_event(ev: Dict) -> Optional[Dict]:
         "home_goals":   home_score,
         "away_goals":   away_score,
         "actual_outcome": actual_outcome,
+        "sport":       sport_detected,
         "source":      "sportsdb",
     }
 

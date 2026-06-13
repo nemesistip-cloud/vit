@@ -81,6 +81,74 @@ def _entropy_confidence(hp: float, dp: float, ap: float) -> float:
     ent = -sum(p * math.log(p) for p in probs); max_ent = math.log(3); normalised = max(0.0, min(1.0, 1.0 - (ent / max_ent)))
     return round(0.50 + normalised * 0.45, 3)
 
+
+def compute_model_consensus(
+    model_insights: list,
+    final_pick: str = "home",
+    total_specs: int = None,
+) -> dict:
+    """Compute per-side vote-share across all model results.
+
+    Each model casts one vote for the side it assigns the highest probability.
+    Percentages are expressed out of *total_specs* (full ensemble size, even if
+    some models failed) so the caller can see participation clearly.
+    """
+    if not model_insights:
+        return {
+            "leader": final_pick, "home": 0.0, "draw": 0.0, "away": 0.0,
+            "votes": {"home": 0, "draw": 0, "away": 0}, "models_polled": 0,
+        }
+    votes: dict = {"home": 0, "draw": 0, "away": 0}
+    for m in model_insights:
+        hp = float(m.get("home_prob") or 0.0)
+        dp = float(m.get("draw_prob") or 0.0)
+        ap = float(m.get("away_prob") or 0.0)
+        side = max((("home", hp), ("draw", dp), ("away", ap)), key=lambda x: x[1])[0]
+        votes[side] += 1
+    n = len(model_insights)
+    denom = float(total_specs or n or 1)
+    return {
+        "leader": final_pick,
+        "home":  round(votes["home"]  / denom * 100, 1),
+        "draw":  round(votes["draw"]  / denom * 100, 1),
+        "away":  round(votes["away"]  / denom * 100, 1),
+        "votes": votes,
+        "models_polled": n,
+    }
+
+
+def build_alternative_bets(best_bet: dict, top_n: int = 5, min_edge: float = 0.0) -> list:
+    """Build ordered list of alternative bet recommendations from the best-bet dict."""
+    if not best_bet:
+        return []
+    alts: list = []
+    if best_bet.get("best_side"):
+        alts.append({
+            "market": best_bet.get("best_market", "1x2"),
+            "side": best_bet["best_side"],
+            "edge": round(float(best_bet.get("edge", 0.0)), 4),
+            "odds": best_bet.get("odds"),
+            "kelly_stake": best_bet.get("kelly_stake"),
+            "recommended": True,
+        })
+    ou_p = best_bet.get("over_25_prob") or best_bet.get("over_2_5_prob")
+    if ou_p is not None:
+        alts.append({
+            "market": "over_under_2.5",
+            "side": "over" if float(ou_p) >= 0.5 else "under",
+            "edge": round(float(best_bet.get("edge", 0.0)) * 0.7, 4),
+            "recommended": False,
+        })
+    btts_p = best_bet.get("btts_prob")
+    if btts_p is not None:
+        alts.append({
+            "market": "btts",
+            "side": "yes" if float(btts_p) >= 0.5 else "no",
+            "edge": round(float(best_bet.get("edge", 0.0)) * 0.6, 4),
+            "recommended": False,
+        })
+    return [a for a in alts if a["edge"] >= min_edge][:top_n]
+
 def build_prediction_response(prediction: Prediction, match: Match, orchestrator: Optional[object] = None, sport: str = "football", available_markets: list[str] = None, data_quality: Optional[dict] = None, data_source: str = "native_ensemble") -> PredictionResponse:
     conf = prediction.confidence
     rating = "EXCELLENT" if conf >= 0.80 else ("VERY GOOD" if conf >= 0.72 else ("GOOD" if conf >= 0.63 else ("FAIR" if conf >= 0.55 else "POOR")))
