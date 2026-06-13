@@ -515,7 +515,6 @@ async def get_results_comparison(
         select(Match, Prediction, CLVEntry)
         .join(Prediction, Match.id == Prediction.match_id)
         .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
-        .where(Prediction.bet_side.isnot(None))
     )
 
     if league:
@@ -527,14 +526,13 @@ async def get_results_comparison(
     count_q = select(func.count()).select_from(
         select(Prediction.id)
         .join(Match, Match.id == Prediction.match_id)
-        .where(Prediction.bet_side.isnot(None))
         .subquery()
     )
     if league:
         count_q = select(func.count()).select_from(
             select(Prediction.id)
             .join(Match, Match.id == Prediction.match_id)
-            .where(Prediction.bet_side.isnot(None), Match.league == league)
+            .where(Match.league == league)
             .subquery()
         )
 
