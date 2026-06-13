@@ -1,12 +1,9 @@
 """app/worker/celery_app.py — VIT Network Celery application.
 
-Broker and result backend both use REDIS_URL.
-
-Start the worker with scripts/start_worker.sh:
-  celery -A app.worker.celery_app worker --loglevel=info --concurrency=2 -B
+Start:  celery -A app.worker.celery_app worker --loglevel=info --concurrency=2 -B
+Or:     bash scripts/start_worker.sh
 """
 from __future__ import annotations
-
 import os
 from celery import Celery
 
@@ -30,13 +27,22 @@ celery.conf.update(
     accept_content=["json"],
     timezone="Africa/Lagos",
     enable_utc=True,
-    worker_max_memory_per_child=300_000,   # 300 MB — recycle worker after this
+    worker_max_memory_per_child=300_000,  # 300 MB per child — recycle after
     task_acks_late=True,
     task_reject_on_worker_lost=True,
-    worker_prefetch_multiplier=1,          # one task at a time per worker
+    worker_prefetch_multiplier=1,
     task_track_started=True,
     result_expires=3600,
+    task_routes={
+        "agents.*":  {"queue": "agents"},
+        "ml.*":      {"queue": "ml"},
+        "reports.*": {"queue": "reports"},
+        "tachyon.*": {"queue": "tachyon"},
+    },
 )
 
-from app.worker.beat_schedule import CELERYBEAT_SCHEDULE  # noqa: E402
+from app.worker.beat_schedule import CELERYBEAT_SCHEDULE   # noqa: E402
 celery.conf.beat_schedule = CELERYBEAT_SCHEDULE
+
+# Register dead-letter queue signal handler
+import app.worker.dlq  # noqa: F401, E402
