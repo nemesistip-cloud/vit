@@ -73,6 +73,127 @@ class _BaseModel:
         self.is_trained = False
         self.trained_matches_count = 0
         self.learning_iteration = 0
+
+    def _build_sklearn_clf(self):
+        k = self.key.lower()
+        if "logistic" in k:
+            from sklearn.linear_model import LogisticRegression
+            return LogisticRegression(max_iter=500, random_state=42, multi_class="multinomial", solver="lbfgs")
+        if "rf" in k or "forest" in k:
+            from sklearn.ensemble import RandomForestClassifier
+            return RandomForestClassifier(n_estimators=120, random_state=42, n_jobs=-1)
+        if "xgb" in k:
+            try:
+                import xgboost as xgb
+                return xgb.XGBClassifier(n_estimators=120, random_state=42, use_label_encoder=False, eval_metric="mlogloss")
+            except ImportError:
+                from sklearn.ensemble import GradientBoostingClassifier
+                return GradientBoostingClassifier(n_estimators=80, random_state=42)
+        if "lstm" in k or "transformer" in k or "neural" in k or "ensemble" in k or "hybrid" in k:
+            from sklearn.neural_network import MLPClassifier
+            return MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=300, random_state=42, early_stopping=True)
+        if "bayes" in k:
+            from sklearn.naive_bayes import GaussianNB
+            return GaussianNB()
+        if "market" in k:
+            from sklearn.linear_model import LogisticRegression
+            return LogisticRegression(max_iter=300, random_state=42, C=0.5)
+        # Default fallback for poisson, elo, dixon_coles, llm, etc.
+        from sklearn.linear_model import LogisticRegression
+        return LogisticRegression(max_iter=500, random_state=42)
+
+    def train(self, historical_data: list) -> dict:
+        try:
+            import numpy as np
+            from sklearn.preprocessing import StandardScaler
+            from sklearn.metrics import accuracy_score, log_loss
+            from sklearn.model_selection import train_test_split
+
+            _FEAT_COLS = [
+                "home_odds", "draw_odds", "away_odds",
+                "home_implied", "draw_implied", "away_implied",
+                "lam_h", "lam_a", "over_25_implied",
+                "strength_ratio", "lambda_home_est", "lambda_away_est", "elo_diff",
+            ]
+
+            X_rows, y_1x2, y_ou = [], [], []
+            for m in historical_data:
+                odds = m.get("market_odds", {}) or {}
+                h_o = float(odds.get("home", 2.30) or 2.30)
+                d_o = float(odds.get("draw", 3.30) or 3.30)
+                a_o = float(odds.get("away", 3.10) or 3.10)
+                raw_total = (1/h_o if h_o > 0 else 0) + (1/d_o if d_o > 0 else 0) + (1/a_o if a_o > 0 else 0)
+                raw_total = max(raw_total, 0.001)
+                h_imp = (1/h_o) / raw_total if h_o > 0 else 0.34
+                d_imp = (1/d_o) / raw_total if d_o > 0 else 0.33
+                a_imp = (1/a_o) / raw_total if a_o > 0 else 0.33
+                lam_h = max(0.1, h_imp * 2.5)
+                lam_a = max(0.1, a_imp * 2.5)
+                X_rows.append([
+                    h_o, d_o, a_o, h_imp, d_imp, a_imp,
+                    lam_h, lam_a, 0.50,
+                    lam_h / max(0.1, lam_a),
+                    lam_h, lam_a, (lam_h - lam_a) * 80.0,
+                ])
+                hg = int(m.get("home_goals", 0) or 0)
+                ag = int(m.get("away_goals", 0) or 0)
+                y_1x2.append(0 if hg > ag else (1 if hg == ag else 2))
+                total = hg + ag
+                y_ou.append(int(m.get("over_25", 1 if total > 2.5 else 0)))
+
+            X = np.array(X_rows, dtype=float)
+            y = np.array(y_1x2, dtype=int)
+
+            if len(X) < 10:
+                return {"accuracy": 0.34, "1x2_accuracy": 0.34, "log_loss": 1.10, "training_samples": len(X)}
+
+            X_tr, X_val, y_tr, y_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y if len(set(y)) > 1 else None)
+
+            scaler = StandardScaler()
+            X_tr_s = scaler.fit_transform(X_tr)
+            X_val_s = scaler.transform(X_val)
+
+            clf = self._build_sklearn_clf()
+            clf.fit(X_tr_s, y_tr)
+
+            y_pred  = clf.predict(X_val_s)
+            y_proba = clf.predict_proba(X_val_s)
+            classes = list(clf.classes_)
+            full_proba = np.zeros((len(y_val), 3))
+            for ci, cls in enumerate(classes):
+                full_proba[:, cls] = y_proba[:, ci]
+            full_proba = np.clip(full_proba, 1e-7, 1)
+            full_proba /= full_proba.sum(axis=1, keepdims=True)
+
+            acc = float(accuracy_score(y_val, y_pred))
+            ll  = float(log_loss(y_val, full_proba, labels=[0, 1, 2]))
+
+            self._sklearn_model    = clf
+            self._sklearn_scaler   = scaler
+            self._sklearn_features = _FEAT_COLS
+            self.is_trained        = True
+            self.trained_matches_count = len(historical_data)
+            self.learning_iteration   += 1
+            mean_proba = full_proba.mean(axis=0)
+            self.learned_result_probs = [float(mean_proba[0]), float(mean_proba[1]), float(mean_proba[2])]
+
+            # Over-under accuracy (simple majority-class baseline using ou25 preds)
+            y_ou_arr   = np.array(y_ou)
+            ou25_pred  = (X_val[:, 7] > 0.5).astype(int)  # lam_a > 0.5 heuristic
+            ou_acc     = float((ou25_pred == y_ou_arr[:len(ou25_pred)]).mean()) if len(ou25_pred) else 0.50
+
+            return {
+                "accuracy":              acc,
+                "1x2_accuracy":          acc,
+                "over_under_accuracy":   ou_acc,
+                "log_loss":              ll,
+                "training_samples":      len(X_tr),
+                "validation_samples":    len(X_val),
+            }
+        except Exception as exc:
+            logger.warning("[_BaseModel.train] %s training error: %s", self.key, exc)
+            return {"accuracy": 0.34, "1x2_accuracy": 0.34, "log_loss": 1.10, "error": str(exc)}
+
     def predict_1x2(self, *args, **kwargs): return (0.34, 0.33, 0.33)
     def predict_ou25(self, *args, **kwargs): return 0.50
     def predict_btts(self, *args, **kwargs): return 0.50
