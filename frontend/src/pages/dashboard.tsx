@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
-import { usePublicConfig } from "@/lib/usePublicConfig";
 import { useAuth } from "@/lib/auth";
 import { useGetTopOpportunities, useGetModelConfidence } from "@/api-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -48,10 +47,12 @@ function AIConfidenceWidget() {
   if (isLoading) return <Skeleton className="h-[200px] w-full rounded-xl" />;
 
   const models = data?.models || [];
-  const activeCount = models.filter((m: any) => m.accuracy > 0).length;
-  const ensembleAccuracy = models.length > 0
-    ? (models.reduce((acc: number, m: any) => acc + (m.accuracy || 0), 0) / models.length * 100).toFixed(1)
-    : "--";
+  const activeCount = data?.active_count ?? models.filter((m: any) => m.status === "active").length;
+  const ensembleAccuracy = data?.ensemble_accuracy != null && data.ensemble_accuracy > 0
+    ? data.ensemble_accuracy.toFixed(1)
+    : models.length > 0
+      ? (models.reduce((acc: number, m: any) => acc + (m.accuracy || 0), 0) / models.length).toFixed(1)
+      : "--";
 
   return (
     <Card className="bg-card/50 border-border/40 overflow-hidden relative group">
@@ -64,7 +65,7 @@ function AIConfidenceWidget() {
             <CardTitle className="text-sm font-mono flex items-center gap-2">
               <Brain className="w-4 h-4 text-primary" /> Analytics Network
             </CardTitle>
-            <CardDescription className="text-[10px] font-mono uppercase tracking-wider">ENSEMBLE v{config?.platform?.version || "5.5.0"} ACTIVE</CardDescription>
+            <CardDescription className="text-[10px] font-mono uppercase tracking-wider">ENSEMBLE v5.5.0 ACTIVE</CardDescription>
           </div>
           <Badge variant="outline" className="font-mono text-[9px] border-primary/20 text-primary bg-primary/5">
             {activeCount}/{models.length} MODELS ONLINE
@@ -97,7 +98,6 @@ function AIConfidenceWidget() {
 }
 
 export default function DashboardPage() {
-  const { data: config } = usePublicConfig();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("sports");
 
@@ -116,7 +116,7 @@ export default function DashboardPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground uppercase">VIT Network</h1>
-          <p className="text-sm font-mono text-muted-foreground">Analytics v{config?.platform?.version || "5.5.0"} active. Welcome back, {user?.username}.</p>
+          <p className="text-sm font-mono text-muted-foreground">Analytics v5.5.0 active. Welcome back, {user?.username}.</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-mono text-[10px] py-1 px-3 border-primary/20 bg-primary/5 text-primary">
