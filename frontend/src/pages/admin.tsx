@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "@/lib/apiClient";
-import { usePublicConfig } from "@/lib/usePublicConfig";
 import { TERMS } from "@/lib/terminology";
 import {
   useAdminCalibrationFit,
@@ -45,9 +44,22 @@ import { toast } from "sonner";
 
 interface AdminStats {
   users: number; matches: number; training_jobs: number;
-  active_plans: number; audit_entries: number;
+  active_plans: number; audit_entries: number; total_predictions: number;
+  user_growth: { new_24h: number; new_7d: number; new_30d: number; active_7d: number };
+  prediction_accuracy: { total: number; settled: number; correct: number; accuracy_pct: number };
+  revenue: { total_usd: number };
   recent_activity: { action: string; actor: string; status: string; timestamp: string }[];
-  top_users: { id: number; username: string; email: string; role: string; tier: string }[];
+  top_users: { id: number; username: string; email: string; role: string; tier: string; vitcoin_balance?: number }[];
+}
+
+interface CloudStorageSummary {
+  summary: {
+    total_capacity_gb: number; used_gb: number; free_gb: number;
+    utilization_pct: number; tachyon_files: number; tachyon_bytes: number;
+    providers_active: string[]; alert: boolean;
+  };
+  disk: { total_gb: number; used_gb: number; free_gb: number; utilization_pct: number };
+  nodes: { total_gb: number; used_gb: number; free_gb: number; provider_breakdown: any[] };
 }
 
 interface SystemHealth {
@@ -151,6 +163,12 @@ function DashboardTab() {
     queryFn: () => apiGet("/api/admin/system/health"),
     refetchInterval: 15000,
   });
+  const { data: cloudStorage, isLoading: csLoading } = useQuery<CloudStorageSummary>({
+    queryKey: ["admin-cloud-storage"],
+    queryFn: () => apiGet("/api/admin/cloud/storage"),
+    refetchInterval: 60000,
+    retry: false,
+  });
   const qc = useQueryClient();
 
   const clearCache = useMutation({
@@ -188,30 +206,40 @@ function DashboardTab() {
     onError: () => toast.error("Sync failed — check server logs"),
   });
 
+  const runEnsemble = useMutation({
+    mutationFn: () => apiPost("/api/admin/ensemble/run", {}),
+    onSuccess: (d: any) => toast.success(d?.message ?? "Ensemble run complete"),
+    onError: () => toast.error("Ensemble run failed — check server logs"),
+  });
+
   const kpis = [
     {
       label: "Total Users", value: stats?.users ?? 0, icon: Users,
       gradient: "from-cyan-500/10 to-transparent", border: "border-cyan-500/20",
-      glow: "", iconColor: "text-cyan-400",
-      valueCls: "text-cyan-400",
+      glow: "", iconColor: "text-cyan-400", valueCls: "text-cyan-400",
+      sub: stats?.user_growth ? `+${stats.user_growth.new_24h} today` : undefined,
     },
     {
       label: "Total Matches", value: stats?.matches ?? 0, icon: BarChart2,
       gradient: "from-purple-500/10 to-transparent", border: "border-purple-500/20",
-      glow: "", iconColor: "text-purple-400",
-      valueCls: "text-purple-300",
+      glow: "", iconColor: "text-purple-400", valueCls: "text-purple-300",
+      sub: stats?.total_predictions ? `${stats.total_predictions.toLocaleString()} predictions` : undefined,
     },
     {
       label: "Training Jobs", value: stats?.training_jobs ?? 0, icon: Cpu,
       gradient: "from-emerald-500/10 to-transparent", border: "border-emerald-500/20",
-      glow: "", iconColor: "text-emerald-400",
-      valueCls: "text-emerald-300",
+      glow: "", iconColor: "text-emerald-400", valueCls: "text-emerald-300",
+      sub: stats?.prediction_accuracy?.accuracy_pct != null
+        ? `${stats.prediction_accuracy.accuracy_pct}% accuracy`
+        : undefined,
     },
     {
       label: "Active Plans", value: stats?.active_plans ?? 0, icon: CreditCard,
       gradient: "from-amber-500/10 to-transparent", border: "border-amber-500/20",
-      glow: "", iconColor: "text-amber-400",
-      valueCls: "text-amber-300",
+      glow: "", iconColor: "text-amber-400", valueCls: "text-amber-300",
+      sub: stats?.revenue?.total_usd != null
+        ? `$${stats.revenue.total_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} revenue`
+        : undefined,
     },
   ];
 
@@ -249,9 +277,103 @@ function DashboardTab() {
                 {sLoading ? "—" : (typeof k.value === "number" ? k.value.toLocaleString() : (k.value ?? "—"))}
               </div>
               <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">{k.label}</div>
+              {k.sub && (
+                <div className="text-[10px] text-gray-600 mt-0.5 truncate">{k.sub}</div>
+              )}
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── VIT Cloud Storage Capacity ──────────────────────────────── */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+        <div className="px-4 pt-4 pb-3 border-b border-gray-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-4 rounded-full bg-teal-400/80" />
+            <Server className="w-3.5 h-3.5 text-teal-400" />
+            <span className="text-sm font-semibold text-white">VIT Cloud Storage</span>
+            {cloudStorage?.summary?.alert && (
+              <Badge className="text-[10px] bg-red-500/20 text-red-400 border-red-500/30 animate-pulse">⚠ High Usage</Badge>
+            )}
+          </div>
+          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-gray-500 hover:text-teal-400"
+            onClick={() => qc.invalidateQueries({ queryKey: ["admin-cloud-storage"] })}>
+            <RefreshCw className="w-3 h-3" />
+          </Button>
+        </div>
+        <div className="p-4">
+          {csLoading ? (
+            <div className="grid grid-cols-3 gap-3">
+              {[1,2,3].map(i => <div key={i} className="h-16 rounded-lg bg-gray-800 animate-pulse" />)}
+            </div>
+          ) : cloudStorage ? (
+            <div className="space-y-4">
+              {/* Capacity Meters Row */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Used",  val: cloudStorage.disk.used_gb,  color: cloudStorage.disk.utilization_pct > 90 ? "text-red-400" : cloudStorage.disk.utilization_pct > 70 ? "text-amber-400" : "text-teal-400" },
+                  { label: "Free",  val: cloudStorage.disk.free_gb,  color: "text-emerald-400" },
+                  { label: "Total", val: cloudStorage.disk.total_gb, color: "text-gray-300" },
+                ].map(m => (
+                  <div key={m.label} className="bg-gray-800/60 rounded-lg p-3 text-center border border-gray-700/40">
+                    <div className={`text-xl font-bold font-mono tabular-nums ${m.color}`}>
+                      {m.val.toFixed(1)} <span className="text-xs font-normal text-gray-500">GB</span>
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wide">{m.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Progress Bar */}
+              <div>
+                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                  <span>Server Disk Utilization</span>
+                  <span className={cloudStorage.disk.utilization_pct > 90 ? "text-red-400 font-bold" : "text-gray-400"}>
+                    {cloudStorage.disk.utilization_pct}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      cloudStorage.disk.utilization_pct > 90 ? "bg-red-500" :
+                      cloudStorage.disk.utilization_pct > 70 ? "bg-amber-500" : "bg-teal-500"
+                    }`}
+                    style={{ width: `${Math.min(cloudStorage.disk.utilization_pct, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Tachyon + Providers Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700/30">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Tachyon Files</div>
+                  <div className="text-lg font-bold text-teal-300 font-mono">
+                    {cloudStorage.summary.tachyon_files.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] text-gray-600">
+                    {(cloudStorage.summary.tachyon_bytes / (1024**3)).toFixed(3)} GB stored
+                  </div>
+                </div>
+                <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700/30">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Active Providers</div>
+                  <div className="space-y-0.5">
+                    {cloudStorage.summary.providers_active.map((p, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+                        <span className="text-[10px] text-gray-300 truncate">{p}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-600 text-sm">
+              <Server className="w-6 h-6 mx-auto mb-1 opacity-30" />
+              Storage data unavailable
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -336,12 +458,14 @@ function DashboardTab() {
           </div>
           <div className="p-4 grid grid-cols-2 gap-2">
             {[
-              { label: "Refresh Stats",  icon: RefreshCw, action: () => qc.invalidateQueries({ queryKey: ["admin-stats"] }),  cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",    loading: false },
-              { label: "Clear Cache",    icon: Zap,        action: () => clearCache.mutate(),    cls: "from-purple-500/10 border-purple-500/20 text-purple-400 hover:border-purple-400/60",  loading: clearCache.isPending },
-              { label: "Create Backup",  icon: Database,   action: () => backup.mutate(),         cls: "from-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:border-emerald-400/60", loading: backup.isPending },
-              { label: "Reload Health",  icon: Activity,   action: () => qc.invalidateQueries({ queryKey: ["admin-health"] }), cls: "from-amber-500/10 border-amber-500/20 text-amber-400 hover:border-amber-400/60",  loading: false },
-              { label: "Fetch Fixtures", icon: Download,   action: () => fetchFixtures.mutate(), cls: "from-rose-500/10 border-rose-500/20 text-rose-400 hover:border-rose-400/60",         loading: fetchFixtures.isPending },
-              { label: "Sync + Seed",   icon: RefreshCw,  action: () => syncAndSeed.mutate(),   cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",          loading: syncAndSeed.isPending },
+              { label: "Refresh Stats",   icon: RefreshCw, action: () => qc.invalidateQueries({ queryKey: ["admin-stats"] }),  cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",    loading: false },
+              { label: "Clear Cache",     icon: Zap,        action: () => clearCache.mutate(),    cls: "from-purple-500/10 border-purple-500/20 text-purple-400 hover:border-purple-400/60",  loading: clearCache.isPending },
+              { label: "Create Backup",   icon: Database,   action: () => backup.mutate(),         cls: "from-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:border-emerald-400/60", loading: backup.isPending },
+              { label: "Reload Health",   icon: Activity,   action: () => qc.invalidateQueries({ queryKey: ["admin-health"] }), cls: "from-amber-500/10 border-amber-500/20 text-amber-400 hover:border-amber-400/60",  loading: false },
+              { label: "Fetch Fixtures",  icon: Download,   action: () => fetchFixtures.mutate(), cls: "from-rose-500/10 border-rose-500/20 text-rose-400 hover:border-rose-400/60",         loading: fetchFixtures.isPending },
+              { label: "Sync + Seed",    icon: RefreshCw,  action: () => syncAndSeed.mutate(),   cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",          loading: syncAndSeed.isPending },
+              { label: "Run Ensemble",   icon: Brain,       action: () => runEnsemble.mutate(),   cls: "from-teal-500/10 border-teal-500/20 text-teal-400 hover:border-teal-400/60",          loading: runEnsemble.isPending },
+              { label: "Cloud Storage",  icon: Server,      action: () => qc.invalidateQueries({ queryKey: ["admin-cloud-storage"] }), cls: "from-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:border-indigo-400/60", loading: csLoading },
             ].map(a => (
               <button key={a.label}
                 disabled={a.loading}
@@ -5065,7 +5189,6 @@ function IntegrationsTab() {
 // ─── Root Admin Page ──────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const { data: config } = usePublicConfig();
   const { user, isAdmin, isSuperAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -5155,7 +5278,7 @@ export default function AdminPage() {
               <div className="font-bold text-white text-base leading-tight tracking-wide">
                 ADMIN <span className="text-cyan-400">CONTROL CENTER</span>
               </div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Network — v{config?.platform?.version || "5.5.0"}</div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Network — v5.5.0</div>
             </div>
           </div>
 

@@ -1,7 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usePublicConfig } from "@/lib/usePublicConfig";
-import { usePublicConfig } from "@/lib/usePublicConfig";
 import { apiPost } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +67,7 @@ type Side = string;
 const PRESETS = [5, 10, 25, 50, 100];
 
 const PROCESSING_STEPS = [
-  { label: "Initializing Neural Ensemble", icon: Layers },
+  { label: "Initializing Neural Ensemble v4.2", icon: Layers },
   { label: "Querying Poisson Goals Engine", icon: Activity },
   { label: "Analyzing Dixon-Coles Distribution", icon: BarChart3 },
   { label: "Running Elo Rating Simulation", icon: Clock },
@@ -80,22 +78,33 @@ const PROCESSING_STEPS = [
 ];
 
 export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
-  const { data: config } = usePublicConfig();
   const [selectedSide, setSelectedSide] = useState<Side | null>(match.bet_side || null);
   const [stake, setStake] = useState("10");
+  const [processingStep, setProcessingStep] = useState(0);
   const [predictionResult, setPredictionResult] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  // Reset state when opening
+  // Reset state when opening — auto-select bet_side or default to "home" (1x2 Home)
+  // so the Run Strategic Ensemble button is never stuck in disabled state
   useEffect(() => {
     if (open) {
-      setSelectedSide(match.bet_side || null);
+      setProcessingStep(0);
       setPredictionResult(null);
+      // Prefer the model's recommended side; fall back to "home" so the button is enabled
+      const autoSide: Side = match.bet_side || "home";
+      setSelectedSide(autoSide);
     }
   }, [open, match.bet_side]);
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Simulate processing time for professional feel
+      for (let i = 0; i < PROCESSING_STEPS.length; i++) {
+        setProcessingStep(i);
+        const delay = i === 0 ? 600 : i === PROCESSING_STEPS.length - 1 ? 800 : 350 + Math.random() * 300;
+        await new Promise(r => setTimeout(r, delay));
+      }
+
       const kickoff = match.kickoff_time?.endsWith("Z")
         ? match.kickoff_time
         : match.kickoff_time + "Z";
@@ -152,12 +161,39 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
   });
 
   const enabledMarkets = match.enabled_markets || [];
-  const activeMarketIds = new Set(enabledMarkets.map(m => String(m.id)));
 
-  const isActiveGroup = (gid: string) => {
+  // ── Normalize backend market IDs (e.g. "over_under_25") to frontend keys
+  // (e.g. "over_under_2.5"). Handles all documented mismatches.
+  const MARKET_ID_ALIASES: Record<string, string> = {
+    "over_under_25":    "over_under_2.5",
+    "over_under_15":    "over_under_1.5",
+    "over_under_35":    "over_under_3.5",
+    "over_under":       "over_under_2.5",
+    "btts_ht":          "btts_half_time",
+    "clean_sheet_home": "home_clean_sheet",
+    "clean_sheet_away": "away_clean_sheet",
+    "win_to_nil":       "win_to_nil",
+    "correct_score":    "correct_score",
+    "htft":             "htft",
+    "match_winner_ht":  "match_winner_ht",
+  };
+
+  // Build a normalized set of active market IDs — union of raw IDs + normalized aliases
+  const activeMarketIds = new Set<string>();
+  for (const m of enabledMarkets) {
+    const raw = String(m.id);
+    activeMarketIds.add(raw);
+    if (MARKET_ID_ALIASES[raw]) activeMarketIds.add(MARKET_ID_ALIASES[raw]);
+  }
+  // If no markets configured at all, activate everything (fallback to defaults)
+  const noMarketsConfigured = enabledMarkets.length === 0;
+
+  const isActiveGroup = (gid: string): boolean => {
+    if (noMarketsConfigured) return true;
     if (activeMarketIds.has(gid)) return true;
-    for (const a of Array.from(activeMarketIds)) {
-      if (a.startsWith(gid)) return true;
+    // Check alias map in reverse (frontend key → backend ID)
+    for (const [backendId, frontendKey] of Object.entries(MARKET_ID_ALIASES)) {
+      if (frontendKey === gid && activeMarketIds.has(backendId)) return true;
     }
     return false;
   };
@@ -174,43 +210,44 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
     "double_chance": {
       title: "Double Chance",
       sides: [
-        { side: "dc_home_draw", label: "YES" },
-        { side: "dc_no", label: "NO" }
+        { side: "dc_home_draw", label: "Home or Draw" },
+        { side: "dc_home_away", label: "Home or Away" },
+        { side: "dc_draw_away", label: "Draw or Away" }
       ]
     },
     "over_under_1.5": {
       title: "Over/Under 1.5 Goals",
       sides: [
-        { side: "over_15", label: "YES" },
-        { side: "under_15", label: "NO" }
+        { side: "over_15", label: "Over 1.5" },
+        { side: "under_15", label: "Under 1.5" }
       ]
     },
     "over_under_2.5": {
       title: "Over/Under 2.5 Goals",
       sides: [
-        { side: "over_25", label: "YES" },
-        { side: "under_25", label: "NO" }
+        { side: "over_25", label: "Over 2.5" },
+        { side: "under_25", label: "Under 2.5" }
       ]
     },
     "over_under_3.5": {
       title: "Over/Under 3.5 Goals",
       sides: [
-        { side: "over_35", label: "YES" },
-        { side: "under_35", label: "NO" }
+        { side: "over_35", label: "Over 3.5" },
+        { side: "under_35", label: "Under 3.5" }
       ]
     },
     "draw_no_bet": {
       title: "Draw No Bet (DNB)",
       sides: [
-        { side: "dnb_home", label: "YES" },
-        { side: "dnb_away", label: "NO" }
+        { side: "dnb_home", label: "Home DNB" },
+        { side: "dnb_away", label: "Away DNB" }
       ]
     },
     "asian_handicap": {
       title: "Asian Handicap",
       sides: [
-        { side: "ah_home", label: "YES" },
-        { side: "ah_away", label: "NO" }
+        { side: "ah_home", label: "AH Home" },
+        { side: "ah_away", label: "AH Away" }
       ]
     },
     "btts": {
@@ -241,14 +278,20 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
         { side: "away_cs_no", label: "NO" }
       ]
     },
+    "win_to_nil": {
+      title: "Win To Nil",
+      sides: [
+        { side: "wtn_home", label: "Home Win To Nil" },
+        { side: "wtn_away", label: "Away Win To Nil" }
+      ]
+    },
   };
 
+  const twoWay = (match.sport || '').toLowerCase() === 'tennis' || (match.sport || '').toLowerCase() === 'basketball';
+
   const marketGroups: Array<{ id: string; title: string; sides: Array<{ side: Side; label: string }> }> = [];
-  // Add known groups when active
   for (const gid of Object.keys(KNOWN_MARKETS)) {
     if (isActiveGroup(gid)) {
-      // For two-way sports like tennis/basketball, remove the draw side
-      const twoWay = (match.sport || '').toLowerCase() === 'tennis' || (match.sport || '').toLowerCase() === 'basketball';
       const sides = twoWay ? KNOWN_MARKETS[gid].sides.filter(s => s.side !== 'draw') : KNOWN_MARKETS[gid].sides;
       marketGroups.push({ id: gid, title: KNOWN_MARKETS[gid].title, sides });
     }
@@ -295,7 +338,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               <div className="flex items-center justify-center gap-2">
                 <Loader2 className="w-3 h-3 text-primary animate-spin" />
                 <p className="text-[10px] text-primary font-bold uppercase tracking-[0.2em] animate-pulse">
-                  Processing Ensemble Models...
+                  {PROCESSING_STEPS[processingStep].label}
                 </p>
               </div>
             </div>
@@ -303,8 +346,8 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
             <div className="w-full space-y-2.5 bg-[#0d0d0e] p-5 rounded-2xl border border-[#1a1a1c]">
               {PROCESSING_STEPS.map((step, idx) => {
                 const Icon = step.icon;
-                const isCurrent = true;
-                const isPast = false;
+                const isCurrent = idx === processingStep;
+                const isPast = idx < processingStep;
                 return (
                   <div
                     key={idx}
@@ -335,12 +378,12 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
             <div className="w-full space-y-2">
               <div className="flex justify-between text-[8px] font-black text-muted-foreground uppercase tracking-widest">
                 <span>System Stability: 99.9%</span>
-                <span>System Stability: 99.9%</span>
+                <span>Progress: {Math.round(((processingStep + 1) / PROCESSING_STEPS.length) * 100)}%</span>
               </div>
               <div className="w-full bg-[#1a1a1c] h-1.5 rounded-full overflow-hidden p-[2px]">
                 <div
                   className="bg-gradient-to-r from-primary/50 to-primary h-full rounded-full transition-all duration-700 ease-in-out "
-                  style={{ width: `100%` }}
+                  style={{ width: `${((processingStep + 1) / PROCESSING_STEPS.length) * 100}%` }}
                 />
               </div>
             </div>
@@ -359,7 +402,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               <ShieldCheck className="w-8 h-8" />
             </div>
             <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white mt-2">Analytics Report</h2>
-            <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Analytics v{config?.platform?.version || "5.5.0"} Finalized</p>
+            <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Analytics v4.2 Finalized</p>
           </div>
 
           <div className="p-6 space-y-6">
@@ -443,7 +486,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               <BrainCircuit className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">ML Ensemble v{config?.platform?.version || "5.5.0"}</h2>
+              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">ML Ensemble v4.2</h2>
               <p className="text-[9px] text-muted-foreground font-bold uppercase">Strategic Analytics Suite</p>
             </div>
           </div>

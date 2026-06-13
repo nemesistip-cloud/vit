@@ -294,6 +294,32 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         kind = type(p).__name__.replace("Provider", "")
         provider_breakdown[kind] = provider_breakdown.get(kind, 0) + 1
 
+    # ── OS-level disk capacity ────────────────────────────────────────
+    import shutil as _shutil
+    _du = _shutil.disk_usage("/")
+    disk_info = {
+        "total_bytes": int(_du.total),
+        "used_bytes":  int(_du.used),
+        "free_bytes":  int(_du.free),
+        "total_gb":    round(_du.total / (1024 ** 3), 2),
+        "used_gb":     round(_du.used  / (1024 ** 3), 2),
+        "free_gb":     round(_du.free  / (1024 ** 3), 2),
+        "used_pct":    round(_du.used  / max(_du.total, 1) * 100, 1),
+    }
+
+    # ── Tachyon storage root dir size (actual written bytes on disk) ──
+    tachyon_disk_bytes = 0
+    try:
+        import os as _os
+        for root, _dirs, files in _os.walk(_STORAGE_ROOT):
+            for fname in files:
+                try:
+                    tachyon_disk_bytes += _os.path.getsize(_os.path.join(root, fname))
+                except OSError:
+                    pass
+    except Exception:
+        pass
+
     return {
         "network_bandwidth": "3.2 Tbps",
         "active_nodes": len(_providers),
@@ -305,4 +331,7 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         "storage_path": _STORAGE_ROOT,
         "provider_breakdown": provider_breakdown,
         "cloud_enabled": bool(_GDRIVE_SA or _DROPBOX_TOK or _ONEDRIVE_ID),
+        "tachyon_disk_bytes": tachyon_disk_bytes,
+        "tachyon_disk_gb": round(tachyon_disk_bytes / (1024 ** 3), 3),
+        "disk": disk_info,
     }

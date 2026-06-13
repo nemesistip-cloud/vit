@@ -15,6 +15,18 @@ export ENVIRONMENT="${ENVIRONMENT:-production}"
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-false}"
 export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-false}"
 
+# ── Auto-generate ADMIN_PASSWORD if not set ──────────────────────────────────
+# This ensures the default admin account is always created on first boot.
+# Set ADMIN_PASSWORD in Render env vars to use a custom password instead.
+if [ -z "${ADMIN_PASSWORD:-}" ]; then
+    _AUTO_PASS="$(python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(24)))")"
+    export ADMIN_PASSWORD="${_AUTO_PASS}"
+    echo "[production] ⚠  ADMIN_PASSWORD not set — auto-generated for this boot. Set it in Render env vars for a stable password."
+    echo "[production]    ADMIN_PASSWORD: ${_AUTO_PASS}"
+else
+    echo "[production] ✅ ADMIN_PASSWORD is configured."
+fi
+
 echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Environment: ${ENVIRONMENT} | Port: ${PORT}"
 

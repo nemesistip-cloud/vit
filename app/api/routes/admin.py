@@ -382,12 +382,56 @@ async def reload_models():
 
 @router.get("/stats")
 async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):
-    """Provides dashboard overview statistics."""
-    user_count = (await db.execute(select(func.count(User.id)))).scalar() or 0
-    match_count = (await db.execute(select(func.count(Match.id)))).scalar() or 0
-    job_count = (await db.execute(select(func.count(TrainingJob.id)))).scalar() or 0
-    audit_count = (await db.execute(select(func.count(AuditLog.id)))).scalar() or 0
-    plan_count = (await db.execute(select(func.count(SubscriptionPlan.id)).where(SubscriptionPlan.is_active == True))).scalar() or 0
+    """Provides dashboard overview statistics including user growth and prediction accuracy."""
+    from datetime import datetime, timezone, timedelta
+
+    now   = datetime.now(timezone.utc).replace(tzinfo=None)
+    d1    = now - timedelta(days=1)
+    d7    = now - timedelta(days=7)
+    d30   = now - timedelta(days=30)
+
+    user_count   = (await db.execute(select(func.count(User.id)))).scalar() or 0
+    match_count  = (await db.execute(select(func.count(Match.id)))).scalar() or 0
+    job_count    = (await db.execute(select(func.count(TrainingJob.id)))).scalar() or 0
+    audit_count  = (await db.execute(select(func.count(AuditLog.id)))).scalar() or 0
+    plan_count   = (await db.execute(select(func.count(SubscriptionPlan.id)).where(SubscriptionPlan.is_active == True))).scalar() or 0
+
+    new_24h  = (await db.execute(select(func.count(User.id)).where(User.created_at >= d1))).scalar() or 0
+    new_7d   = (await db.execute(select(func.count(User.id)).where(User.created_at >= d7))).scalar() or 0
+    new_30d  = (await db.execute(select(func.count(User.id)).where(User.created_at >= d30))).scalar() or 0
+
+    active_7d = 0
+    try:
+        active_7d = (await db.execute(
+            select(func.count(User.id)).where(User.last_login >= d7)
+        )).scalar() or 0
+    except Exception:
+        pass
+
+    total_preds   = (await db.execute(select(func.count(Prediction.id)))).scalar() or 0
+    settled_preds = 0
+    correct_preds = 0
+    try:
+        settled_preds = (await db.execute(
+            select(func.count(Prediction.id)).where(Prediction.was_correct.isnot(None))
+        )).scalar() or 0
+        correct_preds = (await db.execute(
+            select(func.count(Prediction.id)).where(Prediction.was_correct == True)
+        )).scalar() or 0
+    except Exception:
+        pass
+
+    total_revenue = 0.0
+    try:
+        from app.modules.wallet.models import Transaction
+        rev_row = (await db.execute(
+            select(func.sum(Transaction.amount)).where(
+                Transaction.transaction_type.in_(["deposit", "subscription"])
+            )
+        )).scalar()
+        total_revenue = float(rev_row or 0)
+    except Exception:
+        pass
 
     recent_activity_rows = (await db.execute(
         select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(10)
@@ -406,13 +450,26 @@ async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depen
         select(User).order_by(User.created_at.desc()).limit(5)
     )).scalars().all()
 
+    wallet_map: dict = {}
+    try:
+        from app.modules.wallet.models import Wallet
+        uids = [u.id for u in top_users_rows]
+        if uids:
+            wrows = (await db.execute(
+                select(Wallet.user_id, Wallet.vitcoin_balance).where(Wallet.user_id.in_(uids))
+            )).all()
+            wallet_map = {row.user_id: float(row.vitcoin_balance) for row in wrows}
+    except Exception:
+        pass
+
     top_users = [
         {
             "id": u.id,
             "username": u.username,
             "email": u.email,
             "role": u.role,
-            "tier": u.subscription_tier
+            "tier": u.subscription_tier,
+            "vitcoin_balance": wallet_map.get(u.id, 0.0),
         } for u in top_users_rows
     ]
 
@@ -422,8 +479,24 @@ async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depen
         "training_jobs": job_count,
         "active_plans": plan_count,
         "audit_entries": audit_count,
+        "total_predictions": total_preds,
+        "user_growth": {
+            "new_24h":   int(new_24h),
+            "new_7d":    int(new_7d),
+            "new_30d":   int(new_30d),
+            "active_7d": int(active_7d),
+        },
+        "prediction_accuracy": {
+            "total":    int(total_preds),
+            "settled":  int(settled_preds),
+            "correct":  int(correct_preds),
+            "accuracy_pct": round(correct_preds / max(settled_preds, 1) * 100, 1),
+        },
+        "revenue": {
+            "total_usd": total_revenue,
+        },
         "recent_activity": recent_activity,
-        "top_users": top_users
+        "top_users": top_users,
     }
 
 @router.get("/users")
@@ -1154,3 +1227,422 @@ async def get_offerwall_providers(current_user=Depends(get_current_admin)):
         },
     ]
     return {"providers": providers}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ── VIT Cloud Storage Capacity ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/cloud/storage")
+async def get_cloud_storage_capacity(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """
+    Returns VIT cloud total storage capacity: used, free, and per-provider breakdown.
+    Aggregates registered user storage nodes + Tachyon disk usage.
+    """
+    import shutil
+    from app.modules.storage_verification.models import UserStorageNode, TachyonManifest
+
+    # ── 1. OS-level disk (Render ephemeral disk) ───────────────────────────
+    try:
+        du = shutil.disk_usage("/")
+        disk_total_bytes  = du.total
+        disk_used_bytes   = du.used
+        disk_free_bytes   = du.free
+    except Exception:
+        disk_total_bytes = disk_used_bytes = disk_free_bytes = 0
+
+    # ── 2. Tachyon manifest bytes stored ──────────────────────────────────
+    tachyon_bytes = (await db.scalar(
+        select(func.sum(TachyonManifest.size_bytes))
+    )) or 0
+    tachyon_count = (await db.scalar(
+        select(func.count(TachyonManifest.file_id))
+    )) or 0
+
+    # ── 3. User-contributed node capacity (all active nodes) ───────────────
+    from decimal import Decimal
+
+    node_rows = (await db.execute(
+        select(
+            UserStorageNode.provider,
+            func.sum(UserStorageNode.gb_contributed).label("total_gb"),
+            func.sum(UserStorageNode.gb_used).label("used_gb"),
+            func.count(UserStorageNode.id).label("node_count"),
+        )
+        .where(UserStorageNode.status == "active")
+        .group_by(UserStorageNode.provider)
+    )).all()
+
+    nodes_total_gb = float(sum((r.total_gb or 0) for r in node_rows))
+    nodes_used_gb  = float(sum((r.used_gb  or 0) for r in node_rows))
+    nodes_free_gb  = max(0.0, nodes_total_gb - nodes_used_gb)
+
+    provider_breakdown = [
+        {
+            "provider": r.provider,
+            "total_gb": float(r.total_gb or 0),
+            "used_gb":  float(r.used_gb  or 0),
+            "free_gb":  max(0.0, float(r.total_gb or 0) - float(r.used_gb or 0)),
+            "node_count": int(r.node_count or 0),
+            "utilization_pct": round(
+                float(r.used_gb or 0) / max(float(r.total_gb or 1), 0.001) * 100, 1
+            ),
+        }
+        for r in node_rows
+    ]
+
+    # ── 4. Cloud provider env flags ────────────────────────────────────────
+    providers_active = []
+    if os.getenv("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip():
+        providers_active.append("Google Drive")
+    if os.getenv("DROPBOX_ACCESS_TOKEN", "").strip() or os.getenv("DROPBOX_REFRESH_TOKEN", "").strip():
+        providers_active.append("Dropbox")
+    if os.getenv("ONEDRIVE_CLIENT_ID", "").strip():
+        providers_active.append("OneDrive")
+    if not providers_active:
+        providers_active.append("Local Disk (ephemeral)")
+
+    total_capacity_gb = nodes_total_gb or round(disk_total_bytes / (1024 ** 3), 2)
+    total_used_gb     = nodes_used_gb  or round(disk_used_bytes  / (1024 ** 3), 2)
+    total_free_gb     = nodes_free_gb  or round(disk_free_bytes  / (1024 ** 3), 2)
+    utilization_pct   = round(total_used_gb / max(total_capacity_gb, 0.001) * 100, 1)
+
+    return {
+        "summary": {
+            "total_capacity_gb":  total_capacity_gb,
+            "used_gb":            total_used_gb,
+            "free_gb":            total_free_gb,
+            "utilization_pct":    utilization_pct,
+            "tachyon_files":      int(tachyon_count),
+            "tachyon_bytes":      int(tachyon_bytes),
+            "providers_active":   providers_active,
+            "alert": utilization_pct > 90,
+        },
+        "disk": {
+            "total_bytes": int(disk_total_bytes),
+            "used_bytes":  int(disk_used_bytes),
+            "free_bytes":  int(disk_free_bytes),
+            "total_gb":    round(disk_total_bytes / (1024 ** 3), 2),
+            "used_gb":     round(disk_used_bytes  / (1024 ** 3), 2),
+            "free_gb":     round(disk_free_bytes  / (1024 ** 3), 2),
+            "utilization_pct": round(disk_used_bytes / max(disk_total_bytes, 1) * 100, 1),
+        },
+        "nodes": {
+            "total_gb":    nodes_total_gb,
+            "used_gb":     nodes_used_gb,
+            "free_gb":     nodes_free_gb,
+            "provider_breakdown": provider_breakdown,
+        },
+    }
+
+
+# ── System Resources ────────────────────────────────────────────────────────
+
+@router.get("/system/resources")
+async def get_system_resources(current_user=Depends(get_current_admin)):
+    """Returns real-time CPU, RAM, and disk resource utilization."""
+    import shutil
+    try:
+        import psutil
+        cpu_pct    = psutil.cpu_percent(interval=0.3)
+        mem        = psutil.virtual_memory()
+        ram_total  = mem.total
+        ram_used   = mem.used
+        ram_pct    = mem.percent
+        swap       = psutil.swap_memory()
+        swap_pct   = swap.percent
+    except Exception:
+        cpu_pct = ram_total = ram_used = ram_pct = swap_pct = 0
+
+    try:
+        du = shutil.disk_usage("/")
+        disk_total = du.total
+        disk_used  = du.used
+        disk_free  = du.free
+        disk_pct   = round(disk_used / max(disk_total, 1) * 100, 1)
+    except Exception:
+        disk_total = disk_used = disk_free = disk_pct = 0
+
+    def _fmt_bytes(b: int) -> str:
+        for unit in ("B", "KB", "MB", "GB"):
+            if b < 1024:
+                return f"{b:.1f} {unit}"
+            b //= 1024
+        return f"{b:.1f} TB"
+
+    return {
+        "cpu": {
+            "percent": cpu_pct,
+            "status": "ok" if cpu_pct < 80 else ("warn" if cpu_pct < 95 else "critical"),
+        },
+        "ram": {
+            "total_bytes": int(ram_total),
+            "used_bytes":  int(ram_used),
+            "percent":     ram_pct,
+            "total_fmt":   _fmt_bytes(int(ram_total)),
+            "used_fmt":    _fmt_bytes(int(ram_used)),
+            "status":      "ok" if ram_pct < 80 else ("warn" if ram_pct < 95 else "critical"),
+        },
+        "swap": {"percent": swap_pct},
+        "disk": {
+            "total_bytes": int(disk_total),
+            "used_bytes":  int(disk_used),
+            "free_bytes":  int(disk_free),
+            "percent":     disk_pct,
+            "total_fmt":   _fmt_bytes(int(disk_total)),
+            "used_fmt":    _fmt_bytes(int(disk_used)),
+            "free_fmt":    _fmt_bytes(int(disk_free)),
+            "status":      "ok" if disk_pct < 80 else ("warn" if disk_pct < 90 else "critical"),
+        },
+        "environment": os.getenv("ENVIRONMENT", "production"),
+        "python_version": __import__("sys").version.split()[0],
+    }
+
+
+# ── Enhanced Admin Stats (with user growth + revenue) ─────────────────────
+
+@router.get("/stats/extended")
+async def get_extended_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Extended stats: user growth by period, revenue, prediction accuracy."""
+    from datetime import datetime, timezone, timedelta
+
+    now   = datetime.now(timezone.utc).replace(tzinfo=None)
+    d1    = now - timedelta(days=1)
+    d7    = now - timedelta(days=7)
+    d30   = now - timedelta(days=30)
+
+    new_24h = (await db.scalar(
+        select(func.count(User.id)).where(User.created_at >= d1)
+    )) or 0
+    new_7d  = (await db.scalar(
+        select(func.count(User.id)).where(User.created_at >= d7)
+    )) or 0
+    new_30d = (await db.scalar(
+        select(func.count(User.id)).where(User.created_at >= d30)
+    )) or 0
+
+    active_7d = (await db.scalar(
+        select(func.count(User.id)).where(User.last_login >= d7)
+    )) or 0
+
+    total_predictions = (await db.scalar(select(func.count(Prediction.id)))) or 0
+    settled_preds = (await db.scalar(
+        select(func.count(Prediction.id)).where(Prediction.was_correct.isnot(None))
+    )) or 0
+    correct_preds = (await db.scalar(
+        select(func.count(Prediction.id)).where(Prediction.was_correct == True)
+    )) or 0
+    accuracy_pct = round(correct_preds / max(settled_preds, 1) * 100, 1)
+
+    # Revenue from wallet transactions
+    total_revenue = 0.0
+    try:
+        from app.modules.wallet.models import Transaction
+        rev_row = (await db.scalar(
+            select(func.sum(Transaction.amount)).where(
+                Transaction.transaction_type.in_(["deposit", "subscription"])
+            )
+        ))
+        total_revenue = float(rev_row or 0)
+    except Exception:
+        pass
+
+    return {
+        "user_growth": {
+            "new_24h": int(new_24h),
+            "new_7d":  int(new_7d),
+            "new_30d": int(new_30d),
+            "active_7d": int(active_7d),
+        },
+        "predictions": {
+            "total": int(total_predictions),
+            "settled": int(settled_preds),
+            "correct": int(correct_preds),
+            "accuracy_pct": accuracy_pct,
+        },
+        "revenue": {
+            "total_usd": total_revenue,
+        },
+    }
+
+
+# ── Ensemble Run Trigger ────────────────────────────────────────────────────
+
+@router.post("/ensemble/run")
+async def trigger_ensemble_run(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Force-run the strategic ensemble on all upcoming unresolved matches."""
+    from datetime import datetime, timezone, timedelta
+    now    = datetime.now(timezone.utc).replace(tzinfo=None)
+    future = now + timedelta(days=7)
+
+    matches_q = await db.execute(
+        select(Match).where(
+            Match.kickoff_time >= now,
+            Match.kickoff_time <= future,
+            Match.actual_outcome.is_(None),
+        ).limit(50)
+    )
+    matches = matches_q.scalars().all()
+
+    seeded = 0
+    errors = 0
+    try:
+        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        seeded = await seed_predictions_for_upcoming(db)
+    except Exception as e:
+        errors += 1
+        logger.warning("Ensemble run seeder error: %s", e)
+
+    audit = AuditLog(
+        action="ensemble_run",
+        actor=current_user.username,
+        resource="ensemble",
+        resource_id="all",
+        details={"matches_found": len(matches), "seeded": seeded, "errors": errors},
+        status="success" if errors == 0 else "partial",
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "matches_found": len(matches),
+        "predictions_seeded": seeded,
+        "errors": errors,
+        "message": f"Ensemble run complete: {seeded} predictions seeded across {len(matches)} matches",
+    }
+
+
+# ── Deploy Status (Render) ─────────────────────────────────────────────────
+
+@router.get("/deploy/status")
+async def get_deploy_status(current_user=Depends(get_current_admin)):
+    """Returns current Render deployment status and last deploy info."""
+    import httpx
+
+    render_key    = os.getenv("RENDER_API_KEY", "").strip()
+    render_svc_id = os.getenv("RENDER_SERVICE_ID", "srv-d84gu177f7vs73a3djeg").strip()
+
+    if not render_key:
+        return {"available": False, "reason": "RENDER_API_KEY not set"}
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            svc_r = await client.get(
+                f"https://api.render.com/v1/services/{render_svc_id}",
+                headers={"Authorization": f"Bearer {render_key}"},
+            )
+            dep_r = await client.get(
+                f"https://api.render.com/v1/services/{render_svc_id}/deploys?limit=3",
+                headers={"Authorization": f"Bearer {render_key}"},
+            )
+
+        svc = svc_r.json() if svc_r.status_code == 200 else {}
+        deps = dep_r.json() if dep_r.status_code == 200 else []
+
+        latest = deps[0] if deps else {}
+        dep_obj = latest.get("deploy", {})
+
+        return {
+            "available": True,
+            "service": {
+                "id":        svc.get("id"),
+                "name":      svc.get("name"),
+                "suspended": svc.get("suspended"),
+                "url":       svc.get("serviceDetails", {}).get("url"),
+                "plan":      svc.get("serviceDetails", {}).get("plan"),
+                "region":    svc.get("serviceDetails", {}).get("region"),
+                "updated_at": svc.get("updatedAt"),
+            },
+            "latest_deploy": {
+                "id":          dep_obj.get("id"),
+                "status":      dep_obj.get("status"),
+                "created_at":  dep_obj.get("createdAt"),
+                "finished_at": dep_obj.get("finishedAt"),
+            },
+            "recent_deploys": [
+                {
+                    "id":     d.get("deploy", {}).get("id"),
+                    "status": d.get("deploy", {}).get("status"),
+                    "created_at": d.get("deploy", {}).get("createdAt"),
+                }
+                for d in deps
+            ],
+        }
+    except Exception as exc:
+        return {"available": False, "reason": str(exc)}
+
+
+# ── Storage Network Admin Summary ──────────────────────────────────────────
+
+@router.get("/storage/network")
+async def get_storage_network_summary(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Global VIT cloud storage network: all active nodes, total capacity."""
+    from app.modules.storage_verification.models import UserStorageNode, TachyonManifest
+
+    total_nodes = (await db.scalar(select(func.count(UserStorageNode.id)))) or 0
+    active_nodes = (await db.scalar(
+        select(func.count(UserStorageNode.id)).where(UserStorageNode.status == "active")
+    )) or 0
+
+    capacity = (await db.execute(
+        select(
+            func.sum(UserStorageNode.gb_contributed).label("total_gb"),
+            func.sum(UserStorageNode.gb_used).label("used_gb"),
+            func.sum(UserStorageNode.tsc_earned).label("total_tsc_earned"),
+        ).where(UserStorageNode.status == "active")
+    )).one()
+
+    total_gb   = float(capacity.total_gb  or 0)
+    used_gb    = float(capacity.used_gb   or 0)
+    free_gb    = max(0.0, total_gb - used_gb)
+    tsc_earned = float(capacity.total_tsc_earned or 0)
+
+    tachyon_files = (await db.scalar(
+        select(func.count(TachyonManifest.file_id))
+    )) or 0
+    tachyon_bytes = (await db.scalar(
+        select(func.sum(TachyonManifest.size_bytes))
+    )) or 0
+
+    import shutil
+    disk = shutil.disk_usage("/")
+
+    return {
+        "nodes": {
+            "total": int(total_nodes),
+            "active": int(active_nodes),
+        },
+        "capacity": {
+            "total_gb":  total_gb,
+            "used_gb":   used_gb,
+            "free_gb":   free_gb,
+            "used_pct":  round(used_gb / max(total_gb, 0.001) * 100, 1),
+        },
+        "tachyon": {
+            "files": int(tachyon_files),
+            "bytes": int(tachyon_bytes),
+            "gb":    round(tachyon_bytes / (1024**3), 3),
+        },
+        "tsc": {
+            "total_earned": tsc_earned,
+        },
+        "server_disk": {
+            "total_gb": round(disk.total / (1024**3), 2),
+            "used_gb":  round(disk.used  / (1024**3), 2),
+            "free_gb":  round(disk.free  / (1024**3), 2),
+            "used_pct": round(disk.used / max(disk.total, 1) * 100, 1),
+        },
+    }
