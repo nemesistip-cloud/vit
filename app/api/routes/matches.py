@@ -639,6 +639,86 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     }
 
 
+
+
+@router.get("/{match_id}/analytics")
+async def get_match_analytics(match_id: int, db: AsyncSession = Depends(get_db)):
+    """Return quality metrics, confidence signals, and market analysis for a match."""
+    match_q = await db.execute(select(Match).where(Match.id == match_id))
+    match = match_q.scalar_one_or_none()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    pred_q = await db.execute(
+        select(Prediction)
+        .where(Prediction.match_id == match_id)
+        .order_by(Prediction.timestamp.desc())
+        .limit(1)
+    )
+    pred = pred_q.scalar_one_or_none()
+    model_weights = pred.model_weights if pred and isinstance(pred.model_weights, dict) else {}
+
+    return {
+        "match_id": match_id,
+        "match_quality_rating":  model_weights.get("match_quality_rating"),
+        "market_confidence":     model_weights.get("market_confidence"),
+        "home_advantage_bias":   model_weights.get("home_advantage_bias"),
+        "model_agreement_pct":   model_weights.get("model_agreement_pct"),
+        "ensemble_diversity":    model_weights.get("ensemble_diversity"),
+        "home_prob":  float(pred.home_prob)  if pred and pred.home_prob  is not None else None,
+        "draw_prob":  float(pred.draw_prob)  if pred and pred.draw_prob  is not None else None,
+        "away_prob":  float(pred.away_prob)  if pred and pred.away_prob  is not None else None,
+        "confidence": float(pred.confidence) if pred and pred.confidence is not None else None,
+        "edge":       float(pred.vig_free_edge) if pred and pred.vig_free_edge is not None else None,
+        "bet_side":   pred.bet_side if pred else None,
+        "has_prediction": pred is not None,
+        "generated_at":   pred.timestamp.isoformat() if pred and pred.timestamp else None,
+    }
+
+
+@router.get("/{match_id}/ensemble")
+async def get_match_ensemble(match_id: int, db: AsyncSession = Depends(get_db)):
+    """Return individual model contributions and ensemble breakdown for a match."""
+    match_q = await db.execute(select(Match).where(Match.id == match_id))
+    match = match_q.scalar_one_or_none()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    pred_q = await db.execute(
+        select(Prediction)
+        .where(Prediction.match_id == match_id)
+        .order_by(Prediction.timestamp.desc())
+        .limit(1)
+    )
+    pred = pred_q.scalar_one_or_none()
+
+    model_insights = []
+    model_weights  = {}
+    if pred:
+        if isinstance(pred.model_insights, list):
+            model_insights = pred.model_insights
+        if isinstance(pred.model_weights, dict):
+            model_weights = pred.model_weights
+
+    return {
+        "match_id":          match_id,
+        "home_team":         match.home_team,
+        "away_team":         match.away_team,
+        "models_used":       len(model_insights),
+        "model_contributions": model_insights,
+        "ensemble_weights":  model_weights,
+        "consensus": {
+            "home_prob":  float(pred.home_prob)  if pred and pred.home_prob  is not None else None,
+            "draw_prob":  float(pred.draw_prob)  if pred and pred.draw_prob  is not None else None,
+            "away_prob":  float(pred.away_prob)  if pred and pred.away_prob  is not None else None,
+            "confidence": float(pred.confidence) if pred and pred.confidence is not None else None,
+            "bet_side":   pred.bet_side if pred else None,
+        },
+        "has_prediction": pred is not None,
+        "generated_at":   pred.timestamp.isoformat() if pred and pred.timestamp else None,
+    }
+
+
 @router.post("/sync")
 async def sync_fixtures(
     days: int = Query(default=60, ge=1, le=90),
