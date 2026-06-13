@@ -21,7 +21,7 @@ const SUGGESTED_PROMPTS = [
 ];
 
 const ASSISTANT_FEATURES = [
-  "Native Agentic Intelligence (v{config?.platform?.version || "5.5.0"})",
+  "Native Agentic Intelligence (v5.5.0)",
   "Real-time SVI and Market Monitoring",
   "Live score and fixture insights",
   "Upcoming match discovery",
