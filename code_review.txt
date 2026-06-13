@@ -1,0 +1,15 @@
+Reviewing changes:
+1. frontend/src/pages/assistant.tsx:
+   - Added import for usePublicConfig.
+   - Fixed syntax error in ASSISTANT_FEATURES by using dynamic mapping in the render method instead of invalid string interpolation in the constant array.
+   - Corrected "Native Agentic Intelligence" label in the static array to "Agentic Intelligence" to avoid confusion with the dynamic label.
+2. frontend/src/pages/roadmap.tsx:
+   - Fixed syntax error in import statement where quotes were escaped unnecessarily.
+3. frontend/src/pages/dashboard.tsx:
+   - Added import for usePublicConfig.
+   - Initialized config using usePublicConfig hook.
+   - Implemented dynamic versioning for the ENSEMBLE label.
+4. tests/test_wallet_intelligence.py:
+   - Added unit tests for wallet risk scoring and behavior engine.
+
+All changes look solid and verified by local build.

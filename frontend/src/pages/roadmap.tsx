@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { usePublicConfig } from \"@/lib/usePublicConfig\";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {

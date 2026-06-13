@@ -1,3 +1,4 @@
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
@@ -65,7 +66,7 @@ function AIConfidenceWidget() {
             <CardTitle className="text-sm font-mono flex items-center gap-2">
               <Brain className="w-4 h-4 text-primary" /> Analytics Network
             </CardTitle>
-            <CardDescription className="text-[10px] font-mono uppercase tracking-wider">ENSEMBLE v5.5.0 ACTIVE</CardDescription>
+<CardDescription className="text-[10px] font-mono uppercase tracking-wider">ENSEMBLE v{config?.platform?.version || "5.5.0"} ACTIVE</CardDescription>
           </div>
           <Badge variant="outline" className="font-mono text-[9px] border-primary/20 text-primary bg-primary/5">
             {activeCount}/{models.length} MODELS ONLINE
@@ -98,6 +99,7 @@ function AIConfidenceWidget() {
 }
 
 export default function DashboardPage() {
+  const { data: config } = usePublicConfig();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("sports");
 
