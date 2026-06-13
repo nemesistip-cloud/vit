@@ -278,6 +278,9 @@ async def _run_bootstrap(app, _done_event):
                     from app.modules.wallet.models import PlatformConfig
                     await conn.run_sync(AIInsight.__table__.create, checkfirst=True)
                     await conn.run_sync(PlatformConfig.__table__.create, checkfirst=True)
+                    # Ensure TachyonManifest table is always present
+                    from app.modules.storage_verification.models import TachyonManifest
+                    await conn.run_sync(TachyonManifest.__table__.create, checkfirst=True)
                 print("✅ Database: all tables created/verified")
             except Exception as _cre:
                 print(f"⚠️  Database create_all failed: {_cre}")
