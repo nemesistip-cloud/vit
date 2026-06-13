@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Code, Cloud, Brain, Shield, Github } from "lucide-react";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 const PROJECT_TEAMS = [
   {
