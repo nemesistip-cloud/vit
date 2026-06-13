@@ -2547,6 +2547,7 @@ async def health(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/system/status", tags=["System"])
+@app.get("/api/system/status", tags=["System"], include_in_schema=False)
 async def system_status(db: AsyncSession = Depends(get_db)):
     """Public system health/status endpoint — returns live platform stats for the ecosystem ticker."""
     from app.db.models import User
