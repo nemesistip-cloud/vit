@@ -125,3 +125,41 @@ services:
 databases:
   - name: vit-postgres
     plan: free
+
+  - type: worker
+    name: vit-worker
+    runtime: python
+    region: ohio
+    plan: starter
+
+    buildCommand: bash scripts/build.sh
+    startCommand: bash scripts/start_worker.sh
+
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: WORKER_MODE
+        value: "true"
+      - key: USE_REAL_ML_MODELS
+        value: "false"
+      - key: ML_MODEL_CACHE_ENABLED
+        value: "false"
+      - key: MAX_PROCESS_RAM_MB
+        value: "350"
+      - key: MAX_LOADED_MODELS
+        value: "2"
+      # Secrets — set manually in Render dashboard (sync: false)
+      - key: REDIS_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+      - key: ODDS_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false

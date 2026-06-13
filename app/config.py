@@ -413,3 +413,8 @@ def print_config_status() -> None:
 GCS_BUCKET_NAME = get_env("GCS_BUCKET_NAME", "")
 GCS_PROJECT_ID = get_env("GCS_PROJECT_ID", "")
 GOOGLE_APPLICATION_CREDENTIALS = get_env("GOOGLE_APPLICATION_CREDENTIALS", "")
+
+# ── Memory budget (controls lazy model loading in ModelRegistry) ──────────────
+MAX_PROCESS_RAM_MB: int = get_int_env("MAX_PROCESS_RAM_MB", "400")
+MAX_LOADED_MODELS: int = get_int_env("MAX_LOADED_MODELS", "3")
+MODEL_CACHE_TTL_SECONDS: int = get_int_env("MODEL_CACHE_TTL_SECONDS", "300")

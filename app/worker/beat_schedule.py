@@ -1,6 +1,6 @@
 """app/worker/beat_schedule.py — Celery Beat periodic task schedule.
 
-All times in Africa/Lagos (UTC+1).
+All hours in Africa/Lagos (UTC+1).
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ CELERYBEAT_SCHEDULE = {
     },
     "merit-calculator-daily": {
         "task": "agents.merit_calculator",
-        "schedule": crontab(hour=1, minute=0),
+        "schedule": crontab(hour=1, minute=0),  # 2am Lagos = 1am UTC
         "options": {"expires": 3600},
     },
     "fraud-review-every-15min": {

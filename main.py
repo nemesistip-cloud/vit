@@ -115,6 +115,7 @@ from app.api.routes.sports_webhooks import router as sports_webhooks_router
 from app.api.routes.affiliate import router as affiliate_router
 from tachyon.api.router import router as tachyon_router
 from app.agents.coordinator import AgentCoordinator
+from app.api.routes.agent_status import router as agent_status_router
 
 # ===== MIDDLEWARE =====
 from app.api.middleware.auth import APIKeyMiddleware
@@ -1801,14 +1802,12 @@ async def _run_bootstrap(app, _done_event):
                 asyncio.create_task(bridge_relayer_loop(), name="bridge-relayer"),
             ]
 
-            # ── Autonomous performance agents ─────────────────────────────────────
-            try:
-                agent_coordinator = AgentCoordinator()
-                agent_coordinator.start(tasks)
-                app.state.agent_coordinator = agent_coordinator
-                print("✅ Autonomous agents started (performance-monitor, weight-optimizer, retrain-trigger, match-scout, news-sentinel, odds-anomaly)")
-            except Exception as _agent_err:
-                print(f"⚠️  Agent coordinator failed to start: {_agent_err}")
+            # ── Autonomous agents run in vit-worker (Celery) ─────────────────────
+            # Agents have been moved out of the API process to eliminate RAM pressure.
+            # They run as Celery periodic tasks in the vit-worker service.
+            # Start command: scripts/start_worker.sh (uses REDIS_URL as broker).
+            # Monitor agent liveness at: GET /api/agents/status
+            print("\u2705 Agents: running in vit-worker service (Celery + Redis beats)")
 
             # Dispose the engine used for bootstrap to free up connections for the main app
             try:
@@ -2018,6 +2017,7 @@ app.include_router(affiliate_router, prefix="/api")
 app.include_router(leaderboard_router)
 app.include_router(exports_router)
 app.include_router(agents_router, prefix="/api")
+app.include_router(agent_status_router)
 app.include_router(iot_router, prefix="/api")
 app.include_router(did_router)
 app.include_router(identity_router)
@@ -2296,10 +2296,9 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
 
 @app.get("/ping", include_in_schema=False)
 async def ping():
-    """Always-available liveness probe — responds immediately without DB.
-    Use this as the Render health check path so the service is not killed
-    while the DB is still warming up during startup."""
-    return {"ok": True}
+    """Always-available liveness probe — < 50ms, zero external resources.
+    Touches no DB, no Redis, no models. Safe as Render health-check path."""
+    return {"status": "ok", "ts": int(time.time())}
 
 
 @app.get("/readiness", include_in_schema=False)
