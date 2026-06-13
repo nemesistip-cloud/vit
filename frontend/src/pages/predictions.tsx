@@ -421,7 +421,7 @@ function ResultsComparison() {
       )}
 
       {!isLoading && !isError && items.length === 0 && (
-        <EmptyState title="No predictions with a selected side yet." />
+        <EmptyState title="No predictions yet." description="Place your first prediction from the Matches page to see your signal history here." />
       )}
 
       {/* Table */}
