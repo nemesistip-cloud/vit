@@ -292,7 +292,7 @@ export default function ReportsPage() {
       setTimeout(() => {
         qc.invalidateQueries({ queryKey: ["agent-reports"] });
         setGenerateMsg(null);
-      }, 8000);
+      }, 500);
     },
     onError: (err: any) => setGenerateMsg(err?.message || "Failed to trigger agents — check server logs"),
   });

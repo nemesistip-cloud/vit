@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { TERMS } from "@/lib/terminology";
 import {
   useAdminCalibrationFit,
@@ -5064,6 +5065,7 @@ function IntegrationsTab() {
 // ─── Root Admin Page ──────────────────────────────────────────────────
 
 export default function AdminPage() {
+  const { data: config } = usePublicConfig();
   const { user, isAdmin, isSuperAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -5153,7 +5155,7 @@ export default function AdminPage() {
               <div className="font-bold text-white text-base leading-tight tracking-wide">
                 ADMIN <span className="text-cyan-400">CONTROL CENTER</span>
               </div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Network — v5.5.0</div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Network — v{config?.platform?.version || "5.5.0"}</div>
             </div>
           </div>
 

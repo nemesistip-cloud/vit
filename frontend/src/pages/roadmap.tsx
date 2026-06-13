@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePublicConfig } from \"@/lib/usePublicConfig\";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -62,9 +63,9 @@ const PHASES: RoadmapPhase[] = [
     bgColor: "bg-emerald-500/5",
     glowColor: "/10",
     techStack: ["FastAPI", "PostgreSQL", "React/Vite", "Redis", "Python ML", "WebSockets"],
-    architectureNote: "Full-stack AI platform running 13 autonomous prediction models. All core infrastructure is live and production-ready.",
+    architectureNote: "Full-stack AI platform running {config?.platform?.model_count || 13} autonomous prediction models. All core infrastructure is live and production-ready.",
     items: [
-      { label: "13-model AI orchestrator (Native Ensemble)", status: "done",  icon: Brain },
+      { label: "{config?.platform?.model_count || 13}-model AI orchestrator (Native Ensemble)", status: "done",  icon: Brain },
       { label: "Real-time WebSocket predictions with JWT authentication",               status: "done",  icon: Activity },
       { label: "JWT auth system with 2FA (TOTP), email verification, role-based access", status: "done", icon: Shield },
       { label: "Redis sliding-window rate limiting (per-user + global)",                status: "done",  icon: Zap },
@@ -346,6 +347,7 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RoadmapPage() {
+  const { data: config } = usePublicConfig();
   const totalDone    = PHASES.flatMap(p => p.items).filter(i => i.status === "done").length;
   const totalItems   = PHASES.flatMap(p => p.items).length;
   const inProgress   = PHASES.flatMap(p => p.items).filter(i => i.status === "in-progress").length;

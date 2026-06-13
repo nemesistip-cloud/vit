@@ -55,19 +55,8 @@ const KYCPage = lazyRetry(() => import("@/pages/kyc"));
 const IDLookupPage = lazyRetry(() => import("@/pages/id-lookup"));
 const ModelPerformancePage = lazyRetry(() => import("@/pages/model-performance"));
 const BankrollPage = lazyRetry(() => import("@/pages/bankroll"));
-const StadiumModePage = lazyRetry(() => import("@/pages/stadium-mode"));
-const JulesPromptPage = lazyRetry(() => import("@/pages/jules-prompt"));
-const IQTestPage = lazyRetry(() => import("@/pages/iq-test"));
-const OraclesMicPage = lazyRetry(() => import("@/pages/oracle-mic"));
-const PredictionWrappedPage = lazyRetry(() => import("@/pages/wrapped"));
-const DisciplineCoachPage = lazyRetry(() => import("@/pages/discipline-coach"));
-const QualityFeedPage = lazyRetry(() => import("@/pages/quality-feed"));
-const DebateMarketsPage = lazyRetry(() => import("@/pages/debate-markets"));
-const BetRoomsPage = lazyRetry(() => import("@/pages/bet-rooms"));
 const WatchlistPage = lazyRetry(() => import("@/pages/watchlist"));
 const StoragePage = lazyRetry(() => import("@/pages/storage"));
-const NodeNetworkPage = lazyRetry(() => import("@/pages/node-network"));
-const ProphecyChainPage = lazyRetry(() => import("@/pages/prophecy-chain"));
 const ValueAnalyticsPage = lazyRetry(() => import("@/pages/value-intelligence"));
 const ElectionsPage = lazyRetry(() => import("@/pages/elections"));
 const PolicyPage = lazyRetry(() => import("@/pages/policy"));
@@ -276,47 +265,11 @@ function Router() {
       <Route path="/bankroll">
         <Layout><ProtectedRoute component={BankrollPage} /></Layout>
       </Route>
-      <Route path="/stadium">
-        <Layout><ProtectedRoute component={StadiumModePage} /></Layout>
-      </Route>
-      <Route path="/jules-prompt">
-        <Layout><ProtectedRoute component={JulesPromptPage} /></Layout>
-      </Route>
-      <Route path="/iq-test">
-        <Layout><ProtectedRoute component={IQTestPage} /></Layout>
-      </Route>
-      <Route path="/oracle-mic">
-        <Layout><ProtectedRoute component={OraclesMicPage} /></Layout>
-      </Route>
-      <Route path="/wrapped">
-        <Layout><ProtectedRoute component={PredictionWrappedPage} /></Layout>
-      </Route>
-      <Route path="/discipline-coach">
-        <Layout><ProtectedRoute component={DisciplineCoachPage} /></Layout>
-      </Route>
-      <Route path="/quality-feed">
-        <Layout><ProtectedRoute component={QualityFeedPage} /></Layout>
-      </Route>
-      <Route path="/debates">
-        <Layout><ProtectedRoute component={DebateMarketsPage} /></Layout>
-      </Route>
-      <Route path="/rooms">
-        <Layout><ProtectedRoute component={BetRoomsPage} /></Layout>
-      </Route>
       <Route path="/watchlist">
         <Layout><ProtectedRoute component={WatchlistPage} /></Layout>
       </Route>
       <Route path="/storage">
         <Layout><ProtectedRoute component={StoragePage} /></Layout>
-      </Route>
-      <Route path="/node-network">
-        <Layout><ProtectedRoute component={NodeNetworkPage} /></Layout>
-      </Route>
-      <Route path="/prophecy">
-        <Layout><ProtectedRoute component={ProphecyChainPage} /></Layout>
-      </Route>
-      <Route path="/value-analytics">
-        <Layout><ProtectedRoute component={ValueAnalyticsPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />

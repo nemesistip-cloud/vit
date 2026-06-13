@@ -4,7 +4,7 @@ When all LLM providers are unavailable, this module generates a fully determinis
 statistically-grounded insight from the ML ensemble output and market odds.
 
 Algorithm:
-  1. Start from the 13-model ensemble probabilities (already computed).
+  1. Start from the VIT ensemble probabilities (already computed).
   2. Blend with a small historical prior (home ~45%, draw ~26%, away ~29%).
   3. Derive risk/confidence from ensemble conviction (distance from uniform 33/33/33).
   4. Build templated narrative text — factual, no hallucination, clearly labelled.
@@ -111,7 +111,7 @@ def generate_deterministic_insights(
         btts_note = f" BTTS probability is elevated at {btts_prob*100:.0f}%."
 
     summary = (
-        f"The 13-model ensemble assigns {top_label} a {conv} {top_prob*100:.1f}% probability "
+        f"The VIT ensemble assigns {top_label} a {conv} {top_prob*100:.1f}% probability "
         f"in {home_team} vs {away_team} ({league_label}). "
         f"The home side carries a {hp*100:.1f}% win probability versus {ap*100:.1f}% for the visitors, "
         f"with a draw at {dp*100:.1f}%."

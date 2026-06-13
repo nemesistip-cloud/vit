@@ -32,7 +32,10 @@ async def provider_status() -> Dict[str, Any]:
     """Report status of the native AI system."""
     orch = get_orchestrator()
     ready = orch.num_models_ready() if orch else 0
-    total = 22 # Per spec
+    from app.services.config_service import get_platform_config
+    from app.db.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        total = (await get_platform_config(db)).get("model_count", 22)
 
     status = "available" if ready > 0 else "degraded"
     if ready == 0:

@@ -9,7 +9,7 @@ const content: Record<string, { title: string; subtitle: string; sections: { hea
     subtitle: "Institutional-grade sports intelligence combining AI predictions, analyst training, VITCoin incentives, and transparent marketplace economics.",
     sections: [
       { heading: "Mission", body: "VIT helps sports analysts, developers, and validators collaborate around measurable prediction analytics instead of opaque signals or unverifiable claims." },
-      { heading: "Platform", body: "The network includes a 13-model prediction ensemble, analyst training workflows, marketplace listings, wallet rewards, governance, and safety controls." },
+      { heading: "Platform", body: "The network includes a {config?.platform?.model_count || 13}-model prediction ensemble, analyst training workflows, marketplace listings, wallet rewards, governance, and safety controls." },
       { heading: "Marketplace", body: "Developers can submit model packages for review, and approved models can earn VITCoin when used or trained through supported platform flows." },
     ],
   },
@@ -46,6 +46,7 @@ const content: Record<string, { title: string; subtitle: string; sections: { hea
 };
 
 export default function InfoPage({ type }: { type: keyof typeof content }) {
+  const { data: config } = usePublicConfig();
   const page = content[type] ?? content.about;
   return (
     <div className="min-h-screen bg-background text-foreground">

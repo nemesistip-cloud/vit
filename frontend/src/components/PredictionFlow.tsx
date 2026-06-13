@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { usePublicConfig } from "@/lib/usePublicConfig";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { apiPost } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +69,7 @@ type Side = string;
 const PRESETS = [5, 10, 25, 50, 100];
 
 const PROCESSING_STEPS = [
-  { label: "Initializing Neural Ensemble v4.2", icon: Layers },
+  { label: "Initializing Neural Ensemble", icon: Layers },
   { label: "Querying Poisson Goals Engine", icon: Activity },
   { label: "Analyzing Dixon-Coles Distribution", icon: BarChart3 },
   { label: "Running Elo Rating Simulation", icon: Clock },
@@ -78,9 +80,9 @@ const PROCESSING_STEPS = [
 ];
 
 export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
+  const { data: config } = usePublicConfig();
   const [selectedSide, setSelectedSide] = useState<Side | null>(match.bet_side || null);
   const [stake, setStake] = useState("10");
-  const [processingStep, setProcessingStep] = useState(0);
   const [predictionResult, setPredictionResult] = useState<any>(null);
   const queryClient = useQueryClient();
 
@@ -88,20 +90,12 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
   useEffect(() => {
     if (open) {
       setSelectedSide(match.bet_side || null);
-      setProcessingStep(0);
       setPredictionResult(null);
     }
   }, [open, match.bet_side]);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      // Simulate processing time for professional feel
-      for (let i = 0; i < PROCESSING_STEPS.length; i++) {
-        setProcessingStep(i);
-        const delay = i === 0 ? 600 : i === PROCESSING_STEPS.length - 1 ? 800 : 350 + Math.random() * 300;
-        await new Promise(r => setTimeout(r, delay));
-      }
-
       const kickoff = match.kickoff_time?.endsWith("Z")
         ? match.kickoff_time
         : match.kickoff_time + "Z";
@@ -301,7 +295,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               <div className="flex items-center justify-center gap-2">
                 <Loader2 className="w-3 h-3 text-primary animate-spin" />
                 <p className="text-[10px] text-primary font-bold uppercase tracking-[0.2em] animate-pulse">
-                  {PROCESSING_STEPS[processingStep].label}
+                  Processing Ensemble Models...
                 </p>
               </div>
             </div>
@@ -309,8 +303,8 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
             <div className="w-full space-y-2.5 bg-[#0d0d0e] p-5 rounded-2xl border border-[#1a1a1c]">
               {PROCESSING_STEPS.map((step, idx) => {
                 const Icon = step.icon;
-                const isCurrent = idx === processingStep;
-                const isPast = idx < processingStep;
+                const isCurrent = true;
+                const isPast = false;
                 return (
                   <div
                     key={idx}
@@ -341,12 +335,12 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
             <div className="w-full space-y-2">
               <div className="flex justify-between text-[8px] font-black text-muted-foreground uppercase tracking-widest">
                 <span>System Stability: 99.9%</span>
-                <span>Progress: {Math.round(((processingStep + 1) / PROCESSING_STEPS.length) * 100)}%</span>
+                <span>System Stability: 99.9%</span>
               </div>
               <div className="w-full bg-[#1a1a1c] h-1.5 rounded-full overflow-hidden p-[2px]">
                 <div
                   className="bg-gradient-to-r from-primary/50 to-primary h-full rounded-full transition-all duration-700 ease-in-out "
-                  style={{ width: `${((processingStep + 1) / PROCESSING_STEPS.length) * 100}%` }}
+                  style={{ width: `100%` }}
                 />
               </div>
             </div>
@@ -365,7 +359,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               <ShieldCheck className="w-8 h-8" />
             </div>
             <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white mt-2">Analytics Report</h2>
-            <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Analytics v4.2 Finalized</p>
+            <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Analytics v{config?.platform?.version || "5.5.0"} Finalized</p>
           </div>
 
           <div className="p-6 space-y-6">
@@ -449,7 +443,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
               <BrainCircuit className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">ML Ensemble v4.2</h2>
+              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">ML Ensemble v{config?.platform?.version || "5.5.0"}</h2>
               <p className="text-[9px] text-muted-foreground font-bold uppercase">Strategic Analytics Suite</p>
             </div>
           </div>
