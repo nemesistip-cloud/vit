@@ -34,7 +34,7 @@ def get_coordinator() -> "AgentCoordinator":
     Return the active agent coordinator.
 
     Prefers the running SwarmOrchestrator (registered at startup via
-    set_swarm()) because it supervises all 22 agents. Falls back to the
+    set_swarm()) because it supervises all configured agents. Falls back to the
     legacy AgentCoordinator singleton if the swarm is unavailable.
     """
     global _GLOBAL_COORDINATOR

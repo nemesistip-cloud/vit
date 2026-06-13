@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { useAuth } from "@/lib/auth";
 import { useGetTopOpportunities, useGetModelConfidence } from "@/api-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -63,7 +64,7 @@ function AIConfidenceWidget() {
             <CardTitle className="text-sm font-mono flex items-center gap-2">
               <Brain className="w-4 h-4 text-primary" /> Analytics Network
             </CardTitle>
-            <CardDescription className="text-[10px] font-mono uppercase tracking-wider">ENSEMBLE v5.5.0 ACTIVE</CardDescription>
+            <CardDescription className="text-[10px] font-mono uppercase tracking-wider">ENSEMBLE v{config?.platform?.version || "5.5.0"} ACTIVE</CardDescription>
           </div>
           <Badge variant="outline" className="font-mono text-[9px] border-primary/20 text-primary bg-primary/5">
             {activeCount}/{models.length} MODELS ONLINE
@@ -96,6 +97,7 @@ function AIConfidenceWidget() {
 }
 
 export default function DashboardPage() {
+  const { data: config } = usePublicConfig();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("sports");
 
@@ -114,7 +116,7 @@ export default function DashboardPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground uppercase">VIT Network</h1>
-          <p className="text-sm font-mono text-muted-foreground">Analytics v5.5.0 active. Welcome back, {user?.username}.</p>
+          <p className="text-sm font-mono text-muted-foreground">Analytics v{config?.platform?.version || "5.5.0"} active. Welcome back, {user?.username}.</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-mono text-[10px] py-1 px-3 border-primary/20 bg-primary/5 text-primary">

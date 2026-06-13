@@ -16,6 +16,7 @@ interface ElectionEvent {
 }
 
 export default function ElectionsPage() {
+  const { data: config } = usePublicConfig();
   const [events, setEvents] = useState<ElectionEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState<number | null>(null);
@@ -64,7 +65,7 @@ export default function ElectionsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Active Events", value: events.length.toString(), icon: Vote, color: "text-blue-400" },
-          { label: "Intelligence Engine Ready", value: "22", icon: ShieldCheck, color: "text-emerald-400" },
+          { label: "Intelligence Engine Ready", value: String(config?.platform?.model_count || "22"), icon: ShieldCheck, color: "text-emerald-400" },
           { label: "Web Intelligence", value: "Active", icon: Users, color: "text-purple-400" },
           { label: "Verified Data", value: "100%", icon: ShieldCheck, color: "text-yellow-400" },
         ].map((stat) => (

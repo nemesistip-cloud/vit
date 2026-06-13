@@ -23,10 +23,8 @@ import { NotificationBell } from "./notification-bell";
 import { EcosystemTicker } from "./ecosystem-ticker";
 import { Badge } from "./ui/badge";
 import { BrandLogo } from "@/components/BrandLogo";
-
 type NavItem  = { name: string; href: string; icon: any };
 type NavGroup = { name: string; items: NavItem[] };
-
 const NAV_GROUPS: NavGroup[] = [
   {
     name: "Signal",
@@ -36,7 +34,6 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Matches",        href: "/matches",            icon: Activity },
       { name: "Value Analytics", href: "/value-analytics", icon: Shield },
       { name: "Predictions",    href: "/predictions",        icon: CheckSquare },
-      { name: "Elite Signal Feed",   href: "/quality-feed",       icon: Target },
       { name: "Accumulator",    href: "/accumulator",        icon: Layers },
       { name: "Odds Intel",     href: "/odds",               icon: TrendingUp },
       { name: "Backtest",       href: "/backtest",           icon: LineChart },
@@ -64,12 +61,6 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Model Performance",href: "/model-performance",  icon: PieChart },
       { name: "Intel Reports",    href: "/reports",            icon: Radio },
       { name: "Research",         href: "/research",           icon: FlaskConical },
-      { name: "Live Attendance Mode",     href: "/stadium",            icon: Map },
-      { name: "Intelligence Assessment",      href: "/iq-test",            icon: Brain },
-      { name: "Network Broadcasts",     href: "/oracle-mic",         icon: Mic2 },
-      { name: "Debate Arena",     href: "/debates",            icon: Sword },
-      { name: "Signal Rooms",        href: "/rooms",              icon: MessageSquare },
-      { name: "Prophecy Chain",   href: "/prophecy",           icon: Sparkles },
       { name: "Marketplace",      href: "/marketplace",        icon: ShoppingBag },
       { name: "Validators",       href: "/validators",         icon: ShieldCheck },
     ],
@@ -79,7 +70,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "VIT Analytics",      href: "/oracle",          icon: DatabaseZap },
       { name: "Node Network",    href: "/network",         icon: Network },
-      { name: "Storage Nodes",   href: "/node-network",    icon: HardDrive },
       { name: "Smart Contracts", href: "/smart-contracts", icon: FileCode2 },
       { name: "Treasury",        href: "/treasury",        icon: Vault },
       { name: "Trust & Safety",  href: "/trust",           icon: Lock },
@@ -95,14 +85,11 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "My Identity",      href: "/identity",        icon: Fingerprint },
       { name: "KYC Verify",       href: "/kyc",             icon: BadgeCheck },
-      { name: "Bankroll Discipline", href: "/discipline-coach",icon: Bot },
-      { name: "Year in Review",       href: "/wrapped",         icon: Smartphone },
       { name: "Subscription",     href: "/subscription",    icon: CreditCard },
       { name: "Settings",         href: "/settings",        icon: Settings },
     ],
   },
 ];
-
 const MOBILE_BOTTOM_NAV = [
   { name: "Home",        href: "/dashboard",   icon: Home },
   { name: "Matches",     href: "/matches",     icon: Activity },
@@ -110,7 +97,6 @@ const MOBILE_BOTTOM_NAV = [
   { name: "Tasks",       href: "/tasks",       icon: Target },
   { name: "Wallet",      href: "/wallet",      icon: Coins },
 ];
-
 const TIER_BADGE: Record<string, { label: string; cls: string }> = {
   elite:   { label: "Pro",       cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
   pro:     { label: "Pro",       cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
@@ -119,7 +105,6 @@ const TIER_BADGE: Record<string, { label: string; cls: string }> = {
   viewer:  { label: "Free",      cls: "text-zinc-400 border-zinc-600" },
   admin:   { label: "Admin",     cls: "bg-rose-400/10 text-rose-400 border-rose-400/25" },
 };
-
 function UserInitials({ name }: { name: string }) {
   const initials = name
     .split(/[\s_-]/)
@@ -132,24 +117,19 @@ function UserInitials({ name }: { name: string }) {
     </div>
   );
 }
-
-
 function Footer() {
   const { data: oracleStats } = useQuery({
     queryKey: ["/api/oracle/stats"],
     queryFn: () => apiGet<any>("/api/oracle/stats"),
     refetchInterval: 60000,
   });
-
   const { data: networkStats } = useQuery({
     queryKey: ["/api/network/stats"],
     queryFn: () => apiGet<any>("/api/network/stats"),
     refetchInterval: 60000,
   });
-
   const oracleStatus = oracleStats?.status ?? "—";
   const nodeCount = networkStats?.node_count ?? "—";
-
   return (
     <footer className="mt-auto py-8 px-4 border-t border-white/5 bg-card/20">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
@@ -161,7 +141,6 @@ function Footer() {
             © 2026 {TERMS.platform.shortName}. {TERMS.platform.tagline}.
           </div>
         </div>
-
         <div className="flex flex-wrap justify-center gap-4 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/3 border border-white/5">
             Oracle Status: <span className={oracleStatus === "Live" ? "text-emerald-400" : "text-amber-400"}>{oracleStatus}</span>
@@ -174,7 +153,6 @@ function Footer() {
             Engine: <span className="text-emerald-400">Active</span>
           </div>
         </div>
-
         <div className="flex gap-4 text-[10px] font-mono uppercase tracking-widest">
           <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
           <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
@@ -190,14 +168,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
-
   if (!user) return <>{children}</>;
-
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const isAdmin      = user?.role === "admin";
   const tierKey      = isAdmin ? "admin" : (user?.subscription_tier ?? "viewer");
   const tierBadge    = TIER_BADGE[tierKey] ?? TIER_BADGE.viewer;
-
   const allGroups: NavGroup[] = [
     ...NAV_GROUPS,
     ...(isAdmin
@@ -210,7 +185,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         }]
       : []),
   ];
-
   const NavItems = ({ onClick }: { onClick?: () => void }) => (
     <div className="space-y-5">
       {allGroups.map((group) => (
@@ -244,10 +218,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ))}
     </div>
   );
-
   return (
     <div className="min-h-screen bg-background flex flex-col lg:flex-row">
-
       {/* ── Mobile top bar ──────────────────────────────── */}
       <div className="lg:hidden flex items-center justify-between px-4 py-2.5 border-b border-border/50 sticky top-0 z-40 bg-background">
         <div className="flex items-center gap-2">
@@ -273,7 +245,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </Button>
         </div>
       </div>
-
       {/* ── Mobile slide-over drawer ─────────────────────── */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -312,11 +283,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
-
       {/* ── Desktop sidebar ──────────────────────────────── */}
       <div className="hidden lg:flex w-60 flex-shrink-0 flex-col sticky top-0 h-screen border-r border-white/5"
         style={{ background: "var(--vit-gradient-sidebar)" }}>
-
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-4 py-4 border-b border-white/5">
           <BrandLogo size={32} withWordmark />
@@ -324,12 +293,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="vit-live-dot" style={{ width: 5, height: 5 }} />
           </div>
         </div>
-
         {/* Nav */}
         <nav className="flex-1 px-2.5 py-3 overflow-y-auto vit-scrollbar">
           <NavItems />
         </nav>
-
         {/* User footer */}
         <div className="p-3 border-t border-white/5">
           <div className="flex items-center gap-2 rounded-lg p-2 bg-white/3 hover:bg-white/5 transition-colors">
@@ -350,7 +317,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </div>
-
       {/* ── Main content + ecosystem ticker ──────────────── */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <EcosystemTicker />
@@ -361,7 +327,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
-
       {/* ── Mobile Bottom Navigation ─────────────────────── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40"
         style={{ background: "rgba(8,8,18,0.98)" }}>

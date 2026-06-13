@@ -170,7 +170,7 @@ function LinkProviderDialog({
         setSuccess(false);
         setSelectedProvider(null);
         setFields({});
-      }, 1800);
+      }, 200);
     } catch (e: any) {
       setError(e?.message || 'Link failed');
     } finally {
@@ -375,21 +375,7 @@ const StoragePage: React.FC = () => {
     if (activeTab === 'files') fetchManifests();
   }, [activeTab, fetchManifests]);
 
-  const simulateProgress = (fileSizeBytes: number) => {
-    setUploadProgress(0);
-    const totalMs = Math.max(800, Math.min(fileSizeBytes / 800, 8000));
-    const step = 100 / (totalMs / 80);
-    progressRef.current = setInterval(() => {
-      setUploadProgress(prev => {
-        const next = prev + step * (0.5 + Math.random());
-        if (next >= 92) {
-          if (progressRef.current) clearInterval(progressRef.current);
-          return 92;
-        }
-        return next;
-      });
-    }, 80);
-  };
+
 
   const handleFileSelect = (selected: File | null) => {
     if (!selected) return;
@@ -407,7 +393,7 @@ const StoragePage: React.FC = () => {
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(null);
-    simulateProgress(file.size);
+
 
     const formData = new FormData();
     formData.append('file', file);
@@ -424,7 +410,7 @@ const StoragePage: React.FC = () => {
       await fetchStats();
     } catch (err: any) {
       if (progressRef.current) clearInterval(progressRef.current);
-      setUploadProgress(0);
+      setUploadProgress(10);
       setUploadError(err?.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);

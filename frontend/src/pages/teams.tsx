@@ -22,7 +22,7 @@ const PROJECT_TEAMS = [
   },
   {
     name: "Analytics Forge",
-    description: "Maintenance of the 13-model ensemble and signal generation.",
+    description: "Maintenance of the {config?.platform?.model_count || 13}-model ensemble and signal generation.",
     members: [
       {
         name: "VIT AI Agent",
@@ -68,6 +68,7 @@ const PROJECT_TEAMS = [
 ];
 
 export default function TeamsPage() {
+  const { data: config } = usePublicConfig();
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto p-4 lg:p-8">
       <header className="space-y-2">

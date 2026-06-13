@@ -201,14 +201,14 @@ export default function LandingPage() {
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/5 rounded-full  -z-10" />
         <div className="max-w-5xl mx-auto text-center">
           <Badge variant="outline" className="mb-6 font-mono py-1.5 px-4 text-[10px] tracking-[0.2em] uppercase border-primary/30 bg-primary/5 text-primary">
-            {publicCfg?.platform.version ?? 'v5.5.0'} — The Intelligence Super App
+            {publicCfg?.platform.version || 'v5.5.0'} — The Intelligence Super App
           </Badge>
           <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tight mb-6 leading-[1.1]">
             Institutional-Grade <br />
             <span className="vit-gradient-text">Sports Intelligence</span>
           </h1>
           <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-            A 13-model AI ensemble. Real-time signal generation.
+            A {modelCount}-model AI ensemble. Real-time signal generation.
             Network-verified outcomes. Built for precision.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -308,7 +308,7 @@ export default function LandingPage() {
               {[
                 "Local inference for total data privacy",
                 "Domain-specific fine-tuning for high accuracy",
-                "Real-time RAG updates from 22 live agents",
+                "Real-time RAG updates from {publicCfg?.stats?.ai_models || 22} live agents",
                 "On-chain verification for every model output"
               ].map((item) => (
                 <li key={item} className="flex items-center gap-3 text-sm font-mono">
@@ -538,7 +538,7 @@ export default function LandingPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 All systems operational
               </span>
-              <span>{publicCfg?.platform.version ?? 'v5.5.0'}</span>
+              <span>{publicCfg?.platform.version || 'v5.5.0'}</span>
             </div>
           </div>
         </div>

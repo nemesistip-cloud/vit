@@ -199,7 +199,7 @@ TASK_DEFINITIONS = [
     {
         "category_name": "Learning",
         "title": "Explore the AI Engine",
-        "description": "Visit the AI Engine dashboard to understand how VIT's 13-model ensemble generates predictions.",
+        "description": "Visit the AI Engine dashboard to understand how the VIT ensemble generates predictions.",
         "short_description": "Visit AI Engine",
         "task_type": TaskType.ONE_TIME.value,
         "required_count": 1,

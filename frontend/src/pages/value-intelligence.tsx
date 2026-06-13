@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { VITScoreCard, VITTierBadge } from "@/components/VITScoreCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -190,6 +191,7 @@ function TierStat({ tier, count, total }: { tier: string; count: number; total: 
 }
 
 export default function ValueAnalyticsPage() {
+  const { data: config } = usePublicConfig();
   const [minVit, setMinVit] = useState(25);
   const [tierFilter, setTierFilter] = useState("all");
   const [limitFilter, setLimitFilter] = useState("20");
@@ -226,7 +228,7 @@ export default function ValueAnalyticsPage() {
               <span className="text-purple-400">T</span>rust
             </h1>
             <p className="font-mono text-xs text-muted-foreground">
-              13-model ensemble ranked by composite VIT score · trained on 50,000 fixtures
+              {config?.platform?.model_count || 13}-model ensemble ranked by composite VIT score · trained on 50,000 fixtures
             </p>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,7 @@ const MODEL_TYPE_COLORS: Record<string, string> = {
 };
 
 export default function ModelPerformancePage() {
+  const { data: config } = usePublicConfig();
   const [days, setDays] = useState("30");
   const [syncing, setSyncing] = useState(false);
 
@@ -128,7 +130,7 @@ export default function ModelPerformancePage() {
             Model Performance
           </h1>
           <p className="text-zinc-400 text-sm mt-1">
-            Real-time accuracy tracking across all 13 ensemble models
+            Real-time accuracy tracking across all {config?.platform?.model_count || 13} ensemble models
           </p>
         </div>
         <div className="flex items-center gap-3">

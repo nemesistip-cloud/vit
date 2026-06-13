@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { useGetAiPerformance, useGetAiReport } from "@/api-client/index";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export default function AnalyticsPage() {
+  const { data: config } = usePublicConfig();
   const [tab, setTab] = useState("accuracy");
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
@@ -319,7 +321,7 @@ export default function AnalyticsPage() {
             <div className="space-y-4">
               <Card className="bg-card/50 border-muted/50">
                 <CardHeader>
-                  <CardTitle className="font-mono text-sm uppercase">13-Model Ensemble Breakdown</CardTitle>
+                  <CardTitle className="font-mono text-sm uppercase">{config?.platform?.model_count || 13}-Model Ensemble Breakdown</CardTitle>
                   {models?.data_source && (
                     <p className="text-xs text-muted-foreground font-mono">
                       Source: {models.data_source === "estimated" ? "estimated from prediction metadata" : "model insights"}

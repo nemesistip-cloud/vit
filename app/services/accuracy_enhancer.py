@@ -1,4 +1,4 @@
-"""Accuracy enhancement utilities for the 13-model ensemble.
+"""Accuracy enhancement utilities for the VIT ensemble.
 
 Three improvements that measurably tighten the ensemble's calibration:
 

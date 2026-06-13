@@ -1,5 +1,5 @@
 """
-Probability calibration registry for the 13-model ensemble (Phase C).
+Probability calibration registry for the VIT ensemble (Phase C).
 
 Provides per-model, per-class (home/draw/away) calibrators trained on
 historical (predicted_prob, actual_outcome) pairs.
