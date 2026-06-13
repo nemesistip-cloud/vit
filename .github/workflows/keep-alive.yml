@@ -10,8 +10,18 @@ jobs:
     steps:
       - name: Ping Render Deployment
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://vit-hmt1.onrender.com/ping)
-          echo "Status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "WARNING: /ping returned $STATUS"
+          # Ping the main API health check
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://vit-g0if.onrender.com/ping)
+          echo "API Status (vit-g0if): $STATUS"
+
+          # Ping the user-provided URL as well to ensure fallback/custom domains are warm
+          STATUS_ALT=$(curl -s -o /dev/null -w "%{http_code}" https://vit-hmt1.onrender.com/ping)
+          echo "API Status (vit-hmt1): $STATUS_ALT"
+
+          # Ping the assistant page to keep the frontend routing warm
+          STATUS_FRONT=$(curl -s -o /dev/null -w "%{http_code}" https://vit-hmt1.onrender.com/assistant)
+          echo "Frontend Status: $STATUS_FRONT"
+
+          if [ "$STATUS" != "200" ] && [ "$STATUS_ALT" != "200" ]; then
+            echo "WARNING: All /ping attempts failed."
           fi
