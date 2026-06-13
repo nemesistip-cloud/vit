@@ -2,26 +2,21 @@ name: Keep Render Alive
 
 on:
   schedule:
-    - cron: '*/14 * * * *'  # every 14 minutes — prevents Render free-tier spin-down
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Render Deployment
+      - name: Ping vit-hmt1.onrender.com
         run: |
-          # Ping the main API health check
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://vit-g0if.onrender.com/ping)
-          echo "API Status (vit-g0if): $STATUS"
-
-          # Ping the user-provided URL as well to ensure fallback/custom domains are warm
-          STATUS_ALT=$(curl -s -o /dev/null -w "%{http_code}" https://vit-hmt1.onrender.com/ping)
-          echo "API Status (vit-hmt1): $STATUS_ALT"
-
-          # Ping the assistant page to keep the frontend routing warm
-          STATUS_FRONT=$(curl -s -o /dev/null -w "%{http_code}" https://vit-hmt1.onrender.com/assistant)
-          echo "Frontend Status: $STATUS_FRONT"
-
-          if [ "$STATUS" != "200" ] && [ "$STATUS_ALT" != "200" ]; then
-            echo "WARNING: All /ping attempts failed."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://vit-hmt1.onrender.com/ping)
+          echo "/ping: $STATUS"
+          STATUS_FRONT=$(curl -s -o /dev/null -w "%{http_code}" https://vit-hmt1.onrender.com/)
+          echo "/: $STATUS_FRONT"
+          if [ "$STATUS" != "200" ]; then
+            echo "WARNING: /ping returned $STATUS"
+          else
+            echo "Service is alive."
           fi
