@@ -21,13 +21,6 @@ from app.modules.storage_verification.models import (
     UserStorageNode,
 )
 from app.modules.wallet.services import WalletService
-    ChallengeStatus,
-    ContentHashRegistry,
-    DataAvailabilityAttestation,
-    StorageChallenge,
-    StorageProof,
-    StorageProofStatus,
-
 logger = logging.getLogger(__name__)
 
 
