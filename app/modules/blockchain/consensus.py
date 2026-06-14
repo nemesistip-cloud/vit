@@ -72,10 +72,16 @@ async def _get_ai_prediction(match_id: str) -> Optional[dict]:
             return None
         result = orch.predict_from_match_id(match_id)
         if result:
+            outcomes = {
+                "home": Decimal(str(result.get("home_prob", 0.333))),
+                "draw": Decimal(str(result.get("draw_prob", 0.333))),
+                "away": Decimal(str(result.get("away_prob", 0.334))),
+            }
             return {
                 "p_home": Decimal(str(result.get("home_prob", 0.333))),
                 "p_draw": Decimal(str(result.get("draw_prob", 0.333))),
-                "p_away": Decimal(str(result.get("away_prob", 0.334))),
+                "p_away": outcomes["away"],
+                "outcomes": outcomes,
                 "confidence": Decimal(str(result.get("confidence", 0.5))),
                 "risk": Decimal(str(result.get("risk", 0.5))),
             }
@@ -113,26 +119,39 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
     )
     rows = val_result.all()
 
+
     total_influence = Decimal("0")
-    w_home = Decimal("0")
-    w_draw = Decimal("0")
-    w_away = Decimal("0")
+    w_outcomes = {}
 
     for vp, vpr in rows:
         influence = vpr.stake_amount * vpr.trust_score
         total_influence += influence
-        w_home += influence * vp.p_home
-        w_draw += influence * vp.p_draw
-        w_away += influence * vp.p_away
 
+        # Outcomes from JSON or legacy fields
+        outcomes = vp.outcomes or {
+            "home": vp.p_home,
+            "draw": vp.p_draw,
+            "away": vp.p_away
+        }
+        for name, prob in outcomes.items():
+            w_outcomes[name] = w_outcomes.get(name, Decimal("0")) + influence * Decimal(str(prob))
+
+    consensus_outcomes = {}
     if total_influence > 0:
-        consensus_home = w_home / total_influence
-        consensus_draw = w_draw / total_influence
-        consensus_away = w_away / total_influence
+        for name, weight in w_outcomes.items():
+            consensus_outcomes[name] = weight / total_influence
     else:
-        consensus_home = ai["p_home"]
-        consensus_draw = ai["p_draw"]
-        consensus_away = ai["p_away"]
+        consensus_outcomes = ai.get("outcomes") or {
+            "home": ai["p_home"],
+            "draw": ai["p_draw"],
+            "away": ai["p_away"]
+        }
+
+    # Extract legacy probs for compatibility
+    consensus_home = consensus_outcomes.get("home", Decimal("0"))
+    consensus_draw = consensus_outcomes.get("draw", Decimal("0"))
+    consensus_away = consensus_outcomes.get("away", Decimal("0"))
+
 
     # Dynamic weighting: quality of validator pool determines how much weight they get
     if rows:
@@ -147,54 +166,80 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
 
     ai_weight, val_weight = _dynamic_weights(len(rows), avg_trust, avg_accuracy)
 
-    final_home = (ai_weight * ai["p_home"]) + (val_weight * consensus_home)
-    final_draw = (ai_weight * ai["p_draw"]) + (val_weight * consensus_draw)
-    final_away = (ai_weight * ai["p_away"]) + (val_weight * consensus_away)
 
-    total_norm = final_home + final_draw + final_away
+    ai_outcomes = ai.get("outcomes") or {
+        "home": ai["p_home"],
+        "draw": ai["p_draw"],
+        "away": ai["p_away"]
+    }
+
+    final_outcomes = {}
+    all_keys = set(ai_outcomes.keys()) | set(consensus_outcomes.keys())
+    for k in all_keys:
+        p_ai = Decimal(str(ai_outcomes.get(k, 0)))
+        p_val = Decimal(str(consensus_outcomes.get(k, 0)))
+        final_outcomes[k] = (ai_weight * p_ai) + (val_weight * p_val)
+
+    # Normalize
+    total_norm = sum(final_outcomes.values())
     if total_norm > 0:
-        final_home /= total_norm
-        final_draw /= total_norm
-        final_away /= total_norm
+        for k in final_outcomes:
+            final_outcomes[k] /= total_norm
+
+    final_home = final_outcomes.get("home", Decimal("0"))
+    final_draw = final_outcomes.get("draw", Decimal("0"))
+    final_away = final_outcomes.get("away", Decimal("0"))
+
 
     existing = await db.execute(
         select(ConsensusPrediction).where(ConsensusPrediction.match_id == match_id)
     )
     cp = existing.scalar_one_or_none()
 
+
     if cp:
         cp.ai_p_home = ai["p_home"]
         cp.ai_p_draw = ai["p_draw"]
         cp.ai_p_away = ai["p_away"]
+        cp.ai_outcomes = ai_outcomes
         cp.ai_confidence = ai["confidence"]
         cp.ai_risk = ai["risk"]
         cp.validator_count = len(rows)
         cp.consensus_p_home = consensus_home
         cp.consensus_p_draw = consensus_draw
         cp.consensus_p_away = consensus_away
+        cp.consensus_outcomes = consensus_outcomes
         cp.final_p_home = final_home
         cp.final_p_draw = final_draw
         cp.final_p_away = final_away
+        cp.final_outcomes = final_outcomes
         cp.total_influence = total_influence
+        if rows:
+            cp.category = rows[0].ValidatorPrediction.category
     else:
         cp = ConsensusPrediction(
             match_id=match_id,
             ai_p_home=ai["p_home"],
             ai_p_draw=ai["p_draw"],
             ai_p_away=ai["p_away"],
+            ai_outcomes=ai_outcomes,
             ai_confidence=ai["confidence"],
             ai_risk=ai["risk"],
             validator_count=len(rows),
             consensus_p_home=consensus_home,
             consensus_p_draw=consensus_draw,
             consensus_p_away=consensus_away,
+            consensus_outcomes=consensus_outcomes,
             final_p_home=final_home,
             final_p_draw=final_draw,
             final_p_away=final_away,
+            final_outcomes=final_outcomes,
             total_influence=total_influence,
             status=ConsensusStatus.OPEN.value,
+            category=rows[0].ValidatorPrediction.category if rows else "sports"
         )
         db.add(cp)
+
 
     await db.flush()
     logger.info(
@@ -207,20 +252,8 @@ async def calculate_consensus(match_id: str, db: AsyncSession) -> ConsensusPredi
 
 async def update_trust_scores(match_id: str, oracle_result: str, db: AsyncSession) -> None:
     """
-    Update validator trust scores after a match result is confirmed.
-
-    For each prediction:
-      - If deviation < threshold → accurate, trust increases
-      - Otherwise → inaccurate, trust decays exponentially
+    Update validator trust scores and category-specific reputation after a result is confirmed.
     """
-    outcome_probs = {"home": Decimal("1"), "draw": Decimal("0"), "away": Decimal("0")}
-    if oracle_result == "home":
-        outcome_probs = {"home": Decimal("1"), "draw": Decimal("0"), "away": Decimal("0")}
-    elif oracle_result == "draw":
-        outcome_probs = {"home": Decimal("0"), "draw": Decimal("1"), "away": Decimal("0")}
-    elif oracle_result == "away":
-        outcome_probs = {"home": Decimal("0"), "draw": Decimal("0"), "away": Decimal("1")}
-
     val_result = await db.execute(
         select(ValidatorPrediction, ValidatorProfile)
         .join(ValidatorProfile, ValidatorPrediction.validator_id == ValidatorProfile.id)
@@ -229,14 +262,23 @@ async def update_trust_scores(match_id: str, oracle_result: str, db: AsyncSessio
     rows = val_result.all()
 
     for vp, vpr in rows:
-        actual_p = outcome_probs.get(oracle_result, Decimal("0"))
-        pred_p_map = {"home": vp.p_home, "draw": vp.p_draw, "away": vp.p_away}
-        pred_p = pred_p_map.get(oracle_result, Decimal("0"))
+        category = vp.category or "sports"
 
-        deviation = abs(pred_p - actual_p)
+        # Outcomes from JSON or legacy fields
+        pred_outcomes = vp.outcomes or {
+            "home": vp.p_home,
+            "draw": vp.p_draw,
+            "away": vp.p_away
+        }
+
+        # Deviation from "perfect" prediction (1.0 for the actual result)
+        pred_p = Decimal(str(pred_outcomes.get(oracle_result, 0)))
+        deviation = Decimal("1") - pred_p
 
         old_trust = vpr.trust_score
-        if deviation < _ACCURACY_THRESHOLD:
+        is_accurate = deviation < _ACCURACY_THRESHOLD
+
+        if is_accurate:
             new_trust = old_trust + (_ACCURACY_ALPHA * (Decimal("1") - old_trust))
             vp.result = PredictionResult.ACCURATE.value
         else:
@@ -246,11 +288,37 @@ async def update_trust_scores(match_id: str, oracle_result: str, db: AsyncSessio
 
         new_trust = max(Decimal("0.0"), min(Decimal("1.0"), new_trust))
         vp.trust_delta = new_trust - old_trust
+
+        # Global Trust Update
         vpr.trust_score = new_trust
         vpr.total_predictions += 1
-        if vp.result == PredictionResult.ACCURATE.value:
+        if is_accurate:
             vpr.accurate_predictions += 1
+
+        # Category-Specific Reputation Update
+        reputation = dict(vpr.category_reputation or {})
+        cat_stats = reputation.get(category, {"trust": 0.5, "accuracy": 0.0, "total": 0})
+
+        c_trust = Decimal(str(cat_stats["trust"]))
+        c_total = int(cat_stats["total"])
+        c_acc_count = int(c_total * cat_stats["accuracy"])
+
+        if is_accurate:
+            c_trust = c_trust + (_ACCURACY_ALPHA * (Decimal("1") - c_trust))
+            c_acc_count += 1
+        else:
+            decay = Decimal(str(math.exp(float(-_DECAY_RATE * deviation))))
+            c_trust = c_trust * decay
+
+        c_total += 1
+        cat_stats["trust"] = float(max(Decimal("0"), min(Decimal("1"), c_trust)))
+        cat_stats["total"] = c_total
+        cat_stats["accuracy"] = float(c_acc_count / c_total)
+
+        reputation[category] = cat_stats
+        vpr.category_reputation = reputation
+
         vpr.influence_score = vpr.stake_amount * vpr.trust_score
 
     await db.flush()
-    logger.info(f"Trust scores updated for {len(rows)} validators on match {match_id}")
+    logger.info(f"Reputation updated for {len(rows)} validators on match {match_id} (result: {oracle_result})")
