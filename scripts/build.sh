@@ -13,37 +13,39 @@ fi
 
 echo "[build] Node version: $(node -v)"
 
-echo "[build] Installing frontend dependencies..."
-cd frontend
+# Skip frontend build if --skip-frontend is passed
+if [[ "${1:-}" != "--skip-frontend" ]]; then
+    echo "[build] Installing frontend dependencies..."
+    cd frontend
 
-# Detect lockfiles and use appropriate package manager
-if [ -f "pnpm-lock.yaml" ]; then
-    echo "[build] Using pnpm (pnpm-lock.yaml detected)"
-    # Render should have pnpm if it detected the lockfile, but let's be safe
-    pnpm install --frozen-lockfile
-elif [ -f "package-lock.json" ]; then
-    echo "[build] Using npm ci (package-lock.json detected)"
-    npm ci --prefer-offline --no-audit --no-fund
-else
-    echo "[build] Using npm install fallback"
-    npm install --prefer-offline --no-audit --no-fund
-fi
+    # Detect lockfiles and use appropriate package manager
+    if [ -f "pnpm-lock.yaml" ]; then
+        echo "[build] Using pnpm (pnpm-lock.yaml detected)"
+        pnpm install --frozen-lockfile
+    elif [ -f "package-lock.json" ]; then
+        echo "[build] Using npm ci (package-lock.json detected)"
+        npm ci --prefer-offline --no-audit --no-fund
+    else
+        echo "[build] Using npm install fallback"
+        npm install --prefer-offline --no-audit --no-fund
+    fi
 
-echo "[build] Building frontend for production..."
-if [ -f "pnpm-lock.yaml" ]; then
-    pnpm run build
-else
-    npm run build
+    echo "[build] Building frontend for production..."
+    if [ -f "pnpm-lock.yaml" ]; then
+        pnpm run build
+    else
+        npm run build
+    fi
+    cd ..
 fi
-cd ..
 
 echo "[build] Running database schema setup..."
-python -c "
+python3 <<'PYEOF' || echo "[build] DB schema setup failed"
 import asyncio, os
 
 async def ensure_schema():
-    from app.db.database import engine, Base
     try:
+        from app.db.database import engine, Base
         import app.db.models
         import app.modules.wallet.models
         import app.modules.blockchain.models
@@ -77,7 +79,8 @@ async def ensure_schema():
         import app.modules.quant.models
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            if conn.dialect.name == 'sqlite':
+            dialect = conn.dialect.name
+            if dialect == 'sqlite':
                 cols = (await conn.exec_driver_sql('PRAGMA table_info(predictions)')).fetchall()
                 col_names = {row[1] for row in cols}
                 pred_additions = {
@@ -91,7 +94,7 @@ async def ensure_schema():
                 user_cols = (await conn.exec_driver_sql('PRAGMA table_info(users)')).fetchall()
                 user_col_names = {row[1] for row in user_cols}
                 user_additions = {
-                    'kyc_status': \"VARCHAR(20) DEFAULT 'none'\",
+                    'kyc_status': "VARCHAR(20) DEFAULT 'none'",
                     'kyc_submitted_at': 'DATETIME',
                     'kyc_data': 'JSON',
                     'current_streak': 'INTEGER DEFAULT 0',
@@ -114,7 +117,7 @@ async def ensure_schema():
                 await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER')
                 await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN')
                 await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS settled_profit DOUBLE PRECISION')
-                await conn.exec_driver_sql(\"ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'\")
+                await conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'")
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE')
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON')
                 await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0')
@@ -123,12 +126,11 @@ async def ensure_schema():
                 await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT')
                 await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT')
         print('[build] Database schema ready')
+        await engine.dispose()
     except Exception as e:
         print(f'[build] DB schema warning: {e}')
-    finally:
-        await engine.dispose()
 
 asyncio.run(ensure_schema())
-" || echo "[build] DB schema setup skipped"
+PYEOF
 
 echo "[build] Build complete."
