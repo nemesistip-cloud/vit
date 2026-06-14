@@ -83,6 +83,7 @@ class ValidatorProfile(Base):
 
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_active: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    category_reputation: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # {category: {trust, accuracy, total}}
 
     predictions = relationship("ValidatorPrediction", back_populates="validator", cascade="all, delete-orphan")
 
@@ -106,6 +107,8 @@ class ValidatorPrediction(Base):
     p_home: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
     p_draw: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
     p_away: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    outcomes: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # {outcome_name: probability}
+    category: Mapped[str] = mapped_column(String(50), default='sports')
     confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0.5"))
 
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -139,15 +142,19 @@ class ConsensusPrediction(Base):
     ai_p_away: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     ai_confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     ai_risk: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
+    ai_outcomes: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    category: Mapped[str] = mapped_column(String(50), default='sports')
 
     validator_count: Mapped[int] = mapped_column(Integer, default=0)
     consensus_p_home: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     consensus_p_draw: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     consensus_p_away: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
+    consensus_outcomes: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     final_p_home: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     final_p_draw: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     final_p_away: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
+    final_outcomes: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     total_influence: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
 
     status: Mapped[str] = mapped_column(
@@ -232,6 +239,7 @@ class UserStake(Base):
     currency: Mapped[str] = mapped_column(String(10), default="VITCoin")
     status: Mapped[str] = mapped_column(String(20), default=StakeStatus.ACTIVE.value)
     payout_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
+    category: Mapped[str] = mapped_column(String(50), default="sports")
     # AH line at time of stake (e.g. -0.5 = home -0.5)
     ah_line: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
