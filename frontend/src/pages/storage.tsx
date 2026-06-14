@@ -476,7 +476,7 @@ const StoragePage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-mono uppercase flex items-center gap-3">
             <Zap className="w-7 h-7 text-primary" />
-            Tachyon Fabric
+            Tachyon VESS Swarm
           </h1>
           <p className="text-muted-foreground mt-1 font-mono text-xs tracking-wide">
             Reed-Solomon erasure-coded swarm storage — fragments distributed across {status?.active_nodes ?? '…'} nodes
@@ -757,7 +757,7 @@ const StoragePage: React.FC = () => {
           {/* How it works panel */}
           <div className="space-y-4">
             <h2 className="text-xs font-bold font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-              <Info className="w-3.5 h-3.5" /> How Tachyon Works
+              <Info className="w-3.5 h-3.5" /> The VESS Architecture
             </h2>
 
             {[
@@ -996,9 +996,13 @@ const StoragePage: React.FC = () => {
             <Card className="bg-card/30 border-border/20">
               <CardContent className="p-5 space-y-4 text-[11px] font-mono text-muted-foreground leading-relaxed">
                 <p>
-                  <span className="text-foreground font-bold">Reed-Solomon EEC</span> — files are split into data shards plus
-                  parity shards. The original file can be reconstructed from any sufficient subset, tolerating node failures
-                  without data loss.
+                  <span className="text-foreground font-bold">Verifiable Elastic Storage Swarm (VESS)</span> — Tachyon V2 implements
+                  a DePIN-ready swarm. Every fragment is anchored to the VIT Blockchain for cryptographic verification.
+                </p>
+                <p>
+                  <span className="text-foreground font-bold">Reed-Solomon EEC & Lazy Repair</span> — files are split into data
+                  and parity shards. If a shard is lost, VESS automatically detects the erasure during reconstruction and
+                  triggers an autonomous 'Lazy Repair' to restore swarm redundancy.
                 </p>
                 <p>
                   <span className="text-foreground font-bold">Burst scheduling</span> — the TachyonScheduler uploads and

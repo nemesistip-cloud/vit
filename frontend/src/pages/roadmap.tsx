@@ -8,7 +8,7 @@ import {
   GitBranch, Network, Code2, Activity, Layers,
   ChevronDown, ChevronUp, Star, ArrowRight, Sparkles,
   Vote, ShieldCheck, BarChart2, Key, Server, Radio,
-  FlaskConical, Target, BookOpen, CreditCard, Brain,
+  FlaskConical, Target, BookOpen, CreditCard,
   TrendingUp, Blocks, Link2, Atom, Triangle,
 } from "lucide-react";
 
@@ -63,56 +63,47 @@ const PHASES: RoadmapPhase[] = [
     bgColor: "bg-emerald-500/5",
     glowColor: "/10",
     techStack: ["FastAPI", "PostgreSQL", "React/Vite", "Redis", "Python ML", "WebSockets"],
-    architectureNote: "Full-stack AI platform running {config?.platform?.model_count || 13} autonomous prediction models. All core infrastructure is live and production-ready.",
+    architectureNote: "Full-stack AI platform running 22+ autonomous prediction models. All core infrastructure including payments and wallet logic is live and production-ready in v5.5.0.",
     items: [
-      { label: "{config?.platform?.model_count || 13}-model AI orchestrator (Native Ensemble)", status: "done",  icon: Brain },
+      { label: "22-model AI orchestrator (Native Ensemble)", status: "done",  icon: Brain },
+      { label: "Tachyon Fabric: EEC-swarm storage coordination", status: "done", icon: Database },
+      { label: "Market Classification Layer (Niche vs Sports)", status: "done", icon: Layers },
       { label: "Real-time WebSocket predictions with JWT authentication",               status: "done",  icon: Activity },
-      { label: "JWT auth system with 2FA (TOTP), email verification, role-based access", status: "done", icon: Shield },
-      { label: "Redis sliding-window rate limiting (per-user + global)",                status: "done",  icon: Zap },
-      { label: "Encrypted admin secrets panel — dual-source (Replit + DB)",             status: "done",  icon: Key },
+      { label: "JWT auth system with 2FA (TOTP) & Role-based access", status: "done", icon: Shield },
       { label: "Multi-currency wallet: NGN · USD · USDT · VITCoin",                    status: "done",  icon: Coins },
-      { label: "Stripe (USD) + Paystack (NGN) payments with webhook enforcement",       status: "done",  icon: CreditCard },
-      { label: "Governance system: proposals · voting · quorum · execution engine",     status: "done",  icon: Vote },
-      { label: "Trust & safety engine: automated scoring · suspend · freeze · flag",    status: "done",  icon: ShieldCheck },
-      { label: "Developer API with VITCoin billing (per-call deduction + 402 gate)",    status: "done",  icon: Code2 },
-      { label: "KYC / identity verification (Smile Identity integration)",              status: "done",  icon: Target },
-      { label: "AI model marketplace: listings · approvals · usage tracking",           status: "done",  icon: BarChart2 },
-      { label: "Reputation + merit system: XP · streaks · graduated trust actions",     status: "done",  icon: Star },
-      { label: "Accumulator engine: top-10 builders · Telegram push",                  status: "done",  icon: Layers },
+      { label: "Stripe (USD) + Paystack (NGN) payments live",       status: "done",  icon: CreditCard },
+      { label: "Governance system: proposals · voting · execution engine",     status: "done",  icon: Vote },
+      { label: "Trust & safety engine: automated scoring & merit",    status: "done",  icon: ShieldCheck },
+      { label: "Prophecy Chain: Game-ified progression engine", status: "done", icon: Sparkles },
       { label: "VIT Oracle: data feeds · on-chain hash anchoring",                     status: "done",  icon: Database },
-      { label: "Node network with DID registry + contribution tracking",                status: "done",  icon: Network },
-      { label: "Intel reports · Research hub · Analytics dashboard",                   status: "done",  icon: Radio },
-      { label: "Referral system, offerwall & task engine",                              status: "done",  icon: FlaskConical },
-      { label: "Bridge interface + Treasury management",                                status: "done",  icon: Link2 },
-      { label: "Base L2 chain-status service (RPC + VIT contract address wired)",       status: "done",  icon: Blocks },
-      { label: "Production deployment: gunicorn + uvicorn s on Replit VM",        status: "done",  icon: Server },
+      { label: "Production deployment: Render Cloud / GCR optimized",        status: "done",  icon: Server },
     ],
   },
   {
     id: "p2",
     phase: 2,
-    title: "On-Chain Bootstrap",
-    subtitle: "Smart contracts · EVM · Staking · Community distribution",
-    status: "upcoming",
-    eta: "Q3 2025",
-    icon: Blocks,
+    title: "Ecosystem Expansion",
+    subtitle: "Sports Intelligence · Niche Markets · Remittance · Base L2",
+    status: "active",
+    eta: "Q3 - Q4 2025",
+    icon: Rocket,
     color: "text-amber-400",
     borderColor: "border-amber-500/40",
     bgColor: "bg-amber-500/5",
     glowColor: "/10",
-    techStack: ["Base L2", "Solidity", "Hardhat", "Ethers.js", "MetaMask", "The Graph"],
-    architectureNote: "Deploy VITCoin on Base L2 for ecosystem adoption. Base gives low fees, Ethereum tooling compatibility, and a proven developer ecosystem — the pragmatic bootstrap chain before the sovereign Cosmos app-chain.",
+    techStack: ["Base L2", "Sports APIs", "Solidity", "Hardhat", "Wagmi", "Web3.py"],
+    architectureNote: "Expanding into a dual-layer intelligence marketplace. Sports infrastructure functions via affiliate redirection, while niche markets (Governance, Elections) utilize internal treasury and settlement.",
     items: [
-      { label: "Deploy VITCoin ERC-20 contract on Base L2",                   status: "planned",      icon: Coins,       detail: "BASE_RPC_URL + VIT_CONTRACT_ADDRESS already wired in secrets manager" },
-      { label: "MetaMask / WalletConnect wallet connection in frontend",       status: "done",  icon: Link2, detail: "wagmi v2 + viem — injected (MetaMask) + Coinbase Wallet + WalletConnect connectors live; WalletPanel on bridge & smart-contracts pages" },
-      { label: "On-chain prediction settlement: AI hash → Base transaction",   status: "planned",      icon: CheckCircle2 },
-      { label: "Staking contract: lock VIT · earn yield · validator bonding",  status: "planned",      icon: Target },
-      { label: "Governance token distribution to early stakers",               status: "planned",      icon: Vote },
-      { label: "Stripe + Paystack live webhooks (secrets set via admin panel)", status: "done", icon: CreditCard,  detail: "Full HMAC signature verification live; secrets hot-reload from admin panel without restart" },
-      { label: "Native KYC verification engine",                            status: "done",  icon: ShieldCheck, detail: "Asynchronous verification engine featuring duplicate detection and simulated liveness verification." },
-      { label: "The Graph indexer for VIT contract events",                    status: "planned",      icon: Database },
-      { label: "Public developer API v2 with on-chain proof of call",          status: "planned",      icon: Code2 },
-      { label: "Community airdrop campaign: merit-weighted distribution",       status: "planned",      icon: Star },
+      { label: "Sports Oracle: Verifiable fixture & odds sync", status: "done", icon: TrendingUp },
+      { label: "Affiliate Deep-Link Generator: Betway/SportyBet integration", status: "in-progress", icon: Link2 },
+      { label: "Elections & Policy sentiment analysis engine", status: "done", icon: Radio },
+      { label: "Wallet Protection Layer: Segregated financial flows", status: "done", icon: Lock },
+      { label: "Cross-border Remittance: Blockchain liquidity rails", status: "in-progress", icon: Coins },
+      { label: "MetaMask / WalletConnect integration", status: "done", icon: Link2 },
+      { label: "Deploy VITCoin ERC-20 contract on Base L2", status: "planned", icon: Coins },
+      { label: "On-chain prediction settlement: AI hash anchoring", status: "in-progress", icon: CheckCircle2 },
+      { label: "Native KYC verification engine", status: "done", icon: ShieldCheck },
+      { label: "Ecosystem airdrop: merit-weighted distribution", status: "planned", icon: Star },
     ],
   },
   {
@@ -128,26 +119,24 @@ const PHASES: RoadmapPhase[] = [
     bgColor: "bg-blue-500/5",
     glowColor: "/10",
     techStack: ["Cosmos SDK", "CometBFT", "CosmWasm", "Rust", "Ethermint", "IBC", "Go"],
-    architectureNote: "VIT becomes a sovereign Cosmos app-chain. Custom consensus rules, low predictable fees, AI-native execution environment, and IBC interoperability with the entire Cosmos ecosystem (Osmosis, ATOM, Celestia, etc).",
+    architectureNote: "VIT becomes a sovereign Cosmos app-chain. Custom consensus rules, low predictable fees, AI-native execution environment, and IBC interoperability with the entire Cosmos ecosystem.",
     items: [
       { label: "VIT Cosmos SDK app-chain genesis",                                    status: "vision", icon: Atom },
       { label: "CometBFT (Tendermint) consensus with VIT validator set",               status: "vision", icon: GitBranch },
-      { label: "CosmWasm smart contracts in Rust — staking · governance · settlement", status: "vision", icon: Code2 },
-      { label: "AI oracle module: prediction hashes anchored on-chain natively",       status: "vision", icon: Brain },
+      { label: "CosmWasm smart contracts in Rust — staking & governance", status: "vision", icon: Code2 },
+      { label: "AI oracle module: prediction hashes anchored natively",       status: "vision", icon: Brain },
       { label: "Reputation module: on-chain merit scores + trust actions",             status: "vision", icon: ShieldCheck },
       { label: "IBC integration: cross-chain liquidity + interoperability",            status: "vision", icon: Network },
-      { label: "Ethermint EVM layer: Solidity contract compatibility on VIT chain",    status: "vision", icon: Globe },
-      { label: "Validator incentive program: AI contribution scoring → rewards",       status: "vision", icon: Target },
-      { label: "Treasury VIT Protocol Council: on-chain fund management via governance",                status: "vision", icon: Coins },
-      { label: "gRPC + REST indexer replacing current FastAPI oracle layer",           status: "vision", icon: Server },
-      { label: "Data availability via Celestia (off-chain data, on-chain proof)",      status: "vision", icon: Database },
+      { label: "Ethermint EVM layer: Solidity contract compatibility",    status: "vision", icon: Globe },
+      { label: "Validator incentive program: AI contribution scoring",       status: "vision", icon: Target },
+      { label: "Data availability via Celestia integration",      status: "vision", icon: Database },
     ],
   },
   {
     id: "p4",
     phase: 4,
     title: "AI-Native Blockchain",
-    subtitle: "Autonomous agents · Decentralized compute · Professional AI",
+    subtitle: "Autonomous agents · Decentralized compute · ZK-Inference",
     status: "vision",
     eta: "2026 → beyond",
     icon: Sparkles,
@@ -156,18 +145,16 @@ const PHASES: RoadmapPhase[] = [
     bgColor: "bg-purple-500/5",
     glowColor: "/10",
     techStack: ["Rust", "Python", "Kafka", "WASM", "ZK Proofs", "Federated Learning"],
-    architectureNote: "VIT becomes AI-native infrastructure — not just a blockchain that hosts an AI app, but a chain where the consensus mechanism itself is informed by AI oracle outputs. Validators, agents, and models form a unified analytics economy.",
+    architectureNote: "The consensus mechanism itself is informed by AI oracle outputs. Validators, agents, and models form a unified analytics economy with trustless inference.",
     items: [
-      { label: "AI subnets: specialized prediction zones with dedicated validators",    status: "vision", icon: Brain },
-      { label: "Decentralized AI compute marketplace: GPU rental via VIT staking",     status: "vision", icon: Cpu },
-      { label: "Federated ML training: models trained across validator nodes",          status: "vision", icon: BookOpen },
-      { label: "Autonomous prediction agents with on-chain execution rights",           status: "vision", icon: Brain },
-      { label: "ZK-proof verification of AI model outputs (trustless inference)",      status: "vision", icon: Shield },
-      { label: "Professional analytics API: hedge fund + sportsbook grade data",      status: "vision", icon: TrendingUp },
-      { label: "Cross-chain AI oracle network: VIT data available via IBC to all chains", status: "vision", icon: Network },
-      { label: "Prediction economy: users stake VIT on agent performance",              status: "vision", icon: Target },
-      { label: "AI-weighted consensus: validator rewards scaled by oracle accuracy",    status: "vision", icon: Triangle },
-      { label: "Decentralized analytics index: on-chain AI performance ledger",     status: "vision", icon: BarChart2 },
+      { label: "AI subnets: specialized prediction zones",    status: "vision", icon: Brain },
+      { label: "Decentralized AI compute marketplace (GPU Rental)",     status: "vision", icon: Cpu },
+      { label: "Federated ML training across validator nodes",          status: "vision", icon: BookOpen },
+      { label: "Autonomous prediction agents with execution rights",           status: "vision", icon: Brain },
+      { label: "ZK-proof verification of AI model outputs",      status: "vision", icon: Shield },
+      { label: "Professional analytics API: Hedge fund grade data",      status: "vision", icon: TrendingUp },
+      { label: "AI-weighted consensus: rewards scaled by accuracy",    status: "vision", icon: Triangle },
+      { label: "Decentralized analytics index: AI performance ledger",     status: "vision", icon: BarChart2 },
     ],
   },
 ];
@@ -179,16 +166,15 @@ const ARCH_STACK = [
   { layer: "High-Performance",     tech: "Rust modules",        phase: 3 },
   { layer: "Smart Contracts",      tech: "CosmWasm",            phase: 3 },
   { layer: "Consensus",            tech: "CometBFT",            phase: 3 },
-  { layer: "AI Execution",         tech: "Off-chain cluster",   phase: 1 },
-  { layer: "Oracle Layer",         tech: "Rust + Python",       phase: 2 },
-  { layer: "EVM Compat.",          tech: "Ethermint",           phase: 3 },
+  { layer: "AI Execution",         tech: "Agent Swarm (22+)",   phase: 1 },
+  { layer: "Oracle Layer",         tech: "Tachyon Fabric",      phase: 1 },
+  { layer: "Storage EEC",          tech: "Reed-Solomon / XOR",  phase: 1 },
+  { layer: "Market Mapping",       tech: "Sports + Niche",      phase: 2 },
+  { layer: "Affiliate Layer",      tech: "Sports Redirection",  phase: 2 },
   { layer: "Cross-chain",          tech: "IBC Protocol",        phase: 3 },
-  { layer: "APIs",                 tech: "gRPC + REST",         phase: 1 },
   { layer: "Validators",           tech: "Cosmos validators",   phase: 3 },
-  { layer: "AI Agents",            tech: "Rust + Python",       phase: 1 },
-  { layer: "Prediction Engine",    tech: "Python + Rust",       phase: 1 },
-  { layer: "Data Streaming",       tech: "Kafka + Redis",       phase: 2 },
-  { layer: "Frontend",             tech: "React / TypeScript",  phase: 1 },
+  { layer: "Data Streaming",       tech: "Redis + WebSockets",  phase: 1 },
+  { layer: "Frontend",             tech: "React 19 / Tailwind", phase: 1 },
 ];
 
 const PHASE_COLOR: Record<number, string> = {
@@ -216,26 +202,6 @@ function StatusBadge({ status }: { status: ItemStatus }) {
   );
 }
 
-function PhaseStatusBadge({ status }: { status: RoadmapPhase["status"] }) {
-  const map = {
-    complete: "bg-emerald-500/15 border-emerald-500/30 text-emerald-400",
-    active:   "bg-amber-500/15 border-amber-500/30 text-amber-400",
-    upcoming: "bg-blue-500/15 border-blue-500/30 text-blue-400",
-    vision:   "bg-purple-500/15 border-purple-500/30 text-purple-400",
-  };
-  const label = {
-    complete: "Complete",
-    active:   "In Progress",
-    upcoming: "Upcoming",
-    vision:   "Vision",
-  };
-  return (
-    <Badge className={`text-xs border ${map[status]} bg-transparent`}>
-      {label[status]}
-    </Badge>
-  );
-}
-
 function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
   const done = phase.items.filter(i => i.status === "done").length;
@@ -248,34 +214,34 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
         className="pb-4 cursor-pointer select-none"
         onClick={() => setOpen(o => !o)}
       >
-        <div className="flex items-start gap-4">
-          {/* Phase number + icon column */}
-          <div className="flex flex-col items-center gap-2 shrink-0">
-            <div className={`w-10 h-10 rounded-full border-2 ${phase.borderColor} flex items-center justify-center ${phase.bgColor}`}>
-              <phase.icon className={`w-5 h-5 ${phase.color}`} />
-            </div>
-            <span className={`text-[10px] font-mono font-bold uppercase ${phase.color}`}>
-              P{phase.phase}
-            </span>
+        <div className="flex items-start justify-between gap-4">
+          <div className={`w-10 h-10 rounded-xl border ${phase.borderColor} ${phase.bgColor} flex items-center justify-center shrink-0`}>
+            <phase.icon className={`w-5 h-5 ${phase.color}`} />
           </div>
 
-          {/* Title block */}
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <CardTitle className={`text-lg font-bold ${phase.color}`}>{phase.title}</CardTitle>
-              <PhaseStatusBadge status={phase.status} />
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${phase.color}`}>
+                Phase {phase.phase}
+              </span>
+              <Badge className={`text-[10px] uppercase border ${
+                phase.status === 'complete' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                phase.status === 'active'   ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                'bg-blue-500/10 text-blue-400 border-blue-500/30'
+              }`}>
+                {phase.status}
+              </Badge>
             </div>
-            <p className="text-sm text-gray-400 mb-3">{phase.subtitle}</p>
+            <h3 className="text-lg font-bold text-white truncate">{phase.title}</h3>
+            <p className="text-xs text-gray-400 truncate">{phase.subtitle}</p>
 
-            {/* Progress bar */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+            <div className="mt-3 flex items-center gap-3">
+              <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-700 ${
+                  className={`h-full rounded-full transition-all duration-500 ${
                     phase.status === "complete" ? "bg-emerald-500" :
                     phase.status === "active"   ? "bg-amber-500"   :
-                    phase.status === "upcoming" ? "bg-blue-500"     :
-                    "bg-purple-500"
+                    "bg-blue-500"
                   }`}
                   style={{ width: `${pct}%` }}
                 />
@@ -291,13 +257,11 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
             </div>
           </div>
 
-          {/* Expand toggle */}
           <button className={`p-1 rounded ${phase.color} opacity-60 hover:opacity-100 transition-opacity shrink-0`}>
             {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Tech stack chips */}
         <div className="flex flex-wrap gap-1.5 mt-3 ml-14">
           {phase.techStack.map(t => (
             <span key={t} className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-gray-800 border border-gray-700 text-gray-400">
@@ -348,6 +312,7 @@ function PhaseCard({ phase, defaultOpen }: { phase: RoadmapPhase; defaultOpen?: 
 
 export default function RoadmapPage() {
   const { data: config } = usePublicConfig();
+  const platformVersion = config?.platform?.version || "5.5.0";
   const totalDone    = PHASES.flatMap(p => p.items).filter(i => i.status === "done").length;
   const totalItems   = PHASES.flatMap(p => p.items).length;
   const inProgress   = PHASES.flatMap(p => p.items).filter(i => i.status === "in-progress").length;
@@ -358,7 +323,7 @@ export default function RoadmapPage() {
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="text-center space-y-3">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-mono text-primary uppercase tracking-widest">
-          <Rocket className="w-3 h-3" /> Ecosystem Roadmap
+          <Rocket className="w-3 h-3" /> Ecosystem Roadmap v{platformVersion}
         </div>
         <h1 className="text-3xl md:text-4xl font-bold text-white">
           VIT Analytics Network

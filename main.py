@@ -8,6 +8,7 @@ import time
 import uuid
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
+import importlib
 
 from fastapi import FastAPI, Depends, Request
 from fastapi.exceptions import RequestValidationError
@@ -1618,6 +1619,9 @@ async def _run_bootstrap(app, _done_event):
                         break
 
             supervised_tasks = [
+                ("prediction-agent", lambda: importlib.import_module("app.agents.prediction_agent").PredictionAgent().loop()),
+                ("performance-monitor", lambda: importlib.import_module("app.agents.performance_monitor").PerformanceMonitorAgent().loop()),
+                ("match-scout", lambda: importlib.import_module("app.agents.match_scout_agent").MatchScoutAgent().loop()),
                 ("etl-pipeline", etl_pipeline_loop),
                 ("odds-refresh", odds_refresh_loop),
                 ("cache-purge", lambda: cache_background_purge_loop(300)),

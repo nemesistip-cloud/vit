@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_optional_user
 from app.db.database import get_db
 from app.modules.storage_verification.models import TachyonManifest
-from app.modules.storage_verification.service import register_content
+from app.modules.storage_verification.service import register_content, submit_storage_proof
 from tachyon.core.scheduler import TachyonScheduler
 from tachyon.core.shredder import TachyonShredder
 from tachyon.providers.disk import DiskProvider
@@ -126,7 +126,7 @@ async def upload_file(
     try:
         fragments = TachyonShredder.shred(content)
         qsh = TachyonShredder.get_fragment_hash(fragments[0]) if fragments else None
-        await register_content(
+        registry_entry = await register_content(
             db=db,
             content_hash=file_hash,
             content_type=file.content_type or "application/octet-stream",
@@ -138,8 +138,27 @@ async def upload_file(
             tachyon_parity_shards=parity_shards,
             quantum_state_hash=qsh,
         )
+
+        # VESS Core: Auto-anchor every shard for verification
+        if registry_entry and fragments:
+            for i, frag in enumerate(fragments):
+                try:
+                    p_idx = i % len(_providers)
+                    provider = _providers[p_idx]
+                    frag_hash = TachyonShredder.get_fragment_hash(frag)
+                    await submit_storage_proof(
+                        db=db,
+                        content_hash=file_hash,
+                        node_address=f"{type(provider).__name__}:{provider.name}",
+                        proof_data=frag_hash,
+                        proof_type="tachyon_shard_qsh",
+                        prover_user_id=user.id if user else None
+                    )
+                except Exception as e:
+                    logger.warning("[tachyon] shard anchoring failed for index %d: %s", i, e)
+
     except Exception as exc:
-        logger.error("[tachyon] content registry failed: %s", exc)
+        logger.error("[tachyon] content registry / anchoring failed: %s", exc)
 
     return {
         "file_id": manifest["file_id"],
