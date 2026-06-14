@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, FormEvent } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Send, RotateCw, Brain, User as UserIcon, Zap, Search, Activity, BarChart3, Database } from "lucide-react";
+import { Sparkles, Send, RotateCw, Brain, User as UserIcon, Zap, Search, Activity } from "lucide-react";
 import {
   useAssistantChat,
   useAssistantStatus,
@@ -21,13 +21,13 @@ const SUGGESTED_PROMPTS = [
 ];
 
 const ASSISTANT_FEATURES = [
-  "Native Agentic Intelligence (v5.5.0)",
+  "VIT Native Intelligence (v5.5.0)",
   "Real-time SVI and Market Monitoring",
   "Live score and fixture insights",
-  "Upcoming match discovery",
-  "Match-level AI predictions and insights",
+  "Internal Ensemble Predictions",
   "System health and agent status",
   "Market trends and CLV summaries",
+  "Self-contained Neural Layer",
 ];
 
 // Extend AssistantTurn to include thoughts
@@ -35,27 +35,16 @@ interface ExtendedAssistantTurn extends AssistantTurn {
   thoughts?: string[];
 }
 
-type Mode = "claude" | "grok" | "gemini";
-
-const MODES: { id: Mode; label: string; sublabel: string; free: boolean }[] = [
-  { id: "gemini", label: "Gemini",  sublabel: "gemini-2.0-flash",  free: false },
-];
-
 export default function AssistantPage() {
-  const { data: config } = usePublicConfig();
   const [input, setInput]     = useState("");
   const [messages, setMessages] = useState<ExtendedAssistantTurn[]>([]);
-  const [mode, setMode]       = useState<Mode>("gemini");
   const [isPending, setIsPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const status = useAssistantStatus();
   const chat   = useAssistantChat();
 
-  const backendReady = status.data?.available ?? false;
-  const isReady = mode === "gemini" ? backendReady : true;
-
-  const currentMode = MODES.find((m) => m.id === mode)!;
+  const isReady = status.data?.available ?? false;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -73,119 +62,66 @@ export default function AssistantPage() {
     setInput("");
 
     setIsPending(true);
-    if (mode === "claude" || mode === "grok") {
-      try {
-        const result = await chat.mutateAsync({ message: trimmed, history: messages.map(m => ({ role: m.role, content: m.content })) }) as any;
-        setMessages((prev) => [...prev, { role: "assistant", content: result.reply, thoughts: result.thoughts }]);
-      } catch (e: any) {
-        const msg = e?.message || "Failed to reach the assistant";
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `Sorry — ${msg}. Try switching to Gemini (backend) mode.`,
-          },
-        ]);
-        toast.error(msg);
-      } finally {
-        setIsPending(false);
-      }
-    } else {
-      try {
-        // cast to any because the generated api-client might not know about 'thoughts' yet
-        const result = await chat.mutateAsync({ message: trimmed, history: messages.map(m => ({ role: m.role, content: m.content })) }) as any;
-        setMessages((prev) => [...prev, { role: "assistant", content: result.reply, thoughts: result.thoughts }]);
-        if (result.error) toast.error(result.error);
-      } catch (e: any) {
-        const msg = e?.message || "Failed to reach the assistant";
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `Sorry — I couldn't get a response (${msg}). Please try again.`,
-          },
-        ]);
-        toast.error(msg);
-      } finally {
-        setIsPending(false);
-      }
+    try {
+      const result = await chat.mutateAsync({
+        message: trimmed,
+        history: messages.map(m => ({ role: m.role, content: m.content }))
+      }) as any;
+
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: result.reply,
+        thoughts: result.thoughts
+      }]);
+
+      if (result.error) toast.error(result.error);
+    } catch (e: any) {
+      const msg = e?.message || "Failed to reach the VIT Bot";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Sorry — ${msg}. The internal neural layer might be recalibrating.`,
+        },
+      ]);
+      toast.error(msg);
+    } finally {
+      setIsPending(false);
     }
   }
 
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    send(input);
-  }
-
-  function reset() {
-    setMessages([]);
-    setInput("");
-  }
-
-  function switchMode(next: Mode) {
-    setMode(next);
-    reset();
-  }
+  const reset = () => setMessages([]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div className="container max-w-5xl py-8 space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-mono tracking-tight flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-primary" />
-            AI Assistant <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary border-primary/30">AGENTIC</Badge>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2.5">
+            <Brain className="w-8 h-8 text-primary" />
+            Intelligence Agent
           </h1>
-          <p className="text-sm text-muted-foreground font-mono mt-1">
-            Agentic AI copilot for the VIT Network.
+          <p className="text-muted-foreground font-mono text-sm mt-1">
+            v5.5.0 · Native Neural Layer · Decentralized Intelligence
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Mode selector */}
-          <div className="flex items-center rounded-md border border-border overflow-hidden text-xs font-mono">
-            {MODES.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => switchMode(m.id)}
-                className={`px-3 py-1.5 flex items-center gap-1.5 transition-colors border-r border-border last:border-r-0 ${
-                  mode === m.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background text-muted-foreground hover:bg-accent"
-                }`}
-              >
-                {m.free
-                  ? <Zap className="w-3 h-3" />
-                  : <Brain className="w-3 h-3" />}
-                {m.label}
-                {m.free && (
-                  <span className={`text-[10px] px-1 rounded ${
-                    mode === m.id ? "bg-primary-foreground/20 text-primary-foreground" : "bg-green-500/10 text-green-500"
-                  }`}>
-                    FREE
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Status */}
-          {status.isLoading && mode === "gemini" ? (
+        <div className="flex items-center gap-3">
+          {status.isLoading ? (
             <Skeleton className="h-6 w-24" />
           ) : isReady ? (
-            <Badge variant="outline" className="font-mono text-xs border-green-500/40 text-green-500">
-              ● Ready
+            <Badge variant="outline" className="font-mono text-xs border-green-500/40 text-green-500 bg-green-500/5">
+              ● Network Active
             </Badge>
           ) : (
             <Badge variant="outline" className="font-mono text-xs border-amber-500/40 text-amber-500">
-              ● Not configured
+              ● Recalibrating
             </Badge>
           )}
 
           {messages.length > 0 && (
             <Button variant="outline" size="sm" onClick={reset} className="font-mono">
               <RotateCw className="w-3.5 h-3.5 mr-1.5" />
-              New chat
+              Reset Buffer
             </Button>
           )}
         </div>
@@ -195,18 +131,14 @@ export default function AssistantPage() {
       <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground px-1">
         <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0" />
         <span>
-          Powered by{" "}
-          <span className="text-primary font-semibold">{currentMode.sublabel}</span>
-          {currentMode.free
-            ? " · Free · No API key required"
-            : " · Backend · Full Tool Calling Support"}
+          Powered by <span className="text-primary font-semibold">VIT Native Ensemble</span> · No external APIs · Privacy Guaranteed
         </span>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-background/90 p-4 text-xs font-mono text-muted-foreground">
           <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-semibold">
-            Assistant capabilities
+            Agent capabilities
           </p>
           <ul className="space-y-2">
             {ASSISTANT_FEATURES.map((feature) => (
@@ -220,32 +152,26 @@ export default function AssistantPage() {
 
         <div className="rounded-xl border border-border bg-background/90 p-4 text-xs font-mono text-muted-foreground">
           <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-semibold">
-            Current assistant status
+            Internal Node Status
           </p>
-          <p>{status.data?.message ?? "Checking assistant status..."}</p>
-          {status.data?.configured_providers?.length ? (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Configured providers: {status.data.configured_providers.join(", ")}
-            </p>
-          ) : null}
-          {status.data?.available_tools?.length ? (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Tool support: {status.data.available_tools.join(", ")}
-            </p>
-          ) : null}
+          <p>{status.data?.message ?? "Synchronizing nodes..."}</p>
+          {status.data?.health?.ai_models_ready !== undefined && (
+            <div className="mt-2 space-y-1">
+              <p className="text-[11px]">Active ML Models: {status.data.health.ai_models_ready}</p>
+              <p className="text-[11px]">SVI Stability: {status.data.health.svi?.toFixed(4)} ({status.data.health.svi_status})</p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Chat card */}
-      <Card className="overflow-hidden rounded-2xl border-border/50  bg-card/60  rounded-2xl border-border/50  bg-card/60 ">
+      <Card className="overflow-hidden rounded-2xl border-border/50 bg-card/60">
         <CardHeader className="border-b">
           <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">
-            Conversation
+            Neural Uplink
           </CardTitle>
           <CardDescription className="font-mono text-xs">
-            {currentMode.free
-              ? `${currentMode.label} · ${currentMode.sublabel} · free & unlimited`
-              : `Agentic AI · ${status.data?.provider ?? "Gemini"} · Real-time data access`}
+            Direct connection to the VIT Network ensemble.
           </CardDescription>
         </CardHeader>
 
@@ -257,20 +183,14 @@ export default function AssistantPage() {
             {messages.length === 0 && !isPending && (
               <div className="h-full flex flex-col items-center justify-center text-center px-6 space-y-6">
                 <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  {currentMode.free
-                    ? <Zap className="w-7 h-7 text-primary" />
-                    : <Brain className="w-7 h-7 text-primary" />}
+                  <Brain className="w-7 h-7 text-primary" />
                 </div>
                 <div className="space-y-1.5 max-w-md">
                   <p className="font-mono font-semibold text-sm">
-                    {currentMode.free
-                      ? `Free ${currentMode.label} AI — no API key required.`
-                      : "The VIT Network Agentic Copilot is active."}
+                    VIT Intelligence Agent is Active.
                   </p>
                   <p className="font-mono text-xs text-muted-foreground">
-                    {currentMode.free
-                      ? "Ask any question — fast, unlimited, no signup required."
-                      : "I can now autonomously fetch live matches, analyze system health, and track market trends using platform tools."}
+                    I can autonomously fetch live matches, analyze system health, and track market trends using platform nodes.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
@@ -297,14 +217,14 @@ export default function AssistantPage() {
           </div>
 
           <form
-            onSubmit={onSubmit}
+            onSubmit={(e) => { e.preventDefault(); send(input); }}
             className="border-t bg-background px-3 py-3 flex items-end gap-2"
           >
             <textarea
               name="assistant-message"
               autoComplete="off"
               spellCheck
-              aria-label="Message the AI Assistant"
+              aria-label="Message the Intelligence Agent"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -316,10 +236,8 @@ export default function AssistantPage() {
               rows={1}
               placeholder={
                 isReady
-                  ? `Ask ${currentMode.label} anything about VIT Network…`
-                  : mode === "gemini"
-                  ? "Backend AI not configured"
-                  : "Select a mode to begin"
+                  ? "Query VIT Network nodes..."
+                  : "Synchronizing with network..."
               }
               disabled={!isReady || isPending}
               className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 max-h-32"
@@ -331,7 +249,7 @@ export default function AssistantPage() {
               className="font-mono"
             >
               <Send className="w-4 h-4 mr-1.5" />
-              Send
+              Transmit
             </Button>
           </form>
         </CardContent>
@@ -369,7 +287,7 @@ function MessageBubble({
           <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 space-y-2">
             <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
               <Activity className="w-3 h-3" />
-              Internal Thinking Process
+              Node Processing
             </p>
             <div className="space-y-1.5">
               {thoughts.map((t, idx) => (
@@ -383,7 +301,7 @@ function MessageBubble({
         )}
 
         <div
-          className={`rounded-xl px-4 py-3  text-sm font-mono leading-relaxed ${
+          className={`rounded-xl px-4 py-3 text-sm font-mono leading-relaxed ${
             isUser
               ? "bg-primary text-primary-foreground"
               : "bg-card border border-border"
@@ -393,7 +311,7 @@ function MessageBubble({
             <div className="space-y-3 py-1">
                <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
                   <Search className="w-3 h-3" />
-                  <span>Analyzing VIT network data...</span>
+                  <span>Polling network nodes...</span>
                </div>
                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                 <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />

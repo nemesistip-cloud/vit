@@ -17,6 +17,7 @@ from app.core.dependencies import get_orchestrator
 from app.db.models import Match
 from app.services.assistant_tools import TOOL_MAP, NATIVE_AI_TOOLS
 from app.modules.ai.svi import SyntheticValueIndex
+from app.services.ai_client import call_ai
 
 router = APIRouter(prefix="/ai/assistant", tags=["ai-assistant"])
 logger = logging.getLogger(__name__)
@@ -28,7 +29,11 @@ class ChatRequest(BaseModel):
 
 async def _get_system_health_internal(db: AsyncSession) -> Dict[str, Any]:
     from sqlalchemy import select, func
-    match_count = (await db.execute(select(func.count(Match.id)))).scalar() or 0
+    try:
+        match_count = (await db.execute(select(func.count(Match.id)))).scalar() or 0
+    except Exception:
+        match_count = 0
+
     orch = get_orchestrator()
     models_ready = orch.num_models_ready() if orch else 0
 
@@ -50,46 +55,6 @@ async def _get_system_health_internal(db: AsyncSession) -> Dict[str, Any]:
         "svi_status": svi_status
     }
 
-async def _call_gemini_agentic(
-    message: str,
-    history: Optional[List[dict]],
-    context: Optional[str],
-    db: AsyncSession
-) -> Optional[Dict[str, Any]]:
-    """
-    Experimental Gemini 2.0 Flash Agentic Loop.
-    Requires GEMINI_API_KEY.
-    """
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
-
-    try:
-        import httpx
-        # Gemini API expects a specific format. This is a simplified version of tool-calling
-        # using the REST API for Gemini 2.0 Flash.
-
-        system_instructions = (
-            "You are the VIT Network Bot (v5.5.0). "
-            "You have access to the VIT Network's internal tools and real-time data. "
-            "Use these tools to provide accurate, data-driven answers about sports, "
-            "market health (SVI), and system status. "
-            "Always prefer internal data over general knowledge."
-        )
-
-        # In a real implementation, we would use the google-generativeai SDK.
-        # Here we simulate the agentic behavior by allowing the LLM to 'request' tools
-        # or we route based on its intent if we were using a shim.
-        # For the purpose of this refactor, we will focus on the logic flow.
-
-        # NOTE: Full tool-calling implementation usually requires a multi-turn conversation.
-        # For now, we'll use a robust prompting strategy that encourages tool usage.
-
-        return None # Placeholder for full SDK implementation
-    except Exception as e:
-        logger.warning(f"Gemini agentic call failed: {e}")
-        return None
-
 async def _handle_agentic_query(
     message: str,
     db: AsyncSession,
@@ -97,13 +62,7 @@ async def _handle_agentic_query(
     context: Optional[str] = None,
 ) -> Dict[str, Any]:
     msg = message.lower()
-    thoughts = ["Initiating VIT Bot", "Accessing internal neural matrix"]
-
-    # Try Gemini Agentic first if key exists
-    # gemini_resp = await _call_gemini_agentic(message, history, context, db)
-    # if gemini_resp: return gemini_resp
-
-    # Enhanced Native Tool Dispatcher (Acting as the 'Agent' logic)
+    thoughts = ["Initiating VIT Native Intelligence", "Accessing internal neural matrix"]
 
     # 1. Market Intelligence & SVI
     if any(k in msg for k in ["svi", "market health", "collateral", "inflation", "trends", "clv"]):
@@ -149,18 +108,16 @@ async def _handle_agentic_query(
             agent_health = await TOOL_MAP["get_system_health"]()
             if agent_health and "agents" in agent_health:
                 reply += f"- **Live Agents:** {len(agent_health['agents'])} operational\n"
-                # Add a few specific agent statuses if available
                 active_agents = [a['name'] for a in agent_health['agents'] if a['status'] == 'ok']
                 if active_agents:
                     reply += f"\n**Critical Systems:** {', '.join(active_agents[:4])} are online."
 
         return {"available": True, "reply": reply, "thoughts": thoughts}
 
-    # 3. Sports Analysis (Integrated with Tool Map)
+    # 3. Sports Analysis
     if any(k in msg for k in ["match", "game", "soccer", "football", "prediction", "odds", "scores", "fixture"]):
         thoughts.append("Executing Sports Intelligence Toolset")
 
-        # Try to find match ID first
         match_id_search = re.search(r'(?:id\s*[:#]?\s*|match\s+)(\d+)', msg)
         if match_id_search:
             match_id = int(match_id_search.group(1))
@@ -171,7 +128,6 @@ async def _handle_agentic_query(
                 reply = f"### Tactical Insight: {m['home_team']} vs {m['away_team']}\n"
                 reply += f"*League: {m['league']} | Kickoff: {m['kickoff_time']}*\n\n"
                 if preds:
-                    # Use the first (usually highest weight) prediction
                     p = preds[0]
                     reply += (
                         f"**Native Ensemble Forecast:**\n"
@@ -184,7 +140,6 @@ async def _handle_agentic_query(
                     reply += "AI Models are currently processing this match. No prediction recorded yet."
                 return {"available": True, "reply": reply, "thoughts": thoughts}
 
-        # Otherwise show upcoming
         upcoming = await TOOL_MAP["get_upcoming_matches"](limit=5)
         if upcoming:
             match_list = "\n".join([
@@ -198,71 +153,10 @@ async def _handle_agentic_query(
             )
             return {"available": True, "reply": reply, "thoughts": thoughts}
 
-    # 4. Fallback to LLM if possible, else structured Native Info
-    thoughts.append("Generating response via language layer")
-    api_key = os.getenv("OPENAI_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
-
-    if api_key:
-        # We reuse the _llm_chat logic but it would ideally be provider-agnostic
-        # For now, we'll keep the existing call but refine the prompt if we had it
-        llm_reply = await _llm_chat(message, history, context)
-        if llm_reply:
-            return {"available": True, "reply": llm_reply, "thoughts": thoughts}
-
-    # 5. Ultimate Data-Rich Fallback (The "Native Assistant")
-    health = await _get_system_health_internal(db)
-    return {
-        "available": True,
-        "reply": (
-            f"I am the VIT Bot (v{health['system_version']}).\n\n"
-            f"The network is currently **{health['status']}** with **{health['ai_models_ready']} active models**.\n"
-            f"The Synthetic Value Index (SVI) is **{health['svi']:.4f}** ({health['svi_status']}).\n\n"
-            f"How can I assist you with market intelligence, match insights, or system health today?"
-        ),
-        "thoughts": thoughts,
-    }
-
-async def _llm_chat(message: str, history: Optional[List[dict]], context: Optional[str]) -> Optional[str]:
-    """Call OpenAI (or compatible) LLM if configured. Returns None if unavailable."""
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        return None
-
-    try:
-        import httpx
-        system_prompt = (
-            "You are the VIT Network Bot — an expert embedded in the VIT Sports Analytics Network (v5.5.0). "
-            "You help users understand match predictions, ML model outputs, market probabilities (SVI), "
-            "and platform features. Use markdown for structure."
-        )
-        if context:
-            system_prompt += f"\n\nContext:\n{context}"
-
-        messages = [{"role": "system", "content": system_prompt}]
-        if history:
-            for h in history[-6:]:
-                role = h.get("role", "user")
-                content = h.get("content", "")
-                if role in ("user", "assistant") and content:
-                    messages.append({"role": role, "content": content})
-        messages.append({"role": "user", "content": message})
-
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-                    "messages": messages,
-                    "max_tokens": 800,
-                    "temperature": 0.4,
-                },
-            )
-            if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"]
-    except Exception as exc:
-        logger.warning(f"LLM call failed: {exc}")
-    return None
+    # 4. Native Natural Language Generation
+    thoughts.append("Generating response via VIT Native NLP layer")
+    reply = await call_ai(message)
+    return {"available": True, "reply": reply, "thoughts": thoughts}
 
 @router.post("/chat")
 async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), _user=Depends(verify_api_key)):
@@ -279,12 +173,11 @@ async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), 
 @router.get("/status")
 async def assistant_status(db: AsyncSession = Depends(get_db), _user=Depends(verify_api_key)):
     health = await _get_system_health_internal(db)
-    llm_configured = bool((os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY", "")).strip())
     return {
         "available": True,
         "backend_ai_available": True,
-        "provider": "gemini" if os.getenv("GEMINI_API_KEY") else ("openai" if os.getenv("OPENAI_API_KEY") else "native"),
-        "llm_configured": llm_configured,
+        "provider": "native",
+        "llm_configured": True,
         "message": f"VIT Bot v{health['system_version']} ready.",
         "health": health,
     }

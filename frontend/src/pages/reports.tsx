@@ -97,10 +97,7 @@ function timeAgo(iso: string | null): string {
 // ─── Provider Status Bar ──────────────────────────────────────────────────────
 
 const PROVIDER_META: Record<string, { label: string; color: string }> = {
-  gemini: { label: "Gemini", color: "text-blue-400" },
-  claude: { label: "Claude", color: "text-violet-400" },
-  openai: { label: "OpenAI", color: "text-emerald-400" },
-  grok:   { label: "Grok",   color: "text-amber-400" },
+  native: { label: "VIT Native", color: "text-primary" },
 };
 
 
