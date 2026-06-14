@@ -58,7 +58,7 @@ const AGENT_META: Record<string, { label: string; category: string; icon: React.
   "revenue-optimizer":     { label: "Revenue Optimizer",      category: "Finance",      icon: <DollarSign className="w-4 h-4" />,  description: "Daily revenue analytics and pricing recs" },
   "accumulator-publisher": { label: "Accumulator Publisher",  category: "Publishing",   icon: <Zap className="w-4 h-4" />,         description: "Auto-publishes best accumulators to Telegram" },
   "analytics-reporter":    { label: "Analytics Reporter",     category: "Reporting",    icon: <BarChart3 className="w-4 h-4" />,   description: "Weekly narrative analytics report" },
-  "marketplace-audit":     { label: "Marketplace Auditor",    category: "Platform",     icon: <Settings className="w-4 h-4" />,    description: "Claude code audits marketplace listings" },
+  "marketplace-audit":     { label: "Marketplace Auditor",    category: "Platform",     icon: <Settings className="w-4 h-4" />,    description: "Internal code audits marketplace listings" },
   "governance-executor":   { label: "Governance Executor",    category: "Platform",     icon: <Settings className="w-4 h-4" />,    description: "Auto-executes passed proposals after timelock" },
   "self-healing":          { label: "Self-Healing Monitor",   category: "Infrastructure", icon: <Cpu className="w-4 h-4" />,      description: "Watches agents + applies auto-fixes" },
 };

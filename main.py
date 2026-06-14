@@ -2048,7 +2048,7 @@ app.include_router(market_training_router)
 from app.api.routes.similarity import router as similarity_router
 app.include_router(similarity_router)
 
-# Advanced AI Analytics (OpenAI advanced + Grok advanced)
+# Advanced AI Analytics (VIT Native Ensemble)
 from app.api.routes.analytics import router as analytics_router
 app.include_router(analytics_router, prefix="/api")
 

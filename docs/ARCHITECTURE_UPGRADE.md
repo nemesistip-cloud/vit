@@ -18,7 +18,7 @@ Transform VIT from a sports prediction app into a multi-vertical, Google Cloud-n
 
 ### Intelligence
 - **VIT Native Ensemble (SCIE):** High-performance sports intelligence.
-- **Vertex AI / Gemini:** Advanced reasoning agents for Research, Education, and Governance.
+- **VIT Native Intelligence:** Advanced reasoning agents for Research, Education, and Governance.
 - **Document AI:** Automating verification and merchant onboarding.
 
 ### Security & Identity
@@ -35,7 +35,7 @@ Transform VIT from a sports prediction app into a multi-vertical, Google Cloud-n
 - [ ] Configure Cloud Monitoring dashboards for all verticals.
 
 ### Phase 2: AI & Research Ecosystem
-- [ ] Deploy Gemini-powered Research Agents in `app/modules/ai_core`.
+- [ ] Deploy Native-powered Research Agents in `app/modules/ai_core`.
 - [ ] Implement MCP (Model Context Protocol) server for ecosystem interoperability.
 - [ ] Create "Research Ledger" in `app/modules/academy`.
 
