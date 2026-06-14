@@ -8,7 +8,7 @@ Looks in (in order of priority):
   4. services/ml_service/models/  (old layout)
   5. Tachyon Storage Swarm (if TACHYON_STORAGE_ENABLED=true and pkl not found locally)
 
-Caches models in memory so they are only read from disk once.
+Caches models in memory using an LRU policy to bound memory usage.
 Returns None if the file is missing or fails to load, allowing
 the orchestrator to fall back to its algorithmic models.
 """
@@ -18,10 +18,13 @@ import tempfile
 import concurrent.futures
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
-_MODEL_CACHE: Dict[str, Any] = {}
+# LRU Cache settings
+MAX_MODELS_IN_MEMORY = int(os.environ.get("MAX_MODELS_IN_MEMORY", "12"))
+_MODEL_CACHE: OrderedDict[str, Any] = OrderedDict()
 
 # Root of the workspace (two levels up from this file: services/ml_service/ -> services/ -> workspace/)
 _WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
@@ -107,6 +110,8 @@ def load_model(model_key: str, cache_enabled: bool = True) -> Optional[Dict[str,
     codebase can always call payload['model'].predict_proba(X).
     """
     if cache_enabled and model_key in _MODEL_CACHE:
+        # Move to end (LRU)
+        _MODEL_CACHE.move_to_end(model_key)
         return _MODEL_CACHE[model_key]
 
     pkl_path = _find_pkl(model_key)
@@ -138,6 +143,10 @@ def load_model(model_key: str, cache_enabled: bool = True) -> Optional[Dict[str,
 
         if cache_enabled:
             _MODEL_CACHE[model_key] = payload
+            # Evict if over limit
+            if len(_MODEL_CACHE) > MAX_MODELS_IN_MEMORY:
+                evicted_key, _ = _MODEL_CACHE.popitem(last=False)
+                logger.info(f"ModelLoader: LRU evicted '{evicted_key}' to free memory")
 
         acc = payload.get("metrics", {}).get("accuracy", "?")
         samples = payload.get("training_samples", "?")
