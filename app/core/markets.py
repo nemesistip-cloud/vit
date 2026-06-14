@@ -32,8 +32,6 @@ SPORT_MARKETS = {
         "moneyline", "point_spread", "total_points_over_under",
         "first_half_spread", "first_half_total"
     ],
-}
-
     "rugby": [
         "match_winner",            # no draw (golden point / extra time settles ties)
         "handicap",
@@ -45,6 +43,7 @@ SPORT_MARKETS = {
         "handicap",
         "total_points_over_under",
     ],
+}
 
 def get_markets_for_sport(sport: str) -> list:
     return SPORT_MARKETS.get(sport.lower(), SPORT_MARKETS["soccer"])

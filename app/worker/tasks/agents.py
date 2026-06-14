@@ -53,6 +53,22 @@ class _AgentTask(Task):
              max_retries=3, default_retry_delay=60,
              autoretry_for=(Exception,), retry_backoff=True)
 def run_prediction_agent():
+    """PredictionAgent — generates predictions for upcoming matches."""
+    name = "prediction-agent"
+    _heartbeat(name, "running", {})
+    t0 = time.time()
+    try:
+        r = _run("app.agents.prediction_agent", "PredictionAgent")
+        _heartbeat(name, "ok", {"elapsed_s": round(time.time() - t0, 2)})
+        return r
+    except Exception as exc:
+        _heartbeat(name, "error", {"error": str(exc)}); raise
+
+
+@celery.task(name="agents.performance_monitor", base=_AgentTask,
+             max_retries=3, default_retry_delay=60,
+             autoretry_for=(Exception,), retry_backoff=True)
+def run_performance_monitor():
     """PerformanceMonitorAgent — tracks ML model accuracy metrics."""
     name = "performance-monitor"
     _heartbeat(name, "running", {})
