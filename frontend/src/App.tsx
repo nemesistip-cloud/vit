@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import React, { Suspense } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
@@ -11,8 +11,18 @@ import { GamblingAgeDisclaimer } from "@/components/gambling-age-disclaimer";
 import { wagmiConfig } from "@/lib/web3";
 import { WagmiProvider } from "wagmi";
 import { lazyRetry } from "@/lib/lazy-retry";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
 // Lazy-loaded pages with retry logic
+
+function ConfigInitializer({ children }: { children: React.ReactNode }) {
+  const { data } = usePublicConfig();
+  React.useEffect(() => {
+    if (data) { (window as any)._VIT_CONFIG = data; }
+  }, [data]);
+  return <>{children}</>;
+}
+
 const DashboardPage = lazyRetry(() => import("@/pages/dashboard"));
 const AuthPage = lazyRetry(() => import("@/pages/auth"));
 const LandingPage = lazyRetry(() => import("@/pages/landing"));
@@ -289,7 +299,7 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <AuthProvider>
+              <ConfigInitializer><AuthProvider>
                 <GamblingAgeDisclaimer />
                 <ErrorBoundary>
                   <Router />
@@ -304,7 +314,7 @@ function App() {
                     },
                   }}
                 />
-              </AuthProvider>
+              </AuthProvider></ConfigInitializer>
             </WouterRouter>
           </TooltipProvider>
         </QueryClientProvider>
