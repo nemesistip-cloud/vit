@@ -197,29 +197,31 @@ export default function LandingPage() {
       </nav>
 
       {/* ── Hero Section ────────────────────────────────── */}
-      <section className="relative pt-32 pb-20 px-4 md:px-8 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/5 rounded-full  -z-10" />
-        <div className="max-w-5xl mx-auto text-center">
-          <Badge variant="outline" className="mb-6 font-mono py-1.5 px-4 text-[10px] tracking-[0.2em] uppercase border-primary/30 bg-primary/5 text-primary">
-            {publicCfg?.platform.version || 'v5.5.0'} — The Intelligence Super App
+      <section className="relative pt-40 pb-32 px-4 md:px-8 overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-24 w-px h-24 bg-gradient-to-b from-transparent via-primary/50 to-primary/0 hidden md:block" />
+        <div className="max-w-5xl mx-auto text-center relative">
+          <Badge variant="outline" className="mb-6 font-mono py-1.5 px-4 text-[10px] tracking-[0.3em] uppercase border-primary/20 bg-primary/5 text-primary animate-pulse">
+            {publicCfg?.platform.version || 'v5.5.0'} — Intelligence Operating System
           </Badge>
-          <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tight mb-6 leading-[1.1]">
-            Institutional-Grade <br />
-            <span className="vit-gradient-text">Sports Intelligence</span>
+          <h1 className="text-6xl md:text-9xl font-bold font-display uppercase tracking-tighter mb-6 leading-[0.85] text-foreground">
+            VIT <span className="text-primary">Network</span>
           </h1>
-          <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-            A {modelCount}-model AI ensemble. Real-time signal generation.
-            Network-verified outcomes. Built for precision.
+          <p className="text-muted-foreground text-lg md:text-2xl max-w-3xl mx-auto mb-10 leading-relaxed font-sans">
+            The unified intelligence layer for <span className="text-foreground font-semibold">Sports</span>,
+            <span className="text-foreground font-semibold"> Elections</span>,
+            <span className="text-foreground font-semibold"> Policy</span>,
+            <span className="text-foreground font-semibold"> Finance</span>, and
+            <span className="text-foreground font-semibold"> Identity</span>.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register">
-              <Button size="lg" className="font-mono gap-2 px-8 h-14 text-md  ">
+              <Button size="lg" className="font-mono gap-2 px-8 h-14 text-md">
                 Access the Network
                 <ArrowRight className="w-5 h-5" />
               </Button>
             </Link>
-            <a href="#features">
-              <Button size="lg" variant="outline" className="font-mono px-8 h-14 text-md bg-background/50  border-white/5">
+            <a href="#signals">
+              <Button size="lg" variant="outline" className="font-mono px-8 h-14 text-md bg-background/50 border-white/5">
                 View Live Signals
               </Button>
             </a>
