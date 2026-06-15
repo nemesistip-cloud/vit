@@ -14,7 +14,7 @@ def generate_training_prompt(
     """
     Generate a structured AI training prompt from a quality report.
     Uses column_profile, quality_score, and config to produce a prompt
-    that can be used with Claude, Gemini, or GPT to guide training.
+    that can be used with the internal VIT ensemble to guide training.
     """
     score = quality_report.get("score", 0)
     grade = quality_report.get("grade", "F")

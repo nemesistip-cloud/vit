@@ -7,8 +7,8 @@ PORT="${PORT:-10000}"
 APP_VERSION="5.5.0"
 
 export ENVIRONMENT="${ENVIRONMENT:-production}"
-export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
-export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-true}"
+export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-false}"
+export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-false}"
 
 # Auto-generate ADMIN_PASSWORD
 if [ -z "${ADMIN_PASSWORD:-}" ]; then
@@ -20,7 +20,7 @@ echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Hybrid Mode: ML + SCIE Active"
 
 # Run schema setup
-python3 scripts/build.sh --skip-frontend || true
+bash scripts/build.sh --skip-frontend || true
 
 # Start FastAPI (Background Supervisor handles the agents)
 echo "[production] Starting VIT Network on port ${PORT}..."

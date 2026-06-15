@@ -1,18 +1,18 @@
 /**
  * VIT Intelligence Bridge
- * Replaces legacy Puter.js integration with Native VIT Bot hooks.
+ * Replaces legacy external integration with Native VIT Bot hooks.
  */
 
-export const isPuterAvailable = () => true;
+export const isNativeAIAvailable = () => true;
 
-export const puterChat = async (message: string, history: any[] = []) => {
+export const vitChat = async (message: string, history: any[] = []) => {
   return {
     reply: "I am the VIT Bot, powered by the VIT Network Ensemble. How can I assist you with market intelligence, match insights, or system health today?",
     thoughts: ["Accessing VIT Intelligence Layer", "Synchronizing with Network Ensemble"]
   };
 };
 
-export const analyzeMatchWithPuter = async (
+export const analyzeMatchWithVIT = async (
   home: string,
   away: string,
   league: string,
