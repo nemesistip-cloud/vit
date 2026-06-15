@@ -23,6 +23,71 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 from app.api.deps import get_current_admin
 _KEY_REGISTRY = [
+    # ── Google & Firebase Auth ──────────────────────────────────────
+    {
+        "name":        "GOOGLE_CLIENT_ID",
+        "label":       "Google Client ID",
+        "description": "OAuth 2.0 Web Client ID for Google Login",
+        "required":    False,
+        "group":       "Authentication",
+    },
+    {
+        "name":        "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+        "label":       "Google Service Account JSON",
+        "description": "Full JSON content of the Google Service Account key file",
+        "required":    False,
+        "group":       "Authentication",
+    },
+    {
+        "name":        "VITE_FIREBASE_API_KEY",
+        "label":       "Firebase API Key",
+        "description": "Firebase Web Configuration: API Key",
+        "required":    False,
+        "group":       "Authentication",
+    },
+    {
+        "name":        "VITE_FIREBASE_AUTH_DOMAIN",
+        "label":       "Firebase Auth Domain",
+        "description": "Firebase Web Configuration: Auth Domain",
+        "required":    False,
+        "group":       "Authentication",
+    },
+    {
+        "name":        "VITE_FIREBASE_PROJECT_ID",
+        "label":       "Firebase Project ID",
+        "description": "Firebase Web Configuration: Project ID",
+        "required":    False,
+        "group":       "Authentication",
+    },
+    {
+        "name":        "VITE_FIREBASE_STORAGE_BUCKET",
+        "label":       "Firebase Storage Bucket",
+        "description": "Firebase Web Configuration: Storage Bucket",
+        "required":    False,
+        "group":       "Authentication",
+    },
+    {
+        "name":        "VITE_FIREBASE_MESSAGING_SENDER_ID",
+        "label":       "Firebase Messaging Sender ID",
+        "description": "Firebase Web Configuration: Messaging Sender ID",
+        "required":    False,
+        "group":       "Authentication",
+    },
+    {
+        "name":        "VITE_FIREBASE_APP_ID",
+        "label":       "Firebase App ID",
+        "description": "Firebase Web Configuration: App ID",
+        "required":    False,
+        "group":       "Authentication",
+    },
+    {
+        "name":        "VITE_FIREBASE_MEASUREMENT_ID",
+        "label":       "Firebase Measurement ID",
+        "description": "Firebase Web Configuration: Measurement ID (optional)",
+        "required":    False,
+        "group":       "Authentication",
+    },
+
     # ── Sports Data ────────────────────────────────────────────────────
     {
         "name":        "FOOTBALL_DATA_API_KEY",

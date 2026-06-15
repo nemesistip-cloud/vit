@@ -365,9 +365,8 @@ async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_
     """Authenticate a user using a Google ID token."""
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
-    from app.config import GOOGLE_CLIENT_ID
-
-    google_client_id = GOOGLE_CLIENT_ID
+    from app.config import GOOGLE_CLIENT_ID, get_env
+    google_client_id = GOOGLE_CLIENT_ID or get_env("GOOGLE_CLIENT_ID")
     if not google_client_id:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
