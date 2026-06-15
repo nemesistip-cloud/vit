@@ -1,3 +1,4 @@
+import { usePublicConfig } from "@/lib/usePublicConfig";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,7 +78,9 @@ export default function InfoPage({ type }: { type: keyof typeof content }) {
             {page.sections.map((section) => (
               <section key={section.heading}>
                 <h2 className="mb-2 text-lg font-semibold">{section.heading}</h2>
-                <p className="text-sm leading-6 text-muted-foreground">{section.body}</p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {section.body.replace("{config?.platform?.model_count || 13}", String(config?.platform?.model_count || 13))}
+                </p>
               </section>
             ))}
           </CardContent>
