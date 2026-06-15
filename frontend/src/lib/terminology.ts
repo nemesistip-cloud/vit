@@ -2,7 +2,7 @@ export const TERMS = {
   platform: {
     name: "VIT Network",
     shortName: "VIT Network",
-    tagline: "Institutional-Grade Sports Intelligence",
+    tagline: "The Unified Intelligence Layer",
     version: "v5.5.0",
   },
   tiers: {

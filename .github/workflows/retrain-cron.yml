@@ -1,0 +1,29 @@
+name: Retrain Models Cron
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run retrain script
+        env:
+          TACHYON_STORAGE_ENABLED: 'true'
+          TACHYON_ENDPOINT: 'https://vit-hmt1.onrender.com/api/tachyon'
+        run: python scripts/retrain_cron.py

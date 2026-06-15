@@ -1,3 +1,5 @@
+from app.modules.quant.service import QuantService
+from app.modules.quant.models import StrategyVault, UserVaultPosition
 """
 VIT Quant Engine — Phase 2
 Exposes backtesting, Monte Carlo simulation, EV scanning, and strategy optimisation
@@ -626,3 +628,73 @@ async def native_monte_carlo(
         "median_roi_pct": round((pct(50) - initial_bankroll) / initial_bankroll * 100, 2),
         "distribution": all_finals,
     }
+
+
+# ---------------------------------------------------------------------------
+# 7.  Strategy Vaults (Yield Farming)
+# ---------------------------------------------------------------------------
+
+@router.get("/vaults")
+async def list_vaults(db: AsyncSession = Depends(get_db)):
+    """List all active strategy vaults and current TVL."""
+    svc_quant = QuantService(db)
+    vaults = await svc_quant.get_active_vaults()
+    return [
+        {
+            "id": v.id,
+            "name": v.name,
+            "slug": v.slug,
+            "description": v.description,
+            "strategy_filter": v.strategy_filter,
+            "historical_roi_pct": float(v.historical_roi),
+            "win_rate_pct": float(v.win_rate * 100),
+            "total_staked": float(v.total_staked),
+            "max_cap": float(v.max_cap),
+            "status": v.status,
+            "last_rebalanced_at": v.last_rebalanced_at.isoformat() if v.last_rebalanced_at else None
+        }
+        for v in vaults
+    ]
+
+@router.post("/vaults/stake")
+async def stake_vault(
+    vault_id: int = Query(...),
+    amount: float = Query(..., gt=0),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Stake VITCoin into a strategy vault to earn yield."""
+    svc_quant = QuantService(db)
+    try:
+        pos = await svc_quant.stake_in_vault(user.id, vault_id, Decimal(str(amount)))
+        return {
+            "status": "staked",
+            "vault_id": vault_id,
+            "new_balance": float(pos.staked_balance)
+        }
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+@router.post("/vaults/harvest")
+async def harvest_vault(
+    vault_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Claim accumulated yield from a strategy vault."""
+    svc_quant = QuantService(db)
+    amount = await svc_quant.harvest_yield(user.id, vault_id)
+    return {
+        "status": "harvested",
+        "amount": float(amount)
+    }
+
+@router.post("/vaults/bootstrap", include_in_schema=False)
+async def bootstrap_vaults(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """Admin: Initialize default strategy vaults."""
+    svc_quant = QuantService(db)
+    await svc_quant.bootstrap_default_vaults()
+    return {"status": "bootstrapped"}
