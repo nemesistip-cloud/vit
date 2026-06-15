@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, ReferenceLine, Cell,
 } from "recharts";
 import {
-  FlaskConical, TrendingUp, Zap, SlidersHorizontal,
+  FlaskConical, TrendingUp, Sprout, Zap, SlidersHorizontal,
   RefreshCw, ChevronDown, ChevronUp, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -608,6 +608,90 @@ function StrategyPanel({ token }: { token: string }) {
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ════════════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════════════
+// SECTION 5 — Strategy Vaults (Yield Farming)
+// ════════════════════════════════════════════════════════════════════════════
+function VaultPanel({ token }: { token: string }) {
+  const { data: vaults, isLoading, refetch } = useQuery({
+    queryKey: ["quant-vaults"],
+    queryFn: () => fetchJson(`${API}/vaults`, token),
+    staleTime: 60_000,
+  });
+
+  const [staking, setStaking] = useState<number | null>(null);
+  const [harvesting, setHarvesting] = useState<number | null>(null);
+
+  const handleStake = async (vaultId: number) => {
+    const amount = prompt("Enter amount of VIT to stake:", "100");
+    if (!amount || isNaN(Number(amount))) return;
+
+    setStaking(vaultId);
+    try {
+      await fetchJson(`${API}/vaults/stake?vault_id=${vaultId}&amount=${amount}`, token, { method: "POST" });
+      refetch();
+      alert("Successfully staked into vault!");
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setStaking(null);
+    }
+  };
+
+  const handleHarvest = async (vaultId: number) => {
+    setHarvesting(vaultId);
+    try {
+      const res = await fetchJson(`${API}/vaults/harvest?vault_id=${vaultId}`, token, { method: "POST" });
+      refetch();
+      alert(`Harvested ${res.amount} VIT from strategy yield!`);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setHarvesting(null);
+    }
+  };
+
+  return (
+    <Panel title="Strategy Vaults (Farming)" icon={Sprout}>
+      <div className="space-y-3">
+        {isLoading && <Loader />}
+        {vaults?.map((v: any) => (
+          <div key={v.id} className="p-3 rounded-lg border border-border bg-card/50 flex flex-col gap-3">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-sm font-bold font-mono">{v.name}</h3>
+                <p className="text-[10px] text-muted-foreground font-mono">{v.description || "Automated strategy execution vault."}</p>
+              </div>
+              <div className="text-right">
+                <div className="text-emerald-400 text-sm font-bold font-mono">+{v.historical_roi_pct}% APY</div>
+                <div className="text-[10px] text-muted-foreground font-mono">TVL: {v.total_staked} VIT</div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleStake(v.id)}
+                disabled={staking === v.id}
+                className="flex-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold font-mono rounded hover:opacity-90 disabled:opacity-50"
+              >
+                {staking === v.id ? "STAKING..." : "STAKE VIT"}
+              </button>
+              <button
+                onClick={() => handleHarvest(v.id)}
+                disabled={harvesting === v.id}
+                className="px-3 py-1.5 border border-primary/30 text-primary text-xs font-bold font-mono rounded hover:bg-primary/5 disabled:opacity-50"
+              >
+                {harvesting === v.id ? "..." : "HARVEST"}
+              </button>
+            </div>
+          </div>
+        ))}
+        {vaults?.length === 0 && <p className="text-center py-4 text-xs text-muted-foreground font-mono">No vaults active.</p>}
+      </div>
+    </Panel>
+  );
+}
+
 export default function ResearchPage() {
   const { user } = useAuth();
   const token = localStorage.getItem("vit_token") ?? "";
@@ -671,6 +755,7 @@ export default function ResearchPage() {
         <MonteCarloPanel token={token} />
         <EVScannerPanel token={token} />
         <StrategyPanel token={token} />
+        <VaultPanel token={token} />
       </div>
     </div>
   );
