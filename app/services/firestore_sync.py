@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, Optional
 import firebase_admin
 from firebase_admin import credentials, firestore
-from app.config import GOOGLE_APPLICATION_CREDENTIALS, GCS_PROJECT_ID
+from app.config import GOOGLE_APPLICATION_CREDENTIALS, GOOGLE_APPLICATION_CREDENTIALS_JSON, GCS_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,18 @@ def init_firestore():
     _init_attempted = True
     try:
         if not firebase_admin._apps:
+            import json
+            cred = None
             if GOOGLE_APPLICATION_CREDENTIALS:
                 cred = credentials.Certificate(GOOGLE_APPLICATION_CREDENTIALS)
+            elif GOOGLE_APPLICATION_CREDENTIALS_JSON:
+                try:
+                    cred_info = json.loads(GOOGLE_APPLICATION_CREDENTIALS_JSON)
+                    cred = credentials.Certificate(cred_info)
+                except Exception as je:
+                    logger.error(f"Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON: {je}")
+
+            if cred:
                 firebase_admin.initialize_app(cred, {
                     'projectId': GCS_PROJECT_ID,
                 })

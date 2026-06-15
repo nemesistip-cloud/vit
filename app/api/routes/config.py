@@ -9,7 +9,7 @@ from app.db.database import get_db
 from app.db.models import Match, Prediction, CLVEntry
 from app.modules.wallet.models import PlatformConfig
 from app.api.routes.subscription import PLANS
-from app.config import APP_NAME, APP_VERSION, APP_TAGLINE, APP_SHORT_NAME
+from app.config import APP_NAME, APP_VERSION, APP_TAGLINE, APP_SHORT_NAME, get_env
 
 router = APIRouter(prefix="/config", tags=["Config"])
 
@@ -173,6 +173,15 @@ async def _build_config(db: AsyncSession) -> Dict[str, Any]:
             "version":           APP_VERSION,
             "welcome_bonus_vit": welcome_bonus_vit,
             "model_count":       model_count,
+            "firebase": {
+                "apiKey":            get_env("VITE_FIREBASE_API_KEY", ""),
+                "authDomain":        get_env("VITE_FIREBASE_AUTH_DOMAIN", ""),
+                "projectId":         get_env("VITE_FIREBASE_PROJECT_ID", ""),
+                "storageBucket":     get_env("VITE_FIREBASE_STORAGE_BUCKET", ""),
+                "messagingSenderId": get_env("VITE_FIREBASE_MESSAGING_SENDER_ID", ""),
+                "appId":             get_env("VITE_FIREBASE_APP_ID", ""),
+                "measurementId":     get_env("VITE_FIREBASE_MEASUREMENT_ID", ""),
+            }
         },
     }
 
