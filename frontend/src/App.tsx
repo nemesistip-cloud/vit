@@ -2,8 +2,8 @@ import React, { Suspense } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
-import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Layout } from "@/components/layout";
@@ -26,6 +26,8 @@ function ConfigInitializer({ children }: { children: React.ReactNode }) {
 const DashboardPage = lazyRetry(() => import("@/pages/dashboard"));
 const AuthPage = lazyRetry(() => import("@/pages/auth"));
 const LandingPage = lazyRetry(() => import("@/pages/landing"));
+const AuthPage = lazyRetry(() => import("@/pages/auth"));
+const DashboardPage = lazyRetry(() => import("@/pages/dashboard"));
 const MatchesPage = lazyRetry(() => import("@/pages/matches"));
 const MatchDetailPage = lazyRetry(() => import("@/pages/match-detail"));
 const PredictionsPage = lazyRetry(() => import("@/pages/predictions"));
@@ -72,7 +74,7 @@ const ElectionsPage = lazyRetry(() => import("@/pages/elections"));
 const PolicyPage = lazyRetry(() => import("@/pages/policy"));
 const RemittancePage = lazyRetry(() => import("@/pages/remittance"));
 const CommunityPage = lazyRetry(() => import("@/pages/community"));
-const TeamsPage = lazyRetry(() => import("@/pages/teams"));
+const ProphecyPage = lazyRetry(() => import("@/pages/prophecy"));
 
 // Simple components
 const InfoPage = lazyRetry(() => import("@/pages/info"));
@@ -159,7 +161,10 @@ function Router() {
         <Layout><ProtectedRoute component={RemittancePage} /></Layout>
       </Route>
       <Route path="/community">
-        <Layout><ProtectedRoute component={TeamsPage} /></Layout>
+        <Layout><ProtectedRoute component={CommunityPage} /></Layout>
+      </Route>
+      <Route path="/prophecy">
+        <Layout><ProtectedRoute component={ProphecyPage} /></Layout>
       </Route>
       <Route path="/matches">
         <Layout><ProtectedRoute component={MatchesPage} /></Layout>

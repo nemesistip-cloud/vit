@@ -104,7 +104,7 @@ export default function WatchlistPage() {
       {/* Content */}
       {isLoading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 p-4 rounded-xl border border-border/30">
               <Skeleton className="w-9 h-9 rounded-lg" />
               <div className="flex-1 space-y-2">

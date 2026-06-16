@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/apiClient";
@@ -197,7 +198,7 @@ export default function ReferralPage() {
           <CardContent>
             {loadingStats ? (
               <div className="space-y-2">
-                {[1, 2, 3].map(i => <div key={i} className="h-8 bg-muted/30 rounded animate-pulse" />)}
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
               </div>
             ) : (stats?.referrals ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground font-mono py-4 text-center">
