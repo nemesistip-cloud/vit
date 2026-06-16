@@ -224,64 +224,95 @@ async def get_model_confidence(db: AsyncSession = Depends(get_db)):
 @router.get("/leaderboard")
 async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: AsyncSession = Depends(get_db)):
     try:
-        result = await db.execute(select(User).where(User.is_active == True, User.is_banned == False))
+        # 1. Fetch top users by XP first to avoid scanning the entire database
+        result = await db.execute(
+            select(User)
+            .where(User.is_active == True, User.is_banned == False)
+            .order_by(desc(User.total_xp))
+            .limit(limit)
+        )
         users = result.scalars().all()
+        if not users:
+            return {"leaderboard": [], "total": 0}
 
-        # Bulk-fetch user profits via CLVEntry → Prediction join to avoid N+1
-        profit_by_user: dict = {}
-        try:
-            profit_rows = (await db.execute(
-                select(Prediction.user_id, func.sum(CLVEntry.profit).label("total_profit"))
-                .join(CLVEntry, CLVEntry.prediction_id == Prediction.id)
-                .group_by(Prediction.user_id)
-            )).all()
-            profit_by_user = {row.user_id: float(row.total_profit or 0.0) for row in profit_rows}
-        except Exception:
-            pass
+        user_ids = [u.id for u in users]
+
+        # 2. Bulk fetch total predictions count for these users
+        pred_counts_res = await db.execute(
+            select(Prediction.user_id, func.count(Prediction.id))
+            .where(Prediction.user_id.in_(user_ids))
+            .group_by(Prediction.user_id)
+        )
+        pred_counts = {row[0]: row[1] for row in pred_counts_res.all()}
+
+        # 3. Bulk fetch profit from CLVEntry
+        profit_res = await db.execute(
+            select(Prediction.user_id, func.sum(CLVEntry.profit))
+            .join(CLVEntry, CLVEntry.prediction_id == Prediction.id)
+            .where(Prediction.user_id.in_(user_ids))
+            .group_by(Prediction.user_id)
+        )
+        user_profits = {row[0]: float(row[1] or 0.0) for row in profit_res.all()}
+
+        # 4. Bulk fetch settled predictions to calculate win rate and streak
+        settled_res = await db.execute(
+            select(Prediction.user_id, Prediction.bet_side, Match.actual_outcome)
+            .join(Match, Match.id == Prediction.match_id)
+            .where(Prediction.user_id.in_(user_ids))
+            .where(Prediction.bet_side.isnot(None))
+            .where(Match.actual_outcome.isnot(None))
+            .order_by(Prediction.user_id, Match.kickoff_time.desc())
+        )
+
+        settled_by_user = {}
+        for uid, side, outcome in settled_res.all():
+            if uid not in settled_by_user:
+                settled_by_user[uid] = []
+            settled_by_user[uid].append((side, outcome, None))
 
         leaderboard = []
-        for u in users:
-            settled_rows = await _settled_predictions_for_user(db, u.id)
+        for i, u in enumerate(users):
+            settled_rows = settled_by_user.get(u.id, [])
             user_wins, total_settled, streak = _wins_settled_streak(settled_rows)
-            total_preds = (await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == u.id))).scalar() or 0
+
+            total_preds = pred_counts.get(u.id, 0)
             xp = u.total_xp if u.total_xp else (total_preds * 10 + user_wins * 20)
             win_rate = round(user_wins / total_settled, 4) if total_settled > 0 else 0.0
+
             leaderboard.append({
-                "username": u.username, "xp": xp, "win_rate": win_rate, "level": "Novice",
-                "predictions": total_preds, "streak": streak,
-                "user_profit": profit_by_user.get(u.id, 0.0),
+                "rank": i + 1,
+                "username": u.username,
+                "xp": xp,
+                "win_rate": win_rate,
+                "level": "Novice",
+                "predictions": total_preds,
+                "streak": streak,
+                "user_profit": user_profits.get(u.id, 0.0),
             })
-        leaderboard.sort(key=lambda x: x["xp"], reverse=True)
-        leaderboard = leaderboard[:limit]
-        for i, entry in enumerate(leaderboard): entry["rank"] = i + 1
+
         return {"leaderboard": leaderboard, "total": len(leaderboard)}
     except Exception as e:
         logger.warning(f"leaderboard error: {e}")
         return {"leaderboard": [], "total": 0}
-
 @router.get("/achievements")
 async def get_achievements(current_user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    uid = current_user.id
+    total_all_preds = (await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == uid))).scalar() or 0
+    settled_rows = await _settled_predictions_for_user(db, uid)
+    total_wins, total_settled, _ = _wins_settled_streak(settled_rows)
+    win_rate = total_wins / total_settled if total_settled > 0 else 0.0
+    vitcoin_balance = 0.0
     try:
-        uid = current_user.id
-        total_all_preds = (await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == uid))).scalar() or 0
-        settled_rows = await _settled_predictions_for_user(db, uid)
-        total_wins, total_settled, _ = _wins_settled_streak(settled_rows)
-        win_rate = total_wins / total_settled if total_settled > 0 else 0.0
-        vitcoin_balance = 0.0
-        try:
-            from app.modules.wallet.models import Wallet
-            wallet = (await db.execute(select(Wallet).where(Wallet.user_id == uid))).scalar_one_or_none()
-            if wallet: vitcoin_balance = float(wallet.vitcoin_balance)
-        except Exception: pass
-        streak = getattr(current_user, "current_streak", 0) or 0
-        achievements = [
-            {"id": "first", "name": "First Blood", "earned": total_all_preds >= 1},
-            {"id": "accuracy70", "name": "Sharpshooter", "earned": total_settled >= 10 and win_rate >= 0.70},
-            {"id": "streak5", "name": "On Fire", "earned": streak >= 5},
-            {"id": "prediction50", "name": "Volume Player", "earned": total_all_preds >= 50},
-            {"id": "vitcoin1k", "name": "VIT Whale", "earned": vitcoin_balance >= 1000},
-        ]
-        return {"achievements": achievements}
-    except Exception as e:
-        logger.warning(f"achievements error: {e}")
-        return {"achievements": []}
+        from app.modules.wallet.models import Wallet
+        wallet = (await db.execute(select(Wallet).where(Wallet.user_id == uid))).scalar_one_or_none()
+        if wallet: vitcoin_balance = float(wallet.vitcoin_balance)
+    except Exception: pass
+    streak = getattr(current_user, "current_streak", 0) or 0
+    achievements = [
+        {"id": "first", "name": "First Blood", "earned": total_all_preds >= 1},
+        {"id": "accuracy70", "name": "Sharpshooter", "earned": total_settled >= 10 and win_rate >= 0.70},
+        {"id": "streak5", "name": "On Fire", "earned": streak >= 5},
+        {"id": "prediction50", "name": "Volume Player", "earned": total_all_preds >= 50},
+        {"id": "vitcoin1k", "name": "VIT Whale", "earned": vitcoin_balance >= 1000},
+    ]
+    return {"achievements": achievements}

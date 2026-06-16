@@ -1,5 +1,5 @@
-import { Suspense, lazy, useEffect } from "react";
-import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
+import React, { Suspense } from "react";
+import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/lib/theme";
@@ -7,25 +7,24 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Layout } from "@/components/layout";
-import { WagmiProvider } from 'wagmi';
-import { wagmiConfig } from '@/lib/web3';
-import GamblingAgeDisclaimer from "@/components/gambling-age-disclaimer";
+import { GamblingAgeDisclaimer } from "@/components/gambling-age-disclaimer";
+import { wagmiConfig } from "@/lib/web3";
+import { WagmiProvider } from "wagmi";
+import { lazyRetry } from "@/lib/lazy-retry";
+import { usePublicConfig } from "@/lib/usePublicConfig";
 
-/**
- * Lazy loading helper with retry logic
- */
-const lazyRetry = (componentImport: () => Promise<any>) => {
-  return lazy(async () => {
-    try {
-      return await componentImport();
-    } catch (error) {
-      console.error("Component load failed, retrying...", error);
-      return window.location.reload();
-    }
-  });
-};
+// Lazy-loaded pages with retry logic
 
-// Pages
+function ConfigInitializer({ children }: { children: React.ReactNode }) {
+  const { data } = usePublicConfig();
+  React.useEffect(() => {
+    if (data) { (window as any)._VIT_CONFIG = data; }
+  }, [data]);
+  return <>{children}</>;
+}
+
+const DashboardPage = lazyRetry(() => import("@/pages/dashboard"));
+const AuthPage = lazyRetry(() => import("@/pages/auth"));
 const LandingPage = lazyRetry(() => import("@/pages/landing"));
 const AuthPage = lazyRetry(() => import("@/pages/auth"));
 const DashboardPage = lazyRetry(() => import("@/pages/dashboard"));
@@ -305,7 +304,7 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <AuthProvider>
+              <ConfigInitializer><AuthProvider>
                 <GamblingAgeDisclaimer />
                 <ErrorBoundary>
                   <Router />
@@ -320,7 +319,7 @@ function App() {
                     },
                   }}
                 />
-              </AuthProvider>
+              </AuthProvider></ConfigInitializer>
             </WouterRouter>
           </TooltipProvider>
         </QueryClientProvider>
