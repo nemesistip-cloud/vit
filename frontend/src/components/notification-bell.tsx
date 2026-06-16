@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, Check, CheckCheck, Settings, X, ExternalLink, Link2, Link2Off, Send, FlaskConical } from "lucide-react";
+import { Bell, Check, CheckCheck, Settings, X, ExternalLink, Link2, Link2Off, Send, FlaskConical, BellOff } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
 
 interface Notification {
@@ -258,6 +259,7 @@ export function NotificationBell() {
                       size="icon"
                       className="h-7 w-7"
                       title="Mark all as read"
+                      aria-label="Mark all notifications as read"
                       onClick={() => markAllRead.mutate()}
                     >
                       <CheckCheck className="w-4 h-4 text-muted-foreground" />
@@ -268,6 +270,7 @@ export function NotificationBell() {
                     size="icon"
                     className="h-7 w-7"
                     title="Preferences"
+                    aria-label="Notification settings"
                     onClick={() => setShowPrefs(true)}
                   >
                     <Settings className="w-4 h-4 text-muted-foreground" />
@@ -467,17 +470,30 @@ export function NotificationBell() {
           {!showPrefs && (
             <div className="max-h-96 overflow-y-auto divide-y divide-border">
               {notifications.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">
-                  No notifications yet
+                <div className="p-4">
+                  <EmptyState
+                    icon={BellOff}
+                    title="No notifications"
+                    description="You're all caught up! New alerts will appear here."
+                    size="sm"
+                  />
                 </div>
               ) : (
                 notifications.map((n) => (
                   <div
                     key={n.id}
-                    className={`flex gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer ${
+                    role="button"
+                    tabIndex={0}
+                    className={`flex gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer outline-none focus-visible:bg-muted/60 ${
                       !n.is_read ? "bg-primary/5" : ""
                     }`}
                     onClick={() => !n.is_read && markRead.mutate(n.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (!n.is_read) markRead.mutate(n.id);
+                      }
+                    }}
                   >
                     <span className="text-xl leading-none mt-0.5">
                       {TYPE_ICONS[n.type] ?? "🔔"}
