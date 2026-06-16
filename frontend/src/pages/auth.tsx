@@ -6,7 +6,7 @@ import * as z from "zod";
 import { useLogin, useRegister, useGoogleLogin } from "@/api-client";
 import { useAuth } from "@/lib/auth";
 import { apiPost } from "@/lib/apiClient";
-import { auth, googleProvider, isFirebaseConfigured } from "@/lib/firebase";
+import { auth, googleProvider, isFirebaseConfigured, getDynamicAuth } from "@/lib/firebase";
 import { signInWithPopup } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -166,12 +166,14 @@ export default function AuthPage() {
   };
 
   const onGoogleLogin = async () => {
-    if (!isFirebaseConfigured || !auth || !googleProvider) {
+    if ((!isFirebaseConfigured && !auth) || !googleProvider) {
       toast.error("Google Login is not configured on this environment.");
       return;
     }
     try {
-      const result = await signInWithPopup(auth, googleProvider);
+      const activeAuth = auth || getDynamicAuth();
+      if (!activeAuth) throw new Error("Firebase Auth not initialized");
+      const result = await signInWithPopup(activeAuth, googleProvider);
       const idToken = await result.user.getIdToken();
       const res = await googleLoginMutation.mutateAsync({ id_token: idToken });
       setAuthToken(res.access_token, res.refresh_token);

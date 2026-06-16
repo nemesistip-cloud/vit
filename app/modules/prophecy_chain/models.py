@@ -5,6 +5,11 @@ from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.db.database import Base
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+
 class ProphecyChapter(Base):
     __tablename__ = "prophecy_chapters"
 
@@ -24,7 +29,7 @@ class ProphecyChapter(Base):
     reward_badge = Column(String(100), nullable=True)
 
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=_utcnow_naive)
 
 class UserProphecyProgress(Base):
     __tablename__ = "user_prophecy_progress"
@@ -40,8 +45,8 @@ class UserProphecyProgress(Base):
     total_qualified_wins = Column(Integer, default=0)
     current_accuracy = Column(Float, default=0.0)
 
-    last_evaluated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_evaluated_at = Column(DateTime(timezone=True), default=_utcnow_naive)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow_naive, onupdate=_utcnow_naive)
 
     # Relationships
     user = relationship("User", backref="prophecy_progress")
@@ -49,4 +54,4 @@ class UserProphecyProgress(Base):
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)

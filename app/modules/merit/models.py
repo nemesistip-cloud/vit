@@ -11,6 +11,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+
 
 class MeritTier(str, enum.Enum):
     UNRANKED = "unranked"
@@ -80,9 +85,9 @@ class MeritScore(Base):
     bonus_vit_earned: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        default=_utcnow_naive, onupdate=_utcnow_naive
     )
 
     events: Mapped[list["MeritEvent"]] = relationship(
@@ -107,7 +112,7 @@ class MeritEvent(Base):
     bonus_vit: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))
     ref_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    occurred_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    occurred_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
 
     merit_score: Mapped["MeritScore"] = relationship(back_populates="events")
 
