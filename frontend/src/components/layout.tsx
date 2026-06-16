@@ -261,7 +261,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <div className="text-[9px] font-mono text-muted-foreground/60 tracking-widest uppercase">Analytics</div>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} className="h-8 w-8">
+              <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} className="h-8 w-8" aria-label="Close menu">
                 <XIcon className="w-4 h-4" />
               </Button>
             </div>
@@ -275,7 +275,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <div className="text-xs font-mono font-semibold text-foreground truncate">{user.username}</div>
                   <div className={`inline-flex items-center rounded px-1 py-0 text-[9px] font-mono border mt-0.5 ${tierBadge.cls}`}>{tierBadge.label}</div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7 flex-shrink-0">
+                <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7 flex-shrink-0" aria-label="Logout">
                   <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground" />
                 </Button>
               </div>
@@ -310,7 +310,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {theme === "dark" ? <SunIcon className="w-3.5 h-3.5 text-yellow-400/70" /> : <MoonIcon className="w-3.5 h-3.5 text-blue-400/70" />}
               </Button>
               <NotificationBell />
-              <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7">
+              <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7" aria-label="Logout">
                 <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
               </Button>
             </div>

@@ -241,6 +241,7 @@ export function NotificationBell() {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
+                  aria-label="Close settings"
                   onClick={() => {
                     if (showTgLink) setShowTgLink(false);
                     else setShowPrefs(false);

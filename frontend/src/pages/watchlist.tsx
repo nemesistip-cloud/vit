@@ -52,7 +52,7 @@ function WatchedMatchCard({ match, onRemove }: { match: any; onRemove: () => voi
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <Link href={`/matches/${match.id}`}>
-          <Button variant="ghost" size="icon" className="h-7 w-7">
+          <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="View match details">
             <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
           </Button>
         </Link>
@@ -60,6 +60,7 @@ function WatchedMatchCard({ match, onRemove }: { match: any; onRemove: () => voi
           variant="ghost" size="icon" className="h-7 w-7"
           onClick={onRemove}
           title="Remove from watchlist"
+          aria-label="Remove from watchlist"
         >
           <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-rose-400 transition-colors" />
         </Button>

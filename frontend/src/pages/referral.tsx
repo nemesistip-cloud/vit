@@ -74,14 +74,14 @@ export default function ReferralPage() {
     navigator.clipboard.writeText(myCode.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success("Address copied to clipboard to clipboard");
+    toast.success("Referral code copied to clipboard");
   };
 
   const shareLink = () => {
     if (!myCode) return;
     const url = `${window.location.origin}${myCode.share_url}`;
     navigator.clipboard.writeText(url);
-    toast.success("Address copied to clipboard");
+    toast.success("Referral link copied to clipboard");
   };
 
   if (codeError) {
@@ -137,7 +137,7 @@ export default function ReferralPage() {
             Your Referral Code
           </CardTitle>
           <CardDescription className="font-mono text-xs">
-            Share this code with friends. h of you get {myCode?.bonus_per_referral_vit ?? 50} VITCoin when they sign up.
+            Share this code with friends. Both of you get {myCode?.bonus_per_referral_vit ?? 50} VITCoin when they sign up.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -148,10 +148,10 @@ export default function ReferralPage() {
               <div className="flex-1 font-mono text-2xl font-bold tracking-[0.3em] bg-muted/30 rounded-lg px-4 py-3 border border-border/50 text-center text-primary">
                 {myCode?.code ?? "------"}
               </div>
-              <Button variant="outline" size="icon" onClick={copyCode} className="h-auto px-4">
+              <Button variant="outline" size="icon" onClick={copyCode} className="h-auto px-4" aria-label="Copy referral code">
                 {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
               </Button>
-              <Button variant="outline" size="icon" onClick={shareLink} className="h-auto px-4">
+              <Button variant="outline" size="icon" onClick={shareLink} className="h-auto px-4" aria-label="Share referral link">
                 <Share2 className="w-4 h-4" />
               </Button>
             </div>
