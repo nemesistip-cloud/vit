@@ -11,6 +11,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+
 
 class StorageProofStatus(str, enum.Enum):
     PENDING = "pending"
@@ -54,7 +59,7 @@ class ContentHashRegistry(Base):
     pinned: Mapped[bool] = mapped_column(default=False)
     anchor_block: Mapped[Optional[int]] = mapped_column(nullable=True)
     anchor_tx: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
-    registered_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    registered_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     last_verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     # Storage System Extensions
@@ -92,7 +97,7 @@ class StorageProof(Base):
     reward_earned: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    submitted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    submitted_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -122,8 +127,8 @@ class StorageChallenge(Base):
     slash_amount: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    response_deadline: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
-    issued_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    response_deadline: Mapped[datetime] = mapped_column(default=_utcnow_naive)
+    issued_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     responded_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -145,7 +150,7 @@ class DataAvailabilityAttestation(Base):
     available: Mapped[bool] = mapped_column(default=True)
     latency_ms: Mapped[Optional[int]] = mapped_column(nullable=True)
     signature: Mapped[str] = mapped_column(String(200))
-    attested_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    attested_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
 
 
 class TachyonManifest(Base):
@@ -169,7 +174,7 @@ class TachyonManifest(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        default=_utcnow_naive
     )
 
 
@@ -209,4 +214,4 @@ class UserStorageNode(Base):
     verification_pass: Mapped[int] = mapped_column(default=0)
 
     last_verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
