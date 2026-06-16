@@ -7,6 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+
 def _utcnow():
     return datetime.now(timezone.utc)
 
@@ -35,7 +40,7 @@ class StrategyVault(Base):
 
     status: Mapped[str] = mapped_column(String(32), default="active") # active, closed, paused
 
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     last_rebalanced_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     positions: Mapped[list["UserVaultPosition"]] = relationship(back_populates="vault", cascade="all, delete-orphan")
@@ -56,7 +61,7 @@ class UserVaultPosition(Base):
 
     entry_roi: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0"))
 
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
+    updated_at: Mapped[datetime] = mapped_column(default=_utcnow_naive, onupdate=_utcnow_naive)
 
     vault: Mapped["StrategyVault"] = relationship(back_populates="positions")

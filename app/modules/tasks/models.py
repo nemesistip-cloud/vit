@@ -10,6 +10,11 @@ from sqlalchemy import DECIMAL
 
 from app.db.database import Base
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+
 
 class TaskType(PyEnum):
     ONE_TIME = "one_time"      # Complete once, earn reward
@@ -86,7 +91,7 @@ class Task(Base):
     # Audit
     created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow_naive, onupdate=func.now())
 
     # Relationships
     category = relationship("TaskCategory", back_populates="tasks")
@@ -117,7 +122,7 @@ class UserTaskCompletion(Base):
     total_xp_earned: Mapped[int] = mapped_column(Integer, default=0)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow_naive, onupdate=func.now())
 
     # Relationships
     user = relationship("User", back_populates="task_completions")

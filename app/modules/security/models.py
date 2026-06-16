@@ -11,6 +11,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+
 
 class SybilRisk(str, enum.Enum):
     CLEAN = "clean"
@@ -70,9 +75,9 @@ class SybilProfile(Base):
     )
     flags: Mapped[str] = mapped_column(Text, default="")
     last_evaluated_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        default=_utcnow_naive, onupdate=_utcnow_naive
     )
 
 
@@ -97,7 +102,7 @@ class FraudAlert(Base):
     resolution_action: Mapped[Optional[str]] = mapped_column(
         String(200), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
 
@@ -117,7 +122,7 @@ class MultiSigOperation(Base):
     execution_tx: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     executed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
 
     signatures: Mapped[list["MultiSigSignature"]] = relationship(
         back_populates="operation", cascade="all, delete-orphan"
@@ -139,7 +144,7 @@ class MultiSigSignature(Base):
     )
     signature_hash: Mapped[str] = mapped_column(String(66))
     approved: Mapped[bool] = mapped_column(default=True)
-    signed_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    signed_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
 
     operation: Mapped["MultiSigOperation"] = relationship(back_populates="signatures")
 
@@ -166,7 +171,7 @@ class WalletFreeze(Base):
     )
     lift_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     auto_lift_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    frozen_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    frozen_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     lifted_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
 
@@ -180,10 +185,10 @@ class RateLimitLedger(Base):
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     endpoint: Mapped[str] = mapped_column(String(200))
     call_count: Mapped[int] = mapped_column(default=1)
-    window_start: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
-    window_end: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    window_start: Mapped[datetime] = mapped_column(default=_utcnow_naive)
+    window_end: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     blocked: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
 
 
 def _utcnow():

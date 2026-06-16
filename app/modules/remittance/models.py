@@ -5,6 +5,11 @@ from app.db.database import Base
 from decimal import Decimal
 from typing import Optional
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+
 class RemittanceTransaction(Base):
     __tablename__ = "remittance_transactions"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -17,7 +22,7 @@ class RemittanceTransaction(Base):
     reference: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     recipient_address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     sender_address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow_naive)
 
     # Legacy compatibility
     currency_from: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
