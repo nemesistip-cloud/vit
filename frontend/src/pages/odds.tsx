@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
@@ -199,7 +200,7 @@ function AllMarketsTab() {
 
       {isLoading && !data && (
         <div className="space-y-2">
-          {[1, 2, 3].map(i => (
+           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-28 bg-muted/20 rounded-lg animate-pulse" />
           ))}
         </div>
@@ -501,7 +502,7 @@ function OddsCompare() {
 
       {isLoading && !data && (
         <div className="space-y-2">
-          {[1, 2, 3].map(i => <div key={i} className="h-28 bg-muted/20 rounded-lg animate-pulse" />)}
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}
         </div>
       )}
 
@@ -636,7 +637,7 @@ function ArbitrageScanner() {
 
       {isLoading && !data && (
         <div className="space-y-2">
-          {[1, 2, 3].map(i => <div key={i} className="h-20 bg-muted/20 rounded-lg animate-pulse" />)}
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
         </div>
       )}
 
