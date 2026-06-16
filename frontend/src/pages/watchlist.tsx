@@ -52,7 +52,7 @@ function WatchedMatchCard({ match, onRemove }: { match: any; onRemove: () => voi
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <Link href={`/matches/${match.id}`}>
-          <Button variant="ghost" size="icon" className="h-7 w-7">
+          <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="View match details">
             <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
           </Button>
         </Link>
@@ -60,6 +60,7 @@ function WatchedMatchCard({ match, onRemove }: { match: any; onRemove: () => voi
           variant="ghost" size="icon" className="h-7 w-7"
           onClick={onRemove}
           title="Remove from watchlist"
+          aria-label="Remove from watchlist"
         >
           <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-rose-400 transition-colors" />
         </Button>
@@ -103,7 +104,7 @@ export default function WatchlistPage() {
       {/* Content */}
       {isLoading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 p-4 rounded-xl border border-border/30">
               <Skeleton className="w-9 h-9 rounded-lg" />
               <div className="flex-1 space-y-2">
