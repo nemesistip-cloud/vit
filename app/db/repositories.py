@@ -67,6 +67,18 @@ class MatchRepository:
         return result.scalars().all()
 
 
+
+    async def search_by_team(self, name: str, limit: int = 10) -> List[Match]:
+        """Search for matches by team name"""
+        result = await self.db.execute(
+            select(Match)
+            .where((Match.home_team.ilike(f"%{name}%")) | (Match.away_team.ilike(f"%{name}%")))
+            .order_by(Match.kickoff_time.desc())
+            .limit(limit)
+        )
+        return result.scalars().all()
+
+
 class PredictionRepository:
     """Data access layer for predictions"""
 

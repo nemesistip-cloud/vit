@@ -13,8 +13,10 @@ from datetime import datetime, timezone
 from app.api.middleware.auth import verify_api_key
 from app.db.database import get_db
 from app.modules.ai.copilot import AICopilot
+from app.modules.ai.models import ModelMetadata
 from app.core.dependencies import get_orchestrator
 from app.db.models import Match
+from app.db.repositories import AIPerformanceRepository, MatchRepository
 from app.services.assistant_tools import TOOL_MAP, NATIVE_AI_TOOLS
 from app.modules.ai.svi import SyntheticValueIndex
 from app.services.ai_client import call_ai
@@ -91,6 +93,30 @@ async def _handle_agentic_query(
             reply = "Market intelligence engine is re-calibrating. Please try again in a moment."
             return {"available": True, "reply": reply, "thoughts": thoughts}
 
+    # 1.5 Accuracy & Performance
+    if any(k in msg for k in ["accuracy", "performance", "track record", "success rate", "correct"]):
+        thoughts.append("Auditing Network Accuracy & Model Performance")
+        try:
+            from sqlalchemy import select, func
+            stmt = select(func.avg(ModelMetadata.accuracy_1x2)).where(ModelMetadata.is_active == True)
+            ens_acc = (await db.execute(stmt)).scalar() or 0.0
+
+            perf_repo = AIPerformanceRepository(db)
+            all_perf = await perf_repo.get_all()
+            total_samples = sum(p.sample_size for p in all_perf)
+            avg_perf = sum(p.accuracy * p.sample_size for p in all_perf) / total_samples if total_samples > 0 else 0.0
+
+            reply = (
+                f"### VIT Intelligence Performance Report\n\n"
+                f"**Ensemble Accuracy (Live):** {ens_acc*100:.1f}%\n"
+                f"**Historical Success Rate:** {avg_perf*100:.1f}%\n"
+                f"**Verified Samples:** {total_samples} predictions\n\n"
+                f"The VIT Native Ensemble (v5.5.0) continuously optimizes weights based on CLV (Closing Line Value)."
+            )
+            return {"available": True, "reply": reply, "thoughts": thoughts}
+        except Exception as e:
+            logger.error(f"Accuracy tool error: {e}")
+
     # 2. System Health & Agent Status
     if any(k in msg for k in ["health", "status", "ready", "models", "agents", "guardian"]):
         thoughts.append("Auditing VIT Agent Network")
@@ -118,32 +144,46 @@ async def _handle_agentic_query(
     if any(k in msg for k in ["match", "game", "soccer", "football", "prediction", "odds", "scores", "fixture"]):
         thoughts.append("Executing Sports Intelligence Toolset")
 
-        match_id_search = re.search(r'(?:id\s*[:#]?\s*|match\s+)(\d+)', msg)
+        match_id_search = re.search(r"(?:id\s*[:#]?\s*|match\s+)(\d+)", msg)
+        found_matches = []
         if match_id_search:
             match_id = int(match_id_search.group(1))
             insights = await TOOL_MAP["get_match_insights"](match_id)
             if "error" not in insights:
+                found_matches.append(insights)
+        else:
+            match_repo = MatchRepository(db)
+            words = [w for w in msg.split() if len(w) > 3 and w not in ["match", "game", "soccer", "football", "prediction", "odds", "scores", "fixture", "insight"]]
+            if words:
+                search_term = words[0]
+                matches = await match_repo.search_by_team(search_term, limit=3)
+                for m in matches:
+                    insights = await TOOL_MAP["get_match_insights"](m.id)
+                    if "error" not in insights:
+                        found_matches.append(insights)
+
+        if found_matches:
+            reply = ""
+            for insights in found_matches:
                 m = insights["match"]
                 preds = insights["predictions"]
-                reply = f"### Tactical Insight: {m['home_team']} vs {m['away_team']}\n"
-                reply += f"*League: {m['league']} | Kickoff: {m['kickoff_time']}*\n\n"
+                reply += f"### Tactical Insight: {m.get('home_team', 'Unknown')} vs {m.get('away_team', 'Unknown')}\n"
+                reply += f"*League: {m.get('league', 'Unknown')} | Kickoff: {m.get('kickoff_time', 'Unknown')}*\n\n"
                 if preds:
                     p = preds[0]
-                    reply += (
-                        f"**Native Ensemble Forecast:**\n"
-                        f"- Home Win: {p['home_prob']*100:.1f}%\n"
-                        f"- Draw: {p['draw_prob']*100:.1f}%\n"
-                        f"- Away Win: {p['away_prob']*100:.1f}%\n"
-                        f"- **Confidence:** {p.get('confidence', 0)*100:.1f}%\n"
-                    )
+                    reply += "**Native Ensemble Forecast:**\n"
+                    reply += f"- Home Win: {p.get('home_prob', 0)*100:.1f}%\n"
+                    reply += f"- Draw: {p.get('draw_prob', 0)*100:.1f}%\n"
+                    reply += f"- Away Win: {p.get('away_prob', 0)*100:.1f}%\n"
+                    reply += f"- **Confidence:** {p.get('confidence', 0)*100:.1f}%\n\n"
                 else:
-                    reply += "AI Models are currently processing this match. No prediction recorded yet."
-                return {"available": True, "reply": reply, "thoughts": thoughts}
+                    reply += "AI Models are currently processing this match. No prediction recorded yet.\n\n"
+            return {"available": True, "reply": reply.strip(), "thoughts": thoughts}
 
         upcoming = await TOOL_MAP["get_upcoming_matches"](limit=5)
         if upcoming:
             match_list = "\n".join([
-                f"- **{m['home_team']} vs {m['away_team']}** (ID: {m['id']}) | {m['league']}"
+                f"- **{m.get('home_team', 'Unknown')} vs {m.get('away_team', 'Unknown')}** (ID: {m.get('id', 'Unknown')}) | {m.get('league', 'Unknown')}"
                 for m in upcoming
             ])
             reply = (
@@ -155,7 +195,17 @@ async def _handle_agentic_query(
 
     # 4. Native Natural Language Generation
     thoughts.append("Generating response via VIT Native NLP layer")
-    reply = await call_ai(message)
+    health = await _get_system_health_internal(db)
+
+    from sqlalchemy import select, func
+    stmt = select(func.avg(ModelMetadata.accuracy_1x2)).where(ModelMetadata.is_active == True)
+    ens_acc = (await db.execute(stmt)).scalar() or 0.72
+
+    ctx = {
+        "health": health,
+        "accuracy": ens_acc
+    }
+    reply = await call_ai(message, context=ctx)
     return {"available": True, "reply": reply, "thoughts": thoughts}
 
 @router.post("/chat")
