@@ -2,43 +2,51 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "[build] Monorepo Build Sequence Initiated"
-echo "[build] Environment: $(python3 --version), Node $(node -v)"
-
-# Cleanup redundant lockfiles to prevent package manager confusion
-echo "[build] Enforcing lockfile hygiene..."
+echo "[build] Cleaning up redundant lockfiles..."
 rm -f package-lock.json frontend/package-lock.json
 
-# Ensure Python dependencies are up to date
-echo "[build] Syncing Python dependencies..."
+echo "[build] Installing Python dependencies..."
 pip install -r requirements.txt
 
-# PNPM Management
-if ! command -v pnpm &> /dev/null; then
-    echo "[build] pnpm not detected. Installing globally..."
-    npm install -g pnpm || {
-        echo "[build] Global install failed. Attempting local installation..."
-        npm install pnpm
-        export PATH="$PATH:$(pwd)/node_modules/.bin"
-    }
+# Ensure node is available
+if ! command -v node &> /dev/null; then
+    echo "[build] Error: node is not installed." >&2
+    exit 1
 fi
 
 echo "[build] Using pnpm version: $(pnpm -v)"
 
-# Frontend Build
+# Ensure pnpm is available
+if ! command -v pnpm &> /dev/null; then
+    echo "[build] pnpm not found. Installing pnpm globally..."
+    npm install -g pnpm
+fi
+
+echo "[build] pnpm version: $(pnpm -v)"
+
+# Skip frontend build if --skip-frontend is passed
 if [[ "${1:-}" != "--skip-frontend" ]]; then
     echo "[build] Executing frontend build..."
 
-    # Run from root to respect pnpm-workspace.yaml
-    pnpm install --frozen-lockfile || {
-        echo "[build] Frozen lockfile install failed. Attempting standard install..."
-        pnpm install
-    }
+    # Always use pnpm if lockfile exists, otherwise fallback to npm
+    if [ -f "pnpm-lock.yaml" ]; then
+        echo "[build] Using pnpm (pnpm-lock.yaml detected)"
+        pnpm install --frozen-lockfile
+    elif [ -f "../pnpm-lock.yaml" ]; then
+        echo "[build] Using pnpm (root pnpm-lock.yaml detected)"
+        pnpm install --frozen-lockfile
+    else
+        echo "[build] pnpm-lock.yaml not found. Falling back to npm install."
+        npm install --prefer-offline --no-audit --no-fund
+    fi
 
-    echo "[build] Building production artifacts..."
-    pnpm run build
-else
-    echo "[build] Frontend build bypassed."
+    echo "[build] Building frontend for production..."
+    if command -v pnpm &> /dev/null; then
+        pnpm run build
+    else
+        npm run build
+    fi
+    cd ..
 fi
 
 # Database Schema Sync
