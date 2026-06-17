@@ -19,6 +19,12 @@ import {
   Moon as MoonIcon, Sun as SunIcon, LogOut as LogOutIcon, Menu as MenuIcon
 } from "lucide-react";
 import { Button } from "./ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "./ui/tooltip";
+
 import { NotificationBell } from "./notification-bell";
 import { EcosystemTicker } from "./ecosystem-ticker";
 import { Badge } from "./ui/badge";
@@ -231,9 +237,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-8 w-8" aria-label="Toggle theme">
-            {theme === "dark" ? <SunIcon className="w-4 h-4 text-yellow-400" /> : <MoonIcon className="w-4 h-4 text-blue-400" />}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-8 w-8" aria-label="Toggle theme">
+                {theme === "dark" ? <SunIcon className="w-4 h-4 text-yellow-400" /> : <MoonIcon className="w-4 h-4 text-blue-400" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            </TooltipContent>
+          </Tooltip>
           <NotificationBell />
           <Button
             variant="ghost" size="icon"
@@ -275,9 +288,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <div className="text-xs font-mono font-semibold text-foreground truncate">{user.username}</div>
                   <div className={`inline-flex items-center rounded px-1 py-0 text-[9px] font-mono border mt-0.5 ${tierBadge.cls}`}>{tierBadge.label}</div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7 flex-shrink-0" aria-label="Logout">
-                  <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7 flex-shrink-0" aria-label="Logout">
+                      <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Logout</TooltipContent>
+                </Tooltip>
               </div>
             </div>
           </div>
@@ -306,13 +324,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span className={`inline-flex items-center rounded px-1 py-0 text-[9px] font-mono border mt-0.5 ${tierBadge.cls}`}>{tierBadge.label}</span>
             </div>
             <div className="flex items-center gap-0.5 flex-shrink-0">
-              <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-7 w-7" aria-label="Toggle theme">
-                {theme === "dark" ? <SunIcon className="w-3.5 h-3.5 text-yellow-400/70" /> : <MoonIcon className="w-3.5 h-3.5 text-blue-400/70" />}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-7 w-7" aria-label="Toggle theme">
+                    {theme === "dark" ? <SunIcon className="w-3.5 h-3.5 text-yellow-400/70" /> : <MoonIcon className="w-3.5 h-3.5 text-blue-400/70" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                </TooltipContent>
+              </Tooltip>
               <NotificationBell />
-              <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7" aria-label="Logout">
-                <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7" aria-label="Logout">
+                    <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Logout</TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </div>
