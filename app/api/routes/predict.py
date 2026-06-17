@@ -33,6 +33,95 @@ from app.services.predict_features import build_predict_features
 
 logger = logging.getLogger(__name__)
 
+TWO_WAY_SPORTS = {
+    "basketball", "tennis", "cricket", "american_football", "rugby",
+    "rugby_union", "baseball", "ice_hockey", "mma", "boxing",
+    "formula1", "esports"
+}
+
+
+def _normalize_sport_name(sport: Optional[str]) -> str:
+    return (sport or "football").lower().replace(" ", "_")
+
+
+def validate_market_odds(market_odds: Optional[dict], sport: Optional[str] = None) -> bool:
+    """Validate that the request includes plausible odds for the requested sport."""
+    if not isinstance(market_odds, dict):
+        return False
+
+    sport_name = _normalize_sport_name(sport)
+    if sport_name in TWO_WAY_SPORTS:
+        home = MarketUtils.validate_odds(market_odds.get("home"))
+        away = MarketUtils.validate_odds(market_odds.get("away"))
+        return home is not None and away is not None and home != away
+
+    home = MarketUtils.validate_odds(market_odds.get("home"))
+    draw = MarketUtils.validate_odds(market_odds.get("draw"))
+    away = MarketUtils.validate_odds(market_odds.get("away"))
+    return home is not None and draw is not None and away is not None
+
+
+def validate_prediction_response(payload: Optional[dict], market_odds: Optional[dict] = None, sport: Optional[str] = None) -> dict:
+    """Normalize prediction payloads so downstream code always receives usable probabilities."""
+    if not isinstance(payload, dict):
+        payload = {}
+
+    sport_name = _normalize_sport_name(sport)
+    home = float(payload.get("home_prob", 0.0) or 0.0)
+    draw = float(payload.get("draw_prob", 0.0) or 0.0)
+    away = float(payload.get("away_prob", 0.0) or 0.0)
+
+    if sport_name in TWO_WAY_SPORTS:
+        # For two-way markets, keep the draw probability at zero and normalize home/away.
+        if home < 0:
+            home = 0.0
+        if away < 0:
+            away = 0.0
+        total = home + away
+        if total <= 0:
+            # Fallback from market odds if available.
+            if market_odds and MarketUtils.validate_odds(market_odds.get("home")) and MarketUtils.validate_odds(market_odds.get("away")):
+                h_odds = float(market_odds.get("home"))
+                a_odds = float(market_odds.get("away"))
+                home = 1 / h_odds
+                away = 1 / a_odds
+                total = home + away
+                if total <= 0:
+                    home, away = 0.5, 0.5
+                else:
+                    home, away = home / total, away / total
+        else:
+            home, away = home / total, away / total
+        draw = 0.0
+    else:
+        # For three-way football-like markets, normalize the probabilities if needed.
+        if home < 0 or draw < 0 or away < 0:
+            home = max(0.0, home)
+            draw = max(0.0, draw)
+            away = max(0.0, away)
+        total = home + draw + away
+        if total <= 0:
+            if market_odds:
+                home_odds = MarketUtils.validate_odds(market_odds.get("home"))
+                draw_odds = MarketUtils.validate_odds(market_odds.get("draw"))
+                away_odds = MarketUtils.validate_odds(market_odds.get("away"))
+                if home_odds and draw_odds and away_odds:
+                    home, draw, away = MarketUtils.remove_vig(home_odds, draw_odds, away_odds).values()
+                    total = home + draw + away
+        if total > 0:
+            home, draw, away = home / total, draw / total, away / total
+        else:
+            home, draw, away = 0.33, 0.34, 0.33
+
+    payload["home_prob"] = round(min(max(home, 0.0), 1.0), 6)
+    payload["draw_prob"] = round(min(max(draw, 0.0), 1.0), 6)
+    payload["away_prob"] = round(min(max(away, 0.0), 1.0), 6)
+    payload.setdefault("models_used", payload.get("models_used", 0))
+    payload.setdefault("models_total", payload.get("models_total", 13))
+    payload.setdefault("data_source", payload.get("data_source", "market_implied"))
+    return payload
+
+
 router = APIRouter(
     prefix="/predict",
     tags=["predictions"],

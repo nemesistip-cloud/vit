@@ -1,7 +1,7 @@
 # app/db/database.py
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import StaticPool
 
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -34,14 +34,17 @@ DATABASE_URL = _make_async_url(_raw_url)
 
 _is_sqlite = "aiosqlite" in DATABASE_URL
 
-# SQLite needs NullPool (no connection pool); PostgreSQL uses queue pool
+# SQLite needs a single shared connection for in-memory databases; PostgreSQL uses queue pool
 if _is_sqlite:
+    connect_args = {"check_same_thread": False}
+    if DATABASE_URL.startswith("sqlite+aiosqlite:///:memory:") or DATABASE_URL.startswith("sqlite+aiosqlite://") and ":memory:" in DATABASE_URL:
+        connect_args["check_same_thread"] = False
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
         future=True,
-        poolclass=NullPool,
-        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        connect_args=connect_args,
     )
 
     from sqlalchemy import event
