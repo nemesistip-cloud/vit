@@ -18,32 +18,40 @@ async def call_ai(prompt: str, **kwargs) -> str:
     """
     logger.info(f"Native AI call with prompt: {prompt[:50]}...")
 
+    context = kwargs.get("context", {})
+    health = context.get("health", {})
+    accuracy = context.get("accuracy", 0.0)
+
     orch = get_orchestrator()
-    ready_models = orch.num_models_ready() if orch else 0
+    ready_models = health.get("ai_models_ready") or (orch.num_models_ready() if orch else 0)
+    svi = health.get("svi", 0.0)
+    svi_status = health.get("svi_status", "stable")
 
     # 1. Prediction-related queries
     if any(k in prompt.lower() for k in ["predict", "odds", "forecast", "match", "probability"]):
         if ready_models > 0:
+            acc_str = f" maintaining a {accuracy*100:.1f}% accuracy rate," if accuracy > 0 else ""
             return (
                 "VIT Network Analysis: Our model ensemble has processed the tactical data for this event. "
-                f"With {ready_models} active models contributing to the signal, we detect a high-confidence "
-                "pattern aligned with current market liquidity. Structural SVI remains stable."
+                f"With {ready_models} active models contributing to the signal,{acc_str} we detect a high-confidence "
+                f"pattern aligned with current market liquidity. Structural SVI remains {svi_status} ({svi:.4f})."
             )
         return "VIT Network Analysis: Models are currently recalibrating for this market. Initial heuristics suggest stable volatility."
 
     # 2. Sentiment/Governance queries
-    if any(k in prompt.lower() for k in ["sentiment", "governance", "policy", "opinion"]):
+    if any(k in msg for k in ["sentiment", "governance", "policy", "opinion"] for msg in [prompt.lower()]):
         return (
             "VIT Intelligence Report: Sentiment analysis across the prophecy chain indicates a 'positive' bias. "
-            "Governance participation is trending upward, reflecting strong community alignment with v5.5.0 protocols."
+            f"Governance participation is trending upward, reflecting strong community alignment with v5.5.0 protocols. "
+            f"Active nodes: {ready_models}."
         )
 
     # 3. Generic/Identity queries
     greetings = ["Hello!", "Greetings.", "I am the VIT Network Bot.", "Intelligence layer active."]
     identity = (
-        "I am the VIT Intelligence Agent (v5.5.0), a fully self-contained neural layer "
-        "embedded in the VIT Sports Analytics Network. I operate without external APIs, "
-        "using internal ensembles and real-time network data to provide insights."
+        f"I am the VIT Intelligence Agent (v5.5.0), a fully self-contained neural layer "
+        f"embedded in the VIT Sports Analytics Network. I operate with {ready_models} active models "
+        f"and an average ensemble accuracy of {accuracy*100:.1f}%. SVI stability is {svi_status}."
     )
 
     return f"{random.choice(greetings)} {identity}"

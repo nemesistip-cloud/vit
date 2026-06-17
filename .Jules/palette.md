@@ -6,6 +6,6 @@
 **Learning:** Found a recurring pattern of icon-only buttons (Logout, Close, Copy, Share) lacking `aria-label` attributes across several core pages (Layout, Referral, Watchlist). These buttons are functional but silent for screen reader users.
 **Action:** Consistently audit interactive `Button` components with `size="icon"` and ensure they have descriptive `aria-label` or `title` props.
 
-## 2026-06-18 - [Match Detail Analytics Polish]
-**Learning:** Enrichment of the Match Detail page with deterministic AI insights and child model breakdowns requires robust fallback mechanisms. When external AI providers are offline or a specific match hasn't been predicted yet, the UI must gracefully guide the user to trigger the ensemble rather than showing empty states or NaN values.
-**Action:** Implemented 'Run ML Ensemble' triggers directly in the 'Child Model Analytics' section to ensure a continuous UX flow when background processing hasn't completed. Fixed NaN% bug in confidence meters by ensuring the backend always returns a numerical 'confidence' field in the insights payload.
+## 2026-06-17 - [Global Tooltip Integration]
+**Learning:** Icon-only buttons with 'aria-label' provide accessibility but lack visual clarity for sighted users on hover. Integrating Radix Tooltips globally in core components (Layout, NotificationBell) provides a consistent UX where users can confidently identify actions (Logout, Theme Toggle, etc.) without relying solely on icon recognition.
+**Action:** Wrap global icon-only actions in 'Tooltip' components from '@ui/tooltip' to bridge the gap between accessibility (aria-label) and visual discoverability.
