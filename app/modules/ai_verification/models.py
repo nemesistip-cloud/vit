@@ -54,9 +54,9 @@ class AIModelAttestation(Base):
     verified_outputs: Mapped[int] = mapped_column(default=0)
     disputed_outputs: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
-    registered_at: Mapped[datetime] = mapped_column(default=_utcnow_naive.replace(tzinfo=None))
+    registered_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     updated_at: Mapped[datetime] = mapped_column(
-        default=_utcnow_naive.replace(tzinfo=None), onupdate=_utcnow_naive.replace(tzinfo=None)
+        default=_utcnow_naive, onupdate=_utcnow_naive
     )
 
     proofs: Mapped[list["InferenceProof"]] = relationship(
@@ -92,7 +92,7 @@ class InferenceProof(Base):
     )
     ref_match_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     ref_prediction_id: Mapped[Optional[int]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive.replace(tzinfo=None))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     anchored_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -123,7 +123,7 @@ class VerificationDispute(Base):
     stake_slashed: Mapped[Decimal] = mapped_column(
         Numeric(20, 6), default=Decimal("0")
     )
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive.replace(tzinfo=None))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
 

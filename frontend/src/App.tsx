@@ -26,8 +26,6 @@ function ConfigInitializer({ children }: { children: React.ReactNode }) {
 const DashboardPage = lazyRetry(() => import("@/pages/dashboard"));
 const AuthPage = lazyRetry(() => import("@/pages/auth"));
 const LandingPage = lazyRetry(() => import("@/pages/landing"));
-const AuthPage = lazyRetry(() => import("@/pages/auth"));
-const DashboardPage = lazyRetry(() => import("@/pages/dashboard"));
 const MatchesPage = lazyRetry(() => import("@/pages/matches"));
 const MatchDetailPage = lazyRetry(() => import("@/pages/match-detail"));
 const PredictionsPage = lazyRetry(() => import("@/pages/predictions"));
