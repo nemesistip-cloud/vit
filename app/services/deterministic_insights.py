@@ -69,7 +69,8 @@ async def generate_match_insights(
         "risk_level": risk_level,
         "value_assessment": "High-confidence entry" if edge > 0.05 else "Standard value play",
         "scie_version": "5.5.0-native",
-        "provider": "VIT-SCIE"
+        "provider": "VIT-SCIE",
+        "confidence": confidence,
     }
 
 async def generate_deterministic_insights(**kwargs) -> Dict:
