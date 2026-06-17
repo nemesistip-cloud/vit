@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 import logging
 import os
+import asyncio
 
 from app.db.database import get_db, AsyncSessionLocal
 from app.db.models import Match, Prediction
@@ -88,17 +89,37 @@ def _active_market_ids(markets: Optional[list]) -> set:
 
 
 def _vig_free_probs(home_odds, draw_odds, away_odds) -> Optional[dict]:
+    """
+    Calculate vig-free probabilities from decimal odds.
+    Supports both 3-way (Home/Draw/Away) and 2-way (Home/Away) markets.
+    """
     try:
-        h = float(home_odds)
-        d = float(draw_odds)
-        a = float(away_odds)
-        if min(h, d, a) <= 1.0:
+        h = float(home_odds) if home_odds else 0
+        a = float(away_odds) if away_odds else 0
+        if h <= 1.0 or a <= 1.0:
             return None
-        inv_h, inv_d, inv_a = 1 / h, 1 / d, 1 / a
+
+        inv_h = 1.0 / h
+        inv_a = 1.0 / a
+        inv_d = 0.0
+
+        if draw_odds:
+            try:
+                d = float(draw_odds)
+                if d > 1.0:
+                    inv_d = 1.0 / d
+            except (TypeError, ValueError):
+                pass
+
         total = inv_h + inv_d + inv_a
         if total <= 0:
             return None
-        return {"home": inv_h / total, "draw": inv_d / total, "away": inv_a / total}
+
+        return {
+            "home": inv_h / total,
+            "draw": inv_d / total if inv_d > 0 else 0.0,
+            "away": inv_a / total
+        }
     except (TypeError, ValueError):
         return None
 
@@ -172,6 +193,12 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
     home_prob = float(pred.home_prob) if pred and pred.home_prob is not None else (market_probs or {}).get("home")
     draw_prob = float(pred.draw_prob) if pred and pred.draw_prob is not None else (market_probs or {}).get("draw")
     away_prob = float(pred.away_prob) if pred and pred.away_prob is not None else (market_probs or {}).get("away")
+
+    # Ensure probabilities default to 0 if not set, instead of None, to avoid UI breakage
+    home_prob = home_prob if home_prob is not None else 0.0
+    draw_prob = draw_prob if draw_prob is not None else 0.0
+    away_prob = away_prob if away_prob is not None else 0.0
+
     secondary = _secondary_market_probs(home_prob, draw_prob, away_prob, odds_draw)
     over_25_prob = float(pred.over_25_prob) if pred and pred.over_25_prob is not None else secondary["over_25"]
     under_25_prob = float(pred.under_25_prob) if pred and pred.under_25_prob is not None else secondary["under_25"]
@@ -183,7 +210,7 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
     under_35_prob = secondary.get("under_35")
     dnb_home_prob = secondary.get("dnb_home")
     dnb_away_prob = secondary.get("dnb_away")
-    confidence = float(pred.confidence) if pred and pred.confidence is not None else (0.55 if market_probs else None)
+    confidence = float(pred.confidence) if pred and pred.confidence is not None else (0.55 if market_probs else 0.5)
 
     return {
         "match_id": m.id,
@@ -218,348 +245,255 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         "dnb_home_prob": dnb_home_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "dnb_away_prob": dnb_away_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "confidence": confidence,
-        "bet_side": pred.bet_side if pred else None,
-        "edge": edge,
-        "entry_odds": float(pred.entry_odds) if pred and pred.entry_odds else None,
-        "recommended_stake": float(pred.recommended_stake) if pred and pred.recommended_stake is not None else 0.0,
-        "market_prob_source": "ensemble" if pred else "market_odds",
-        "enabled_markets": markets if markets is not None else DEFAULT_MARKETS,
     }
 
 
 @router.get("")
 @router.get("/")
-async def list_matches_root(
+async def get_matches(
     league: Optional[str] = Query(None),
-    sport: Optional[str] = Query(None),
-    days: int = Query(14, ge=1, le=60),
-    limit: int = Query(100, ge=1, le=200),
+    status: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Root matches endpoint — returns upcoming fixtures (alias of /upcoming)."""
-    return await get_upcoming_matches(league=league, sport=sport, hours=None, days=days, limit=limit, db=db)
+    stmt = select(Match, Prediction).outerjoin(
+        Prediction,
+        and_(
+            Match.id == Prediction.match_id,
+            # If multiple predictions exist, we'll take the most recent one
+            # using a subquery or by ordering in Python later.
+        )
+    )
+    if league:
+        stmt = stmt.where(Match.league == league)
+    if status:
+        stmt = stmt.where(Match.status == status)
+
+    stmt = stmt.order_by(Match.kickoff_time.asc())
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    # Deduplicate matches if multiple predictions exist
+    match_map = {}
+    markets = await _load_markets(db)
+
+    for m, p in rows:
+        if m.id not in match_map:
+            match_map[m.id] = (m, p)
+        else:
+            # Keep the latest prediction
+            _, existing_p = match_map[m.id]
+            if p and (not existing_p or p.timestamp > existing_p.timestamp):
+                match_map[m.id] = (m, p)
+
+    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
 
 
 @router.get("/upcoming")
-async def get_upcoming_matches(
-    league: Optional[str] = Query(None),
-    sport: Optional[str] = Query(None, description="Filter by sport: football, basketball, tennis, cricket, etc."),
-    days: int = Query(14, ge=1, le=60),
-    hours: Optional[int] = Query(None, ge=1, le=168, description="Limit to next N hours (overrides days when set)"),
-    limit: int = Query(100, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
-):
-    _cache_key = f"matches:upcoming:{league or 'all'}:{sport or 'all'}:{hours or days}:{limit}"
-    _cached = await cache.get(_cache_key)
-    if _cached is not None:
-        return _cached
-
+async def get_upcoming_matches(db: AsyncSession = Depends(get_db)):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    # If hours param is specified use it; otherwise fall back to days
-    if hours is not None:
-        future = now + timedelta(hours=hours)
-    else:
-        future = now + timedelta(days=days)
-    # Include matches that started up to 90 minutes ago but aren't settled yet
-    recent_cutoff = now - timedelta(minutes=90)
-
-    q = select(Match).where(
-        and_(
-            Match.kickoff_time >= recent_cutoff,
-            Match.kickoff_time <= future,
-            Match.actual_outcome.is_(None),
-        )
+    # Match.status.in_(["upcoming", "scheduled"])
+    # Sort by kickoff time
+    stmt = (
+        select(Match, Prediction)
+        .outerjoin(Prediction, Match.id == Prediction.match_id)
+        .where(Match.kickoff_time >= now - timedelta(hours=2))
+        .where(Match.actual_outcome.is_(None))
+        .order_by(Match.kickoff_time.asc())
     )
-    if league:
-        q = q.where(Match.league.ilike(f"%{league}%"))
-    if sport:
-        if sport == "football":
-            q = q.where(or_(Match.sport == "football", Match.sport.is_(None)))
-        else:
-            q = q.where(Match.sport == sport)
-    q = q.order_by(Match.kickoff_time).limit(limit)
+    result = await db.execute(stmt)
+    rows = result.all()
 
-    result = await db.execute(q)
-    matches = result.scalars().all()
+    match_map = {}
     markets = await _load_markets(db)
+    for m, p in rows:
+        if m.id not in match_map:
+            match_map[m.id] = (m, p)
+        else:
+            _, existing_p = match_map[m.id]
+            if p and (not existing_p or p.timestamp > existing_p.timestamp):
+                match_map[m.id] = (m, p)
 
-    match_ids = [m.id for m in matches]
-    preds_map: dict = {}
-    if match_ids:
-        pred_q = await db.execute(
-            select(Prediction)
-            .where(Prediction.match_id.in_(match_ids))
-            .order_by(Prediction.timestamp.desc())
-        )
-        for p in pred_q.scalars().all():
-            if p.match_id not in preds_map:
-                preds_map[p.match_id] = p
+    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
 
-    result = {
-        "count": len(matches),
-        "enabled_markets": markets,
-        "matches": [_fmt_match(m, preds_map.get(m.id), markets) for m in matches],
+
+async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
+    # Last 5 matches for this team
+    stmt = (
+        select(Match)
+        .where(or_(Match.home_team == team, Match.away_team == team))
+        .where(Match.kickoff_time < before)
+        .where(Match.actual_outcome.isnot(None))
+        .order_by(Match.kickoff_time.desc())
+        .limit(5)
+    )
+    res = await db.execute(stmt)
+    matches = res.scalars().all()
+    form = []
+    for m in matches:
+        if m.actual_outcome == "draw":
+            form.append("D")
+        elif (m.home_team == team and m.actual_outcome == "home") or \
+             (m.away_team == team and m.actual_outcome == "away"):
+            form.append("W")
+        else:
+            form.append("L")
+
+    return {
+        "form": "".join(form) if form else "N/A",
+        "matches": [
+            {
+                "home": m.home_team,
+                "away": m.away_team,
+                "score": f"{m.home_goals}-{m.away_goals}" if m.home_goals is not None else None,
+                "outcome": m.actual_outcome,
+                "date": m.kickoff_time.isoformat()
+            }
+            for m in matches
+        ]
     }
-    await cache.set(_cache_key, result, ttl=15)
-    return result
+
+
+async def _head_to_head(db: AsyncSession, m: Match) -> dict:
+    stmt = (
+        select(Match)
+        .where(or_(
+            and_(Match.home_team == m.home_team, Match.away_team == m.away_team),
+            and_(Match.home_team == m.away_team, Match.away_team == m.home_team)
+        ))
+        .where(Match.actual_outcome.isnot(None))
+        .where(Match.id != m.id)
+        .order_by(Match.kickoff_time.desc())
+        .limit(5)
+    )
+    res = await db.execute(stmt)
+    matches = res.scalars().all()
+
+    home_wins = sum(1 for match in matches if (match.home_team == m.home_team and match.actual_outcome == "home") or (match.away_team == m.home_team and match.actual_outcome == "away"))
+    away_wins = sum(1 for match in matches if (match.home_team == m.away_team and match.actual_outcome == "home") or (match.away_team == m.away_team and match.actual_outcome == "away"))
+    draws = sum(1 for match in matches if match.actual_outcome == "draw")
+
+    return {
+        "count": len(matches),
+        "home_wins": home_wins,
+        "away_wins": away_wins,
+        "draws": draws,
+        "matches": [
+            {
+                "home": match.home_team,
+                "away": match.away_team,
+                "score": f"{match.home_goals}-{match.away_goals}" if match.home_goals is not None else None,
+                "outcome": match.actual_outcome,
+                "date": match.kickoff_time.isoformat()
+            }
+            for match in matches
+        ]
+    }
 
 
 @router.get("/explore")
-async def explore_matches(
-    league: Optional[str] = Query(None),
-    min_edge: float = Query(0.0, ge=0),
-    min_confidence: float = Query(0.0, ge=0, le=1),
-    days: int = Query(14, ge=1, le=60),
-    limit: int = Query(100, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
-):
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    future = now + timedelta(days=days)
-    recent_cutoff = now - timedelta(minutes=90)
-
-    q = (
-        select(Match, Prediction)
-        .outerjoin(Prediction, Match.id == Prediction.match_id)
-        .where(Match.kickoff_time >= recent_cutoff)
-        .where(Match.kickoff_time <= future)
-        .where(Match.actual_outcome.is_(None))
-    )
-    if league:
-        q = q.where(Match.league.ilike(f"%{league}%"))
-    q = q.order_by(Match.kickoff_time, Prediction.timestamp.desc())
-
-    result = await db.execute(q)
-    rows = result.all()
-    markets = await _load_markets(db)
-
-    seen: set = set()
-    formatted = []
-    for row in rows:
-        m, pred = row.Match, row.Prediction
-        if m.id in seen:
-            continue
-        seen.add(m.id)
-
-        conf = float(pred.confidence or 0) if pred else 0.0
-        edge_val = 0.0
-        if pred and pred.vig_free_edge is not None:
-            edge_val = float(pred.vig_free_edge)
-
-        if conf < min_confidence or edge_val < min_edge:
-            continue
-
-        formatted.append(_fmt_match(m, pred, markets))
-
-    return {"count": len(formatted), "enabled_markets": markets, "matches": formatted[:limit]}
+async def explore_markets(db: AsyncSession = Depends(get_db)):
+    # Group by league
+    stmt = select(Match.league, func.count(Match.id)).where(Match.actual_outcome.is_(None)).group_by(Match.league)
+    res = await db.execute(stmt)
+    leagues = []
+    for l, count in res.all():
+        leagues.append({
+            "id": l,
+            "name": _fmt_league(l),
+            "count": count
+        })
+    return leagues
 
 
 @router.get("/live")
 async def get_live_matches(db: AsyncSession = Depends(get_db)):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    q = select(Match).where(
-        and_(
-            Match.kickoff_time <= now,
-            Match.kickoff_time >= now - timedelta(minutes=90),
-            Match.actual_outcome.is_(None),
-            or_(Match.status == "live", Match.status == "IN_PLAY", Match.status == "LIVE"),
-        )
-    ).order_by(Match.kickoff_time.desc()).limit(20)
-
-    result = await db.execute(q)
-    matches = result.scalars().all()
+    # A match is "live" if it started less than 2 hours ago and has no outcome yet
+    stmt = (
+        select(Match, Prediction)
+        .outerjoin(Prediction, Match.id == Prediction.match_id)
+        .where(Match.kickoff_time <= now)
+        .where(Match.kickoff_time >= now - timedelta(hours=2))
+        .where(Match.actual_outcome.is_(None))
+        .order_by(Match.kickoff_time.desc())
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+    match_map = {}
     markets = await _load_markets(db)
-
-    return {
-        "count": len(matches),
-        "enabled_markets": markets,
-        "matches": [_fmt_match(m, None, markets) for m in matches],
-    }
+    for m, p in rows:
+        if m.id not in match_map:
+            match_map[m.id] = (m, p)
+    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
 
 
 @router.get("/recent")
-async def get_recent_matches(
-    limit: int = Query(50, ge=1, le=200),
-    sport: Optional[str] = Query(None, description="Filter by sport type"),
-    league: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
-):
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    # Show: unsettled matches (kicked off up to 90 minutes ago → future), ordered soonest first
-    recent_cutoff = now - timedelta(minutes=90)
-
-    q = (
+async def get_recent_matches(db: AsyncSession = Depends(get_db)):
+    # Last 20 completed matches
+    stmt = (
         select(Match, Prediction)
         .outerjoin(Prediction, Match.id == Prediction.match_id)
-        .where(Match.actual_outcome.is_(None))
-        .where(Match.kickoff_time >= recent_cutoff)
-        .order_by(Match.kickoff_time.asc())
-        .limit(limit)
+        .where(Match.actual_outcome.isnot(None))
+        .order_by(Match.kickoff_time.desc())
+        .limit(20)
     )
-    if sport:
-        if sport == "football":
-            q = q.where(or_(Match.sport == "football", Match.sport.is_(None), Match.sport == ""))
-        else:
-            q = q.where(Match.sport == sport)
-    if league:
-        q = q.where(Match.league.ilike(f"%{league}%"))
-    result = await db.execute(q)
+    result = await db.execute(stmt)
     rows = result.all()
+    match_map = {}
     markets = await _load_markets(db)
-
-    # Fallback: show all unsettled matches regardless of date
-    if not rows:
-        q2 = (
-            select(Match, Prediction)
-            .outerjoin(Prediction, Match.id == Prediction.match_id)
-            .where(Match.actual_outcome.is_(None))
-            .order_by(Match.kickoff_time.asc())
-            .limit(limit)
-        )
-        if sport:
-            if sport == "football":
-                q2 = q2.where(or_(Match.sport == "football", Match.sport.is_(None)))
-            else:
-                q2 = q2.where(Match.sport == sport)
-        result = await db.execute(q2)
-        rows = result.all()
-
-    seen: set = set()
-    formatted = []
-    for row in rows:
-        m, pred = row.Match, row.Prediction
-        if m.id in seen:
-            continue
-        seen.add(m.id)
-        formatted.append(_fmt_match(m, pred, markets))
-
-    return {"count": len(formatted), "enabled_markets": markets, "matches": formatted}
+    for m, p in rows:
+        if m.id not in match_map:
+            match_map[m.id] = (m, p)
+    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
 
 
 @router.get("/completed")
 async def get_completed_matches(
-    limit: int = Query(50, ge=1, le=200),
-    sport: Optional[str] = Query(None),
-    league: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db)
 ):
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    # Show: completed matches (with actual outcomes), ordered most recent first
-    q = select(Match, Prediction).outerjoin(Prediction, Match.id == Prediction.match_id).where(Match.actual_outcome.isnot(None))
-    if sport:
-        if sport == "football":
-            q = q.where(or_(Match.sport == "football", Match.sport.is_(None), Match.sport == ""))
-        else:
-            q = q.where(Match.sport == sport)
-    if league:
-        q = q.where(Match.league == league)
-    q = q.order_by(Match.kickoff_time.desc()).limit(limit)
-    result = await db.execute(q)
+    stmt = (
+        select(Match, Prediction)
+        .outerjoin(Prediction, Match.id == Prediction.match_id)
+        .where(Match.actual_outcome.isnot(None))
+        .order_by(Match.kickoff_time.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
     rows = result.all()
+    match_map = {}
     markets = await _load_markets(db)
-
-    seen: set = set()
-    formatted = []
-    for row in rows:
-        m, pred = row.Match, row.Prediction
-        if m.id in seen:
-            continue
-        seen.add(m.id)
-        formatted.append(_fmt_match(m, pred, markets))
-
-    return {"count": len(formatted), "enabled_markets": markets, "matches": formatted}
+    for m, p in rows:
+        if m.id not in match_map:
+            match_map[m.id] = (m, p)
+    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
 
 
 @router.get("/leagues/list")
-async def list_leagues(sport: Optional[str] = Query(None), db: AsyncSession = Depends(get_db)):
-    """Return all distinct leagues with display names."""
-    q = (
-        select(Match.league).distinct().where(Match.league.isnot(None))
-    )
-    if sport:
-        if sport == "football":
-            q = q.where(or_(Match.sport == "football", Match.sport.is_(None), Match.sport == ""))
-        else:
-            q = q.where(Match.sport == sport)
-    result = await db.execute(q)
-    keys = [row[0] for row in result.all()]
-    return {
-        "leagues": [
-            {"key": k, "display": _fmt_league(k)}
-            for k in sorted(keys)
-        ]
-    }
+async def list_leagues(db: AsyncSession = Depends(get_db)):
+    stmt = select(Match.league).distinct()
+    res = await db.execute(stmt)
+    leagues = res.scalars().all()
+    return [
+        {"id": l, "name": _fmt_league(l)}
+        for l in leagues if l
+    ]
 
 
 @router.get("/sync/status")
-async def sync_status(db: AsyncSession = Depends(get_db)):
-    """Return count of matches in DB and last stored kickoff time."""
-    from sqlalchemy import func as _func
-    count_result = await db.execute(select(_func.count(Match.id)))
-    count = count_result.scalar() or 0
-    last_result = await db.execute(
-        select(Match.kickoff_time).order_by(Match.kickoff_time.desc()).limit(1)
-    )
-    last_kickoff = last_result.scalar_one_or_none()
+async def get_sync_status(db: AsyncSession = Depends(get_db)):
+    count = (await db.execute(select(func.count(Match.id)))).scalar_one()
+    last = (await db.execute(select(Match).order_by(Match.created_at.desc()).limit(1))).scalar_one_or_none()
     return {
-        "total_matches": count,
-        "last_kickoff": last_kickoff.isoformat() if last_kickoff else None,
+        "total_fixtures": count,
+        "last_sync": last.created_at.isoformat() if last else None,
+        "status": "healthy"
     }
 
 
 @router.get("/markets/enabled")
-async def enabled_markets(db: AsyncSession = Depends(get_db)):
-    markets = await _load_markets(db)
-    return {"markets": [m for m in markets if m.get("status") == "active"], "all_markets": markets}
-
-
-async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
-    q = (
-        select(Match)
-        .where(or_(Match.home_team == team, Match.away_team == team))
-        .where(Match.actual_outcome.isnot(None))
-        .where(Match.kickoff_time < before)
-        .order_by(Match.kickoff_time.desc())
-        .limit(5)
-    )
-    rows = (await db.execute(q)).scalars().all()
-    form = []
-    for row in rows:
-        is_home = row.home_team == team
-        if row.actual_outcome == "draw":
-            form.append("D")
-        elif (row.actual_outcome == "home" and is_home) or (row.actual_outcome == "away" and not is_home):
-            form.append("W")
-        else:
-            form.append("L")
-    return {"team": team, "form": "".join(form) if form else "N/A", "matches": len(rows)}
-
-
-async def _head_to_head(db: AsyncSession, match: Match) -> dict:
-    q = (
-        select(Match)
-        .where(
-            or_(
-                and_(Match.home_team == match.home_team, Match.away_team == match.away_team),
-                and_(Match.home_team == match.away_team, Match.away_team == match.home_team),
-            )
-        )
-        .where(Match.actual_outcome.isnot(None))
-        .where(Match.id != match.id)
-        .order_by(Match.kickoff_time.desc())
-        .limit(5)
-    )
-    rows = (await db.execute(q)).scalars().all()
-    items = [
-        {
-            "home_team": r.home_team,
-            "away_team": r.away_team,
-            "score": f"{r.home_goals}-{r.away_goals}" if r.home_goals is not None and r.away_goals is not None else None,
-            "outcome": r.actual_outcome,
-            "kickoff_time": r.kickoff_time.isoformat() if r.kickoff_time else None,
-        }
-        for r in rows
-    ]
-    return {"count": len(items), "matches": items}
+async def get_enabled_markets(db: AsyncSession = Depends(get_db)):
+    return await _load_markets(db)
 
 
 @router.get("/{match_id}")
@@ -632,90 +566,58 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
             "probability_sum": round(h + d + a, 6),
         },
         "recent_form": {
-            "home": await _recent_form(db, match.home_team, match.kickoff_time),
-            "away": await _recent_form(db, match.away_team, match.kickoff_time),
+            "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time),
+            "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time),
         },
         "head_to_head": await _head_to_head(db, match),
     }
 
 
-
-
 @router.get("/{match_id}/analytics")
 async def get_match_analytics(match_id: int, db: AsyncSession = Depends(get_db)):
-    """Return quality metrics, confidence signals, and market analysis for a match."""
-    match_q = await db.execute(select(Match).where(Match.id == match_id))
-    match = match_q.scalar_one_or_none()
+    """
+    Richer analytics view for a match.
+    """
+    match = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
 
-    pred_q = await db.execute(
-        select(Prediction)
-        .where(Prediction.match_id == match_id)
-        .order_by(Prediction.timestamp.desc())
-        .limit(1)
-    )
-    pred = pred_q.scalar_one_or_none()
-    model_weights = pred.model_weights if pred and isinstance(pred.model_weights, dict) else {}
+    # Get latest prediction
+    pred = (await db.execute(
+        select(Prediction).where(Prediction.match_id == match_id).order_by(Prediction.timestamp.desc()).limit(1)
+    )).scalar_one_or_none()
+
+    markets = await _load_markets(db)
+    fmt = _fmt_match(match, pred, markets)
 
     return {
-        "match_id": match_id,
-        "match_quality_rating":  model_weights.get("match_quality_rating"),
-        "market_confidence":     model_weights.get("market_confidence"),
-        "home_advantage_bias":   model_weights.get("home_advantage_bias"),
-        "model_agreement_pct":   model_weights.get("model_agreement_pct"),
-        "ensemble_diversity":    model_weights.get("ensemble_diversity"),
-        "home_prob":  float(pred.home_prob)  if pred and pred.home_prob  is not None else None,
-        "draw_prob":  float(pred.draw_prob)  if pred and pred.draw_prob  is not None else None,
-        "away_prob":  float(pred.away_prob)  if pred and pred.away_prob  is not None else None,
-        "confidence": float(pred.confidence) if pred and pred.confidence is not None else None,
-        "edge":       float(pred.vig_free_edge) if pred and pred.vig_free_edge is not None else None,
-        "bet_side":   pred.bet_side if pred else None,
-        "has_prediction": pred is not None,
-        "generated_at":   pred.timestamp.isoformat() if pred and pred.timestamp else None,
+        "match": fmt,
+        "prediction": {
+            "side": pred.bet_side if pred else None,
+            "confidence": float(pred.confidence or 0) if pred else 0,
+            "edge": float(pred.vig_free_edge or 0) if pred else 0,
+        } if pred else None,
+        "market_efficiency": "High" if fmt.get("odds", {}).get("draw") else "Medium",
     }
 
 
 @router.get("/{match_id}/ensemble")
-async def get_match_ensemble(match_id: int, db: AsyncSession = Depends(get_db)):
-    """Return individual model contributions and ensemble breakdown for a match."""
-    match_q = await db.execute(select(Match).where(Match.id == match_id))
-    match = match_q.scalar_one_or_none()
-    if not match:
-        raise HTTPException(status_code=404, detail="Match not found")
+async def get_ensemble_breakdown(match_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Detailed breakdown of how the ensemble reached its conclusion.
+    """
+    pred = (await db.execute(
+        select(Prediction).where(Prediction.match_id == match_id).order_by(Prediction.timestamp.desc()).limit(1)
+    )).scalar_one_or_none()
 
-    pred_q = await db.execute(
-        select(Prediction)
-        .where(Prediction.match_id == match_id)
-        .order_by(Prediction.timestamp.desc())
-        .limit(1)
-    )
-    pred = pred_q.scalar_one_or_none()
-
-    model_insights = []
-    model_weights  = {}
-    if pred:
-        if isinstance(pred.model_insights, list):
-            model_insights = pred.model_insights
-        if isinstance(pred.model_weights, dict):
-            model_weights = pred.model_weights
+    if not pred:
+        return {"error": "No prediction yet", "match_id": match_id}
 
     return {
-        "match_id":          match_id,
-        "home_team":         match.home_team,
-        "away_team":         match.away_team,
-        "models_used":       len(model_insights),
-        "model_contributions": model_insights,
-        "ensemble_weights":  model_weights,
-        "consensus": {
-            "home_prob":  float(pred.home_prob)  if pred and pred.home_prob  is not None else None,
-            "draw_prob":  float(pred.draw_prob)  if pred and pred.draw_prob  is not None else None,
-            "away_prob":  float(pred.away_prob)  if pred and pred.away_prob  is not None else None,
-            "confidence": float(pred.confidence) if pred and pred.confidence is not None else None,
-            "bet_side":   pred.bet_side if pred else None,
-        },
-        "has_prediction": pred is not None,
-        "generated_at":   pred.timestamp.isoformat() if pred and pred.timestamp else None,
+        "match_id": match_id,
+        "model_contributions": pred.model_insights or [],
+        "weights": pred.model_weights or {},
+        "timestamp": pred.timestamp.isoformat() if pred.timestamp else None,
     }
 
 
@@ -805,7 +707,8 @@ async def sync_fixtures(
             results = await asyncio.gather(*tasks)
             stored_isports = sum(results)
             logger.info(f"iSports Phase 0 synced {stored_isports} matches")
-            stored_fd += stored_isports # For final reporting consistency
+            stored_isports_val = stored_isports # For final reporting consistency
+            stored_fd += stored_isports_val
         except Exception as e:
             logger.error(f"iSports Phase 0 failed: {e}")
 

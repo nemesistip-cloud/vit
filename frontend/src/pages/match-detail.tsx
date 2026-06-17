@@ -6,6 +6,7 @@ import {
 } from "@/api-client";
 import { AIInsightComparison } from "@/components/AIInsightComparison";
 import { MatchAssistantCard } from "@/components/MatchAssistantCard";
+import { PredictionFlow } from "@/components/PredictionFlow";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ export default function MatchDetailPage() {
   const [stakeAmount, setStakeAmount] = useState("10");
   const [ahLine, setAhLine] = useState<string>("0.0");
   const [stakeTab, setStakeTab] = useState<"1x2" | "goals" | "ah" | "cs">("1x2");
+  const [showPredict, setShowPredict] = useState(false);
 
   const ahLineNum = parseFloat(ahLine) || 0;
 
@@ -99,25 +101,14 @@ export default function MatchDetailPage() {
       toast.error("Select a prediction first");
       return;
     }
-    const amount = parseFloat(stakeAmount);
-    if (!amount || amount <= 0) {
-      toast.error("Enter a valid stake amount");
-      return;
-    }
-    const isAH = selectedSide === "ah_home" || selectedSide === "ah_away";
-    if (isAH && isNaN(ahLineNum)) {
-      toast.error("Enter a valid AH line (e.g. -0.5)");
-      return;
-    }
     try {
       await stake.mutateAsync({
         matchId,
         prediction: selectedSide,
-        amount,
-        ...(isAH ? { ah_line: ahLineNum } : {}),
+        amount: parseFloat(stakeAmount),
+        ah_line: (selectedSide === "ah_home" || selectedSide === "ah_away") ? ahLineNum : undefined
       });
-      toast.success(`Staked ${amount} VITCoin on ${selectedSide.toUpperCase()}`);
-      setSelectedSide(null);
+      toast.success("Stake executed successfully");
     } catch (e: any) {
       toast.error(e.message || "Stake failed");
     }
@@ -298,88 +289,66 @@ export default function MatchDetailPage() {
                     const conf = marketConf?.[confKey];
                     return (
                       <div key={label} className="rounded-lg border border-border bg-background/40 p-2">
-                        <div className="font-mono text-[10px] text-muted-foreground uppercase">{label}</div>
-                        <div className="font-mono text-base font-bold">{val != null ? `${(val * 100).toFixed(1)}%` : "—"}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase mb-1">{label}</div>
+                        <div className="text-sm font-bold font-mono">
+                          {val != null ? `${(val * 100).toFixed(1)}%` : "—"}
+                        </div>
                         {conf != null && (
-                          <div className="font-mono text-[9px] text-muted-foreground/70 mt-0.5">
-                            {(conf * 100).toFixed(0)}% conf.
+                          <div className="mt-1">
+                            <div className="h-0.5 w-full bg-muted overflow-hidden rounded-full">
+                              <div className="h-full bg-primary" style={{ width: `${conf * 100}%` }} />
+                            </div>
                           </div>
                         )}
                       </div>
                     );
                   })}
                 </div>
-                {match.recommended_stake != null && (
-                  <div className="mt-3 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 font-mono text-xs">
-                    <span className="text-muted-foreground uppercase">Kelly Recommended Stake</span>
-                    <span className="font-bold text-primary">
-                      {(match.recommended_stake * 100).toFixed(2)}% of bankroll
-                    </span>
-                  </div>
-                )}
               </div>
+
+              {match.recommended_stake != null && (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-primary/20 bg-primary/5">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    <span className="font-mono text-xs uppercase tracking-wider">Kelly Recommended Stake</span>
+                  </div>
+                  <span className="font-mono font-bold text-primary">{(match.recommended_stake * 100).toFixed(2)}% of bankroll</span>
+                </div>
+              )}
 
               <div>
                 <div className="flex justify-between mb-2 font-mono text-sm">
                   <span className="text-muted-foreground uppercase">Network Confidence</span>
                   <span className="text-primary">{(confidence * 100).toFixed(1)}%</span>
                 </div>
-                <Progress value={confidence * 100} className="h-2 bg-muted [&>div]:bg-primary" />
-                {marketConf && (
-                  <div className="grid grid-cols-5 gap-1 mt-2">
-                    {[
-                      { key: "1x2", label: "1X2" },
-                      { key: "over_under", label: "O/U" },
-                      { key: "btts", label: "BTTS" },
-                      { key: "asian_hcp", label: "AH" },
-                      { key: "correct_score", label: "CS" },
-                    ].map(({ key, label }) => {
-                      const val = marketConf[key];
-                      return (
-                        <div key={key} className="text-center">
-                          <div className="font-mono text-[9px] text-muted-foreground uppercase">{label}</div>
-                          <div className="font-mono text-xs font-bold text-primary">
-                            {val != null ? `${(val * 100).toFixed(0)}%` : "—"}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                <Progress value={confidence * 100} className="h-2" />
               </div>
 
               {match.bet_side && (
-                <div className="bg-background/50 rounded-lg p-4 border border-border">
-                  <h4 className="font-mono text-sm font-bold uppercase mb-2 flex items-center text-primary">
-                    <Zap className="w-4 h-4 mr-2" /> AI Recommendation
-                  </h4>
-                  <div className="flex flex-wrap gap-4 font-mono text-sm">
-                    <div>
-                      <span className="text-muted-foreground uppercase text-xs">Position Side: </span>
-                      <span className="font-bold uppercase">{match.bet_side}</span>
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex items-center justify-between">
+                  <div>
+                    <div className="font-mono text-[10px] text-primary uppercase mb-1">AI Recommendation</div>
+                    <div className="font-mono text-lg font-bold uppercase tracking-widest flex items-center gap-2">
+                      Position Side: <span className="text-primary">{match.bet_side}</span>
                     </div>
-                    {match.entry_odds && (
-                      <div>
-                        <span className="text-muted-foreground uppercase text-xs">Odds: </span>
-                        <span className="font-bold">{match.entry_odds}</span>
-                      </div>
-                    )}
+                    {match.entry_odds && <div className="font-mono text-xs text-muted-foreground uppercase">Odds: {match.entry_odds.toFixed(2)}</div>}
                     {match.edge != null && (
-                      <div>
-                        <span className="text-muted-foreground uppercase text-xs">Edge: </span>
-                        <span className={`font-bold ${match.edge > 0 ? "text-primary" : "text-destructive"}`}>
-                          {(match.edge * 100).toFixed(2)}%
-                        </span>
+                      <div className={`font-mono text-xs uppercase ${match.edge > 0 ? "text-primary" : "text-destructive"}`}>
+                        Edge: {(match.edge * 100).toFixed(2)}%
                       </div>
                     )}
                   </div>
+                  <ShieldCheck className="w-10 h-10 text-primary/40" />
                 </div>
               )}
+
               {consensusBreakdown && (
-                <div className="bg-background/50 rounded-lg p-4 border border-border">
-                  <h4 className="font-mono text-sm font-bold uppercase mb-2">Consensus Breakdown</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
-                    <div>Leader: <span className="text-primary uppercase">{consensusBreakdown.leader}</span></div>
+                <div className="space-y-2 pt-4 border-t border-border/50">
+                  <div className="font-mono text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                    <Hash className="w-3 h-3" /> Consensus Breakdown
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 font-mono text-[10px] uppercase text-center">
+                    <div className="text-primary font-bold">Leader: {consensusBreakdown.leader}</div>
                     <div>Home: {(consensusBreakdown.home * 100).toFixed(1)}%</div>
                     <div>Draw: {(consensusBreakdown.draw * 100).toFixed(1)}%</div>
                     <div>Away: {(consensusBreakdown.away * 100).toFixed(1)}%</div>
@@ -403,30 +372,28 @@ export default function MatchDetailPage() {
                 const leader = h > d && h > a ? "home" : d > a ? "draw" : "away";
                 const leaderColor = leader === "home" ? "text-primary" : leader === "draw" ? "text-muted-foreground" : "text-orange-400";
                 const rawConf = model.confidence;
-                const confidence = (typeof rawConf === "object" && rawConf !== null)
-                  ? (rawConf["1x2"] ?? Math.max(h, d, a))
-                  : (typeof rawConf === "number" && !isNaN(rawConf) ? rawConf : Math.max(h, d, a));
-                const weight = model.model_weight ?? model.weight ?? (1 / Math.max(1, modelContributions.length));
+                const confidence = typeof rawConf === 'number' ? rawConf : (parseFloat(rawConf) || 0.5);
+
                 return (
-                  <div key={`${model.model_name}-${index}`} className="rounded-lg border border-border bg-background/40 p-3 space-y-2">
-                    <div className="flex items-center justify-between font-mono text-xs">
-                      <div className="font-bold uppercase truncate">{model.model_name ?? model.model ?? `Model ${index + 1}`}</div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={`text-[9px] uppercase ${leaderColor}`}>{leader}</Badge>
-                        <span className="text-muted-foreground">wt={((weight) * 100).toFixed(0)}%</span>
+                  <div key={index} className="p-3 rounded-lg border border-border/50 bg-background/30 space-y-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                        {model.model_key ?? model.name ?? "Ensemble_Node"}
+                        <Badge variant="outline" className={`text-[8px] h-4 ${leaderColor} border-current/20`}>{leader}</Badge>
                       </div>
+                      {model.weight && <span className="font-mono text-[9px] text-muted-foreground">weight: {model.weight.toFixed(3)}</span>}
                     </div>
-                    <div className="grid grid-cols-3 gap-1 font-mono text-xs text-center">
-                      <div className={`rounded p-1.5 ${leader === "home" ? "bg-primary/10 border border-primary/30" : "bg-background/60 border border-border/40"}`}>
-                        <div className="text-[9px] text-muted-foreground uppercase">Home</div>
+                    <div className="grid grid-cols-3 gap-2 font-mono text-[10px] text-center">
+                      <div>
+                        <div className="text-muted-foreground opacity-60">HOME</div>
                         <div className="font-bold">{(h * 100).toFixed(1)}%</div>
                       </div>
-                      <div className={`rounded p-1.5 ${leader === "draw" ? "bg-muted/20 border border-border" : "bg-background/60 border border-border/40"}`}>
-                        <div className="text-[9px] text-muted-foreground uppercase">Draw</div>
+                      <div>
+                        <div className="text-muted-foreground opacity-60">DRAW</div>
                         <div className="font-bold">{(d * 100).toFixed(1)}%</div>
                       </div>
-                      <div className={`rounded p-1.5 ${leader === "away" ? "bg-orange-400/10 border border-orange-400/30" : "bg-background/60 border border-border/40"}`}>
-                        <div className="text-[9px] text-muted-foreground uppercase">Away</div>
+                      <div>
+                        <div className="text-muted-foreground opacity-60">AWAY</div>
                         <div className="font-bold">{(a * 100).toFixed(1)}%</div>
                       </div>
                     </div>
@@ -440,6 +407,15 @@ export default function MatchDetailPage() {
                 <div className="text-center py-6 space-y-2">
                   <div className="font-mono text-muted-foreground text-sm">No model breakdown available yet.</div>
                   <div className="font-mono text-muted-foreground text-xs">Run the ML ensemble for this match to see child model analytics.</div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="font-mono text-[10px] uppercase border-primary/30 hover:border-primary hover:bg-primary/10 text-primary transition-all mt-2"
+                    onClick={() => setShowPredict(true)}
+                  >
+                    <Zap className="w-3 h-3 mr-1.5" />
+                    Run ML Ensemble
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -458,17 +434,17 @@ export default function MatchDetailPage() {
                   const isHome = h2h.home_team === match.home_team;
                   const outcome = h2h.outcome;
                   const resultLabel = outcome === "H" ? (isHome ? "W" : "L") : outcome === "A" ? (isHome ? "L" : "W") : "D";
-                  const resultColor = resultLabel === "W" ? "text-primary" : resultLabel === "L" ? "text-destructive" : "text-muted-foreground";
+                  const color = resultLabel === "W" ? "text-emerald-400" : resultLabel === "L" ? "text-red-400" : "text-yellow-400";
+
                   return (
-                    <div key={i} className="flex items-center justify-between font-mono text-xs rounded-lg border border-border bg-background/40 px-3 py-2 gap-2">
-                      <div className="flex-1 text-right truncate text-muted-foreground">{h2h.home_team}</div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="font-bold text-sm px-2 py-0.5 bg-background/60 border border-border rounded">{h2h.score ?? "?"}</span>
-                        <span className={`font-bold text-[10px] uppercase ${resultColor}`}>{resultLabel}</span>
+                    <div key={i} className="flex items-center justify-between font-mono text-xs border-b border-border/20 pb-2 last:border-0 last:pb-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-black w-4 ${color}`}>{resultLabel}</span>
+                        <span className="text-muted-foreground truncate max-w-[100px]">{isHome ? h2h.away_team : h2h.home_team}</span>
                       </div>
-                      <div className="flex-1 text-left truncate text-muted-foreground">{h2h.away_team}</div>
-                      <div className="text-[9px] text-muted-foreground flex-shrink-0">
-                        {h2h.kickoff_time ? new Date(h2h.kickoff_time).getFullYear() : ""}
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold">{h2h.score}</span>
+                        <span className="text-[10px] opacity-40">{format(new Date(h2h.date), "MM/yy")}</span>
                       </div>
                     </div>
                   );
@@ -476,340 +452,202 @@ export default function MatchDetailPage() {
               </CardContent>
             </Card>
           )}
-
-          {consensus && (
-            <Card className="bg-card/50  border-border">
-              <CardHeader className="border-b border-border/50 pb-4">
-                <CardTitle className="font-mono uppercase flex items-center">
-                  <ShieldCheck className="w-5 h-5 mr-2 text-secondary" />
-                  Validator Consensus
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-4 bg-background rounded-lg border border-border">
-                    <div className="font-mono text-xs text-muted-foreground uppercase mb-1">Active Nodes</div>
-                    <div className="text-xl font-bold font-mono">{consensus.validators?.count ?? 0}</div>
-                  </div>
-                  <div className="p-4 bg-background rounded-lg border border-border">
-                    <div className="font-mono text-xs text-muted-foreground uppercase mb-1">Total Influence</div>
-                    <div className="text-xl font-bold font-mono text-secondary">
-                      {(consensus.validators?.total_influence ?? 0).toFixed(2)}
-                    </div>
-                  </div>
-                  <div className="p-4 bg-background rounded-lg border border-border">
-                    <div className="font-mono text-xs text-muted-foreground uppercase mb-1">Status</div>
-                    <Badge variant="outline" className="font-mono uppercase text-xs">{consensus.status}</Badge>
-                  </div>
-                  <div className="p-4 bg-background rounded-lg border border-border">
-                    <div className="font-mono text-xs text-muted-foreground uppercase mb-1">Final Home%</div>
-                    <div className="text-xl font-bold font-mono text-primary">
-                      {((consensus.final?.p_home ?? 0) * 100).toFixed(1)}%
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         <div className="space-y-6">
-          <Card className={`bg-card/50  ${isSports ? "border-primary/40 " : "border-secondary/20"} overflow-hidden`}>
-            {isSports && (
-              <div className="bg-primary/20 px-3 py-1.5 flex items-center gap-2 border-b border-primary/30">
-                <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                <span className="text-[10px] font-mono font-bold text-primary uppercase tracking-widest">Affiliate Execution Layer</span>
-              </div>
-            )}
+          <Card className="bg-card/50  border-border sticky top-6">
             <CardHeader className="border-b border-border/50 pb-4">
-              <CardTitle className="font-mono uppercase flex items-center">
-                {isSports ? (
-                  <><Zap className="w-5 h-5 mr-2 text-primary" /> Execute Selection</>
-                ) : (
-                  <><Coins className="w-5 h-5 mr-2 text-secondary" /> Stake VITCoin</>
-                )}
+              <CardTitle className="font-mono uppercase text-sm flex items-center">
+                <Coins className="w-4 h-4 mr-2" />
+                Affiliate Execution Layer
               </CardTitle>
-              {!isSports && (
-                <CardDescription className="font-mono">
-                  Balance: {Number(wallet?.vitcoin_balance ?? 0).toLocaleString()} VIT
-                </CardDescription>
-              )}
-              {isSports && (
-                <CardDescription className="font-mono text-[10px] uppercase text-muted-foreground leading-tight">
-                  No wallet interaction. Predictions are fulfilled via external affiliate partners.
-                </CardDescription>
-              )}
             </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              {match.actual_outcome ? (
-                <div className="text-center p-4 bg-muted/30 rounded-lg border border-border font-mono text-sm text-muted-foreground">
-                  MARKET_CLOSED
-                </div>
-              ) : (
-                <>
-                  {/* Market selector tabs */}
-                  <div className="flex gap-1 bg-background/60 rounded-lg p-1 border border-border/50 flex-wrap">
-                    {(() => {
-                      const available = match.available_markets || [];
-                      const tabs = [];
-                      if (available.some(m => ["1X2", "match_winner", "moneyline"].includes(m))) tabs.push("1x2");
-                      if (available.some(m => m.includes("over_under") || m === "btts")) tabs.push("goals");
-                      if (available.some(m => m.includes("handicap") || m.includes("spread"))) tabs.push("ah");
-                      if (available.includes("correct_score") || available.includes("set_betting")) tabs.push("cs");
-
-                      // Fallback to all if available_markets is empty (for backward compatibility)
-                      const finalTabs = tabs.length > 0 ? tabs : ["1x2", "goals", "ah", "cs"];
-
-                      return finalTabs.map((t) => (
+            <CardContent className="pt-6 space-y-6">
+              {!isSports && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-2">
+                    {(["1x2", "goals", "ah", "cs"] as const).map((t) => (
                       <button
                         key={t}
-                        type="button"
-                        onClick={() => { setStakeTab(t); setSelectedSide(null); }}
-                        className={`flex-1 text-[10px] font-mono uppercase py-1.5 rounded transition-all ${
-                          stakeTab === t
-                            ? "bg-primary/20 text-primary border border-primary/40 "
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
+                        onClick={() => setStakeTab(t)}
+                        className={`py-1.5 rounded border font-mono text-[10px] uppercase transition-all ${stakeTab === t ? "border-secondary bg-secondary/10 text-secondary" : "border-border text-muted-foreground hover:border-secondary/40"}`}
                       >
-                        {t === "1x2" ? "1X2" : t === "goals" ? "Goals" : t === "ah" ? "Asian HCP" : "Correct Score"}
+                        {t}
                       </button>
-                    ));
-                  })()}
+                    ))}
                   </div>
 
-                  {/* 1X2 panel */}
-                  {stakeTab === "1x2" && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {([
-                        { side: "home" as StakeSide, label: "1", sublabel: match.home_team, odds: match.odds?.home ?? 2.0, prob: homeProb },
-                        { side: "draw" as StakeSide, label: "X", sublabel: "Draw", odds: match.odds?.draw ?? 3.3, prob: drawProb },
-                        { side: "away" as StakeSide, label: "2", sublabel: match.away_team, odds: match.odds?.away ?? 3.5, prob: awayProb },
-                      ]).map(({ side, label, sublabel, odds, prob }) => (
-                        <button key={side} type="button" onClick={() => setSelectedSide(side)}
-                          className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
-                            selectedSide === side
-                              ? "border-primary bg-primary/10 "
-                              : "border-border bg-card/50 hover:border-primary/40"
-                          }`}
-                        >
-                          <span className="text-base font-bold text-primary">{label}</span>
-                          <span className="text-[9px] text-muted-foreground truncate w-full text-center">{sublabel}</span>
-                          <span className="text-[10px] text-foreground font-semibold">{odds.toFixed(2)}</span>
-                          <span className="text-[9px] text-muted-foreground">{(prob * 100).toFixed(0)}%</span>
-                        </button>
-                      ))}
+                  <div className="space-y-2">
+                    <div className="flex justify-between font-mono text-[10px] text-muted-foreground uppercase">
+                      <span>Available: {wallet?.vitcoin_balance?.toFixed(2) ?? "0.00"} VIT</span>
+                      <span>Min: 1 VIT</span>
                     </div>
-                  )}
-
-                  {/* Goals panel */}
-                  {stakeTab === "goals" && (
-                    <div className="space-y-2">
-                      {(match as any).over_25_prob != null && (
-                        <div>
-                          <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Over / Under 2.5</p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {([
-                              { side: "over_25" as StakeSide, label: "Over 2.5", prob: (match as any).over_25_prob },
-                              { side: "under_25" as StakeSide, label: "Under 2.5", prob: (match as any).under_25_prob ?? (1 - ((match as any).over_25_prob ?? 0.5)) },
-                            ]).map(({ side, label, prob }) => (
-                              <button key={side} type="button" onClick={() => setSelectedSide(side)}
-                                className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
-                                  selectedSide === side
-                                    ? "border-primary bg-primary/10 "
-                                    : "border-border bg-card/50 hover:border-primary/40"
-                                }`}
-                              >
-                                <span className="text-sm font-bold text-foreground">{label}</span>
-                                <span className="text-[10px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {(match as any).btts_prob != null && (
-                        <div>
-                          <p className="text-[10px] font-mono text-muted-foreground uppercase mb-2">h Teams to Score</p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {([
-                              { side: "btts_yes" as StakeSide, label: "BTTS Yes", prob: (match as any).btts_prob },
-                              { side: "btts_no" as StakeSide, label: "BTTS No", prob: (match as any).no_btts_prob ?? (1 - ((match as any).btts_prob ?? 0.5)) },
-                            ]).map(({ side, label, prob }) => (
-                              <button key={side} type="button" onClick={() => setSelectedSide(side)}
-                                className={`flex flex-col items-center gap-0.5 p-3 rounded-lg border font-mono transition-all ${
-                                  selectedSide === side
-                                    ? "border-primary bg-primary/10 "
-                                    : "border-border bg-card/50 hover:border-primary/40"
-                                }`}
-                              >
-                                <span className="text-sm font-bold text-foreground">{label}</span>
-                                <span className="text-[10px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {(match as any).over_25_prob == null && (match as any).btts_prob == null && (
-                        <div className="text-center py-4 text-muted-foreground font-mono text-xs">
-                          Goals market data not available for this fixture.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Asian Handicap panel */}
-                  {stakeTab === "ah" && (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <label className="text-[10px] font-mono text-muted-foreground uppercase mb-1 block">
-                            AH Line (Home) {matchAhLine != null && <span className="text-primary">· AI: {matchAhLine > 0 ? "+" : ""}{matchAhLine}</span>}
-                          </label>
-                          <Input
-                            type="number"
-                            step="0.25"
-                            value={ahLine}
-                            onChange={(e) => setAhLine(e.target.value)}
-                            className="font-mono h-9 text-sm bg-background/50 border-border"
-                            placeholder="e.g. -0.5"
-                          />
-                        </div>
-                        {matchAhLine != null && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="font-mono text-[10px] mt-5"
-                            onClick={() => setAhLine(String(matchAhLine))}
-                          >
-                            Use AI Line
-                          </Button>
-                        )}
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                        <span className="text-muted-foreground font-mono text-xs">AMOUNT</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {([
-                          { side: "ah_home" as StakeSide, label: `${match.home_team}`, sublabel: `AH ${ahLineNum > 0 ? "+" : ""}${ahLineNum}`, prob: ahHomeProb },
-                          { side: "ah_away" as StakeSide, label: `${match.away_team}`, sublabel: `AH ${-ahLineNum > 0 ? "+" : ""}${-ahLineNum}`, prob: ahAwayProb },
-                        ]).map(({ side, label, sublabel, prob }) => (
-                          <button key={side} type="button" onClick={() => setSelectedSide(side)}
-                            className={`flex flex-col items-center gap-1 p-3 rounded-lg border font-mono transition-all ${
-                              selectedSide === side
-                                ? "border-primary bg-primary/10 "
-                                : "border-border bg-card/50 hover:border-primary/40"
-                            }`}
-                          >
-                            <span className="text-xs font-bold text-foreground truncate w-full text-center">{label}</span>
-                            <span className="text-[10px] text-primary font-semibold">{sublabel}</span>
-                            {prob != null && (
-                              <span className="text-[9px] text-muted-foreground">{(prob * 100).toFixed(0)}% prob</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="text-[9px] font-mono text-muted-foreground bg-muted/20 rounded p-2 border border-border/40">
-                        Asian Handicap: Push returns stake if margin equals the line. Positive line = underdog advantage.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Correct Score panel */}
-                  {stakeTab === "cs" && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-[10px] font-mono text-muted-foreground uppercase flex items-center gap-1">
-                          <Grid3x3 className="w-3 h-3" /> Select final score
-                        </p>
-                        {selectedSide?.startsWith("cs_") && (
-                          <Badge variant="outline" className="font-mono text-[9px] text-primary border-primary/40">
-                            {(selectedSide as string).replace("cs_", "").replace("-", " – ")}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {CS_LINES.map((score) => {
-                          const key = `cs_${score}` as StakeSide;
-                          const prob = csProbs?.[`cs_${score}`] ?? csProbs?.[score] ?? null;
-                          const isSelected = selectedSide === key;
-                          const [h, a] = score.split("-").map(Number);
-                          const isHome = h > a, isDraw = h === a, isAway = a > h;
-                          const accentCls = isHome
-                            ? "border-primary/50 text-primary"
-                            : isDraw
-                            ? "border-muted-foreground/40 text-muted-foreground"
-                            : "border-orange-400/50 text-orange-400";
-                          return (
-                            <button key={score} type="button" onClick={() => setSelectedSide(key)}
-                              className={`flex flex-col items-center p-2 rounded border font-mono text-xs transition-all ${
-                                isSelected
-                                  ? `bg-primary/10 border-primary `
-                                  : `bg-card/40 ${accentCls} hover:bg-muted/20`
-                              }`}
-                            >
-                              <span className={`font-bold text-sm ${isSelected ? "text-primary" : ""}`}>{score}</span>
-                              {prob != null && (
-                                <span className="text-[8px] text-muted-foreground">{(prob * 100).toFixed(1)}%</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="text-[9px] font-mono text-muted-foreground bg-muted/20 rounded p-2 border border-border/40">
-                        Correct Score pays out only if the exact final score matches. Higher odds, higher risk.
-                      </div>
-                    </div>
-                  )}
-
-                  {!isSports && (
-                    <div>
-                      <label className="text-xs font-mono text-muted-foreground uppercase mb-1 block">Amount (VITCoin)</label>
                       <Input
                         type="number"
                         value={stakeAmount}
                         onChange={(e) => setStakeAmount(e.target.value)}
-                        className="font-mono text-lg bg-background/50 border-primary/20 h-12"
+                        className="pl-16 h-12 bg-background/50 border-secondary/30 focus:border-secondary/60 font-mono text-lg"
                         min="1"
                       />
                     </div>
-                  )}
+                  </div>
+                </div>
+              )}
 
-                  {selectedSide && (
-                    <div className={`rounded-lg border px-3 py-2 font-mono text-xs flex items-center justify-between ${isSports ? "border-primary/40 bg-primary/10" : "border-secondary/30 bg-secondary/5"}`}>
-                      <span className="text-muted-foreground uppercase">Selection</span>
-                      <span className={`${isSports ? "text-primary" : "text-secondary"} font-bold uppercase`}>
-                        {(selectedSide as string).startsWith("cs_")
-                          ? `Score ${(selectedSide as string).replace("cs_", "").replace("-", " – ")}`
-                          : (selectedSide as string).replace(/_/g, " ")}
-                        {(selectedSide === "ah_home" || selectedSide === "ah_away") && ` (${ahLineNum > 0 ? "+" : ""}${ahLineNum})`}
-                      </span>
-                    </div>
-                  )}
+              <div className="space-y-3">
+                <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Zap className="w-3 h-3 text-primary/60" /> Execute Selection
+                </p>
+                {isSports && (
+                  <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-tighter mb-4 opacity-70">
+                    No wallet interaction. Predictions are fulfilled via external affiliate partners.
+                  </p>
+                )}
 
-                  {isSports ? (
-                    <div className="space-y-2">
-                      <Button
-                        className="w-full h-12 font-mono uppercase tracking-widest text-sm gap-2"
-                        onClick={() => handleGenerateSlip()}
-                        disabled={generateSlip.isPending || !selectedSide}
-                      >
-                        {generateSlip.isPending ? (
-                          <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                        ) : (
-                          <><TrendingUp className="w-4 h-4" /> Generate Slip & Open Affiliate</>
-                        )}
-                      </Button>
-                      <p className="text-[9px] font-mono text-center text-muted-foreground uppercase tracking-tighter">
-                        Redirects to verified bookmaker partners (Betway, SportyBet, Bet9ja)
-                      </p>
-                    </div>
-                  ) : (
-                    <Button
-                      className="w-full h-12 font-mono uppercase tracking-widest text-sm bg-secondary hover:bg-secondary/90 text-secondary-foreground"
-                      onClick={handleStake}
-                      disabled={stake.isPending || !selectedSide}
-                    >
-                      {stake.isPending ? "PROCESSING_TX..." : "EXECUTE_STAKE"}
-                    </Button>
-                  )}
-                </>
+                <Tabs value={stakeTab} onValueChange={(v: any) => setStakeTab(v)} className="w-full">
+                  <TabsList className="grid w-full grid-cols-4 h-9 bg-background/40">
+                    <TabsTrigger value="1x2" className="text-[10px] font-mono uppercase">1X2</TabsTrigger>
+                    <TabsTrigger value="goals" className="text-[10px] font-mono uppercase">Goals</TabsTrigger>
+                    <TabsTrigger value="ah" className="text-[10px] font-mono uppercase">Asian HCP</TabsTrigger>
+                    <TabsTrigger value="cs" className="text-[10px] font-mono uppercase">Correct Score</TabsTrigger>
+                  </TabsList>
+
+                  <div className="mt-4 space-y-2">
+                    <TabsContent value="1x2" className="space-y-2 m-0">
+                      {[
+                        { id: "home", label: match.home_team, odds: match.odds?.home, prob: homeProb },
+                        { id: "draw", label: "Draw", odds: match.odds?.draw, prob: drawProb },
+                        { id: "away", label: match.away_team, odds: match.odds?.away, prob: away_prob }
+                      ].filter(x => x.odds != null || x.id !== "draw").map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => setSelectedSide(s.id as StakeSide)}
+                          className={`w-full p-3 rounded-lg border font-mono text-xs flex items-center justify-between transition-all ${selectedSide === s.id ? "border-primary bg-primary/10" : "border-border bg-background/20 hover:border-primary/40"}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`w-5 h-5 rounded-full border flex items-center justify-center text-[10px] font-bold ${selectedSide === s.id ? "bg-primary text-background" : "text-muted-foreground"}`}>
+                              {s.id === "home" ? "1" : s.id === "draw" ? "X" : "2"}
+                            </span>
+                            <span className="font-bold text-left truncate max-w-[120px]">{s.label}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="font-black text-sm">{s.odds?.toFixed(2) ?? "—"}</span>
+                            <span className="text-muted-foreground opacity-60 w-8">{(s.prob * 100).toFixed(0)}%</span>
+                          </div>
+                        </button>
+                      ))}
+                    </TabsContent>
+
+                    <TabsContent value="goals" className="space-y-2 m-0">
+                      {[
+                        { id: "over_25", label: "Over 2.5", prob: match.over_25_prob },
+                        { id: "under_25", label: "Under 2.5", prob: match.under_25_prob },
+                        { id: "btts_yes", label: "BTTS Yes", prob: match.btts_prob },
+                        { id: "btts_no", label: "BTTS No", prob: match.no_btts_prob }
+                      ].map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => setSelectedSide(s.id as StakeSide)}
+                          className={`w-full p-3 rounded-lg border font-mono text-xs flex items-center justify-between transition-all ${selectedSide === s.id ? "border-primary bg-primary/10" : "border-border bg-background/20 hover:border-primary/40"}`}
+                        >
+                          <span className="font-bold">{s.label}</span>
+                          <span className="text-muted-foreground opacity-60">{(s.prob ? s.prob * 100 : 0).toFixed(0)}%</span>
+                        </button>
+                      ))}
+                    </TabsContent>
+
+                    <TabsContent value="ah" className="space-y-4 m-0">
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["-1.5", "-0.75", "-0.5", "0.0", "+0.5", "+0.75", "+1.5"]).map(line => (
+                          <button
+                            key={line}
+                            onClick={() => setAhLine(line)}
+                            className={`py-1.5 rounded border font-mono text-[10px] transition-all ${ahLine === line ? "border-primary bg-primary/10" : "border-border text-muted-foreground"}`}
+                          >
+                            HCP {line}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant={selectedSide === "ah_home" ? "default" : "outline"}
+                          className="font-mono text-[10px] uppercase"
+                          onClick={() => setSelectedSide("ah_home")}
+                        >
+                          Home {ahLine} ({(ahHomeProb ? ahHomeProb * 100 : 0).toFixed(0)}%)
+                        </Button>
+                        <Button
+                          variant={selectedSide === "ah_away" ? "default" : "outline"}
+                          className="font-mono text-[10px] uppercase"
+                          onClick={() => setSelectedSide("ah_away")}
+                        >
+                          Away {ahLine.startsWith("-") ? ahLine.replace("-", "+") : ahLine.startsWith("+") ? ahLine.replace("+", "-") : ahLine} ({(ahAwayProb ? ahAwayProb * 100 : 0).toFixed(0)}%)
+                        </Button>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="cs" className="m-0">
+                      <div className="grid grid-cols-4 gap-2">
+                        {CS_LINES.map(line => {
+                          const prob = csProbs?.[line] ?? 0;
+                          return (
+                            <button
+                              key={line}
+                              onClick={() => setSelectedSide(`cs_${line}`)}
+                              className={`flex flex-col items-center justify-center p-2 rounded border font-mono transition-all ${selectedSide === `cs_${line}` ? "border-primary bg-primary/10" : "border-border bg-background/20"}`}
+                            >
+                              <span className="text-[10px] font-bold">{line}</span>
+                              <span className="text-[8px] opacity-60">{(prob * 100).toFixed(1)}%</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </TabsContent>
+                  </div>
+                </Tabs>
+              </div>
+
+              {selectedSide && (
+                <div className={`rounded-lg border px-3 py-2 font-mono text-xs flex items-center justify-between ${isSports ? "border-primary/40 bg-primary/10" : "border-secondary/30 bg-secondary/5"}`}>
+                  <span className="text-muted-foreground uppercase">Selection</span>
+                  <span className={`${isSports ? "text-primary" : "text-secondary"} font-bold uppercase`}>
+                    {(selectedSide as string).startsWith("cs_")
+                      ? `Score ${(selectedSide as string).replace("cs_", "").replace("-", " – ")}`
+                      : (selectedSide as string).replace(/_/g, " ")}
+                    {(selectedSide === "ah_home" || selectedSide === "ah_away") && ` (${ahLineNum > 0 ? "+" : ""}${ahLineNum})`}
+                  </span>
+                </div>
+              )}
+
+              {isSports ? (
+                <div className="space-y-2">
+                  <Button
+                    className="w-full h-12 font-mono uppercase tracking-widest text-sm gap-2"
+                    onClick={() => handleGenerateSlip()}
+                    disabled={generateSlip.isPending || !selectedSide}
+                  >
+                    {generateSlip.isPending ? (
+                      <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                    ) : (
+                      <><TrendingUp className="w-4 h-4" /> Generate Slip & Open Affiliate</>
+                    )}
+                  </Button>
+                  <p className="text-[9px] font-mono text-center text-muted-foreground uppercase tracking-tighter">
+                    Redirects to verified bookmaker partners (Betway, SportyBet, Bet9ja)
+                  </p>
+                </div>
+              ) : (
+                <Button
+                  className="w-full h-12 font-mono uppercase tracking-widest text-sm bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                  onClick={handleStake}
+                  disabled={stake.isPending || !selectedSide}
+                >
+                  {stake.isPending ? "PROCESSING_TX..." : "EXECUTE_STAKE"}
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -964,6 +802,14 @@ export default function MatchDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {showPredict && (
+        <PredictionFlow
+          match={match}
+          open={showPredict}
+          onClose={() => setShowPredict(false)}
+        />
+      )}
     </div>
   );
 }
