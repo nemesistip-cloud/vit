@@ -4,6 +4,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -213,20 +219,27 @@ export function NotificationBell() {
 
   return (
     <div className="relative" ref={panelRef}>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="relative"
-        onClick={() => { setOpen((o) => !o); setShowPrefs(false); setShowTgLink(false); }}
-        aria-label="Notifications"
-      >
-        <Bell className="w-5 h-5 text-muted-foreground" />
-        {unread > 0 && (
-          <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            onClick={() => { setOpen((o) => !o); setShowPrefs(false); setShowTgLink(false); }}
+            aria-label="Notifications"
+          >
+            <Bell className="w-5 h-5 text-muted-foreground" />
+            {unread > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          Notifications{unread > 0 ? ` (${unread} unread)` : ""}
+        </TooltipContent>
+      </Tooltip>
 
       {open && (
         <div className="absolute right-0 top-10 z-50 w-80 bg-background border border-border rounded-lg  overflow-hidden">
@@ -255,27 +268,35 @@ export function NotificationBell() {
                 <span className="text-sm font-semibold text-foreground">Notifications</span>
                 <div className="flex gap-1">
                   {unread > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      title="Mark all as read"
-                      aria-label="Mark all notifications as read"
-                      onClick={() => markAllRead.mutate()}
-                    >
-                      <CheckCheck className="w-4 h-4 text-muted-foreground" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label="Mark all notifications as read"
+                          onClick={() => markAllRead.mutate()}
+                        >
+                          <CheckCheck className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Mark all as read</TooltipContent>
+                    </Tooltip>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    title="Preferences"
-                    aria-label="Notification settings"
-                    onClick={() => setShowPrefs(true)}
-                  >
-                    <Settings className="w-4 h-4 text-muted-foreground" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Notification settings"
+                        onClick={() => setShowPrefs(true)}
+                      >
+                        <Settings className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Notification settings</TooltipContent>
+                  </Tooltip>
                 </div>
               </>
             )}
