@@ -1,37 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+echo "[build] Cleaning up redundant lockfiles..."
+rm -f package-lock.json frontend/package-lock.json
+
 echo "[build] Installing Python dependencies..."
 pip install -r requirements.txt
 
 # Ensure node is available
 if ! command -v node &> /dev/null; then
     echo "[build] Error: node is not installed." >&2
-    # Use return 1 in a subshell or just let it fail naturally
-    false
+    exit 1
 fi
 
 echo "[build] Node version: $(node -v)"
+
+# Ensure pnpm is available
+if ! command -v pnpm &> /dev/null; then
+    echo "[build] pnpm not found. Installing pnpm globally..."
+    npm install -g pnpm
+fi
+
+echo "[build] pnpm version: $(pnpm -v)"
 
 # Skip frontend build if --skip-frontend is passed
 if [[ "${1:-}" != "--skip-frontend" ]]; then
     echo "[build] Installing frontend dependencies..."
     cd frontend
 
-    # Detect lockfiles and use appropriate package manager
+    # Always use pnpm if lockfile exists, otherwise fallback to npm
     if [ -f "pnpm-lock.yaml" ]; then
         echo "[build] Using pnpm (pnpm-lock.yaml detected)"
         pnpm install --frozen-lockfile
-    elif [ -f "package-lock.json" ]; then
-        echo "[build] Using npm ci (package-lock.json detected)"
-        npm ci --prefer-offline --no-audit --no-fund
+    elif [ -f "../pnpm-lock.yaml" ]; then
+        echo "[build] Using pnpm (root pnpm-lock.yaml detected)"
+        pnpm install --frozen-lockfile
     else
-        echo "[build] Using npm install fallback"
+        echo "[build] pnpm-lock.yaml not found. Falling back to npm install."
         npm install --prefer-offline --no-audit --no-fund
     fi
 
     echo "[build] Building frontend for production..."
-    if [ -f "pnpm-lock.yaml" ]; then
+    if command -v pnpm &> /dev/null; then
         pnpm run build
     else
         npm run build
