@@ -68,9 +68,9 @@ class SubChain(Base):
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     config: Mapped[str] = mapped_column(Text, default="{}")
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive.replace(tzinfo=None))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     updated_at: Mapped[datetime] = mapped_column(
-        default=_utcnow_naive.replace(tzinfo=None), onupdate=_utcnow_naive.replace(tzinfo=None)
+        default=_utcnow_naive, onupdate=_utcnow_naive
     )
 
     blocks: Mapped[list["SubChainBlock"]] = relationship(
@@ -106,7 +106,7 @@ class SubChainBlock(Base):
     state_root: Mapped[str] = mapped_column(String(66))
     finality_proof: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     finalized: Mapped[bool] = mapped_column(default=False)
-    produced_at: Mapped[datetime] = mapped_column(default=_utcnow_naive.replace(tzinfo=None))
+    produced_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
 
     chain: Mapped["SubChain"] = relationship(back_populates="blocks")
 
@@ -134,7 +134,7 @@ class CrossChainMessage(Base):
     confirmation_block: Mapped[Optional[int]] = mapped_column(nullable=True)
     fee_paid: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))
     retry_count: Mapped[int] = mapped_column(default=0)
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive.replace(tzinfo=None))
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
     relayed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     confirmed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
@@ -163,7 +163,7 @@ class SubChainValidator(Base):
         Numeric(5, 2), default=Decimal("100")
     )
     is_active: Mapped[bool] = mapped_column(default=True)
-    joined_at: Mapped[datetime] = mapped_column(default=_utcnow_naive.replace(tzinfo=None))
+    joined_at: Mapped[datetime] = mapped_column(default=_utcnow_naive)
 
 
 def _utcnow():
