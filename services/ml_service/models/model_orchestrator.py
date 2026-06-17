@@ -78,7 +78,7 @@ class _BaseModel:
         k = self.key.lower()
         if "logistic" in k:
             from sklearn.linear_model import LogisticRegression
-            return LogisticRegression(max_iter=500, random_state=42, multi_class="multinomial", solver="lbfgs")
+            return LogisticRegression(max_iter=500, random_state=42, solver="lbfgs")
         if "rf" in k or "forest" in k:
             from sklearn.ensemble import RandomForestClassifier
             return RandomForestClassifier(n_estimators=120, random_state=42, n_jobs=-1)
