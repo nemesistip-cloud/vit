@@ -19,8 +19,8 @@ fi
 echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Hybrid Mode: ML + SCIE Active"
 
-# Run schema setup
-bash scripts/build.sh --skip-frontend || true
+# Removed redundant scripts/build.sh call.
+# Render runs build.sh during the deployment phase.
 
 # Start FastAPI (Background Supervisor handles the agents)
 echo "[production] Starting VIT Network on port ${PORT}..."
