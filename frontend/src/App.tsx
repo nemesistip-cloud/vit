@@ -72,6 +72,7 @@ const ElectionsPage = lazyRetry(() => import("@/pages/elections"));
 const PolicyPage = lazyRetry(() => import("@/pages/policy"));
 const RemittancePage = lazyRetry(() => import("@/pages/remittance"));
 const CommunityPage = lazyRetry(() => import("@/pages/community"));
+const CampusPage = lazyRetry(() => import("@/pages/campus"));
 const ProphecyPage = lazyRetry(() => import("@/pages/prophecy"));
 
 // Simple components
@@ -160,6 +161,9 @@ function Router() {
       </Route>
       <Route path="/community">
         <Layout><ProtectedRoute component={CommunityPage} /></Layout>
+      </Route>
+      <Route path="/campus">
+        <Layout><ProtectedRoute component={CampusPage} /></Layout>
       </Route>
       <Route path="/prophecy">
         <Layout><ProtectedRoute component={ProphecyPage} /></Layout>

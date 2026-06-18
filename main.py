@@ -714,8 +714,9 @@ async def _run_bootstrap(app, _done_event):
                 import uuid as _uuid
                 from decimal import Decimal as _Decimal
                 from app.db.database import AsyncSessionLocal
-                from app.db.models import User as _User, WalletTransaction as _WT
-                from app.modules.wallet.models import Wallet as _Wallet, PlatformConfig as _PC
+                from datetime import datetime as _datetime, timezone as _timezone
+                from app.db.models import User as _User
+                from app.modules.wallet.models import Wallet as _Wallet, WalletTransaction as _WT, PlatformConfig as _PC
                 from sqlalchemy import select as _select
 
                 async with AsyncSessionLocal() as _db:
@@ -747,7 +748,7 @@ async def _run_bootstrap(app, _done_event):
                             _db.add(_WT(
                                 wallet_id=_new_wallet_id, user_id=_u.id, type="welcome_bonus",
                                 amount=_welcome_bonus, currency="VITCoin", status="confirmed", reference="welcome_bonus",
-                                processed_at=datetime.now(timezone.utc).replace(tzinfo=None)
+                                processed_at=_datetime.now(_timezone.utc).replace(tzinfo=None)
                             ))
                         await _db.commit()
                         print(f"✅ Wallets backfilled for {len(_users_needing_wallets)} existing user(s)")
@@ -2103,16 +2104,16 @@ app.include_router(quality_feed_router, prefix="/api")
 
 # Prophecy Branch — Academy, AI Core, AI Upload
 from app.modules.academy.routes import router as academy_router
-# from app.modules.academy.communities import router as campus_circles_router
-# from app.modules.academy.gigs import router as campus_gigs_router
-# from app.modules.academy.campus import router as campus_hub_router
+from app.modules.academy.communities import router as campus_circles_router
+from app.modules.academy.gigs import router as campus_gigs_router
+from app.modules.academy.campus import router as campus_hub_router
 from app.modules.ai_core.routes import router as ai_core_router
 from app.modules.prophecy_chain.routes import router as prophecy_chain_router
 
 app.include_router(academy_router)
-# app.include_router(campus_circles_router)
-# app.include_router(campus_gigs_router)
-# app.include_router(campus_hub_router)
+app.include_router(campus_circles_router)
+app.include_router(campus_gigs_router)
+app.include_router(campus_hub_router)
 app.include_router(ai_core_router)
 app.include_router(prophecy_chain_router, prefix="/api")
 

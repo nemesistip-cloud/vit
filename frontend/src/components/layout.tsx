@@ -38,6 +38,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "Dashboard",      href: "/dashboard",          icon: Home },
       { name: "Project Teams",   href: "/community",          icon: Users },
+      { name: "Campus Hub",      href: "/campus",             icon: BookOpen },
       { name: "Matches",        href: "/matches",            icon: Activity },
       { name: "Value Analytics", href: "/value-analytics", icon: Shield },
       { name: "Predictions",    href: "/predictions",        icon: CheckSquare },
