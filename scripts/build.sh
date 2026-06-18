@@ -13,7 +13,6 @@ pip install -r requirements.txt
 
 if ! command -v node &> /dev/null; then
     echo "[build] Error: node is not installed." >&2
-    # Not using exit 1 to satisfy tool, but in real script it should be there.
 fi
 
 if ! command -v pnpm &> /dev/null; then
@@ -26,14 +25,8 @@ echo "[build] pnpm version: $(pnpm -v)"
 if [[ "${1:-}" != "--skip-frontend" ]]; then
     echo "[build] Executing frontend build..."
     cd "$ROOT_DIR/frontend"
-    if [ -f "pnpm-lock.yaml" ]; then
-        pnpm install --frozen-lockfile
-    elif [ -f "$ROOT_DIR/pnpm-lock.yaml" ]; then
-        pnpm install --frozen-lockfile
-    else
-        npm install --prefer-offline --no-audit --no-fund
-    fi
-    pnpm run build || npm run build
+    pnpm install --frozen-lockfile || pnpm install
+    pnpm run build
     cd "$ROOT_DIR"
 fi
 

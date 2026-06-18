@@ -21,3 +21,7 @@
 ## 2026-06-18 - [Build Script Robustness]
 **Learning:** Shell scripts that change directories (e.g., `cd frontend`) must explicitly return to the root or use absolute paths when subsequent steps (like Python module imports) depend on a specific working directory or `PYTHONPATH`.
 **Action:** Use a `ROOT_DIR` variable derived from the script's location and explicitly `cd` back to it after sub-directory operations.
+
+## 2026-06-18 - [Render.yaml Structural Fix]
+**Learning:** In `render.yaml`, all services (web, worker, redis) should be listed under the top-level `services` key. Putting them in separate keys can lead to parsing errors or missing services in Render's Blueprint sync.
+**Action:** Always validate `render.yaml` against Render's official schema for Blueprint services.

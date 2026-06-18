@@ -4,12 +4,9 @@ services:
     runtime: python
     region: ohio
     plan: starter
-
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_production.sh
-
     healthCheckPath: /ping
-
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -17,13 +14,8 @@ services:
         value: "false"
       - key: ML_MODEL_CACHE_ENABLED
         value: "false"
-      # ── Agent configuration ────────────────────────────────────────────────
-      # These 8 agents form the memory-safe core set for free/starter plans.
-      # Use ENABLED_AGENTS=all to enable all 23 agents (requires more RAM).
       - key: ENABLED_AGENTS
         value: "performance-monitor,live-match-tracker,network-guardian,weight-optimizer,match-scout,oracle-node,kyc-screener,academic-tutor"
-      # ── ML model configuration ─────────────────────────────────────────────
-      # All 13 registered model keys. market_v2 = MarketImplied (not market_implied_v2).
       - key: ENABLED_MODELS
         value: "xgb_v2,lstm_v2,poisson_v2,hybrid_v2,transformer_v2,ensemble_v2,dixon_coles_v2,bayes_v2,market_v2,rf_v2,logistic_v2,elo_v2,llm_consensus_v2"
       - key: BLOCKCHAIN_ENABLED
@@ -48,26 +40,14 @@ services:
         value: "1"
       - key: PYTHONDONTWRITEBYTECODE
         value: "1"
-      # ── TheSportsDB ────────────────────────────────────────────────────────
-      # Free public key = "3". Upgrade to a paid key for higher rate limits.
       - key: THESPORTSDB_API_KEY
         value: "3"
-      # ── Bootstrap ─────────────────────────────────────────────────────────
-      # Months of historical data to backfill on first boot (fewer = faster boot)
       - key: BOOTSTRAP_MATCH_MONTHS
         value: "3"
-      # ── Tachyon Storage System ─────────────────────────────────────────────
-      # Tachyon runs INSIDE the main vit service (router mounted at /api/tachyon).
-      # No separate service needed — the standalone tachyon service was removed.
-      # With no cloud credentials set, falls back to 3 disk nodes at /tmp/tachyon_storage.
-      # Set GDRIVE_SERVICE_ACCOUNT_JSON / DROPBOX_ACCESS_TOKEN / ONEDRIVE_CLIENT_ID
-      # in the Render dashboard for persistent cloud-backed storage.
       - key: TACHYON_STORAGE_ENABLED
         value: "true"
       - key: TACHYON_STORAGE_PATH
         value: "/tmp/tachyon_storage"
-      # ── Secrets (must be set manually in Render dashboard) ────────────────
-      # CRITICAL: JWT_SECRET_KEY MUST be set — without it sessions are lost on every restart.
       - key: JWT_SECRET_KEY
         sync: false
       - key: DATABASE_URL
@@ -82,59 +62,19 @@ services:
         sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
-      - key: FOOTBALL_DATA_API_KEY
-        sync: false
-      - key: GCS_BUCKET_NAME
-        sync: false
-      - key: GCS_PROJECT_ID
-        sync: false
-      - key: GDRIVE_SERVICE_ACCOUNT_JSON
-        sync: false
-      - key: DROPBOX_ACCESS_TOKEN
-        sync: false
-      - key: DROPBOX_APP_KEY
-        sync: false
-      - key: DROPBOX_APP_SECRET
-        sync: false
-      - key: DROPBOX_REFRESH_TOKEN
-        sync: false
-      - key: ONEDRIVE_CLIENT_ID
-        sync: false
-      - key: ONEDRIVE_CLIENT_SECRET
-        sync: false
-      - key: ONEDRIVE_TENANT_ID
-        sync: false
-      - key: ONEDRIVE_USER_ID
-        sync: false
       - key: REDIS_URL
         fromService:
           type: redis
           name: vitnetwork-redis
           property: connectionString
 
-  - type: redis
-    name: vitnetwork-redis
-    region: ohio
-    plan: free
-    ipAllowList: []
-
-databases:
-  - name: vit-postgres
-    plan: free
-
   - type: worker
     name: vitnetwork-worker
     runtime: python
     region: ohio
     plan: starter
-
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_worker.sh
-
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -148,18 +88,24 @@ databases:
         value: "350"
       - key: MAX_LOADED_MODELS
         value: "2"
-      # Secrets — set manually in Render dashboard (sync: false)
       - key: REDIS_URL
-        sync: false
+        fromService:
+          type: redis
+          name: vitnetwork-redis
+          property: connectionString
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: vit-postgres
+          property: connectionString
       - key: JWT_SECRET_KEY
         sync: false
-      - key: FOOTBALL_DATA_API_KEY
-        sync: false
-      - key: ODDS_API_KEY
-        sync: false
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: TELEGRAM_CHAT_ID
-        sync: false
+
+  - type: redis
+    name: vitnetwork-redis
+    region: ohio
+    plan: free
+    ipAllowList: []
+
+databases:
+  - name: vit-postgres
+    plan: free
