@@ -17,3 +17,7 @@
 ## 2026-06-18 - [Migration to VIT Network]
 **Learning:** Redundant icon aliases in Lucide-React imports (e.g., `Zap as ZapIcon` when `Zap` is also imported) can cause build failures in certain environments or configurations (like Render's production build) even if they seem valid in development. Always ensure icon imports are clean and unambiguous.
 **Action:** Use a centralized `Icons` object or ensure unique aliases when multiple variants are needed, but prefer standard imports for core UI components.
+
+## 2026-06-18 - [Build Script Robustness]
+**Learning:** Shell scripts that change directories (e.g., `cd frontend`) must explicitly return to the root or use absolute paths when subsequent steps (like Python module imports) depend on a specific working directory or `PYTHONPATH`.
+**Action:** Use a `ROOT_DIR` variable derived from the script's location and explicitly `cd` back to it after sub-directory operations.
