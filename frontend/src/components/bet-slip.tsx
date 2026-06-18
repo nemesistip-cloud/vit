@@ -19,6 +19,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState } from "react";
 import { X, Trash2, ChevronUp, ChevronDown, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -103,20 +108,27 @@ export function BetSlipPanel() {
   return (
     <BetSlipContext.Provider value={{ items }}>
       {/* FAB — fixed bottom-right */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-24 left-5 z-50 lg:bottom-6 flex items-center gap-1.5 h-10 px-3 rounded-full bg-gradient-to-r from-secondary/80 to-yellow-500/60  border border-secondary/40 hover:scale-105 active:scale-95 transition-transform font-mono text-xs font-bold text-black"
-        title="Bet Slip"
-      >
-        <Layers className="w-4 h-4" />
-        <span>Slip</span>
-        {hasItems && (
-          <span className="w-4 h-4 rounded-full bg-black/30 text-[9px] flex items-center justify-center">
-            {items.length}
-          </span>
-        )}
-        {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="fixed bottom-24 left-5 z-50 lg:bottom-6 flex items-center gap-1.5 h-10 px-3 rounded-full bg-gradient-to-r from-secondary/80 to-yellow-500/60  border border-secondary/40 hover:scale-105 active:scale-95 transition-transform font-mono text-xs font-bold text-black shadow-lg"
+            aria-label={`Bet Slip${hasItems ? `, ${items.length} selections` : ""}`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Slip</span>
+            {hasItems && (
+              <span className="w-4 h-4 rounded-full bg-black/30 text-[9px] flex items-center justify-center">
+                {items.length}
+              </span>
+            )}
+            {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          Bet Slip {hasItems ? `(${items.length} selections)` : "(Empty)"}
+        </TooltipContent>
+      </Tooltip>
 
       {/* Panel */}
       {open && (

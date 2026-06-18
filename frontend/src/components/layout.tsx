@@ -27,15 +27,102 @@ import {
 import { NotificationBell } from "./notification-bell";
 import { EcosystemTicker } from "./ecosystem-ticker";
 import { Badge } from "./ui/badge";
-import { usePublicConfig } from "@/lib/usePublicConfig";
-
-interface NavItem {
-  label: string;
-  icon: any;
-  href: string;
-  category: "signal" | "earn" | "admin" | "social";
-  isNew?: boolean;
-  isBeta?: boolean;
+import { BrandLogo } from "@/components/BrandLogo";
+import { BetSlipPanel } from "./bet-slip";
+import { KellyCalculatorModal, KellyFAB } from "./kelly-calculator-modal";
+type NavItem  = { name: string; href: string; icon: any };
+type NavGroup = { name: string; items: NavItem[] };
+const NAV_GROUPS: NavGroup[] = [
+  {
+    name: "Signal",
+    items: [
+      { name: "Dashboard",      href: "/dashboard",          icon: Home },
+      { name: "Project Teams",   href: "/community",          icon: Users },
+      { name: "Matches",        href: "/matches",            icon: Activity },
+      { name: "Value Analytics", href: "/value-analytics", icon: Shield },
+      { name: "Predictions",    href: "/predictions",        icon: CheckSquare },
+      { name: "Accumulator",    href: "/accumulator",        icon: Layers },
+      { name: "Odds Intel",     href: "/odds",               icon: TrendingUp },
+      { name: "Backtest",       href: "/backtest",           icon: LineChart },
+      { name: "Bankroll",       href: "/bankroll",           icon: Landmark },
+    ],
+  },
+  {
+    name: "Earn",
+    items: [
+      { name: "Wallet",      href: "/wallet",      icon: Coins },
+      { name: "Watchlist",   href: "/watchlist",   icon: Eye },
+      { name: "Tasks",       href: "/tasks",       icon: ListChecks },
+      { name: "Offers",      href: "/earn",        icon: ZapIcon },
+      { name: "Merit",       href: "/merit",       icon: Star },
+      { name: "Leaderboard", href: "/leaderboard", icon: Medal },
+      { name: "Referral",    href: "/referral",    icon: Gift },
+    ],
+  },
+  {
+    name: "Pro",
+    items: [
+      { name: "AI Assistant",     href: "/assistant",          icon: Sparkles },
+      { name: "Training",         href: "/training",           icon: BookOpen },
+      { name: "Performance Analytics", href: "/analytics",      icon: BarChart2 },
+      { name: "Model Performance",href: "/model-performance",  icon: PieChart },
+      { name: "Intel Reports",    href: "/reports",            icon: Radio },
+      { name: "Research",         href: "/research",           icon: FlaskConical },
+      { name: "Marketplace",      href: "/marketplace",        icon: ShoppingBag },
+      { name: "Validators",       href: "/validators",         icon: ShieldCheck },
+    ],
+  },
+  {
+    name: "Network",
+    items: [
+      { name: "VIT Analytics",      href: "/oracle",          icon: DatabaseZap },
+      { name: "Node Network",    href: "/network",         icon: Network },
+      { name: "Smart Contracts", href: "/smart-contracts", icon: FileCode2 },
+      { name: "Treasury",        href: "/treasury",        icon: Vault },
+      { name: "Trust & Safety",  href: "/trust",           icon: Lock },
+      { name: "Security",        href: "/security",        icon: ShieldAlert },
+      { name: "Bridge",          href: "/bridge",          icon: ArrowLeftRight },
+      { name: "Governance",      href: "/governance",      icon: Vote },
+      { name: "Developer",       href: "/developer",       icon: Code2 },
+      { name: "Roadmap",         href: "/roadmap",         icon: Route },
+    ],
+  },
+  {
+    name: "You",
+    items: [
+      { name: "My Identity",      href: "/identity",        icon: Fingerprint },
+      { name: "KYC Verify",       href: "/kyc",             icon: BadgeCheck },
+      { name: "Subscription",     href: "/subscription",    icon: CreditCard },
+      { name: "Settings",         href: "/settings",        icon: Settings },
+    ],
+  },
+];
+const MOBILE_BOTTOM_NAV = [
+  { name: "Home",        href: "/dashboard",   icon: Home },
+  { name: "Matches",     href: "/matches",     icon: Activity },
+  { name: "Predictions", href: "/predictions", icon: CheckSquare },
+  { name: "Tasks",       href: "/tasks",       icon: Target },
+  { name: "Wallet",      href: "/wallet",      icon: Coins },
+];
+const TIER_BADGE: Record<string, { label: string; cls: string }> = {
+  elite:   { label: "Pro",       cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
+  pro:     { label: "Pro",       cls: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" },
+  analyst: { label: "Analyst",   cls: "text-blue-400 border-blue-500/40 bg-blue-500/10" },
+  validator: { label: "Validator", cls: "text-amber-400 border-amber-500/40 bg-amber-500/10" },
+  viewer:  { label: "Free",      cls: "text-zinc-400 border-zinc-600" },
+  admin:   { label: "Admin",     cls: "bg-rose-400/10 text-rose-400 border-rose-400/25" },
+};
+function UserInitials({ name }: { name: string }) {
+  const initials = name
+    .split(/[\s_-]/)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("");
+  return (
+    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 border border-primary/20 flex items-center justify-center flex-shrink-0">
+      <span className="text-xs font-bold font-mono text-primary">{initials || "V"}</span>
+    </div>
+  );
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -286,6 +373,89 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
+      {/* ── Desktop sidebar ──────────────────────────────── */}
+      <div className="hidden lg:flex w-60 flex-shrink-0 flex-col sticky top-0 h-screen border-r border-white/5"
+        style={{ background: "var(--vit-gradient-sidebar)" }}>
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-white/5">
+          <BrandLogo size={32} withWordmark />
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
+            <span className="vit-live-dot" style={{ width: 5, height: 5 }} />
+          </div>
+        </div>
+        {/* Nav */}
+        <nav className="flex-1 px-2.5 py-3 overflow-y-auto vit-scrollbar">
+          <NavItems />
+        </nav>
+        {/* User footer */}
+        <div className="p-3 border-t border-white/5">
+          <div className="flex items-center gap-2 rounded-lg p-2 bg-white/3 hover:bg-white/5 transition-colors">
+            <UserInitials name={user.username} />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-mono font-semibold text-foreground truncate">{user.username}</div>
+              <span className={`inline-flex items-center rounded px-1 py-0 text-[9px] font-mono border mt-0.5 ${tierBadge.cls}`}>{tierBadge.label}</span>
+            </div>
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-7 w-7" aria-label="Toggle theme">
+                    {theme === "dark" ? <SunIcon className="w-3.5 h-3.5 text-yellow-400/70" /> : <MoonIcon className="w-3.5 h-3.5 text-blue-400/70" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                </TooltipContent>
+              </Tooltip>
+              <NotificationBell />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7" aria-label="Logout">
+                    <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Logout</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* ── Main content + ecosystem ticker ──────────────── */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <EcosystemTicker />
+        <main className="flex-1 overflow-y-auto bg-background vit-scrollbar">
+          <div className="p-4 lg:p-6 max-w-7xl mx-auto pb-24 lg:pb-8">
+            {children}
+            <Footer />
+          </div>
+        </main>
+
+        {/* Global Tools */}
+        <BetSlipPanel />
+        <KellyFAB />
+        <KellyCalculatorModal />
+      </div>
+      {/* ── Mobile Bottom Navigation ─────────────────────── */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40"
+        style={{ background: "rgba(8,8,18,0.98)" }}>
+        <div className="flex justify-around items-center h-[60px] max-w-lg mx-auto">
+          {MOBILE_BOTTOM_NAV.map((item) => {
+            const isActive = location === item.href || location.startsWith(item.href + "/");
+            return (
+              <Link key={item.name} href={item.href} className="flex-1">
+                <span className={`relative flex flex-col items-center justify-center h-full gap-1 transition-all cursor-pointer ${
+                  isActive ? "text-primary" : "text-muted-foreground/60 hover:text-muted-foreground"
+                }`}>
+                  {isActive && (
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full " />
+                  )}
+                  <item.icon className={`w-4.5 h-4.5 transition-transform ${isActive ? "scale-110" : ""}`} style={{ width: 18, height: 18 }} />
+                  <span className="text-[9px] font-mono uppercase tracking-wide text-center">{item.name}</span>
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
