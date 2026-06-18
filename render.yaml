@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: vit
+    name: vitnetwork
     runtime: python
     region: ohio
     plan: starter
@@ -113,11 +113,11 @@ services:
       - key: REDIS_URL
         fromService:
           type: redis
-          name: vit-redis
+          name: vitnetwork-redis
           property: connectionString
 
   - type: redis
-    name: vit-redis
+    name: vitnetwork-redis
     region: ohio
     plan: free
     ipAllowList: []
@@ -127,7 +127,7 @@ databases:
     plan: free
 
   - type: worker
-    name: vit-worker
+    name: vitnetwork-worker
     runtime: python
     region: ohio
     plan: starter
