@@ -53,7 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
       { name: "Wallet",      href: "/wallet",      icon: Coins },
       { name: "Watchlist",   href: "/watchlist",   icon: Eye },
       { name: "Tasks",       href: "/tasks",       icon: ListChecks },
-      { name: "Offers",      href: "/earn",        icon: ZapIcon },
+      { name: "Offers",      href: "/earn",        icon: Zap },
       { name: "Merit",       href: "/merit",       icon: Star },
       { name: "Leaderboard", href: "/leaderboard", icon: Medal },
       { name: "Referral",    href: "/referral",    icon: Gift },
@@ -399,7 +399,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-7 w-7" aria-label="Toggle theme">
-                    {theme === "dark" ? <SunIcon className="w-3.5 h-3.5 text-yellow-400/70" /> : <MoonIcon className="w-3.5 h-3.5 text-blue-400/70" />}
+                    {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-yellow-400/70" /> : <Moon className="w-3.5 h-3.5 text-blue-400/70" />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -410,7 +410,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7" aria-label="Logout">
-                    <LogOutIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
+                    <LogOut className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Logout</TooltipContent>
