@@ -9,3 +9,19 @@
 ## 2026-06-17 - [Global Tooltip Integration]
 **Learning:** Icon-only buttons with 'aria-label' provide accessibility but lack visual clarity for sighted users on hover. Integrating Radix Tooltips globally in core components (Layout, NotificationBell) provides a consistent UX where users can confidently identify actions (Logout, Theme Toggle, etc.) without relying solely on icon recognition.
 **Action:** Wrap global icon-only actions in 'Tooltip' components from '@ui/tooltip' to bridge the gap between accessibility (aria-label) and visual discoverability.
+
+## 2026-06-18 - [Fixing Redundant Icon Aliases]
+**Learning:** Using redundant aliases in imports (e.g., `Zap as Zap`) can cause build failures in certain environments or with stricter linters/transpilers, even if they seem benign in dev. It clutters the namespace and increases the risk of naming collisions.
+**Action:** Always prefer clean imports and only use `as` aliases when there is a genuine naming conflict to resolve.
+
+## 2026-06-18 - [Migration to VIT Network]
+**Learning:** Redundant icon aliases in Lucide-React imports (e.g., `Zap as ZapIcon` when `Zap` is also imported) can cause build failures in certain environments or configurations (like Render's production build) even if they seem valid in development. Always ensure icon imports are clean and unambiguous.
+**Action:** Use a centralized `Icons` object or ensure unique aliases when multiple variants are needed, but prefer standard imports for core UI components.
+
+## 2026-06-18 - [Build Script Robustness]
+**Learning:** Shell scripts that change directories (e.g., `cd frontend`) must explicitly return to the root or use absolute paths when subsequent steps (like Python module imports) depend on a specific working directory or `PYTHONPATH`.
+**Action:** Use a `ROOT_DIR` variable derived from the script's location and explicitly `cd` back to it after sub-directory operations.
+
+## 2026-06-18 - [Render.yaml Structural Fix]
+**Learning:** In `render.yaml`, all services (web, worker, redis) should be listed under the top-level `services` key. Putting them in separate keys can lead to parsing errors or missing services in Render's Blueprint sync.
+**Action:** Always validate `render.yaml` against Render's official schema for Blueprint services.
