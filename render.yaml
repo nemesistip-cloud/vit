@@ -3,76 +3,30 @@ services:
     name: vitnetwork
     runtime: python
     region: ohio
-    plan: starter
+    plan: free
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_production.sh
     healthCheckPath: /ping
     envVars:
       - key: ENVIRONMENT
         value: production
-      - key: USE_REAL_ML_MODELS
-        value: "false"
-      - key: ML_MODEL_CACHE_ENABLED
-        value: "false"
-      - key: ENABLED_AGENTS
-        value: "performance-monitor,live-match-tracker,network-guardian,weight-optimizer,match-scout,oracle-node,kyc-screener,academic-tutor"
-      - key: ENABLED_MODELS
-        value: "xgb_v2,lstm_v2,poisson_v2,hybrid_v2,transformer_v2,ensemble_v2,dixon_coles_v2,bayes_v2,market_v2,rf_v2,logistic_v2,elo_v2,llm_consensus_v2"
-      - key: BLOCKCHAIN_ENABLED
-        value: "true"
-      - key: AUTH_ENABLED
-        value: "true"
-      - key: CORS_ALLOWED_ORIGINS
-        value: "*"
-      - key: RATE_LIMIT_ENABLED
-        value: "true"
-      - key: MAX_STAKE
-        value: "0.05"
-      - key: MIN_EDGE_THRESHOLD
-        value: "0.02"
-      - key: ADMIN_EMAIL
-        value: admin@vit.network
-      - key: ADMIN_USERNAME
-        value: vit_admin
-      - key: BASE_CHAIN_ID
-        value: "8453"
-      - key: PYTHONOPTIMIZE
-        value: "1"
-      - key: PYTHONDONTWRITEBYTECODE
-        value: "1"
-      - key: THESPORTSDB_API_KEY
-        value: "3"
-      - key: BOOTSTRAP_MATCH_MONTHS
-        value: "3"
-      - key: TACHYON_STORAGE_ENABLED
-        value: "true"
-      - key: TACHYON_STORAGE_PATH
-        value: "/tmp/tachyon_storage"
-      - key: JWT_SECRET_KEY
-        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: vit-postgres
           property: connectionString
-      - key: VIT_DATABASE_URL
-        fromDatabase:
-          name: vit-postgres
-          property: connectionString
-      - key: ODDS_API_KEY
-        sync: false
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
       - key: REDIS_URL
         fromService:
           type: redis
           name: vitnetwork-redis
           property: connectionString
+      - key: JWT_SECRET_KEY
+        sync: false
 
   - type: worker
     name: vitnetwork-worker
     runtime: python
     region: ohio
-    plan: starter
+    plan: free
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_worker.sh
     envVars:
@@ -80,14 +34,6 @@ services:
         value: production
       - key: WORKER_MODE
         value: "true"
-      - key: USE_REAL_ML_MODELS
-        value: "false"
-      - key: ML_MODEL_CACHE_ENABLED
-        value: "false"
-      - key: MAX_PROCESS_RAM_MB
-        value: "350"
-      - key: MAX_LOADED_MODELS
-        value: "2"
       - key: REDIS_URL
         fromService:
           type: redis
@@ -105,7 +51,3 @@ services:
     region: ohio
     plan: free
     ipAllowList: []
-
-databases:
-  - name: vit-postgres
-    plan: free
