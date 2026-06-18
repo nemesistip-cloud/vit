@@ -9,3 +9,7 @@
 ## 2026-06-17 - [Global Tooltip Integration]
 **Learning:** Icon-only buttons with 'aria-label' provide accessibility but lack visual clarity for sighted users on hover. Integrating Radix Tooltips globally in core components (Layout, NotificationBell) provides a consistent UX where users can confidently identify actions (Logout, Theme Toggle, etc.) without relying solely on icon recognition.
 **Action:** Wrap global icon-only actions in 'Tooltip' components from '@ui/tooltip' to bridge the gap between accessibility (aria-label) and visual discoverability.
+
+## 2026-06-18 - [Accessible Dynamic Labels for FABs]
+**Learning:** Using a static `aria-label` on a button with dynamic child content (like a count badge) causes screen readers to ignore the dynamic information.
+**Action:** Always include dynamic state (counts, statuses) within the `aria-label` string for interactive elements that use badges or overlay icons to convey information.

@@ -29,6 +29,8 @@ import { NotificationBell } from "./notification-bell";
 import { EcosystemTicker } from "./ecosystem-ticker";
 import { Badge } from "./ui/badge";
 import { BrandLogo } from "@/components/BrandLogo";
+import { BetSlipPanel } from "./bet-slip";
+import { KellyCalculatorModal, KellyFAB } from "./kelly-calculator-modal";
 type NavItem  = { name: string; href: string; icon: any };
 type NavGroup = { name: string; items: NavItem[] };
 const NAV_GROUPS: NavGroup[] = [
@@ -356,6 +358,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Footer />
           </div>
         </main>
+
+        {/* Global Tools */}
+        <BetSlipPanel />
+        <KellyFAB />
+        <KellyCalculatorModal />
       </div>
       {/* ── Mobile Bottom Navigation ─────────────────────── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40"
