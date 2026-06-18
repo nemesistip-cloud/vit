@@ -46,12 +46,11 @@ if [[ "${1:-}" != "--skip-frontend" ]]; then
     else
         npm run build
     fi
-    cd ..
 fi
 
 # Database Schema Sync
 echo "[build] Synchronizing database schema..."
-export PYTHONPATH=$PYTHONPATH:.
+export PYTHONPATH="${PYTHONPATH:-}:."
 python3 <<'PYEOF' || echo "[build] WARNING: Database schema sync failed. Check DATABASE_URL."
 import asyncio
 import os
