@@ -25,3 +25,7 @@
 ## 2026-06-18 - [Render.yaml Structural Fix]
 **Learning:** In `render.yaml`, all services (web, worker, redis) should be listed under the top-level `services` key. Putting them in separate keys can lead to parsing errors or missing services in Render's Blueprint sync.
 **Action:** Always validate `render.yaml` against Render's official schema for Blueprint services.
+
+## 2026-06-19 - [Bet Slip Accessibility & Tooltips]
+**Learning:** Icon-only buttons in floating tools like the Bet Slip (Remove selection) were missing accessibility labels and visual hints, which is a common pattern for interactive elements that are not part of the main layout.
+**Action:** Audit floating UI components and ensure all icon-only actions have 'aria-label' and are wrapped in 'Tooltip' for consistency with core components.

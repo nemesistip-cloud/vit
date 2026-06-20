@@ -180,12 +180,18 @@ export function BetSlipPanel() {
                       <span className="ml-2 text-foreground">{item.odds.toFixed(2)}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => dispatch({ type: "REMOVE", matchId: item.matchId })}
-                    className="p-1 rounded hover:bg-white/5 transition-colors flex-shrink-0"
-                  >
-                    <Trash2 className="w-3 h-3 text-muted-foreground hover:text-rose-400 transition-colors" />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => dispatch({ type: "REMOVE", matchId: item.matchId })}
+                        className="p-1 rounded hover:bg-white/5 transition-colors flex-shrink-0"
+                        aria-label="Remove selection"
+                      >
+                        <Trash2 className="w-3 h-3 text-muted-foreground hover:text-rose-400 transition-colors" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remove selection</TooltipContent>
+                  </Tooltip>
                 </div>
               ))
             )}
