@@ -1795,11 +1795,17 @@ async def _run_bootstrap(app, _done_event):
                     await asyncio.sleep(1800)  # run every 30 minutes
 
             from app.services.exchange_rate import start_rate_refresh_loop
+            async def tachyon_worker_loop():
+                """Maintenance loop for the Tachyon Verifiable Elastic Storage Swarm (VESS)."""
+                from tachyon.core.worker import TachyonVerificationWorker
+                worker = TachyonVerificationWorker(interval_seconds=3600)
+                await worker.start()
             tasks = [
                 asyncio.create_task(auto_settle_loop(), name="auto-settle"),
                 asyncio.create_task(live_match_tracker_loop(), name="live-match-tracker"),
                 asyncio.create_task(model_accountability_loop(), name="model-accountability"),
                 asyncio.create_task(vitcoin_pricing_loop(), name="vitcoin-pricing"),
+                asyncio.create_task(tachyon_worker_loop(), name="tachyon-verification"),
                 asyncio.create_task(subscription_expiry_loop(), name="subscription-expiry"),
                 asyncio.create_task(start_rate_refresh_loop(), name="exchange-rate-oracle"),
                 asyncio.create_task(sync_upcoming_loop(), name="fixture-sync"),
@@ -1814,13 +1820,6 @@ async def _run_bootstrap(app, _done_event):
             # Monitor agent liveness at: GET /api/agents/status
             print("\u2705 Agents: running in vit-worker service (Celery + Redis beats)")
 
-            # Dispose the engine used for bootstrap to free up connections for the main app
-            try:
-                from app.db.database import engine
-                await engine.dispose()
-                print("♻️  Bootstrap connections recycled")
-            except Exception:
-                pass
             print("✅ Background services started with supervision")
             print("🌐 API running at http://localhost:5000")
 
