@@ -70,16 +70,25 @@ class TachyonScheduler:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        processed_fragments = []
-        for res in results:
-            if isinstance(res, Exception) or res is None:
-                processed_fragments.append(None)
-            else:
-                if res and len(res) == 4096:
-                    TachyonShredder.get_fragment_hash(res)
-                processed_fragments.append(res)
+        data_shards = []
+        parity_shards = []
 
-        decoded = self.shredder.decode(processed_fragments, size_bytes)
+        # Split results into data and parity based on order in manifest
+        num_data = (size_bytes + 4095) // 4096
+
+        for i, res in enumerate(results):
+            fragment_data = None
+            if not isinstance(res, Exception) and res is not None:
+                if len(res) == 4096:
+                    TachyonShredder.get_fragment_hash(res)
+                fragment_data = res
+
+            if i < num_data:
+                data_shards.append(fragment_data)
+            else:
+                parity_shards.append(fragment_data)
+
+        decoded = self.shredder.decode(data_shards, parity_shards, size_bytes)
         if decoded is None:
             raise ValueError("EEC decode failed — too many missing/corrupt fragments")
         return decoded
