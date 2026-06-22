@@ -15,31 +15,29 @@ fi
 
 echo "[build] Executing frontend build..."
 cd "$ROOT_DIR/frontend"
-pnpm install --no-frozen-lockfile
-pnpm run build
 
-    # Always use pnpm if lockfile exists, otherwise fallback to npm
-    if [ -f "pnpm-lock.yaml" ]; then
-        echo "[build] Using pnpm (pnpm-lock.yaml detected)"
-        pnpm install --frozen-lockfile
-    elif [ -f "../pnpm-lock.yaml" ]; then
-        echo "[build] Using pnpm (root pnpm-lock.yaml detected)"
-        pnpm install --frozen-lockfile
-    else
-        echo "[build] pnpm-lock.yaml not found. Falling back to npm install."
-        npm install --prefer-offline --no-audit --no-fund
-    fi
+# Always use pnpm if lockfile exists, otherwise fallback to npm
+if [ -f "pnpm-lock.yaml" ]; then
+    echo "[build] Using pnpm (pnpm-lock.yaml detected)"
+    pnpm install --no-frozen-lockfile
+elif [ -f "../pnpm-lock.yaml" ]; then
+    echo "[build] Using pnpm (root pnpm-lock.yaml detected)"
+    pnpm install --no-frozen-lockfile
+else
+    echo "[build] pnpm-lock.yaml not found. Falling back to npm install."
+    npm install --prefer-offline --no-audit --no-fund
+fi
 
-    echo "[build] Building frontend for production..."
-    if command -v pnpm &> /dev/null; then
-        pnpm run build
-    else
-        npm run build
-    fi
+echo "[build] Building frontend for production..."
+if command -v pnpm &> /dev/null; then
+    pnpm run build
+else
+    npm run build
 fi
 
 # Database Schema Sync
 echo "[build] Synchronizing database schema..."
+cd "$ROOT_DIR"
 export PYTHONPATH="${PYTHONPATH:-}:."
 python3 <<'PYEOF' || echo "[build] WARNING: Database schema sync failed. Check DATABASE_URL."
 import asyncio

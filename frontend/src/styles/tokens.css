@@ -38,9 +38,9 @@
   --vit-radius-xl:    1rem;
 
   /* ── Shadows ───────────────────────────────────────────────── */
-  --vit-:    0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --vit-:    0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --vit-:    0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --vit-shadow-sm:    0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --vit-shadow-md:    0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --vit-shadow-lg:    0 10px 15px -3px rgba(0, 0, 0, 0.1);
 
   /* ── Animations ────────────────────────────────────────────── */
   --vit-duration-fast:   150ms;
@@ -58,6 +58,7 @@
   --vit-gradient-surface:  linear-gradient(180deg, var(--vit-gray-800) 0%, var(--vit-gray-850) 100%);
   --vit-gradient-cyber:    linear-gradient(135deg, rgba(30,107,255,0.08) 0%, rgba(0,200,150,0.08) 100%);
   --vit-gradient-sidebar:  linear-gradient(180deg, #050505 0%, #0A0A0F 100%);
+  --vit-gradient-card:     linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
 }
 
 /* ── Utility Classes ──────────────────────────────────────────── */
@@ -72,9 +73,10 @@
   border: 1px solid rgba(255,255,255,0.08);
 }
 
-.vit-glow-cyan, .vit-glow-cyan-s, .vit-glow-gold, .vit-glow-gold-s, .vit-glow-purple, .vit-glow-green, .vit-border-glow {
-  box-: none !important;
-}
+.vit-glow-cyan { box-shadow: 0 0 15px rgba(0, 200, 255, 0.3); }
+.vit-glow-gold { box-shadow: 0 0 15px rgba(212, 175, 55, 0.3); }
+.vit-glow-purple { box-shadow: 0 0 15px rgba(139, 92, 246, 0.3); }
+.vit-glow-green { box-shadow: 0 0 15px rgba(0, 245, 200, 0.3); }
 
 /* ── Gradient Text ───────────────────────────────────────────── */
 .vit-gradient-text {
@@ -120,11 +122,11 @@
 
 /* ── Animated border glow ────────────────────────────────────── */
 .vit-border-glow {
-  box-: none !important;
-  transition: border-color 0.3s ease;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .vit-border-glow:hover {
   border-color: rgba(30,107,255,0.4);
+  box-shadow: 0 0 10px rgba(30,107,255,0.2);
 }
 
 /* ── Card variants ───────────────────────────────────────────── */
@@ -132,11 +134,11 @@
   background: rgba(10, 10, 15, 0.95);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--vit-radius-lg);
-  transition: border-color 0.2s ease, box- 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .vit-card:hover {
   border-color: rgba(30,107,255,0.15);
-  box-: none !important;
+  box-shadow: var(--vit-shadow-md);
 }
 
 .vit-card-gold {
@@ -160,7 +162,7 @@
   height: 6px;
   border-radius: 50%;
   background: #00C896;
-  box-: none !important;
+  box-shadow: 0 0 8px rgba(0, 200, 150, 0.5);
 }
 
 /* ── Animations ──────────────────────────────────────────────── */
@@ -230,17 +232,18 @@
 }
 
 /* ── Animation utility classes ───────────────────────────────── */
-.vit-animate-slide-up      { animation: none !important; opacity: 1 !important; transform: none !important; }
-.vit-animate-slide-down    { animation: none !important; opacity: 1 !important; transform: none !important; }
-.vit-animate-slide-left    { animation: none !important; opacity: 1 !important; transform: none !important; }
-.vit-animate-fade-in       { animation: none !important; opacity: 1 !important; transform: none !important; }
-.vit-animate-scale-in      { animation: none !important; opacity: 1 !important; transform: none !important; }
-.vit-animate-celebrate     { animation: none !important; transform: none !important; }
+.vit-animate-slide-up      { animation: vit-slide-up var(--vit-duration-normal) var(--vit-ease-out) forwards; }
+.vit-animate-slide-down    { animation: vit-slide-down var(--vit-duration-normal) var(--vit-ease-out) forwards; }
+.vit-animate-slide-left    { animation: vit-slide-in-left var(--vit-duration-normal) var(--vit-ease-out) forwards; }
+.vit-animate-fade-in       { animation: vit-fade-in var(--vit-duration-normal) var(--vit-ease-out) forwards; }
+.vit-animate-scale-in      { animation: vit-scale-in var(--vit-duration-normal) var(--vit-ease-spring) forwards; }
+.vit-animate-celebrate     { animation: vit-celebrate var(--vit-duration-normal) var(--vit-ease-spring); }
 
 /* ── Shimmer loading skeleton ─────────────────────────────────── */
 .vit-shimmer {
-  background: var(--vit-gray-800) !important;
-  animation: none !important;
+  background: linear-gradient(90deg, var(--vit-gray-800) 25%, var(--vit-gray-700) 50%, var(--vit-gray-800) 75%);
+  background-size: 200% 100%;
+  animation: vit-shimmer 2s infinite linear;
 }
 
 /* ── Ticker tape ──────────────────────────────────────────────── */
