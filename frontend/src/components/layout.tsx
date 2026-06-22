@@ -30,7 +30,8 @@ import { Badge } from "./ui/badge";
 import { BrandLogo } from "@/components/BrandLogo";
 import { BetSlipPanel } from "./bet-slip";
 import { KellyCalculatorModal, KellyFAB } from "./kelly-calculator-modal";
-type NavItem  = { name: string; href: string; icon: any };
+import { usePublicConfig } from "@/lib/usePublicConfig";
+type NavItem  = { name?: string; href: string; icon: any; label?: string; category?: string; isNew?: boolean };
 type NavGroup = { name: string; items: NavItem[] };
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -131,11 +132,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { config } = usePublicConfig();
+  const { data: config } = usePublicConfig();
 
   const isAdmin = user?.role === "admin";
 
-  const navigation: NavItem[] = [
+  const navigation: (NavItem & { category: string; label: string })[] = [
     { label: "Dashboard", icon: Home, href: "/", category: "signal" },
     { label: "Project Teams", icon: Users, href: "/teams", category: "signal" },
     { label: "Matches", icon: Sword, href: "/matches", category: "signal" },
@@ -236,7 +237,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium truncate">{user?.email}</p>
               <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize bg-primary/5 text-primary border-primary/20">
-                {user?.tier || 'Free'}
+                {user?.subscription_tier || 'Free'}
               </Badge>
             </div>
             <button
@@ -265,7 +266,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Nav */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-xl border-t border-border/40 z-50 flex items-center justify-around px-2">
-        {navigation.filter(n => ["signal", "earn"].includes(n.category)).slice(0, 5).map((item) => (
+        {navigation.filter(n => ["signal", "earn"].includes(n.category || "")).slice(0, 5).map((item) => (
           <Link key={item.href} href={item.href}>
             <a className={`
               flex flex-col items-center gap-1 p-2 rounded-xl transition-all
@@ -363,7 +364,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </div>
                   <div>
                     <p className="text-sm font-medium">{user?.email}</p>
-                    <p className="text-[10px] text-primary font-bold uppercase">{user?.tier || 'Free'}</p>
+                    <p className="text-[10px] text-primary font-bold uppercase">{user?.subscription_tier || 'Free'}</p>
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={logout} className="text-red-400 hover:text-red-500 hover:bg-red-500/10">
@@ -374,89 +375,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
-      {/* ── Desktop sidebar ──────────────────────────────── */}
-      <div className="hidden lg:flex w-60 flex-shrink-0 flex-col sticky top-0 h-screen border-r border-white/5"
-        style={{ background: "var(--vit-gradient-sidebar)" }}>
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-white/5">
-          <BrandLogo size={32} withWordmark />
-          <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
-            <span className="vit-live-dot" style={{ width: 5, height: 5 }} />
-          </div>
-        </div>
-        {/* Nav */}
-        <nav className="flex-1 px-2.5 py-3 overflow-y-auto vit-scrollbar">
-          <NavItems />
-        </nav>
-        {/* User footer */}
-        <div className="p-3 border-t border-white/5">
-          <div className="flex items-center gap-2 rounded-lg p-2 bg-white/3 hover:bg-white/5 transition-colors">
-            <UserInitials name={user.username} />
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-mono font-semibold text-foreground truncate">{user.username}</div>
-              <span className={`inline-flex items-center rounded px-1 py-0 text-[9px] font-mono border mt-0.5 ${tierBadge.cls}`}>{tierBadge.label}</span>
-            </div>
-            <div className="flex items-center gap-0.5 flex-shrink-0">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-7 w-7" aria-label="Toggle theme">
-                    {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-yellow-400/70" /> : <Moon className="w-3.5 h-3.5 text-blue-400/70" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                </TooltipContent>
-              </Tooltip>
-              <NotificationBell />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={logout} className="h-7 w-7" aria-label="Logout">
-                    <LogOut className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Logout</TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
-        </div>
-      </div>
-      {/* ── Main content + ecosystem ticker ──────────────── */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <EcosystemTicker />
-        <main className="flex-1 overflow-y-auto bg-background vit-scrollbar">
-          <div className="p-4 lg:p-6 max-w-7xl mx-auto pb-24 lg:pb-8">
-            {children}
-            <Footer />
-          </div>
-        </main>
-
-        {/* Global Tools */}
-        <BetSlipPanel />
-        <KellyFAB />
-        <KellyCalculatorModal />
-      </div>
-      {/* ── Mobile Bottom Navigation ─────────────────────── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40"
-        style={{ background: "rgba(8,8,18,0.98)" }}>
-        <div className="flex justify-around items-center h-[60px] max-w-lg mx-auto">
-          {MOBILE_BOTTOM_NAV.map((item) => {
-            const isActive = location === item.href || location.startsWith(item.href + "/");
-            return (
-              <Link key={item.name} href={item.href} className="flex-1">
-                <span className={`relative flex flex-col items-center justify-center h-full gap-1 transition-all cursor-pointer ${
-                  isActive ? "text-primary" : "text-muted-foreground/60 hover:text-muted-foreground"
-                }`}>
-                  {isActive && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full " />
-                  )}
-                  <item.icon className={`w-4.5 h-4.5 transition-transform ${isActive ? "scale-110" : ""}`} style={{ width: 18, height: 18 }} />
-                  <span className="text-[9px] font-mono uppercase tracking-wide text-center">{item.name}</span>
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
+      {/* Global Tools */}
+      <BetSlipPanel />
+      <KellyFAB />
+      <KellyCalculatorModal />
     </div>
   );
 }

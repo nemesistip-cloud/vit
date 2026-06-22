@@ -12,6 +12,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Database,
   Zap,
   ShieldCheck,
@@ -704,9 +709,20 @@ const StoragePage: React.FC = () => {
                   <Zap className="w-3 h-3 mr-2" />
                   Start Burst Upload
                 </Button>
-                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => { setFile(null); setUploadError(null); }}>
-                  <Trash2 className="w-3 h-3" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => { setFile(null); setUploadError(null); }}
+                      aria-label="Clear selection"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Clear selection</TooltipContent>
+                </Tooltip>
               </div>
             )}
 
@@ -812,9 +828,20 @@ const StoragePage: React.FC = () => {
                   {s}
                 </Button>
               ))}
-              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px] font-mono" onClick={fetchManifests}>
-                <RefreshCw className={`w-3 h-3 ${loadingManifests ? 'animate-spin' : ''}`} />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={fetchManifests}
+                    aria-label="Refresh file list"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${loadingManifests ? 'animate-spin' : ''}`} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Refresh file list</TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -868,30 +895,41 @@ const StoragePage: React.FC = () => {
                     <div className="text-xs font-mono text-muted-foreground">{m.fragment_count} frags</div>
                     <div className="text-xs font-mono text-muted-foreground">{formatDate(m.created_at)}</div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                        title="Download"
-                        onClick={() => handleDownload(m.file_id, m.filename)}
-                        disabled={downloading === m.file_id}
-                      >
-                        {downloading === m.file_id
-                          ? <RefreshCw className="w-3 h-3 animate-spin" />
-                          : <Download className="w-3 h-3" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        title="Delete"
-                        onClick={() => handleDelete(m.file_id)}
-                        disabled={deleting === m.file_id}
-                      >
-                        {deleting === m.file_id
-                          ? <RefreshCw className="w-3 h-3 animate-spin" />
-                          : <Trash2 className="w-3 h-3" />}
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            aria-label="Download file"
+                            onClick={() => handleDownload(m.file_id, m.filename)}
+                            disabled={downloading === m.file_id}
+                          >
+                            {downloading === m.file_id
+                              ? <RefreshCw className="w-3 h-3 animate-spin" />
+                              : <Download className="w-3 h-3" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Download file</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            aria-label="Delete file"
+                            onClick={() => handleDelete(m.file_id)}
+                            disabled={deleting === m.file_id}
+                          >
+                            {deleting === m.file_id
+                              ? <RefreshCw className="w-3 h-3 animate-spin" />
+                              : <Trash2 className="w-3 h-3" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete file</TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 );
