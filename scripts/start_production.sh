@@ -9,6 +9,7 @@ APP_VERSION="5.5.0"
 export ENVIRONMENT="${ENVIRONMENT:-production}"
 export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-false}"
 export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-false}"
+export PYTHONPATH="${PYTHONPATH:-}:."
 
 # Auto-generate ADMIN_PASSWORD
 if [ -z "${ADMIN_PASSWORD:-}" ]; then
@@ -18,9 +19,6 @@ fi
 
 echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Hybrid Mode: ML + SCIE Active"
-
-# Removed redundant scripts/build.sh call.
-# Render runs build.sh during the deployment phase.
 
 # Start FastAPI (Background Supervisor handles the agents)
 echo "[production] Starting VIT Network on port ${PORT}..."
