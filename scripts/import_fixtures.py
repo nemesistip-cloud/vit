@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Import 179 fixtures from attached_assets/all_fixtures_2may_18jun_1777678082560.csv
+"""Import fixtures from attached_assets/all_fixtures_2may_18jun_1777861173817.csv
 
 Matches are upserted by fingerprint to avoid duplicates on re-run.
 Usage:  python scripts/import_fixtures.py
@@ -10,14 +10,17 @@ import csv
 import hashlib
 import os
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Ensure project root is on path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dotenv import load_dotenv
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from sqlalchemy import select
 from app.db.database import AsyncSessionLocal
@@ -38,9 +41,8 @@ import app.modules.referral.models  # noqa: F401
 import app.modules.tasks.models  # noqa: F401
 from app.db.models import Match
 
-# ── Timezone offset map for kickoff conversion (all times in the CSV are
-#    local-event times which we treat as UTC for simplicity) ──────────────────
-_CSV_PATH = Path(__file__).parents[1] / "attached_assets" / "all_fixtures_2may_18jun_1777829424268.csv"
+# Latest CSV file
+_CSV_PATH = Path(__file__).parents[1] / "attached_assets" / "all_fixtures_2may_18jun_1777861173817.csv"
 
 _MONTH_MAP = {
     "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
@@ -71,7 +73,6 @@ async def import_fixtures():
     with open(_CSV_PATH, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            # Skip comment rows / header variants
             if row.get("#", "").startswith("#") or not row.get("home"):
                 continue
             rows.append(row)
@@ -117,6 +118,7 @@ async def import_fixtures():
                 status="scheduled",
                 source="user_csv",
                 fingerprint=fp,
+                market_type="sports",  # Ensure it matches frontend filters
                 opening_odds_home=home_odds,
                 opening_odds_draw=draw_odds,
                 opening_odds_away=away_odds,
@@ -127,7 +129,7 @@ async def import_fixtures():
         if inserted:
             await db.commit()
 
-    print(f"[import] Done — {inserted} inserted, {skipped} skipped (already exist or parse error)")
+    print(f"[import] Done — {inserted} inserted, {skipped} skipped")
 
 
 if __name__ == "__main__":

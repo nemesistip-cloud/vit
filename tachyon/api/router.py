@@ -26,31 +26,59 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _STORAGE_ROOT = os.environ.get("TACHYON_STORAGE_PATH", "/tmp/tachyon_storage")
-_GDRIVE_SA    = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
-_DROPBOX_TOK  = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip() or os.environ.get("DROPBOX_REFRESH_TOKEN", "").strip()
-_ONEDRIVE_ID  = os.environ.get("ONEDRIVE_CLIENT_ID", "").strip()
 
 _providers = []
-
-if _GDRIVE_SA:
-    _providers += [GoogleDriveProvider("gdrive_0"), GoogleDriveProvider("gdrive_1")]
-if _DROPBOX_TOK:
-    _providers += [DropboxProvider("dropbox_0"), DropboxProvider("dropbox_1")]
-if _ONEDRIVE_ID:
-    _providers += [OneDriveProvider("onedrive_0"), OneDriveProvider("onedrive_1")]
-
-_DISK_MIN = max(0, 3 - len(_providers))
-_providers += [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(_DISK_MIN)]
-
-_backends = ([f"gdrive({sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))})"] if _GDRIVE_SA    else []) + \
-            ([f"dropbox({sum(1 for p in _providers if isinstance(p, DropboxProvider))})"]  if _DROPBOX_TOK  else []) + \
-            ([f"onedrive({sum(1 for p in _providers if isinstance(p, OneDriveProvider))})"] if _ONEDRIVE_ID  else []) + \
-            [f"disk({sum(1 for p in _providers if isinstance(p, DiskProvider))})"]
-logger.info("[tachyon] providers: %s  total=%d", " + ".join(_backends), len(_providers))
-
-scheduler = TachyonScheduler(_providers)
-
+_backends = []
 _cache: Dict[str, Dict] = {}
+scheduler = TachyonScheduler([])
+
+async def initialize_providers(db: AsyncSession = None):
+    """
+    Initialize storage providers from environment variables and PlatformConfig database.
+    This allows cloud storage credentials linked via the UI to survive restarts.
+    """
+    global _providers, _backends, scheduler
+
+    if db:
+        try:
+            from app.modules.wallet.models import PlatformConfig
+            stmt = select(PlatformConfig).where(PlatformConfig.key.like("integration:%"))
+            result = await db.execute(stmt)
+            configs = result.scalars().all()
+            for cfg in configs:
+                env_key = cfg.key.split(":", 1)[1]
+                val = cfg.value
+                if isinstance(val, dict) and "value" in val:
+                    val = val["value"]
+                os.environ[env_key] = str(val)
+                logger.info("[tachyon] Loaded persistent config for %s", env_key)
+        except Exception as e:
+            logger.error("[tachyon] Failed to load persistent configs: %s", e)
+
+    gdrive_sa   = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
+    dropbox_tok = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip() or os.environ.get("DROPBOX_REFRESH_TOKEN", "").strip()
+    onedrive_id = os.environ.get("ONEDRIVE_CLIENT_ID", "").strip()
+
+    new_providers = []
+    if gdrive_sa:
+        new_providers += [GoogleDriveProvider("gdrive_0"), GoogleDriveProvider("gdrive_1")]
+    if dropbox_tok:
+        new_providers += [DropboxProvider("dropbox_0"), DropboxProvider("dropbox_1")]
+    if onedrive_id:
+        new_providers += [OneDriveProvider("onedrive_0"), OneDriveProvider("onedrive_1")]
+
+    disk_min = max(0, 3 - len(new_providers))
+    new_providers += [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(disk_min)]
+
+    _providers[:] = new_providers
+    scheduler.providers = _providers
+
+    _backends[:] = ([f"gdrive({sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))})"] if gdrive_sa    else []) + \
+                   ([f"dropbox({sum(1 for p in _providers if isinstance(p, DropboxProvider))})"]  if dropbox_tok  else []) + \
+                   ([f"onedrive({sum(1 for p in _providers if isinstance(p, OneDriveProvider))})"] if onedrive_id  else []) + \
+                   [f"disk({sum(1 for p in _providers if isinstance(p, DiskProvider))})"]
+
+    logger.info("[tachyon] Swarm initialized: %s  total=%d", " + ".join(_backends), len(_providers))
 
 
 async def _load_manifest(file_id: str, db: AsyncSession) -> Dict | None:
@@ -98,6 +126,9 @@ async def upload_file(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_optional_user),
 ):
+    if not _providers:
+        await initialize_providers(db)
+
     file_id = str(uuid.uuid4())
     content = await file.read()
 
@@ -172,6 +203,9 @@ async def upload_file(
 
 @router.get("/download/{file_id}")
 async def download_file(file_id: str, db: AsyncSession = Depends(get_db)):
+    if not _providers:
+        await initialize_providers(db)
+
     manifest = await _load_manifest(file_id, db)
     if not manifest:
         raise HTTPException(status_code=404, detail="Manifest not found")
@@ -240,7 +274,7 @@ class LinkProviderRequest(BaseModel):
 
 
 @router.post("/providers/link")
-async def link_provider(req: "LinkProviderRequest", db: AsyncSession = Depends(get_db)):
+async def link_provider(req: LinkProviderRequest, db: AsyncSession = Depends(get_db)):
     """Save a cloud storage provider credential to PlatformConfig so it persists across restarts."""
     from app.modules.wallet.models import PlatformConfig
 
@@ -274,30 +308,33 @@ async def link_provider(req: "LinkProviderRequest", db: AsyncSession = Depends(g
             select(PlatformConfig).where(PlatformConfig.key == config_key)
         )).scalar_one_or_none()
         if existing:
-            existing.value = value
+            existing.value = {"value": value}
         else:
-            db.add(PlatformConfig(key=config_key, value=value))
-        import os
+            db.add(PlatformConfig(key=config_key, value={"value": value}))
         os.environ[env_key] = value
         saved.append(env_key)
 
     await db.commit()
-    return {"linked": req.provider, "saved_keys": saved, "restart_required": True}
+    await initialize_providers(db)
+    return {"linked": req.provider, "saved_keys": saved, "restart_required": False}
 
 
 @router.get("/providers")
 async def list_providers():
     """Return which cloud providers are currently configured."""
     return {
-        "gdrive": {"configured": bool(_GDRIVE_SA), "nodes": sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))},
-        "dropbox": {"configured": bool(_DROPBOX_TOK), "nodes": sum(1 for p in _providers if isinstance(p, DropboxProvider))},
-        "onedrive": {"configured": bool(_ONEDRIVE_ID), "nodes": sum(1 for p in _providers if isinstance(p, OneDriveProvider))},
+        "gdrive": {"configured": any(isinstance(p, GoogleDriveProvider) for p in _providers), "nodes": sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))},
+        "dropbox": {"configured": any(isinstance(p, DropboxProvider) for p in _providers), "nodes": sum(1 for p in _providers if isinstance(p, DropboxProvider))},
+        "onedrive": {"configured": any(isinstance(p, OneDriveProvider) for p in _providers), "nodes": sum(1 for p in _providers if isinstance(p, OneDriveProvider))},
         "disk": {"configured": True, "nodes": sum(1 for p in _providers if isinstance(p, DiskProvider))},
     }
 
 
 @router.get("/status")
 async def get_status(db: AsyncSession = Depends(get_db)):
+    if not _providers:
+        await initialize_providers(db)
+
     count_result = await db.execute(
         select(func.count(TachyonManifest.file_id))
     )
@@ -349,7 +386,7 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         "storage_backend": " + ".join(_backends),
         "storage_path": _STORAGE_ROOT,
         "provider_breakdown": provider_breakdown,
-        "cloud_enabled": bool(_GDRIVE_SA or _DROPBOX_TOK or _ONEDRIVE_ID),
+        "cloud_enabled": any(not isinstance(p, DiskProvider) for p in _providers),
         "tachyon_disk_bytes": tachyon_disk_bytes,
         "tachyon_disk_gb": round(tachyon_disk_bytes / (1024 ** 3), 3),
         "disk": disk_info,
