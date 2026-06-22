@@ -29,3 +29,7 @@
 ## 2026-06-19 - [Bet Slip Accessibility & Tooltips]
 **Learning:** Icon-only buttons in floating tools like the Bet Slip (Remove selection) were missing accessibility labels and visual hints, which is a common pattern for interactive elements that are not part of the main layout.
 **Action:** Audit floating UI components and ensure all icon-only actions have 'aria-label' and are wrapped in 'Tooltip' for consistency with core components.
+
+## 2026-06-20 - [Redundant Code & Layout Stability]
+**Learning:** Large React files (like `layout.tsx`) can sometimes end up with full redundant copies of themselves appended at the end during merge or automated refactors. This causes "X is not defined" or "duplicate declaration" errors that crash the whole app. Additionally, outdated property references (e.g., `user.tier` vs `user.subscription_tier`) in core layouts can break the entire UI if not kept in sync with the backend models.
+**Action:** Always verify the structure of core components for redundant blocks and ensure property access on globally shared objects like `user` or `config` matches the current schema.

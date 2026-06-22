@@ -115,7 +115,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { config } = usePublicConfig();
+  const { data: config } = usePublicConfig();
 
   if (!user) return null;
 
