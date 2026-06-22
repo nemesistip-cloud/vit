@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import logging
-from typing import Optional
+from typing import Optional, List
+from pydantic import BaseModel
 
 from app.db.database import get_db
 from app.db.models import Match
@@ -13,6 +14,16 @@ from starlette.requests import Request
 
 router = APIRouter(prefix="/predictions", tags=["affiliate"])
 logger = logging.getLogger(__name__)
+
+class MultiSelectionItem(BaseModel):
+    match_id: int
+    market: str = "1x2"
+    selection: str
+
+class MultiSlipRequest(BaseModel):
+    provider: str = "betway"
+    selections: List[MultiSelectionItem]
+    utm_source: str = "vit_app"
 
 @router.get("/generate-slip")
 async def generate_betting_slip(
@@ -37,7 +48,6 @@ async def generate_betting_slip(
         raise HTTPException(status_code=404, detail="Match not found")
 
     # 2. Market Mapping Lookup
-    # This assumes we have previously synced and stored mappings for the provider
     mapping_stmt = select(MarketMapping).where(
         MarketMapping.match_id == match_id,
         MarketMapping.provider_name == provider.lower(),
@@ -46,7 +56,6 @@ async def generate_betting_slip(
     )
     mapping = (await db.execute(mapping_stmt)).scalar_one_or_none()
 
-    # Fallback to external_id if mapping not found (best effort)
     ext_match_id = mapping.external_match_id if mapping else match.external_id
     ext_selection_id = mapping.external_selection_id if mapping else selection
 
@@ -83,4 +92,76 @@ async def generate_betting_slip(
         "provider": provider,
         "market": market,
         "selection": selection
+    }
+
+@router.post("/generate-slip")
+async def generate_multi_betting_slip(
+    request: Request,
+    payload: MultiSlipRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_optional_user)
+):
+    """
+    Generates an affiliate deep-link for multiple selections (accumulator).
+    """
+    provider = payload.provider.lower()
+    external_selections = []
+
+    for item in payload.selections:
+        # Lookup match
+        stmt = select(Match).where(Match.id == item.match_id)
+        match = (await db.execute(stmt)).scalar_one_or_none()
+        if not match:
+            continue
+
+        # Lookup mapping
+        mapping_stmt = select(MarketMapping).where(
+            MarketMapping.match_id == item.match_id,
+            MarketMapping.provider_name == provider,
+            MarketMapping.market_type == item.market,
+            MarketMapping.selection_name == item.selection
+        )
+        mapping = (await db.execute(mapping_stmt)).scalar_one_or_none()
+
+        ext_match_id = mapping.external_match_id if mapping else match.external_id
+        ext_selection_id = mapping.external_selection_id if mapping else item.selection
+
+        external_selections.append({
+            "match_id": ext_match_id or "unknown",
+            "selection_id": ext_selection_id
+        })
+
+        # Track analytics (individual legs)
+        click = AffiliateClick(
+            user_id=current_user.id if current_user else None,
+            match_id=item.match_id,
+            provider_name=provider,
+            market_type=item.market,
+            selection_name=item.selection,
+            utm_source=payload.utm_source,
+            utm_medium="app",
+            utm_campaign="multi_slip_redirect",
+            ip_address=request.client.host if request.client else "unknown",
+            user_agent=request.headers.get("user-agent")
+        )
+        db.add(click)
+
+    if not external_selections:
+        raise HTTPException(status_code=400, detail="No valid selections provided")
+
+    url = AffiliateService.generate_multi_selection_link(
+        provider=provider,
+        selections=external_selections,
+        utm_source=payload.utm_source
+    )
+
+    if not url:
+        raise HTTPException(status_code=400, detail=f"Unsupported bookmaker for multi-slip: {provider}")
+
+    await db.commit()
+
+    return {
+        "count": len(external_selections),
+        "redirect_url": url,
+        "provider": provider
     }

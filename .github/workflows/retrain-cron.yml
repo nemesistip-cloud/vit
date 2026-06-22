@@ -25,5 +25,5 @@ jobs:
       - name: Run retrain script
         env:
           TACHYON_STORAGE_ENABLED: 'true'
-          TACHYON_ENDPOINT: 'https://vit-hmt1.onrender.com/api/tachyon'
+          TACHYON_ENDPOINT: 'https://vitnetwork-nls4.onrender.com/api/tachyon'
         run: python scripts/retrain_cron.py
