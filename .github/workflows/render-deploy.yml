@@ -37,6 +37,6 @@ jobs:
           echo "## Render deploy triggered" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **URL** | https://vit-hmt1.onrender.com |" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | https://vitnetwork-nls4.onrender.com |" >> $GITHUB_STEP_SUMMARY
           echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
