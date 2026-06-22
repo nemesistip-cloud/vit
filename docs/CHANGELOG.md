@@ -123,7 +123,7 @@ Initial production-ready release. Complete multi-tier super-app architecture:
 - FastAPI backend + React 19 frontend
 
 ### Infrastructure
-- Deployed to Render: FastAPI API (`vit-g0if.onrender.com`), Postgres, Redis
+- Deployed to Render: FastAPI API (`vitnetwork-nls4.onrender.com`), Postgres, Redis
 - PostgreSQL + Redis configured via Render-managed secrets
 - Alembic migration history established
 
