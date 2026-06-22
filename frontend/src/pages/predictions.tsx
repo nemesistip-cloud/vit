@@ -354,7 +354,7 @@ function ResultsComparison() {
 
   const { data, isLoading, isError } = useQuery<ComparisonData>({
     queryKey: ["results-comparison", settledOnly],
-    queryFn: () => apiGet(`/api/history/results-comparison?limit=100&settled_only=${settledOnly}`),
+    queryFn: () => apiGet(`/api/history/results-comparison?limit=100&settled_only=${settledOnly}&all_users=true`),
     staleTime: 20_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
