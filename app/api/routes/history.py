@@ -261,6 +261,46 @@ async def get_results_comparison(
     }
 
 
+
+@router.get("/summary")
+async def get_history_summary_alias(
+    current_user=Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Alias for dashboard summary data to satisfy frontend /api/history/summary requests."""
+    if not current_user:
+        return {"total": 0, "settled": 0, "correct": 0, "accuracy_pct": 0.0, "total_profit": 0.0}
+
+    uid = current_user.id
+    from app.db.models import Prediction, Match, CLVEntry
+    from sqlalchemy import select, func
+
+    res = await db.execute(
+        select(Match, Prediction, CLVEntry)
+        .join(Prediction, Match.id == Prediction.match_id)
+        .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
+        .where(Prediction.user_id == uid)
+    )
+    rows = res.all()
+
+    settled = [r for r in rows if r.Match.actual_outcome]
+    wins = [r for r in settled if r.Prediction.bet_side and r.Match.actual_outcome and r.Prediction.bet_side.lower() == r.Match.actual_outcome.lower()]
+
+    total_profit = 0.0
+    for r in settled:
+        if r.CLVEntry and r.CLVEntry.profit is not None:
+            total_profit += float(r.CLVEntry.profit)
+        elif r.Prediction.settled_profit is not None:
+            total_profit += float(r.Prediction.settled_profit)
+
+    return {
+        "total": len(rows),
+        "settled": len(settled),
+        "correct": len(wins),
+        "accuracy_pct": (len(wins) / len(settled) * 100) if settled else 0.0,
+        "total_profit": round(total_profit, 2)
+    }
+
 @router.get("/{match_id}")
 async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     """
