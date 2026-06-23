@@ -395,7 +395,21 @@ export default function WalletPage() {
   const hasMore = pagedTx.length < filteredTx.length;
 
   if (loadingWallet) return <WalletSkeleton />;
-  if (!wallet) return null;
+  if (!wallet) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center">
+        <div className="text-4xl mb-4">🔐</div>
+        <h2 className="text-xl font-bold mb-2">Wallet Protection Layer</h2>
+        <p className="text-muted-foreground text-sm max-w-xs mb-6">
+          Unable to load wallet data. Please ensure you are logged in and have an active identity.
+        </p>
+        <div className="flex gap-3">
+          <Button onClick={() => window.location.reload()} variant="outline">Retry</Button>
+          <Button onClick={() => window.location.href = "/"}>Back Home</Button>
+        </div>
+      </div>
+    );
+  }
 
   const vitPrice = exchangeRatesData?.vit_price_usd
     ?? vitcoinPriceData?.price

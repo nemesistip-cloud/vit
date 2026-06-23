@@ -914,7 +914,7 @@ async def fetch_fixtures(
 
     seeded = 0
     try:
-        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
         seeded = await seed_predictions_for_upcoming(db)
     except Exception as seed_err:
         logger.warning(f"[admin] prediction seeder failed: {seed_err}")
@@ -1024,7 +1024,7 @@ async def sync_fixtures(
     # Seed predictions for newly inserted fixtures
     seeded = 0
     try:
-        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
         seeded = await seed_predictions_for_upcoming(db)
     except Exception as seed_err:
         logger.warning(f"[admin] prediction seeder failed: {seed_err}")
@@ -1601,7 +1601,7 @@ async def trigger_ensemble_run(
     seeded = 0
     errors = 0
     try:
-        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
         seeded = await seed_predictions_for_upcoming(db)
     except Exception as e:
         errors += 1
