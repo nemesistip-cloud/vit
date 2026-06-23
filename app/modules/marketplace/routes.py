@@ -56,62 +56,35 @@ async def upload_model_file(
     if not _can_upload_marketplace_model(current_user):
         raise HTTPException(403, "Only verified analysts can upload models.")
 
-    upload_id = f"user_{current_user.id}_{uuid.uuid4().hex[:8]}"
-    package_dir = os.path.join(_MODELS_DIR, upload_id)
-    os.makedirs(package_dir, exist_ok=True)
-
     files_meta = []
     package_sha = hashlib.sha256()
 
+    incoming = [*model_files]
+    if model_file: incoming.append(model_file)
+
     for upload in incoming:
-        safe_name = _safe_upload_name(upload.filename)
-        content = await upload.read()
-        total_size += len(content)
-        package_sha.update(safe_name.encode())
-        package_sha.update(content)
-        disk_path = os.path.join(package_dir, safe_name)
-        os.makedirs(os.path.dirname(disk_path), exist_ok=True)
-        with open(disk_path, "wb") as f: f.write(content)
-        files_meta.append({"filename": safe_name, "size_bytes": len(content)})
+        if not upload.filename: continue
+        fname = _safe_upload_name(upload.filename)
+        data = await upload.read()
+        package_sha.update(data)
 
-    selected_primary = primary_file or (files_meta[0]["filename"] if files_meta else "")
-    gcs_uri = None
-    try:
-        incoming = [*model_files]
-        if model_file: incoming.append(model_file)
+        # Sync to Tachyon distributed storage directly from memory
+        tachyon_file_id = await tachyon_client.upload_bytes(data, fname)
+        files_meta.append({"filename": fname, "primary": fname == primary_file, "tachyon_id": tachyon_file_id})
 
-        for upload in incoming:
-            if not upload.filename: continue
-            fname = _safe_upload_name(upload.filename)
-            content = await upload.read()
-            package_sha.update(content)
+    primary_fname = primary_file or (files_meta[0]["filename"] if files_meta else "model.pkl")
+    primary_meta = next((m for m in files_meta if m.get("primary") or m["filename"] == primary_fname), {})
+    tachyon_id = primary_meta.get("tachyon_id") or uuid.uuid4().hex
+    tachyon_uri = f"tachyon://{tachyon_id}/{primary_fname}"
 
-            lpath = os.path.join(package_dir, fname)
-            with open(lpath, "wb") as f: f.write(content)
+    listing = await svc.create_listing(
+        db, creator_id=current_user.id, name=name, description=description,
+        category=category, tags=tags, price_per_call=Decimal(str(price_per_call)),
+        model_key=model_key, pkl_path=tachyon_id, pkl_sha256=package_sha.hexdigest(),
+        gcs_uri=tachyon_uri, webhook_url=webhook_url
+    )
 
-            # Sync to Tachyon distributed storage
-            tachyon_file_id = await tachyon_client.upload_model(lpath)
-            files_meta.append({"filename": fname, "primary": fname == primary_file, "tachyon_id": tachyon_file_id})
-
-        primary_fname = primary_file or (files_meta[0]["filename"] if files_meta else "model.pkl")
-        primary_meta = next((m for m in files_meta if m.get("primary") or m["filename"] == primary_fname), {})
-        tachyon_id = primary_meta.get("tachyon_id") or upload_id
-        tachyon_uri = f"tachyon://{tachyon_id}/{primary_fname}"
-
-        listing = await svc.create_listing(
-            db, creator_id=current_user.id, name=name, description=description,
-            category=category, tags=tags, price_per_call=Decimal(str(price_per_call)),
-            model_key=model_key, pkl_path=upload_id, pkl_sha256=package_sha.hexdigest(),
-            gcs_uri=tachyon_uri, webhook_url=webhook_url
-        )
-
-        import shutil
-        shutil.rmtree(package_dir, ignore_errors=True)
-        return {**_fmt_listing(listing), "message": "Model uploaded and synced to Tachyon."}
-    except Exception as e:
-        import shutil
-        shutil.rmtree(package_dir, ignore_errors=True)
-        raise HTTPException(500, str(e))
+    return {**_fmt_listing(listing), "message": "Model uploaded and synced to Tachyon."}
 
 @router.get("/my-listings")
 async def my_listings(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):

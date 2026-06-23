@@ -10,6 +10,7 @@ class DiskProvider(CloudProvider):
 
     def __init__(self, account_id: str, storage_path: str = "/tmp/tachyon_storage"):
         self.account_id = account_id
+        self.name = account_id
         self.storage_path = os.path.join(storage_path, account_id)
         os.makedirs(self.storage_path, exist_ok=True)
 

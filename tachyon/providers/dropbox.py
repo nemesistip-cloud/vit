@@ -26,6 +26,7 @@ class DropboxProvider(CloudProvider):
 
     def __init__(self, account_id: str):
         self.account_id = account_id
+        self.name = account_id
         self._access_token = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip()
         self._app_key      = os.environ.get("DROPBOX_APP_KEY", "").strip()
         self._app_secret   = os.environ.get("DROPBOX_APP_SECRET", "").strip()
