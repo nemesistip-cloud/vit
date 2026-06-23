@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_optional_user
 from app.db.database import get_db
-from app.modules.storage_verification.models import TachyonManifest
+from app.modules.storage_verification.models import TachyonManifest, UserStorageNode
 from app.modules.storage_verification.service import register_content, submit_storage_proof
 from tachyon.core.scheduler import TachyonScheduler
 from tachyon.core.shredder import TachyonShredder
@@ -34,8 +34,7 @@ scheduler = TachyonScheduler([])
 
 async def initialize_providers(db: AsyncSession = None):
     """
-    Initialize storage providers from environment variables and PlatformConfig database.
-    This allows cloud storage credentials linked via the UI to survive restarts.
+    Initialize storage providers from environment variables and UserStorageNode database.
     """
     global _providers, _backends, scheduler
 
@@ -51,27 +50,50 @@ async def initialize_providers(db: AsyncSession = None):
                 if isinstance(val, dict) and "value" in val:
                     val = val["value"]
                 os.environ[env_key] = str(val)
-                logger.info("[tachyon] Loaded persistent config for %s", env_key)
         except Exception as e:
             logger.error("[tachyon] Failed to load persistent configs: %s", e)
 
-    gdrive_sa   = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
-    dropbox_tok = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip() or os.environ.get("DROPBOX_REFRESH_TOKEN", "").strip()
-    onedrive_id = os.environ.get("ONEDRIVE_CLIENT_ID", "").strip()
-
     new_providers = []
-    if gdrive_sa:
-        new_providers += [GoogleDriveProvider("gdrive_0"), GoogleDriveProvider("gdrive_1")]
-    if dropbox_tok:
-        new_providers += [DropboxProvider("dropbox_0"), DropboxProvider("dropbox_1")]
-    if onedrive_id:
-        new_providers += [OneDriveProvider("onedrive_0"), OneDriveProvider("onedrive_1")]
 
-    disk_min = max(0, 3 - len(new_providers))
-    new_providers += [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(disk_min)]
+    # Load from UserStorageNode table
+    if db:
+        try:
+            stmt = select(UserStorageNode).where(UserStorageNode.status == "active")
+            nodes = (await db.execute(stmt)).scalars().all()
+            for node in nodes:
+                # Based on provider type, create the provider instance
+                p_type = node.provider.lower()
+                if "gdrive" in p_type:
+                    new_providers.append(GoogleDriveProvider(node.alias or node.config_key))
+                elif "dropbox" in p_type:
+                    new_providers.append(DropboxProvider(node.alias or node.config_key))
+                elif "onedrive" in p_type:
+                    new_providers.append(OneDriveProvider(node.alias or node.config_key))
+                else:
+                    new_providers.append(DiskProvider(node.alias or node.config_key, storage_path=_STORAGE_ROOT))
+            logger.info("[tachyon] Initialized %d providers from database", len(new_providers))
+        except Exception as e:
+            logger.error("[tachyon] Failed to load providers from nodes table: %s", e)
+
+    # Fallback to environment variables if no nodes in DB
+    if not new_providers:
+        gdrive_sa   = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
+        dropbox_tok = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip()
+        onedrive_id = os.environ.get("ONEDRIVE_CLIENT_ID", "").strip()
+
+        if gdrive_sa:
+            new_providers += [GoogleDriveProvider("gdrive_0"), GoogleDriveProvider("gdrive_1")]
+        if dropbox_tok:
+            new_providers += [DropboxProvider("dropbox_0"), DropboxProvider("dropbox_1")]
+        if onedrive_id:
+            new_providers += [OneDriveProvider("onedrive_0"), OneDriveProvider("onedrive_1")]
+
+        disk_min = max(0, 3 - len(new_providers))
+        new_providers += [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(disk_min)]
 
     _providers[:] = new_providers
     scheduler.providers = _providers
+    _backends[:] = list(set(type(p).__name__.replace("Provider", "") for p in _providers))
 
     _backends[:] = ([f"gdrive({sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))})"] if gdrive_sa    else []) + \
                    ([f"dropbox({sum(1 for p in _providers if isinstance(p, DropboxProvider))})"]  if dropbox_tok  else []) + \
@@ -350,17 +372,36 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         kind = type(p).__name__.replace("Provider", "")
         provider_breakdown[kind] = provider_breakdown.get(kind, 0) + 1
 
-    # ── OS-level disk capacity ────────────────────────────────────────
-    import shutil as _shutil
-    _du = _shutil.disk_usage("/")
+        # ── Tachyon-scoped storage capacity ─────────────────────────────
+    total_stored_bytes = total_bytes
+    total_capacity_bytes = 0
+    for p in _providers:
+        # Use provider's get_quota if available, else defaults
+        try:
+            q = await p.get_quota()
+            total_capacity_bytes += q.get("total", 0)
+        except Exception:
+            # Fallback defaults based on type
+            kind = type(p).__name__.lower()
+            if "gdrive" in kind: total_capacity_bytes += 15 * 1024**3
+            elif "dropbox" in kind: total_capacity_bytes += 2 * 1024**3
+            elif "onedrive" in kind: total_capacity_bytes += 5 * 1024**3
+            else: total_capacity_bytes += 10 * 1024**3
+
+    if not total_capacity_bytes:
+        total_capacity_bytes = 22 * 1024**3
+
+    free_bytes = max(0, total_capacity_bytes - total_stored_bytes)
     disk_info = {
-        "total_bytes": int(_du.total),
-        "used_bytes":  int(_du.used),
-        "free_bytes":  int(_du.free),
-        "total_gb":    round(_du.total / (1024 ** 3), 2),
-        "used_gb":     round(_du.used  / (1024 ** 3), 2),
-        "free_gb":     round(_du.free  / (1024 ** 3), 2),
-        "used_pct":    round(_du.used  / max(_du.total, 1) * 100, 1),
+        "source": "tachyon_db",
+        "total_bytes": total_capacity_bytes,
+        "used_bytes":  total_stored_bytes,
+        "free_bytes":  free_bytes,
+        "total_gb":    round(total_capacity_bytes / (1024 ** 3), 2),
+        "used_gb":     round(total_stored_bytes  / (1024 ** 3), 3),
+        "free_gb":     round(free_bytes  / (1024 ** 3), 2),
+        "utilization_pct":    round(total_stored_bytes  / max(total_capacity_bytes, 1) * 100, 1),
+        "used_pct":    round(total_stored_bytes  / max(total_capacity_bytes, 1) * 100, 1),
     }
 
     # ── Tachyon storage root dir size (actual written bytes on disk) ──

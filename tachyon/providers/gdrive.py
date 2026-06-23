@@ -31,6 +31,7 @@ class GoogleDriveProvider(CloudProvider):
 
     def __init__(self, account_id: str, service_account_json: str | None = None):
         self.account_id = account_id
+        self.name = account_id
         self._sa_json_raw = service_account_json or os.environ.get(
             "GDRIVE_SERVICE_ACCOUNT_JSON", ""
         )

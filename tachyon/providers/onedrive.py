@@ -31,6 +31,7 @@ class OneDriveProvider(CloudProvider):
 
     def __init__(self, account_id: str):
         self.account_id     = account_id
+        self.name           = account_id
         self._client_id     = os.environ.get("ONEDRIVE_CLIENT_ID", "").strip()
         self._client_secret = os.environ.get("ONEDRIVE_CLIENT_SECRET", "").strip()
         self._tenant_id     = os.environ.get("ONEDRIVE_TENANT_ID", "common").strip()
