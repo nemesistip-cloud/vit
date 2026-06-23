@@ -521,7 +521,7 @@ export default function MatchDetailPage() {
                       {[
                         { id: "home", label: match.home_team, odds: match.odds?.home, prob: homeProb },
                         { id: "draw", label: "Draw", odds: match.odds?.draw, prob: drawProb },
-                        { id: "away", label: match.away_team, odds: match.odds?.away, prob: away_prob }
+                        { id: "away", label: match.away_team, odds: match.odds?.away, prob: awayProb }
                       ].filter(x => x.odds != null || x.id !== "draw").map((s) => (
                         <button
                           key={s.id}
