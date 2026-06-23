@@ -1,11 +1,20 @@
-## 2026-06-16 - [Notification Accessibility & Empty State]
-**Learning:** Icon-only buttons in notification headers (Mark Read, Settings) were missing descriptive ARIA labels, making them invisible to screen readers. Additionally, a simple text "No notifications" didn't provide enough guidance for a good user experience.
-**Action:** Always add `aria-label` to header action buttons and use a visual `EmptyState` component with an icon and helpful description to guide the user when no data is present.
+## 2024-05-18 - Restoring Design Tokens and Enabling Multi-Leg Accumulators
 
-## 2026-06-17 - [Icon-Only Button Accessibility Pattern]
-**Learning:** Found a recurring pattern of icon-only buttons (Logout, Close, Copy, Share) lacking `aria-label` attributes across several core pages (Layout, Referral, Watchlist). These buttons are functional but silent for screen reader users.
-**Action:** Consistently audit interactive `Button` components with `size="icon"` and ensure they have descriptive `aria-label` or `title` props.
+**Learning:** Corrupted CSS selectors (like `., ., .`) in global design tokens can silently break the entire application's visual polish and accessibility features (shadows, animations, focus rings). Automation scripts should be carefully audited when performing bulk replacements. Additionally, "Coming Soon" placeholders in the UI often persist long after the underlying backend infrastructure (like affiliate deep-linking) is ready for integration.
 
-## 2026-06-18 - [Match Detail Analytics Polish]
-**Learning:** Enrichment of the Match Detail page with deterministic AI insights and child model breakdowns requires robust fallback mechanisms. When external AI providers are offline or a specific match hasn't been predicted yet, the UI must gracefully guide the user to trigger the ensemble rather than showing empty states or NaN values.
-**Action:** Implemented 'Run ML Ensemble' triggers directly in the 'Child Model Analytics' section to ensure a continuous UX flow when background processing hasn't completed. Fixed NaN% bug in confidence meters by ensuring the backend always returns a numerical 'confidence' field in the insights payload.
+**Action:** Always verify the integrity of `tokens.css` after any environment-wide refactoring. Prioritize the replacement of static "Coming Soon" blocks with functional prototypes that leverage existing API endpoints, such as the `generate-slip` multi-leg support.
+
+## 2026-05-20 - Dashboard Stability & Route Alignment
+**Learning:** React components using platform configuration data must ensure hooks like `usePublicConfig` are invoked within the specific component scope or passed as props, rather than assuming global availability if they are part of a shared layout but not a shared context provider. Additionally, frontend-driven dashboard summaries often expect specific scoped endpoints (e.g., `/api/analytics/user-stats`) that must be explicitly mapped in the backend to avoid 404 "Operation failed" states.
+
+**Action:** Always verify that every `config?.platform` access is backed by a local hook call or verified prop. Maintain a mapping of frontend query keys to backend router paths to catch missing endpoints early in the development cycle.
+## 2026-06-23 - Fix scope error in DashboardPage
+
+**Learning:** Components that rely on global configuration hooks like `usePublicConfig` must explicitly call the hook within their own scope if they are not receiving the data via props. Relying on outer scope variables can lead to "not defined" errors if the component is moved or if the outer scope is not what was expected.
+
+**Action:** Always ensure that child components in `frontend/src/pages` that use `config` either receive it as a prop or call `usePublicConfig()` themselves. Double-check for literal text placeholders like `{config?.platform?.model_count || 13}` in strings and replace them with template literals or `.replace()` calls.
+## 2026-06-23 - UI Visibility and Timestamp Fixes
+
+**Learning:** Hover-only visibility (`opacity-0 group-hover:opacity-100`) creates significant accessibility and usability issues on mobile/touch devices where hover states don't exist. Always ensure critical action buttons like "Download" or "Delete" are either always visible or accessible via a clear interaction. Also, naive timestamps from Python backends must be explicitly suffixed with 'Z' for frontend libraries to correctly parse them as UTC.
+
+**Action:** Avoid using `opacity-0` for primary actions in future dashboard designs. Ensure all backend ISO timestamps intended for UTC use include the 'Z' suffix.

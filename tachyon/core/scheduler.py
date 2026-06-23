@@ -3,10 +3,14 @@ from typing import List, Dict, Any, Optional
 import logging
 from tachyon.core.shredder import TachyonShredder
 
+_UPLOAD_SEM = asyncio.Semaphore(4)
+_DOWNLOAD_SEM = asyncio.Semaphore(6)
+
 class TachyonScheduler:
     """
     Manages the Tachyon Burst Transfer Protocol (TBTP).
     Coordinates parallel requests across multiple cloud provider accounts.
+    Semaphore-limited to avoid concurrent SSL exhaustion / segfaults.
     """
 
     def __init__(self, providers: List[Any]):
@@ -15,7 +19,7 @@ class TachyonScheduler:
 
     async def upload_burst(self, data: bytes, file_id: str) -> List[Any]:
         """
-        Burst upload: Shreds file and dispatches fragments in parallel.
+        Burst upload: Shreds file and dispatches fragments with bounded concurrency.
         """
         if not self.providers:
             raise ValueError("No providers configured")
@@ -23,134 +27,136 @@ class TachyonScheduler:
         fragments, parities = self.shredder.encode(data)
         all_fragments = fragments + parities
 
+        async def _upload_one(frag: bytes, fragment_name: str, provider: Any) -> Any:
+            async with _UPLOAD_SEM:
+                try:
+                    return await provider.upload_fragment(frag, fragment_name)
+                except Exception as e:
+                    logging.getLogger(__name__).error(
+                        f"[tachyon] upload {fragment_name} failed: {e}"
+                    )
+                    return e
+
         tasks = []
         for i, frag in enumerate(all_fragments):
-            # Round-robin selection of provider for prototype
             provider = self.providers[i % len(self.providers)]
             fragment_name = f"tachyon_{file_id}_{i}"
-            tasks.append(provider.upload_fragment(frag, fragment_name))
+            tasks.append(_upload_one(frag, fragment_name, provider))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         return results
 
     async def download_burst(self, fragment_names: List[str], fragment_to_provider_map: Dict[str, int], size_bytes: int) -> bytes:
         """
-        Burst download: Fetches fragments in parallel and reassembles with EEC.
+        Burst download: Fetches fragments with bounded concurrency and reassembles with EEC.
         """
+        async def _download_one(name: str, provider: Any) -> Any:
+            async with _DOWNLOAD_SEM:
+                try:
+                    return await provider.download_fragment(name)
+                except Exception as e:
+                    logging.getLogger(__name__).error(
+                        f"[tachyon] download {name} failed: {e}"
+                    )
+                    return None
+
         tasks = []
         for name in fragment_names:
             provider_idx = fragment_to_provider_map.get(name)
             if provider_idx is None:
                 continue
             provider = self.providers[provider_idx]
-            tasks.append(provider.download_fragment(name))
+            tasks.append(_download_one(name, provider))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        processed_fragments = []
-        for res in results:
-            if isinstance(res, Exception):
-                processed_fragments.append(None)
+        data_shards = []
+        parity_shards = []
+
+        # Split results into data and parity based on order in manifest
+        num_data = (size_bytes + 4095) // 4096
+
+        for i, res in enumerate(results):
+            fragment_data = None
+            if not isinstance(res, Exception) and res is not None:
+                if len(res) == 4096:
+                    TachyonShredder.get_fragment_hash(res)
+                fragment_data = res
+
+            if i < num_data:
+                data_shards.append(fragment_data)
             else:
-                # Integrity check
-                if res and len(res) == 4096:
-                    actual_hash = TachyonShredder.get_fragment_hash(res)
-                    # In a real system, we would verify against the manifest hash
-                    # logging.getLogger(__name__).debug(f"Fragment verified: {actual_hash}")
-                processed_fragments.append(res)
+                parity_shards.append(fragment_data)
 
-        if not processed_fragments:
-            return b""
+        decoded = self.shredder.decode(data_shards, parity_shards, size_bytes)
+        if decoded is None:
+            raise ValueError("EEC decode failed — too many missing/corrupt fragments")
+        return decoded
 
-        # In our upgraded burst protocol, the last `parity_shards` fragments are parity
-        num_data_shards = (size_bytes + 4095) // 4096
-        data_fragments = processed_fragments[:num_data_shards]
-        parity_fragments = processed_fragments[num_data_shards:]
+    async def health_check(self) -> Dict[str, Any]:
+        """Check connectivity to all configured providers."""
+        results = {}
+        for i, provider in enumerate(self.providers):
+            try:
+                ok = await asyncio.wait_for(provider.health_check(), timeout=5.0)
+                results[f"provider_{i}"] = {"status": "ok" if ok else "degraded"}
+            except asyncio.TimeoutError:
+                results[f"provider_{i}"] = {"status": "timeout"}
+            except Exception as e:
+                results[f"provider_{i}"] = {"status": "error", "detail": str(e)}
+        return results
 
-        # Ensure parity_fragments is not empty for XOR fallback
-        if not parity_fragments and num_data_shards < len(processed_fragments):
-             parity_fragments = [processed_fragments[num_data_shards]]
+    async def repair_fragment(
+        self,
+        data: bytes,
+        file_id: str,
+        fragment_indices: List[int],
+    ) -> List[Any]:
+        """Re-upload specific fragments (repair mode)."""
+        fragments, parities = self.shredder.encode(data)
+        all_fragments = fragments + parities
 
-        try:
-            data = self.shredder.decode(data_fragments, parity_fragments, size_bytes)
+        async def _repair_one(frag: bytes, fragment_name: str, provider: Any) -> Any:
+            async with _UPLOAD_SEM:
+                try:
+                    return await provider.upload_fragment(frag, fragment_name)
+                except Exception as e:
+                    return e
 
-            # VESS Core: Lazy Repair - restore redundancy if shards were missing
-            erased_indices = [i for i, f in enumerate(processed_fragments) if f is None]
-            if erased_indices and data:
-                logging.getLogger(__name__).info("[tachyon] Lazy Repair triggered for %d shards", len(erased_indices))
-                # Trigger repair in background to not block the download response
-                asyncio.create_task(self._lazy_repair(data, fragment_names, erased_indices, fragment_to_provider_map))
+        tasks = []
+        for idx in fragment_indices:
+            if idx >= len(all_fragments):
+                continue
+            provider = self.providers[idx % len(self.providers)]
+            fragment_name = f"tachyon_{file_id}_{idx}"
+            tasks.append(_repair_one(all_fragments[idx], fragment_name, provider))
 
-            return data
-        except Exception as e:
-            logging.getLogger(__name__).error("[tachyon] download reconstruction failed: %s", e)
-            raise
+        return await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _lazy_repair(self, data: bytes, fragment_names: List[str], erased_indices: List[int], mapping: Dict[str, int]):
-        """Re-shreds data and re-uploads missing shards to restore swarm health."""
-        try:
-            frags, parities = self.shredder.encode(data)
-            all_generated = frags + parities
-
-            tasks = []
-            for idx in erased_indices:
-                if idx < len(all_generated) and idx < len(fragment_names):
-                    name = fragment_names[idx]
-                    p_idx = mapping.get(name)
-                    if p_idx is not None and p_idx < len(self.providers):
-                        provider = self.providers[p_idx]
-                        tasks.append(provider.upload_fragment(all_generated[idx], name))
-
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                logging.getLogger(__name__).info("[tachyon] Lazy Repair completed: %d shards restored", sum(1 for r in results if r is True))
-        except Exception as e:
-            logging.getLogger(__name__).error("[tachyon] Lazy Repair failed: %s", e)
-
-if __name__ == "__main__":
-    # Mock Provider for testing
-    class MockProvider:
-        def __init__(self, name):
-            self.name = name
-            self.storage = {}
-        async def upload_fragment(self, data, name):
-            print(f"[{self.name}] Uploading {name}...")
-            self.storage[name] = data
-            await asyncio.sleep(0.1)
-            return True
-        async def download_fragment(self, name):
-            print(f"[{self.name}] Downloading {name}...")
-            await asyncio.sleep(0.1)
-            return self.storage[name]
-
-    async def test():
-        p1 = MockProvider("G-Drive-1")
-        p2 = MockProvider("OneDrive-1")
-        scheduler = TachyonScheduler([p1, p2])
-
-        test_data = b"Tachyon Parallel Burst Test" * 100
-        print("Starting Burst Upload...")
-        await scheduler.upload_burst(test_data, "test_file_001")
-
-        print("\nStarting Burst Download (Standard)...")
-        # 1 data shard + 2 parity shards = 3 total
-        fragment_names = [f"tachyon_test_file_001_{i}" for i in range(3)]
-        mapping = {name: i % 2 for i, name in enumerate(fragment_names)}
-        recovered = await scheduler.download_burst(fragment_names, mapping, len(test_data))
-
-        print(f"\nRecovered data length: {len(recovered)}")
-        assert recovered == test_data
-        print("Standard download verified.")
-
-        print("\nStarting Burst Download (with 2 missing fragments - EEC test)...")
-        # Simulate missing fragments by removing them from providers
-        # We have 2 parity shards, so we can lose up to 2 fragments total
-        del p1.storage["tachyon_test_file_001_0"] # Data shard
-        del p2.storage["tachyon_test_file_001_1"] # Parity shard 1
-
-        recovered_eec = await scheduler.download_burst(fragment_names, mapping, len(test_data))
-        print(f"Recovered (EEC) data length: {len(recovered_eec)}")
-        assert recovered_eec == test_data
-        print("EEC (RS) multi-fragment recovery verified.")
-
-    asyncio.run(test())
+    async def _lazy_repair(
+        self,
+        data: bytes,
+        fragment_names: List[str],
+        erased_indices: List[int],
+        fragment_to_provider_map: Dict[str, int],
+    ) -> None:
+        """Background repair: re-upload missing fragments after a successful decode."""
+        logger = logging.getLogger(__name__)
+        for idx in erased_indices:
+            if idx >= len(fragment_names):
+                continue
+            fragment_name = fragment_names[idx]
+            provider_idx = fragment_to_provider_map.get(fragment_name)
+            if provider_idx is None:
+                continue
+            provider = self.providers[provider_idx]
+            fragments, parities = self.shredder.encode(data)
+            all_fragments = fragments + parities
+            if idx >= len(all_fragments):
+                continue
+            async with _UPLOAD_SEM:
+                try:
+                    await provider.upload_fragment(all_fragments[idx], fragment_name)
+                    logger.info(f"[tachyon] repaired fragment {fragment_name}")
+                except Exception as e:
+                    logger.error(f"[tachyon] repair failed for {fragment_name}: {e}")

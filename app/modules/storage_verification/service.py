@@ -293,6 +293,8 @@ async def list_registered_content(
 
 
 async def get_storage_stats(db: AsyncSession) -> dict:
+    from app.modules.storage_verification.models import UserStorageNode, TachyonManifest
+
     total_content = await db.scalar(select(func.count(ContentHashRegistry.id))) or 0
     total_proofs = await db.scalar(select(func.count(StorageProof.id))) or 0
     verified_proofs = await db.scalar(
@@ -305,12 +307,51 @@ async def get_storage_stats(db: AsyncSession) -> dict:
             StorageChallenge.status == ChallengeStatus.OPEN
         )
     ) or 0
-    total_bytes = await db.scalar(func.sum(ContentHashRegistry.size_bytes)) or 0
+
+    # Tachyon-scoped storage stats
+    total_stored_bytes = await db.scalar(select(func.sum(ContentHashRegistry.size_bytes))) or 0
+
+    # Capacity aggregated from provider nodes
+    # If no nodes have quota_bytes set yet, we use defaults: GDrive 15GB, Dropbox 2GB, OneDrive 5GB
+    nodes = (await db.execute(select(UserStorageNode).where(UserStorageNode.status == "active"))).scalars().all()
+
+    total_capacity_bytes = 0
+    for node in nodes:
+        if node.quota_bytes and node.quota_bytes > 0:
+            total_capacity_bytes += int(node.quota_bytes)
+        else:
+            # Defaults
+            if "gdrive" in node.provider.lower():
+                total_capacity_bytes += 15 * 1024**3
+            elif "dropbox" in node.provider.lower():
+                total_capacity_bytes += 2 * 1024**3
+            elif "onedrive" in node.provider.lower():
+                total_capacity_bytes += 5 * 1024**3
+            else:
+                total_capacity_bytes += 10 * 1024**3 # Default for others
+
+    # If no nodes, default to a sensible minimum to avoid division by zero or empty dashboard
+    if not total_capacity_bytes:
+        total_capacity_bytes = 22 * 1024**3 # Sum of defaults for one of each
+
+    free_bytes = max(0, total_capacity_bytes - total_stored_bytes)
+    utilization_pct = round((total_stored_bytes / total_capacity_bytes) * 100, 1) if total_capacity_bytes else 0
+
     return {
+        "source": "tachyon_db",
         "registered_content_items": total_content,
         "total_proofs": total_proofs,
         "verified_proofs": verified_proofs,
         "open_challenges": open_challenges,
-        "total_stored_bytes": total_bytes,
+        "total_stored_bytes": total_stored_bytes,
+        "total_stored_gb": round(total_stored_bytes / (1024**3), 3),
+        "total_capacity_bytes": total_capacity_bytes,
+        "total_capacity_gb": round(total_capacity_bytes / (1024**3), 1),
+        "free_bytes": free_bytes,
+        "free_gb": round(free_bytes / (1024**3), 1),
+        "utilization_pct": utilization_pct,
         "verification_rate": (verified_proofs / total_proofs * 100) if total_proofs else 0,
+        "active_providers": [
+            {"name": n.alias or n.provider, "bytes_stored": int(n.gb_used * 1024**3)} for n in nodes
+        ]
     }

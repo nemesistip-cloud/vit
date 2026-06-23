@@ -1,63 +1,21 @@
-from __future__ import annotations
-import logging
-import asyncio
-import os
 import re
-import json
-from typing import List, Optional, Any, Dict, Union
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
 
-from app.api.middleware.auth import verify_api_key
+with open("app/api/routes/ai_assistant.py", "r") as f:
+    content = f.read()
+
+# 1. Ensure clean imports
+import_section = """from app.api.middleware.auth import verify_api_key
 from app.db.database import get_db
 from app.modules.ai.copilot import AICopilot
 from app.modules.ai.models import ModelMetadata
 from app.core.dependencies import get_orchestrator
 from app.db.models import Match
-from app.db.repositories import AIPerformanceRepository, MatchRepository
-from app.services.assistant_tools import TOOL_MAP, NATIVE_AI_TOOLS
-from app.modules.ai.svi import SyntheticValueIndex
-from app.services.ai_client import call_ai
+from app.db.repositories import AIPerformanceRepository, MatchRepository"""
 
-router = APIRouter(prefix="/ai/assistant", tags=["ai-assistant"])
-logger = logging.getLogger(__name__)
+content = re.sub(r"from app\.api\.middleware\.auth\.+?from app\.db\.models import Match", import_section, content, flags=re.DOTALL)
 
-class ChatRequest(BaseModel):
-    message: str
-    history: Optional[List[dict]] = None
-    context: Optional[str] = None
-
-async def _get_system_health_internal(db: AsyncSession) -> Dict[str, Any]:
-    from sqlalchemy import select, func
-    try:
-        match_count = (await db.execute(select(func.count(Match.id)))).scalar() or 0
-    except Exception:
-        match_count = 0
-
-    orch = get_orchestrator()
-    models_ready = orch.num_models_ready() if orch else 0
-
-    # Try to get SVI
-    try:
-        svi_report = await SyntheticValueIndex.get_market_health_report(db)
-        svi_val = svi_report.get("svi", 0)
-        svi_status = svi_report.get("status", "unknown")
-    except Exception:
-        svi_val = 0
-        svi_status = "unavailable"
-
-    return {
-        "status": "operational",
-        "matches_in_db": match_count,
-        "ai_models_ready": models_ready,
-        "system_version": "5.5.0",
-        "svi": svi_val,
-        "svi_status": svi_status
-    }
-
-async def _handle_agentic_query(
+# 2. Re-implement the whole _handle_agentic_query to be safe
+new_handler = """async def _handle_agentic_query(
     message: str,
     db: AsyncSession,
     history: Optional[List[dict]] = None,
@@ -144,7 +102,7 @@ async def _handle_agentic_query(
     if any(k in msg for k in ["match", "game", "soccer", "football", "prediction", "odds", "scores", "fixture"]):
         thoughts.append("Executing Sports Intelligence Toolset")
 
-        match_id_search = re.search(r"(?:id\s*[:#]?\s*|match\s+)(\d+)", msg)
+        match_id_search = re.search(r"(?:id\\s*[:#]?\\s*|match\\s+)(\\d+)", msg)
         found_matches = []
         if match_id_search:
             match_id = int(match_id_search.group(1))
@@ -167,15 +125,17 @@ async def _handle_agentic_query(
             for insights in found_matches:
                 m = insights["match"]
                 preds = insights["predictions"]
-                reply += f"### Tactical Insight: {m.get('home_team', 'Unknown')} vs {m.get('away_team', 'Unknown')}\n"
-                reply += f"*League: {m.get('league', 'Unknown')} | Kickoff: {m.get('kickoff_time', 'Unknown')}*\n\n"
+                reply += f"### Tactical Insight: {m['home_team']} vs {m['away_team']}\n"
+                reply += f"*League: {m['league']} | Kickoff: {m['kickoff_time']}*\n\n"
                 if preds:
                     p = preds[0]
-                    reply += "**Native Ensemble Forecast:**\n"
-                    reply += f"- Home Win: {p.get('home_prob', 0)*100:.1f}%\n"
-                    reply += f"- Draw: {p.get('draw_prob', 0)*100:.1f}%\n"
-                    reply += f"- Away Win: {p.get('away_prob', 0)*100:.1f}%\n"
-                    reply += f"- **Confidence:** {p.get('confidence', 0)*100:.1f}%\n\n"
+                    reply += (
+                        f"**Native Ensemble Forecast:**\n"
+                        f"- Home Win: {p['home_prob']*100:.1f}%\n"
+                        f"- Draw: {p['draw_prob']*100:.1f}%\n"
+                        f"- Away Win: {p['away_prob']*100:.1f}%\n"
+                        f"- **Confidence:** {p.get('confidence', 0)*100:.1f}%\n\n"
+                    )
                 else:
                     reply += "AI Models are currently processing this match. No prediction recorded yet.\n\n"
             return {"available": True, "reply": reply.strip(), "thoughts": thoughts}
@@ -183,7 +143,7 @@ async def _handle_agentic_query(
         upcoming = await TOOL_MAP["get_upcoming_matches"](limit=5)
         if upcoming:
             match_list = "\n".join([
-                f"- **{m.get('home_team', 'Unknown')} vs {m.get('away_team', 'Unknown')}** (ID: {m.get('id', 'Unknown')}) | {m.get('league', 'Unknown')}"
+                f"- **{m['home_team']} vs {m['away_team']}** (ID: {m['id']}) | {m['league']}"
                 for m in upcoming
             ])
             reply = (
@@ -206,28 +166,9 @@ async def _handle_agentic_query(
         "accuracy": ens_acc
     }
     reply = await call_ai(message, context=ctx)
-    return {"available": True, "reply": reply, "thoughts": thoughts}
+    return {"available": True, "reply": reply, "thoughts": thoughts}"""
 
-@router.post("/chat")
-async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), _user=Depends(verify_api_key)):
-    try:
-        return await _handle_agentic_query(body.message, db, history=body.history, context=body.context)
-    except Exception as e:
-        logger.error(f"Assistant chat error: {e}", exc_info=True)
-        return {
-            "available": True,
-            "reply": "The VIT Bot is temporarily unavailable. Please try again later.",
-            "thoughts": ["Error encountered"],
-        }
+content = re.sub(r"async def _handle_agentic_query\(.*?return \{\"available\": True, \"reply\": reply, \"thoughts\": thoughts\}", new_handler, content, flags=re.DOTALL)
 
-@router.get("/status")
-async def assistant_status(db: AsyncSession = Depends(get_db), _user=Depends(verify_api_key)):
-    health = await _get_system_health_internal(db)
-    return {
-        "available": True,
-        "backend_ai_available": True,
-        "provider": "native",
-        "llm_configured": True,
-        "message": f"VIT Bot v{health['system_version']} ready.",
-        "health": health,
-    }
+with open("app/api/routes/ai_assistant.py", "w") as f:
+    f.write(content)

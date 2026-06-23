@@ -25,6 +25,7 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.services.tachyon_client import tachyon_client
 from app.core.dependencies import get_orchestrator
 from app.modules.ai.models import AIPredictionAudit, ModelMetadata
 from app.modules.ai.registry import (
@@ -187,16 +188,15 @@ async def upload_pkl(
         raise HTTPException(status_code=404, detail=f"Model '{key}' not in registry")
 
     # Stage the upload to a temp path first so we can validate before naming it
-    staged_path = os.path.join(MODELS_DIR, f"_staging_{key}_{int(datetime.now(timezone.utc).timestamp())}.pkl")
-    content = await file.read()
-    with open(staged_path, "wb") as f:
-        f.write(content)
-
+        data = await file.read()
     try:
         import joblib
+        import io
+        payload = joblib.load(io.BytesIO(data))
+
         payload = joblib.load(staged_path)
         if not isinstance(payload, dict) or "model" not in payload:
-            os.remove(staged_path)
+
             raise HTTPException(
                 status_code=422,
                 detail="pkl must be a dict with at least a 'model' key"
@@ -207,8 +207,7 @@ async def upload_pkl(
     except HTTPException:
         raise
     except Exception as exc:
-        if os.path.exists(staged_path):
-            os.remove(staged_path)
+
         raise HTTPException(status_code=422, detail=f"Failed to load pkl: {exc}")
 
     # Sanitise version for filename use
@@ -217,13 +216,15 @@ async def upload_pkl(
 
     # Refuse to overwrite an existing version file — operator must bump the version
     if os.path.exists(dest_path):
-        os.remove(staged_path)
+
         raise HTTPException(
             status_code=409,
             detail=f"Version '{version}' already exists for model '{key}'. "
                    f"Bump the version in the pkl payload before re-uploading."
         )
-    os.replace(staged_path, dest_path)
+    # Sync to Tachyon instead of local replace
+    tachyon_id = await tachyon_client.upload_bytes(data, f"{key}__{safe_version}.pkl")
+    dest_path = f"tachyon://{tachyon_id}"
 
     # Append to version_history (never replace existing entries)
     history = list(row.version_history or [])

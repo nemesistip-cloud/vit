@@ -407,6 +407,9 @@ def print_config_status() -> None:
     print(f"  ✅ TheSportsDB:       Always available (free key)")
     print(f"  ✅ Settlement mode:   {settle_mode}")
     print(f"  {'✅' if REDIS_URL else '⚠️ '} Redis:              {'Configured' if REDIS_URL else 'Missing (in-memory rate limiting only)'}")
+    from tachyon.api.router import _providers
+    tachyon_ready = len(_providers) > 0
+    print(f"  {'✅' if tachyon_ready else '⚠️ '} Tachyon VESS:      {'Operational (' + str(len(_providers)) + ' nodes)' if tachyon_ready else 'Degraded (0 nodes)'}")
     print(f"{'='*55}\n")
 
 # GCS Storage
@@ -419,3 +422,8 @@ GOOGLE_APPLICATION_CREDENTIALS_JSON = get_env("GOOGLE_APPLICATION_CREDENTIALS_JS
 MAX_PROCESS_RAM_MB: int = get_int_env("MAX_PROCESS_RAM_MB", "400")
 MAX_LOADED_MODELS: int = get_int_env("MAX_LOADED_MODELS", "3")
 MODEL_CACHE_TTL_SECONDS: int = get_int_env("MODEL_CACHE_TTL_SECONDS", "300")
+
+# Tachyon VESS Swarm Configuration
+TACHYON_DATA_SHARDS: int = get_int_env("TACHYON_DATA_SHARDS", "4")
+TACHYON_PARITY_SHARDS: int = get_int_env("TACHYON_PARITY_SHARDS", "2")
+TACHYON_ENCRYPTION_KEY: str = get_env("TACHYON_ENCRYPTION_KEY", "")

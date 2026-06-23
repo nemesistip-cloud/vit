@@ -12,6 +12,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Database,
   Zap,
   ShieldCheck,
@@ -304,7 +309,7 @@ function getFileTypeColor(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
   if (['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) return 'text-pink-400';
   if (['mp4','mov','avi','mkv','webm'].includes(ext)) return 'text-purple-400';
-  if (['mp3','wav','ogg','flac','aac'].includes(ext)) return 'text-yellow-400';
+  if (['mp3','wav','ogg','flac','aac'].includes(ext)) return 'text-[#FFB800]';
   if (['js','ts','tsx','jsx','py','rs','go','java','cpp','c'].includes(ext)) return 'text-blue-400';
   if (['zip','tar','gz','7z','rar'].includes(ext)) return 'text-orange-400';
   return 'text-muted-foreground';
@@ -514,16 +519,25 @@ const StoragePage: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border/40 bg-card/50">
+                <Card className="border-border/40 bg-card/50">
           <CardContent className="p-4">
             <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
-              <HardDrive className="w-3 h-3" /> Total Stored
+              <HardDrive className="w-3 h-3" /> Tachyon Capacity
             </div>
-            <div className="text-2xl font-bold font-mono">
-              {status?.total_bytes != null ? formatBytes(status.total_bytes) : '—'}
+            <div className="text-2xl font-bold font-mono text-[#00E676]">
+              {stats?.total_stored_gb != null ? stats.total_stored_gb.toFixed(3) : '—'} <span className="text-xs font-normal text-muted-foreground">GB</span>
             </div>
-            <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
-              {stats?.total_stored_bytes != null ? `${formatBytes(stats.total_stored_bytes)} verified` : 'loading…'}
+            <div className="text-[10px] font-mono text-muted-foreground mt-0.5 flex justify-between">
+              <span>{stats?.total_capacity_gb ?? '—'} GB TOTAL</span>
+              <span className={stats?.utilization_pct > 85 ? 'text-[#FF4444]' : stats?.utilization_pct > 60 ? 'text-[#FFB800]' : 'text-[#00E676]'}>
+                {stats?.utilization_pct ?? 0}%
+              </span>
+            </div>
+            <div className="w-full h-1 bg-muted rounded-full mt-1.5 overflow-hidden">
+              <div
+                className={`h-full transition-all ${stats?.utilization_pct > 85 ? 'bg-[#FF4444]' : stats?.utilization_pct > 60 ? 'bg-[#FFB800]' : 'bg-[#00E676]'}`}
+                style={{ width: `${Math.min(stats?.utilization_pct ?? 0, 100)}%` }}
+              />
             </div>
           </CardContent>
         </Card>
@@ -609,7 +623,7 @@ const StoragePage: React.FC = () => {
             <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
               Global Coordinated Capacity
             </div>
-            <div className={`text-[10px] font-mono font-bold mt-1 ${status?.status === 'operational' ? 'text-green-400' : 'text-yellow-400'}`}>
+            <div className={`text-[10px] font-mono font-bold mt-1 ${status?.status === 'operational' ? 'text-green-400' : 'text-[#FFB800]'}`}>
               ● Coordination Plane {status?.status === 'operational' ? 'Stable' : 'Initialising'}
             </div>
           </CardContent>
@@ -704,9 +718,20 @@ const StoragePage: React.FC = () => {
                   <Zap className="w-3 h-3 mr-2" />
                   Start Burst Upload
                 </Button>
-                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => { setFile(null); setUploadError(null); }}>
-                  <Trash2 className="w-3 h-3" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => { setFile(null); setUploadError(null); }}
+                      aria-label="Clear selection"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Clear selection</TooltipContent>
+                </Tooltip>
               </div>
             )}
 
@@ -761,7 +786,7 @@ const StoragePage: React.FC = () => {
             </h2>
 
             {[
-              { step: '01', title: 'Shredding', desc: 'Your file is split into 4 KB fragments. A SHA-3 hash is computed for the whole file.', icon: Zap, color: 'text-yellow-400' },
+              { step: '01', title: 'Shredding', desc: 'Your file is split into 4 KB fragments. A SHA-3 hash is computed for the whole file.', icon: Zap, color: 'text-[#FFB800]' },
               { step: '02', title: 'Reed-Solomon Parity', desc: 'Extra parity fragments are generated so the file can be rebuilt even if some nodes fail.', icon: ShieldCheck, color: 'text-green-400' },
               { step: '03', title: 'Burst Distribution', desc: 'All fragments are uploaded in parallel to the swarm — disk nodes or cloud providers.', icon: Network, color: 'text-blue-400' },
               { step: '04', title: 'Manifest Persisted', desc: 'A manifest mapping every fragment to its node is saved to the database — survives restarts.', icon: Database, color: 'text-primary' },
@@ -812,9 +837,20 @@ const StoragePage: React.FC = () => {
                   {s}
                 </Button>
               ))}
-              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px] font-mono" onClick={fetchManifests}>
-                <RefreshCw className={`w-3 h-3 ${loadingManifests ? 'animate-spin' : ''}`} />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={fetchManifests}
+                    aria-label="Refresh file list"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${loadingManifests ? 'animate-spin' : ''}`} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Refresh file list</TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -867,31 +903,42 @@ const StoragePage: React.FC = () => {
                     <div className="text-xs font-mono text-muted-foreground">{formatBytes(m.size_bytes)}</div>
                     <div className="text-xs font-mono text-muted-foreground">{m.fragment_count} frags</div>
                     <div className="text-xs font-mono text-muted-foreground">{formatDate(m.created_at)}</div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                        title="Download"
-                        onClick={() => handleDownload(m.file_id, m.filename)}
-                        disabled={downloading === m.file_id}
-                      >
-                        {downloading === m.file_id
-                          ? <RefreshCw className="w-3 h-3 animate-spin" />
-                          : <Download className="w-3 h-3" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        title="Delete"
-                        onClick={() => handleDelete(m.file_id)}
-                        disabled={deleting === m.file_id}
-                      >
-                        {deleting === m.file_id
-                          ? <RefreshCw className="w-3 h-3 animate-spin" />
-                          : <Trash2 className="w-3 h-3" />}
-                      </Button>
+                    <div className="flex items-center gap-1 opacity-100">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            aria-label="Download file"
+                            onClick={() => handleDownload(m.file_id, m.filename)}
+                            disabled={downloading === m.file_id}
+                          >
+                            {downloading === m.file_id
+                              ? <RefreshCw className="w-3 h-3 animate-spin" />
+                              : <Download className="w-3 h-3" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Download file</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            aria-label="Delete file"
+                            onClick={() => handleDelete(m.file_id)}
+                            disabled={deleting === m.file_id}
+                          >
+                            {deleting === m.file_id
+                              ? <RefreshCw className="w-3 h-3 animate-spin" />
+                              : <Trash2 className="w-3 h-3" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete file</TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 );
@@ -970,7 +1017,7 @@ const StoragePage: React.FC = () => {
                   </div>
                   <div className="flex justify-between text-xs font-mono">
                     <span className="text-muted-foreground">Open challenges</span>
-                    <span className={`font-bold ${stats.open_challenges > 0 ? 'text-yellow-400' : 'text-muted-foreground'}`}>
+                    <span className={`font-bold ${stats.open_challenges > 0 ? 'text-[#FFB800]' : 'text-muted-foreground'}`}>
                       {stats.open_challenges}
                     </span>
                   </div>

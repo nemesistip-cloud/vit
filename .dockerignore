@@ -29,9 +29,6 @@ data/raw/
 data/uploads/
 data/insights/
 docs/
-packages/
-tachyon/
-services/
 render.yaml
 tests/
 scripts/backtester.py

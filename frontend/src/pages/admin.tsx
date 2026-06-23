@@ -228,7 +228,7 @@ function DashboardTab() {
     {
       label: "Training Jobs", value: stats?.training_jobs ?? 0, icon: Cpu,
       gradient: "from-emerald-500/10 to-transparent", border: "border-emerald-500/20",
-      glow: "", iconColor: "text-emerald-400", valueCls: "text-emerald-300",
+      glow: "", iconColor: "text-white", valueCls: "text-emerald-300",
       sub: stats?.prediction_accuracy?.accuracy_pct != null
         ? `${stats.prediction_accuracy.accuracy_pct}% accuracy`
         : undefined,
@@ -236,7 +236,7 @@ function DashboardTab() {
     {
       label: "Active Plans", value: stats?.active_plans ?? 0, icon: CreditCard,
       gradient: "from-amber-500/10 to-transparent", border: "border-amber-500/20",
-      glow: "", iconColor: "text-amber-400", valueCls: "text-amber-300",
+      glow: "", iconColor: "text-[#FFB800]", valueCls: "text-amber-300",
       sub: stats?.revenue?.total_usd != null
         ? `$${stats.revenue.total_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} revenue`
         : undefined,
@@ -311,8 +311,8 @@ function DashboardTab() {
               {/* Capacity Meters Row */}
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: "Used",  val: cloudStorage.disk.used_gb,  color: cloudStorage.disk.utilization_pct > 90 ? "text-red-400" : cloudStorage.disk.utilization_pct > 70 ? "text-amber-400" : "text-teal-400" },
-                  { label: "Free",  val: cloudStorage.disk.free_gb,  color: "text-emerald-400" },
+                  { label: "Used",  val: cloudStorage.disk.used_gb,  color: cloudStorage.disk.utilization_pct > 85 ? "text-[#FF4444]" : cloudStorage.disk.utilization_pct > 60 ? "text-[#FFB800]" : "text-[#00E676]" },
+                  { label: "Free",  val: cloudStorage.disk.free_gb,  color: "text-white" },
                   { label: "Total", val: cloudStorage.disk.total_gb, color: "text-gray-300" },
                 ].map(m => (
                   <div key={m.label} className="bg-gray-800/60 rounded-lg p-3 text-center border border-gray-700/40">
@@ -327,16 +327,16 @@ function DashboardTab() {
               {/* Progress Bar */}
               <div>
                 <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                  <span>Server Disk Utilization</span>
-                  <span className={cloudStorage.disk.utilization_pct > 90 ? "text-red-400 font-bold" : "text-gray-400"}>
+                  <span>Tachyon Network Storage</span>
+                  <span className={cloudStorage.disk.utilization_pct > 85 ? "text-red-400 font-bold" : cloudStorage.disk.utilization_pct > 60 ? "text-[#FFB800]" : "text-gray-400"}>
                     {cloudStorage.disk.utilization_pct}%
                   </span>
                 </div>
                 <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
-                      cloudStorage.disk.utilization_pct > 90 ? "bg-red-500" :
-                      cloudStorage.disk.utilization_pct > 70 ? "bg-amber-500" : "bg-teal-500"
+
+                      cloudStorage.disk.utilization_pct > 85 ? "bg-[#FF4444]" : cloudStorage.disk.utilization_pct > 60 ? "bg-[#FFB800]" : "bg-[#00E676]"
                     }`}
                     style={{ width: `${Math.min(cloudStorage.disk.utilization_pct, 100)}%` }}
                   />
@@ -418,8 +418,8 @@ function DashboardTab() {
                     </div>
                     <span className={`ml-auto text-[10px] font-medium shrink-0 ${
                       row.optional && !row.ok ? "text-gray-600" :
-                      row.limited ? "text-amber-400" :
-                      row.ok ? "text-emerald-400" : "text-red-400"
+                      row.limited ? "text-[#FFB800]" :
+                      row.ok ? "text-white" : "text-[#FF4444]"
                     }`}>
                       {row.optional && !row.ok ? "N/A" : row.limited ? "Limited" : row.ok ? "OK" : "DOWN"}
                     </span>
@@ -436,7 +436,7 @@ function DashboardTab() {
                 ].map(m => (
                   <div key={m.label} className="text-center">
                     <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">{m.label}</div>
-                    <div className={`text-lg font-bold font-mono ${m.value > m.warn ? "text-red-400" : "text-white"}`}>
+                    <div className={`text-lg font-bold font-mono ${m.value > m.warn ? "text-[#FF4444]" : "text-white"}`}>
                       {m.value}%
                     </div>
                     <div className="mt-1 h-1 bg-gray-800 rounded-full overflow-hidden">
@@ -530,7 +530,7 @@ function LeaguesTab() {
     onError: () => toast.error("Update failed"),
   });
 
-  const statusColor = { active: "text-emerald-400", paused: "text-yellow-400", disabled: "text-red-400" };
+  const statusColor = { active: "text-white", paused: "text-yellow-400", disabled: "text-[#FF4444]" };
 
   if (isLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -1440,9 +1440,9 @@ function FootballDataCard() {
   });
 
   const statusColor =
-    testResult?.status === "ok" ? "text-emerald-400" :
-    testResult?.status === "no_key" ? "text-amber-400" :
-    testResult ? "text-red-400" : "text-gray-500";
+    testResult?.status === "ok" ? "text-white" :
+    testResult?.status === "no_key" ? "text-[#FFB800]" :
+    testResult ? "text-[#FF4444]" : "text-gray-500";
 
   return (
     <Card className="bg-gray-900 border-gray-700">
@@ -1491,7 +1491,7 @@ function FootballDataCard() {
         <div className="text-xs text-gray-500 space-y-1">
           <div>• <span className="text-cyan-400">Fetch Upcoming Fixtures</span> — pulls scheduled matches for the next 14 days, dedup'd against existing rows.</div>
           <div>• <span className="text-purple-400">Sync FT Results</span> — settles predictions against finished matches from the API (last 7 days).</div>
-          <div>• <span className="text-amber-400">Backfill Past Results</span> — runs the API settle, then simulates final scores for any past local-only/seed matches that have no provider counterpart.</div>
+          <div>• <span className="text-[#FFB800]">Backfill Past Results</span> — runs the API settle, then simulates final scores for any past local-only/seed matches that have no provider counterpart.</div>
         </div>
       </CardContent>
     </Card>
@@ -1622,8 +1622,8 @@ function CSVUploadCard() {
           <div className="flex gap-4 text-xs font-mono flex-wrap">
             <span className="text-emerald-400 font-bold">{imported} imported</span>
             <span className="text-gray-400">{skipped} duplicates</span>
-            {warnCount > 0 && <span className="text-amber-400">{warnCount} warnings</span>}
-            {errCount > 0  && <span className="text-red-400">{errCount} errors</span>}
+            {warnCount > 0 && <span className="text-[#FFB800]">{warnCount} warnings</span>}
+            {errCount > 0  && <span className="text-[#FF4444]">{errCount} errors</span>}
           </div>
         )}
 
@@ -1731,7 +1731,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
                     </td>
                     <td className="p-2 text-center hidden lg:table-cell font-mono text-[10px]">
                       {r.edge != null ? (
-                        <span className={r.edge > 0 ? "text-emerald-400" : "text-red-400"}>
+                        <span className={r.edge > 0 ? "text-white" : "text-[#FF4444]"}>
                           {r.edge > 0 ? "+" : ""}{(r.edge * 100).toFixed(2)}%
                         </span>
                       ) : "—"}
@@ -2102,7 +2102,7 @@ function UsersTab() {
 
   const tierColors: Record<string, string> = {
     free: "text-zinc-400", viewer: "text-zinc-400", analyst: "text-blue-400",
-    pro: "text-emerald-400", elite: "text-emerald-400",
+    pro: "text-white", elite: "text-white",
   };
 
   return (
@@ -2152,7 +2152,7 @@ function UsersTab() {
                         <div className="text-xs text-gray-500 font-mono">{u.email}</div>
                       </td>
                       <td className="p-3">
-                        <span className={`text-xs font-mono ${u.role === "admin" ? "text-amber-400" : "text-gray-300"}`}>
+                        <span className={`text-xs font-mono ${u.role === "admin" ? "text-[#FFB800]" : "text-gray-300"}`}>
                           {u.role}{u.admin_role ? ` (${u.admin_role})` : ""}
                         </span>
                       </td>
@@ -2303,7 +2303,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
 
   const { data: job, isError } = useQuery<TrainingJobStatus>({
     queryKey: ["admin-training-job", jobId],
-    queryFn: () => apiGet<TrainingJobStatus>(`/api/admin/training/job/${jobId}`),
+    queryFn: () => apiGet<TrainingJobStatus>(`/api/training/status/${jobId}`),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === "completed" || status === "failed" ? false : 1500;
@@ -2340,10 +2340,10 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
   };
 
   const eventColor = (type: string) => {
-    if (type === "model_done") return "text-emerald-400";
-    if (type === "model_error" || type === "error") return "text-red-400";
+    if (type === "model_done") return "text-white";
+    if (type === "model_error" || type === "error") return "text-[#FF4444]";
     if (type === "model_start") return "text-cyan-400";
-    if (type === "done") return "text-amber-400";
+    if (type === "done") return "text-[#FFB800]";
     if (type === "weights_saved" || type === "weights_reloaded") return "text-purple-400";
     return "text-gray-400";
   };
@@ -2399,7 +2399,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
             className="h-44 overflow-y-auto font-mono text-xs space-y-0.5 pr-1 scrollbar-thin scrollbar-thumb-gray-700"
           >
             {isError && (
-              <div className="text-red-400">Could not connect to job — retrying…</div>
+              <div className="text-[#FF4444]">Could not connect to job — retrying…</div>
             )}
             {!job && !isError && (
               <div className="text-gray-500 animate-pulse">Connecting to job…</div>
@@ -2442,7 +2442,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
                 <span className="text-gray-300 truncate max-w-[140px]" title={r.model_name}>{r.model_name}</span>
                 <div className="flex items-center gap-2 shrink-0">
                   {r.status === "ok" && r.accuracy !== undefined && (
-                    <span className={`font-mono font-semibold ${r.accuracy >= 0.6 ? "text-emerald-400" : r.accuracy >= 0.5 ? "text-amber-400" : "text-red-400"}`}>
+                    <span className={`font-mono font-semibold ${r.accuracy >= 0.6 ? "text-white" : r.accuracy >= 0.5 ? "text-[#FFB800]" : "text-[#FF4444]"}`}>
                       {(r.accuracy * 100).toFixed(1)}%
                     </span>
                   )}
@@ -2451,7 +2451,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
                   )}
                   {r.status === "ok"
                     ? <span className="text-emerald-500">✓</span>
-                    : <span className="text-red-400" title={r.error}>✗</span>
+                    : <span className="text-[#FF4444]" title={r.error}>✗</span>
                   }
                 </div>
               </div>
@@ -2473,7 +2473,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
               </span>
               {job.summary.avg_accuracy !== undefined && (
                 <span className="text-gray-400">
-                  Avg accuracy: <span className={`font-semibold font-mono ${(job.summary.avg_accuracy ?? 0) >= 0.6 ? "text-emerald-400" : "text-amber-400"}`}>
+                  Avg accuracy: <span className={`font-semibold font-mono ${(job.summary.avg_accuracy ?? 0) >= 0.6 ? "text-white" : "text-[#FFB800]"}`}>
                     {((job.summary.avg_accuracy ?? 0) * 100).toFixed(1)}%
                   </span>
                 </span>
@@ -2709,7 +2709,7 @@ function ModelsTab() {
                           {m.pkl_loaded && <span className="ml-1 text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">Real Weights</span>}
                         </td>
                         <td className="p-3">
-                          <span className={`text-xs ${m.source === "marketplace" ? "text-amber-400" : "text-gray-500"}`}>
+                          <span className={`text-xs ${m.source === "marketplace" ? "text-[#FFB800]" : "text-gray-500"}`}>
                             {m.source ?? "internal"}
                             {m.listing_id ? ` #${m.listing_id}` : ""}
                           </span>
@@ -2763,9 +2763,9 @@ function ModelsTab() {
             ].map((kpi) => {
               const toneClass = {
                 neutral:     { ring: "border-gray-700",         text: "text-cyan-400",    bg: "bg-cyan-500/10"    },
-                success:     { ring: "border-emerald-500/30",   text: "text-emerald-400", bg: "bg-emerald-500/10" },
-                warning:     { ring: kpi.value > 0 ? "border-amber-500/40" : "border-gray-700", text: "text-amber-400", bg: "bg-amber-500/10" },
-                destructive: { ring: kpi.value > 0 ? "border-red-500/40"   : "border-gray-700", text: "text-red-400",   bg: "bg-red-500/10"   },
+                success:     { ring: "border-emerald-500/30",   text: "text-white", bg: "bg-emerald-500/10" },
+                warning:     { ring: kpi.value > 0 ? "border-amber-500/40" : "border-gray-700", text: "text-[#FFB800]", bg: "bg-amber-500/10" },
+                destructive: { ring: kpi.value > 0 ? "border-red-500/40"   : "border-gray-700", text: "text-[#FF4444]",   bg: "bg-red-500/10"   },
               }[kpi.tone];
               return (
                 <Card key={kpi.label} className={`bg-gray-900 ${toneClass.ring} transition-colors`}>
@@ -2911,7 +2911,7 @@ function ModelsTab() {
                                   {[0,1,2,3,4,5,6].map(i => (
                                     <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${
                                       i < streak
-                                        ? (streak >= 5 ? "bg-red-500" : streak >= 3 ? "bg-amber-500" : "bg-amber-600")
+                                        ? (streak >= 5 ? "bg-[#FF4444]" : streak >= 3 ? "bg-[#FFB800]" : "bg-amber-600")
                                         : "bg-gray-700"
                                     }`} />
                                   ))}
@@ -2964,8 +2964,8 @@ function ModelsTab() {
                           <td className="p-3">
                             <div className="flex flex-col items-end gap-1">
                               <span className={`font-mono text-xs ${
-                                clv > 0.001 ? "text-emerald-400"
-                                : clv < -0.001 ? "text-red-400"
+                                clv > 0.001 ? "text-white"
+                                : clv < -0.001 ? "text-[#FF4444]"
                                 : "text-gray-400"
                               }`}>
                                 {clvN > 0 ? (clv > 0 ? "+" : "") + clv.toFixed(4) : "—"}
@@ -2975,7 +2975,7 @@ function ModelsTab() {
                                   <div className="absolute left-1/2 top-0 w-px h-full bg-gray-600" />
                                   {clv !== 0 && (
                                     <div
-                                      className={`absolute top-0 h-full rounded-full ${clv > 0 ? "bg-emerald-500" : "bg-red-500"}`}
+                                      className={`absolute top-0 h-full rounded-full ${clv > 0 ? "bg-emerald-500" : "bg-[#FF4444]"}`}
                                       style={clv > 0
                                         ? { left: "50%", width: `${Math.min(Math.abs(clv) / 0.02, 1) * 50}%` }
                                         : { right: "50%", width: `${Math.min(Math.abs(clv) / 0.02, 1) * 50}%` }
@@ -3248,8 +3248,8 @@ function TrainingInsightCard() {
               {[
                 { label: "Avg Accuracy",   value: summary?.avg_accuracy      != null ? `${(summary.avg_accuracy * 100).toFixed(1)}%`     : "—", color: "text-cyan-400" },
                 { label: "Wtd Accuracy",   value: summary?.weighted_accuracy  != null ? `${(summary.weighted_accuracy * 100).toFixed(1)}%` : "—", color: "text-indigo-400" },
-                { label: "Models Trained", value: `${summary?.trained_models ?? 0} / ${summary?.total_models ?? 0}`,  color: "text-emerald-400" },
-                { label: "Best Model",     value: summary?.best_model ?? "—", color: "text-amber-400" },
+                { label: "Models Trained", value: `${summary?.trained_models ?? 0} / ${summary?.total_models ?? 0}`,  color: "text-white" },
+                { label: "Best Model",     value: summary?.best_model ?? "—", color: "text-[#FFB800]" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-gray-800 rounded p-3 border border-gray-700">
                   <p className="text-xs text-gray-400 font-mono uppercase mb-1">{label}</p>
@@ -3746,7 +3746,7 @@ function TasksTab() {
                       </td>
                       <td className="p-3 text-xs">
                         <div className="text-cyan-400">{task.xp_reward} XP</div>
-                        <div className="text-amber-400">{task.vit_reward} VIT</div>
+                        <div className="text-[#FFB800]">{task.vit_reward} VIT</div>
                       </td>
                       <td className="p-3 text-xs text-gray-400 capitalize">
                         {task.trigger_type.replace("_", " ")}
@@ -3814,7 +3814,7 @@ function TasksTab() {
                     <td className="p-3 text-white text-sm">{comp.task_name}</td>
                     <td className="p-3 text-xs">
                       <div className="text-cyan-400">{comp.xp_earned} XP</div>
-                      <div className="text-amber-400">{comp.vit_earned} VIT</div>
+                      <div className="text-[#FFB800]">{comp.vit_earned} VIT</div>
                     </td>
                     <td className="p-3 text-gray-500 text-xs whitespace-nowrap">
                       {comp.completed_at ? new Date(comp.completed_at).toLocaleString() : "-"}
@@ -4357,7 +4357,7 @@ function MLAgentsTab() {
                       <div className="text-xs text-slate-500">Runs</div>
                     </div>
                     <div className="bg-slate-800/50 rounded-lg p-1.5">
-                      <div className={`text-sm font-bold ${(snap?.error_count ?? 0) > 0 ? "text-red-400" : "text-white"}`}>
+                      <div className={`text-sm font-bold ${(snap?.error_count ?? 0) > 0 ? "text-[#FF4444]" : "text-white"}`}>
                         {snap?.error_count ?? 0}
                       </div>
                       <div className="text-xs text-slate-500">Errors</div>
@@ -4916,14 +4916,14 @@ function IntegrationsTab() {
     icon: React.ElementType; color: string; bg: string; border: string; description: string;
     testAction?: () => void; testLabel?: string; testLoading?: boolean;
   }> = {
-    "Pi Network":     { icon: Zap,        color: "text-amber-400",  bg: "bg-amber-500/10",  border: "border-amber-500/30",  description: "Accept Pi cryptocurrency from Pi Network users. Set App ID and Secret from developer.pi.",         testAction: testPiConnection, testLabel: "Test Connection", testLoading: testingPi },
+    "Pi Network":     { icon: Zap,        color: "text-[#FFB800]",  bg: "bg-amber-500/10",  border: "border-amber-500/30",  description: "Accept Pi cryptocurrency from Pi Network users. Set App ID and Secret from developer.pi.",         testAction: testPiConnection, testLabel: "Test Connection", testLoading: testingPi },
     "Payments":       { icon: CreditCard, color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/30",   description: "Stripe (USD subscriptions), Paystack (NGN deposits), and Flutterwave (MoMo / card) processors." },
     "Sports Data":    { icon: Activity,   color: "text-cyan-400",   bg: "bg-cyan-500/10",   border: "border-cyan-500/30",   description: "Football-Data.org, The Odds API, and TheSportsDB for fixtures, live odds, and match data."         },
     "Messaging":      { icon: Send,       color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/30",  description: "Telegram bot for signal alerts and Resend for transactional email (verification, password reset)."  },
     "VIT AI":         { icon: Brain,      color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/30", description: "Native ML model flags and Google Cloud Storage bucket for syncing trained model weights."            },
-    "Blockchain":     { icon: Network,    color: "text-teal-400",   bg: "bg-teal-500/10",   border: "border-teal-500/30",   description: "Base L2 RPC endpoint and VITCoin ERC-20 contract address for on-chain verification and bridge."    },
+    "Blockchain":     { icon: Network,    color: "text-[#00E676]",   bg: "bg-teal-500/10",   border: "border-teal-500/30",   description: "Base L2 RPC endpoint and VITCoin ERC-20 contract address for on-chain verification and bridge."    },
     "Infrastructure": { icon: Server,     color: "text-rose-400",   bg: "bg-rose-500/10",   border: "border-rose-500/30",   description: "Redis connection URL and SMTP credentials for background jobs and email delivery."                  },
-    "Security":       { icon: Shield,     color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/30",    description: "JWT signing key and legacy admin API key. JWT Secret is required in production."                    },
+    "Security":       { icon: Shield,     color: "text-[#FF4444]",    bg: "bg-red-500/10",    border: "border-red-500/30",    description: "JWT signing key and legacy admin API key. JWT Secret is required in production."                    },
     "Offerwall":      { icon: Gift,       color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/30", description: "Partner offerwall API keys for Ayet Studios, BitLabs, CPX Research, Revenue Universe, and Tapjoy. Add keys to enable offers on the Earn page." },
   };
 
@@ -5219,7 +5219,7 @@ export default function AdminPage() {
     },
     {
       label: "OPERATIONS",
-      color: "text-emerald-400",
+      color: "text-white",
       tabs: [
         { value: "users",  label: "Users",  icon: Users },
         { value: "kyc",    label: "KYC",    icon: UserCheck },
@@ -5228,7 +5228,7 @@ export default function AdminPage() {
     },
     {
       label: "FINANCE",
-      color: "text-amber-400",
+      color: "text-[#FFB800]",
       tabs: [
         { value: "markets",        label: "Markets",       icon: TrendingUp },
         { value: "currency",       label: "Currency",      icon: Coins },
@@ -5289,7 +5289,7 @@ export default function AdminPage() {
           <div className="flex items-center gap-2.5 shrink-0">
             <div className="text-right hidden sm:block">
               <div className="text-sm text-white font-medium leading-tight">{user.username}</div>
-              <div className={`text-[10px] font-semibold tracking-wide uppercase ${isSuperAdmin ? "text-amber-400" : "text-cyan-400"}`}>
+              <div className={`text-[10px] font-semibold tracking-wide uppercase ${isSuperAdmin ? "text-[#FFB800]" : "text-cyan-400"}`}>
                 {adminRoleLabel[user.admin_role ?? "admin"] ?? "Admin"}
               </div>
             </div>

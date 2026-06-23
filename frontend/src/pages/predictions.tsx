@@ -26,7 +26,7 @@ import { format, isValid, parseISO } from "date-fns";
 import {
   Activity, Coins, RefreshCw, Ticket, Sparkles, Users, User as UserIcon,
   Layers, AlertTriangle, Trophy, TrendingUp, Download, CheckCircle2,
-  XCircle, Clock, BarChart3, Target,
+  XCircle, Clock, BarChart3, Target, ExternalLink,
 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -286,6 +286,23 @@ function PredictionsLedger({ scope }: { scope: "user" | "community" }) {
                   </div>
                 </div>
               </div>
+              {/* Bet Now — only for pending predictions */}
+              {!prediction.actual_outcome && prediction.bet_side && prediction.match_id && (
+                <div className="px-5 pb-4 flex items-center gap-2 border-t border-border/30 pt-3" onClick={(e) => e.preventDefault()}>
+                  <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest mr-1">Bet on:</span>
+                  {["betway", "sportybet", "bet9ja"].map((provider) => (
+                    <a
+                      key={provider}
+                      href={`/api/predictions/generate-slip?match_id=${prediction.match_id}&provider=${provider}&market=1x2&selection=${prediction.bet_side}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-primary/30 text-[10px] font-mono text-primary hover:bg-primary/10 hover:border-primary/60 transition-colors"
+                    >
+                      {provider} <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </Link>
@@ -337,7 +354,7 @@ function ResultsComparison() {
 
   const { data, isLoading, isError } = useQuery<ComparisonData>({
     queryKey: ["results-comparison", settledOnly],
-    queryFn: () => apiGet(`/api/history/results-comparison?limit=100&settled_only=${settledOnly}`),
+    queryFn: () => apiGet(`/api/history/results-comparison?limit=100&settled_only=${settledOnly}&all_users=true`),
     staleTime: 20_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,

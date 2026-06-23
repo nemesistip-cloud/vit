@@ -19,9 +19,7 @@ class SecurityHeadersMiddleware:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
 
-                # Add security headers
                 headers.append((b"x-content-type-options", b"nosniff"))
-                headers.append((b"x-frame-options", b"DENY"))
                 headers.append((b"x-xss-protection", b"1; mode=block"))
                 headers.append((b"referrer-policy", b"strict-origin-when-cross-origin"))
                 headers.append((b"permissions-policy", b"camera=(), microphone=(), geolocation=(), payment=()"))
@@ -32,7 +30,8 @@ class SecurityHeadersMiddleware:
                     "img-src 'self' data: https:; "
                     "connect-src 'self' wss: https:; "
                     "font-src 'self' data: https://fonts.gstatic.com; "
-                    "frame-ancestors 'none';"
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                    "frame-ancestors *;"
                 )
                 headers.append((b"content-security-policy", csp.encode()))
 

@@ -10,7 +10,7 @@ const htmlBypass = (req: any) => {
 };
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react({ fastRefresh: false }), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
@@ -60,6 +60,10 @@ export default defineConfig({
     port: 5000,
     host: "0.0.0.0",
     allowedHosts: true,
+    hmr: {
+      clientPort: 443,
+      protocol: "wss",
+    },
     proxy: {
       "/auth": { target: "http://localhost:8000", bypass: htmlBypass },
       "/agents": { target: "http://localhost:8000", bypass: htmlBypass },

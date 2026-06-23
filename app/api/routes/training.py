@@ -1800,9 +1800,7 @@ async def upload_training_dataset(
         json.dump(combined, f, indent=2)
 
     save_name = f"{uuid.uuid4().hex}_{filename}"
-    upload_save = os.path.join(_UPLOADS_DIR, save_name)
-    with open(upload_save, "wb") as f:
-        f.write(content)
+    tachyon_id = await tachyon_client.upload_bytes(content, save_name)
 
     leagues = list({r["league"] for r in valid_records if r["league"]})
     dates = [r["date"] for r in valid_records if r.get("date")]

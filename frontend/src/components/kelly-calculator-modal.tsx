@@ -21,6 +21,11 @@ import { apiPost } from "@/lib/apiClient";
 import { Calculator, X, TrendingUp, AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // ── Module-level open/close signal ──────────────────────────────────────────
 let _setOpen: ((v: boolean) => void) | null = null;
@@ -231,12 +236,19 @@ export function KellyCalculatorModal() {
 // ── Floating trigger button ──────────────────────────────────────────────────
 export function KellyFAB() {
   return (
-    <button
-      onClick={openKellyCalculator}
-      title="Kelly Calculator (stake sizing)"
-      className="fixed bottom-24 right-5 z-50 lg:bottom-6 w-11 h-11 rounded-full bg-gradient-to-br from-primary/80 to-purple-500/80  border border-primary/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
-    >
-      <Calculator className="w-4.5 h-4.5 text-primary-foreground" style={{ width: 18, height: 18 }} />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={openKellyCalculator}
+          aria-label="Kelly Calculator (stake sizing)"
+          className="fixed bottom-24 right-5 z-50 lg:bottom-6 w-11 h-11 rounded-full bg-gradient-to-br from-primary/80 to-purple-500/80  border border-primary/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
+        >
+          <Calculator className="w-4.5 h-4.5 text-primary-foreground" style={{ width: 18, height: 18 }} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="left">
+        Kelly Calculator (Stake Sizing)
+      </TooltipContent>
+    </Tooltip>
   );
 }

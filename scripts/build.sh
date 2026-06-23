@@ -1,99 +1,67 @@
 #!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")/.."
+set -e
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT_DIR"
 
-echo "[build] Cleaning up redundant lockfiles..."
-rm -f package-lock.json frontend/package-lock.json
+echo "[build] Project root: $ROOT_DIR"
 
 echo "[build] Installing Python dependencies..."
 pip install -r requirements.txt
 
-# Ensure node is available
-if ! command -v node &> /dev/null; then
-    echo "[build] Error: node is not installed." >&2
-    exit 1
-fi
-
-echo "[build] Using pnpm version: $(pnpm -v)"
-
-# Ensure pnpm is available
 if ! command -v pnpm &> /dev/null; then
-    echo "[build] pnpm not found. Installing pnpm globally..."
+    echo "[build] Installing pnpm..."
     npm install -g pnpm
 fi
 
-echo "[build] pnpm version: $(pnpm -v)"
+echo "[build] Executing frontend build..."
+cd "$ROOT_DIR/frontend"
 
-# Skip frontend build if --skip-frontend is passed
-if [[ "${1:-}" != "--skip-frontend" ]]; then
-    echo "[build] Executing frontend build..."
+# Always use pnpm if lockfile exists, otherwise fallback to npm
+if [ -f "pnpm-lock.yaml" ]; then
+    echo "[build] Using pnpm (pnpm-lock.yaml detected)"
+    pnpm install --no-frozen-lockfile
+elif [ -f "../pnpm-lock.yaml" ]; then
+    echo "[build] Using pnpm (root pnpm-lock.yaml detected)"
+    pnpm install --no-frozen-lockfile
+else
+    echo "[build] pnpm-lock.yaml not found. Falling back to npm install."
+    npm install --prefer-offline --no-audit --no-fund
+fi
 
-    # Always use pnpm if lockfile exists, otherwise fallback to npm
-    if [ -f "pnpm-lock.yaml" ]; then
-        echo "[build] Using pnpm (pnpm-lock.yaml detected)"
-        pnpm install --frozen-lockfile
-    elif [ -f "../pnpm-lock.yaml" ]; then
-        echo "[build] Using pnpm (root pnpm-lock.yaml detected)"
-        pnpm install --frozen-lockfile
-    else
-        echo "[build] pnpm-lock.yaml not found. Falling back to npm install."
-        npm install --prefer-offline --no-audit --no-fund
-    fi
-
-    echo "[build] Building frontend for production..."
-    if command -v pnpm &> /dev/null; then
-        pnpm run build
-    else
-        npm run build
-    fi
-    cd ..
+echo "[build] Building frontend for production..."
+if command -v pnpm &> /dev/null; then
+    pnpm run build
+else
+    npm run build
 fi
 
 # Database Schema Sync
 echo "[build] Synchronizing database schema..."
-export PYTHONPATH=$PYTHONPATH:.
-python3 <<'PYEOF' || echo "[build] WARNING: Database schema sync failed. Check DATABASE_URL."
+cd "$ROOT_DIR"
+export PYTHONPATH="${PYTHONPATH:-}:."
+python3 scripts/init_db.py
+
+# Auto-seed matches if empty
+echo "[build] Checking match fixtures..."
+python3 <<'PYEOF' || echo "[build] WARNING: Fixture auto-seed failed."
 import asyncio
-import os
+from app.db.database import AsyncSessionLocal
+from app.db.models import Match
+from sqlalchemy import select, func
+import subprocess
 import sys
 
-async def sync_schema():
-    try:
-        from app.db.database import engine, Base
-        # Core Models
-        import app.db.models
-        import app.modules.wallet.models
-        import app.modules.blockchain.models
-        import app.data.models
-        # Extension Modules
-        import app.modules.notifications.models
-        import app.modules.marketplace.models
-        import app.modules.trust.models
-        import app.modules.bridge.models
-        import app.modules.developer.models
-        import app.modules.governance.models
-        import app.modules.network.models
-        import app.modules.tasks.models
-        import app.modules.rewards.models
-        import app.modules.referral.models
-        import app.modules.smart_contracts.models
-        import app.modules.treasury.models
-        import app.modules.merit.models
-        import app.modules.identity.models
-        import app.modules.kyc.models
-        import app.modules.prophecy_chain.models
-        import app.modules.quant.models
-
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            print('[build] DB Schema: All tables verified/created.')
-        await engine.dispose()
-    except Exception as e:
-        print(f'[build] DB Sync Error: {e}')
-        sys.exit(0) # Non-fatal for the build process itself
+async def check_and_seed():
+    async with AsyncSessionLocal() as db:
+        count = (await db.execute(select(func.count(Match.id)))).scalar()
+        if count == 0:
+            print("[build] Database empty. Running import_fixtures.py...")
+            subprocess.check_call([sys.executable, "scripts/import_fixtures.py"])
+        else:
+            print(f"[build] Database already contains {count} matches.")
 
 if __name__ == "__main__":
-    asyncio.run(sync_schema())
+    asyncio.run(check_and_seed())
 PYEOF
 
 echo "[build] Build sequence finalized successfully."

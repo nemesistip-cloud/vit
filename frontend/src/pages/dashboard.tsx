@@ -44,6 +44,7 @@ function ActivityIcon({ type, outcome, betSide }: { type: string, outcome?: stri
 
 /* ── AI Confidence Widget ───────────────────────────── */
 function AIConfidenceWidget() {
+  const { data: config } = usePublicConfig();
   const { data, isLoading } = useGetModelConfidence();
   if (isLoading) return <Skeleton className="h-[200px] w-full rounded-xl" />;
 
@@ -108,7 +109,7 @@ export default function DashboardPage() {
     queryFn: () => apiGet("/api/history/summary"),
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: isStatsLoading } = useQuery({
     queryKey: ["/api/analytics/user-stats"],
     queryFn: () => apiGet("/api/analytics/user-stats"),
   });
@@ -136,7 +137,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono">{stats?.total_staked_formatted || "₦0.00"}</div>
+            <div className="text-2xl font-bold font-mono">{isStatsLoading ? <Skeleton className="h-8 w-24" /> : (stats?.total_staked_formatted || "₦0.00")}</div>
             <p className="text-[10px] font-mono text-muted-foreground mt-1">LIFETIME VOLUME</p>
           </CardContent>
         </Card>
@@ -147,7 +148,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono">{stats?.accuracy?.toFixed(1) || "0.0"}%</div>
+            <div className="text-2xl font-bold font-mono">{isStatsLoading ? <Skeleton className="h-8 w-16" /> : <>{(stats?.accuracy ?? 0).toFixed(1)}%</>}</div>
             <p className="text-[10px] font-mono text-muted-foreground mt-1">VERIFIED SIGNALS</p>
           </CardContent>
         </Card>

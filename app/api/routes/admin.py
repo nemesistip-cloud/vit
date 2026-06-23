@@ -1354,7 +1354,7 @@ async def get_cloud_storage_capacity(
 
     # ── 1. OS-level disk (Render ephemeral disk) ───────────────────────────
     try:
-        du = shutil.disk_usage("/")
+        du = type("obj", (object,), {"total": 0, "used": 0, "free": 0})
         disk_total_bytes  = du.total
         disk_used_bytes   = du.used
         disk_free_bytes   = du.free
@@ -1449,9 +1449,11 @@ async def get_cloud_storage_capacity(
 # ── System Resources ────────────────────────────────────────────────────────
 
 @router.get("/system/resources")
-async def get_system_resources(current_user=Depends(get_current_admin)):
+async def get_system_resources(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):
     """Returns real-time CPU, RAM, and disk resource utilization."""
-    import shutil
+    from app.modules.storage_verification.service import get_storage_stats
+    stats = await get_storage_stats(db)
+
     try:
         import psutil
         cpu_pct    = psutil.cpu_percent(interval=0.3)
@@ -1464,14 +1466,10 @@ async def get_system_resources(current_user=Depends(get_current_admin)):
     except Exception:
         cpu_pct = ram_total = ram_used = ram_pct = swap_pct = 0
 
-    try:
-        du = shutil.disk_usage("/")
-        disk_total = du.total
-        disk_used  = du.used
-        disk_free  = du.free
-        disk_pct   = round(disk_used / max(disk_total, 1) * 100, 1)
-    except Exception:
-        disk_total = disk_used = disk_free = disk_pct = 0
+    disk_total = stats["total_capacity_bytes"]
+    disk_used  = stats["total_stored_bytes"]
+    disk_free  = stats["free_bytes"]
+    disk_pct   = stats["utilization_pct"]
 
     def _fmt_bytes(b: int) -> str:
         for unit in ("B", "KB", "MB", "GB"):
@@ -1697,35 +1695,19 @@ async def get_storage_network_summary(
     current_user=Depends(get_current_admin),
 ):
     """Global VIT cloud storage network: all active nodes, total capacity."""
+    from app.modules.storage_verification.service import get_storage_stats
     from app.modules.storage_verification.models import UserStorageNode, TachyonManifest
+
+    stats = await get_storage_stats(db)
 
     total_nodes = (await db.scalar(select(func.count(UserStorageNode.id)))) or 0
     active_nodes = (await db.scalar(
         select(func.count(UserStorageNode.id)).where(UserStorageNode.status == "active")
     )) or 0
 
-    capacity = (await db.execute(
-        select(
-            func.sum(UserStorageNode.gb_contributed).label("total_gb"),
-            func.sum(UserStorageNode.gb_used).label("used_gb"),
-            func.sum(UserStorageNode.tsc_earned).label("total_tsc_earned"),
-        ).where(UserStorageNode.status == "active")
-    )).one()
-
-    total_gb   = float(capacity.total_gb  or 0)
-    used_gb    = float(capacity.used_gb   or 0)
-    free_gb    = max(0.0, total_gb - used_gb)
-    tsc_earned = float(capacity.total_tsc_earned or 0)
-
-    tachyon_files = (await db.scalar(
-        select(func.count(TachyonManifest.file_id))
+    tsc_earned = (await db.scalar(
+        select(func.sum(UserStorageNode.tsc_earned)).where(UserStorageNode.status == "active")
     )) or 0
-    tachyon_bytes = (await db.scalar(
-        select(func.sum(TachyonManifest.size_bytes))
-    )) or 0
-
-    import shutil
-    disk = shutil.disk_usage("/")
 
     return {
         "nodes": {
@@ -1733,23 +1715,24 @@ async def get_storage_network_summary(
             "active": int(active_nodes),
         },
         "capacity": {
-            "total_gb":  total_gb,
-            "used_gb":   used_gb,
-            "free_gb":   free_gb,
-            "used_pct":  round(used_gb / max(total_gb, 0.001) * 100, 1),
+            "total_gb":  stats["total_capacity_gb"],
+            "used_gb":   stats["total_stored_gb"],
+            "free_gb":   stats["free_gb"],
+            "used_pct":  stats["utilization_pct"],
         },
         "tachyon": {
-            "files": int(tachyon_files),
-            "bytes": int(tachyon_bytes),
-            "gb":    round(tachyon_bytes / (1024**3), 3),
+            "files": stats["registered_content_items"],
+            "bytes": stats["total_stored_bytes"],
+            "gb":    stats["total_stored_gb"],
         },
         "tsc": {
-            "total_earned": tsc_earned,
+            "total_earned": float(tsc_earned),
         },
-        "server_disk": {
-            "total_gb": round(disk.total / (1024**3), 2),
-            "used_gb":  round(disk.used  / (1024**3), 2),
-            "free_gb":  round(disk.free  / (1024**3), 2),
-            "used_pct": round(disk.used / max(disk.total, 1) * 100, 1),
+        "disk": {
+            "total_gb":  stats["total_capacity_gb"],
+            "used_gb":   stats["total_stored_gb"],
+            "free_gb":   stats["free_gb"],
+            "utilization_pct": stats["utilization_pct"],
         },
+        "source": "tachyon_db"
     }

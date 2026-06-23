@@ -206,6 +206,7 @@ class UserStorageNode(Base):
     status: Mapped[str] = mapped_column(String(32), default="pending")
 
     gb_contributed: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
+    quota_bytes: Mapped[Decimal] = mapped_column(Numeric(20, 0), default=Decimal("0"))
     gb_used: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
     tsc_earned: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))
     tsc_pending: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0"))

@@ -87,410 +87,44 @@ async def get_history(
     uid: int | None = getattr(optional_user, "id", None)
     apply_user_filter = (uid is not None) and (not all_users)
 
+    # De-duplicate by (user_id, match_id) to avoid multiple signals from same person on same match
+    # showing up in the same ledger view. We take the latest prediction ID.
+    if apply_user_filter:
+        latest_pred_sq = (
+            select(Prediction.match_id, func.max(Prediction.id).label("latest_id"))
+            .where(Prediction.user_id == uid)
+            .group_by(Prediction.match_id)
+        ).subquery()
+    else:
+        latest_pred_sq = (
+            select(Prediction.user_id, Prediction.match_id, func.max(Prediction.id).label("latest_id"))
+            .group_by(Prediction.user_id, Prediction.match_id)
+        ).subquery()
+
     base_q = (
         select(Match, Prediction, CLVEntry)
-        .join(Prediction, Match.id == Prediction.match_id)
+        .join(latest_pred_sq, (Prediction.id == latest_pred_sq.c.latest_id))
+        .join(Match, Match.id == Prediction.match_id)
         .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
     )
-    if apply_user_filter:
-        base_q = base_q.where(Prediction.user_id == uid)
-    else:
-        # Community feed: hide "no-edge" rows where the model didn't pick a side —
-        # they show up as blank Bet/Odds/Stake cards which look broken to users.
+
+    if not apply_user_filter:
+        # Community feed: hide "no-edge" rows
         base_q = base_q.where(Prediction.bet_side.isnot(None))
 
-    count_q = select(func.count()).select_from(Prediction)
-    if apply_user_filter:
-        count_q = count_q.where(Prediction.user_id == uid)
-    else:
-        count_q = count_q.where(Prediction.bet_side.isnot(None))
-    count_result = await db.execute(count_q)
-    total = count_result.scalar()
+    count_q = select(func.count()).select_from(base_q.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
 
-    result = await db.execute(
-        base_q
-        .order_by(Prediction.timestamp.desc())
-        .offset(offset)
-        .limit(limit)
-    )
-    rows = result.all()
+    rows = (await db.execute(
+        base_q.order_by(Match.kickoff_time.desc()).offset(offset).limit(limit)
+    )).all()
 
     return {
         "total": total,
         "limit": limit,
         "offset": offset,
-        "scope": "community" if all_users else ("user" if uid is not None else "anonymous"),
-        "predictions": [_format_prediction_row(r) for r in rows]
-    }
-
-
-# ======================================================================
-# v4.12.0 — USER-FACING TICKET BUILDER
-# Reuses the orchestrator-free DB path: works off Prediction rows that
-# already exist, so any authenticated user can build tickets without
-# triggering expensive re-predictions.
-# ======================================================================
-
-# Markets the builder understands. Each entry maps a market key to the
-# probability column on Prediction and (optionally) an odds source
-# (`opening_odds_*` on Match for 1x2; otherwise model-derived fair odds).
-_TICKET_MARKETS = {
-    "home":      {"label": "Home Win",     "prob_attr": "home_prob",     "odds_attr": "opening_odds_home", "category": "1x2"},
-    "draw":      {"label": "Draw",         "prob_attr": "draw_prob",     "odds_attr": "opening_odds_draw", "category": "1x2"},
-    "away":      {"label": "Away Win",     "prob_attr": "away_prob",     "odds_attr": "opening_odds_away", "category": "1x2"},
-    "over_2_5":  {"label": "Over 2.5",     "prob_attr": "over_25_prob",  "odds_attr": None,                "category": "goals"},
-    "under_2_5": {"label": "Under 2.5",    "prob_attr": "under_25_prob", "odds_attr": None,                "category": "goals"},
-    "btts":      {"label": "BTTS",         "prob_attr": "btts_prob",     "odds_attr": None,                "category": "btts"},
-    "no_btts":   {"label": "No BTTS",      "prob_attr": "no_btts_prob",  "odds_attr": None,                "category": "btts"},
-}
-
-def _synth_odds_from_prob(p: float) -> float:
-    """
-    Fair odds derived directly from the model probability (1/p).
-    Used for markets where we don't yet capture live bookmaker prices
-    (Over/Under, BTTS). The reported edge for such legs is therefore 0
-    by construction — the user is expected to enter the real price they
-    find at their book, or to read the leg as a 'model-fair' line.
-    """
-    if not p or p <= 0:
-        return 0.0
-    return round(1.0 / p, 2)
-
-
-@router.get("/ticket/markets")
-async def list_ticket_markets():
-    """Enumerate the markets the ticket builder supports."""
-    return {
-        "markets": [
-            {"key": k, "label": v["label"], "category": v["category"],
-             "uses_real_odds": v["odds_attr"] is not None}
-            for k, v in _TICKET_MARKETS.items()
-        ],
-        "unsupported": [
-            {"key": "correct_score", "reason": "Correct-score probabilities are not stored on Prediction yet."},
-        ],
-    }
-
-
-@router.get("/ticket/candidates")
-async def get_ticket_candidates(
-    market: str = Query(..., description="One of: " + ", ".join(_TICKET_MARKETS.keys())),
-    min_confidence: float = Query(0.60, ge=0.0, le=1.0),
-    min_edge: float = Query(0.02, ge=0.0, le=1.0),
-    limit: int = Query(20, ge=1, le=50),
-    only_upcoming: bool = Query(True, description="Restrict to unsettled, future-kickoff matches"),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Return high-confidence selections for a given market, drawn from the
-    most recent Prediction per match in the database. Each candidate
-    carries enough info for the build endpoint to combine it into a ticket.
-    """
-    if market not in _TICKET_MARKETS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported market '{market}'. Choose from: {sorted(_TICKET_MARKETS.keys())}"
-        )
-
-    spec = _TICKET_MARKETS[market]
-    prob_attr = spec["prob_attr"]
-    odds_attr = spec["odds_attr"]
-
-    # Pull the most recent prediction per match (latest timestamp wins) so
-    # we don't duplicate the same fixture across users / re-runs.
-    latest_pred_subq = (
-        select(Prediction.match_id, func.max(Prediction.timestamp).label("max_ts"))
-        .group_by(Prediction.match_id)
-        .subquery()
-    )
-
-    q = (
-        select(Match, Prediction)
-        .join(Prediction, Match.id == Prediction.match_id)
-        .join(
-            latest_pred_subq,
-            (Prediction.match_id == latest_pred_subq.c.match_id)
-            & (Prediction.timestamp == latest_pred_subq.c.max_ts),
-        )
-    )
-
-    if only_upcoming:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        q = q.where(Match.kickoff_time > now, Match.actual_outcome.is_(None))
-
-    result = await db.execute(q.order_by(Prediction.timestamp.desc()).limit(500))
-    rows = result.all()
-
-    candidates = []
-    for r in rows:
-        m, p = r.Match, r.Prediction
-        prob = getattr(p, prob_attr, None)
-        if prob is None or prob < min_confidence:
-            continue
-
-        # Resolve odds + edge
-        if odds_attr is not None:
-            odds = getattr(m, odds_attr, None)
-            if not odds or odds <= 1.0:
-                continue
-            implied = 1.0 / odds
-            edge = float(prob) - implied
-            odds_source = "bookmaker_opening"
-            # Edge filter only meaningful when we have real bookmaker odds.
-            if edge < min_edge:
-                continue
-        else:
-            odds = _synth_odds_from_prob(float(prob))
-            if odds <= 1.0:
-                continue
-            edge = 0.0  # fair-odds line — edge is undefined without a real price
-            odds_source = "model_fair"
-
-        candidates.append({
-            "match_id": m.id,
-            "home_team": m.home_team,
-            "away_team": m.away_team,
-            "league": m.league,
-            "kickoff_time": m.kickoff_time.isoformat() if m.kickoff_time else None,
-            "market": market,
-            "market_label": spec["label"],
-            "selection": spec["label"],
-            "probability": round(float(prob), 4),
-            "odds": round(float(odds), 2),
-            "odds_source": odds_source,
-            "edge": round(float(edge), 4),
-            "confidence": round(float(p.confidence or prob), 3),
-            "ev_score": round(float(prob) * float(edge), 5),
-        })
-
-    candidates.sort(key=lambda c: c["ev_score"], reverse=True)
-
-    return {
-        "market": market,
-        "market_label": spec["label"],
-        "filters": {"min_confidence": min_confidence, "min_edge": min_edge,
-                    "only_upcoming": only_upcoming},
-        "total_found": len(candidates),
-        "candidates": candidates[:limit],
-    }
-
-
-class TicketLeg(BaseModel):
-    match_id: int
-    home_team: str
-    away_team: str
-    league: Optional[str] = None
-    kickoff_time: Optional[str] = None
-    market: str
-    market_label: Optional[str] = None
-    selection: Optional[str] = None
-    probability: float
-    odds: float
-    edge: Optional[float] = None
-    confidence: Optional[float] = None
-    odds_source: Optional[str] = None
-
-
-class TicketBuildRequest(BaseModel):
-    candidates: List[TicketLeg] = Field(..., min_length=2)
-    legs: int = Field(3, ge=2, le=10, description="Number of legs in the ticket")
-    top_n: int = Field(5, ge=1, le=20)
-    min_combined_edge: float = Field(0.0, ge=-1.0, le=10.0)
-    same_match_allowed: bool = Field(False, description="Allow multiple legs on the same fixture")
-
-
-def _correlation_penalty(legs: List[TicketLeg]) -> float:
-    """1.5% per same-league pair (matches the admin accumulator behaviour)."""
-    leagues = [leg.league or "" for leg in legs]
-    same_pairs = sum(
-        1 for a, b in combinations(range(len(leagues)), 2)
-        if leagues[a] and leagues[a] == leagues[b]
-    )
-    return same_pairs * 0.015
-
-
-@router.post("/ticket/build")
-async def build_ticket(body: TicketBuildRequest):
-    """
-    Combine candidate legs into N-leg tickets and return the top-N by
-    correlation-adjusted combined edge.
-
-    For each combination:
-      combined_prob   = ∏ leg.probability
-      combined_odds   = ∏ leg.odds
-      combined_edge   = combined_prob − 1/combined_odds
-      adjusted_edge   = combined_edge − correlation_penalty
-      kelly_stake     = capped Kelly on combined_odds & combined_prob
-    """
-    candidates = body.candidates
-    if len(candidates) < body.legs:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Need at least {body.legs} candidates to build a {body.legs}-leg ticket. "
-                   f"Got {len(candidates)}."
-        )
-
-    tickets = []
-    for combo in combinations(candidates, body.legs):
-        legs = list(combo)
-
-        if not body.same_match_allowed:
-            match_ids = [leg.match_id for leg in legs]
-            if len(set(match_ids)) != len(match_ids):
-                continue
-
-        combined_prob = 1.0
-        combined_odds = 1.0
-        for leg in legs:
-            if leg.probability <= 0 or leg.odds <= 1.0:
-                combined_prob = 0.0
-                break
-            combined_prob *= leg.probability
-            combined_odds *= leg.odds
-
-        if combined_prob <= 0:
-            continue
-
-        fair_odds = 1.0 / combined_prob
-        combined_edge = combined_prob - (1.0 / combined_odds)
-        penalty = _correlation_penalty(legs)
-        adjusted_edge = combined_edge - penalty
-
-        b = combined_odds - 1.0
-        p = combined_prob
-        q = 1.0 - p
-        kelly = max(0.0, (b * p - q) / b) if b > 0 else 0.0
-        kelly = min(kelly, 0.03)  # cap accumulator stakes at 3% of bankroll
-
-        avg_confidence = sum((leg.confidence or leg.probability) for leg in legs) / len(legs) if legs else 0.0
-
-        if adjusted_edge < body.min_combined_edge:
-            continue
-
-        tickets.append({
-            "n_legs": len(legs),
-            "legs": [leg.dict() for leg in legs],
-            "combined_prob": round(combined_prob, 5),
-            "combined_odds": round(combined_odds, 2),
-            "fair_odds": round(fair_odds, 2),
-            "combined_edge": round(combined_edge, 4),
-            "correlation_penalty": round(penalty, 4),
-            "adjusted_edge": round(adjusted_edge, 4),
-            "avg_confidence": round(avg_confidence, 3),
-            "kelly_stake": round(kelly, 4),
-            "potential_return_per_unit": round(combined_odds, 2),
-        })
-
-    tickets.sort(key=lambda t: t["adjusted_edge"], reverse=True)
-
-    return {
-        "requested_legs": body.legs,
-        "candidates_supplied": len(candidates),
-        "total_generated": len(tickets),
-        "tickets": tickets[:body.top_n],
-    }
-
-
-@router.delete("/clear")
-@router.delete("/clear-all")
-async def clear_history(db: AsyncSession = Depends(get_db)):
-    """
-    Delete all prediction history, including match and CLV records tied to historical predictions.
-    """
-    await db.execute(delete(CLVEntry))
-    await db.execute(delete(Prediction))
-    await db.execute(delete(Match))
-    await db.commit()
-    return {"message": "Prediction history cleared"}
-
-
-@router.get("/picks")
-async def get_picks(db: AsyncSession = Depends(get_db)):
-    """
-    Return certified picks (edge > 5%) and high-confidence picks (edge > 2%).
-    Backed by child model ratings stored in model_insights.
-    """
-    result = await db.execute(
-        select(Match, Prediction, CLVEntry)
-        .join(Prediction, Match.id == Prediction.match_id)
-        .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
-        .where(Prediction.vig_free_edge.isnot(None))
-        .order_by(Prediction.vig_free_edge.desc())
-        .limit(100)
-    )
-    rows = result.all()
-
-    certified = []
-    high_confidence = []
-
-    for row in rows:
-        edge = row.Prediction.vig_free_edge or 0
-        insights = row.Prediction.model_insights or []
-
-        active_models = [m for m in insights if not m.get("failed")]
-        num_models = len(active_models)
-
-        if num_models == 0:
-            continue
-
-        # Calculate per-market model agreement (consensus)
-        bet_side = row.Prediction.bet_side
-        side_probs = []
-        if bet_side == "home":
-            side_probs = [m.get("home_prob", 0) for m in active_models if m.get("home_prob") is not None]
-        elif bet_side == "draw":
-            side_probs = [m.get("draw_prob", 0) for m in active_models if m.get("draw_prob") is not None]
-        elif bet_side == "away":
-            side_probs = [m.get("away_prob", 0) for m in active_models if m.get("away_prob") is not None]
-
-        avg_model_prob = sum(side_probs) / len(side_probs) if side_probs else 0
-        model_agreement = sum(
-            1 for m in active_models
-            if (bet_side == "home" and (m.get("home_prob") or 0) > 0.4)
-            or (bet_side == "draw" and (m.get("draw_prob") or 0) > 0.3)
-            or (bet_side == "away" and (m.get("away_prob") or 0) > 0.4)
-        )
-        agreement_pct = round(model_agreement / num_models * 100, 1) if num_models > 0 else 0
-
-        # Model confidence ratings per market
-        avg_1x2_confidence = (
-            sum(m.get("confidence", {}).get("1x2", 0.5) for m in active_models) / num_models
-        ) if num_models > 0 else 0.5
-        avg_ou_confidence = (
-            sum(m.get("confidence", {}).get("over_under", 0.5) for m in active_models if "over_under" in m.get("supported_markets", [])) /
-            max(1, sum(1 for m in active_models if "over_under" in m.get("supported_markets", [])))
-        )
-        avg_btts_confidence = (
-            sum(m.get("confidence", {}).get("btts", 0.5) for m in active_models if "btts" in m.get("supported_markets", [])) /
-            max(1, sum(1 for m in active_models if "btts" in m.get("supported_markets", [])))
-        )
-
-        pick = {
-            **_format_prediction_row(row),
-            "model_insights": insights,
-            "num_models": num_models,
-            "model_agreement_pct": agreement_pct,
-            "avg_model_prob": round(avg_model_prob, 3),
-            "avg_1x2_confidence": round(avg_1x2_confidence, 3),
-            "avg_ou_confidence": round(avg_ou_confidence, 3),
-            "avg_btts_confidence": round(avg_btts_confidence, 3),
-            "pick_type": "certified" if edge >= CERTIFIED_EDGE_THRESHOLD else "high_confidence"
-        }
-
-        if edge >= CERTIFIED_EDGE_THRESHOLD:
-            certified.append(pick)
-        elif edge >= HIGH_CONFIDENCE_EDGE_THRESHOLD:
-            high_confidence.append(pick)
-
-    return {
-        "certified_picks": certified[:20],
-        "high_confidence_picks": high_confidence[:20],
-        "certified_count": len(certified),
-        "high_confidence_count": len(high_confidence),
-        "edge_thresholds": {
-            "certified": CERTIFIED_EDGE_THRESHOLD,
-            "high_confidence": HIGH_CONFIDENCE_EDGE_THRESHOLD
-        }
+        "predictions": [_format_prediction_row(r) for r in rows],
+        "scope": "user" if apply_user_filter else "community"
     }
 
 
@@ -500,20 +134,35 @@ async def get_results_comparison(
     offset: int = Query(0, ge=0),
     league: Optional[str] = Query(None),
     settled_only: bool = Query(False, description="Only return settled (result-known) predictions"),
+    all_users: bool = Query(True, description="When true, show community-wide results. When false, show just mine."),
     db: AsyncSession = Depends(get_db),
+    optional_user=Depends(get_optional_user),
 ):
     """
     Prediction vs Actual Results comparison ledger.
-
-    Returns all predictions with their actual match outcomes side-by-side,
-    highlighting gaps (predictions where result is still missing) and
-    calculating correctness, profit, and CLV for settled ones.
-
-    Useful for auditing prediction quality and identifying settlement gaps.
+    De-duplicated to show only one row (the latest prediction) per match.
     """
+    uid: int | None = getattr(optional_user, "id", None)
+    apply_user_filter = (uid is not None) and (not all_users)
+
+    # De-duplicate by match_id to ensure unique fixtures in this view.
+    # If filtering by user, we get latest per user-match. If community, latest per match.
+    if apply_user_filter:
+        latest_pred_sq = (
+            select(Prediction.match_id, func.max(Prediction.id).label("latest_id"))
+            .where(Prediction.user_id == uid)
+            .group_by(Prediction.match_id)
+        ).subquery()
+    else:
+        latest_pred_sq = (
+            select(Prediction.match_id, func.max(Prediction.id).label("latest_id"))
+            .group_by(Prediction.match_id)
+        ).subquery()
+
     base_q = (
         select(Match, Prediction, CLVEntry)
-        .join(Prediction, Match.id == Prediction.match_id)
+        .join(latest_pred_sq, (Match.id == latest_pred_sq.c.match_id))
+        .join(Prediction, (Prediction.id == latest_pred_sq.c.latest_id))
         .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
     )
 
@@ -523,19 +172,7 @@ async def get_results_comparison(
     if settled_only:
         base_q = base_q.where(Match.actual_outcome.isnot(None))
 
-    count_q = select(func.count()).select_from(
-        select(Prediction.id)
-        .join(Match, Match.id == Prediction.match_id)
-        .subquery()
-    )
-    if league:
-        count_q = select(func.count()).select_from(
-            select(Prediction.id)
-            .join(Match, Match.id == Prediction.match_id)
-            .where(Match.league == league)
-            .subquery()
-        )
-
+    count_q = select(func.count()).select_from(base_q.subquery())
     total = (await db.execute(count_q)).scalar() or 0
 
     rows = (await db.execute(
@@ -624,6 +261,46 @@ async def get_results_comparison(
     }
 
 
+
+@router.get("/summary")
+async def get_history_summary_alias(
+    current_user=Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Alias for dashboard summary data to satisfy frontend /api/history/summary requests."""
+    if not current_user:
+        return {"total": 0, "settled": 0, "correct": 0, "accuracy_pct": 0.0, "total_profit": 0.0}
+
+    uid = current_user.id
+    from app.db.models import Prediction, Match, CLVEntry
+    from sqlalchemy import select, func
+
+    res = await db.execute(
+        select(Match, Prediction, CLVEntry)
+        .join(Prediction, Match.id == Prediction.match_id)
+        .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
+        .where(Prediction.user_id == uid)
+    )
+    rows = res.all()
+
+    settled = [r for r in rows if r.Match.actual_outcome]
+    wins = [r for r in settled if r.Prediction.bet_side and r.Match.actual_outcome and r.Prediction.bet_side.lower() == r.Match.actual_outcome.lower()]
+
+    total_profit = 0.0
+    for r in settled:
+        if r.CLVEntry and r.CLVEntry.profit is not None:
+            total_profit += float(r.CLVEntry.profit)
+        elif r.Prediction.settled_profit is not None:
+            total_profit += float(r.Prediction.settled_profit)
+
+    return {
+        "total": len(rows),
+        "settled": len(settled),
+        "correct": len(wins),
+        "accuracy_pct": (len(wins) / len(settled) * 100) if settled else 0.0,
+        "total_profit": round(total_profit, 2)
+    }
+
 @router.get("/{match_id}")
 async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     """
@@ -634,6 +311,8 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         .join(Prediction, Match.id == Prediction.match_id)
         .outerjoin(CLVEntry, Prediction.id == CLVEntry.prediction_id)
         .where(Match.id == match_id)
+        .order_by(Prediction.timestamp.desc())
+        .limit(1)
     )
     row = result.first()
 

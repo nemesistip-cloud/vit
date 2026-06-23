@@ -35,6 +35,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from tachyon.api import router as api_router
 from tachyon.core.worker import TachyonVerificationWorker
+from app.db.database import AsyncSessionLocal
 
 app = FastAPI(title="Storage System Coordination Service", version="1.0.0")
 
@@ -45,6 +46,11 @@ async def root():
 
 @app.on_event("startup")
 async def startup_event():
+    # Load persistent providers from DB
+    from tachyon.api.router import initialize_providers
+    async with AsyncSessionLocal() as db:
+        await initialize_providers(db)
+
     worker = TachyonVerificationWorker(interval_seconds=3600)
     asyncio.create_task(worker.start())
 
