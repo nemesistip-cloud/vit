@@ -3,7 +3,8 @@ import json
 import logging
 import os
 import uuid
-from typing import Dict, List
+from datetime import datetime, timezone
+from typing import Dict, List, Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -38,15 +39,13 @@ async def initialize_providers(db: AsyncSession = None):
     """
     global _providers, _backends, scheduler
 
+    from app.modules.wallet.models import PlatformConfig
     if db:
         try:
-            from app.modules.wallet.models import PlatformConfig
-            stmt = select(PlatformConfig).where(PlatformConfig.key.like("integration:%"))
-            result = await db.execute(stmt)
-            configs = result.scalars().all()
-            for cfg in configs:
-                env_key = cfg.key.split(":", 1)[1]
-                val = cfg.value
+            configs = (await db.execute(select(PlatformConfig).where(PlatformConfig.key.like("integration:%")))).scalars().all()
+            for c in configs:
+                env_key = c.key.split(":")[1]
+                val = c.value
                 if isinstance(val, dict) and "value" in val:
                     val = val["value"]
                 os.environ[env_key] = str(val)
@@ -93,36 +92,27 @@ async def initialize_providers(db: AsyncSession = None):
 
     _providers[:] = new_providers
     scheduler.providers = _providers
-    _backends[:] = list(set(type(p).__name__.replace("Provider", "") for p in _providers))
 
-    _backends[:] = ([f"gdrive({sum(1 for p in _providers if isinstance(p, GoogleDriveProvider))})"] if gdrive_sa    else []) + \
-                   ([f"dropbox({sum(1 for p in _providers if isinstance(p, DropboxProvider))})"]  if dropbox_tok  else []) + \
-                   ([f"onedrive({sum(1 for p in _providers if isinstance(p, OneDriveProvider))})"] if onedrive_id  else []) + \
-                   [f"disk({sum(1 for p in _providers if isinstance(p, DiskProvider))})"]
-
-    logger.info("[tachyon] Swarm initialized: %s  total=%d", " + ".join(_backends), len(_providers))
-
+    # Update backends list for status
+    _backends[:] = list(set(type(p).__name__.replace("Provider", "").lower() for p in _providers))
 
 async def _load_manifest(file_id: str, db: AsyncSession) -> Dict | None:
     if file_id in _cache:
         return _cache[file_id]
-    row = (
-        await db.execute(
-            select(TachyonManifest).where(TachyonManifest.file_id == file_id)
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        return None
-    manifest = {
-        "file_id": row.file_id,
-        "filename": row.filename,
-        "size_bytes": row.size_bytes,
-        "fragment_names": row.fragment_names,
-        "provider_mapping": row.provider_mapping,
-    }
-    _cache[file_id] = manifest
-    return manifest
-
+    stmt = select(TachyonManifest).where(TachyonManifest.file_id == file_id)
+    row = (await db.execute(stmt)).scalar_one_or_none()
+    if row:
+        manifest = {
+            "file_id": row.file_id,
+            "filename": row.filename,
+            "size_bytes": row.size_bytes,
+            "fragment_names": row.fragment_names,
+            "provider_mapping": row.provider_mapping,
+            "created_at": row.created_at.isoformat() + "Z" if row.created_at else None,
+        }
+        _cache[file_id] = manifest
+        return manifest
+    return None
 
 async def _save_manifest(manifest: Dict, db: AsyncSession, owner_id: int | None):
     row = TachyonManifest(
@@ -219,7 +209,7 @@ async def upload_file(
         "size_bytes": manifest["size_bytes"],
         "fragment_count": len(fragment_names),
         "fragment_names": manifest["fragment_names"],
-        "created_at": None,
+        "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
 
 
@@ -266,7 +256,7 @@ async def list_manifests(
                 "filename": r.filename,
                 "size_bytes": r.size_bytes,
                 "fragment_count": len(r.fragment_names) if isinstance(r.fragment_names, list) else 0,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "created_at": r.created_at.isoformat() + "Z" if r.created_at else None,
                 "owner_user_id": r.owner_user_id,
             }
             for r in rows
@@ -372,16 +362,13 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         kind = type(p).__name__.replace("Provider", "")
         provider_breakdown[kind] = provider_breakdown.get(kind, 0) + 1
 
-        # ── Tachyon-scoped storage capacity ─────────────────────────────
     total_stored_bytes = total_bytes
     total_capacity_bytes = 0
     for p in _providers:
-        # Use provider's get_quota if available, else defaults
         try:
             q = await p.get_quota()
             total_capacity_bytes += q.get("total", 0)
         except Exception:
-            # Fallback defaults based on type
             kind = type(p).__name__.lower()
             if "gdrive" in kind: total_capacity_bytes += 15 * 1024**3
             elif "dropbox" in kind: total_capacity_bytes += 2 * 1024**3
@@ -404,7 +391,6 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         "used_pct":    round(total_stored_bytes  / max(total_capacity_bytes, 1) * 100, 1),
     }
 
-    # ── Tachyon storage root dir size (actual written bytes on disk) ──
     tachyon_disk_bytes = 0
     try:
         import os as _os

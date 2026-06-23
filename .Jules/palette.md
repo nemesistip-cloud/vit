@@ -13,3 +13,8 @@
 **Learning:** Components that rely on global configuration hooks like `usePublicConfig` must explicitly call the hook within their own scope if they are not receiving the data via props. Relying on outer scope variables can lead to "not defined" errors if the component is moved or if the outer scope is not what was expected.
 
 **Action:** Always ensure that child components in `frontend/src/pages` that use `config` either receive it as a prop or call `usePublicConfig()` themselves. Double-check for literal text placeholders like `{config?.platform?.model_count || 13}` in strings and replace them with template literals or `.replace()` calls.
+## 2026-06-23 - UI Visibility and Timestamp Fixes
+
+**Learning:** Hover-only visibility (`opacity-0 group-hover:opacity-100`) creates significant accessibility and usability issues on mobile/touch devices where hover states don't exist. Always ensure critical action buttons like "Download" or "Delete" are either always visible or accessible via a clear interaction. Also, naive timestamps from Python backends must be explicitly suffixed with 'Z' for frontend libraries to correctly parse them as UTC.
+
+**Action:** Avoid using `opacity-0` for primary actions in future dashboard designs. Ensure all backend ISO timestamps intended for UTC use include the 'Z' suffix.

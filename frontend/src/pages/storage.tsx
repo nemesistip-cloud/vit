@@ -903,7 +903,7 @@ const StoragePage: React.FC = () => {
                     <div className="text-xs font-mono text-muted-foreground">{formatBytes(m.size_bytes)}</div>
                     <div className="text-xs font-mono text-muted-foreground">{m.fragment_count} frags</div>
                     <div className="text-xs font-mono text-muted-foreground">{formatDate(m.created_at)}</div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 opacity-100">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
