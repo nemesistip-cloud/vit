@@ -26,6 +26,7 @@ import {
 } from "./ui/tooltip";
 
 import { NotificationBell } from "./notification-bell";
+import { GlobalSearch, GlobalSearchTrigger } from "./global-search";
 import { EcosystemTicker } from "./ecosystem-ticker";
 import { Badge } from "./ui/badge";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -293,6 +294,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <GlobalSearchTrigger />
             <NotificationBell />
             <TooltipProvider>
             <Tooltip>
@@ -323,6 +325,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Global Tools */}
+        <GlobalSearch />
         <BetSlipPanel />
         <KellyFAB />
         <KellyCalculatorModal />
