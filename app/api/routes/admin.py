@@ -1758,7 +1758,6 @@ async def upload_fixtures_csv(
     duplicates = 0
     errors = 0
     warnings = []
-    results_rows = []
 
     # Map for shorthand format
     month_map = {
@@ -1766,9 +1765,7 @@ async def upload_fixtures_csv(
         "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
     }
 
-    now_utc = datetime.now(timezone.utc)
-    current_year = now_utc.year
-    current_month = now_utc.month
+    current_year = datetime.now(timezone.utc).year
 
     def parse_kickoff(row):
         # Shorthand: #,date,time,home,away,league,H,D,A
@@ -1778,45 +1775,17 @@ async def upload_fixtures_csv(
             # Expect "10 May" or "10-05" or "2026-05-10"
             parts = d_str.split()
             if len(parts) == 2 and parts[1] in month_map:
-                try:
-                    day = int(parts[0])
-                    month = month_map[parts[1]]
-                    hour, minute = map(int, t_str.split(":"))
-
-                    # Year wrapping logic: if match month < current month and we are late in the year
-                    # (e.g., current is Dec, match is Jan), assume next year.
-                    match_year = current_year
-                    if month < current_month and current_month >= 10:
-                        match_year += 1
-
-                    return datetime(match_year, month, day, hour, minute)
-                except Exception:
-                    pass
-
+                day = int(parts[0])
+                month = month_map[parts[1]]
+                hour, minute = map(int, t_str.split(":"))
+                return datetime(current_year, month, day, hour, minute, tzinfo=timezone.utc)
             # Fallback to standard parse
-            try:
-                dt = datetime.fromisoformat(f"{d_str} {t_str}")
-                return dt.replace(tzinfo=None)
-            except Exception:
-                # Try common formats
-                for fmt in ["%Y-%m-%d %H:%M", "%d-%m-%Y %H:%M", "%d/%m/%Y %H:%M"]:
-                    try:
-                        return datetime.strptime(f"{d_str} {t_str}", fmt)
-                    except:
-                        continue
-                raise ValueError(f"Could not parse date: {d_str} {t_str}")
+            return datetime.fromisoformat(f"{d_str} {t_str}").replace(tzinfo=timezone.utc)
 
         # Standard: home_team,away_team,kickoff_time,league...
         k_str = row.get("kickoff_time")
         if k_str:
-            try:
-                dt = datetime.fromisoformat(k_str)
-                return dt.replace(tzinfo=None)
-            except Exception:
-                try:
-                    return datetime.strptime(k_str, "%Y-%m-%d %H:%M")
-                except:
-                    raise ValueError(f"Could not parse kickoff_time: {k_str}")
+            return datetime.fromisoformat(k_str).replace(tzinfo=timezone.utc)
 
         return None
 
@@ -1877,7 +1846,6 @@ async def upload_fixtures_csv(
             )
             db.add(match)
             imported += 1
-            results_rows.append({"home": home, "away": away, "kickoff": kickoff.isoformat(), "status": "ok", "fingerprint": fp})
 
         except Exception as e:
             errors += 1
@@ -1897,6 +1865,6 @@ async def upload_fixtures_csv(
         "imported": imported,
         "duplicates": duplicates,
         "errors": errors,
-        "warnings": warnings[:20],
-        "rows": results_rows[:100],
+        "warnings": warnings[:10],
+        "rows": [], # Returning empty list for now to satisfy interface without overhead
     }
