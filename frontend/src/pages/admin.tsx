@@ -2303,7 +2303,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
 
   const { data: job, isError } = useQuery<TrainingJobStatus>({
     queryKey: ["admin-training-job", jobId],
-    queryFn: () => apiGet<TrainingJobStatus>(`/api/admin/training/job/${jobId}`),
+    queryFn: () => apiGet<TrainingJobStatus>(`/api/training/status/${jobId}`),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === "completed" || status === "failed" ? false : 1500;
