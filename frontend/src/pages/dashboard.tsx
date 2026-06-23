@@ -44,6 +44,7 @@ function ActivityIcon({ type, outcome, betSide }: { type: string, outcome?: stri
 
 /* ── AI Confidence Widget ───────────────────────────── */
 function AIConfidenceWidget() {
+  const { data: config } = usePublicConfig();
   const { data, isLoading } = useGetModelConfidence();
   if (isLoading) return <Skeleton className="h-[200px] w-full rounded-xl" />;
 

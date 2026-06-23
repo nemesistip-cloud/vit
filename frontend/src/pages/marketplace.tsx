@@ -455,6 +455,7 @@ function RateModal({ listing }: { listing: Listing }) {
 function ListModelModal() {
   const qc = useQueryClient();
   const { user, hasTier, isAdmin } = useAuth();
+  const { data: config } = usePublicConfig();
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [form, setForm] = useState({
@@ -548,7 +549,7 @@ function ListModelModal() {
             <Label className="text-xs text-muted-foreground">System Model Slot *</Label>
             {modelKeys.length > 0 ? (
               <Select value={form.model_key} onValueChange={(v) => setForm({ ...form, model_key: v })}>
-                <SelectTrigger><SelectValue placeholder="Select one of the {config?.platform?.model_count || 13} system models" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={`Select one of the ${config?.platform?.model_count || 13} system models`} /></SelectTrigger>
                 <SelectContent>
                   {modelKeys.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}
                 </SelectContent>
@@ -1322,7 +1323,7 @@ export default function MarketplacePage() {
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 {[
-                  ["1", "Pick a system slot", "Choose one of the {config?.platform?.model_count || 13} VIT model families, such as xgboost_v1, lgbm_v1, neural_net_v1, poisson_goals_v1, market_odds_v1, or btts_totals_v1."],
+                  ["1", "Pick a system slot", `Choose one of the ${config?.platform?.model_count || 13} VIT model families, such as xgboost_v1, lgbm_v1, neural_net_v1, poisson_goals_v1, market_odds_v1, or btts_totals_v1.`],
                   ["2", "Package your files", "Upload the model runtime (.pkl/.joblib) or Python source (.py), plus configs, encoders, features, docs, and small data artifacts needed for review."],
                   ["3", "Expose a training/prediction interface", "Python submissions should include def predict, def train, class Model, or class VITModel. Binary models should load with joblib and expose predict or train."],
                   ["4", "Set pricing", "Set the VITCoin cost per call. After approval, calls earn creator revenue while analysts can train eligible models from the training area."],

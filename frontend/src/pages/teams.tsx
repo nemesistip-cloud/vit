@@ -91,7 +91,7 @@ export default function TeamsPage() {
                   </div>
                   <div>
                     <CardTitle className="text-lg font-mono font-bold tracking-tight">{team.name}</CardTitle>
-                    <CardDescription className="text-xs font-mono">{team.description}</CardDescription>
+                    <CardDescription className="text-xs font-mono">{team.description.replace("{config?.platform?.model_count || 13}", String(config?.platform?.model_count || 13))}</CardDescription>
                   </div>
                 </div>
               </div>
