@@ -17,6 +17,12 @@ import {
   Search, X, Activity, BarChart2, Coins, CheckSquare,
   ShoppingBag, Brain, Trophy, Zap, Target,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Kbd } from "@/components/ui/kbd";
 
 // ── Static navigation shortcuts shown when search input is empty ─────────────
 const SHORTCUTS = [
@@ -174,9 +180,9 @@ export function GlobalSearch() {
                 <X className="w-3.5 h-3.5 text-muted-foreground" />
               </button>
             )}
-            <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-muted-foreground/50 border border-white/10 bg-white/3">
+            <Kbd className="hidden sm:inline-flex border-white/10 bg-white/3 text-muted-foreground/50">
               esc
-            </kbd>
+            </Kbd>
           </div>
         </div>
 
@@ -221,7 +227,7 @@ export function GlobalSearch() {
             ↑↓ navigate · Enter select · Esc close
           </span>
           <span className="text-[10px] font-mono text-muted-foreground/40">
-            <kbd className="px-1 py-0.5 rounded border border-white/10 bg-white/3">⌘K</kbd>
+            <Kbd className="border-white/10 bg-white/3">⌘K</Kbd>
           </span>
         </div>
       </div>
@@ -232,16 +238,23 @@ export function GlobalSearch() {
 // ── Trigger button (for layout header) ──────────────────────────────────────
 export function GlobalSearchTrigger() {
   return (
-    <button
-      onClick={openGlobalSearch}
-      className="flex items-center gap-2 h-7 px-2.5 rounded-md border border-white/10 bg-white/3 hover:bg-white/6 hover:border-white/15 transition-all text-muted-foreground hover:text-foreground group"
-      aria-label="Search (⌘K)"
-    >
-      <Search className="w-3 h-3" />
-      <span className="hidden sm:inline text-[10px] font-mono">Search</span>
-      <kbd className="hidden sm:inline-flex items-center px-1 py-0.5 rounded text-[9px] font-mono border border-white/10 bg-white/3 ml-1">
-        ⌘K
-      </kbd>
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={openGlobalSearch}
+          className="flex items-center gap-2 h-7 px-2.5 rounded-md border border-white/10 bg-white/3 hover:bg-white/6 hover:border-white/15 transition-all text-muted-foreground hover:text-foreground group"
+          aria-label="Search (⌘K)"
+        >
+          <Search className="w-3 h-3" />
+          <span className="hidden sm:inline text-[10px] font-mono">Search</span>
+          <Kbd className="hidden sm:inline-flex border-white/10 bg-white/3 ml-1 text-[9px]">
+            ⌘K
+          </Kbd>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        Search matches, pages... <Kbd className="ml-2 bg-background/20 border-none">⌘K</Kbd>
+      </TooltipContent>
+    </Tooltip>
   );
 }
