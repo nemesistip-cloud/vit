@@ -914,7 +914,7 @@ async def fetch_fixtures(
 
     seeded = 0
     try:
-        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
         seeded = await seed_predictions_for_upcoming(db)
     except Exception as seed_err:
         logger.warning(f"[admin] prediction seeder failed: {seed_err}")
@@ -1024,7 +1024,7 @@ async def sync_fixtures(
     # Seed predictions for newly inserted fixtures
     seeded = 0
     try:
-        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
         seeded = await seed_predictions_for_upcoming(db)
     except Exception as seed_err:
         logger.warning(f"[admin] prediction seeder failed: {seed_err}")
@@ -1601,7 +1601,7 @@ async def trigger_ensemble_run(
     seeded = 0
     errors = 0
     try:
-        from app.modules.predictions.seeder import seed_predictions_for_upcoming
+        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
         seeded = await seed_predictions_for_upcoming(db)
     except Exception as e:
         errors += 1
@@ -1735,4 +1735,168 @@ async def get_storage_network_summary(
             "utilization_pct": stats["utilization_pct"],
         },
         "source": "tachyon_db"
+    }
+
+# ── CSV Fixture Upload ───────────────────────────────────────────────────
+
+@router.post("/upload/csv")
+async def upload_fixtures_csv(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Bulk-import fixtures from a CSV file (Standard or Shorthand format)."""
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+
+    imported = 0
+    duplicates = 0
+    errors = 0
+    warnings = []
+    results_rows = []
+
+    # Map for shorthand format
+    month_map = {
+        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+    }
+
+    now_utc = datetime.now(timezone.utc)
+    current_year = now_utc.year
+    current_month = now_utc.month
+
+    def parse_kickoff(row):
+        # Shorthand: #,date,time,home,away,league,H,D,A
+        if "date" in row and "time" in row:
+            d_str = row["date"].strip()
+            t_str = row["time"].strip()
+            # Expect "10 May" or "10-05" or "2026-05-10"
+            parts = d_str.split()
+            if len(parts) == 2 and parts[1] in month_map:
+                try:
+                    day = int(parts[0])
+                    month = month_map[parts[1]]
+                    hour, minute = map(int, t_str.split(":"))
+
+                    # Year wrapping logic: if match month < current month and we are late in the year
+                    # (e.g., current is Dec, match is Jan), assume next year.
+                    match_year = current_year
+                    if month < current_month and current_month >= 10:
+                        match_year += 1
+
+                    return datetime(match_year, month, day, hour, minute)
+                except Exception:
+                    pass
+
+            # Fallback to standard parse
+            try:
+                dt = datetime.fromisoformat(f"{d_str} {t_str}")
+                return dt.replace(tzinfo=None)
+            except Exception:
+                # Try common formats
+                for fmt in ["%Y-%m-%d %H:%M", "%d-%m-%Y %H:%M", "%d/%m/%Y %H:%M"]:
+                    try:
+                        return datetime.strptime(f"{d_str} {t_str}", fmt)
+                    except:
+                        continue
+                raise ValueError(f"Could not parse date: {d_str} {t_str}")
+
+        # Standard: home_team,away_team,kickoff_time,league...
+        k_str = row.get("kickoff_time")
+        if k_str:
+            try:
+                dt = datetime.fromisoformat(k_str)
+                return dt.replace(tzinfo=None)
+            except Exception:
+                try:
+                    return datetime.strptime(k_str, "%Y-%m-%d %H:%M")
+                except:
+                    raise ValueError(f"Could not parse kickoff_time: {k_str}")
+
+        return None
+
+    for row_idx, row in enumerate(reader):
+        try:
+            # Normalize keys (handle spaces/caps)
+            row = {k.strip().lower(): v for k, v in row.items() if k}
+
+            home = row.get("home") or row.get("home_team")
+            away = row.get("away") or row.get("away_team")
+            league = row.get("league", "Unknown League")
+
+            if not home or not away:
+                errors += 1
+                warnings.append(f"Row {row_idx+1}: Missing home/away teams")
+                continue
+
+            try:
+                kickoff = parse_kickoff(row)
+                if not kickoff:
+                    raise ValueError("Missing kickoff time")
+            except Exception as e:
+                errors += 1
+                warnings.append(f"Row {row_idx+1}: Date parse error ({e})")
+                continue
+
+            # Fingerprint for deduplication
+            raw_fp = f"{kickoff.date()}::{home.lower().strip()}::{away.lower().strip()}::{league.lower().strip()}"
+            fp = hashlib.md5(raw_fp.encode()).hexdigest()
+
+            # Check for existing
+            existing = await db.execute(select(Match).where(Match.fingerprint == fp))
+            if existing.scalar_one_or_none():
+                duplicates += 1
+                continue
+
+            # Odds
+            h_odds = row.get("h") or row.get("home_odds")
+            d_odds = row.get("d") or row.get("draw_odds")
+            a_odds = row.get("a") or row.get("away_odds")
+
+            def safe_float(v):
+                try: return float(v) if v else None
+                except: return None
+
+            match = Match(
+                home_team=home.strip(),
+                away_team=away.strip(),
+                league=league.strip(),
+                kickoff_time=kickoff,
+                status="scheduled",
+                source="user_csv",
+                fingerprint=fp,
+                market_type="sports",
+                opening_odds_home=safe_float(h_odds),
+                opening_odds_draw=safe_float(d_odds),
+                opening_odds_away=safe_float(a_odds),
+            )
+            db.add(match)
+            imported += 1
+            results_rows.append({"home": home, "away": away, "kickoff": kickoff.isoformat(), "status": "ok", "fingerprint": fp})
+
+        except Exception as e:
+            errors += 1
+            warnings.append(f"Row {row_idx+1}: Unexpected error: {e}")
+
+    if imported > 0:
+        await db.commit()
+        # Trigger predictions for newly imported fixtures
+        try:
+            from app.services.prediction_seeder import seed_upcoming_predictions
+            await seed_upcoming_predictions(db)
+        except Exception as e:
+            warnings.append(f"Predictions failed: {e}")
+            logger.warning(f"CSV Import Prediction Seeding Error: {e}")
+
+    return {
+        "imported": imported,
+        "duplicates": duplicates,
+        "errors": errors,
+        "warnings": warnings[:20],
+        "rows": results_rows[:100],
     }

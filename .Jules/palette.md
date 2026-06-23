@@ -1,20 +1,6 @@
-## 2024-05-18 - Restoring Design Tokens and Enabling Multi-Leg Accumulators
+## 2026-06-23 - [CSV Import & Wallet Robustness]
+**Learning:** Parsing CSV dates from external sources (like bookmakers) often requires handling shorthand formats (e.g., "10 May") which lack years. Using a "year-wrapping" logic based on the current month prevents fixtures from being assigned to the wrong year during year-end transitions.
+**Action:** Always implement a naive datetime fallback for database compatibility in SQLite/Postgres when dealing with mixed timezone inputs from user uploads.
 
-**Learning:** Corrupted CSS selectors (like `., ., .`) in global design tokens can silently break the entire application's visual polish and accessibility features (shadows, animations, focus rings). Automation scripts should be carefully audited when performing bulk replacements. Additionally, "Coming Soon" placeholders in the UI often persist long after the underlying backend infrastructure (like affiliate deep-linking) is ready for integration.
-
-**Action:** Always verify the integrity of `tokens.css` after any environment-wide refactoring. Prioritize the replacement of static "Coming Soon" blocks with functional prototypes that leverage existing API endpoints, such as the `generate-slip` multi-leg support.
-
-## 2026-05-20 - Dashboard Stability & Route Alignment
-**Learning:** React components using platform configuration data must ensure hooks like `usePublicConfig` are invoked within the specific component scope or passed as props, rather than assuming global availability if they are part of a shared layout but not a shared context provider. Additionally, frontend-driven dashboard summaries often expect specific scoped endpoints (e.g., `/api/analytics/user-stats`) that must be explicitly mapped in the backend to avoid 404 "Operation failed" states.
-
-**Action:** Always verify that every `config?.platform` access is backed by a local hook call or verified prop. Maintain a mapping of frontend query keys to backend router paths to catch missing endpoints early in the development cycle.
-## 2026-06-23 - Fix scope error in DashboardPage
-
-**Learning:** Components that rely on global configuration hooks like `usePublicConfig` must explicitly call the hook within their own scope if they are not receiving the data via props. Relying on outer scope variables can lead to "not defined" errors if the component is moved or if the outer scope is not what was expected.
-
-**Action:** Always ensure that child components in `frontend/src/pages` that use `config` either receive it as a prop or call `usePublicConfig()` themselves. Double-check for literal text placeholders like `{config?.platform?.model_count || 13}` in strings and replace them with template literals or `.replace()` calls.
-## 2026-06-23 - UI Visibility and Timestamp Fixes
-
-**Learning:** Hover-only visibility (`opacity-0 group-hover:opacity-100`) creates significant accessibility and usability issues on mobile/touch devices where hover states don't exist. Always ensure critical action buttons like "Download" or "Delete" are either always visible or accessible via a clear interaction. Also, naive timestamps from Python backends must be explicitly suffixed with 'Z' for frontend libraries to correctly parse them as UTC.
-
-**Action:** Avoid using `opacity-0` for primary actions in future dashboard designs. Ensure all backend ISO timestamps intended for UTC use include the 'Z' suffix.
+**Learning:** Blank screens in React pages (like the Wallet page) are often caused by strict null checks on data that hasn't loaded yet.
+**Action:** Provide a robust "Protection Layer" or fallback UI that keeps the main layout/navigation visible while explaining why data is missing (e.g., "Unable to load wallet data").
