@@ -242,8 +242,13 @@ async def lifespan(app: FastAPI):
                 env_key = _row.key.replace("integration:", "")
                 if env_key and not os.environ.get(env_key):
                     val = _row.value
-                    if isinstance(val, dict) and "value" in val:
-                        val = val["value"]
+                    if isinstance(val, dict):
+                        if "value" in val:
+                            val = val["value"]
+                        else:
+                            # Complex JSON (like GDrive SA JSON) must be stringified correctly
+                            import json as _json
+                            val = _json.dumps(val)
                     os.environ[env_key] = str(val)
         if _rows:
             print(f"  ✅ Loaded {len(_rows)} integration key(s) from DB")
@@ -253,6 +258,8 @@ async def lifespan(app: FastAPI):
     # 2. Configure logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
     setup_firestore_events()
+    from app.core.redis import require_redis
+    await require_redis(app)
     start_ticker_sync()
 
     print_config_status()
@@ -264,6 +271,8 @@ async def lifespan(app: FastAPI):
     yield
     if not _bootstrap_task.done():
         _bootstrap_task.cancel()
+    from app.core.redis import close_redis
+    await close_redis(app)
     print("🛑 Shutdown complete")
 
 async def _run_bootstrap(app, _done_event):
@@ -1622,15 +1631,23 @@ async def _run_bootstrap(app, _done_event):
                     except asyncio.CancelledError:
                         break
 
+            # In production, heavy agents run in the dedicated worker process (vit-worker).
+            # We only run essential maintenance tasks in the API process to save RAM.
+            is_prod = get_env("ENVIRONMENT") == "production"
+
             supervised_tasks = [
-                ("prediction-agent", lambda: importlib.import_module("app.agents.prediction_agent").PredictionAgent().loop()),
-                ("performance-monitor", lambda: importlib.import_module("app.agents.performance_monitor").PerformanceMonitorAgent().loop()),
-                ("match-scout", lambda: importlib.import_module("app.agents.match_scout_agent").MatchScoutAgent().loop()),
                 ("etl-pipeline", etl_pipeline_loop),
                 ("odds-refresh", odds_refresh_loop),
                 ("cache-purge", lambda: cache_background_purge_loop(300)),
                 ("task-reset", task_reset_loop),
             ]
+
+            if not is_prod:
+                supervised_tasks.extend([
+                    ("prediction-agent", lambda: importlib.import_module("app.agents.prediction_agent").PredictionAgent().loop()),
+                    ("performance-monitor", lambda: importlib.import_module("app.agents.performance_monitor").PerformanceMonitorAgent().loop()),
+                    ("match-scout", lambda: importlib.import_module("app.agents.match_scout_agent").MatchScoutAgent().loop()),
+                ])
             supervisor = BackgroundTaskSupervisor(
                 supervised_tasks,
                 check_interval=int(get_env("BACKGROUND_TASK_CHECK_INTERVAL_SECONDS", "30")),
@@ -1641,7 +1658,12 @@ async def _run_bootstrap(app, _done_event):
 
             async def historical_backfill_task():
                 """Run historical backfill + prediction seeder once after server starts (non-blocking)."""
-                await asyncio.sleep(60)  # give the server time to fully start first
+                # In production, we delay this significantly to ensure the API stays responsive
+                # and doesn't hit RAM limits during simultaneous model loading.
+                is_prod = get_env("ENVIRONMENT") == "production"
+                delay = 300 if is_prod else 60
+                logger.info(f"[bootstrap] historical_backfill_task will start in {delay}s")
+                await asyncio.sleep(delay)
                 try:
                     from app.db.database import AsyncSessionLocal
                     from app.services.sportsdb_api import backfill_historical_matches
@@ -1803,18 +1825,27 @@ async def _run_bootstrap(app, _done_event):
                 from tachyon.core.worker import TachyonVerificationWorker
                 worker = TachyonVerificationWorker(interval_seconds=3600)
                 await worker.start()
-            tasks = [
-                asyncio.create_task(auto_settle_loop(), name="auto-settle"),
-                asyncio.create_task(live_match_tracker_loop(), name="live-match-tracker"),
-                asyncio.create_task(model_accountability_loop(), name="model-accountability"),
-                asyncio.create_task(vitcoin_pricing_loop(), name="vitcoin-pricing"),
-                asyncio.create_task(tachyon_worker_loop(), name="tachyon-verification"),
-                asyncio.create_task(subscription_expiry_loop(), name="subscription-expiry"),
-                asyncio.create_task(start_rate_refresh_loop(), name="exchange-rate-oracle"),
-                asyncio.create_task(sync_upcoming_loop(), name="fixture-sync"),
-                asyncio.create_task(historical_backfill_task(), name="historical-backfill"),
-                asyncio.create_task(bridge_relayer_loop(), name="bridge-relayer"),
-            ]
+            async def _start_maintenance_tasks():
+                """Start all non-supervised background loops with staggered delays."""
+                is_prod = get_env("ENVIRONMENT") == "production"
+                if is_prod:
+                    await asyncio.sleep(10) # staggering start
+
+                app.state.maintenance_tasks = [
+                    asyncio.create_task(auto_settle_loop(), name="auto-settle"),
+                    asyncio.create_task(live_match_tracker_loop(), name="live-match-tracker"),
+                    asyncio.create_task(model_accountability_loop(), name="model-accountability"),
+                    asyncio.create_task(vitcoin_pricing_loop(), name="vitcoin-pricing"),
+                    asyncio.create_task(tachyon_worker_loop(), name="tachyon-verification"),
+                    asyncio.create_task(subscription_expiry_loop(), name="subscription-expiry"),
+                    asyncio.create_task(start_rate_refresh_loop(), name="exchange-rate-oracle"),
+                    asyncio.create_task(sync_upcoming_loop(), name="fixture-sync"),
+                    asyncio.create_task(historical_backfill_task(), name="historical-backfill"),
+                    asyncio.create_task(bridge_relayer_loop(), name="bridge-relayer"),
+                ]
+                logger.info(f"✅ Started {len(app.state.maintenance_tasks)} background maintenance tasks")
+
+            asyncio.create_task(_start_maintenance_tasks())
 
             # ── Autonomous agents run in vit-worker (Celery) ─────────────────────
             # Agents have been moved out of the API process to eliminate RAM pressure.
@@ -1832,12 +1863,18 @@ async def _run_bootstrap(app, _done_event):
             except asyncio.CancelledError:
                 pass
             finally:
+                logger.info("[bootstrap] Shutting down background tasks...")
                 await supervisor.stop()
-                for task in tasks:
-                    task.cancel()
-                await asyncio.gather(*tasks, return_exceptions=True)
+                maintenance_tasks = getattr(app.state, "maintenance_tasks", [])
+                for task in maintenance_tasks:
+                    if not task.done():
+                        task.cancel()
+                if maintenance_tasks:
+                    await asyncio.gather(*maintenance_tasks, return_exceptions=True)
+
                 from app.db.database import engine
                 await engine.dispose()
+                logger.info("[bootstrap] Database engine disposed")
 
             return
         except Exception as e:

@@ -8,12 +8,11 @@ import os
 import asyncio
 
 from app.db.database import get_db, AsyncSessionLocal
-from app.core.cache import cache
 from app.core.cache_keys import FIXTURE_LIST
 from app.db.models import Match, Prediction
 from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
 from app.modules.wallet.models import PlatformConfig
-from app.services.cache import cache
+from app.core.cache import cache
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)

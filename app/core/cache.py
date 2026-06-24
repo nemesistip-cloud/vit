@@ -40,10 +40,14 @@ class TTLCache:
 
     async def clear_prefix(self, prefix: str) -> int:
         async with self._lock:
+            prefix = prefix.rstrip("*")
             keys = [k for k in self._store if k.startswith(prefix)]
             for k in keys:
                 del self._store[k]
             return len(keys)
+
+    async def invalidate_pattern(self, pattern: str) -> int:
+        return await self.clear_prefix(pattern)
 
     async def purge_expired(self) -> int:
         now = time.monotonic()
@@ -60,6 +64,9 @@ class TTLCache:
 
 # Global singleton
 _cache = TTLCache()
+
+# Backward compatibility alias
+cache = _cache
 
 
 def get_cache() -> TTLCache:
