@@ -1,3 +1,5 @@
+from app.core.cache import cache
+from app.core.cache_keys import VITCOIN_PRICE
 # app/modules/wallet/routes.py
 """User wallet API endpoints."""
 
@@ -1007,6 +1009,9 @@ async def list_withdrawals(
 @router.get("/vitcoin-price")
 async def get_vitcoin_price(db: AsyncSession = Depends(get_db)):
     """Get current VITCoin price."""
+    _cached = await cache.get(VITCOIN_PRICE)
+    if _cached:
+        return _cached
     pricing = VITCoinPricingEngine(db)
     prices = await pricing.get_current_price()
 
@@ -1016,7 +1021,7 @@ async def get_vitcoin_price(db: AsyncSession = Depends(get_db)):
     last = result.scalar_one_or_none()
     next_update = (last.calculated_at + timedelta(hours=6)).isoformat() if last else None
 
-    return {
+    res = {
         "price_usd": float(prices["usd"]),
         "price_ngn": float(prices["ngn"]),
         "price_usdt": float(prices["usdt"]),
@@ -1026,6 +1031,8 @@ async def get_vitcoin_price(db: AsyncSession = Depends(get_db)):
         "calculated_at": last.calculated_at.isoformat() if last else None,
         "next_update_at": next_update,
     }
+    await cache.set(VITCOIN_PRICE, res, ttl=30)
+    return res
 
 
 @router.post("/telegram/stars-invoice")

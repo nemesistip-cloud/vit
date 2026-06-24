@@ -8,6 +8,8 @@ import os
 import asyncio
 
 from app.db.database import get_db, AsyncSessionLocal
+from app.core.cache import cache
+from app.core.cache_keys import FIXTURE_LIST
 from app.db.models import Match, Prediction
 from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
 from app.modules.wallet.models import PlatformConfig
@@ -255,6 +257,10 @@ async def get_matches(
     status: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
+    _cache_key = f"{FIXTURE_LIST}:{league}:{status}"
+    _cached = await cache.get(_cache_key)
+    if _cached:
+        return _cached
     stmt = select(Match, Prediction).outerjoin(
         Prediction,
         and_(
@@ -285,7 +291,9 @@ async def get_matches(
             if p and (not existing_p or p.timestamp > existing_p.timestamp):
                 match_map[m.id] = (m, p)
 
-    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    await cache.set(_cache_key, res, ttl=300)
+    return res
 
 
 @router.get("/upcoming")
@@ -313,7 +321,9 @@ async def get_upcoming_matches(db: AsyncSession = Depends(get_db)):
             if p and (not existing_p or p.timestamp > existing_p.timestamp):
                 match_map[m.id] = (m, p)
 
-    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    await cache.set(_cache_key, res, ttl=300)
+    return res
 
 
 async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
@@ -424,7 +434,9 @@ async def get_live_matches(db: AsyncSession = Depends(get_db)):
     for m, p in rows:
         if m.id not in match_map:
             match_map[m.id] = (m, p)
-    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    await cache.set(_cache_key, res, ttl=300)
+    return res
 
 
 @router.get("/recent")
@@ -444,7 +456,9 @@ async def get_recent_matches(db: AsyncSession = Depends(get_db)):
     for m, p in rows:
         if m.id not in match_map:
             match_map[m.id] = (m, p)
-    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    await cache.set(_cache_key, res, ttl=300)
+    return res
 
 
 @router.get("/completed")
@@ -466,7 +480,9 @@ async def get_completed_matches(
     for m, p in rows:
         if m.id not in match_map:
             match_map[m.id] = (m, p)
-    return [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+    await cache.set(_cache_key, res, ttl=300)
+    return res
 
 
 @router.get("/leagues/list")

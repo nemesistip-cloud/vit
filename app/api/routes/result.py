@@ -1,3 +1,5 @@
+from app.core.cache import cache
+from app.core.cache_keys import PREDICTION_RESULT
 # app/api/routes/result.py
 import logging
 from fastapi import APIRouter, Depends, HTTPException
@@ -115,6 +117,15 @@ async def update_result(
             await ProgressionEngine.evaluate_user_progress(db, uid, trigger=f"match_settlement:{match_id}")
     except Exception as _pe_e:
         logger.warning("Prophecy progression evaluation failed (non-fatal): %s", _pe_e)
+
+
+    # Invalidate cache for this match and fixture lists
+    try:
+        await cache.delete(PREDICTION_RESULT.format(match_id))
+        await cache.invalidate_pattern("fixtures:*")
+        logger.info(f"Cache invalidated for match {match_id} and fixtures list")
+    except Exception as _c_e:
+        logger.warning("Cache invalidation failed (non-fatal): %s", _c_e)
 
     return {
         "match_id": match_id,

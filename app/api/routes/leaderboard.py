@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.models import User, Prediction, Match, CLVEntry
-from app.services.cache import cache
+from app.core.cache import cache
+from app.core.cache_keys import LEADERBOARD_TOP
 
 router = APIRouter(prefix="/api/leaderboard", tags=["Leaderboard"])
 
@@ -27,7 +28,7 @@ async def get_leaderboard(
     ROI = sum of settled_profit (from Prediction.settled_profit, fallback to CLVEntry.profit).
     Uses a single aggregated SQL query joining Match for actual outcome comparison.
     """
-    _cache_key = f"leaderboard:{category}:{limit}"
+    _cache_key = f"{LEADERBOARD_TOP}:{category}:{limit}"
     _cached = await cache.get(_cache_key)
     if _cached is not None:
         return _cached
