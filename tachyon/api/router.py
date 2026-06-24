@@ -48,7 +48,8 @@ async def initialize_providers(db: AsyncSession = None):
                 val = c.value
                 if isinstance(val, dict) and "value" in val:
                     val = val["value"]
-                os.environ[env_key] = str(val)
+                if val:
+                    os.environ[env_key] = str(val)
         except Exception as e:
             logger.error("[tachyon] Failed to load persistent configs: %s", e)
 
@@ -60,14 +61,36 @@ async def initialize_providers(db: AsyncSession = None):
             stmt = select(UserStorageNode).where(UserStorageNode.status == "active")
             nodes = (await db.execute(stmt)).scalars().all()
             for node in nodes:
-                # Based on provider type, create the provider instance
                 p_type = node.provider.lower()
+                # Fetch node-specific credentials
+                c_stmt = select(PlatformConfig).where(PlatformConfig.key.startswith(f"{node.config_key}:"))
+                c_rows = (await db.execute(c_stmt)).scalars().all()
+                creds = {
+                    c.key.replace(f"{node.config_key}:", ""): (c.value["value"] if isinstance(c.value, dict) and "value" in c.value else c.value)
+                    for c in c_rows
+                }
+
                 if "gdrive" in p_type:
-                    new_providers.append(GoogleDriveProvider(node.alias or node.config_key))
+                    new_providers.append(GoogleDriveProvider(
+                        node.alias or node.config_key,
+                        service_account_json=creds.get("service_account_json")
+                    ))
                 elif "dropbox" in p_type:
-                    new_providers.append(DropboxProvider(node.alias or node.config_key))
+                    new_providers.append(DropboxProvider(
+                        node.alias or node.config_key,
+                        access_token=creds.get("access_token"),
+                        app_key=creds.get("app_key"),
+                        app_secret=creds.get("app_secret"),
+                        refresh_token=creds.get("refresh_token")
+                    ))
                 elif "onedrive" in p_type:
-                    new_providers.append(OneDriveProvider(node.alias or node.config_key))
+                    new_providers.append(OneDriveProvider(
+                        node.alias or node.config_key,
+                        client_id=creds.get("client_id"),
+                        client_secret=creds.get("client_secret"),
+                        tenant_id=creds.get("tenant_id"),
+                        user_id=creds.get("user_id")
+                    ))
                 else:
                     new_providers.append(DiskProvider(node.alias or node.config_key, storage_path=_STORAGE_ROOT))
             logger.info("[tachyon] Initialized %d providers from database", len(new_providers))
