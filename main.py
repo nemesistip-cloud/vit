@@ -242,8 +242,13 @@ async def lifespan(app: FastAPI):
                 env_key = _row.key.replace("integration:", "")
                 if env_key and not os.environ.get(env_key):
                     val = _row.value
-                    if isinstance(val, dict) and "value" in val:
-                        val = val["value"]
+                    if isinstance(val, dict):
+                        if "value" in val:
+                            val = val["value"]
+                        else:
+                            # Complex JSON (like GDrive SA JSON) must be stringified correctly
+                            import json as _json
+                            val = _json.dumps(val)
                     os.environ[env_key] = str(val)
         if _rows:
             print(f"  ✅ Loaded {len(_rows)} integration key(s) from DB")
@@ -253,6 +258,8 @@ async def lifespan(app: FastAPI):
     # 2. Configure logging
     configure_logging(level=get_env("LOG_LEVEL", "INFO"))
     setup_firestore_events()
+    from app.core.redis import require_redis
+    await require_redis(app)
     start_ticker_sync()
 
     print_config_status()
@@ -264,6 +271,8 @@ async def lifespan(app: FastAPI):
     yield
     if not _bootstrap_task.done():
         _bootstrap_task.cancel()
+    from app.core.redis import close_redis
+    await close_redis(app)
     print("🛑 Shutdown complete")
 
 async def _run_bootstrap(app, _done_event):
