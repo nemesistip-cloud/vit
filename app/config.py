@@ -429,6 +429,12 @@ GCS_PROJECT_ID = get_env("GCS_PROJECT_ID", "")
 GOOGLE_APPLICATION_CREDENTIALS = get_env("GOOGLE_APPLICATION_CREDENTIALS", "")
 GOOGLE_APPLICATION_CREDENTIALS_JSON = get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")
 
+
+# ── Semantic Search / Embedding Config ───────────────────────────────────────
+EMBEDDING_MODEL: str = get_env("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+EMBEDDING_DIM: int = get_int_env("EMBEDDING_DIM", "384")
+EMBEDDING_CACHE_TTL: int = get_int_env("EMBEDDING_CACHE_TTL", "3600")
+
 # ── Memory budget (controls lazy model loading in ModelRegistry) ──────────────
 MAX_PROCESS_RAM_MB: int = get_int_env("MAX_PROCESS_RAM_MB", "400")
 MAX_LOADED_MODELS: int = get_int_env("MAX_LOADED_MODELS", "3")
