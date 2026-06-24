@@ -290,6 +290,8 @@ async def predict(
     if user_id is not None and not _is_admin:
         from datetime import datetime, timezone, timedelta
         from sqlalchemy import func as _rl_func
+        from app.core.rate_limit import get_limit_for_tier
+        _limit = get_limit_for_tier(getattr(current_user, "tier", "free"))
         _today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         _tomorrow = (_today_start + timedelta(days=1)).isoformat().replace("+00:00", "Z")
         _db_count_res = await db.execute(
@@ -299,12 +301,12 @@ async def predict(
             )
         )
         _db_count = _db_count_res.scalar() or 0
-        if _db_count >= MAX_PREDICTIONS_PER_DAY:
+        if _db_count >= _limit:
             raise HTTPException(
                 status_code=429,
                 detail={
                     "error": "Daily prediction limit reached",
-                    "limit": MAX_PREDICTIONS_PER_DAY,
+                    "limit": _limit,
                     "used": _db_count,
                     "resets_at": _tomorrow,
                 },

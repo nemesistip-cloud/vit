@@ -699,7 +699,7 @@ async def settle_completed_db_matches() -> dict:
         # Find completed matches where the linked prediction is still pending
         result = await db.execute(
             select(Match).where(
-                Match.status == "completed",
+                Match.status.in_(["completed", "finished", "FT", "ft", "FINISHED"]),
                 Match.actual_outcome.is_not(None),
             )
         )

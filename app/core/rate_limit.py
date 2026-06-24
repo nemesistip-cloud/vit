@@ -1,20 +1,12 @@
 """app/core/rate_limit.py
-In-memory login rate limiter.
-
-Tracks failed login attempts per email address and per IP.
-After MAX_ATTEMPTS failures within WINDOW_SECONDS the account/IP
-is locked for LOCKOUT_SECONDS.
-
-For single-instance deployments this is sufficient.
-Multi-instance deployments should replace the _store dict with a
-Redis-backed implementation.
+In-memory login rate limiter and per-user prediction rate limiter.
 """
 
 import logging
 import time
 from collections import defaultdict
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +49,6 @@ _store = _AttemptStore()
 
 
 def check_login_allowed(email: str | None, ip: str | None = None):
-    """Raise ValueError if either the email or IP is locked out.
-
-    Pass email=None to skip the per-email check (used when the login route
-    handles per-account locking via DB columns instead).
-    """
     if email and _store.is_locked(email.lower()):
         raise ValueError(
             f"Too many failed login attempts. Account temporarily locked for "
@@ -87,11 +74,9 @@ def clear_login_failures(email: str | None):
 
 
 # ── Per-user prediction rate limiter ─────────────────────────────────────────
-# Tracks daily prediction counts per user_id (in-memory; resets on restart).
-# Key: user_id → {"date": "YYYY-MM-DD", "count": int}
 
+from datetime import date as _date, datetime, timezone, timedelta
 import threading
-from datetime import date as _date
 
 _pred_lock = threading.Lock()
 _pred_counts: dict[int, dict] = {}
@@ -101,15 +86,26 @@ def _pred_today() -> str:
     return _date.today().isoformat()
 
 
-def check_prediction_limit(user_id: int, limit: int) -> tuple[bool, int, str]:
+def get_limit_for_tier(tier: str) -> int:
+    """Return the daily prediction limit based on user tier."""
+    from app.config import MAX_PREDICTIONS_PER_DAY
+
+    tier = (tier or "free").lower()
+    if tier in ("pro", "analyst"):
+        return 100
+    if tier == "elite":
+        return 500
+    return MAX_PREDICTIONS_PER_DAY
+
+
+def check_prediction_limit(user_id: int, tier: str = "free") -> tuple[bool, int, int, str]:
     """
-    Returns (allowed, current_count, resets_at_utc_iso).
-    If user_id is None, always allows (unauthenticated).
+    Returns (allowed, current_count, limit, resets_at_utc_iso).
     """
     if user_id is None:
-        return True, 0, ""
+        return True, 0, 9999, ""
 
-    from datetime import datetime, timezone, timedelta
+    limit = get_limit_for_tier(tier)
     today = _pred_today()
     tomorrow = (_date.today() + timedelta(days=1)).isoformat() + "T00:00:00Z"
 
@@ -118,7 +114,7 @@ def check_prediction_limit(user_id: int, limit: int) -> tuple[bool, int, str]:
         if rec is None or rec["date"] != today:
             _pred_counts[user_id] = {"date": today, "count": 0}
             rec = _pred_counts[user_id]
-        return rec["count"] < limit, rec["count"], tomorrow
+        return rec["count"] < limit, rec["count"], limit, tomorrow
 
 
 def record_prediction(user_id: int) -> int:
