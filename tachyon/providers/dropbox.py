@@ -24,13 +24,13 @@ _FOLDER = "/tachyon"
 class DropboxProvider(CloudProvider):
     """Dropbox fragment store using the official Dropbox SDK."""
 
-    def __init__(self, account_id: str):
+    def __init__(self, account_id: str, access_token: str | None = None, app_key: str | None = None, app_secret: str | None = None, refresh_token: str | None = None):
         self.account_id = account_id
         self.name = account_id
-        self._access_token = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip()
-        self._app_key      = os.environ.get("DROPBOX_APP_KEY", "").strip()
-        self._app_secret   = os.environ.get("DROPBOX_APP_SECRET", "").strip()
-        self._refresh_token = os.environ.get("DROPBOX_REFRESH_TOKEN", "").strip()
+        self._access_token = (access_token or os.environ.get("DROPBOX_ACCESS_TOKEN", "")).strip()
+        self._app_key      = (app_key or os.environ.get("DROPBOX_APP_KEY", "")).strip()
+        self._app_secret   = (app_secret or os.environ.get("DROPBOX_APP_SECRET", "")).strip()
+        self._refresh_token = (refresh_token or os.environ.get("DROPBOX_REFRESH_TOKEN", "")).strip()
         self._dbx = None
 
     # ------------------------------------------------------------------

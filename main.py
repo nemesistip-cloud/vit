@@ -241,7 +241,10 @@ async def lifespan(app: FastAPI):
             for _row in _rows:
                 env_key = _row.key.replace("integration:", "")
                 if env_key and not os.environ.get(env_key):
-                    os.environ[env_key] = str(_row.value)
+                    val = _row.value
+                    if isinstance(val, dict) and "value" in val:
+                        val = val["value"]
+                    os.environ[env_key] = str(val)
         if _rows:
             print(f"  ✅ Loaded {len(_rows)} integration key(s) from DB")
     except Exception as _ki_err:
