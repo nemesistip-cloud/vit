@@ -423,13 +423,12 @@ def print_config_status() -> None:
     print(f"  {'✅' if tachyon_ready else '⚠️ '} Tachyon VESS:      {'Operational (' + str(len(_providers)) + ' nodes)' if tachyon_ready else 'Degraded (0 nodes)'}")
     print(f"{'='*55}\n")
 
-# GCS Storage
-GCS_BUCKET_NAME = get_env("GCS_BUCKET_NAME", "")
-GCS_PROJECT_ID = get_env("GCS_PROJECT_ID", "")
 GOOGLE_APPLICATION_CREDENTIALS = get_env("GOOGLE_APPLICATION_CREDENTIALS", "")
 GOOGLE_APPLICATION_CREDENTIALS_JSON = get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")
 
 
+
+GCP_PROJECT_ID = get_env("GCP_PROJECT_ID", "")
 # ── Semantic Search / Embedding Config ───────────────────────────────────────
 EMBEDDING_MODEL: str = get_env("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 EMBEDDING_DIM: int = get_int_env("EMBEDDING_DIM", "384")

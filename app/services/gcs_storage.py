@@ -1,73 +1,34 @@
-"""app/services/gcs_storage.py — Google Cloud Storage client with graceful fallback.
+"""app/services/gcs_storage.py — GCS model sync (Removed).
 
-``GCS_AVAILABLE`` is ``False`` when google-cloud-storage is not installed;
-all operations become safe no-ops that log a warning rather than crashing.
+GCS model sync has been removed in favor of Tachyon VESS.
+This module is preserved as a skeleton to avoid breaking legacy script imports.
 """
 from __future__ import annotations
-
-import os
-import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
 
-try:
-    from google.cloud import storage as _gcs_lib
-    GCS_AVAILABLE = True
-except ImportError:
-    _gcs_lib = None          # type: ignore[assignment]
-    GCS_AVAILABLE = False
-    logger.debug(
-        "google-cloud-storage not installed — GCS uploads/downloads disabled. "
-        "Install with: pip install google-cloud-storage"
-    )
-
+# GCS is no longer used for model weights.
+GCS_AVAILABLE = False
 
 class GCSStorageClient:
-    """Async wrapper around GCS blob operations."""
+    """Legacy wrapper for GCS operations (Now raising NotImplementedError)."""
 
     def __init__(self) -> None:
-        self.bucket_name: str | None = os.getenv("GCS_BUCKET_NAME")
-        self.project_id:  str | None = os.getenv("GCS_PROJECT_ID")
-
-    # ── Upload ────────────────────────────────────────────────────────────────
+        pass
 
     async def upload_model(self, path: str, key: str) -> str | None:
-        """Upload a local file to GCS. Returns the gs:// URI or None if unavailable."""
-        if not GCS_AVAILABLE:
-            logger.warning("GCS unavailable — skipping upload of %s → %s", path, key)
-            return None
-        if not self.bucket_name:
-            logger.warning("GCS_BUCKET_NAME not set — skipping upload of %s", key)
-            return None
-        return await asyncio.to_thread(self._upload_sync, path, key)
-
-    def _upload_sync(self, path: str, key: str) -> str:
-        client = _gcs_lib.Client(project=self.project_id)  # type: ignore[union-attr]
-        blob   = client.bucket(self.bucket_name).blob(key)
-        blob.upload_from_filename(path)
-        uri = f"gs://{self.bucket_name}/{key}"
-        logger.info("GCS upload complete: %s → %s", path, uri)
-        return uri
-
-    # ── Download ──────────────────────────────────────────────────────────────
+        """Upload a local file to GCS (REMOVED)."""
+        # TODO: wire to Tachyon upload endpoint
+        raise NotImplementedError(
+            "GCS model sync removed. Use Tachyon VESS for model weight storage."
+        )
 
     async def download_model(self, key: str, path: str) -> str | None:
-        """Download a GCS blob to a local path. Returns path or None if unavailable."""
-        if not GCS_AVAILABLE:
-            logger.warning("GCS unavailable — skipping download of %s", key)
-            return None
-        if not self.bucket_name:
-            logger.warning("GCS_BUCKET_NAME not set — skipping download of %s", key)
-            return None
-        return await asyncio.to_thread(self._download_sync, key, path)
-
-    def _download_sync(self, key: str, path: str) -> str:
-        client = _gcs_lib.Client(project=self.project_id)  # type: ignore[union-attr]
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        client.bucket(self.bucket_name).blob(key).download_to_filename(path)
-        logger.info("GCS download complete: gs://%s/%s → %s", self.bucket_name, key, path)
-        return path
-
+        """Download a GCS blob to a local path (REMOVED)."""
+        # TODO: wire to Tachyon upload endpoint
+        raise NotImplementedError(
+            "GCS model sync removed. Use Tachyon VESS for model weight storage."
+        )
 
 gcs_storage = GCSStorageClient()

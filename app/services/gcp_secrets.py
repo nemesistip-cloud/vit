@@ -26,7 +26,7 @@ class GCPSecretsClient:
     """Loads GCP secrets into process environment variables at startup."""
 
     def __init__(self) -> None:
-        self.project_id: str | None = os.getenv("GCS_PROJECT_ID")
+        self.project_id: str | None = os.getenv("GCP_PROJECT_ID")
 
     async def load_secrets_to_env(self, names: list[str]) -> int:
         """Fetch each named secret and inject it into ``os.environ``.
@@ -38,7 +38,7 @@ class GCPSecretsClient:
             logger.debug("GCP secret loading skipped — library not installed")
             return 0
         if not self.project_id:
-            logger.debug("GCP secret loading skipped — GCS_PROJECT_ID not set")
+            logger.debug("GCP secret loading skipped — GCP_PROJECT_ID not set")
             return 0
 
         client = _secretmanager.SecretManagerServiceClient()  # type: ignore[union-attr]

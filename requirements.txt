@@ -17,7 +17,6 @@ fpdf2
 google-api-python-client
 google-auth
 google-cloud-secret-manager
-google-cloud-storage
 greenlet
 gunicorn
 httpx
@@ -73,7 +72,6 @@ fpdf2
 google-api-python-client
 google-auth
 google-cloud-secret-manager
-google-cloud-storage
 greenlet
 gunicorn
 httpx
@@ -159,7 +157,6 @@ firebase-admin
 google-api-python-client
 google-auth
 google-cloud-secret-manager
-google-cloud-storage
 msal
 pytest
 pytest-asyncio

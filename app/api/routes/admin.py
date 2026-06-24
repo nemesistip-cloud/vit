@@ -155,13 +155,6 @@ _KEY_REGISTRY = [
         "group":       "Offerwall",
     },
     {
-        "name":        "GCS_BUCKET_NAME",
-        "label":       "GCS Model Bucket",
-        "description": "Google Cloud Storage bucket for syncing model weights",
-        "required":    False,
-        "group":       "VIT AI",
-    },
-    {
         "name":        "ML_MODEL_CACHE_ENABLED",
         "label":       "Model Cache",
         "description": "Enable in-memory caching for ML models (true/false)",

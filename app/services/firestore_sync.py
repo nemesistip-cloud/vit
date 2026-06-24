@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, Optional
 import firebase_admin
 from firebase_admin import credentials, firestore
-from app.config import GOOGLE_APPLICATION_CREDENTIALS, GOOGLE_APPLICATION_CREDENTIALS_JSON, GCS_PROJECT_ID
+from app.config import GOOGLE_APPLICATION_CREDENTIALS, GOOGLE_APPLICATION_CREDENTIALS_JSON, GCP_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def init_firestore():
 
             if cred:
                 firebase_admin.initialize_app(cred, {
-                    'projectId': GCS_PROJECT_ID,
+                    'projectId': GCP_PROJECT_ID,
                 })
             else:
                 firebase_admin.initialize_app()
