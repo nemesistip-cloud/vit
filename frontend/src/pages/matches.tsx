@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useListMatches, useListRecentMatches, useListCompletedMatches, useSyncFixtures, useListLeagues } from "@/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,11 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PremiumMatchCard } from "@/components/PremiumMatchCard";
 import { EmptyState } from "@/components/empty-state";
-import { Search, Zap, Clock, RefreshCw, CalendarDays, Radio, Info, Activity } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search, Zap, Clock, RefreshCw, CalendarDays, Radio, Info, Users, Activity, ChevronRight, Filter } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { vitWS } from "@/lib/websocket";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const DAY_OPTIONS = [
   { value: "3", label: "Next 3 Days" },
@@ -26,7 +27,6 @@ interface League {
   display: string;
 }
 
-// Detect if a match is currently live
 function isMatchLive(m: any): boolean {
   const s = String(m.status ?? "").toLowerCase();
   if (s === "live" || s === "in_play" || s === "playing") return true;
@@ -38,6 +38,7 @@ function isMatchLive(m: any): boolean {
 }
 
 export default function MatchesPage() {
+  const [activeTab, setActiveTab] = useState("matches");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [leagueFilter, setLeagueFilter] = useState<string>("all");
@@ -52,7 +53,6 @@ export default function MatchesPage() {
   const { data: leaguesData } = useListLeagues();
   const syncMutation = useSyncFixtures();
 
-  // Live match poll — fetch live endpoint every 30s
   const { data: liveApiData } = useQuery<{ matches: any[] }>({
     queryKey: ["/api/matches/live"],
     queryFn: () => apiGet("/api/matches/live"),
@@ -60,7 +60,6 @@ export default function MatchesPage() {
     staleTime: 15_000,
   });
 
-  // Auto-refresh upcoming data every 60s to pick up newly seeded predictions
   useEffect(() => {
     const id = setInterval(() => {
       queryClient.invalidateQueries({ predicate: (q) => {
@@ -72,8 +71,6 @@ export default function MatchesPage() {
     return () => clearInterval(id);
   }, [queryClient]);
 
-  // Subscribe to live score WebSocket events — trigger a lightweight refetch
-  // when the live-match-tracker agent broadcasts a score update.
   useEffect(() => {
     const unsub1 = vitWS.on("live_score_update", () => {
       queryClient.invalidateQueries({ queryKey: ["/api/matches/live"] });
@@ -95,8 +92,7 @@ export default function MatchesPage() {
   const completed = completedData?.matches ?? [];
   const liveFromApi = liveApiData?.matches ?? [];
 
-  // Merge: live (from dedicated endpoint) → upcoming → recent → completed, deduped
-  const allMatches = (() => {
+  const allMatches = useMemo(() => {
     const seen = new Set<string>();
     const merged: any[] = [];
     for (const m of [...liveFromApi, ...upcoming, ...recent, ...completed]) {
@@ -106,10 +102,7 @@ export default function MatchesPage() {
       merged.push(m);
     }
     return merged;
-  })();
-
-  const hasSynced = allMatches.length > 0;
-  const isSynthetic = hasSynced && !allMatches.some((m: any) => m.external_id);
+  }, [liveFromApi, upcoming, recent, completed]);
 
   const leagues: League[] = leaguesData?.leagues ?? Array.from(
     new Map(
@@ -119,39 +112,61 @@ export default function MatchesPage() {
     ).entries()
   ).map(([key, display]) => ({ key: String(key), display: String(display ?? key) }));
 
-  const matches = allMatches.filter((m) => {
-    const searchLower = search.toLowerCase();
-    const matchesSearch = !search ||
-      m.home_team?.toLowerCase().includes(searchLower) ||
-      m.away_team?.toLowerCase().includes(searchLower) ||
-      m.league?.toLowerCase().includes(searchLower);
+  const matches = useMemo(() => {
+    return allMatches.filter((m) => {
+      const searchLower = search.toLowerCase();
+      const matchesSearch = !search ||
+        m.home_team?.toLowerCase().includes(searchLower) ||
+        m.away_team?.toLowerCase().includes(searchLower) ||
+        m.league?.toLowerCase().includes(searchLower);
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    if (leagueFilter !== "all") {
-      const mKey = (m as any).league_key ?? m.league;
-      if (mKey !== leagueFilter && m.league !== leagueFilter) return false;
-    }
+      if (leagueFilter !== "all") {
+        const mKey = (m as any).league_key ?? m.league;
+        if (mKey !== leagueFilter && m.league !== leagueFilter) return false;
+      }
 
-    if (statusFilter === "completed") return !!m.actual_outcome;
-    if (statusFilter === "upcoming") return !m.actual_outcome && !isMatchLive(m);
-    if (statusFilter === "live")     return isMatchLive(m);
+      if (statusFilter === "completed") return !!m.actual_outcome;
+      if (statusFilter === "upcoming") return !m.actual_outcome && !isMatchLive(m);
+      if (statusFilter === "live")     return isMatchLive(m);
 
-    return true;
-  });
+      return true;
+    });
+  }, [allMatches, search, leagueFilter, statusFilter]);
 
-  // Sort: live first, then by kickoff time
-  const sortedMatches = [...matches].sort((a, b) => {
-    const aLive = isMatchLive(a) ? 0 : 1;
-    const bLive = isMatchLive(b) ? 0 : 1;
-    if (aLive !== bLive) return aLive - bLive;
-    const aKo = a.kickoff_time ? new Date(a.kickoff_time).getTime() : 0;
-    const bKo = b.kickoff_time ? new Date(b.kickoff_time).getTime() : 0;
-    return aKo - bKo;
-  });
+  const sortedMatches = useMemo(() => {
+    return [...matches].sort((a, b) => {
+      const aLive = isMatchLive(a) ? 0 : 1;
+      const bLive = isMatchLive(b) ? 0 : 1;
+      if (aLive !== bLive) return aLive - bLive;
+      const aKo = a.kickoff_time ? new Date(a.kickoff_time).getTime() : 0;
+      const bKo = b.kickoff_time ? new Date(b.kickoff_time).getTime() : 0;
+      return aKo - bKo;
+    });
+  }, [matches]);
 
-  const isSports = sortedMatches.length > 0 && (sortedMatches[0].market_type === "sports" || sortedMatches[0].sport !== "niche");
+  const teams = useMemo(() => {
+    const seen = new Set<string>();
+    const list: any[] = [];
+    allMatches.forEach(m => {
+      [m.home_team, m.away_team].forEach(name => {
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          list.push({
+            name,
+            sport: m.sport || "sports",
+            league: m.league,
+            league_key: m.league_key
+          });
+        }
+      });
+    });
+    return list.filter(t => !search || t.name.toLowerCase().includes(search.toLowerCase()))
+               .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allMatches, search]);
 
+  const isSports = allMatches.some(m => m.market_type === "sports" || m.sport !== "niche");
   const liveCount = allMatches.filter(isMatchLive).length;
 
   const handleSync = async () => {
@@ -173,6 +188,8 @@ export default function MatchesPage() {
     }
   };
 
+  const hasActiveFilters = search !== "" || leagueFilter !== "all" || statusFilter !== "all";
+
   return (
     <div className="space-y-4">
       {/* ── Header ──────────────────────────────────────── */}
@@ -181,25 +198,8 @@ export default function MatchesPage() {
           <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">
             {isSports ? "Sports Analysis Hub" : "Niche Market Discovery"}
           </h1>
-          <p className="text-muted-foreground font-mono text-sm flex items-center gap-2 flex-wrap">
-            {statusFilter === "completed"
-              ? `${sortedMatches.length} of ${completed.length} completed fixtures`
-              : statusFilter === "live"
-              ? `${sortedMatches.length} live now`
-              : statusFilter === "upcoming"
-              ? `${sortedMatches.length} upcoming fixtures`
-              : hasSynced
-              ? `${sortedMatches.length} of ${allMatches.length} fixtures`
-              : "Real-time match data & ML consensus"}
-            {liveCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-green-400 font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                {liveCount} live
-              </span>
-            )}
-            <span className="text-muted-foreground/50 text-xs hidden sm:inline">
-              · refreshed {formatDistanceToNow(lastRefreshed, { addSuffix: true })}
-            </span>
+          <p className="text-muted-foreground font-mono text-sm mt-1 uppercase tracking-widest text-[10px]">
+            Real-time match data & ML consensus
           </p>
         </div>
         <Button
@@ -214,138 +214,154 @@ export default function MatchesPage() {
         </Button>
       </div>
 
-      {/* ── Live banner ─────────────────────────────────── */}
-      {liveCount > 0 && statusFilter !== "completed" && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-xs font-mono text-green-400">
-          <Radio className="w-3.5 h-3.5 animate-pulse" />
-          <span>
-            <strong>{liveCount} match{liveCount !== 1 ? "es" : ""} in progress</strong>
-            {" — "}live scores update every 30 seconds automatically
-          </span>
-        </div>
-      )}
+      {/* ── Tabs ────────────────────────────────────────── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-[400px] grid-cols-2 font-mono bg-card/50 border border-border/40 p-1 rounded-xl">
+          <TabsTrigger value="matches" className="gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <Activity className="w-3.5 h-3.5" />
+            Matches ({allMatches.length})
+          </TabsTrigger>
+          <TabsTrigger value="teams" className="gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <Users className="w-3.5 h-3.5" />
+            Teams ({teams.length})
+          </TabsTrigger>
+        </TabsList>
 
-      {/* ── Synthetic data notice ────────────────────────── */}
-      {isSynthetic && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/40 text-xs font-mono text-muted-foreground">
-          <Info className="w-3.5 h-3.5 flex-shrink-0 text-yellow-500/70" />
-          <span>Showing synthetic fixtures — configure <span className="font-semibold text-foreground/70">FOOTBALL_DATA_API_KEY</span> for live match data, or click Sync Fixtures</span>
-        </div>
-      )}
-
-      {/* ── Filters ─────────────────────────────────────── */}
-      <div className="space-y-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <label htmlFor="match-search" className="sr-only">Search teams or league</label>
-          <Input
-            id="match-search"
-            placeholder="Search teams or league…"
-            className="pl-10 font-mono bg-card/40 border-border/40 rounded-xl h-10 "
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-2">
-          <Select value={leagueFilter} onValueChange={setLeagueFilter}>
-            <SelectTrigger className="flex-1 font-mono bg-card/40 border-border/40 rounded-xl text-xs min-w-0 ">
-              <SelectValue placeholder="All Leagues" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Leagues</SelectItem>
-              {(Array.isArray(leagues) ? leagues : []).map((lg: League) => (
-                <SelectItem key={lg.key} value={lg.key}>{lg.display}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 font-mono bg-card/40 border-border/40 rounded-xl text-xs min-w-0 ">
-              <SelectValue placeholder="All Matches" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Matches</SelectItem>
-              <SelectItem value="upcoming">Upcoming</SelectItem>
-              <SelectItem value="live">
-                <span className="flex items-center gap-1.5">
-                  <Radio className="w-3 h-3 text-green-400" /> Live
-                  {liveCount > 0 && <Badge className="text-[9px] h-3.5 px-1 bg-green-500/20 text-green-400 border-green-500/30">{liveCount}</Badge>}
-                </span>
-              </SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={daysFilter} onValueChange={setDaysFilter}>
-            <SelectTrigger className="font-mono bg-card/50 text-xs w-[120px] flex-shrink-0 rounded-xl bg-card/40 border-border/40 ">
-              <CalendarDays className="w-3 h-3 mr-1 text-muted-foreground" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DAY_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-72 rounded-xl" />
-          ))}
-        </div>
-      ) : isErrorUpcoming && isErrorRecent && isErrorCompleted ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-8 text-center space-y-3">
-          <p className="font-mono text-sm text-destructive">Could not load match data. The API may be temporarily unavailable.</p>
-          <Button size="sm" variant="outline" className="font-mono text-xs gap-1.5" onClick={() => { refetch(); }}>
-            <RefreshCw className="w-3.5 h-3.5" /> Retry
-          </Button>
-        </div>
-      ) : upcoming.length === 0 && recent.length === 0 && completed.length === 0 ? (
-        <EmptyState
-          icon={Clock}
-          title="No match data loaded yet."
-          description={`Click "Load Fixtures Now" to fetch upcoming matches for the next ${daysFilter} days.`}
-          action={{
-            label: syncMutation.isPending ? "Loading fixtures..." : "Load Fixtures Now",
-            onClick: handleSync,
-            loading: syncMutation.isPending,
-          }}
-        />
-      ) : sortedMatches.length > 0 ? (
-        <>
-          {/* Section labels */}
-          {liveCount > 0 && statusFilter !== "completed" && statusFilter !== "upcoming" && (
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">
-                Live matches first
+        <div className="mt-6 space-y-6">
+          {/* Summary line EXACTLY matching user screenshots logic */}
+          <div className="flex flex-col gap-1 border-b border-border/40 pb-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-foreground">
+                Matches found: {activeTab === "matches" ? sortedMatches.length : teams.length}
               </span>
+              {hasActiveFilters && (
+                 <Button
+                   variant="ghost"
+                   size="sm"
+                   className="h-7 px-2 text-[10px] font-mono uppercase text-muted-foreground hover:text-primary"
+                   onClick={() => {
+                     setSearch("");
+                     setLeagueFilter("all");
+                     setStatusFilter("all");
+                   }}
+                 >
+                   Clear Filters
+                 </Button>
+              )}
             </div>
-          )}
-          {statusFilter === "completed" && (
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-4 h-4 text-green-500" />
-              <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">
-                Completed Matches
-              </span>
-              <Badge variant="outline" className="font-mono text-[10px]">{sortedMatches.length}</Badge>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {sortedMatches.map((match, i) => (
-              <PremiumMatchCard key={`${match.match_id}-${i}`} match={match} />
-            ))}
+            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+              {activeTab === "matches" ? "Live & Upcoming Fixtures" : "Repository Contributors & Entities"}
+              <span className="ml-2 opacity-50">· refreshed {formatDistanceToNow(lastRefreshed, { addSuffix: true })}</span>
+            </p>
           </div>
-        </>
-      ) : (
-        <EmptyState
-          icon={Search}
-          title="No matches for the selected filters."
-          description="Try adjusting the league, status, or date range filter."
-        />
-      )}
+
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={activeTab === "matches" ? "Search teams, league or ID…" : "Search teams or players…"}
+                  className="pl-10 font-mono bg-card/40 border-border/40 rounded-xl"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              {activeTab === "matches" && (
+                <div className="flex gap-2">
+                  <Select value={leagueFilter} onValueChange={setLeagueFilter}>
+                    <SelectTrigger className="w-[140px] font-mono bg-card/40 border-border/40 rounded-xl text-xs">
+                      <SelectValue placeholder="League" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Leagues</SelectItem>
+                      {leagues.map((lg) => (
+                        <SelectItem key={lg.key} value={lg.key}>{lg.display}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[120px] font-mono bg-card/40 border-border/40 rounded-xl text-xs">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="live">Live</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={daysFilter} onValueChange={setDaysFilter}>
+                    <SelectTrigger className="w-[130px] font-mono bg-card/40 border-border/40 rounded-xl text-xs">
+                      <CalendarDays className="w-3 h-3 mr-1.5" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DAY_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <TabsContent value="matches" className="mt-0 space-y-4">
+              {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-72 rounded-xl" />
+                  ))}
+                </div>
+              ) : sortedMatches.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {sortedMatches.map((match, i) => (
+                    <PremiumMatchCard key={`${match.match_id}-${i}`} match={match} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={Search}
+                  title={`No matches match your current filters.`}
+                  description={hasActiveFilters ? "Try clearing filters to see more results." : "No matches currently loaded in the network."}
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent value="teams" className="mt-0">
+              {teams.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {teams.map((team, i) => (
+                    <div key={i} className="p-4 rounded-2xl bg-card/40 border border-border/40 hover:border-primary/40 transition-all group cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-12 h-12 border border-border/20 group-hover:border-primary/30 transition-colors">
+                          <AvatarFallback className="bg-primary/5 text-primary font-mono font-bold">
+                            {team.name.substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-mono font-bold truncate group-hover:text-primary transition-colors">{team.name}</h3>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                             <Badge variant="outline" className="text-[9px] font-mono py-0 h-4 uppercase tracking-tighter opacity-70">
+                               {team.sport}
+                             </Badge>
+                             <span className="text-[10px] font-mono text-muted-foreground truncate">{team.league}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={Users}
+                  title="No teams found"
+                  description="Try a different search term or check back later."
+                />
+              )}
+            </TabsContent>
+          </div>
+        </div>
+      </Tabs>
     </div>
   );
 }
