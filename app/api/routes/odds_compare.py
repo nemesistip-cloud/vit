@@ -1,3 +1,6 @@
+import logging
+from app.core.cache import cache
+from app.core.cache_keys import ODDS_SNAPSHOT
 # app/api/routes/odds_compare.py
 # VIT Sports Analytics Network — v4.7.5
 # Multi-bookmaker odds comparison, full-market view, arbitrage scanner, audit log
@@ -448,6 +451,10 @@ async def compare_odds(
     """
     Multi-bookmaker 1X2 odds comparison for upcoming fixtures in a league.
     """
+    _cache_key = ODDS_SNAPSHOT.format(league)
+    _cached = await cache.get(_cache_key)
+    if _cached:
+        return _cached
     _verify_key(api_key)
     odds_key = ODDS_API_KEY
     if not odds_key:
@@ -537,6 +544,10 @@ async def event_markets(
     All markets for a specific event by its Odds API event_id.
     Returns full bookmaker data plus all derived markets.
     """
+    _cache_key = ODDS_SNAPSHOT.format(event_id)
+    _cached = await cache.get(_cache_key)
+    if _cached:
+        return _cached
     _verify_key(api_key)
     odds_key = ODDS_API_KEY
     if not odds_key:

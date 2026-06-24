@@ -166,3 +166,8 @@ pytest-asyncio
 pytest-cov
 reedsolo
 web3
+pgvector
+sentence-transformers
+fakeredis
+python-jose[cryptography]
+aioredis

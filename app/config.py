@@ -406,7 +406,18 @@ def print_config_status() -> None:
     print(f"  {'✅' if RESEND_API_KEY else '❌'} RESEND Email:       {'Configured' if RESEND_API_KEY else 'Missing (email disabled)'}")
     print(f"  ✅ TheSportsDB:       Always available (free key)")
     print(f"  ✅ Settlement mode:   {settle_mode}")
-    print(f"  {'✅' if REDIS_URL else '⚠️ '} Redis:              {'Configured' if REDIS_URL else 'Missing (in-memory rate limiting only)'}")
+
+    # We can check REDIS_URL and ENVIRONMENT.
+    if REDIS_URL:
+        redis_msg = 'Configured'
+        redis_icon = '✅'
+    elif ENVIRONMENT == 'production':
+        redis_msg = '❌ REQUIRED — missing in production'
+        redis_icon = '❌'
+    else:
+        redis_msg = '⚠️ Using fakeredis (dev)'
+        redis_icon = '⚠️ '
+    print(f"  {redis_icon} Redis:              {redis_msg}")
     from tachyon.api.router import _providers
     tachyon_ready = len(_providers) > 0
     print(f"  {'✅' if tachyon_ready else '⚠️ '} Tachyon VESS:      {'Operational (' + str(len(_providers)) + ' nodes)' if tachyon_ready else 'Degraded (0 nodes)'}")
