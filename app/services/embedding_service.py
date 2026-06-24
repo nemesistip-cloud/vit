@@ -21,10 +21,18 @@ class EmbeddingService:
         self._cache = get_cache()
 
     def _get_st_model(self):
+        """Lazily load the sentence-transformers model to save RAM during bootstrap."""
         if self._st_model is None:
-            from sentence_transformers import SentenceTransformer
-            logger.info(f"Loading sentence-transformers model: {EMBEDDING_MODEL}")
-            self._st_model = SentenceTransformer(EMBEDDING_MODEL)
+            try:
+                from sentence_transformers import SentenceTransformer
+                logger.info(f"[embedding] Loading model: {EMBEDDING_MODEL}")
+                self._st_model = SentenceTransformer(EMBEDDING_MODEL)
+            except ImportError:
+                logger.error("[embedding] sentence-transformers not installed — semantic search disabled")
+                return None
+            except Exception as e:
+                logger.error(f"[embedding] Failed to load model {EMBEDDING_MODEL}: {e}")
+                return None
         return self._st_model
 
     def _chunk_text(self, text: str, chunk_size: int = 512, overlap: int = 64) -> List[str]:
@@ -49,6 +57,8 @@ class EmbeddingService:
                 logger.warning(f"ai_core embedding failed, falling back: {e}")
 
         model = self._get_st_model()
+        if model is None:
+             return [0.0] * EMBEDDING_DIM
         embedding = model.encode(text).tolist()
         return embedding
 
