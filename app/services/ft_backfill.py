@@ -197,7 +197,7 @@ async def backfill_ft_results(
         rows = (await session.execute(
             select(Match).where(
                 Match.kickoff_time < now_utc,
-                Match.status.notin_(["completed", "finished", "ft", "FT"]),
+                Match.status.notin_(["completed", "finished", "ft", "FT", "FINISHED"]),
             )
         )).scalars().all()
 
