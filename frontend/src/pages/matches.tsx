@@ -147,22 +147,23 @@ export default function MatchesPage() {
   }, [matches]);
 
   const teams = useMemo(() => {
-    const stats = new Map<string, { count: number, sport: string, league: string }>();
+    const seen = new Set<string>();
+    const list: any[] = [];
     allMatches.forEach(m => {
       [m.home_team, m.away_team].forEach(name => {
-        if (name) {
-          const entry = stats.get(name) || { count: 0, sport: m.sport || "sports", league: m.league };
-          entry.count += 1;
-          stats.set(name, entry);
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          list.push({
+            name,
+            sport: m.sport || "sports",
+            league: m.league,
+            league_key: m.league_key
+          });
         }
       });
     });
-
-    return Array.from(stats.entries()).map(([name, data]) => ({
-      name,
-      ...data
-    })).filter(t => !search || t.name.toLowerCase().includes(search.toLowerCase()))
-       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    return list.filter(t => !search || t.name.toLowerCase().includes(search.toLowerCase()))
+               .sort((a, b) => a.name.localeCompare(b.name));
   }, [allMatches, search]);
 
   const isSports = allMatches.some(m => m.market_type === "sports" || m.sport !== "niche");
@@ -230,8 +231,8 @@ export default function MatchesPage() {
           {/* Summary line EXACTLY matching user screenshots logic */}
           <div className="flex flex-col gap-1 border-b border-border/40 pb-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-                Found: {activeTab === "matches" ? sortedMatches.length : teams.length}
+              <span className="text-xs font-mono font-bold text-foreground">
+                Matches found: {activeTab === "matches" ? sortedMatches.length : teams.length}
               </span>
               {hasActiveFilters && (
                  <Button
@@ -337,21 +338,15 @@ export default function MatchesPage() {
                             {team.name.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0">
                           <h3 className="text-sm font-mono font-bold truncate group-hover:text-primary transition-colors">{team.name}</h3>
-                          <div className="flex flex-col gap-0.5 mt-0.5">
-                             <div className="flex items-center gap-1.5">
-                               <Badge variant="outline" className="text-[8px] font-mono py-0 h-3.5 uppercase tracking-tighter opacity-70">
-                                 {team.sport}
-                               </Badge>
-                               <span className="text-[10px] font-mono text-muted-foreground truncate">{team.league}</span>
-                             </div>
-                             <p className="text-[10px] font-mono text-primary/80 font-bold uppercase tracking-tight">
-                               {team.count} matches
-                             </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                             <Badge variant="outline" className="text-[9px] font-mono py-0 h-4 uppercase tracking-tighter opacity-70">
+                               {team.sport}
+                             </Badge>
+                             <span className="text-[10px] font-mono text-muted-foreground truncate">{team.league}</span>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                       </div>
                     </div>
                   ))}
