@@ -1,10 +1,10 @@
 """Payment provider webhooks — Module B5.
 
 Webhook signature verification:
-- Paystack: HMAC-SHA512 of raw body with PAYSTACK_WEBHOOK_SECRET
-- Stripe:   Stripe-Signature header verified via STRIPE_WEBHOOK_SECRET
-- USDT:     Internal listener (trust via network policy)
-- Pi:       Pi Network payment approval
+- Paystack:     HMAC-SHA512 of raw body with PAYSTACK_WEBHOOK_SECRET
+- Flutterwave:  verif-hash header checked against FLW_WEBHOOK_SECRET
+- USDT:         Internal listener (trust via network policy)
+- Pi:           Pi Network payment approval
 """
 
 import asyncio
@@ -13,7 +13,6 @@ import hmac
 import json
 import logging
 import os
-import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
@@ -94,7 +93,7 @@ async def _credit_wallet_by_reference(reference: str) -> bool:
 
 async def _activate_subscription(user_id: int, plan: str, billing: str) -> bool:
     """
-    Grant a subscription tier to a user after successful Stripe payment.
+    Grant a subscription tier to a user after successful payment.
     Updates User.subscription_tier and sends an in-app notification.
     """
     from datetime import timedelta
@@ -234,47 +233,6 @@ async def _fail_pending_transaction(payment_intent_id: str) -> bool:
         return True
 
 
-async def _reverse_confirmed_transaction(charge_id: str, refund_amt: float) -> bool:
-    """Reverse a confirmed deposit transaction after a Stripe refund."""
-    from decimal import Decimal
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(WalletTransaction).where(
-                WalletTransaction.status == "confirmed",
-                WalletTransaction.type == "deposit",
-            ).order_by(WalletTransaction.processed_at.desc()).limit(50)
-        )
-        txs = result.scalars().all()
-        # Match by charge_id in metadata or by amount proximity
-        tx = None
-        for t in txs:
-            meta = t.tx_metadata or {}
-            if meta.get("charge_id") == charge_id or meta.get("stripe_charge") == charge_id:
-                tx = t
-                break
-        if not tx and txs:
-            # Fallback: match nearest amount
-            refund_d = Decimal(str(round(refund_amt, 2)))
-            for t in txs:
-                if abs(t.amount - refund_d) < Decimal("0.02"):
-                    tx = t
-                    break
-        if not tx:
-            logger.warning(f"_reverse_confirmed_transaction: no matching tx for charge={charge_id}")
-            return False
-        wallet_result = await db.execute(select(Wallet).where(Wallet.id == tx.wallet_id))
-        wallet = wallet_result.scalar_one_or_none()
-        if wallet:
-            balance_attr = f"{tx.currency.lower()}_balance"
-            current = getattr(wallet, balance_attr, Decimal("0")) or Decimal("0")
-            debit = min(Decimal(str(refund_amt)), tx.amount)
-            setattr(wallet, balance_attr, max(Decimal("0"), current - debit))
-        tx.status = "reversed"
-        await db.commit()
-        logger.info(f"Reversed tx {tx.id} amount={refund_amt} (Stripe charge={charge_id})")
-        return True
-
-
 async def _mark_withdrawal_processed(reference: str) -> bool:
     """Mark a withdrawal transaction as processed."""
     async with AsyncSessionLocal() as db:
@@ -298,10 +256,12 @@ async def paystack_webhook(request: Request):
     signature = request.headers.get("x-paystack-signature", "")
     secret = _PAYSTACK_WEBHOOK_SECRET or os.getenv("PAYSTACK_WEBHOOK_SECRET", "")
 
+    sig_verified: Optional[bool] = None
     if secret:
         computed = hmac.new(secret.encode(), body, hashlib.sha512).hexdigest()
         if not hmac.compare_digest(computed, signature):
             raise HTTPException(400, "Invalid Paystack signature")
+        sig_verified = True
 
     try:
         payload = json.loads(body)
@@ -309,156 +269,51 @@ async def paystack_webhook(request: Request):
         raise HTTPException(400, "Invalid JSON body")
 
     event = payload.get("event", "")
-    reference = payload.get("data", {}).get("reference", "")
-    amount_data = payload.get("data", {}).get("amount", None)
-    currency_data = payload.get("data", {}).get("currency", None)
+    data = payload.get("data", {}) or {}
+    reference = data.get("reference", "")
+    amount_data = data.get("amount", None)   # Paystack sends amounts in kobo (smallest unit)
+    currency_data = data.get("currency", None)
     outcome = "unhandled"
 
     if event == "charge.success":
         credited = await _credit_wallet_by_reference(reference)
         outcome = "credited" if credited else "already_processed"
 
+        # Activate subscription if payment carries plan metadata (from checkout flow)
+        metadata = data.get("metadata", {}) or {}
+        vit_plan = metadata.get("vit_plan", "")
+        vit_user_id = metadata.get("vit_user_id", "")
+        vit_billing = metadata.get("vit_billing", "monthly")
+        if vit_plan and vit_user_id:
+            activated = await _activate_subscription(int(vit_user_id), vit_plan, vit_billing)
+            logger.info(
+                f"Paystack subscription activation: user={vit_user_id} plan={vit_plan} activated={activated}"
+            )
+            outcome = "subscription_activated"
+
+    elif event == "charge.failed":
+        await _fail_pending_transaction(reference)
+        outcome = "payment_failed"
+
     elif event == "transfer.success":
         await _mark_withdrawal_processed(reference)
         outcome = "withdrawal_processed"
+
+    # Convert kobo/cents → major currency unit (÷100) for the event log
+    log_amount = float(amount_data) / 100.0 if amount_data is not None else None
 
     asyncio.create_task(_log_event(
         provider="paystack",
         event_type=event,
         reference=reference or None,
-        amount=float(amount_data) if amount_data else None,
+        amount=log_amount,
         currency=currency_data,
         status="processed",
-        sig_verified=True,
+        sig_verified=sig_verified,
         outcome=outcome,
         payload_summary={"event": event, "reference": reference},
     ))
     return {"status": "ok"}
-
-
-# ── Stripe ─────────────────────────────────────────────────────────────
-
-def _verify_stripe_signature(body: bytes, sig_header: str, secret: str) -> bool:
-    """
-    Verify Stripe webhook signature (Stripe-Signature header).
-    Stripe format: t=<timestamp>,v1=<signature>
-    Ref: https://stripe.com/docs/webhooks/signatures
-    """
-    if not secret or not sig_header:
-        return not bool(secret)  # allow-through when no secret configured
-    try:
-        parts = {}
-        for part in sig_header.split(","):
-            k, v = part.split("=", 1)
-            parts[k.strip()] = v.strip()
-        timestamp = parts.get("t", "")
-        v1_sig = parts.get("v1", "")
-        if not timestamp or not v1_sig:
-            return False
-        # Reject stale webhooks (> 5 minutes old)
-        if abs(time.time() - int(timestamp)) > 300:
-            logger.warning("Stripe webhook: timestamp too old (possible replay)")
-            return False
-        signed_payload = f"{timestamp}.".encode() + body
-        expected = hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
-        return hmac.compare_digest(expected, v1_sig)
-    except Exception as exc:
-        logger.warning(f"Stripe signature verification error: {exc}")
-        return False
-
-
-@router.post("/stripe", summary="Stripe payment webhook")
-async def stripe_webhook(
-    request: Request,
-    stripe_signature: Optional[str] = Header(default=None, alias="stripe-signature"),
-):
-    body = await request.body()
-
-    # Read at request time so dynamically configured secrets (via admin panel) work immediately.
-    stripe_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-
-    # G03: Enforce signature verification. Return 503 if secret not configured.
-    if not stripe_secret:
-        logger.error("Stripe webhook: STRIPE_WEBHOOK_SECRET not configured — rejecting")
-        raise HTTPException(
-            status_code=503,
-            detail="Stripe webhook secret not configured. Set STRIPE_WEBHOOK_SECRET env var.",
-        )
-
-    if not stripe_signature or not _verify_stripe_signature(body, stripe_signature, stripe_secret):
-        logger.warning("Stripe webhook: invalid signature rejected")
-        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
-
-    try:
-        payload = json.loads(body)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    event_type = payload.get("type", "")
-    obj = payload.get("data", {}).get("object", {})
-    logger.info(f"Stripe webhook event: {event_type}")
-
-    _log_ref = obj.get("id", "")
-    _log_amt = obj.get("amount", 0) / 100.0 if obj.get("amount") else None
-    _log_currency = obj.get("currency", "usd").upper() if obj.get("currency") else "USD"
-
-    async def _stripe_log(outcome: str, error_msg: Optional[str] = None) -> None:
-        asyncio.create_task(_log_event(
-            provider="stripe",
-            event_type=event_type,
-            reference=_log_ref or None,
-            amount=_log_amt,
-            currency=_log_currency,
-            status="processed",
-            sig_verified=True,
-            outcome=outcome,
-            error_msg=error_msg,
-            payload_summary={"type": event_type, "id": obj.get("id", "")},
-        ))
-
-    if event_type == "payment_intent.succeeded":
-        reference = obj.get("metadata", {}).get("reference", obj.get("id", ""))
-        credited = await _credit_wallet_by_reference(reference)
-        await _stripe_log("credited" if credited else "already_processed")
-        return {"status": "ok", "credited": credited}
-
-    if event_type in ("charge.succeeded", "checkout.session.completed"):
-        metadata = obj.get("metadata", {})
-        reference = metadata.get("reference", obj.get("id", ""))
-        credited = await _credit_wallet_by_reference(reference)
-
-        vit_plan    = metadata.get("vit_plan", "")
-        vit_user_id = metadata.get("vit_user_id", "")
-        vit_billing = metadata.get("vit_billing", "monthly")
-        if vit_plan and vit_user_id:
-            activated = await _activate_subscription(int(vit_user_id), vit_plan, vit_billing)
-            logger.info(f"Stripe subscription activation: user={vit_user_id} plan={vit_plan} activated={activated}")
-
-        await _stripe_log("credited" if credited else "subscription_activated" if vit_plan else "already_processed")
-        return {"status": "ok", "credited": credited}
-
-    if event_type == "payout.paid":
-        processed = await _mark_withdrawal_processed(obj.get("id", ""))
-        await _stripe_log("withdrawal_processed" if processed else "not_found")
-        return {"status": "ok", "processed": processed}
-
-    if event_type == "payment_intent.payment_failed":
-        pi_id = obj.get("id", "")
-        logger.warning(f"Stripe payment failed: {pi_id}")
-        updated = await _fail_pending_transaction(pi_id)
-        await _stripe_log("payment_failed")
-        return {"status": "ok", "note": "payment_failed", "updated": updated}
-
-    if event_type == "charge.refunded":
-        charge_id = obj.get("id", "")
-        refund_amt = obj.get("amount_refunded", 0) / 100.0
-        logger.info(f"Stripe charge refunded: {charge_id} amount={refund_amt}")
-        reversed_tx = await _reverse_confirmed_transaction(charge_id, refund_amt)
-        await _stripe_log("refunded")
-        return {"status": "ok", "note": "charge_refunded", "reversed": reversed_tx}
-
-    await _stripe_log("unhandled")
-    return {"status": "ok", "event": event_type, "handled": False}
 
 
 # ── USDT (internal listener) ───────────────────────────────────────────

@@ -172,10 +172,10 @@ async def initiate_deposit(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Initiate a deposit — calls Paystack/Stripe when keys are configured."""
+    """Initiate a deposit — calls Paystack when keys are configured."""
     import uuid as _uuid
 
-    from app.config import PAYSTACK_SECRET_KEY, STRIPE_SECRET_KEY, REPLIT_DEV_DOMAIN, PUBLIC_APP_URL, REPL_SLUG
+    from app.config import PAYSTACK_SECRET_KEY, REPLIT_DEV_DOMAIN, PUBLIC_APP_URL
 
     service = WalletService(db)
     wallet = await service.get_or_create_wallet(current_user.id)
@@ -213,39 +213,6 @@ async def initiate_deposit(
                         payment_link = data["data"]["authorization_url"]
                 else:
                     gateway_error = f"Paystack error {resp.status_code}"
-            except Exception as _e:
-                gateway_error = str(_e)
-
-    # ── Stripe (USD) ──────────────────────────────────────────────────
-    elif request.method == "stripe":
-        stripe_key = STRIPE_SECRET_KEY
-        if stripe_key:
-            try:
-                import httpx as _httpx
-                amount_cents = int(float(request.amount) * 100)
-                app_domain = REPLIT_DEV_DOMAIN or PUBLIC_APP_URL or REPL_SLUG or "localhost"
-                async with _httpx.AsyncClient(timeout=10) as client:
-                    resp = await client.post(
-                        "https://api.stripe.com/v1/checkout/sessions",
-                        auth=(stripe_key, ""),
-                        data={
-                            "payment_method_types[]": "card",
-                            "line_items[0][price_data][currency]": "usd",
-                            "line_items[0][price_data][product_data][name]": "VIT Wallet Deposit",
-                            "line_items[0][price_data][unit_amount]": str(amount_cents),
-                            "line_items[0][quantity]": "1",
-                            "mode": "payment",
-                            "client_reference_id": ref,
-                            "success_url": f"https://{app_domain}/wallet?deposit=success&ref={ref}",
-                            "cancel_url": f"https://{app_domain}/wallet?deposit=cancelled",
-                            "metadata[vit_ref]": ref,
-                            "metadata[user_id]": str(current_user.id),
-                        },
-                    )
-                if resp.status_code == 200:
-                    payment_link = resp.json().get("url")
-                else:
-                    gateway_error = f"Stripe error {resp.status_code}"
             except Exception as _e:
                 gateway_error = str(_e)
 

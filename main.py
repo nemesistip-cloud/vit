@@ -2161,11 +2161,9 @@ app.include_router(ai_core_router)
 app.include_router(prophecy_chain_router, prefix="/api")
 
 
-# Stripe Webhooks + Admin Audit Predictions (unique registrations)
-from app.api.routes.stripe_webhooks import router as stripe_webhooks_router
+# Admin Audit Predictions (unique registration)
 from app.api.routes import admin_audit_predictions as admin_audit_route
 app.include_router(admin_audit_route.router, prefix="/api")
-app.include_router(stripe_webhooks_router)
 
 
 def _format_count(value: int) -> str:

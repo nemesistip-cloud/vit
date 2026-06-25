@@ -4917,7 +4917,7 @@ function IntegrationsTab() {
     testAction?: () => void; testLabel?: string; testLoading?: boolean;
   }> = {
     "Pi Network":     { icon: Zap,        color: "text-[#FFB800]",  bg: "bg-amber-500/10",  border: "border-amber-500/30",  description: "Accept Pi cryptocurrency from Pi Network users. Set App ID and Secret from developer.pi.",         testAction: testPiConnection, testLabel: "Test Connection", testLoading: testingPi },
-    "Payments":       { icon: CreditCard, color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/30",   description: "Stripe (USD subscriptions), Paystack (NGN deposits), and Flutterwave (MoMo / card) processors." },
+    "Payments":       { icon: CreditCard, color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/30",   description: "Paystack (subscriptions + deposits), and Flutterwave (MoMo / card) processors." },
     "Sports Data":    { icon: Activity,   color: "text-cyan-400",   bg: "bg-cyan-500/10",   border: "border-cyan-500/30",   description: "Football-Data.org, The Odds API, and TheSportsDB for fixtures, live odds, and match data."         },
     "Messaging":      { icon: Send,       color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/30",  description: "Telegram bot for signal alerts and Resend for transactional email (verification, password reset)."  },
     "VIT AI":         { icon: Brain,      color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/30", description: "Native ML model flags and Google Cloud Storage bucket for syncing trained model weights."            },
@@ -4931,7 +4931,6 @@ function IntegrationsTab() {
 
   // Payment sub-providers for cleaner display within the Payments group
   const PAYMENT_SUBS: Record<string, { color: string; keys: string[] }> = {
-    "Stripe":      { color: "text-indigo-400", keys: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"] },
     "Paystack":    { color: "text-green-400",  keys: ["PAYSTACK_SECRET_KEY", "PAYSTACK_WEBHOOK_SECRET"] },
     "Flutterwave": { color: "text-orange-400", keys: ["FLW_SECRET_KEY", "FLW_PUBLIC_KEY", "FLW_WEBHOOK_SECRET"] },
   };
@@ -5083,7 +5082,7 @@ function IntegrationsTab() {
 
             <CardContent className="pt-0 space-y-2">
               {isPayments ? (
-                /* Split Payments into Stripe / Paystack / Flutterwave sub-sections */
+                /* Split Payments into Paystack / Flutterwave sub-sections */
                 Object.entries(PAYMENT_SUBS).map(([provName, prov]) => {
                   const provKeys = keys.filter(k => prov.keys.includes(k.key));
                   if (provKeys.length === 0) return null;

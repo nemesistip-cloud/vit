@@ -282,8 +282,8 @@ export default function SubscriptionPage() {
       )}
 
       <div className="p-4 rounded-lg bg-card/30 border border-secondary/20 font-mono text-xs text-muted-foreground space-y-1">
-        <div><span className="text-secondary font-bold">PAYMENT:</span> Secured by Stripe. You'll be redirected to Stripe's hosted checkout page to complete your payment securely.</div>
-        <div className="text-muted-foreground/60">Cards accepted: Visa, Mastercard, Amex, and more. Cancel anytime.</div>
+        <div><span className="text-secondary font-bold">PAYMENT:</span> Secured by Paystack. You'll be redirected to Paystack's hosted checkout page to complete your payment securely.</div>
+        <div className="text-muted-foreground/60">Cards accepted: Visa, Mastercard, Amex, and more. Also supports bank transfer and USSD. Cancel anytime.</div>
       </div>
     </div>
   );

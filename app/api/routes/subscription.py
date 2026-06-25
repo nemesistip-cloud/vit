@@ -304,8 +304,8 @@ async def get_my_plan(
         "subscription": {
             "status": effective_status,
             "period_end": sub.current_period_end.isoformat() if sub and sub.current_period_end else None,
-            "stripe_customer_id": sub.stripe_customer_id if sub else None,
-            "source": "role" if role_plan else ("stripe" if sub else "none"),
+            "customer_id": sub.stripe_customer_id if sub else None,
+            "source": "role" if role_plan else ("paystack" if sub else "none"),
         },
         "usage": {
             "predictions_today": sub.prediction_count_today if sub else 0,
@@ -328,69 +328,67 @@ async def create_checkout_session(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a Stripe checkout session for subscription upgrade."""
+    """Create a Paystack transaction for subscription upgrade."""
     if body.plan not in PLANS or body.plan == "free":
         raise HTTPException(status_code=400, detail="Invalid plan for checkout")
 
-    from app.config import STRIPE_SECRET_KEY, REPLIT_DEV_DOMAIN, REPL_SLUG, PUBLIC_APP_URL
+    from app.config import PAYSTACK_SECRET_KEY, REPLIT_DEV_DOMAIN, PUBLIC_APP_URL
 
     plan = PLANS[body.plan]
-    stripe_key = STRIPE_SECRET_KEY
-    if not stripe_key:
+    paystack_key = PAYSTACK_SECRET_KEY
+    if not paystack_key:
         raise HTTPException(status_code=503, detail="Payment system not configured. Contact support.")
 
     price_usd = plan["price_yearly"] if body.billing == "yearly" else plan["price_monthly"]
+    # Paystack amount in smallest currency unit (cents for USD)
     amount_cents = int(price_usd * 100)
-    period_label = "year" if body.billing == "yearly" else "month"
 
-    domain = REPLIT_DEV_DOMAIN or PUBLIC_APP_URL or REPL_SLUG or "localhost"
+    domain = REPLIT_DEV_DOMAIN or PUBLIC_APP_URL or "localhost"
     base_url = f"https://{domain}"
-
-    success_url = body.success_url or f"{base_url}/subscription?upgraded=true&plan={body.plan}"
-    cancel_url = body.cancel_url or f"{base_url}/subscription?cancelled=true"
+    callback_url = body.success_url or f"{base_url}/subscription?upgraded=true&plan={body.plan}"
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
-                "https://api.stripe.com/v1/checkout/sessions",
-                auth=(stripe_key, ""),
-                data={
-                    "payment_method_types[]": "card",
-                    "line_items[0][price_data][currency]": "usd",
-                    "line_items[0][price_data][product_data][name]": f"VIT {plan['display_name']} Plan",
-                    "line_items[0][price_data][product_data][description]": f"{plan['description']} — billed per {period_label}",
-                    "line_items[0][price_data][unit_amount]": str(amount_cents),
-                    "line_items[0][quantity]": "1",
-                    "mode": "payment",
-                    "customer_email": current_user.email,
-                    "client_reference_id": str(current_user.id),
-                    "success_url": success_url,
-                    "cancel_url": cancel_url,
-                    "metadata[vit_plan]": body.plan,
-                    "metadata[vit_user_id]": str(current_user.id),
-                    "metadata[vit_billing]": body.billing,
+                "https://api.paystack.co/transaction/initialize",
+                headers={
+                    "Authorization": f"Bearer {paystack_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "email": current_user.email,
+                    "amount": amount_cents,
+                    "currency": "USD",
+                    "callback_url": callback_url,
+                    "metadata": {
+                        "vit_plan": body.plan,
+                        "vit_user_id": str(current_user.id),
+                        "vit_billing": body.billing,
+                        "custom_fields": [
+                            {"display_name": "Plan", "variable_name": "vit_plan", "value": body.plan},
+                            {"display_name": "Billing", "variable_name": "vit_billing", "value": body.billing},
+                        ],
+                    },
                 },
             )
 
-        if resp.status_code != 200:
-            err = resp.json().get("error", {})
-            logger.error(f"Stripe checkout error: {err}")
-            user_msg = err.get("message", "Payment processing error")
-            if "sk_" in user_msg or "mk_" in user_msg or "rk_" in user_msg:
-                user_msg = "Invalid payment configuration. Please contact support."
-            raise HTTPException(status_code=502, detail=user_msg)
+        data = resp.json()
+        if not data.get("status"):
+            err_msg = data.get("message", "Payment processing error")
+            logger.error(f"Paystack checkout error: {err_msg}")
+            raise HTTPException(status_code=502, detail=err_msg)
 
-        session = resp.json()
+        checkout_data = data["data"]
         return {
-            "checkout_url": session["url"],
-            "session_id": session["id"],
+            "checkout_url": checkout_data["authorization_url"],
+            "reference": checkout_data["reference"],
             "plan": body.plan,
             "amount_usd": price_usd,
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Stripe checkout exception: {e}")
+        logger.error(f"Paystack checkout exception: {e}")
         raise HTTPException(status_code=502, detail="Failed to create checkout session. Please try again.")
 
 

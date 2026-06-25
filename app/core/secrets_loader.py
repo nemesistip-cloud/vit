@@ -5,8 +5,6 @@ async def load_all_secrets():
     project_id = os.getenv("GCP_PROJECT_ID") or os.getenv("GCP_PROJECT_ID")
     if project_id:
         secrets = [
-            "STRIPE_SECRET_KEY",
-            "STRIPE_WEBHOOK_SECRET",
             "PAYSTACK_SECRET_KEY",
             "PAYSTACK_WEBHOOK_SECRET",
             "JWT_SECRET_KEY",

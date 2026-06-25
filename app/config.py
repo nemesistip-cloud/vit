@@ -247,10 +247,6 @@ ODDS_API_KEY: str          = THE_ODDS_API_KEY
 PAYSTACK_SECRET_KEY: str     = get_env("PAYSTACK_SECRET_KEY", "")
 PAYSTACK_WEBHOOK_SECRET: str = get_env("PAYSTACK_WEBHOOK_SECRET", "")
 
-# Stripe — USD/international subscription payments
-STRIPE_SECRET_KEY: str        = get_env("STRIPE_SECRET_KEY", "")
-STRIPE_WEBHOOK_SECRET: str    = get_env("STRIPE_WEBHOOK_SECRET", "")
-
 # Flutterwave — Africa mobile money (MoMo), M-Pesa, MTN, Airtel
 FLW_SECRET_KEY: str           = get_env("FLW_SECRET_KEY", "")
 FLW_PUBLIC_KEY: str           = get_env("FLW_PUBLIC_KEY", "")
@@ -399,8 +395,7 @@ def print_config_status() -> None:
     print(f"  {'✅' if isports_key else '❌'} iSports API:        {'Configured' if isports_key else 'Missing'}")
     print(f"  {'✅' if football_key else '❌'} Football API:       {'Configured' if football_key else 'Missing'}")
     print(f"  {'✅' if THE_ODDS_API_KEY else '❌'} Odds API:           {'Configured' if THE_ODDS_API_KEY else 'Missing (odds disabled)'}")
-    print(f"  {'✅' if PAYSTACK_SECRET_KEY else '❌'} Paystack:           {'Configured' if PAYSTACK_SECRET_KEY else 'Missing (NGN payments disabled)'}")
-    print(f"  {'✅' if STRIPE_SECRET_KEY else '❌'} Stripe:             {'Configured' if STRIPE_SECRET_KEY else 'Missing (USD payments disabled)'}")
+    print(f"  {'✅' if PAYSTACK_SECRET_KEY else '❌'} Paystack:           {'Configured' if PAYSTACK_SECRET_KEY else 'Missing (payments disabled)'}")
     print(f"  {'✅' if FLW_SECRET_KEY else '⚠️ '} Flutterwave/MoMo:  {'Configured' if FLW_SECRET_KEY else 'Missing (MoMo deposits disabled)'}")
     print(f"  {'✅' if PI_APP_ID else '⚠️ '} Pi Network:         {'Configured (sandbox)' if PI_APP_ID and PI_SANDBOX_MODE.lower() in ('1','true','yes') else 'Configured (mainnet)' if PI_APP_ID else 'Missing (Pi payments disabled)'}")
     print(f"  {'✅' if RESEND_API_KEY else '❌'} RESEND Email:       {'Configured' if RESEND_API_KEY else 'Missing (email disabled)'}")

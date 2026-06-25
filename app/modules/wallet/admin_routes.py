@@ -62,15 +62,15 @@ async def approve_withdrawal(
     if req.status not in ("pending", "manual_review"):
         raise HTTPException(400, "Already processed")
 
-    # ── Execute real payout via Paystack / Stripe ────────────────────────
+    # ── Execute real payout via Paystack ────────────────────────────────
     payout_ref = None
     payout_error = None
     try:
-        from app.config import PAYSTACK_SECRET_KEY, STRIPE_SECRET_KEY
+        from app.config import PAYSTACK_SECRET_KEY
         import httpx as _httpx
         currency = (req.currency or "NGN").upper()
-        if currency in ("NGN", "GHS", "KES", "UGX", "TZS") and PAYSTACK_SECRET_KEY:
-            # Paystack Transfer
+        if PAYSTACK_SECRET_KEY:
+            # Paystack Transfer — supports NGN, GHS, KES, UGX, TZS and USD (multi-currency)
             amount_subunit = int(float(req.net_amount) * 100)
             async with _httpx.AsyncClient(timeout=15) as _c:
                 resp = await _c.post(
@@ -89,24 +89,6 @@ async def approve_withdrawal(
                 payout_ref = resp.json().get("data", {}).get("transfer_code", f"WD-{req.id}")
             else:
                 payout_error = f"Paystack transfer error {resp.status_code}: {resp.text[:120]}"
-        elif currency == "USD" and STRIPE_SECRET_KEY:
-            # Stripe Payout — requires connected account
-            amount_cents = int(float(req.net_amount) * 100)
-            async with _httpx.AsyncClient(timeout=15) as _c:
-                resp = await _c.post(
-                    "https://api.stripe.com/v1/payouts",
-                    auth=(STRIPE_SECRET_KEY, ""),
-                    data={
-                        "amount": str(amount_cents),
-                        "currency": "usd",
-                        "description": f"VIT withdrawal #{req.id}",
-                        "metadata[withdrawal_id]": req.id,
-                    },
-                )
-            if resp.status_code == 200:
-                payout_ref = resp.json().get("id", f"WD-{req.id}")
-            else:
-                payout_error = f"Stripe payout error {resp.status_code}: {resp.text[:120]}"
     except Exception as _pe:
         payout_error = str(_pe)[:200]
 

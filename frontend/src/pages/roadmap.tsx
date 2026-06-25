@@ -71,7 +71,7 @@ const PHASES: RoadmapPhase[] = [
       { label: "Real-time WebSocket predictions with JWT authentication",               status: "done",  icon: Activity },
       { label: "JWT auth system with 2FA (TOTP) & Role-based access", status: "done", icon: Shield },
       { label: "Multi-currency wallet: NGN · USD · USDT · VITCoin",                    status: "done",  icon: Coins },
-      { label: "Stripe (USD) + Paystack (NGN) payments live",       status: "done",  icon: CreditCard },
+      { label: "Paystack multi-currency payments + wallet live",       status: "done",  icon: CreditCard },
       { label: "Governance system: proposals · voting · execution engine",     status: "done",  icon: Vote },
       { label: "Trust & safety engine: automated scoring & merit",    status: "done",  icon: ShieldCheck },
       { label: "Prophecy Chain: Game-ified progression engine", status: "done", icon: Sparkles },

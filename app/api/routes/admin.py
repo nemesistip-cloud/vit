@@ -164,16 +164,9 @@ _KEY_REGISTRY = [
 
     # ── Payments ───────────────────────────────────────────────────────
     {
-        "name":        "STRIPE_SECRET_KEY",
-        "label":       "Stripe",
-        "description": "USD subscription payments — Pro ($49/mo) and Elite ($199/mo) plans",
-        "required":    False,
-        "group":       "Payments",
-    },
-    {
         "name":        "PAYSTACK_SECRET_KEY",
         "label":       "Paystack",
-        "description": "NGN wallet deposits and local payment processing",
+        "description": "Subscriptions, wallet deposits, and withdrawals (NGN + USD multi-currency)",
         "required":    False,
         "group":       "Payments",
     },
@@ -223,13 +216,6 @@ _KEY_REGISTRY = [
     },
 
     # ── Payments (Webhooks) ─────────────────────────────────────────────
-    {
-        "name":        "STRIPE_WEBHOOK_SECRET",
-        "label":       "Stripe Webhook Secret",
-        "description": "Validates Stripe webhook signatures (whsec_…) — required to process subscription events",
-        "required":    False,
-        "group":       "Payments",
-    },
     {
         "name":        "PAYSTACK_WEBHOOK_SECRET",
         "label":       "Paystack Webhook Secret",
@@ -389,8 +375,6 @@ async def get_config_status(current_user=Depends(get_current_admin)):
         _status("ODDS_API_KEY",           "The Odds API",        required=True),
         _status("USE_REAL_ML_MODELS",     "VIT Native AI",       required=False),
 
-        _status("STRIPE_SECRET_KEY",      "Stripe Payments",     required=False),
-        _status("STRIPE_WEBHOOK_SECRET",  "Stripe Webhooks",     required=False),
         _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),
         _status("PAYSTACK_WEBHOOK_SECRET","Paystack Webhooks",   required=False),
         _status("FLW_SECRET_KEY",         "Flutterwave (MoMo)",  required=False),
@@ -1109,7 +1093,6 @@ EDITABLE_INTEGRATION_KEYS = {
     "PI_APP_ID", "PI_APP_SECRET", "PI_WEBHOOK_SECRET", "PI_SANDBOX_MODE",
     "FLW_SECRET_KEY", "FLW_PUBLIC_KEY", "FLW_WEBHOOK_SECRET",
     "PAYSTACK_SECRET_KEY", "PAYSTACK_WEBHOOK_SECRET",
-    "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
     "FOOTBALL_DATA_API_KEY", "THESPORTSDB_API_KEY", "ODDS_API_KEY",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "RESEND_API_KEY",
     # Offerwall / Rewards providers
