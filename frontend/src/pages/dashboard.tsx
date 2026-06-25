@@ -95,7 +95,7 @@ export default function DashboardPage() {
   const vitBalance = user?.vitcoin_balance?.toLocaleString() || "0";
   const streak     = user?.current_streak ?? 0;
   const meritTier  = user?.tier?.toUpperCase() || "VIEWER";
-  const meritXp    = user?.merit_score?.toLocaleString() + " XP";
+  const meritXp    = (user?.merit_score ?? 0).toLocaleString() + " XP";
 
   return (
     <div className="p-4 space-y-5 pb-6">
@@ -271,7 +271,7 @@ export default function DashboardPage() {
 
       {/* ── Gamification ── */}
       <div className="space-y-3">
-        <LevelCard />
+        <LevelCard xp={user?.merit_score ?? 0} streak={user?.current_streak ?? 0} />
         <AchievementBadges />
       </div>
 

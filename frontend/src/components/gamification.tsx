@@ -62,7 +62,7 @@ export function LevelCard({ xp, predictions = 0, winRate = 0, streak = 0 }: Leve
           </div>
           <div className="text-right">
             <div className="text-xs font-mono text-muted-foreground">XP</div>
-            <div className="text-lg font-bold font-mono">{xp.toLocaleString()}</div>
+            <div className="text-lg font-bold font-mono">{(xp ?? 0).toLocaleString()}</div>
           </div>
         </div>
 
@@ -225,7 +225,7 @@ export function Leaderboard({ entries, currentUsername }: LeaderboardProps) {
                   <div className={`text-[10px] font-mono ${levelCfg.color}`}>{e.level}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold font-mono">{e.xp.toLocaleString()}</div>
+                  <div className="text-sm font-bold font-mono">{(e.xp ?? 0).toLocaleString()}</div>
                   <div className="text-[10px] font-mono text-muted-foreground">{(e.winRate * 100).toFixed(0)}% WR</div>
                 </div>
               </div>

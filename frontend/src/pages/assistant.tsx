@@ -26,8 +26,8 @@ export default function AssistantPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const status = useQuery<any>({
-    queryKey: ["/api/assistant/status"],
-    queryFn: () => apiGet("/api/assistant/status"),
+    queryKey: ["/api/ai/assistant/status"],
+    queryFn: () => apiGet("/api/ai/assistant/status"),
   });
 
   const isReady = status.data?.available;
@@ -46,7 +46,7 @@ export default function AssistantPage() {
     setIsPending(true);
 
     try {
-      const response = await apiPost("/api/assistant/chat", { message: text });
+      const response = await apiPost("/api/ai/assistant/chat", { message: text });
       setMessages(prev => [...prev, {
         role: "assistant",
         content: response.content,

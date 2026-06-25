@@ -19,24 +19,29 @@ export default function PredictionsPage() {
 
   const { data: history, isLoading } = useQuery<any[]>({
     queryKey: [activeTab === "community" ? "/api/history?all_users=true" : "/api/history"],
-    queryFn: () => apiGet(activeTab === "community" ? "/api/history?all_users=true" : "/api/history"),
+    queryFn: async () => {
+      const res = await apiGet(activeTab === "community" ? "/api/history?all_users=true" : "/api/history");
+      return Array.isArray(res) ? res : (res?.predictions ?? res?.items ?? []);
+    },
   });
+
+  const safeHistory: any[] = Array.isArray(history) ? history : [];
 
   const categories = [
     { id: "all", label: "All Picks" },
-    { id: "won", label: "Won", count: history?.filter(h => h.outcome === h.prediction_side).length },
-    { id: "lost", label: "Lost", count: history?.filter(h => h.outcome && h.outcome !== h.prediction_side).length },
-    { id: "pending", label: "Pending", count: history?.filter(h => !h.outcome).length },
+    { id: "won", label: "Won", count: safeHistory.filter(h => h.outcome === h.prediction_side).length },
+    { id: "lost", label: "Lost", count: safeHistory.filter(h => h.outcome && h.outcome !== h.prediction_side).length },
+    { id: "pending", label: "Pending", count: safeHistory.filter(h => !h.outcome).length },
   ];
 
   const filteredHistory = useMemo(() => {
-    if (!history) return [];
-    if (activeCategory === "all") return history;
-    if (activeCategory === "won") return history.filter(h => h.outcome === h.prediction_side);
-    if (activeCategory === "lost") return history.filter(h => h.outcome && h.outcome !== h.prediction_side);
-    if (activeCategory === "pending") return history.filter(h => !h.outcome);
-    return history;
-  }, [history, activeCategory]);
+    if (!safeHistory.length) return [];
+    if (activeCategory === "all") return safeHistory;
+    if (activeCategory === "won") return safeHistory.filter(h => h.outcome === h.prediction_side);
+    if (activeCategory === "lost") return safeHistory.filter(h => h.outcome && h.outcome !== h.prediction_side);
+    if (activeCategory === "pending") return safeHistory.filter(h => !h.outcome);
+    return safeHistory;
+  }, [safeHistory, activeCategory]);
 
   return (
     <div className="space-y-4 pb-20">
