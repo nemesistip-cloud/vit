@@ -2,7 +2,7 @@ import os
 from app.services.gcp_secrets import gcp_secrets
 async def load_all_secrets():
     """Load secrets from Google Secret Manager if running in GCP."""
-    project_id = os.getenv("GCP_PROJECT_ID") or os.getenv("GCS_PROJECT_ID")
+    project_id = os.getenv("GCP_PROJECT_ID") or os.getenv("GCP_PROJECT_ID")
     if project_id:
         secrets = [
             "STRIPE_SECRET_KEY",

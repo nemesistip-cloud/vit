@@ -1,5 +1,4 @@
 import asyncio
-from app.services.gcs_storage import gcs_storage
 #!/usr/bin/env python3
 """
 VIT Sports — V1 Model Weight Training Script
@@ -104,12 +103,6 @@ def _save_pkl(model_obj, key: str, metrics: dict, training_samples: int) -> str:
     active    = os.path.join(MODELS_DIR, f"{key}.pkl")
     joblib.dump(payload, versioned)
     joblib.dump(payload, active)
-    # Task 3D: Upload to GCS
-    try:
-        asyncio.run(gcs_storage.upload_model(active, os.path.basename(active)))
-        asyncio.run(gcs_storage.upload_model(versioned, os.path.basename(versioned)))
-    except Exception as e:
-        print(f"GCS upload failed: {e}")
     return version, active
 
 
