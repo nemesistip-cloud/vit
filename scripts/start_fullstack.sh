@@ -5,7 +5,6 @@ cd "$(dirname "$0")/.."
 PORT="${PORT:-5000}"
 BACKEND_PORT="${PORT}"
 
-export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-true}"
 
 if command -v fuser >/dev/null 2>&1; then
     fuser -k "${BACKEND_PORT}/tcp" >/dev/null 2>&1 || true

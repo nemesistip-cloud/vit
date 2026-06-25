@@ -311,14 +311,8 @@ resource "google_cloud_run_v2_service" "vit_api" {
         name  = "ENVIRONMENT"
         value = "production"
       }
-      env {
-        name  = "USE_REAL_ML_MODELS"
-        value = "true"
-      }
-      env {
-        name  = "ML_MODEL_CACHE_ENABLED"
-        value = "true"
-      }
+
+
       env {
         name  = "PORT"
         value = "8080"

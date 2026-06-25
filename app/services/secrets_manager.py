@@ -55,10 +55,34 @@ async def load_db_secrets_to_env() -> int:
         async with AsyncSessionLocal() as session:
             rows = (await session.execute(select(PlatformSecret))).scalars().all()
             loaded = 0
+            # Keys that should ALWAYS be loaded from DB if present, even if already set in env.
+            # This ensures that changes made in the Admin Panel persist even if startup
+            # scripts or Dockerfiles define "soft" defaults.
+            FORCE_OVERRIDE_KEYS = {
+                "USE_REAL_ML_MODELS",
+                "ML_MODEL_CACHE_ENABLED",
+                "ENABLE_ML_TRAINING",
+                "ENABLE_AUTO_SYNC",
+                "ENABLE_LIVE_ODDS",
+                "ENABLE_PREDICTION_SEEDING",
+                "ENABLE_KYC_CHECKS",
+                "ENABLE_BLOCKCHAIN",
+                "ENABLE_WEBSOCKETS",
+                "ENABLE_ANALYTICS",
+                "ENABLE_REFERRALS",
+            }
+
             for row in rows:
-                if not os.environ.get(row.key):
+                # Load if not set OR if it is a feature flag managed via the DB
+                if not os.environ.get(row.key) or row.key in FORCE_OVERRIDE_KEYS:
                     try:
-                        os.environ[row.key] = decrypt_secret(row.encrypted_value)
+                        decrypted = decrypt_secret(row.encrypted_value)
+
+                        # If we are overriding an existing env var, log it
+                        if os.environ.get(row.key) and os.environ.get(row.key) != decrypted:
+                            logger.info("Overriding env var %s with DB value (feature flag persistence)", row.key)
+
+                        os.environ[row.key] = decrypted
                         loaded += 1
                     except Exception as exc:
                         logger.warning("Could not decrypt DB secret %s: %s", row.key, exc)
