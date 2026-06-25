@@ -113,20 +113,23 @@ export default function MatchesPage() {
         {isLoading ? (
           Array.from({ length: 8 }).map((_, i) => <RowSkeleton key={i} />)
         ) : filteredMatches.length > 0 ? (
-          filteredMatches.map((match) => (
+          filteredMatches.map((match) => {
+            const matchId = match.match_id ?? match.id;
+            return (
             <PredictionRow
-              key={match.id}
+              key={matchId}
               homeTeam={match.home_team}
               awayTeam={match.away_team}
               competition={match.competition || match.league}
-              kickoff={match.status === 'live' ? (match.minute ? `${match.minute}'` : 'LIVE') : new Date(match.kickoff_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              kickoff={match.status === 'live' ? (match.minute ? `${match.minute}'` : 'LIVE') : match.kickoff_time ? new Date(match.kickoff_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
               isLive={match.status === 'live'}
               odds={match.odds?.home || '--'}
               oddsChange={match.odds_movement ?? 0}
-              onTap={() => navigate(`/matches/${match.id}`)}
+              onTap={() => navigate(`/matches/${matchId}`)}
               badgeLabel={match.market_type === 'sports' ? 'PRO' : undefined}
             />
-          ))
+            );
+          })
         ) : (
           <div className="p-20">
              <EmptyState

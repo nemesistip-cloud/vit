@@ -67,7 +67,7 @@ function MatchResult({ match, onClick }: { match: any; onClick: () => void }) {
 
   return (
     <button
-      onClick={() => { navigate(`/matches/${match.id}`); onClick(); }}
+      onClick={() => { navigate(`/matches/${match.match_id ?? match.id}`); onClick(); }}
       className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/8 transition-colors text-left group"
     >
       <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">

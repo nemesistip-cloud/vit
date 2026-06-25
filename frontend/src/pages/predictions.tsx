@@ -73,7 +73,7 @@ export default function PredictionsPage() {
               homeTeam={item.home_team || 'Team A'}
               awayTeam={item.away_team || 'Team B'}
               competition={item.league || 'Competition'}
-              kickoff={format(new Date(item.created_at), 'MMM dd')}
+              kickoff={item.created_at ? format(new Date(item.created_at), 'MMM dd') : '--'}
               odds={item.odds || '--'}
               oddsChange={item.outcome === item.prediction_side ? 2.5 : -1.5}
               badgeLabel={item.prediction_side?.toUpperCase()}

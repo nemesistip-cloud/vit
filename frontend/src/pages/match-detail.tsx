@@ -59,7 +59,7 @@ export default function MatchDetailPage() {
               </div>
               <div className="text-center px-4">
                  <div className="text-3xl font-display font-black text-vit-text-1 mb-1">
-                    {match.status === 'live' ? `${match.home_score} : ${match.away_score}` : 'VS'}
+                    {match.status === 'live' ? `${match.home_goals ?? 0} : ${match.away_goals ?? 0}` : 'VS'}
                  </div>
                  <Badge className="bg-vit-negative/10 text-vit-negative border-vit-negative/20 text-[9px]">
                     {match.status === 'live' ? `${match.minute}'` : 'UPCOMING'}
