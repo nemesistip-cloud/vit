@@ -267,8 +267,11 @@ async def lifespan(app: FastAPI):
 
     # 3. Start background bootstrap
     _bootstrap_task = asyncio.create_task(_run_bootstrap(app, None), name="bootstrap")
+    _ping_task = asyncio.create_task(ping_service_loop(), name="ping_service")
 
     yield
+    if not _ping_task.done():
+        _ping_task.cancel()
     if not _bootstrap_task.done():
         _bootstrap_task.cancel()
     from app.core.redis import close_redis
@@ -2595,6 +2598,38 @@ async def serve_spa(full_path: str = ""):
         return FileResponse(index_path)
 
     return JSONResponse({"detail": "Not Found", "message": "Frontend build not found. Run npm run build."}, status_code=404)
+
+
+async def ping_service_loop():
+    """Background task to keep the service active by pinging a URL every 50 seconds."""
+    import httpx
+    import asyncio
+    from app.db.database import AsyncSessionLocal
+    from app.modules.wallet.models import PlatformConfig
+    from sqlalchemy import select
+
+    print("  🛰️  Ping Service: loop starting...")
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                enabled_row = (await db.execute(select(PlatformConfig).where(PlatformConfig.key == "ping_service_enabled"))).scalar_one_or_none()
+                url_row = (await db.execute(select(PlatformConfig).where(PlatformConfig.key == "ping_service_url"))).scalar_one_or_none()
+
+                def _extract(row):
+                    if not row: return None
+                    v = row.value
+                    return v.get("value") if isinstance(v, dict) else v
+
+                enabled = _extract(enabled_row) == "true"
+                url = _extract(url_row)
+
+            if enabled and url:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    await client.get(url)
+        except Exception:
+            pass
+
+        await asyncio.sleep(50)
 
 if __name__ == "__main__":
     import uvicorn
