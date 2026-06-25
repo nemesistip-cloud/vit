@@ -297,6 +297,9 @@ async def get_matches(
 
 @router.get("/upcoming")
 async def get_upcoming_matches(db: AsyncSession = Depends(get_db)):
+    _cache_key = f"{FIXTURE_LIST}:upcoming"
+    _cached = await cache.get(_cache_key)
+    if _cached: return _cached
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     # Match.status.in_(["upcoming", "scheduled"])
     # Sort by kickoff time
@@ -416,6 +419,9 @@ async def explore_markets(db: AsyncSession = Depends(get_db)):
 
 @router.get("/live")
 async def get_live_matches(db: AsyncSession = Depends(get_db)):
+    _cache_key = f"{FIXTURE_LIST}:live"
+    _cached = await cache.get(_cache_key)
+    if _cached: return _cached
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     # A match is "live" if it started less than 2 hours ago and has no outcome yet
     stmt = (
@@ -440,6 +446,9 @@ async def get_live_matches(db: AsyncSession = Depends(get_db)):
 
 @router.get("/recent")
 async def get_recent_matches(db: AsyncSession = Depends(get_db)):
+    _cache_key = f"{FIXTURE_LIST}:recent"
+    _cached = await cache.get(_cache_key)
+    if _cached: return _cached
     # Last 20 completed matches
     stmt = (
         select(Match, Prediction)
@@ -465,6 +474,9 @@ async def get_completed_matches(
     limit: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
+    _cache_key = f"{FIXTURE_LIST}:completed:{limit}"
+    _cached = await cache.get(_cache_key)
+    if _cached: return _cached
     stmt = (
         select(Match, Prediction)
         .outerjoin(Prediction, Match.id == Prediction.match_id)
