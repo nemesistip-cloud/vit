@@ -7,8 +7,6 @@ cd "$(dirname "$0")/.."
 
 export ENVIRONMENT="${ENVIRONMENT:-production}"
 export WORKER_MODE="true"
-export USE_REAL_ML_MODELS="${USE_REAL_ML_MODELS:-false}"
-export ML_MODEL_CACHE_ENABLED="${ML_MODEL_CACHE_ENABLED:-false}"
 export PYTHONPATH="${PYTHONPATH:-}:."
 
 echo "VIT Worker starting..."

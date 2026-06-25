@@ -102,7 +102,7 @@ jobs:
             --memory 2Gi \
             --timeout 300 \
             --concurrency 80 \
-            --set-env-vars "ENVIRONMENT=production,USE_REAL_ML_MODELS=true,ML_MODEL_CACHE_ENABLED=true,PORT=8080" \
+            --set-env-vars "ENVIRONMENT=production,PORT=8080" \
             --set-secrets "JWT_SECRET_KEY=vit-jwt-secret:latest,SECRET_KEY=vit-secret-key:latest,DATABASE_URL=vit-database-url:latest" \
             --add-cloudsql-instances "${{ env.PROJECT_ID }}:${{ env.REGION }}:vit-postgres" \
             --service-account "vit-api@${{ env.PROJECT_ID }}.iam.gserviceaccount.com"
