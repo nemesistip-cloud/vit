@@ -1,0 +1,498 @@
+Good. That changes the constraint profile entirely. Let me re-architect without the 512MB ceiling.
+
+Good. VIT Cloud changes everything. Let me now rebuild without artificial constraints and unlock what was previously being throttled.
+
+---
+
+## Rollover Engine — VIT Cloud Architecture (No Memory Ceiling)
+
+---
+
+### What Changes With Unlimited Memory
+
+Every constraint we built around the 512MB Render limit gets removed or inverted. The defensive engineering stays — circuit breakers, idempotency, event sourcing, race condition guards — those are correctness guarantees, not memory workarounds. But the compute ceiling is gone. That unlocks:
+
+**Previously throttled, now fully open:**
+
+| Constraint | Render (512MB) | VIT Cloud |
+|---|---|---|
+| Simulation count | 2,500–10,000 | 100,000–1,000,000 |
+| Ensemble batch size | 10 fixtures | 100+ fixtures |
+| SHAP computation | Async deferred | Inline at certification time |
+| Celery concurrency | 2 workers | 16–32 workers |
+| Model loading | Lazy, one at a time | All 13 models resident in memory |
+| LSTM sequences | Capped at 2,000 | Full dataset |
+| Certification pipeline | Every hour, chunked | Continuous streaming |
+| xG derivation | Simple zone weights | Full spatial tracking model |
+| Read model cache | Redis TTL-bounded | In-memory hot tier + Redis warm tier |
+
+---
+
+### 1. Resident Model Server — The Core Unlock
+
+On Render, models were loaded and unloaded per task to save memory. On VIT Cloud, all 13 models load once at startup and stay resident. This is the single biggest performance multiplier.
+
+```python
+class ResidentModelServer:
+    """
+    Loads and holds all 13 ai_core models in memory permanently.
+    On VIT Cloud: startup cost once, zero per-request load overhead.
+
+    Architecture: each model runs in its own process via multiprocessing.
+    GPU memory is partitioned if GPU nodes are available.
+    CPU nodes: models share RAM across processes with shared memory arrays.
+    """
+
+    def __init__(self):
+        self.models: dict[str, ResidentModel] = {}
+        self.inference_pool = ProcessPoolExecutor(max_workers=13)
+        self._warm = False
+
+    async def warm_up(self):
+        """Called once at application startup."""
+        import asyncio
+
+        warm_tasks = [
+            self._load_model(model_id)
+            for model_id in MODEL_REGISTRY.keys()
+        ]
+        await asyncio.gather(*warm_tasks)
+        self._warm = True
+
+        # Verify all models loaded and can infer
+        for model_id, model in self.models.items():
+            probe = await model.probe()
+            if not probe.ok:
+                raise ModelWarmUpFailure(f"{model_id} failed warm-up probe: {probe.error}")
+
+    async def infer_batch(
+        self,
+        fixture_batch: list[FixtureFeatures],
+        model_ids: list[str] | None = None,
+    ) -> dict[str, list[ModelVote]]:
+        """
+        Run all models over all fixtures in the batch simultaneously.
+        Returns: {fixture_id: [ModelVote, ...]}
+
+        On VIT Cloud: all 13 models × N fixtures run in parallel.
+        Previously: sequential, chunked, memory-gated.
+        """
+        if not self._warm:
+            raise ModelServerNotReady()
+
+        targets = model_ids or list(self.models.keys())
+
+        # Fan out: every model × every fixture simultaneously
+        futures = {
+            model_id: self.inference_pool.submit(
+                self.models[model_id].predict_batch,
+                fixture_batch
+            )
+            for model_id in targets
+        }
+
+        results: dict[str, list[ModelVote]] = {}
+        for fixture in fixture_batch:
+            results[fixture.fixture_id] = []
+
+        for model_id, future in futures.items():
+            model_votes = await asyncio.wrap_future(future)
+            for fixture_id, vote in model_votes.items():
+                results[fixture_id].append(vote)
+
+        return results
+
+
+# Singleton — one instance per VIT Cloud node
+resident_model_server = ResidentModelServer()
+```
+
+---
+
+### 2. Monte Carlo — Full Spatial Model
+
+Previously throttled to simple Poisson. On VIT Cloud, we run the full spatial tracking model.
+
+```python
+class SpatialMonteCarloSimulator:
+    """
+    Replaces the simplified zone-weight xG approximation.
+
+    Full model:
+    - Each shot is represented as a point (x, y) on the pitch
+    - xG assigned via a trained Random Forest on shot coordinates,
+      body part, situation (open play / set piece / counter), pressure
+    - Bivariate Poisson used to model home/away goal correlation
+      (teams that concede more also tend to score more — correlated)
+    - Dixon-Coles low-score correction applied (0-0, 1-0, 0-1, 1-1
+      are systematically under/over-predicted by basic Poisson)
+
+    On VIT Cloud: 1,000,000 simulations in ~4 seconds (NumPy vectorised).
+    Previously capped at 10,000.
+    """
+
+    N_SIMULATIONS = 1_000_000
+
+    def run_full(
+        self,
+        home_shot_map: list[ShotEvent],
+        away_shot_map: list[ShotEvent],
+        home_attack_rating: float,
+        away_attack_rating: float,
+        home_defence_rating: float,
+        away_defence_rating: float,
+        correlation_rho: float = 0.15,   # typical home/away goal correlation
+    ) -> FullSimulationResult:
+        import numpy as np
+        from scipy.stats import poisson
+
+        # Compute xG from full shot maps (not zone approximation)
+        home_xg = sum(self._shot_xg(s) for s in home_shot_map)
+        away_xg = sum(self._shot_xg(s) for s in away_shot_map)
+
+        # Adjusted lambdas with Dixon-Coles correction
+        home_lambda = self._adjusted_lambda(home_xg, home_attack_rating, away_defence_rating)
+        away_lambda = self._adjusted_lambda(away_xg, away_attack_rating, home_defence_rating)
+
+        # Bivariate Poisson: correlated joint sampling
+        # Z ~ Poisson(rho), X = X0 + Z, Y = Y0 + Z
+        # where X0 ~ Poisson(λ_home - rho), Y0 ~ Poisson(λ_away - rho)
+        rho = min(correlation_rho, min(home_lambda, away_lambda) * 0.5)
+        z  = np.random.poisson(rho,                    self.N_SIMULATIONS)
+        hg = np.random.poisson(max(home_lambda - rho, 0.01), self.N_SIMULATIONS) + z
+        ag = np.random.poisson(max(away_lambda - rho, 0.01), self.N_SIMULATIONS) + z
+
+        # Dixon-Coles correction weights for low-scoring outcomes
+        dc_weights = self._dixon_coles_weights(hg, ag, home_lambda, away_lambda)
+
+        n = self.N_SIMULATIONS
+        return FullSimulationResult(
+            home_win_prob   = float(np.sum((hg > ag) * dc_weights) / n),
+            draw_prob       = float(np.sum((hg == ag) * dc_weights) / n),
+            away_win_prob   = float(np.sum((hg < ag) * dc_weights) / n),
+            btts_yes_prob   = float(np.sum(((hg > 0) & (ag > 0)) * dc_weights) / n),
+            over_2_5_prob   = float(np.sum(((hg + ag) > 2) * dc_weights) / n),
+            under_2_5_prob  = float(np.sum(((hg + ag) <= 2) * dc_weights) / n),
+            over_3_5_prob   = float(np.sum(((hg + ag) > 3) * dc_weights) / n),
+            asian_handicap  = self._compute_asian_handicaps(hg, ag, dc_weights),
+            correct_score   = self._top_correct_scores(hg, ag, dc_weights, top_n=10),
+            home_goals_dist = self._goal_distribution(hg, dc_weights),
+            away_goals_dist = self._goal_distribution(ag, dc_weights),
+            simulations_run = n,
+            home_lambda     = home_lambda,
+            away_lambda     = away_lambda,
+            correlation_rho = rho,
+        )
+
+    def _shot_xg(self, shot: ShotEvent) -> float:
+        """Full spatial xG via trained RF model (resident in memory)."""
+        return self.xg_model.predict([[
+            shot.x, shot.y,
+            shot.body_part_encoded,
+            shot.situation_encoded,
+            shot.under_pressure,
+            shot.distance_to_goal,
+            shot.angle_to_goal,
+        ]])[0]
+
+    def _dixon_coles_weights(self, hg, ag, mu, lam, rho_dc=-0.13):
+        """
+        Dixon-Coles correction: adjusts probability of 0-0, 1-0, 0-1, 1-1.
+        rho_dc ≈ -0.13 is the empirically derived correction factor.
+        """
+        import numpy as np
+        weights = np.ones(len(hg))
+        mask_00 = (hg == 0) & (ag == 0)
+        mask_10 = (hg == 1) & (ag == 0)
+        mask_01 = (hg == 0) & (ag == 1)
+        mask_11 = (hg == 1) & (ag == 1)
+
+        weights[mask_00] *= (1 - mu * lam * rho_dc)
+        weights[mask_10] *= (1 + lam * rho_dc)
+        weights[mask_01] *= (1 + mu * rho_dc)
+        weights[mask_11] *= (1 - rho_dc)
+        return weights
+
+    def _compute_asian_handicaps(self, hg, ag, weights) -> dict:
+        """Asian handicap lines — only possible because we have full goal distributions."""
+        n = len(hg)
+        diff = hg - ag
+        return {
+            "-0.5": float(np.sum((diff > 0) * weights) / n),
+            "-1.0": float(np.sum((diff > 1) * weights) / n),
+            "-1.5": float(np.sum((diff > 1) * weights) / n * 0.5 +
+                          np.sum((diff > 2) * weights) / n * 0.5),
+            "+0.5": float(np.sum((diff >= 0) * weights) / n),
+            "+1.0": float(np.sum((diff >= -1) * weights) / n),
+        }
+
+    def _top_correct_scores(self, hg, ag, weights, top_n=10) -> list[dict]:
+        """Correct score probabilities — full distribution available."""
+        import numpy as np
+        from collections import Counter
+        score_counts = Counter(zip(hg.tolist(), ag.tolist()))
+        n = len(hg)
+        scores = sorted(score_counts.items(), key=lambda x: -x[1])[:top_n]
+        return [
+            {"score": f"{h}-{a}", "probability": round(count / n, 4)}
+            for (h, a), count in scores
+        ]
+```
+
+This is what 1M simulations buys you: **correct score markets, Asian handicaps, full goal distributions** — not just 1X2/BTTS. The rollover engine can now certify a much wider market range.
+
+---
+
+### 3. SHAP at Scale — Inline, Not Deferred
+
+On Render, SHAP ran asynchronously after certification because it was too slow inline. On VIT Cloud, it runs synchronously inside the certification pipeline.
+
+```python
+class InlineSHAPEngine:
+    """
+    On VIT Cloud: all explainers are resident in memory.
+    SHAP values are computed inline during certification —
+    they're part of the certificate, not a post-hoc addition.
+
+    New capability: parallel SHAP across all 13 models simultaneously.
+    Previously: sequential per model.
+    """
+
+    def __init__(self, resident_models: ResidentModelServer):
+        self.explainers = {
+            model_id: self._build_explainer(model_id, model.underlying)
+            for model_id, model in resident_models.models.items()
+        }
+        # Background dataset for KernelExplainer — loaded once, resident
+        self.background_data = self._load_background_dataset()
+
+    def explain_parallel(
+        self,
+        fixture_features: dict,
+        agreeing_model_ids: list[str],
+    ) -> SHAPExplanation:
+        """
+        Run all SHAP explainers simultaneously via ThreadPoolExecutor.
+        All models already in memory — thread overhead is the only cost.
+        """
+        import concurrent.futures
+        import numpy as np
+
+        feature_array = self._to_array(fixture_features)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=13) as pool:
+            futures = {
+                model_id: pool.submit(
+                    self.explainers[model_id].shap_values,
+                    feature_array
+                )
+                for model_id in agreeing_model_ids
+            }
+            all_shap = {
+                model_id: future.result()
+                for model_id, future in futures.items()
+            }
+
+        # Aggregate — previously mean, now weighted by model accuracy
+        model_weights = self._get_model_accuracy_weights(agreeing_model_ids)
+        weighted_shap = np.average(
+            list(all_shap.values()),
+            weights=list(model_weights.values()),
+            axis=0
+        ).flatten()
+
+        feature_names = list(fixture_features.keys())
+        ranked = sorted(zip(feature_names, weighted_shap), key=lambda x: abs(x[1]), reverse=True)
+
+        return SHAPExplanation(
+            top_positive_drivers=[(n, float(v)) for n, v in ranked if v > 0][:5],
+            top_negative_drivers=[(n, float(v)) for n, v in ranked if v < 0][:3],
+            feature_importance_map=dict(zip(feature_names, weighted_shap.tolist())),
+            per_model_shap=all_shap,                        # NEW: full per-model breakdown
+            model_agreement_map=self._agreement_map(all_shap),  # NEW: which models agree on which features
+            consistency_score=self._compute_consistency(list(all_shap.values())),
+            weighted=True,
+        )
+
+    def _get_model_accuracy_weights(self, model_ids: list[str]) -> dict:
+        """Weight SHAP by each model's rolling accuracy — better models contribute more."""
+        from app.modules.rollover.intelligence_core.drift_monitor import ModelDriftMonitor
+        weights = {}
+        for model_id in model_ids:
+            accuracy = ModelDriftMonitor.get_rolling_accuracy_sync(model_id)
+            weights[model_id] = max(accuracy, 0.01)   # floor at 1% to avoid zero weights
+        return weights
+
+    def _agreement_map(self, all_shap: dict) -> dict:
+        """
+        NEW capability on VIT Cloud: per-feature model agreement.
+        Shows which features all models agree on, which are contested.
+
+        Example output:
+        {
+          "home_xg": {"agreement": 0.92, "direction": "positive"},
+          "away_fatigue": {"agreement": 0.61, "direction": "negative"},
+          "h2h_home_wins": {"agreement": 0.45, "direction": "mixed"},  ← flag this
+        }
+        """
+        import numpy as np
+        all_arrays = list(all_shap.values())
+        feature_names = list(list(all_shap.values())[0].keys()) if isinstance(list(all_shap.values())[0], dict) else []
+
+        result = {}
+        for i, feature in enumerate(feature_names):
+            vals = [arr.flatten()[i] for arr in all_arrays]
+            positive_count = sum(1 for v in vals if v > 0)
+            agreement = max(positive_count, len(vals) - positive_count) / len(vals)
+            direction = "positive" if positive_count > len(vals) / 2 else \
+                        "negative" if positive_count < len(vals) / 2 else "mixed"
+            result[feature] = {"agreement": round(agreement, 3), "direction": direction}
+
+        return result
+```
+
+---
+
+### 4. Continuous Certification — Streaming Pipeline
+
+On Render: hourly batch runs. On VIT Cloud: the pipeline never stops. It processes fixtures as they arrive.
+
+```python
+class ContinuousCertificationStream:
+    """
+    On VIT Cloud: certification runs as a persistent async stream.
+    New fixtures → immediate certification.
+    Fixture data updates → immediate re-certification.
+    No scheduled runs. No gaps. No stale pool.
+    """
+
+    def __init__(self):
+        self.input_queue  = asyncio.Queue(maxsize=0)   # Unbounded — VIT Cloud has memory
+        self.workers      = []
+        self.N_WORKERS    = ROLLOVER_STREAM_WORKERS    # e.g. 16 on VIT Cloud
+
+    async def start(self):
+        """Spawn N parallel certification workers."""
+        self.workers = [
+            asyncio.create_task(self._certification_worker(worker_id=i))
+            for i in range(self.N_WORKERS)
+        ]
+        # Also start the fixture change listener
+        asyncio.create_task(self._fixture_change_listener())
+
+    async def _fixture_change_listener(self):
+        """
+        Listens to PostgreSQL LISTEN/NOTIFY for fixture data changes.
+        Any fixture update triggers immediate re-certification.
+        No polling — pure event-driven on VIT Cloud.
+        """
+        async with db.raw_connection() as conn:
+            await conn.execute("LISTEN fixture_updates")
+            async for notification in conn.notifications():
+                fixture_id = int(notification.payload)
+                await self.input_queue.put(CertificationTask(
+                    fixture_id=fixture_id,
+                    priority="IMMEDIATE",
+                    reason="fixture_data_updated",
+                ))
+
+    async def _certification_worker(self, worker_id: int):
+        """Single worker — pulls from queue, certifies, writes result."""
+        while True:
+            task: CertificationTask = await self.input_queue.get()
+
+            try:
+                async with db.session() as session:
+                    await self._certify(task, session)
+            except Exception as e:
+                await self._handle_certification_failure(task, e)
+            finally:
+                self.input_queue.task_done()
+
+    async def _certify(self, task: CertificationTask, session):
+        fixture = await session.get(Fixture, task.fixture_id)
+
+        # Run all four layers in parallel — VIT Cloud can absorb this
+        density_task  = asyncio.create_task(signal_density_analyser.compute(fixture))
+        xg_task       = asyncio.create_task(xg_resolver.resolve(task.fixture_id))
+
+        density_score, xg_packet = await asyncio.gather(density_task, xg_task)
+
+        if density_score < ROLLOVER_MIN_SIGNAL_DENSITY:
+            await self._write_disqualified(fixture, "INSUFFICIENT_SIGNAL", session)
+            return
+
+        # Layers 2–4 in parallel
+        consensus_task  = asyncio.create_task(
+            ensemble_consensus_aggregator.aggregate(fixture, xg_packet)
+        )
+        pattern_task    = asyncio.create_task(
+            pattern_validation_engine.validate(fixture)
+        )
+
+        consensus_result, pattern_result = await asyncio.gather(consensus_task, pattern_task)
+
+        # SHAP inline — VIT Cloud can absorb this synchronously
+        shap_explanation = inline_shap_engine.explain_parallel(
+            fixture_features=fixture.to_feature_dict(),
+            agreeing_model_ids=consensus_result.agreeing_model_ids,
+        )
+
+        # Conflict detection uses SHAP agreement map as additional signal
+        conflict_flags = await conflict_detector.detect(
+            fixture=fixture,
+            consensus_result=consensus_result,
+            shap_agreement_map=shap_explanation.model_agreement_map,
+        )
+
+        # Monte Carlo — full 1M simulations inline
+        sim_result = spatial_simulator.run_full(
+            home_shot_map=fixture.home_shots,
+            away_shot_map=fixture.away_shots,
+            home_attack_rating=fixture.home_team.attack_rating,
+            away_attack_rating=fixture.away_team.attack_rating,
+            home_defence_rating=fixture.home_team.defence_rating,
+            away_defence_rating=fixture.away_team.defence_rating,
+        )
+
+        # LIME narrative
+        narrative = lime_narrative_engine.explain_for_certificate(
+            fixture_features=fixture.to_feature_dict(),
+            consensus_outcome=consensus_result.outcome,
+            shap_top_drivers=shap_explanation.top_positive_drivers,
+            simulation_result=sim_result,
+        )
+
+        await certificate_writer.write(
+            fixture=fixture,
+            density_score=density_score,
+            consensus_result=consensus_result,
+            pattern_result=pattern_result,
+            conflict_flags=conflict_flags,
+            shap_explanation=shap_explanation,
+            simulation_result=sim_result,
+            narrative=narrative,
+            session=session,
+        )
+```
+
+---
+
+### 5. In-Memory Hot Tier — Two-Level Cache
+
+On Render, everything lived in Redis. On VIT Cloud, add a process-level hot tier above Redis.
+
+```python
+class TwoLevelCertificateCache:
+    """
+    L1: In-process LRU cache (microsecond access, bounded by node RAM)
+    L2: Redis cluster (millisecond access, shared across all nodes)
+    L3: PostgreSQL (source of truth)
+
+    On VIT Cloud with 16 workers, L1 is per-worker.
+    Redis pub/sub propagates L1 invalidations across workers.
+    """
+
+    def __init__(self, l1_max_size: int = 10_000):
+        from functools import lru_cache
+        self._l1: dict[str, RolloverCertificat

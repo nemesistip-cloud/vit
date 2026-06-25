@@ -15,3 +15,4 @@
 - [Integration keys DB loader](integration-keys-db.md) — admin-saved integration keys stored under PlatformConfig key "integration:{ENV_VAR}"; loaded into os.environ at lifespan startup before print_config_status fires.
 - [Replit migration VIT Network](replit-migration-vit.md) — twa-dev/sdk silent crash + wrong Lucide icon names + CSP/frame-ancestors were the three blockers for blank page on Replit.
 - [Tailwind v4 VIT token system](tailwind-vit-token-system.md) — vit-* vars need --color-vit-* in @theme inline; touch main.tsx to bypass build cache; layout is pure Tailwind now.
+- [Rollover Engine](rollover-engine.md) — Poisson Monte Carlo certification pipeline; auth imports from app.auth.dependencies; route at /api/rollover/*; DB model RolloverCertificate in app/db/models.py.

@@ -41,6 +41,7 @@ const DeveloperPage = lazyRetry(() => import("@/pages/developer"));
 const GovernancePage = lazyRetry(() => import("@/pages/governance"));
 const AdminPage = lazyRetry(() => import("@/pages/admin"));
 const AccumulatorPage = lazyRetry(() => import("@/pages/accumulator"));
+const RolloverPage    = lazyRetry(() => import("@/pages/rollover"));
 const BacktestPage = lazyRetry(() => import("@/pages/backtest"));
 const OddsPage = lazyRetry(() => import("@/pages/odds"));
 const PaymentCallbackPage = lazyRetry(() => import("@/pages/payment-callback"));
@@ -214,6 +215,9 @@ function Router() {
       </Route>
       <Route path="/accumulator">
         <Layout><ProtectedRoute component={AccumulatorPage} /></Layout>
+      </Route>
+      <Route path="/rollover">
+        <Layout><ProtectedRoute component={RolloverPage} /></Layout>
       </Route>
       <Route path="/backtest">
         <Layout><ProtectedRoute component={BacktestPage} /></Layout>

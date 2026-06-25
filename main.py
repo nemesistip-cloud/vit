@@ -2165,6 +2165,10 @@ app.include_router(prophecy_chain_router, prefix="/api")
 from app.api.routes import admin_audit_predictions as admin_audit_route
 app.include_router(admin_audit_route.router, prefix="/api")
 
+# Rollover Engine
+from app.api.routes import rollover as rollover_route
+app.include_router(rollover_route.router, prefix="/api")
+
 
 def _format_count(value: int) -> str:
     if value >= 1_000_000:

@@ -692,6 +692,60 @@ from app.modules.tasks.models import (  # noqa: F401, E402
 )
 
 
+class RolloverCertificate(Base):
+    """Rollover Engine — certified fixture picks produced by the Monte Carlo pipeline."""
+    __tablename__ = "rollover_certificates"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    fixture_id    = Column(Integer, ForeignKey("matches.id"), nullable=False, index=True)
+    prediction_id = Column(Integer, ForeignKey("predictions.id"), nullable=True)
+    pipeline_run_id = Column(String(36), nullable=True, index=True)
+
+    # Certified outcome
+    outcome       = Column(String(20), nullable=False)   # home_win / draw / away_win / over_2_5 / btts_yes
+    outcome_label = Column(String(60), nullable=True)
+
+    # Core scores
+    signal_density        = Column(Float, nullable=False)   # 0-100
+    model_confidence      = Column(Float, nullable=True)    # 0-1
+    simulation_agreement  = Column(Float, nullable=True)    # 0-1
+
+    # Monte Carlo distribution
+    mc_home_prob   = Column(Float, nullable=True)
+    mc_draw_prob   = Column(Float, nullable=True)
+    mc_away_prob   = Column(Float, nullable=True)
+    mc_btts_prob   = Column(Float, nullable=True)
+    mc_over25_prob = Column(Float, nullable=True)
+    mc_under25_prob = Column(Float, nullable=True)
+    mc_over35_prob  = Column(Float, nullable=True)
+    home_lambda    = Column(Float, nullable=True)
+    away_lambda    = Column(Float, nullable=True)
+    simulations_run = Column(Integer, default=10000)
+    top_correct_scores = Column(JSON, nullable=True)   # [{score, probability}, …]
+
+    # xG data
+    home_xg    = Column(Float, nullable=True)
+    away_xg    = Column(Float, nullable=True)
+    xg_source  = Column(String(20), nullable=True)  # odds_closing / odds_opening / model_probs / league_prior
+
+    # Recommendation
+    kelly_fraction = Column(Float, nullable=True)
+    status         = Column(String(20), nullable=False, index=True)  # certified / watchlist / rejected
+    conflict_flags = Column(JSON, nullable=True)
+
+    # Settlement (filled post-match by settler)
+    settled_correct = Column(Boolean, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    fixture    = relationship("Match", foreign_keys=[fixture_id])
+
+
+Index("idx_rollover_fixture",     RolloverCertificate.fixture_id)
+Index("idx_rollover_status",      RolloverCertificate.status)
+Index("idx_rollover_pipeline_run", RolloverCertificate.pipeline_run_id)
+
+
 class BackgroundTaskStatus(Base):
     """ENG-05: DB-backed persistent background task health monitor"""
     __tablename__ = "background_task_status"
