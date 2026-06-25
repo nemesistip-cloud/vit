@@ -14,3 +14,4 @@
 - [Pi Network integration](pi-network-integration.md) — Pi Network uses Key-based server auth (Authorization: Key <APP_SECRET>); webhook events are payment_approved / payment_ready_for_server_completion / payment_cancelled; config vars: PI_APP_ID, PI_APP_SECRET, PI_WEBHOOK_SECRET, PI_SANDBOX_MODE.
 - [Integration keys DB loader](integration-keys-db.md) — admin-saved integration keys stored under PlatformConfig key "integration:{ENV_VAR}"; loaded into os.environ at lifespan startup before print_config_status fires.
 - [Replit migration VIT Network](replit-migration-vit.md) — twa-dev/sdk silent crash + wrong Lucide icon names + CSP/frame-ancestors were the three blockers for blank page on Replit.
+- [Tailwind v4 VIT token system](tailwind-vit-token-system.md) — vit-* vars need --color-vit-* in @theme inline; touch main.tsx to bypass build cache; layout is pure Tailwind now.

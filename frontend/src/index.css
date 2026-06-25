@@ -57,9 +57,32 @@
   --color-sidebar-accent-border: var(--sidebar-accent-border);
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  --font-sans: var(--app-font-sans);
-  --font-serif: var(--app-font-serif);
-  --font-mono: var(--app-font-mono);
+  /* ── VIT brand color utilities ── */
+  --color-vit-void:         var(--vit-void);
+  --color-vit-surface:      var(--vit-surface);
+  --color-vit-surface-2:    var(--vit-surface-2);
+  --color-vit-surface-3:    var(--vit-surface-3);
+  --color-vit-border:       var(--vit-border);
+  --color-vit-border-light: var(--vit-border-light);
+  --color-vit-green:        var(--vit-green);
+  --color-vit-green-dim:    var(--vit-green-dim);
+  --color-vit-purple:       var(--vit-purple);
+  --color-vit-positive:     var(--vit-positive);
+  --color-vit-negative:     var(--vit-negative);
+  --color-vit-warning:      var(--vit-warning);
+  --color-vit-info:         var(--vit-info);
+  --color-vit-text-1:       var(--vit-text-1);
+  --color-vit-text-2:       var(--vit-text-2);
+  --color-vit-text-3:       var(--vit-text-3);
+  --color-vit-text-inverse: var(--vit-text-inverse);
+  --color-vit-gray-900:     #111827;
+  --color-vit-gray-950:     #0a0f18;
+
+  --font-sans:    var(--app-font-sans);
+  --font-serif:   var(--app-font-serif);
+  --font-mono:    var(--app-font-mono);
+  --font-display: var(--app-font-display);
+  --font-data:    var(--app-font-data);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -86,7 +109,7 @@
   --card-foreground: 220 15% 95%;
   --card-border:     240 12% 10%;
 
-  /* ── Sidebar (deeper than bg) ── */
+  /* ── Sidebar ── */
   --sidebar:                   240 16% 4%;
   --sidebar-foreground:        220 15% 88%;
   --sidebar-border:            240 12% 9%;
@@ -128,23 +151,12 @@
   --chart-5: 140  70% 50%;
 
   /* ── Typography & radius ─────── */
-  --app-font-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
-  --app-font-serif: Georgia, serif;
-  --app-font-mono:  'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  --app-font-sans:    'Inter', ui-sans-serif, system-ui, sans-serif;
+  --app-font-serif:   Georgia, serif;
+  --app-font-mono:    'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  --app-font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --app-font-data:    'JetBrains Mono', 'Space Mono', monospace;
   --radius: 0.375rem;
-
-  /* ── Shadows ─────────────────── */
-  --: 0px 1px 0px 0px hsl(0 0% 0% / 0.6);
-  --:  0px 2px 0px 0px hsl(0 0% 0% / 0.6);
-  --:  0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 1px 2px -1px hsl(0 0% 0% / 0.5);
-  --:     0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 1px 2px -1px hsl(0 0% 0% / 0.5);
-  --:  0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 2px 4px -1px hsl(0 0% 0% / 0.5);
-  --:  0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 4px 8px -1px hsl(0 0% 0% / 0.5);
-  --:  0px 2px 0px 0px hsl(0 0% 0% / 0.6), 0px 8px 16px -1px hsl(0 0% 0% / 0.5);
-  --: 0px 2px 0px 0px hsl(0 0% 0% / 0.6);
-
-  --tracking-normal: 0em;
-  --spacing: 0.25rem;
 
   /* ── Derived border colors ───── */
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -154,13 +166,14 @@
   --muted-border:           hsl(from hsl(var(--muted))       h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --accent-border:          hsl(from hsl(var(--accent))      h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --destructive-border:     hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
 }
 
-.dark {
-  /* Inherits :root dark variables */
-}
+.dark { }
 
-/* ── Light mode overrides ────────────────────────────────────── */
+/* ── Light mode overrides ── */
 .light {
   --background:      220 20% 97%;
   --foreground:      240 14% 10%;
@@ -200,13 +213,11 @@
     font-feature-settings: "ss01", "ss02", "cv01", "cv11";
   }
 
-  /* ── Selection highlight ─────── */
   ::selection {
     background: rgba(0, 245, 255, 0.15);
     color: inherit;
   }
 
-  /* ── Focus ring upgrade ──────── */
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
@@ -217,13 +228,8 @@
   input[type="search"]::-webkit-search-cancel-button {
     @apply hidden;
   }
-  [contenteditable][data-placeholder]:empty::before {
-    content: attr(data-placeholder);
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
-  }
 
-  /* ── Elevation system ────────── */
+  /* ── Elevation system ── */
   .toggle-elevate::before,
   .toggle-elevate-2::before {
     content: "";
@@ -240,16 +246,12 @@
     inset: -1px;
   }
   .hover-elevate:not(.no-default-hover-elevate),
-  .active-elevate:not(.no-default-active-elevate),
-  .hover-elevate-2:not(.no-default-hover-elevate),
-  .active-elevate-2:not(.no-default-active-elevate) {
+  .active-elevate:not(.no-default-active-elevate) {
     position: relative;
     z-index: 0;
   }
   .hover-elevate:not(.no-default-hover-elevate)::after,
-  .active-elevate:not(.no-default-active-elevate)::after,
-  .hover-elevate-2:not(.no-default-hover-elevate)::after,
-  .active-elevate-2:not(.no-default-active-elevate)::after {
+  .active-elevate:not(.no-default-active-elevate)::after {
     content: "";
     pointer-events: none;
     position: absolute;
@@ -257,20 +259,11 @@
     border-radius: inherit;
     z-index: 999;
   }
-  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
-  .active-elevate:active:not(.no-default-active-elevate)::after {
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after {
     background-color: var(--elevate-1);
   }
-  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
-  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+  .active-elevate:active:not(.no-default-active-elevate)::after {
     background-color: var(--elevate-2);
-  }
-  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
-  .border.active-elevate:not(.no-active-interaction-elevate)::after,
-  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
-  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
-  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
-    inset: -1px;
   }
 
   /* ── Tabular nums for metrics ── */
@@ -278,13 +271,58 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ── Smooth page transitions ─── */
+  /* ── Page transition ── */
   .page-enter {
     animation: vit-fade-in 0.25s var(--vit-ease-out) forwards;
+  }
+
+  /* ── Ticker tape ── */
+  .vit-ticker-wrap {
+    overflow: hidden;
+    position: relative;
+    mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
+  }
+
+  .vit-ticker-content {
+    display: flex;
+    width: max-content;
+    animation: ticker-scroll 40s linear infinite;
+  }
+
+  .vit-ticker-wrap:hover .vit-ticker-content {
+    animation-play-state: paused;
+  }
+
+  /* ── Gradient text ── */
+  .vit-gradient-text {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, #00F5C8 50%, hsl(var(--secondary)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Page container ── */
+  .vit-page-container {
+    min-height: 100vh;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  /* ── Glow helpers ── */
+  .glow-green {
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.25);
+  }
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(0, 200, 255, 0.2);
   }
 }
 
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
