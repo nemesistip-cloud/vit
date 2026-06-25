@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import PredictionRow from "@/components/cards/PredictionRow";
 import CategoryPills from "@/components/layout/CategoryPills";
 import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
-import EmptyState from "@/components/empty-state";
+import { EmptyState } from "@/components/empty-state";
 import { useLocation } from "wouter";
 
 export default function MatchesPage() {

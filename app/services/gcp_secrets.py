@@ -41,7 +41,11 @@ class GCPSecretsClient:
             logger.debug("GCP secret loading skipped — GCP_PROJECT_ID not set")
             return 0
 
-        client = _secretmanager.SecretManagerServiceClient()  # type: ignore[union-attr]
+        try:
+            client = _secretmanager.SecretManagerServiceClient()  # type: ignore[union-attr]
+        except Exception as exc:
+            logger.info("GCP Secret Manager client unavailable (no credentials): %s", exc)
+            return 0
         count  = 0
         for name in names:
             try:

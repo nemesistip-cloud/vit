@@ -52,3 +52,9 @@ build = ["bash", "-c", "cd frontend && npm install --prefer-offline --silent && 
 
 [userenv.shared]
 GCP_PROJECT_ID = "vitnetwork-63818"
+PORT = "5000"
+ENVIRONMENT = "development"
+APP_VERSION = "5.5.0"
+MAX_PREDICTIONS_PER_DAY = "20"
+BOOTSTRAP_MATCH_MONTHS = "12"
+THESPORTSDB_API_KEY = "3"

@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import CategoryPills from "@/components/layout/CategoryPills";
 import MetricCard from "@/components/cards/MetricCard";
 import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
-import EmptyState from "@/components/empty-state";
+import { EmptyState } from "@/components/empty-state";
 
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");

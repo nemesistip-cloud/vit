@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import MarkdownContent from "@/components/MarkdownContent";
+import { MarkdownContent } from "@/components/MarkdownContent";
 
 const SUGGESTED_PROMPTS = [
   "What are the best value bets today?",
