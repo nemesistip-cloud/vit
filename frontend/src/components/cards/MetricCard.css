@@ -1,0 +1,62 @@
+.metric-card {
+  background: var(--vit-surface);
+  border: 1px solid var(--vit-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.metric-card--hero {
+  background: linear-gradient(135deg, var(--vit-surface) 0%, var(--vit-surface-2) 100%);
+  border-color: var(--vit-border-light);
+  padding: var(--space-6);
+}
+
+.metric-card--compact {
+  padding: var(--space-3) var(--space-4);
+}
+
+.metric-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.metric-card__label {
+  font-size: var(--text-xs);
+  color: var(--vit-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.metric-card__value {
+  font-family: var(--font-data);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--vit-text-1);
+  line-height: 1.2;
+}
+
+.metric-card--hero .metric-card__value {
+  font-family: var(--font-display);
+  font-size: var(--text-hero);
+  font-weight: 700;
+}
+
+.metric-card__change {
+  font-family: var(--font-data);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.metric-card__change--pos { color: var(--vit-positive); }
+.metric-card__change--neg { color: var(--vit-negative); }
+
+.metric-card__subtitle {
+  font-size: var(--text-sm);
+  color: var(--vit-text-2);
+}

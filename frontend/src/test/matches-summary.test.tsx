@@ -13,7 +13,7 @@ vi.mock("@/api-client", () => ({
 }));
 
 vi.mock("@/lib/apiClient", () => ({
-  apiGet: vi.fn(),
+  apiGet: vi.fn(() => Promise.resolve({ matches: [] })),
 }));
 
 vi.mock("@/lib/websocket", () => ({
@@ -29,7 +29,7 @@ describe("MatchesPage Summary Logic", () => {
         <MatchesPage />
       </QueryClientProvider>
     );
-    // The summary line should be present
-    expect(screen.getByText(/Matches found:/i)).toBeInTheDocument();
+    // The upgraded UI uses different text: "Matches Found"
+    expect(screen.getByText(/Matches Found/i)).toBeInTheDocument();
   });
 });

@@ -1,0 +1,60 @@
+.category-pills {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  white-space: nowrap;
+}
+
+.category-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.category-pills__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 14px;
+  height: 34px;
+  min-height: 34px; /* shorter than 44px is OK for repeated pill tabs */
+  background: var(--vit-surface-2);
+  border: 1px solid var(--vit-border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--vit-text-2);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.category-pills__item:hover {
+  color: var(--vit-text-1);
+  border-color: var(--vit-border-light);
+}
+
+.category-pills__item--active {
+  background: var(--vit-green-glow);
+  border-color: var(--vit-green);
+  color: var(--vit-green);
+  font-weight: 600;
+}
+
+.category-pills__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--vit-green);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--vit-text-inverse);
+}
