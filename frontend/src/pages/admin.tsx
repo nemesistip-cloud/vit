@@ -163,23 +163,12 @@ function DashboardTab() {
     queryFn: () => apiGet("/api/admin/system/health"),
     refetchInterval: 15000,
   });
-  const { data: cloudStorage, isLoading: csLoading } = useQuery<CloudStorageSummary>({
-    queryKey: ["admin-cloud-storage"],
-    queryFn: () => apiGet("/api/admin/cloud/storage"),
-    refetchInterval: 60000,
-    retry: false,
-  });
   const qc = useQueryClient();
 
   const clearCache = useMutation({
     mutationFn: () => apiPost("/api/admin/system/cache/clear", {}),
     onSuccess: () => toast.success("Cache cleared"),
     onError: () => toast.error("Failed to clear cache"),
-  });
-  const backup = useMutation({
-    mutationFn: () => apiPost("/api/admin/system/backup", {}),
-    onSuccess: (d: any) => toast.success(`Backup: ${d.backup}`),
-    onError: () => toast.error("Backup failed"),
   });
   const fetchFixtures = useMutation({
     mutationFn: () => apiPost("/api/admin/matches/fetch-fixtures?count=50&days=14", {}),
@@ -284,97 +273,6 @@ function DashboardTab() {
         ))}
       </div>
 
-      {/* ── VIT Cloud Storage Capacity ──────────────────────────────── */}
-      <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-        <div className="px-4 pt-4 pb-3 border-b border-gray-800 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-4 rounded-full bg-teal-400/80" />
-            <Server className="w-3.5 h-3.5 text-teal-400" />
-            <span className="text-sm font-semibold text-white">VIT Cloud Storage</span>
-            {cloudStorage?.summary?.alert && (
-              <Badge className="text-[10px] bg-red-500/20 text-red-400 border-red-500/30 animate-pulse">⚠ High Usage</Badge>
-            )}
-          </div>
-          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-gray-500 hover:text-teal-400"
-            onClick={() => qc.invalidateQueries({ queryKey: ["admin-cloud-storage"] })}>
-            <RefreshCw className="w-3 h-3" />
-          </Button>
-        </div>
-        <div className="p-4">
-          {csLoading ? (
-            <div className="grid grid-cols-3 gap-3">
-              {[1,2,3].map(i => <div key={i} className="h-16 rounded-lg bg-gray-800 animate-pulse" />)}
-            </div>
-          ) : cloudStorage ? (
-            <div className="space-y-4">
-              {/* Capacity Meters Row */}
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "Used",  val: cloudStorage.disk.used_gb,  color: cloudStorage.disk.utilization_pct > 85 ? "text-[#FF4444]" : cloudStorage.disk.utilization_pct > 60 ? "text-[#FFB800]" : "text-[#00E676]" },
-                  { label: "Free",  val: cloudStorage.disk.free_gb,  color: "text-white" },
-                  { label: "Total", val: cloudStorage.disk.total_gb, color: "text-gray-300" },
-                ].map(m => (
-                  <div key={m.label} className="bg-gray-800/60 rounded-lg p-3 text-center border border-gray-700/40">
-                    <div className={`text-xl font-bold font-mono tabular-nums ${m.color}`}>
-                      {m.val.toFixed(1)} <span className="text-xs font-normal text-gray-500">GB</span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wide">{m.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Progress Bar */}
-              <div>
-                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                  <span>Tachyon Network Storage</span>
-                  <span className={cloudStorage.disk.utilization_pct > 85 ? "text-red-400 font-bold" : cloudStorage.disk.utilization_pct > 60 ? "text-[#FFB800]" : "text-gray-400"}>
-                    {cloudStorage.disk.utilization_pct}%
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-
-                      cloudStorage.disk.utilization_pct > 85 ? "bg-[#FF4444]" : cloudStorage.disk.utilization_pct > 60 ? "bg-[#FFB800]" : "bg-[#00E676]"
-                    }`}
-                    style={{ width: `${Math.min(cloudStorage.disk.utilization_pct, 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Tachyon + Providers Row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700/30">
-                  <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Tachyon Files</div>
-                  <div className="text-lg font-bold text-teal-300 font-mono">
-                    {cloudStorage.summary.tachyon_files.toLocaleString()}
-                  </div>
-                  <div className="text-[10px] text-gray-600">
-                    {(cloudStorage.summary.tachyon_bytes / (1024**3)).toFixed(3)} GB stored
-                  </div>
-                </div>
-                <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700/30">
-                  <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Active Providers</div>
-                  <div className="space-y-0.5">
-                    {cloudStorage.summary.providers_active.map((p, i) => (
-                      <div key={i} className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
-                        <span className="text-[10px] text-gray-300 truncate">{p}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-600 text-sm">
-              <Server className="w-6 h-6 mx-auto mb-1 opacity-30" />
-              Storage data unavailable
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="grid lg:grid-cols-2 gap-4">
 
         {/* ── System Health Matrix ─────────────────────────────────── */}
@@ -457,14 +355,10 @@ function DashboardTab() {
           </div>
           <div className="p-4 grid grid-cols-2 gap-2">
             {[
-              { label: "Refresh Stats",   icon: RefreshCw, action: () => qc.invalidateQueries({ queryKey: ["admin-stats"] }),  cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",    loading: false },
-              { label: "Clear Cache",     icon: Zap,        action: () => clearCache.mutate(),    cls: "from-purple-500/10 border-purple-500/20 text-purple-400 hover:border-purple-400/60",  loading: clearCache.isPending },
-              { label: "Create Backup",   icon: Database,   action: () => backup.mutate(),         cls: "from-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:border-emerald-400/60", loading: backup.isPending },
-              { label: "Reload Health",   icon: Activity,   action: () => qc.invalidateQueries({ queryKey: ["admin-health"] }), cls: "from-amber-500/10 border-amber-500/20 text-amber-400 hover:border-amber-400/60",  loading: false },
-              { label: "Fetch Fixtures",  icon: Download,   action: () => fetchFixtures.mutate(), cls: "from-rose-500/10 border-rose-500/20 text-rose-400 hover:border-rose-400/60",         loading: fetchFixtures.isPending },
-              { label: "Sync + Seed",    icon: RefreshCw,  action: () => syncAndSeed.mutate(),   cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",          loading: syncAndSeed.isPending },
-              { label: "Run Ensemble",   icon: Brain,       action: () => runEnsemble.mutate(),   cls: "from-teal-500/10 border-teal-500/20 text-teal-400 hover:border-teal-400/60",          loading: runEnsemble.isPending },
-              { label: "Cloud Storage",  icon: Server,      action: () => qc.invalidateQueries({ queryKey: ["admin-cloud-storage"] }), cls: "from-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:border-indigo-400/60", loading: csLoading },
+              { label: "Fetch Fixtures", icon: Download,  action: () => fetchFixtures.mutate(), cls: "from-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:border-cyan-400/60",      loading: fetchFixtures.isPending },
+              { label: "Sync + Seed",   icon: RefreshCw, action: () => syncAndSeed.mutate(),   cls: "from-purple-500/10 border-purple-500/20 text-purple-400 hover:border-purple-400/60", loading: syncAndSeed.isPending },
+              { label: "Run Ensemble",  icon: Brain,     action: () => runEnsemble.mutate(),   cls: "from-teal-500/10 border-teal-500/20 text-teal-400 hover:border-teal-400/60",        loading: runEnsemble.isPending },
+              { label: "Clear Cache",   icon: Zap,       action: () => clearCache.mutate(),    cls: "from-amber-500/10 border-amber-500/20 text-amber-400 hover:border-amber-400/60",    loading: clearCache.isPending },
             ].map(a => (
               <button key={a.label}
                 disabled={a.loading}
@@ -5210,9 +5104,8 @@ export default function AdminPage() {
       label: "INTELLIGENCE",
       color: "text-purple-400",
       tabs: [
-        { value: "models",      label: "Models",      icon: Cpu },
-        { value: "calibration", label: "Calibration", icon: Activity },
-        { value: "agents",      label: "Agents",      icon: Brain },
+        { value: "models",  label: "Models",  icon: Cpu },
+        { value: "agents",  label: "Agents",  icon: Brain },
       ],
     },
     {
@@ -5279,9 +5172,6 @@ export default function AdminPage() {
               <div className="text-[10px] text-gray-500 uppercase tracking-widest">VIT Network — v5.5.0</div>
             </div>
           </div>
-
-          {/* Center: health pills */}
-          <AdminHealthPills />
 
           {/* Right: user */}
           <div className="flex items-center gap-2.5 shrink-0">
@@ -5350,7 +5240,6 @@ export default function AdminPage() {
           <TabsContent value="kyc"><KYCTab /></TabsContent>
           <TabsContent value="tasks"><TasksTab /></TabsContent>
           <TabsContent value="models"><ModelsTab /></TabsContent>
-          <TabsContent value="calibration"><CalibrationTab /></TabsContent>
           <TabsContent value="leagues"><LeaguesTab /></TabsContent>
           <TabsContent value="markets"><MarketsTab /></TabsContent>
           <TabsContent value="currency"><CurrencyTab /></TabsContent>
