@@ -259,24 +259,23 @@ function DashboardTab() {
   ] as { label: string; ok: boolean; optional: boolean; limited?: boolean; icon: any; detail?: string }[];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
       {/* ── KPI Cards ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {kpis.map(k => (
-          <div key={k.label} className={`relative overflow-hidden rounded-xl border ${k.border} bg-gray-900 ${k.glow} transition-all hover:scale-[1.01]`}>
+          <div key={k.label} className={`relative overflow-hidden rounded-xl border ${k.border} bg-gray-900 transition-all active:scale-[0.98]`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${k.gradient}`} />
-            <div className="relative p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className={`p-2 rounded-lg bg-gray-800/80 border border-gray-700/50`}>
-                  <k.icon className={`w-4 h-4 ${k.iconColor}`} />
+            <div className="relative p-3 sm:p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div className={`p-1.5 rounded-lg bg-gray-800/80 border border-gray-700/50`}>
+                  <k.icon className={`w-3.5 h-3.5 ${k.iconColor}`} />
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
               </div>
-              <div className={`text-2xl sm:text-3xl font-bold font-mono tabular-nums ${k.valueCls}`}>
+              <div className={`text-xl sm:text-2xl font-bold font-mono tabular-nums ${k.valueCls}`}>
                 {sLoading ? "—" : (typeof k.value === "number" ? k.value.toLocaleString() : (k.value ?? "—"))}
               </div>
-              <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">{k.label}</div>
+              <div className="text-[10px] text-gray-500 mt-1 font-medium uppercase tracking-wide leading-tight">{k.label}</div>
               {k.sub && (
                 <div className="text-[10px] text-gray-600 mt-0.5 truncate">{k.sub}</div>
               )}
@@ -5315,37 +5314,35 @@ export default function AdminPage() {
       </div>
 
       {/* ── Main Content ───────────────────────────────────────────── */}
-      <div className="max-w-screen-xl mx-auto px-3 sm:px-5 py-5">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-5 py-4 pb-32 sm:pb-20">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
 
-          {/* Grouped Tab Navigation — TabsList must wrap ALL TabsTrigger elements */}
-          <div className="mb-6">
-            <TabsList className="h-auto flex flex-wrap gap-x-1 gap-y-1.5 bg-transparent p-0 justify-start border-0 rounded-none">
-              {tabGroups.map((group, gi) => (
-                <div key={group.label} className="flex items-center gap-1">
-                  {gi > 0 && <div className="w-px h-5 bg-gray-700 mx-1 hidden sm:block" />}
-                  <div className="flex items-center gap-0.5">
-                    {/* Group label — only on desktop */}
-                    <span className={`hidden lg:block text-[9px] font-bold tracking-widest uppercase px-1 ${group.color} opacity-70`}>
-                      {group.label}
-                    </span>
-                    {group.tabs.map(tab => (
-                      <TabsTrigger
-                        key={tab.value}
-                        value={tab.value}
-                        className={`${groupColor[group.label]} flex items-center gap-1.5 text-gray-400 hover:text-white
-                          px-3 py-1.5 rounded-md transition-all text-xs font-medium
-                          data-[state=inactive]:bg-transparent data-[state=inactive]:border data-[state=inactive]:border-transparent
-                          data-[state=inactive]:hover:bg-gray-800/60 data-[state=inactive]:hover:border-gray-700`}
-                      >
-                        <tab.icon className="w-3.5 h-3.5 shrink-0" />
-                        <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
-                      </TabsTrigger>
-                    ))}
+          {/* Grouped Tab Navigation — horizontally scrollable on mobile */}
+          <div className="mb-5 -mx-3 sm:mx-0">
+            <div className="overflow-x-auto scrollbar-none px-3 sm:px-0">
+              <TabsList className="h-auto inline-flex flex-nowrap gap-x-0.5 gap-y-1.5 bg-transparent p-0 border-0 rounded-none min-w-max">
+                {tabGroups.map((group, gi) => (
+                  <div key={group.label} className="flex items-center gap-0.5">
+                    {gi > 0 && <div className="w-px h-4 bg-gray-700 mx-1.5 shrink-0" />}
+                    <div className="flex items-center gap-0.5">
+                      {group.tabs.map(tab => (
+                        <TabsTrigger
+                          key={tab.value}
+                          value={tab.value}
+                          className={`${groupColor[group.label]} flex items-center gap-1.5 text-gray-400 hover:text-white
+                            px-2.5 py-1.5 rounded-md transition-all text-[11px] font-medium whitespace-nowrap
+                            data-[state=inactive]:bg-transparent data-[state=inactive]:border data-[state=inactive]:border-transparent
+                            data-[state=inactive]:hover:bg-gray-800/60 data-[state=inactive]:hover:border-gray-700`}
+                        >
+                          <tab.icon className="w-3 h-3 shrink-0" />
+                          <span>{tab.label}</span>
+                        </TabsTrigger>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </TabsList>
+                ))}
+              </TabsList>
+            </div>
           </div>
 
           <TabsContent value="dashboard"><DashboardTab /></TabsContent>

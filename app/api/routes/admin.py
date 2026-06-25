@@ -410,6 +410,107 @@ async def get_config_status(current_user=Depends(get_current_admin)):
 async def admin_health():
     return {"status": "ok"}
 
+
+@router.get("/system/health")
+async def admin_system_health(db: AsyncSession = Depends(get_db)):
+    """Full system health check — returned shape matches the SystemHealth TypeScript interface."""
+    import psutil
+
+    # ── Database ──────────────────────────────────────────────────────────
+    db_ok = False
+    try:
+        await db.execute(__import__("sqlalchemy").text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        pass
+
+    # ── Redis ─────────────────────────────────────────────────────────────
+    redis_ok: bool | None = None
+    try:
+        from app.core.redis import get_redis
+        r = await get_redis()
+        if r is not None:
+            await r.ping()
+            redis_ok = True
+        else:
+            redis_ok = None  # fakeredis / not configured
+    except Exception:
+        redis_ok = False
+
+    # ── ML Models ─────────────────────────────────────────────────────────
+    models_loaded = 0
+    try:
+        from app.core.dependencies import get_orchestrator
+        orch = get_orchestrator()
+        if orch:
+            status = orch.get_model_status()
+            models_loaded = status.get("ready", 0)
+    except Exception:
+        pass
+
+    # ── External APIs ─────────────────────────────────────────────────────
+    from app.config import FOOTBALL_DATA_API_KEY, THE_ODDS_API_KEY, ISPORTS_API_KEY
+    football_api: bool | str | None = None
+    if FOOTBALL_DATA_API_KEY or ISPORTS_API_KEY:
+        football_api = True
+    odds_api: bool | None = True if THE_ODDS_API_KEY else None
+
+    # ── System Resources ──────────────────────────────────────────────────
+    cpu_pct = 0.0
+    mem_pct = 0.0
+    disk_pct = 0.0
+    try:
+        cpu_pct = psutil.cpu_percent(interval=0.2)
+        mem_pct = psutil.virtual_memory().percent
+        disk_usage = psutil.disk_usage("/")
+        disk_pct = disk_usage.percent
+    except Exception:
+        pass
+
+    return {
+        "api": True,
+        "database": db_ok,
+        "redis": redis_ok,
+        "models_loaded": models_loaded,
+        "cpu_pct": round(cpu_pct, 1),
+        "mem_pct": round(mem_pct, 1),
+        "disk_pct": round(disk_pct, 1),
+        "football_api": football_api,
+        "odds_api": odds_api,
+    }
+
+
+@router.get("/fixture-health")
+async def get_fixture_health(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):
+    """Quick summary of fixture data health — counts upcoming vs settled matches."""
+    from app.db.models import Match
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    week_ago = now - timedelta(days=7)
+    week_ahead = now + timedelta(days=7)
+
+    try:
+        total = (await db.execute(select(func.count(Match.id)))).scalar() or 0
+        upcoming = (await db.execute(
+            select(func.count(Match.id)).where(Match.date >= now)
+        )).scalar() or 0
+        recent = (await db.execute(
+            select(func.count(Match.id)).where(Match.date >= week_ago, Match.date < now)
+        )).scalar() or 0
+        next_week = (await db.execute(
+            select(func.count(Match.id)).where(Match.date >= now, Match.date <= week_ahead)
+        )).scalar() or 0
+        return {
+            "total": total,
+            "upcoming": upcoming,
+            "recent_7d": recent,
+            "next_7d": next_week,
+            "status": "ok" if upcoming > 0 else "warning",
+            "message": f"{upcoming} upcoming fixtures" if upcoming > 0 else "No upcoming fixtures — run Fetch Fixtures",
+        }
+    except Exception as e:
+        return {"total": 0, "upcoming": 0, "recent_7d": 0, "next_7d": 0, "status": "error", "message": str(e)}
+
 @router.get("/models/status")
 async def get_models_status():
     orch = get_orchestrator()
@@ -1011,6 +1112,44 @@ async def sync_fixtures(
         "fixtures": result,
         "predictions_seeded": seeded,
         "days_ahead": days,
+    }
+
+
+@router.post("/matches/backfill-ft-results")
+async def backfill_ft_results(
+    settle_real: bool = True,
+    simulate_local: bool = True,
+    days_back: int = 14,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
+    """Backfill full-time results for past matches and optionally settle predictions."""
+    settled = 0
+    backfilled = 0
+    errors = []
+
+    try:
+        from app.services.ft_backfill import backfill_ft_results as _backfill
+        result = await _backfill(db, days_back=days_back, settle=settle_real)
+        backfilled = result.get("backfilled", 0)
+        settled = result.get("settled", 0)
+    except ImportError:
+        # If the backfill service isn't available, settle pending predictions directly
+        try:
+            from app.services.prediction_seeder import settle_past_predictions
+            settled = await settle_past_predictions(db, days_back=days_back)
+        except Exception as se:
+            errors.append(str(se))
+    except Exception as e:
+        logger.error(f"[admin] backfill_ft_results error: {e}")
+        errors.append(str(e))
+
+    return {
+        "status": "ok" if not errors else "partial",
+        "backfilled": backfilled,
+        "settled": settled,
+        "days_back": days_back,
+        "errors": errors,
     }
 
 

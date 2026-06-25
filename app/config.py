@@ -267,21 +267,42 @@ REDIS_URL: str             = _clean_redis_url(get_env("REDIS_URL", ""))
 def _resolve_database_url() -> str:
     """Return the best available database URL.
 
+    Priority order:
+      1. SUPABASE_DATABASE_URL / VIT_DATABASE_URL / DATABASE_URL  (explicit)
+      2. Replit's auto-provisioned PostgreSQL (PGHOST + PGDATABASE + PGUSER + PGPASSWORD + PGPORT)
+      3. SQLite fallback (development only)
+
     If the URL points to a direct Supabase host (db.<ref>.supabase.co) which
     is unreachable from many hosted environments, automatically rewrite it to
     the Session Pooler URL (aws-*.pooler.supabase.com) which is IPv4-reachable.
-
-    Handles passwords that contain '@' by splitting on the LAST '@' to find
-    the host, rather than relying on standard URL parsing which breaks on such
-    passwords.
     """
     import re
+    from urllib.parse import quote as _q
+
+    # ── 1. Explicit database URL (highest priority) ────────────────────────
     raw = (
         get_env("SUPABASE_DATABASE_URL", "")
         or get_env("VIT_DATABASE_URL", "")
         or get_env("DATABASE_URL", "")
-        or "sqlite+aiosqlite:///./vit.db"
     )
+
+    # ── 2. Replit built-in PostgreSQL env vars ─────────────────────────────
+    if not raw:
+        pg_host = get_env("PGHOST", "")
+        pg_db   = get_env("PGDATABASE", "")
+        pg_user = get_env("PGUSER", "")
+        pg_pass = get_env("PGPASSWORD", "")
+        pg_port = get_env("PGPORT", "5432")
+        if pg_host and pg_db and pg_user:
+            raw = (
+                f"postgresql+asyncpg://{_q(pg_user, safe='')}:{_q(pg_pass, safe='')}@"
+                f"{pg_host}:{pg_port}/{pg_db}"
+            )
+            sys.stderr.write("[INFO] Using Replit built-in PostgreSQL (PGHOST).\n")
+
+    # ── 3. SQLite development fallback ────────────────────────────────────
+    if not raw:
+        raw = "sqlite+aiosqlite:///./vit.db"
 
     # Only attempt rewrite for postgresql:// URLs pointing at direct Supabase
     scheme_match = re.match(r'^(postgresql(?:\+\w+)?://)', raw)
