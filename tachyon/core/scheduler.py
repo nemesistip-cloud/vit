@@ -3,14 +3,22 @@ from typing import List, Dict, Any, Optional
 import logging
 from tachyon.core.shredder import TachyonShredder
 
-_UPLOAD_SEM = asyncio.Semaphore(4)
-_DOWNLOAD_SEM = asyncio.Semaphore(6)
+_UPLOAD_SEM = asyncio.Semaphore(2)   # reduced from 4 to limit memory pressure
+_DOWNLOAD_SEM = asyncio.Semaphore(4)
+
+# Circuit-breaker: if this fraction of tasks fail in the first probe, abort early
+_CIRCUIT_THRESHOLD = 0.8            # >80% fail → stop the burst
+_PROBE_SIZE = 4                     # probe this many tasks first
+
+logger = logging.getLogger(__name__)
+
 
 class TachyonScheduler:
     """
     Manages the Tachyon Burst Transfer Protocol (TBTP).
     Coordinates parallel requests across multiple cloud provider accounts.
     Semaphore-limited to avoid concurrent SSL exhaustion / segfaults.
+    Circuit-breaker aborts early when all providers are consistently failing.
     """
 
     def __init__(self, providers: List[Any]):
@@ -20,6 +28,7 @@ class TachyonScheduler:
     async def upload_burst(self, data: bytes, file_id: str) -> List[Any]:
         """
         Burst upload: Shreds file and dispatches fragments with bounded concurrency.
+        Uses a circuit-breaker to abort early when providers are failing.
         """
         if not self.providers:
             raise ValueError("No providers configured")
@@ -30,21 +39,49 @@ class TachyonScheduler:
         async def _upload_one(frag: bytes, fragment_name: str, provider: Any) -> Any:
             async with _UPLOAD_SEM:
                 try:
-                    return await provider.upload_fragment(frag, fragment_name)
-                except Exception as e:
-                    logging.getLogger(__name__).error(
-                        f"[tachyon] upload {fragment_name} failed: {e}"
+                    result = await asyncio.wait_for(
+                        provider.upload_fragment(frag, fragment_name),
+                        timeout=8.0  # hard per-task timeout — prevents native-code hangs
                     )
+                    return result
+                except asyncio.TimeoutError:
+                    logger.warning("[tachyon] upload %s timed out", fragment_name)
+                    return TimeoutError(fragment_name)
+                except Exception as e:
+                    logger.error("[tachyon] upload %s failed: %s", fragment_name, e)
                     return e
 
-        tasks = []
-        for i, frag in enumerate(all_fragments):
+        # ── Circuit-breaker probe ─────────────────────────────────────────────
+        # Test the first _PROBE_SIZE tasks; if nearly all fail, skip the rest.
+        probe_count = min(_PROBE_SIZE, len(all_fragments))
+        probe_tasks = []
+        for i in range(probe_count):
             provider = self.providers[i % len(self.providers)]
             fragment_name = f"tachyon_{file_id}_{i}"
-            tasks.append(_upload_one(frag, fragment_name, provider))
+            probe_tasks.append(_upload_one(all_fragments[i], fragment_name, provider))
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        return results
+        probe_results = await asyncio.gather(*probe_tasks, return_exceptions=True)
+        failures = sum(1 for r in probe_results if isinstance(r, (Exception, BaseException)))
+        fail_rate = failures / max(probe_count, 1)
+
+        if fail_rate >= _CIRCUIT_THRESHOLD and len(all_fragments) > probe_count:
+            logger.warning(
+                "[tachyon] circuit-breaker: %d/%d probe tasks failed (%.0f%%) — "
+                "aborting burst upload of %d remaining fragments",
+                failures, probe_count, fail_rate * 100, len(all_fragments) - probe_count,
+            )
+            # Return probe results + None placeholders for skipped fragments
+            return list(probe_results) + [None] * (len(all_fragments) - probe_count)
+
+        # ── Full burst (probes passed) ────────────────────────────────────────
+        remaining_tasks = []
+        for i in range(probe_count, len(all_fragments)):
+            provider = self.providers[i % len(self.providers)]
+            fragment_name = f"tachyon_{file_id}_{i}"
+            remaining_tasks.append(_upload_one(all_fragments[i], fragment_name, provider))
+
+        remaining_results = await asyncio.gather(*remaining_tasks, return_exceptions=True)
+        return list(probe_results) + list(remaining_results)
 
     async def download_burst(self, fragment_names: List[str], fragment_to_provider_map: Dict[str, int], size_bytes: int) -> bytes:
         """
@@ -53,11 +90,12 @@ class TachyonScheduler:
         async def _download_one(name: str, provider: Any) -> Any:
             async with _DOWNLOAD_SEM:
                 try:
-                    return await provider.download_fragment(name)
-                except Exception as e:
-                    logging.getLogger(__name__).error(
-                        f"[tachyon] download {name} failed: {e}"
+                    return await asyncio.wait_for(
+                        provider.download_fragment(name),
+                        timeout=15.0
                     )
+                except Exception as e:
+                    logger.error("[tachyon] download %s failed: %s", name, e)
                     return None
 
         tasks = []
@@ -73,7 +111,6 @@ class TachyonScheduler:
         data_shards = []
         parity_shards = []
 
-        # Split results into data and parity based on order in manifest
         num_data = (size_bytes + 4095) // 4096
 
         for i, res in enumerate(results):
@@ -119,7 +156,10 @@ class TachyonScheduler:
         async def _repair_one(frag: bytes, fragment_name: str, provider: Any) -> Any:
             async with _UPLOAD_SEM:
                 try:
-                    return await provider.upload_fragment(frag, fragment_name)
+                    return await asyncio.wait_for(
+                        provider.upload_fragment(frag, fragment_name),
+                        timeout=8.0
+                    )
                 except Exception as e:
                     return e
 
@@ -141,7 +181,6 @@ class TachyonScheduler:
         fragment_to_provider_map: Dict[str, int],
     ) -> None:
         """Background repair: re-upload missing fragments after a successful decode."""
-        logger = logging.getLogger(__name__)
         for idx in erased_indices:
             if idx >= len(fragment_names):
                 continue
@@ -156,7 +195,10 @@ class TachyonScheduler:
                 continue
             async with _UPLOAD_SEM:
                 try:
-                    await provider.upload_fragment(all_fragments[idx], fragment_name)
-                    logger.info(f"[tachyon] repaired fragment {fragment_name}")
+                    await asyncio.wait_for(
+                        provider.upload_fragment(all_fragments[idx], fragment_name),
+                        timeout=8.0
+                    )
+                    logger.info("[tachyon] repaired fragment %s", fragment_name)
                 except Exception as e:
-                    logger.error(f"[tachyon] repair failed for {fragment_name}: {e}")
+                    logger.error("[tachyon] repair failed for %s: %s", fragment_name, e)

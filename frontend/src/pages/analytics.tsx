@@ -138,7 +138,7 @@ export default function AnalyticsPage() {
                            <td className="p-4 text-center">
                               <Badge className="bg-vit-green-glow text-vit-green border-vit-green/20 text-[10px] font-bold">84.5%</Badge>
                            </td>
-                           <td className="p-4 text-right font-mono text-sm font-bold text-vit-green">+{((Math.random() * 50) + 10).toFixed(1)}%</td>
+                           <td className="p-4 text-right font-mono text-sm font-bold text-vit-green">{entry?.yield_pct != null ? `+${entry.yield_pct.toFixed(1)}%` : entry?.roi != null ? `+${entry.roi.toFixed(1)}%` : '--'}</td>
                         </tr>
                      ))}
                   </tbody>

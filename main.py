@@ -762,7 +762,8 @@ async def _run_bootstrap(app, _done_event):
                             _db.add(_Wallet(id=_new_wallet_id, user_id=_u.id, vitcoin_balance=_welcome_bonus))
                             _db.add(_WT(
                                 wallet_id=_new_wallet_id, user_id=_u.id, type="welcome_bonus",
-                                amount=_welcome_bonus, currency="VITCoin", status="confirmed", reference="welcome_bonus",
+                                amount=_welcome_bonus, currency="VITCoin", direction="credit",
+                                status="confirmed", reference="welcome_bonus",
                                 processed_at=_datetime.now(_timezone.utc).replace(tzinfo=None)
                             ))
                         await _db.commit()
@@ -2601,14 +2602,30 @@ async def serve_spa(full_path: str = ""):
 
 
 async def ping_service_loop():
-    """Background task to keep the service active by pinging a URL every 50 seconds."""
+    """Background task to keep the Render service alive by self-pinging every 45 seconds.
+
+    Priority order for ping URL:
+      1. RENDER_EXTERNAL_URL  (auto-provided by Render on all paid/free tiers)
+      2. PUBLIC_APP_URL       (manually set by operator)
+      3. DB row ping_service_url
+    The ping is always enabled when a URL is found; DB row ping_service_enabled
+    can override to "false" to disable explicitly.
+    """
     import httpx
     import asyncio
     from app.db.database import AsyncSessionLocal
     from app.modules.wallet.models import PlatformConfig
     from sqlalchemy import select
 
-    print("  🛰️  Ping Service: loop starting...")
+    # Resolve base URL from environment immediately (no DB needed)
+    _env_url = (
+        os.getenv("RENDER_EXTERNAL_URL") or
+        os.getenv("PUBLIC_APP_URL") or
+        ""
+    ).rstrip("/")
+    _ping_url = (_env_url + "/ping") if _env_url else ""
+
+    print(f"  🛰️  Ping Service: loop starting (url={_ping_url or 'from DB'})")
     while True:
         try:
             async with AsyncSessionLocal() as db:
@@ -2620,16 +2637,20 @@ async def ping_service_loop():
                     v = row.value
                     return v.get("value") if isinstance(v, dict) else v
 
-                enabled = _extract(enabled_row) == "true"
-                url = _extract(url_row)
+                db_disabled = _extract(enabled_row) == "false"
+                db_url = _extract(url_row)
 
-            if enabled and url:
+            # Determine final URL and enabled state
+            final_url = _ping_url or db_url
+            enabled = (not db_disabled) and bool(final_url)
+
+            if enabled and final_url:
                 async with httpx.AsyncClient(timeout=10.0) as client:
-                    await client.get(url)
+                    await client.get(final_url)
         except Exception:
             pass
 
-        await asyncio.sleep(50)
+        await asyncio.sleep(45)
 
 if __name__ == "__main__":
     import uvicorn

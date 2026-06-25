@@ -74,6 +74,7 @@ const RemittancePage = lazyRetry(() => import("@/pages/remittance"));
 const CommunityPage = lazyRetry(() => import("@/pages/community"));
 const CampusPage = lazyRetry(() => import("@/pages/campus"));
 const ProphecyPage = lazyRetry(() => import("@/pages/prophecy"));
+const ExchangePage = lazyRetry(() => import("@/pages/exchange"));
 
 // Simple components
 const InfoPage = lazyRetry(() => import("@/pages/info"));
@@ -288,6 +289,12 @@ function Router() {
       </Route>
       <Route path="/storage">
         <Layout><ProtectedRoute component={StoragePage} /></Layout>
+      </Route>
+      <Route path="/exchange">
+        <Layout><ProtectedRoute component={ExchangePage} /></Layout>
+      </Route>
+      <Route path="/value-intelligence">
+        <Layout><ProtectedRoute component={ValueAnalyticsPage} /></Layout>
       </Route>
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />

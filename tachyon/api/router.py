@@ -110,8 +110,13 @@ async def initialize_providers(db: AsyncSession = None):
         if onedrive_id:
             new_providers += [OneDriveProvider("onedrive_0"), OneDriveProvider("onedrive_1")]
 
-        disk_min = max(0, 3 - len(new_providers))
-        new_providers += [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(disk_min)]
+    # Always include local DiskProvider as the primary reliable backend.
+    # This ensures uploads succeed even when all cloud providers are misconfigured,
+    # and gives the circuit-breaker a passing probe so the burst doesn't abort early.
+    disk_count = max(1, 3 - len(new_providers))
+    disk_providers = [DiskProvider(f"disk_{i}", storage_path=_STORAGE_ROOT) for i in range(disk_count)]
+    # Put disk providers FIRST so they're favoured in the round-robin
+    new_providers = disk_providers + new_providers
 
     _providers[:] = new_providers
     scheduler.providers = _providers

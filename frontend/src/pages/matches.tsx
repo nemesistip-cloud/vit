@@ -122,7 +122,7 @@ export default function MatchesPage() {
               kickoff={match.status === 'live' ? (match.minute ? `${match.minute}'` : 'LIVE') : new Date(match.kickoff_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               isLive={match.status === 'live'}
               odds={match.odds?.home || '--'}
-              oddsChange={Math.random() > 0.5 ? 1.2 : -0.8} // Mock change for terminal look
+              oddsChange={match.odds_movement ?? 0}
               onTap={() => navigate(`/matches/${match.id}`)}
               badgeLabel={match.market_type === 'sports' ? 'PRO' : undefined}
             />

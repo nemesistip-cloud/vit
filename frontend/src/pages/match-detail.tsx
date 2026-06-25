@@ -159,14 +159,27 @@ export default function MatchDetailPage() {
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-vit-border">
-                    {['Betway', 'SportyBet', 'Bet9ja'].map((b) => (
-                      <tr key={b} className="hover:bg-vit-surface-2 transition-colors">
-                         <td className="p-3 text-xs font-bold">{b}</td>
-                         <td className="p-3 text-center font-mono text-xs text-vit-green">{(Math.random() + 2).toFixed(2)}</td>
-                         <td className="p-3 text-center font-mono text-xs">{(Math.random() + 3).toFixed(2)}</td>
-                         <td className="p-3 text-center font-mono text-xs">{(Math.random() + 2.5).toFixed(2)}</td>
+                    {(match.bookmaker_odds && match.bookmaker_odds.length > 0
+                      ? match.bookmaker_odds
+                      : (match.odds
+                          ? [{ bookmaker: 'Market', home: match.odds.home, draw: match.odds.draw, away: match.odds.away }]
+                          : []
+                        )
+                    ).map((b: any) => (
+                      <tr key={b.bookmaker} className="hover:bg-vit-surface-2 transition-colors">
+                         <td className="p-3 text-xs font-bold">{b.bookmaker}</td>
+                         <td className="p-3 text-center font-mono text-xs text-vit-green">{b.home ?? '--'}</td>
+                         <td className="p-3 text-center font-mono text-xs">{b.draw ?? '--'}</td>
+                         <td className="p-3 text-center font-mono text-xs">{b.away ?? '--'}</td>
                       </tr>
                     ))}
+                    {(!match.bookmaker_odds || match.bookmaker_odds.length === 0) && !match.odds && (
+                      <tr>
+                        <td colSpan={4} className="p-6 text-center text-[11px] text-vit-text-3">
+                          Live odds unavailable — check back closer to kickoff
+                        </td>
+                      </tr>
+                    )}
                  </tbody>
               </table>
            </div>
