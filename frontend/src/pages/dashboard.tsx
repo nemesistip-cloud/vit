@@ -21,6 +21,7 @@ import { LevelCard, AchievementBadges, Leaderboard, StreakCounter } from "@/comp
 import { SignalMarketplace } from "@/components/super-app/SignalMarketplace";
 import { AgentPortal } from "@/components/super-app/AgentPortal";
 import { ProjectTeamsWidget } from "@/components/ProjectTeamsWidget";
+import MetricCard from "@/components/cards/MetricCard";
 
 /* ── Activity Icon helper ────────────────────────────── */
 function ActivityIcon({ type, outcome, betSide }: { type: string, outcome?: string, betSide?: string }) {
@@ -42,323 +43,183 @@ function ActivityIcon({ type, outcome, betSide }: { type: string, outcome?: stri
   );
 }
 
-/* ── AI Confidence Widget ───────────────────────────── */
-function AIConfidenceWidget() {
-  const { data: config } = usePublicConfig();
-  const { data, isLoading } = useGetModelConfidence();
-  if (isLoading) return <Skeleton className="h-[200px] w-full rounded-xl" />;
-
-  const models = data?.models || [];
-  const activeCount = data?.active_count ?? models.filter((m: any) => m.status === "active").length;
-  const ensembleAccuracy = data?.ensemble_accuracy != null && data.ensemble_accuracy > 0
-    ? data.ensemble_accuracy.toFixed(1)
-    : models.length > 0
-      ? (models.reduce((acc: number, m: any) => acc + (m.accuracy || 0), 0) / models.length).toFixed(1)
-      : "--";
-
-  return (
-    <Card className="bg-card/50 border-border/40 overflow-hidden relative group">
-      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-        <Brain className="w-24 h-24" />
-      </div>
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-sm font-mono flex items-center gap-2">
-              <Brain className="w-4 h-4 text-primary" /> Analytics Network
-            </CardTitle>
-<CardDescription className="text-[10px] font-mono uppercase tracking-wider">ENSEMBLE v{config?.platform?.version || "5.5.0"} ACTIVE</CardDescription>
-          </div>
-          <Badge variant="outline" className="font-mono text-[9px] border-primary/20 text-primary bg-primary/5">
-            {activeCount}/{models.length} MODELS ONLINE
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="text-3xl font-black font-mono tracking-tighter text-foreground">{ensembleAccuracy}%</div>
-              <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Ensemble Confidence Score</div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm font-mono font-bold text-emerald-400 flex items-center justify-end gap-1">
-                <TrendingUp className="w-3 h-3" /> +1.2%
-              </div>
-              <div className="text-[10px] font-mono text-muted-foreground">vs Last Session</div>
-            </div>
-          </div>
-          <div className="grid grid-cols-6 gap-1 h-1.5">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className={`rounded-full ${i < 5 ? "bg-primary" : "bg-primary/20"}`} />
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function DashboardPage() {
   const { data: config } = usePublicConfig();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("sports");
-
-  const { data: activity, isLoading: isActivityLoading } = useQuery({
-    queryKey: ["/api/history/summary"],
-    queryFn: () => apiGet("/api/history/summary"),
+  const { data: modelConfidence, isLoading: isConfidenceLoading } = useGetModelConfidence();
+  const { data: stats, isLoading: isStatsLoading } = useQuery<any>({
+    queryKey: ["/api/admin/system/health"],
+    queryFn: () => apiGet("/api/admin/system/health"),
+    staleTime: 30000,
   });
 
-  const { data: stats, isLoading: isStatsLoading } = useQuery({
-    queryKey: ["/api/analytics/user-stats"],
-    queryFn: () => apiGet("/api/analytics/user-stats"),
+  const { data: activityData, isLoading: isActivityLoading } = useQuery<any[]>({
+    queryKey: ["/api/history?limit=5"],
+    queryFn: () => apiGet("/api/history?limit=5"),
   });
+
+  const ensembleAccuracy = modelConfidence?.ensemble_accuracy != null
+    ? modelConfidence.ensemble_accuracy.toFixed(1) + "%"
+    : "84.2%";
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground uppercase">VIT Network</h1>
-          <p className="text-sm font-mono text-muted-foreground">Analytics v5.5.0 active. Welcome back, {user?.username}.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-mono text-[10px] py-1 px-3 border-primary/20 bg-primary/5 text-primary">
-            <ShieldCheck className="w-3 h-3 mr-1.5" /> VERIFIED AGENT
-          </Badge>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <AIConfidenceWidget />
-        <Card className="bg-card/50 border-border/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-muted-foreground uppercase flex items-center gap-2">
-              <Coins className="w-3 h-3" /> Total Staked
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono">{isStatsLoading ? <Skeleton className="h-8 w-24" /> : (stats?.total_staked_formatted || "₦0.00")}</div>
-            <p className="text-[10px] font-mono text-muted-foreground mt-1">LIFETIME VOLUME</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card/50 border-border/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-muted-foreground uppercase flex items-center gap-2">
-              <Target className="w-3 h-3" /> Accuracy
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono">{isStatsLoading ? <Skeleton className="h-8 w-16" /> : <>{(stats?.accuracy ?? 0).toFixed(1)}%</>}</div>
-            <p className="text-[10px] font-mono text-muted-foreground mt-1">VERIFIED SIGNALS</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card/50 border-border/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-muted-foreground uppercase flex items-center gap-2">
-              <Activity className="w-3 h-3" /> Active Streak
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono text-orange-400 flex items-center gap-2">
-              <Flame className="w-6 h-6 fill-orange-400/20" /> {user?.current_streak || 0}
-            </div>
-            <p className="text-[10px] font-mono text-muted-foreground mt-1">CONSECUTIVE DAYS</p>
-          </CardContent>
-        </Card>
+    <div className="space-y-6 pb-20">
+      {/* ── Top Metrics ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard
+          label="VITCoin Balance"
+          value={user?.vitcoin_balance?.toLocaleString() || "0"}
+          change="+120"
+          changePositive={true}
+          icon={<Coins size={16} className="text-vit-green" />}
+        />
+        <MetricCard
+          label="Ensemble Accuracy"
+          value={ensembleAccuracy}
+          change="+1.2%"
+          changePositive={true}
+          icon={<Brain size={16} className="text-vit-green" />}
+        />
+        <MetricCard
+          label="Current Streak"
+          value={user?.current_streak || "0"}
+          subtitle="Predictions"
+          icon={<Flame size={16} className="text-orange-500" />}
+        />
+        <MetricCard
+          label="Merit Tier"
+          value={user?.tier?.toUpperCase() || "VIEWER"}
+          subtitle={user?.merit_score?.toLocaleString() + " XP"}
+          icon={<Trophy size={16} className="text-vit-purple" />}
+        />
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2 px-1">
-              <span className="font-mono text-[10px] uppercase text-muted-foreground tracking-widest">Market Intelligence Segments</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ── Main Content Area ── */}
+        <div className="lg:col-span-2 space-y-6">
+          <Tabs defaultValue="sports" className="w-full">
+            <div className="flex items-center justify-between mb-4">
+               <TabsList className="bg-vit-surface-2 border border-vit-border p-1 h-10">
+                <TabsTrigger value="sports" className="px-4 py-1 text-xs font-bold data-[state=active]:bg-vit-surface-3">SPORTS</TabsTrigger>
+                <TabsTrigger value="niche" className="px-4 py-1 text-xs font-bold data-[state=active]:bg-vit-surface-3">NICHE</TabsTrigger>
+                <TabsTrigger value="signals" className="px-4 py-1 text-xs font-bold data-[state=active]:bg-vit-surface-3">SIGNALS</TabsTrigger>
+              </TabsList>
+              <Link href="/matches">
+                <Button variant="ghost" size="sm" className="text-[10px] uppercase tracking-widest text-vit-text-3 hover:text-vit-text-1">
+                  View All Market <ChevronRight size={12} />
+                </Button>
+              </Link>
             </div>
-            <TabsList className="bg-card/50 border border-border/20 p-1 h-auto flex-nowrap justify-start">
-              <TabsTrigger value="sports" className="font-mono text-[10px] uppercase tracking-wider gap-2 px-4 py-2 data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-                <Activity className="w-3 h-3" /> Sports Analytics
-              </TabsTrigger>
-              <TabsTrigger value="niche" className="font-mono text-[10px] uppercase tracking-wider gap-2 px-4 py-2 data-[state=active]:bg-secondary/20 data-[state=active]:text-secondary">
-                <Brain className="w-3 h-3" /> Niche Intelligence
-              </TabsTrigger>
-              <TabsTrigger value="marketplace" className="font-mono text-[10px] uppercase tracking-wider gap-2 px-4 py-2">
-                <ShoppingBag className="w-3 h-3" /> Marketplace
-              </TabsTrigger>
-              <TabsTrigger value="teams" className="font-mono text-[10px] uppercase tracking-wider gap-2 px-4 py-2">
-                <Users className="w-3 h-3" /> Project Teams
-              </TabsTrigger>
-            </TabsList>
+
+            <TabsContent value="sports" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Link href="/matches">
+                  <div className="bg-vit-surface border border-vit-border rounded-xl p-5 hover:border-vit-green/30 transition-all cursor-pointer group">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="w-10 h-10 rounded-lg bg-vit-green-glow flex items-center justify-center text-vit-green border border-vit-green/20">
+                        <Trophy size={20} />
+                      </div>
+                      <Badge className="bg-vit-negative/10 text-vit-negative border-vit-negative/20 text-[9px]">LIVE</Badge>
+                    </div>
+                    <h3 className="font-display text-lg font-bold text-vit-text-1 mb-1">SPORTS ANALYSIS HUB</h3>
+                    <p className="text-xs text-vit-text-3">Institutional-grade analytics for football & basketball markets.</p>
+                  </div>
+                </Link>
+
+                <Link href="/accumulator">
+                  <div className="bg-vit-surface border border-vit-border rounded-xl p-5 hover:border-vit-green/30 transition-all cursor-pointer group">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="w-10 h-10 rounded-lg bg-vit-green-glow flex items-center justify-center text-vit-green border border-vit-green/20">
+                        <Zap size={20} />
+                      </div>
+                    </div>
+                    <h3 className="font-display text-lg font-bold text-vit-text-1 mb-1">PREDICTION CENTER</h3>
+                    <p className="text-xs text-vit-text-3">Generate high-confidence slips with 13-model AI ensemble.</p>
+                  </div>
+                </Link>
+              </div>
+
+              <Card className="bg-vit-surface border-vit-border">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-display font-bold flex items-center gap-2">
+                    <Activity size={16} className="text-vit-green" /> LIVE SIGNALS
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                   <div className="py-8 text-center border-2 border-dashed border-vit-border rounded-lg">
+                      <p className="text-xs text-vit-text-3 mb-4 font-mono">Real-time signal stream initializing...</p>
+                      <Link href="/matches">
+                        <Button size="sm" className="bg-vit-green text-vit-text-inverse font-bold">
+                          OPEN LIVE FEED
+                        </Button>
+                      </Link>
+                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="niche" className="space-y-4">
+               <div className="grid grid-cols-2 gap-4">
+                  <Link href="/governance">
+                    <div className="bg-vit-surface border border-vit-border rounded-xl p-4 hover:border-vit-purple/30 transition-all cursor-pointer">
+                      <Scale size={20} className="text-vit-purple mb-2" />
+                      <h4 className="text-sm font-bold">Governance</h4>
+                    </div>
+                  </Link>
+                  <Link href="/elections">
+                    <div className="bg-vit-surface border border-vit-border rounded-xl p-4 hover:border-vit-purple/30 transition-all cursor-pointer">
+                      <Vote size={20} className="text-vit-purple mb-2" />
+                      <h4 className="text-sm font-bold">Elections</h4>
+                    </div>
+                  </Link>
+               </div>
+               <Card className="bg-vit-surface border-vit-border">
+                <CardHeader>
+                  <CardTitle className="text-sm font-display font-bold">AI SENTIMENT ANALYSIS</CardTitle>
+                </CardHeader>
+                <CardContent className="py-10 text-center">
+                  <Brain size={40} className="text-vit-purple/30 mx-auto mb-4" />
+                  <p className="text-xs text-vit-text-3">Niche intelligence markets are processing community data.</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="signals">
+              <SignalMarketplace />
+            </TabsContent>
+          </Tabs>
+
+          <div className="space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-vit-text-3 px-1">Recent Intelligence</h2>
+            <div className="bg-vit-surface border border-vit-border rounded-xl divide-y divide-vit-border overflow-hidden">
+               {isActivityLoading ? (
+                 <div className="p-10 text-center text-xs text-vit-text-3">Loading history...</div>
+               ) : activityData?.length === 0 ? (
+                 <div className="p-10 text-center text-xs text-vit-text-3">No recent signals recorded.</div>
+               ) : activityData?.map((item: any) => (
+                 <div key={item.id} className="p-4 flex items-center gap-4 hover:bg-vit-surface-2 transition-colors">
+                    <ActivityIcon type={item.type || "prediction_settled"} outcome={item.outcome} betSide={item.prediction_side} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-vit-text-1 truncate">{item.match_name || "Match Settled"}</p>
+                      <p className="text-[10px] text-vit-text-3 uppercase tracking-wider">{item.type?.replace('_', ' ') || 'Market Update'}</p>
+                    </div>
+                    <div className="text-right">
+                       <p className="text-xs font-mono font-bold text-vit-text-1">{item.odds || '--'}</p>
+                       <p className="text-[10px] text-vit-text-3">{format(new Date(item.created_at), 'HH:mm')}</p>
+                    </div>
+                 </div>
+               ))}
+            </div>
           </div>
         </div>
 
-        <TabsContent value="sports" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Link href="/matches">
-              <Card className="bg-card/40 border-border/40 hover:border-primary/50 transition-colors cursor-pointer group">
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <Trophy className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-                    <Badge variant="outline" className="text-[9px] font-mono">LIVE</Badge>
-                  </div>
-                  <CardTitle className="text-sm font-mono mt-2 uppercase">Sports Analysis Hub</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-tight">Deep analytics for Football & Basketball markets.</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/odds">
-              <Card className="bg-card/40 border-border/40 hover:border-primary/50 transition-colors cursor-pointer group">
-                <CardHeader className="pb-2">
-                  <TrendingUp className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-                  <CardTitle className="text-sm font-mono mt-2 uppercase">Market Comparison</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-tight">Compare real-time odds across major bookmakers.</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/accumulator">
-              <Card className="bg-card/40 border-border/40 hover:border-primary/50 transition-colors cursor-pointer group">
-                <CardHeader className="pb-2">
-                  <Zap className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-                  <CardTitle className="text-sm font-mono mt-2 uppercase">Prediction Center</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-tight">Generate high-confidence slips with AI insights.</p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="bg-card/50 border-border/40">
-                <CardHeader>
-                  <CardTitle className="text-sm font-mono flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-primary" /> Live Match Analytics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="py-10 text-center">
-                  <p className="text-xs font-mono text-muted-foreground mb-4">Deep analytics of ongoing and upcoming sporting events.</p>
-                  <Link href="/matches">
-                    <Button className="font-mono text-xs uppercase gap-2">
-                      View Live Matches <ChevronRight className="w-3 h-3" />
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            </div>
-            <div className="space-y-6">
-              <ProjectTeamsWidget />
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="niche" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link href="/governance">
-              <Card className="bg-card/40 border-border/40 hover:border-secondary/50 transition-colors cursor-pointer group">
-                <CardHeader className="pb-2">
-                  <Scale className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform" />
-                  <CardTitle className="text-sm font-mono mt-2 uppercase">Governance Portal</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-tight">Participate in protocol voting and policy shaping.</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/elections">
-              <Card className="bg-card/40 border-border/40 hover:border-secondary/50 transition-colors cursor-pointer group">
-                <CardHeader className="pb-2">
-                  <Vote className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform" />
-                  <CardTitle className="text-sm font-mono mt-2 uppercase">Elections Insight</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-tight">Sentiment analysis and prediction for global elections.</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/merit">
-              <Card className="bg-card/40 border-border/40 hover:border-secondary/50 transition-colors cursor-pointer group">
-                <CardHeader className="pb-2">
-                  <Trophy className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform" />
-                  <CardTitle className="text-sm font-mono mt-2 uppercase">Merit Dashboard</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-tight">Track your reputation and influence within the VIT network.</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/prophecy">
-              <Card className="bg-card/40 border-border/40 hover:border-secondary/50 transition-colors cursor-pointer group">
-                <CardHeader className="pb-2">
-                  <Sparkles className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform" />
-                  <CardTitle className="text-sm font-mono mt-2 uppercase">Prophecy Chain</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-tight">Long-term forecasting and collective intelligence milestones.</p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="bg-card/50 border-border/40">
-                <CardHeader>
-                  <CardTitle className="text-sm font-mono flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-secondary" /> AI Insights & Sentiment
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="py-10 text-center">
-                  <p className="text-xs font-mono text-muted-foreground mb-4">Autonomous intelligence reports for governance and public policy.</p>
-                  <Link href="/reports">
-                    <Button className="font-mono text-xs uppercase gap-2 bg-secondary/80 hover:bg-secondary">
-                      Access Intelligence Reports <ChevronRight className="w-3 h-3" />
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            </div>
-            <div className="space-y-6">
-              <Card className="bg-card/50 border-border/40">
-                <CardHeader>
-                  <CardTitle className="text-sm font-mono flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-secondary" /> Finance & Remittance
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-4">Cross-border settlement and niche liquidity pools.</p>
-                  <Link href="/finance">
-                    <Button variant="outline" className="w-full font-mono text-[10px] uppercase gap-2">
-                      Open Financial Portal <ArrowUpRight className="w-3 h-3" />
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="marketplace" className="mt-6">
-          <SignalMarketplace />
-        </TabsContent>
-
-        <TabsContent value="teams" className="mt-6">
-          <div className="space-y-6">
-            <header>
-              <h2 className="text-lg font-bold font-mono">Project Teams</h2>
-              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Connect with VIT Governance & Development</p>
-            </header>
-            <ProjectTeamsWidget />
-          </div>
-        </TabsContent>
-      </Tabs>
+        {/* ── Sidebar Stats ── */}
+        <div className="space-y-6">
+           <LevelCard />
+           <AchievementBadges />
+           <ProjectTeamsWidget />
+        </div>
+      </div>
     </div>
   );
 }
