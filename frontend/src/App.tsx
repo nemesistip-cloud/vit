@@ -81,6 +81,7 @@ const ForgotPasswordPage = lazyRetry(() => import("@/pages/forgot-password"));
 const ResetPasswordPage = lazyRetry(() => import("@/pages/reset-password"));
 const VerifyEmailPage = lazyRetry(() => import("@/pages/verify-email"));
 const NotFound = lazyRetry(() => import("@/pages/not-found"));
+const DesignSystemTest = lazyRetry(() => import("@/pages/design-system-test"));
 
 function RouteFallback() {
   return (
@@ -291,6 +292,7 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/verify-email" component={VerifyEmailPage} />
+      <Route path="/design-system" component={DesignSystemTest} />
       <Route>
         <Layout><NotFound /></Layout>
       </Route>

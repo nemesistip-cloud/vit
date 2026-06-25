@@ -1,324 +1,91 @@
 :root {
-  /* ── Colors ────────────────────────────────────────────────── */
-  --vit-brand-blue:   #00C8FF;
-  --vit-brand-green:  #00F5C8;
-  --vit-brand-gold:   #D4AF37;
-  --vit-brand-orange: #FF8C00;
-  --vit-gray-50:      #F9FAFB;
-  --vit-gray-100:     #F3F4F6;
-  --vit-gray-200:     #E5E7EB;
-  --vit-gray-300:     #D1D5DB;
-  --vit-gray-400:     #9CA3AF;
-  --vit-gray-500:     #6B7280;
-  --vit-gray-600:     #4B5563;
-  --vit-gray-700:     #374151;
-  --vit-gray-800:     #1F2937;
-  --vit-gray-900:     #111827;
-  --vit-gray-950:     #030712;
+  /* ── Backgrounds ── */
+  --vit-void:         #080B0F;
+  --vit-surface:      #0F1318;
+  --vit-surface-2:    #161C24;
+  --vit-surface-3:    #1E2730;
+  --vit-border:       #1E2730;
+  --vit-border-light: #253040;
 
-  --vit-primary-glow: rgba(0, 200, 255, 0.15);
-  --vit-glass-bg:     rgba(10, 10, 15, 0.85);
-  --vit-glass-border: rgba(255, 255, 255, 0.08);
+  /* ── Brand Accents ── */
+  --vit-green:        #00E676;
+  --vit-green-dim:    #00B85C;
+  --vit-green-glow:   rgba(0, 230, 118, 0.12);
+  --vit-green-glow-2: rgba(0, 230, 118, 0.06);
+  --vit-purple:       #8B5CF6;
+  --vit-purple-dim:   #6D40D4;
+  --vit-purple-glow:  rgba(139, 92, 246, 0.12);
 
-  /* ── Spacing ───────────────────────────────────────────────── */
-  --vit-spacing-xs:   0.25rem;
-  --vit-spacing-sm:   0.5rem;
-  --vit-spacing-md:   1rem;
-  --vit-spacing-lg:   1.5rem;
-  --vit-spacing-xl:   2rem;
+  /* ── Semantic Colors ── */
+  --vit-positive:     #00E676;
+  --vit-negative:     #FF3B5C;
+  --vit-warning:      #F59E0B;
+  --vit-info:         #3B82F6;
+  --vit-pending:      #F59E0B;
 
-  /* ── Typography ────────────────────────────────────────────── */
-  --vit-font-sans:    'Inter', ui-sans-serif, system-ui, sans-serif;
-  --vit-font-mono:    'Space Mono', ui-monospace, monospace;
+  /* ── Text ── */
+  --vit-text-1:       #F0F4F8;
+  --vit-text-2:       #8A9BB0;
+  --vit-text-3:       #4A5568;
+  --vit-text-inverse: #080B0F;
 
-  /* ── Radius ────────────────────────────────────────────────── */
-  --vit-radius-sm:    0.25rem;
-  --vit-radius-md:    0.5rem;
-  --vit-radius-lg:    0.75rem;
-  --vit-radius-xl:    1rem;
+  /* ── Typography ── */
+  --font-display:     'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-body:        'Outfit', 'Inter', sans-serif;
+  --font-data:        'JetBrains Mono', 'Fira Code', monospace;
 
-  /* ── Shadows ───────────────────────────────────────────────── */
-  --vit-shadow-sm:    0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --vit-shadow-md:    0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --vit-shadow-lg:    0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  /* ── Type Scale ── */
+  --text-hero:        clamp(40px, 10vw, 56px);
+  --text-xl:          clamp(20px, 5vw, 28px);
+  --text-lg:          18px;
+  --text-md:          14px;
+  --text-sm:          12px;
+  --text-xs:          11px;
+  --text-mono:        13px;
 
-  /* ── Animations ────────────────────────────────────────────── */
-  --vit-duration-fast:   150ms;
-  --vit-duration-normal: 300ms;
-  --vit-duration-slow:   500ms;
-  --vit-ease-out:        cubic-bezier(0, 0, 0.2, 1);
-  --vit-ease-spring:     cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  --vit-ease-bounce:     cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  /* ── Spacing ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
 
-  /* ── Gradients ────────────────────────────────────────────── */
-  --vit-gradient-brand:    linear-gradient(135deg, var(--vit-brand-blue) 0%, var(--vit-brand-green) 100%);
-  --vit-gradient-brand-r:  linear-gradient(135deg, var(--vit-brand-green) 0%, var(--vit-brand-blue) 100%);
-  --vit-gradient-gold:     linear-gradient(135deg, var(--vit-brand-gold) 0%, var(--vit-brand-orange) 100%);
-  --vit-gradient-dark:     linear-gradient(180deg, var(--vit-gray-900) 0%, var(--vit-gray-950) 100%);
-  --vit-gradient-surface:  linear-gradient(180deg, var(--vit-gray-800) 0%, var(--vit-gray-850) 100%);
-  --vit-gradient-cyber:    linear-gradient(135deg, rgba(30,107,255,0.08) 0%, rgba(0,200,150,0.08) 100%);
-  --vit-gradient-sidebar:  linear-gradient(180deg, #050505 0%, #0A0A0F 100%);
-  --vit-gradient-card:     linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  /* ── Radius ── */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ── */
+  --shadow-card:  0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px var(--vit-border);
+  --shadow-modal: 0 20px 60px rgba(0,0,0,0.7);
+  --glow-green:   0 0 20px rgba(0,230,118,0.2);
+  --glow-purple:  0 0 20px rgba(139,92,246,0.2);
+
+  /* ── Motion ── */
+  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast:   120ms;
+  --duration-base:   220ms;
+  --duration-slow:   400ms;
+
+  /* ── Z-Index ── */
+  --z-base:     0;
+  --z-raised:   10;
+  --z-overlay:  100;
+  --z-modal:    200;
+  --z-toast:    300;
+  --z-nav:      400;
 }
 
-/* ── Utility Classes ──────────────────────────────────────────── */
-
-.vit-glass {
-  background: rgba(5, 5, 5, 0.92);
-  border: 1px solid var(--vit-glass-border);
-}
-
-.vit-glass-premium {
-  background: rgba(5, 5, 5, 0.96);
-  border: 1px solid rgba(255,255,255,0.08);
-}
-
-.vit-glow-cyan { box-shadow: 0 0 15px rgba(0, 200, 255, 0.3); }
-.vit-glow-gold { box-shadow: 0 0 15px rgba(212, 175, 55, 0.3); }
-.vit-glow-purple { box-shadow: 0 0 15px rgba(139, 92, 246, 0.3); }
-.vit-glow-green { box-shadow: 0 0 15px rgba(0, 245, 200, 0.3); }
-
-/* ── Gradient Text ───────────────────────────────────────────── */
-.vit-gradient-text {
-  background: var(--vit-gradient-brand);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.vit-gradient-text-gold {
-  background: var(--vit-gradient-gold);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.vit-gradient-text-cyber {
-  background: linear-gradient(90deg, var(--vit-brand-blue), var(--vit-brand-green));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── Gradient Border (via background-clip) ───────────────────── */
-.vit-border-gradient {
-  position: relative;
-  border-radius: var(--vit-radius-lg);
-}
-.vit-border-gradient::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: var(--vit-gradient-brand);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-.vit-border-gradient-gold::before {
-  background: var(--vit-gradient-gold);
-}
-
-/* ── Animated border glow ────────────────────────────────────── */
-.vit-border-glow {
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-.vit-border-glow:hover {
-  border-color: rgba(30,107,255,0.4);
-  box-shadow: 0 0 10px rgba(30,107,255,0.2);
-}
-
-/* ── Card variants ───────────────────────────────────────────── */
-.vit-card {
-  background: rgba(10, 10, 15, 0.95);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: var(--vit-radius-lg);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.vit-card:hover {
-  border-color: rgba(30,107,255,0.15);
-  box-shadow: var(--vit-shadow-md);
-}
-
-.vit-card-gold {
-  background: linear-gradient(135deg, rgba(212,175,55,0.04) 0%, rgba(10,10,15,0.9) 60%);
-  border: 1px solid rgba(212,175,55,0.15);
-}
-
-.vit-card-cyan {
-  background: linear-gradient(135deg, rgba(30,107,255,0.05) 0%, rgba(10,10,15,0.9) 60%);
-  border: 1px solid rgba(30,107,255,0.15);
-}
-
-.vit-card-purple {
-  background: linear-gradient(135deg, rgba(124,58,237,0.05) 0%, rgba(10,10,15,0.9) 60%);
-  border: 1px solid rgba(124,58,237,0.15);
-}
-
-/* ── Status indicators ───────────────────────────────────────── */
-.vit-live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #00C896;
-  box-shadow: 0 0 8px rgba(0, 200, 150, 0.5);
-}
-
-/* ── Animations ──────────────────────────────────────────────── */
-@keyframes vit-pulse-glow {
-  0%, 100% { opacity: 0.55; }
-  50%       { opacity: 1; }
-}
-
-@keyframes vit-float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-6px); }
-}
-
-@keyframes vit-shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
-}
-
-@keyframes vit-slide-up {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes vit-slide-down {
-  from { opacity: 0; transform: translateY(-16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes vit-slide-in-left {
-  from { opacity: 0; transform: translateX(-12px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes vit-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes vit-scale-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-@keyframes vit-celebrate {
-  0%   { transform: scale(1); }
-  25%  { transform: scale(1.08); }
-  50%  { transform: scale(0.97); }
-  75%  { transform: scale(1.03); }
-  100% { transform: scale(1); }
-}
-
-@keyframes vit-border-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-@keyframes vit-ping {
-  75%, 100% {
-    transform: scale(2);
-    opacity: 0;
+/* Reduced motion override — always respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
-}
-
-@keyframes vit-count-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Animation utility classes ───────────────────────────────── */
-.vit-animate-slide-up      { animation: vit-slide-up var(--vit-duration-normal) var(--vit-ease-out) forwards; }
-.vit-animate-slide-down    { animation: vit-slide-down var(--vit-duration-normal) var(--vit-ease-out) forwards; }
-.vit-animate-slide-left    { animation: vit-slide-in-left var(--vit-duration-normal) var(--vit-ease-out) forwards; }
-.vit-animate-fade-in       { animation: vit-fade-in var(--vit-duration-normal) var(--vit-ease-out) forwards; }
-.vit-animate-scale-in      { animation: vit-scale-in var(--vit-duration-normal) var(--vit-ease-spring) forwards; }
-.vit-animate-celebrate     { animation: vit-celebrate var(--vit-duration-normal) var(--vit-ease-spring); }
-
-/* ── Shimmer loading skeleton ─────────────────────────────────── */
-.vit-shimmer {
-  background: linear-gradient(90deg, var(--vit-gray-800) 25%, var(--vit-gray-700) 50%, var(--vit-gray-800) 75%);
-  background-size: 200% 100%;
-  animation: vit-shimmer 2s infinite linear;
-}
-
-/* ── Ticker tape ──────────────────────────────────────────────── */
-.vit-ticker-wrap {
-  overflow-x: auto;
-  white-space: nowrap;
-  scrollbar-width: none;
-}
-.vit-ticker-wrap::-webkit-scrollbar { display: none; }
-
-.vit-ticker-content {
-  display: inline-flex;
-}
-
-/* ════════════════════════════════════════════════════════════════════════════
-   PERFORMANCE Purge
-   ════════════════════════════════════════════════════════════════════════════ */
-
-/* Minimize heavy filter usage across the board */
-.vit-no-filter {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  filter: none !important;
-}
-
-/* ── Page containment ── */
-.vit-page-container {
-  isolation: isolate;
-  contain: layout style;
-  overflow: clip;
-}
-
-.vit-section-contained {
-  isolation: isolate;
-  contain: paint;
-  overflow: hidden;
-}
-
-/* ── Custom scrollbar ── */
-.vit-scrollbar::-webkit-scrollbar       { width: 4px; height: 4px; }
-.vit-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.vit-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
-.vit-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(30,107,255,0.2); }
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.08) transparent;
-}
-::-webkit-scrollbar       { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(30,107,255,0.2); }
-
-/* ── Number/metric highlight ── */
-.vit-metric {
-  font-family: var(--vit-font-mono);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
-/* ── Separator with label ── */
-.vit-section-label {
-  font-family: var(--vit-font-mono);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.3);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.vit-section-label::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent);
 }

@@ -1,0 +1,47 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--vit-void);
+  color: var(--vit-text-1);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+}
+
+/* Visible keyboard focus — never remove outlines */
+:focus-visible {
+  outline: 2px solid var(--vit-green);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--vit-void); }
+::-webkit-scrollbar-thumb { background: var(--vit-border); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--vit-text-3); }
+
+/* Min tap target size for all interactive elements */
+button, a, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+  cursor: pointer;
+}
+
+/* Data values always in mono */
+.data, [data-value], .price, .pct, .address {
+  font-family: var(--font-data);
+}
