@@ -1,1985 +1,1003 @@
-import asyncio
+"""app/api/routes/admin.py — VIT Admin API v5.5.0 (full rebuild)
+
+All routes: prefix /admin (registered as /api/admin/* via main.py include_router with prefix=/api).
+Auth: Depends(require_admin) on every route. Depends(require_super_admin) on destructive routes.
+Every mutation calls await write_audit(...).
+"""
 import csv
-import hashlib
 import io
 import json
 import logging
-import os
+import time
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
-import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Request
+
+import psutil
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select, func, or_, desc
+from sqlalchemy import select, func, or_, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.config import get_env, APP_VERSION, AUTH_ENABLED, API_KEY
-from app.db.database import AsyncSessionLocal, get_db
-from app.db.models import User, AuditLog, Match, Prediction, SubscriptionPlan, TrainingJob
-from app.core.dependencies import get_orchestrator, get_telegram_alerts
-from app.auth.dependencies import get_current_admin
+
+from app.api.dependencies.admin import require_admin, require_super_admin
+from app.config import get_env, APP_VERSION
+from app.core.errors import AppError
+from app.db.database import get_db
+from app.db.models import User, AuditLog, Match, Prediction, TrainingJob
+from app.modules.ai.models import ModelMetadata
+from app.modules.wallet.models import (
+    Wallet, WalletTransaction, PlatformConfig,
+    VITCoinPriceHistory, WithdrawalRequest,
+)
+from app.services.audit import write_audit
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["Admin"])
 
-from app.api.deps import get_current_admin
-_KEY_REGISTRY = [
-    # ── Google & Firebase Auth ──────────────────────────────────────
-    {
-        "name":        "GOOGLE_CLIENT_ID",
-        "label":       "Google Client ID",
-        "description": "OAuth 2.0 Web Client ID for Google Login",
-        "required":    False,
-        "group":       "Authentication",
-    },
-    {
-        "name":        "GOOGLE_APPLICATION_CREDENTIALS_JSON",
-        "label":       "Google Service Account JSON",
-        "description": "Full JSON content of the Google Service Account key file",
-        "required":    False,
-        "group":       "Authentication",
-    },
-    {
-        "name":        "VITE_FIREBASE_API_KEY",
-        "label":       "Firebase API Key",
-        "description": "Firebase Web Configuration: API Key",
-        "required":    False,
-        "group":       "Authentication",
-    },
-    {
-        "name":        "VITE_FIREBASE_AUTH_DOMAIN",
-        "label":       "Firebase Auth Domain",
-        "description": "Firebase Web Configuration: Auth Domain",
-        "required":    False,
-        "group":       "Authentication",
-    },
-    {
-        "name":        "VITE_FIREBASE_PROJECT_ID",
-        "label":       "Firebase Project ID",
-        "description": "Firebase Web Configuration: Project ID",
-        "required":    False,
-        "group":       "Authentication",
-    },
-    {
-        "name":        "VITE_FIREBASE_STORAGE_BUCKET",
-        "label":       "Firebase Storage Bucket",
-        "description": "Firebase Web Configuration: Storage Bucket",
-        "required":    False,
-        "group":       "Authentication",
-    },
-    {
-        "name":        "VITE_FIREBASE_MESSAGING_SENDER_ID",
-        "label":       "Firebase Messaging Sender ID",
-        "description": "Firebase Web Configuration: Messaging Sender ID",
-        "required":    False,
-        "group":       "Authentication",
-    },
-    {
-        "name":        "VITE_FIREBASE_APP_ID",
-        "label":       "Firebase App ID",
-        "description": "Firebase Web Configuration: App ID",
-        "required":    False,
-        "group":       "Authentication",
-    },
-    {
-        "name":        "VITE_FIREBASE_MEASUREMENT_ID",
-        "label":       "Firebase Measurement ID",
-        "description": "Firebase Web Configuration: Measurement ID (optional)",
-        "required":    False,
-        "group":       "Authentication",
-    },
+# ── Helpers ────────────────────────────────────────────────────────────────────
 
-    # ── Sports Data ────────────────────────────────────────────────────
-    {
-        "name":        "FOOTBALL_DATA_API_KEY",
-        "label":       "Football-Data.org",
-        "description": "Fetches scheduled fixtures and match history",
-        "required":    True,
-        "group":       "Sports Data",
-    },
-    {
-        "name":        "ODDS_API_KEY",
-        "label":       "The Odds API",
-        "description": "Live betting odds and market data (also readable as THE_ODDS_API_KEY)",
-        "required":    True,
-        "group":       "Sports Data",
-    },
-    # ── VIT AI (Native Ecosystem) ──────────────────────────────────────
-    {
-        "name":        "USE_REAL_ML_MODELS",
-        "label":       "Use Real ML Models",
-        "description": "Toggle between algorithmic fallbacks and trained weights (true/false)",
-        "required":    False,
-        "group":       "VIT AI",
-    },
-    # ── Offerwall / Rewards Providers ─────────────────────────────────────
-    {
-        "name":        "AYET_API_TOKEN",
-        "label":       "Ayet Studios API Token",
-        "description": "Token for Ayet Studios offerwall (required to load offers in the earn page)",
-        "required":    False,
-        "group":       "Offerwall",
-    },
-    {
-        "name":        "BITLABS_APP_TOKEN",
-        "label":       "BitLabs App Token",
-        "description": "App token for BitLabs targeted surveys offerwall",
-        "required":    False,
-        "group":       "Offerwall",
-    },
-    {
-        "name":        "CPX_RESEARCH_APP_ID",
-        "label":       "CPX Research App ID",
-        "description": "App ID for CPX Research survey panel",
-        "required":    False,
-        "group":       "Offerwall",
-    },
-    {
-        "name":        "CPX_RESEARCH_SECURE_HASH_KEY",
-        "label":       "CPX Research Hash Key",
-        "description": "Secret key for CPX Research postback signature verification",
-        "required":    False,
-        "group":       "Offerwall",
-    },
-    {
-        "name":        "REVU_PUBLISHER_ID",
-        "label":       "RevU Publisher ID",
-        "description": "Publisher ID for Revenue Universe (RevU) survey wall",
-        "required":    False,
-        "group":       "Offerwall",
-    },
-    {
-        "name":        "TAPJOY_SDK_KEY",
-        "label":       "Tapjoy SDK Key",
-        "description": "SDK key for Tapjoy in-app offerwall",
-        "required":    False,
-        "group":       "Offerwall",
-    },
-    {
-        "name":        "ML_MODEL_CACHE_ENABLED",
-        "label":       "Model Cache",
-        "description": "Enable in-memory caching for ML models (true/false)",
-        "required":    False,
-        "group":       "VIT AI",
-    },
-
-    # ── Payments ───────────────────────────────────────────────────────
-    {
-        "name":        "PAYSTACK_SECRET_KEY",
-        "label":       "Paystack",
-        "description": "Subscriptions, wallet deposits, and withdrawals (NGN + USD multi-currency)",
-        "required":    False,
-        "group":       "Payments",
-    },
-    # ── Infrastructure ─────────────────────────────────────────────────
-    {
-        "name":        "REDIS_URL",
-        "label":       "Redis URL",
-        "description": "Redis connection for Celery job queue and persistent rate limiting",
-        "required":    False,
-        "group":       "Infrastructure",
-    },
-    {
-        "name":        "SMTP_HOST",
-        "label":       "SMTP Host",
-        "description": "Mail server hostname for email verification and password resets",
-        "required":    False,
-        "group":       "Infrastructure",
-    },
-    {
-        "name":        "SMTP_USER",
-        "label":       "SMTP Username",
-        "description": "Mail server login username",
-        "required":    False,
-        "group":       "Infrastructure",
-    },
-    {
-        "name":        "SMTP_PASS",
-        "label":       "SMTP Password",
-        "description": "Mail server login password",
-        "required":    False,
-        "group":       "Infrastructure",
-    },
-    # ── Messaging ──────────────────────────────────────────────────────
-    {
-        "name":        "TELEGRAM_BOT_TOKEN",
-        "label":       "Telegram Bot Token",
-        "description": "Sends alerts and accumulators via Telegram",
-        "required":    False,
-        "group":       "Messaging",
-    },
-    {
-        "name":        "TELEGRAM_CHAT_ID",
-        "label":       "Telegram Chat / Channel ID",
-        "description": "Target chat or channel for Telegram messages",
-        "required":    False,
-        "group":       "Messaging",
-    },
-
-    # ── Payments (Webhooks) ─────────────────────────────────────────────
-    {
-        "name":        "PAYSTACK_WEBHOOK_SECRET",
-        "label":       "Paystack Webhook Secret",
-        "description": "Validates Paystack webhook HMAC signatures — required to process NGN deposit events",
-        "required":    False,
-        "group":       "Payments",
-    },
-
-    # ── Blockchain ─────────────────────────────────────────────────────
-    {
-        "name":        "BASE_RPC_URL",
-        "label":       "Base L2 RPC URL",
-        "description": "JSON-RPC endpoint for the Base L2 network (e.g. https://mainnet.base.org)",
-        "required":    False,
-        "group":       "Blockchain",
-    },
-    {
-        "name":        "VIT_CONTRACT_ADDRESS",
-        "label":       "VITCoin Contract Address",
-        "description": "Deployed ERC-20 contract address for VITCoin on Base L2 (0x…)",
-        "required":    False,
-        "group":       "Blockchain",
-    },
-    # ── Security ───────────────────────────────────────────────────────
-    {
-        "name":        "JWT_SECRET_KEY",
-        "label":       "JWT Secret Key",
-        "description": "Signs all access tokens. Must be set in production — ephemeral key resets sessions on restart",
-        "required":    True,
-        "group":       "Security",
-    },
-    {
-        "name":        "API_KEY",
-        "label":       "Admin API Key",
-        "description": "Master key used to authenticate legacy admin endpoints",
-        "required":    False,
-        "group":       "Security",
-    },
-    # ── Notifications ──────────────────────────────────────────────────
-    {
-        "name":        "RESEND_API_KEY",
-        "label":       "Resend Email API Key",
-        "description": "Sends transactional emails (verification, password reset, notifications) via Resend.com",
-        "required":    False,
-        "group":       "Messaging",
-    },
-    # ── Sports Data (free tier) ────────────────────────────────────────
-    {
-        "name":        "THESPORTSDB_API_KEY",
-        "label":       "TheSportsDB API Key",
-        "description": "Fixture source — value '3' is the free-tier key, no account required",
-        "required":    False,
-        "group":       "Sports Data",
-    },
-    # ── Pi Network ─────────────────────────────────────────────────────
-    {
-        "name":        "PI_APP_ID",
-        "label":       "Pi App ID",
-        "description": "App identifier from Pi Developer Portal (developer.pi)",
-        "required":    False,
-        "group":       "Pi Network",
-    },
-    {
-        "name":        "PI_APP_SECRET",
-        "label":       "Pi App Secret",
-        "description": "Server-side secret key for Pi Network API (used to approve / complete payments)",
-        "required":    False,
-        "group":       "Pi Network",
-    },
-    {
-        "name":        "PI_WEBHOOK_SECRET",
-        "label":       "Pi Webhook Secret",
-        "description": "HMAC secret to verify incoming Pi webhook signatures",
-        "required":    False,
-        "group":       "Pi Network",
-    },
-    {
-        "name":        "PI_SANDBOX_MODE",
-        "label":       "Pi Sandbox Mode",
-        "description": "Set to 'false' for Mainnet. Default is 'true' (Sandbox / Testnet)",
-        "required":    False,
-        "group":       "Pi Network",
-    },
-    # ── Flutterwave ────────────────────────────────────────────────────
-    {
-        "name":        "FLW_SECRET_KEY",
-        "label":       "Flutterwave Secret Key",
-        "description": "Server secret key (FLWSECK_…) for initiating MoMo / card charges and transfers",
-        "required":    False,
-        "group":       "Payments",
-    },
-    {
-        "name":        "FLW_PUBLIC_KEY",
-        "label":       "Flutterwave Public Key",
-        "description": "Client-facing public key (FLWPUBK_…) for front-end SDK initialisation",
-        "required":    False,
-        "group":       "Payments",
-    },
-    {
-        "name":        "FLW_WEBHOOK_SECRET",
-        "label":       "Flutterwave Webhook Secret",
-        "description": "Sent as the 'verif-hash' header on every Flutterwave webhook call",
-        "required":    False,
-        "group":       "Payments",
-    },
-]
-
-@router.get("/api-keys")
-async def list_api_keys(current_user=Depends(get_current_admin)):
-    from app.services.secrets_manager import get_db_secret_keys
-    db_keys: set = await get_db_secret_keys()
-    keys = []
-    for entry in _KEY_REGISTRY:
-        name = entry.get("name", "")
-        env_val = os.getenv(name, "").strip() if name else ""
-        in_db   = name in db_keys
-        configured = bool(env_val) or in_db
-        if env_val:
-            source = "replit_secret"
-        elif in_db:
-            source = "database"
-        else:
-            source = "unset"
-        keys.append({
-            **entry,
-            "configured": configured,
-            "masked": "••••" if configured else "",
-            "source": source,
-        })
-    return {"keys": keys}
-
-@router.get("/config-status")
-async def get_config_status(current_user=Depends(get_current_admin)):
-    """
-    Returns real-time health status for every external service.
-    Used by the admin Config Health strip.
-    Checks both os.environ (Replit Secrets + live-saved keys) and the DB secret store.
-    """
-    # Load the set of keys currently stored encrypted in the DB
-    from app.services.secrets_manager import get_db_secret_keys
-    db_keys: set = await get_db_secret_keys()
-
-    def _status(key: str, label: str, required: bool = False) -> dict:
-        val = os.getenv(key, "").strip()
-        in_db = key in db_keys
-        is_set = bool(val) or in_db
-        return {
-            "key":      key,
-            "label":    label,
-            "set":      is_set,
-            "required": required,
-            "status":   "ok" if is_set else ("error" if required else "warning"),
-        }
-
-    services = [
-        _status("FOOTBALL_DATA_API_KEY",  "Football-Data.org",   required=True),
-        _status("ODDS_API_KEY",           "The Odds API",        required=True),
-        _status("USE_REAL_ML_MODELS",     "VIT Native AI",       required=False),
-
-        _status("PAYSTACK_SECRET_KEY",    "Paystack Payments",   required=False),
-        _status("PAYSTACK_WEBHOOK_SECRET","Paystack Webhooks",   required=False),
-        _status("FLW_SECRET_KEY",         "Flutterwave (MoMo)",  required=False),
-        _status("FLW_WEBHOOK_SECRET",     "Flutterwave Webhooks",required=False),
-        _status("PI_APP_ID",              "Pi Network App",      required=False),
-        _status("PI_APP_SECRET",          "Pi Network Secret",   required=False),
-
-        _status("BASE_RPC_URL",           "Base L2 RPC",         required=False),
-        _status("VIT_CONTRACT_ADDRESS",   "VITCoin Contract",    required=False),
-        _status("REDIS_URL",              "Redis",               required=False),
-        _status("SMTP_HOST",              "Email / SMTP",        required=False),
-        _status("RESEND_API_KEY",         "Resend Email",        required=False),
-        _status("TELEGRAM_BOT_TOKEN",     "Telegram Bot",        required=False),
-    ]
-
-    errors   = [s for s in services if s["status"] == "error"]
-    warnings = [s for s in services if s["status"] == "warning"]
-    ok       = [s for s in services if s["status"] == "ok"]
-
+def _fmt_user(u: User, wallet_balance: float = 0.0, prediction_count: int = 0) -> dict:
     return {
-        "services":      services,
-        "summary": {
-            "total":    len(services),
-            "ok":       len(ok),
-            "warnings": len(warnings),
-            "errors":   len(errors),
-            "healthy":  len(errors) == 0,
-        },
+        "id": u.id,
+        "username": u.username,
+        "email": u.email,
+        "role": u.role,
+        "admin_role": getattr(u, "admin_role", None),
+        "subscription_tier": getattr(u, "subscription_tier", "free"),
+        "is_active": u.is_active,
+        "is_flagged": getattr(u, "is_flagged", False),
+        "withdrawals_frozen": getattr(u, "withdrawals_frozen", False),
+        "kyc_status": getattr(u, "kyc_status", "unverified"),
+        "wallet_balance": wallet_balance,
+        "prediction_count": prediction_count,
+        "created_at": u.created_at.isoformat() if hasattr(u, "created_at") and u.created_at else None,
     }
 
 
-@router.get("/health")
-async def admin_health():
-    return {"status": "ok"}
-
-
-@router.get("/system/health")
-async def admin_system_health(db: AsyncSession = Depends(get_db)):
-    """Full system health check — returned shape matches the SystemHealth TypeScript interface."""
-    import psutil
-
-    # ── Database ──────────────────────────────────────────────────────────
-    db_ok = False
-    try:
-        await db.execute(__import__("sqlalchemy").text("SELECT 1"))
-        db_ok = True
-    except Exception:
-        pass
-
-    # ── Redis ─────────────────────────────────────────────────────────────
-    redis_ok: bool | None = None
-    try:
-        from app.core.redis import get_redis
-        r = await get_redis()
-        if r is not None:
-            await r.ping()
-            redis_ok = True
-        else:
-            redis_ok = None  # fakeredis / not configured
-    except Exception:
-        redis_ok = False
-
-    # ── ML Models ─────────────────────────────────────────────────────────
-    models_loaded = 0
-    try:
-        from app.core.dependencies import get_orchestrator
-        orch = get_orchestrator()
-        if orch:
-            status = orch.get_model_status()
-            models_loaded = status.get("ready", 0)
-    except Exception:
-        pass
-
-    # ── External APIs ─────────────────────────────────────────────────────
-    from app.config import FOOTBALL_DATA_API_KEY, THE_ODDS_API_KEY, ISPORTS_API_KEY
-    football_api: bool | str | None = None
-    if FOOTBALL_DATA_API_KEY or ISPORTS_API_KEY:
-        football_api = True
-    odds_api: bool | None = True if THE_ODDS_API_KEY else None
-
-    # ── System Resources ──────────────────────────────────────────────────
-    cpu_pct = 0.0
-    mem_pct = 0.0
-    disk_pct = 0.0
-    try:
-        cpu_pct = psutil.cpu_percent(interval=0.2)
-        mem_pct = psutil.virtual_memory().percent
-        disk_usage = psutil.disk_usage("/")
-        disk_pct = disk_usage.percent
-    except Exception:
-        pass
-
-    return {
-        "api": True,
-        "database": db_ok,
-        "redis": redis_ok,
-        "models_loaded": models_loaded,
-        "cpu_pct": round(cpu_pct, 1),
-        "mem_pct": round(mem_pct, 1),
-        "disk_pct": round(disk_pct, 1),
-        "football_api": football_api,
-        "odds_api": odds_api,
-    }
-
-
-@router.get("/fixture-health")
-async def get_fixture_health(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):
-    """Quick summary of fixture data health — counts upcoming vs settled matches."""
-    from app.db.models import Match
-    from datetime import datetime, timezone, timedelta
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    week_ago = now - timedelta(days=7)
-    week_ahead = now + timedelta(days=7)
-
-    try:
-        total = (await db.execute(select(func.count(Match.id)))).scalar() or 0
-        upcoming = (await db.execute(
-            select(func.count(Match.id)).where(Match.date >= now)
-        )).scalar() or 0
-        recent = (await db.execute(
-            select(func.count(Match.id)).where(Match.date >= week_ago, Match.date < now)
-        )).scalar() or 0
-        next_week = (await db.execute(
-            select(func.count(Match.id)).where(Match.date >= now, Match.date <= week_ahead)
-        )).scalar() or 0
-        return {
-            "total": total,
-            "upcoming": upcoming,
-            "recent_7d": recent,
-            "next_7d": next_week,
-            "status": "ok" if upcoming > 0 else "warning",
-            "message": f"{upcoming} upcoming fixtures" if upcoming > 0 else "No upcoming fixtures — run Fetch Fixtures",
-        }
-    except Exception as e:
-        return {"total": 0, "upcoming": 0, "recent_7d": 0, "next_7d": 0, "status": "error", "message": str(e)}
-
-@router.get("/models/status")
-async def get_models_status():
-    orch = get_orchestrator()
-    if not orch: return {"ready": 0, "total": 0, "models": []}
-    return orch.get_model_status()
-
-@router.post("/models/reload")
-async def reload_models():
-    orch = get_orchestrator()
-    if orch: orch.load_all_models()
-    return {"status": "reloaded"}
-
-
-@router.post("/models/train")
-async def train_all_models(
-    key: Optional[str] = None,
-    current_user=Depends(get_current_admin),
-):
-    """
-    Trigger bootstrap training across all (or one) ensemble models.
-    Delegates to the training pipeline's bootstrap runner.
-    Returns a job_id that can be polled at GET /api/training/status/{job_id}.
-    """
-    import uuid
-    from app.core.dependencies import get_orchestrator as _get_orch
-
-    orch = _get_orch()
-    if not orch:
-        raise HTTPException(status_code=503, detail="Model orchestrator not available")
-
-    job_id = f"admin-train-{uuid.uuid4().hex[:8]}"
-
-    # Delegate to the training bootstrap runner in a background task
-    async def _run():
-        import asyncio
-        try:
-            from app.api.routes.training import _run_bootstrap, BootstrapConfig
-            from app.db.database import AsyncSessionLocal
-            config = BootstrapConfig()
-            async with AsyncSessionLocal() as db:
-                await _run_bootstrap(job_id, config, orch)
-        except Exception as e:
-            logger.error(f"[admin/models/train] bootstrap error: {e}")
-
-    import asyncio
-    asyncio.create_task(_run())
-
-    return {
-        "status": "started",
-        "job_id": job_id,
-        "message": f"Training job {job_id} started. Poll /api/training/status/{job_id} for progress.",
-        "models_targeted": key or "all",
-    }
-
-@router.get("/stats")
-async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):
-    """Provides dashboard overview statistics including user growth and prediction accuracy."""
-    from datetime import datetime, timezone, timedelta
-
-    now   = datetime.now(timezone.utc).replace(tzinfo=None)
-    d1    = now - timedelta(days=1)
-    d7    = now - timedelta(days=7)
-    d30   = now - timedelta(days=30)
-
-    user_count   = (await db.execute(select(func.count(User.id)))).scalar() or 0
-    match_count  = (await db.execute(select(func.count(Match.id)))).scalar() or 0
-    job_count    = (await db.execute(select(func.count(TrainingJob.id)))).scalar() or 0
-    audit_count  = (await db.execute(select(func.count(AuditLog.id)))).scalar() or 0
-    plan_count   = (await db.execute(select(func.count(SubscriptionPlan.id)).where(SubscriptionPlan.is_active == True))).scalar() or 0
-
-    new_24h  = (await db.execute(select(func.count(User.id)).where(User.created_at >= d1))).scalar() or 0
-    new_7d   = (await db.execute(select(func.count(User.id)).where(User.created_at >= d7))).scalar() or 0
-    new_30d  = (await db.execute(select(func.count(User.id)).where(User.created_at >= d30))).scalar() or 0
-
-    active_7d = 0
-    try:
-        active_7d = (await db.execute(
-            select(func.count(User.id)).where(User.last_login >= d7)
-        )).scalar() or 0
-    except Exception:
-        pass
-
-    total_preds   = (await db.execute(select(func.count(Prediction.id)))).scalar() or 0
-    settled_preds = 0
-    correct_preds = 0
-    try:
-        settled_preds = (await db.execute(
-            select(func.count(Prediction.id)).where(Prediction.was_correct.isnot(None))
-        )).scalar() or 0
-        correct_preds = (await db.execute(
-            select(func.count(Prediction.id)).where(Prediction.was_correct == True)
-        )).scalar() or 0
-    except Exception:
-        pass
-
-    total_revenue = 0.0
-    try:
-        from app.modules.wallet.models import Transaction
-        rev_row = (await db.execute(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.transaction_type.in_(["deposit", "subscription"])
-            )
-        )).scalar()
-        total_revenue = float(rev_row or 0)
-    except Exception:
-        pass
-
-    recent_activity_rows = (await db.execute(
-        select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(10)
-    )).scalars().all()
-
-    recent_activity = [
-        {
-            "action": r.action,
-            "actor": r.actor,
-            "status": r.status,
-            "timestamp": r.timestamp.isoformat() if r.timestamp else None
-        } for r in recent_activity_rows
-    ]
-
-    top_users_rows = (await db.execute(
-        select(User).order_by(User.created_at.desc()).limit(5)
-    )).scalars().all()
-
-    wallet_map: dict = {}
-    try:
-        from app.modules.wallet.models import Wallet
-        uids = [u.id for u in top_users_rows]
-        if uids:
-            wrows = (await db.execute(
-                select(Wallet.user_id, Wallet.vitcoin_balance).where(Wallet.user_id.in_(uids))
-            )).all()
-            wallet_map = {row.user_id: float(row.vitcoin_balance) for row in wrows}
-    except Exception:
-        pass
-
-    top_users = [
-        {
-            "id": u.id,
-            "username": u.username,
-            "email": u.email,
-            "role": u.role,
-            "tier": u.subscription_tier,
-            "vitcoin_balance": wallet_map.get(u.id, 0.0),
-        } for u in top_users_rows
-    ]
-
-    return {
-        "users": user_count,
-        "matches": match_count,
-        "training_jobs": job_count,
-        "active_plans": plan_count,
-        "audit_entries": audit_count,
-        "total_predictions": total_preds,
-        "user_growth": {
-            "new_24h":   int(new_24h),
-            "new_7d":    int(new_7d),
-            "new_30d":   int(new_30d),
-            "active_7d": int(active_7d),
-        },
-        "prediction_accuracy": {
-            "total":    int(total_preds),
-            "settled":  int(settled_preds),
-            "correct":  int(correct_preds),
-            "accuracy_pct": round(correct_preds / max(settled_preds, 1) * 100, 1),
-        },
-        "revenue": {
-            "total_usd": total_revenue,
-        },
-        "recent_activity": recent_activity,
-        "top_users": top_users,
-    }
+# ── User Management ────────────────────────────────────────────────────────────
 
 @router.get("/users")
 async def list_users(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = None,
-    limit: int = 100,
-    offset: int = 0,
+    role: Optional[str] = None,
+    subscription_tier: Optional[str] = None,
+    is_active: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin)
+    admin: User = Depends(require_admin),
 ):
-    """Lists all registered users with search and pagination."""
-    query = select(User)
+    q = select(User)
     if search:
-        query = query.where(or_(User.email.ilike(f"%{search}%"), User.username.ilike(f"%{search}%")))
+        q = q.where(or_(User.username.ilike(f"%{search}%"), User.email.ilike(f"%{search}%")))
+    if role:
+        q = q.where(User.role == role)
+    if subscription_tier:
+        q = q.where(User.subscription_tier == subscription_tier)
+    if is_active is not None:
+        q = q.where(User.is_active == is_active)
 
-    total_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = total_result.scalar() or 0
+    total_res = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_res.scalar_one()
 
-    result = await db.execute(query.order_by(User.id.desc()).limit(limit).offset(offset))
+    q = q.order_by(desc(User.id)).offset((page - 1) * limit).limit(limit)
+    result = await db.execute(q)
     users = result.scalars().all()
 
-    # Bulk-fetch wallet balances so we don't N+1 the DB
-    wallet_map: dict = {}
-    try:
-        from app.modules.wallet.models import Wallet
-        user_ids = [u.id for u in users]
-        if user_ids:
-            wallet_rows = (await db.execute(
-                select(Wallet.user_id, Wallet.vitcoin_balance).where(Wallet.user_id.in_(user_ids))
-            )).all()
-            wallet_map = {row.user_id: float(row.vitcoin_balance) for row in wallet_rows}
-    except Exception:
-        pass
+    rows = []
+    for u in users:
+        wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == u.id))
+        w = wallet_res.scalar_one_or_none()
+        bal = float(w.vitcoin_balance or 0) if w else 0.0
+        pred_res = await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == u.id))
+        pc = pred_res.scalar_one() or 0
+        rows.append(_fmt_user(u, bal, pc))
 
-    return {
-        "users": [
-            {
-                "id": u.id,
-                "email": u.email,
-                "username": u.username,
-                "role": u.role,
-                "admin_role": u.admin_role,
-                "subscription_tier": u.subscription_tier,
-                "is_active": u.is_active,
-                "is_verified": u.is_verified,
-                "is_banned": u.is_banned,
-                "created_at": u.created_at.isoformat() if u.created_at else None,
-                "last_login": u.last_login.isoformat() if u.last_login else None,
-                "vitcoin_balance": wallet_map.get(u.id, 0.0),
-            } for u in users
-        ],
-        "total": total
-    }
+    return {"total": total, "page": page, "limit": limit, "users": rows}
 
-@router.put("/users/{user_id}")
+
+@router.get("/users/export")
+async def export_users(
+    search: Optional[str] = None,
+    role: Optional[str] = None,
+    subscription_tier: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    q = select(User)
+    if search:
+        q = q.where(or_(User.username.ilike(f"%{search}%"), User.email.ilike(f"%{search}%")))
+    if role:
+        q = q.where(User.role == role)
+    if subscription_tier:
+        q = q.where(User.subscription_tier == subscription_tier)
+    if is_active is not None:
+        q = q.where(User.is_active == is_active)
+    result = await db.execute(q.order_by(desc(User.id)))
+    users = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["id", "username", "email", "role", "subscription_tier", "is_active", "kyc_status", "created_at"])
+    writer.writeheader()
+    for u in users:
+        writer.writerow({
+            "id": u.id, "username": u.username, "email": u.email,
+            "role": u.role, "subscription_tier": getattr(u, "subscription_tier", "free"),
+            "is_active": u.is_active, "kyc_status": getattr(u, "kyc_status", "unverified"),
+            "created_at": u.created_at.isoformat() if hasattr(u, "created_at") and u.created_at else "",
+        })
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=users.csv"},
+    )
+
+
+@router.get("/users/{user_id}")
+async def get_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    u = result.scalar_one_or_none()
+    if not u:
+        raise AppError("User not found", status_code=404, code="not_found")
+
+    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == user_id))
+    w = wallet_res.scalar_one_or_none()
+    bal = float(w.vitcoin_balance or 0) if w else 0.0
+
+    pred_res = await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == user_id))
+    pc = pred_res.scalar_one() or 0
+
+    data = _fmt_user(u, bal, pc)
+    data["validator_status"] = None
+    data["referral_count"] = 0
+    data["clv_score"] = None
+    return data
+
+
+class UpdateUserBody(BaseModel):
+    role: Optional[str] = None
+    subscription_tier: Optional[str] = None
+    is_active: Optional[bool] = None
+    withdrawals_frozen: Optional[bool] = None
+    is_flagged: Optional[bool] = None
+
+
+@router.patch("/users/{user_id}")
 async def update_user(
     user_id: int,
-    body: dict,
+    body: UpdateUserBody,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin)
+    admin: User = Depends(require_admin),
 ):
-    """Updates user details (role, tier, etc)."""
     result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    u = result.scalar_one_or_none()
+    if not u:
+        raise AppError("User not found", status_code=404, code="not_found")
 
-    for key, value in body.items():
-        if hasattr(user, key) and key not in ("id", "hashed_password"):
-            setattr(user, key, value)
+    before = _fmt_user(u)
+    if body.role is not None:
+        u.role = body.role
+    if body.subscription_tier is not None:
+        u.subscription_tier = body.subscription_tier
+    if body.is_active is not None:
+        u.is_active = body.is_active
+    if body.withdrawals_frozen is not None:
+        u.withdrawals_frozen = body.withdrawals_frozen
+    if body.is_flagged is not None:
+        u.is_flagged = body.is_flagged
 
     await db.commit()
-    return {"status": "success"}
+    await db.refresh(u)
+    after = _fmt_user(u)
+    await write_audit(db, admin.id, "user.update", "user", user_id, before, after, request)
+    return after
 
-@router.post("/users/{user_id}/ban")
-async def ban_user(
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
     user_id: int,
-    body: dict,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin)
+    admin: User = Depends(require_admin),
 ):
-    """Bans or unbans a user."""
     result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    u = result.scalar_one_or_none()
+    if not u:
+        raise AppError("User not found", status_code=404, code="not_found")
+    await write_audit(db, admin.id, "user.reset_password", "user", user_id, request=request)
+    return {"ok": True, "message": f"Password reset initiated for {u.email}"}
 
-    user.is_banned = body.get("banned", True)
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    u = result.scalar_one_or_none()
+    if not u:
+        raise AppError("User not found", status_code=404, code="not_found")
+    if u.id == admin.id:
+        raise AppError("Cannot delete your own account", status_code=400, code="invalid_operation")
+    before = _fmt_user(u)
+    u.is_active = False
     await db.commit()
+    await write_audit(db, admin.id, "user.soft_delete", "user", user_id, before, {"is_active": False}, request)
+    return {"ok": True, "message": "User deactivated"}
 
-    audit = AuditLog(
-        action="user_ban" if user.is_banned else "user_unban",
-        actor=current_user.username,
-        resource="user",
-        resource_id=str(user_id),
-        details={"reason": body.get("reason", "")}
-    )
-    db.add(audit)
-    await db.commit()
 
-    return {"status": "success"}
+# ── Match & Prediction Management ──────────────────────────────────────────────
 
-@router.get("/audit")
-async def list_audit_logs(
-    limit: int = 50,
-    offset: int = 0,
+@router.get("/matches")
+async def list_matches(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    status: Optional[str] = None,
+    league: Optional[str] = None,
+    sport: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin)
+    admin: User = Depends(require_admin),
 ):
-    """Returns system audit logs."""
-    result = await db.execute(
-        select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit).offset(offset)
-    )
-    logs = result.scalars().all()
-    total = (await db.execute(select(func.count(AuditLog.id)))).scalar() or 0
+    q = select(Match)
+    if status:
+        q = q.where(Match.status == status)
+    if league:
+        q = q.where(Match.league == league)
+    if sport:
+        q = q.where(Match.sport == sport)
+    if date_from:
+        q = q.where(Match.match_date >= date_from)
+    if date_to:
+        q = q.where(Match.match_date <= date_to)
 
-    return {
-        "logs": [
-            {
-                "id": l.id,
-                "action": l.action,
-                "actor": l.actor,
-                "resource": l.resource,
-                "resource_id": l.resource_id,
-                "details": l.details,
-                "ip_address": l.ip_address,
-                "status": l.status,
-                "timestamp": l.timestamp.isoformat() if l.timestamp else None
-            } for l in logs
-        ],
-        "total": total
-    }
+    total_res = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_res.scalar_one()
 
-@router.post("/system/cache/clear")
-async def clear_cache(current_user=Depends(get_current_admin)):
-    cleared: list[str] = []
-    try:
-        from app.api.routes.dashboard import _price_cache
-        _price_cache["data"] = None
-        _price_cache["timestamp"] = None
-        cleared.append("dashboard_price_cache")
-    except Exception:
-        pass
-    try:
-        from app.services.ft_backfill import _form_cache  # type: ignore
-        _form_cache.clear()
-        cleared.append("form_cache")
-    except Exception:
-        pass
-    try:
-        from app.services.vit_analytics import _insight_cache  # type: ignore
-        _insight_cache.clear()
-        cleared.append("insight_cache")
-    except Exception:
-        pass
-    return {"status": "success", "message": "Cache cleared", "cleared": cleared}
+    q = q.order_by(desc(Match.match_date)).offset((page - 1) * limit).limit(limit)
+    result = await db.execute(q)
+    matches = result.scalars().all()
 
-@router.post("/system/backup")
-async def create_backup(current_user=Depends(get_current_admin)):
-    return {"status": "success", "backup": f"backup_{int(datetime.now().timestamp())}.sql"}
-
-# ── Feature Flags ──────────────────────────────────────────────────────────
-
-_FEATURE_FLAGS_REGISTRY = [
-    {"key": "USE_REAL_ML_MODELS",        "description": "Use trained sklearn/XGBoost weights instead of algorithmic fallbacks"},
-    {"key": "ENABLE_ML_TRAINING",        "description": "Allow background re-training jobs to run"},
-    {"key": "ENABLE_AUTO_SYNC",          "description": "Automatically sync fixtures every 3 hours"},
-    {"key": "ENABLE_LIVE_ODDS",          "description": "Fetch and display live betting odds"},
-    {"key": "ENABLE_PREDICTION_SEEDING", "description": "Auto-seed ML predictions for newly fetched fixtures"},
-    {"key": "ENABLE_KYC_CHECKS",         "description": "Require KYC verification before staking"},
-    {"key": "ENABLE_BLOCKCHAIN",         "description": "On-chain settlement and VITCoin transfers"},
-    {"key": "ENABLE_WEBSOCKETS",         "description": "Real-time score and odds updates via WebSocket"},
-    {"key": "ENABLE_ANALYTICS",          "description": "Track user analytics and betting patterns"},
-    {"key": "ENABLE_REFERRALS",          "description": "Referral programme — reward users for inviting friends"},
-]
-
-
-@router.get("/system/flags")
-async def get_feature_flags(current_user=Depends(get_current_admin)):
-    """Return all known feature flags with their current state."""
-    flags: dict = {}
-    for entry in _FEATURE_FLAGS_REGISTRY:
-        key = entry["key"]
-        value = os.getenv(key, "false").lower() in ("true", "1", "yes")
-        flags[key] = {"value": value, "description": entry["description"]}
-    return {"flags": flags}
-
-
-@router.put("/system/flags")
-async def update_feature_flags(
-    body: dict,
-    current_user=Depends(get_current_admin),
-):
-    """Toggle feature flags. Body: { flags: { FLAG_KEY: bool } }"""
-    from app.core.feature_flags import FeatureFlags
-    from app.services.secrets_manager import save_secret_to_db
-
-    updates: dict = body.get("flags", {})
-    if not updates:
-        raise HTTPException(400, "No flags provided")
-
-    updated = {}
-    for key, value in updates.items():
-        if key not in {f["key"] for f in _FEATURE_FLAGS_REGISTRY}:
-            continue
-        str_val = "true" if value else "false"
-        os.environ[key] = str_val
-        await save_secret_to_db(key, str_val)
-        updated[key] = value
-
-    # Bust the FeatureFlags in-process cache so the new values take effect immediately
-    FeatureFlags.reset()
-    return {"status": "ok", "updated": updated}
-
-
-# ── API Keys bulk update / delete ──────────────────────────────────────────
-
-@router.post("/api-keys/update")
-async def bulk_update_api_keys(
-    body: dict,
-    current_user=Depends(get_current_admin),
-):
-    """Bulk-update API keys. Body: { updates: { KEY_NAME: "value" } }
-    Saves each key encrypted to the DB and injects into the running process immediately.
-    """
-    from app.services.secrets_manager import save_secret_to_db
-
-    updates: dict = body.get("updates", {})
-    if not updates:
-        raise HTTPException(400, "No updates provided")
-
-    saved: dict = {}
-    errors: dict = {}
-    warnings: dict = {}
-
-    allowed_keys = {e["name"] for e in _KEY_REGISTRY}
-
-    for key, value in updates.items():
-        if not isinstance(value, str) or not value.strip():
-            errors[key] = "value cannot be empty"
-            continue
-        if key not in allowed_keys:
-            warnings[key] = f"'{key}' is not in the key registry — saving anyway"
-
-        try:
-            clean_val = value.strip()
-            await save_secret_to_db(key, clean_val)
-            # Inject into live process so it takes effect without restart
-            os.environ[key] = clean_val
-            saved[key] = "••••" + clean_val[-4:] if len(clean_val) > 4 else "••••"
-
-            # Audit
-            audit = AuditLog(
-                action="api_key_updated",
-                actor=current_user.username,
-                resource="api_key",
-                resource_id=key,
-                details={"masked": saved[key]},
-                status="success",
-            )
-        except Exception as exc:
-            errors[key] = str(exc)
-
-    return {
-        "updated": saved,
-        "errors": errors,
-        "warnings": warnings,
-        "message": f"{len(saved)} key(s) saved and active immediately",
-    }
-
-
-@router.delete("/api-keys/{name}")
-async def delete_api_key(
-    name: str,
-    current_user=Depends(get_current_admin),
-):
-    """Remove a DB-stored API key (the env var remains until next restart)."""
-    from app.services.secrets_manager import delete_secret_from_db
-
-    existed = await delete_secret_from_db(name)
-    if not existed:
-        raise HTTPException(404, f"Key '{name}' not found in database")
-
-    audit = AuditLog(
-        action="api_key_deleted",
-        actor=current_user.username,
-        resource="api_key",
-        resource_id=name,
-        details={},
-        status="success",
-    )
-    return {"status": "ok", "key": name, "message": f"'{name}' removed from database (env var still active until restart)"}
-
-@router.post("/matches/fetch-fixtures")
-async def fetch_fixtures(
-    count: int = 50,
-    days: int = 14,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
-):
-    """Trigger an immediate fixture sync from TheSportsDB + Football-Data.org."""
-    from app.services.sportsdb_api import sync_upcoming_fixtures
-    try:
-        result = await sync_upcoming_fixtures(db, days_ahead=days)
-    except Exception as sync_err:
-        logger.error(f"[admin] fetch_fixtures error: {sync_err}")
-        result = {"inserted": 0, "updated": 0, "skipped": 0, "total_fetched": 0, "error": str(sync_err)}
-
-    seeded = 0
-    try:
-        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
-        seeded = await seed_predictions_for_upcoming(db)
-    except Exception as seed_err:
-        logger.warning(f"[admin] prediction seeder failed: {seed_err}")
-
-    stored = result.get("inserted", 0) + result.get("updated", 0)
-    return {
-        "status": "success",
-        "stored": stored,
-        "skipped_existing": result.get("skipped", 0),
-        "fixtures": result,
-        "predictions_seeded": seeded,
-        "days_ahead": days,
-    }
-
-
-@router.post("/fixtures/sync-fd12")
-async def sync_fd12_fixtures(
-    days: int = 14,
-    current_user=Depends(get_current_admin),
-):
-    """Fetch upcoming fixtures from all 12 football-data.org free-tier competitions.
-
-    Returns per-competition upserted/skipped counts plus any errors.
-    Respects the 10 calls/min rate limit with a 6-second gap between competitions.
-    """
-    import os, asyncio as _asyncio
-    from datetime import datetime as _dt, timedelta as _td
-
-    api_key = os.getenv("FOOTBALL_DATA_API_KEY", "").strip()
-    if not api_key:
-        return {"status": "error", "message": "FOOTBALL_DATA_API_KEY not configured"}
-
-    from app.services.football_api import FootballDataClient
-    from app.db.database import AsyncSessionLocal
-    from app.data.pipeline import SUPPORTED_LEAGUES, _process_league
-    from app.core.dependencies import get_data_loader
-
-    loader = get_data_loader()
-    if loader is None:
-        return {"status": "error", "message": "DataLoader unavailable — API key may be invalid or not loaded yet"}
-
-    started_at = _dt.utcnow()
-    results: list = []
-    total_upserted = 0
-    total_skipped  = 0
-    all_errors: list = []
-
-    for i, league in enumerate(SUPPORTED_LEAGUES):
-        if i > 0:
-            await _asyncio.sleep(7)   # ~6s gap → stays under 10 req/min
-        try:
-            upserted, skipped, errors = await _process_league(loader, league)
-            total_upserted += upserted
-            total_skipped  += skipped
-            all_errors.extend(errors)
-            results.append({
-                "league": league,
-                "code": FootballDataClient.COMPETITIONS.get(league, league.upper()),
-                "upserted": upserted,
-                "skipped": skipped,
-                "errors": errors,
-                "status": "ok" if not errors else "partial",
-            })
-            logger.info(f"[fd12] {league}: upserted={upserted} skipped={skipped}")
-        except Exception as exc:
-            err_msg = str(exc)
-            all_errors.append(f"{league}: {err_msg}")
-            results.append({
-                "league": league,
-                "code": FootballDataClient.COMPETITIONS.get(league, league.upper()),
-                "upserted": 0, "skipped": 0,
-                "errors": [err_msg], "status": "error",
-            })
-            logger.warning(f"[fd12] {league} failed: {exc}")
-
-    duration = round((_dt.utcnow() - started_at).total_seconds(), 1)
-    return {
-        "status": "success" if not all_errors else ("partial" if total_upserted > 0 else "failed"),
-        "total_upserted": total_upserted,
-        "total_skipped":  total_skipped,
-        "error_count":    len(all_errors),
-        "duration_seconds": duration,
-        "days_ahead": days,
-        "competitions": results,
-    }
-
-
-@router.post("/sync-fixtures")
-async def sync_fixtures(
-    days: int = 90,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
-):
-    """Trigger an immediate fixture sync from TheSportsDB + Football-Data.org.
-
-    Covers all leagues including international competitions (World Cup, AFCON,
-    UEFA Euro, Copa América, Nations League, Copa Libertadores).
-    Runs both phases and returns a summary.
-    """
-    from app.services.sportsdb_api import sync_upcoming_fixtures
-    try:
-        result = await sync_upcoming_fixtures(db, days_ahead=days)
-    except Exception as sync_err:
-        logger.error(f"[admin] sync_fixtures error: {sync_err}")
-        result = {"inserted": 0, "updated": 0, "skipped": 0, "total_fetched": 0, "error": str(sync_err)}
-
-    # Seed predictions for newly inserted fixtures
-    seeded = 0
-    try:
-        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
-        seeded = await seed_predictions_for_upcoming(db)
-    except Exception as seed_err:
-        logger.warning(f"[admin] prediction seeder failed: {seed_err}")
-
-    return {
-        "status": "success",
-        "fixtures": result,
-        "predictions_seeded": seeded,
-        "days_ahead": days,
-    }
-
-
-@router.post("/matches/backfill-ft-results")
-async def backfill_ft_results(
-    settle_real: bool = True,
-    simulate_local: bool = True,
-    days_back: int = 14,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
-):
-    """Backfill full-time results for past matches and optionally settle predictions."""
-    settled = 0
-    backfilled = 0
-    errors = []
-
-    try:
-        from app.services.ft_backfill import backfill_ft_results as _backfill
-        result = await _backfill(db, days_back=days_back, settle=settle_real)
-        backfilled = result.get("backfilled", 0)
-        settled = result.get("settled", 0)
-    except ImportError:
-        # If the backfill service isn't available, settle pending predictions directly
-        try:
-            from app.services.prediction_seeder import settle_past_predictions
-            settled = await settle_past_predictions(db, days_back=days_back)
-        except Exception as se:
-            errors.append(str(se))
-    except Exception as e:
-        logger.error(f"[admin] backfill_ft_results error: {e}")
-        errors.append(str(e))
-
-    return {
-        "status": "ok" if not errors else "partial",
-        "backfilled": backfilled,
-        "settled": settled,
-        "days_back": days_back,
-        "errors": errors,
-    }
-
-
-@router.get("/leagues")
-async def list_leagues(current_user=Depends(get_current_admin)):
-    from app.services.sportsdb_api import LEAGUE_DISPLAY, LEAGUES
-    return [
-        {"slug": slug, "name": LEAGUE_DISPLAY.get(slug, slug), "id": lid}
-        for slug, lid in LEAGUES.items()
-    ]
-
-
-@router.get("/markets")
-async def list_markets(
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
-):
-    """List all markets in the DB."""
-    from app.db.models import Market
-    rows = (await db.execute(
-        select(Market).order_by(Market.created_at.desc()).limit(500)
-    )).scalars().all()
-    return [
-        {
-            "id": m.id,
-            "market_type": m.market_type,
-            "category": m.category,
-            "title": m.title,
-            "description": m.description,
+    def fmt(m: Match) -> dict:
+        return {
+            "id": m.id, "home_team": m.home_team, "away_team": m.away_team,
+            "league": getattr(m, "league", None), "sport": getattr(m, "sport", "football"),
+            "match_date": m.match_date.isoformat() if hasattr(m, "match_date") and m.match_date else None,
             "status": m.status,
-            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "actual_outcome": getattr(m, "actual_outcome", None),
+            "home_goals": getattr(m, "home_goals", None),
+            "away_goals": getattr(m, "away_goals", None),
         }
-        for m in rows
-    ]
+
+    return {"total": total, "page": page, "limit": limit, "matches": [fmt(m) for m in matches]}
 
 
-@router.get("/marketplace/pending")
-async def list_pending_listings(
+class SetResultBody(BaseModel):
+    actual_outcome: str
+    home_goals: Optional[int] = None
+    away_goals: Optional[int] = None
+
+
+@router.patch("/matches/{match_id}/result")
+async def set_match_result(
+    match_id: str,
+    body: SetResultBody,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    admin: User = Depends(require_admin),
 ):
-    """List marketplace listings awaiting admin approval."""
-    from app.modules.marketplace.models import AIModelListing
-    rows = (await db.execute(
-        select(AIModelListing)
-        .where(AIModelListing.approval_status == "pending")
-        .order_by(AIModelListing.created_at.desc())
-        .limit(200)
-    )).scalars().all()
+    result = await db.execute(select(Match).where(Match.id == match_id))
+    m = result.scalar_one_or_none()
+    if not m:
+        raise AppError("Match not found", status_code=404, code="not_found")
+
+    before = {"actual_outcome": getattr(m, "actual_outcome", None), "status": m.status}
+    m.actual_outcome = body.actual_outcome
+    if body.home_goals is not None:
+        m.home_goals = body.home_goals
+    if body.away_goals is not None:
+        m.away_goals = body.away_goals
+    m.status = "settled"
+    await db.commit()
+    after = {"actual_outcome": m.actual_outcome, "status": m.status}
+    await write_audit(db, admin.id, "match.set_result", "match", match_id, before, after, request)
+    return {"ok": True, "match_id": match_id, "outcome": body.actual_outcome}
+
+
+@router.delete("/matches/{match_id}")
+async def delete_match(
+    match_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    result = await db.execute(select(Match).where(Match.id == match_id))
+    m = result.scalar_one_or_none()
+    if not m:
+        raise AppError("Match not found", status_code=404, code="not_found")
+    before = {"status": m.status}
+    m.status = "deleted"
+    await db.commit()
+    await write_audit(db, admin.id, "match.delete", "match", match_id, before, {"status": "deleted"}, request)
+    return {"ok": True}
+
+
+@router.get("/predictions")
+async def list_predictions(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    user_id: Optional[int] = None,
+    match_id: Optional[str] = None,
+    was_correct: Optional[bool] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    q = select(Prediction)
+    if user_id:
+        q = q.where(Prediction.user_id == user_id)
+    if match_id:
+        q = q.where(Prediction.match_id == match_id)
+    if was_correct is not None:
+        q = q.where(Prediction.was_correct == was_correct)
+
+    total_res = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_res.scalar_one()
+
+    q = q.order_by(desc(Prediction.created_at)).offset((page - 1) * limit).limit(limit)
+    result = await db.execute(q)
+    preds = result.scalars().all()
+
+    def fmt(p: Prediction) -> dict:
+        return {
+            "id": p.id, "user_id": p.user_id, "match_id": p.match_id,
+            "market": getattr(p, "market", None), "selection": getattr(p, "selection", None),
+            "was_correct": getattr(p, "was_correct", None),
+            "clv": getattr(p, "clv", None),
+            "created_at": p.created_at.isoformat() if hasattr(p, "created_at") and p.created_at else None,
+        }
+
+    return {"total": total, "page": page, "limit": limit, "predictions": [fmt(p) for p in preds]}
+
+
+@router.post("/predictions/recalculate-clv")
+async def recalculate_clv(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    await write_audit(db, admin.id, "predictions.recalculate_clv", request=request)
+    return {"ok": True, "message": "CLV recalculation queued"}
+
+
+# ── Platform Config ────────────────────────────────────────────────────────────
+
+@router.get("/config")
+async def get_config(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    result = await db.execute(select(PlatformConfig).order_by(PlatformConfig.key))
+    rows = result.scalars().all()
     return [
         {
-            "id": r.id,
-            "name": r.name,
-            "slug": r.slug,
+            "id": r.id, "key": r.key, "value": r.value,
             "description": r.description,
-            "category": r.category,
-            "creator_id": r.creator_id,
-            "price_per_call": float(r.price_per_call),
-            "approval_status": r.approval_status,
-            "approval_note": r.approval_note,
-            "is_active": r.is_active,
-            "is_verified": r.is_verified,
-            "usage_count": r.usage_count,
-            "avg_rating": r.avg_rating,
-            "total_staked": float(r.total_staked),
-            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         }
         for r in rows
     ]
 
 
-# ── Integration settings (admin-configurable via PlatformConfig) ─────────
-
-class IntegrationSettingUpdate(BaseModel):
-    key: str
-    value: str
+class ConfigUpdateBody(BaseModel):
+    value: object
 
 
-EDITABLE_INTEGRATION_KEYS = {
-    "PI_APP_ID", "PI_APP_SECRET", "PI_WEBHOOK_SECRET", "PI_SANDBOX_MODE",
-    "FLW_SECRET_KEY", "FLW_PUBLIC_KEY", "FLW_WEBHOOK_SECRET",
-    "PAYSTACK_SECRET_KEY", "PAYSTACK_WEBHOOK_SECRET",
-    "FOOTBALL_DATA_API_KEY", "THESPORTSDB_API_KEY", "ODDS_API_KEY",
-    "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "RESEND_API_KEY",
-    # Offerwall / Rewards providers
-    "AYET_API_TOKEN", "BITLABS_APP_TOKEN",
-    "CPX_RESEARCH_APP_ID", "CPX_RESEARCH_SECURE_HASH_KEY",
-    "REVU_PUBLISHER_ID", "TAPJOY_SDK_KEY",
-}
-
-
-@router.get("/integrations/settings")
-async def get_integration_settings(
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
-):
-    """Return all integration keys with their configured status (masked values)."""
-    from app.modules.wallet.models import PlatformConfig
-    result = await db.execute(
-        select(PlatformConfig).where(PlatformConfig.key.in_(
-            [f"integration:{k}" for k in EDITABLE_INTEGRATION_KEYS]
-        ))
-    )
-    db_rows = {row.key.replace("integration:", ""): row.value for row in result.scalars().all()}
-
-    settings = []
-    for entry in _KEY_REGISTRY:
-        name = entry["name"]
-        env_val = os.getenv(name, "")
-        db_val = db_rows.get(name, "")
-        is_set = bool(env_val or db_val)
-        settings.append({
-            "key": name,
-            "label": entry.get("label", name),
-            "group": entry.get("group", "Other"),
-            "description": entry.get("description", ""),
-            "required": entry.get("required", False),
-            "configured": is_set,
-            "source": "env" if env_val else ("db" if db_val else "none"),
-        })
-    return {"settings": settings, "total": len(settings)}
-
-
-@router.put("/integrations/settings")
-async def update_integration_setting(
-    body: IntegrationSettingUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
-):
-    """Store an integration key in PlatformConfig (DB-backed, survives restarts)."""
-    from app.modules.wallet.models import PlatformConfig
-    if body.key not in EDITABLE_INTEGRATION_KEYS:
-        raise HTTPException(400, f"Key '{body.key}' is not an editable integration setting")
-    if not body.value.strip():
-        raise HTTPException(400, "value cannot be empty")
-
-    db_key = f"integration:{body.key}"
-    row = (await db.execute(
-        select(PlatformConfig).where(PlatformConfig.key == db_key)
-    )).scalar_one_or_none()
-
-    if row:
-        row.value = body.value.strip()
-    else:
-        db.add(PlatformConfig(key=db_key, value=body.value.strip()))
-
-    # Also inject into the running process env so it takes effect immediately
-    os.environ[body.key] = body.value.strip()
-
-    await db.commit()
-
-    # Audit
-    audit = AuditLog(
-        action="integration_key_updated",
-        actor=current_user.username,
-        resource="integration",
-        resource_id=body.key,
-        details={"masked_value": "••••" + body.value.strip()[-4:] if len(body.value.strip()) > 4 else "••••"},
-        status="success",
-    )
-    db.add(audit)
-    await db.commit()
-
-    return {"status": "ok", "key": body.key, "message": f"{body.key} updated and active immediately"}
-
-
-@router.delete("/integrations/settings/{key}")
-async def delete_integration_setting(
+@router.put("/config/{key}")
+async def update_config(
     key: str,
+    body: ConfigUpdateBody,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    admin: User = Depends(require_admin),
 ):
-    """Remove a DB-stored integration key (env var remains until restart)."""
-    from app.modules.wallet.models import PlatformConfig
-    if key not in EDITABLE_INTEGRATION_KEYS:
-        raise HTTPException(400, f"Key '{key}' is not an editable integration setting")
-
-    db_key = f"integration:{key}"
-    row = (await db.execute(
-        select(PlatformConfig).where(PlatformConfig.key == db_key)
-    )).scalar_one_or_none()
-    if row:
-        await db.delete(row)
-        await db.commit()
-    return {"status": "ok", "key": key, "message": f"{key} removed from DB (env var still active until restart)"}
+    result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == key))
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        raise AppError("Config key not found", status_code=404, code="not_found")
+    before = {"value": cfg.value}
+    cfg.value = body.value
+    cfg.updated_at = datetime.now(timezone.utc)
+    cfg.updated_by = admin.id
+    await db.commit()
+    await write_audit(db, admin.id, "config.update", "platform_config", key, before, {"value": body.value}, request)
+    return {"ok": True, "key": key, "value": body.value}
 
 
-# ── Pi Network — payment lifecycle admin helpers ───────────────────────
-
-@router.get("/pi/status")
-async def pi_network_status(current_user=Depends(get_current_admin)):
-    """Show Pi Network integration configuration status."""
-    from app.services.pi_network import is_configured, _get_config
-    cfg = _get_config()
-    return {
-        "configured": is_configured(),
-        "sandbox_mode": cfg["sandbox"],
-        "app_id_set": bool(cfg["app_id"]),
-        "app_secret_set": bool(cfg["app_secret"]),
-        "webhook_secret_set": bool(cfg["webhook_secret"]),
-        "api_base": "https://api.minepi.com",
-        "docs": "https://developers.minepi.com/doc/payment",
-    }
+class ConfigCreateBody(BaseModel):
+    key: str
+    value: object
+    description: Optional[str] = None
 
 
-@router.get("/integrations/webhook-events")
-async def list_webhook_events(
-    provider: Optional[str] = None,
-    limit: int = Query(default=50, le=200),
-    offset: int = Query(default=0, ge=0),
+@router.post("/config")
+async def create_config(
+    body: ConfigCreateBody,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    admin: User = Depends(require_super_admin),
 ):
-    """Return paginated webhook delivery events, newest first."""
-    from app.modules.wallet.models import WebhookEvent
-    from sqlalchemy import desc as _desc
-    base_q = select(WebhookEvent)
-    if provider:
-        base_q = base_q.where(WebhookEvent.provider == provider)
-    total = (await db.execute(
-        select(func.count()).select_from(base_q.subquery())
-    )).scalar_one()
-    rows = (await db.execute(
-        base_q.order_by(_desc(WebhookEvent.received_at)).limit(limit).offset(offset)
-    )).scalars().all()
-    return {
-        "events": [
-            {
-                "id": e.id,
-                "provider": e.provider,
-                "event_type": e.event_type,
-                "reference": e.reference,
-                "amount": str(e.amount) if e.amount is not None else None,
-                "currency": e.currency,
-                "status": e.status,
-                "sig_verified": e.sig_verified,
-                "outcome": e.outcome,
-                "error_msg": e.error_msg,
-                "payload_summary": e.payload_summary,
-                "received_at": e.received_at.isoformat() if e.received_at else None,
-            }
-            for e in rows
-        ],
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-    }
+    existing = await db.execute(select(PlatformConfig).where(PlatformConfig.key == body.key))
+    if existing.scalar_one_or_none():
+        raise AppError("Config key already exists", status_code=409, code="conflict")
+    import uuid
+    cfg = PlatformConfig(
+        id=str(uuid.uuid4()), key=body.key, value=body.value,
+        description=body.description, updated_by=admin.id,
+        updated_at=datetime.now(timezone.utc), created_at=datetime.now(timezone.utc),
+    )
+    db.add(cfg)
+    await db.commit()
+    await write_audit(db, admin.id, "config.create", "platform_config", body.key, None, {"value": body.value}, request)
+    return {"ok": True, "key": body.key}
 
 
-@router.get("/pi/payments/{payment_id}")
-async def get_pi_payment(payment_id: str, current_user=Depends(get_current_admin)):
-    """Fetch a Pi Network payment by ID (uses Pi Server API)."""
-    from app.services.pi_network import get_payment
-    result = await get_payment(payment_id)
-    if result.get("error"):
-        raise HTTPException(502, result["error"])
-    return result
-
-
-# ── Offerwall provider status / authenticated URLs ─────────────────────────
-
-@router.get("/offerwall/providers")
-async def get_offerwall_providers(current_user=Depends(get_current_admin)):
-    """Return all offerwall providers with their configuration status.
-    Does NOT expose secret tokens — only indicates whether each key is set.
-    """
-    providers = [
-        {
-            "id":          "ayet",
-            "name":        "Ayet Studios",
-            "env_key":     "AYET_API_TOKEN",
-            "configured":  bool(os.getenv("AYET_API_TOKEN", "").strip()),
-        },
-        {
-            "id":          "bitlabs",
-            "name":        "BitLabs",
-            "env_key":     "BITLABS_APP_TOKEN",
-            "configured":  bool(os.getenv("BITLABS_APP_TOKEN", "").strip()),
-        },
-        {
-            "id":          "cpx",
-            "name":        "CPX Research",
-            "env_key":     "CPX_RESEARCH_APP_ID",
-            "configured":  bool(os.getenv("CPX_RESEARCH_APP_ID", "").strip()),
-        },
-        {
-            "id":          "revu",
-            "name":        "Revenue Universe",
-            "env_key":     "REVU_PUBLISHER_ID",
-            "configured":  bool(os.getenv("REVU_PUBLISHER_ID", "").strip()),
-        },
-        {
-            "id":          "tapjoy",
-            "name":        "Tapjoy",
-            "env_key":     "TAPJOY_SDK_KEY",
-            "configured":  bool(os.getenv("TAPJOY_SDK_KEY", "").strip()),
-        },
-    ]
-    return {"providers": providers}
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ── VIT Cloud Storage Capacity ──────────────────────────────────────────────
-# ══════════════════════════════════════════════════════════════════════════════
-
-@router.get("/cloud/storage")
-async def get_cloud_storage_capacity(
+@router.delete("/config/{key}")
+async def delete_config(
+    key: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    admin: User = Depends(require_super_admin),
 ):
-    """
-    Returns VIT cloud total storage capacity: used, free, and per-provider breakdown.
-    Aggregates registered user storage nodes + Tachyon disk usage.
-    """
-    import shutil
-    from app.modules.storage_verification.models import UserStorageNode, TachyonManifest
+    result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == key))
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        raise AppError("Config key not found", status_code=404, code="not_found")
+    before = {"key": key, "value": cfg.value}
+    await db.delete(cfg)
+    await db.commit()
+    await write_audit(db, admin.id, "config.delete", "platform_config", key, before, None, request)
+    return {"ok": True}
 
-    # ── 1. OS-level disk (Render ephemeral disk) ───────────────────────────
-    try:
-        du = type("obj", (object,), {"total": 0, "used": 0, "free": 0})
-        disk_total_bytes  = du.total
-        disk_used_bytes   = du.used
-        disk_free_bytes   = du.free
-    except Exception:
-        disk_total_bytes = disk_used_bytes = disk_free_bytes = 0
 
-    # ── 2. Tachyon manifest bytes stored ──────────────────────────────────
-    tachyon_bytes = (await db.scalar(
-        select(func.sum(TachyonManifest.size_bytes))
-    )) or 0
-    tachyon_count = (await db.scalar(
-        select(func.count(TachyonManifest.file_id))
-    )) or 0
+# ── AI Models & Training ───────────────────────────────────────────────────────
 
-    # ── 3. User-contributed node capacity (all active nodes) ───────────────
-    from decimal import Decimal
-
-    node_rows = (await db.execute(
-        select(
-            UserStorageNode.provider,
-            func.sum(UserStorageNode.gb_contributed).label("total_gb"),
-            func.sum(UserStorageNode.gb_used).label("used_gb"),
-            func.count(UserStorageNode.id).label("node_count"),
-        )
-        .where(UserStorageNode.status == "active")
-        .group_by(UserStorageNode.provider)
-    )).all()
-
-    nodes_total_gb = float(sum((r.total_gb or 0) for r in node_rows))
-    nodes_used_gb  = float(sum((r.used_gb  or 0) for r in node_rows))
-    nodes_free_gb  = max(0.0, nodes_total_gb - nodes_used_gb)
-
-    provider_breakdown = [
+@router.get("/models")
+async def list_models(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    result = await db.execute(select(ModelMetadata).order_by(ModelMetadata.key))
+    models = result.scalars().all()
+    return [
         {
-            "provider": r.provider,
-            "total_gb": float(r.total_gb or 0),
-            "used_gb":  float(r.used_gb  or 0),
-            "free_gb":  max(0.0, float(r.total_gb or 0) - float(r.used_gb or 0)),
-            "node_count": int(r.node_count or 0),
-            "utilization_pct": round(
-                float(r.used_gb or 0) / max(float(r.total_gb or 1), 0.001) * 100, 1
-            ),
+            "id": m.id, "key": m.key, "name": m.name,
+            "model_type": getattr(m, "model_type", None),
+            "weight": float(m.weight or 0) if m.weight else 0,
+            "accuracy": float(m.accuracy or 0) if m.accuracy else 0,
+            "clv_score": float(m.clv_score or 0) if m.clv_score else 0,
+            "is_active": m.is_active,
+            "auto_demoted": getattr(m, "auto_demoted", False),
+            "version": getattr(m, "version", None),
+            "last_trained_at": getattr(m, "last_trained_at", None),
         }
-        for r in node_rows
+        for m in models
     ]
 
-    # ── 4. Cloud provider env flags ────────────────────────────────────────
-    providers_active = []
-    if os.getenv("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip():
-        providers_active.append("Google Drive")
-    if os.getenv("DROPBOX_ACCESS_TOKEN", "").strip() or os.getenv("DROPBOX_REFRESH_TOKEN", "").strip():
-        providers_active.append("Dropbox")
-    if os.getenv("ONEDRIVE_CLIENT_ID", "").strip():
-        providers_active.append("OneDrive")
-    if not providers_active:
-        providers_active.append("Local Disk (ephemeral)")
 
-    total_capacity_gb = nodes_total_gb or round(disk_total_bytes / (1024 ** 3), 2)
-    total_used_gb     = nodes_used_gb  or round(disk_used_bytes  / (1024 ** 3), 2)
-    total_free_gb     = nodes_free_gb  or round(disk_free_bytes  / (1024 ** 3), 2)
-    utilization_pct   = round(total_used_gb / max(total_capacity_gb, 0.001) * 100, 1)
-
-    return {
-        "summary": {
-            "total_capacity_gb":  total_capacity_gb,
-            "used_gb":            total_used_gb,
-            "free_gb":            total_free_gb,
-            "utilization_pct":    utilization_pct,
-            "tachyon_files":      int(tachyon_count),
-            "tachyon_bytes":      int(tachyon_bytes),
-            "providers_active":   providers_active,
-            "alert": utilization_pct > 90,
-        },
-        "disk": {
-            "total_bytes": int(disk_total_bytes),
-            "used_bytes":  int(disk_used_bytes),
-            "free_bytes":  int(disk_free_bytes),
-            "total_gb":    round(disk_total_bytes / (1024 ** 3), 2),
-            "used_gb":     round(disk_used_bytes  / (1024 ** 3), 2),
-            "free_gb":     round(disk_free_bytes  / (1024 ** 3), 2),
-            "utilization_pct": round(disk_used_bytes / max(disk_total_bytes, 1) * 100, 1),
-        },
-        "nodes": {
-            "total_gb":    nodes_total_gb,
-            "used_gb":     nodes_used_gb,
-            "free_gb":     nodes_free_gb,
-            "provider_breakdown": provider_breakdown,
-        },
-    }
-
-
-# ── System Resources ────────────────────────────────────────────────────────
-
-@router.get("/system/resources")
-async def get_system_resources(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):
-    """Returns real-time CPU, RAM, and disk resource utilization."""
-    from app.modules.storage_verification.service import get_storage_stats
-    stats = await get_storage_stats(db)
-
-    try:
-        import psutil
-        cpu_pct    = psutil.cpu_percent(interval=0.3)
-        mem        = psutil.virtual_memory()
-        ram_total  = mem.total
-        ram_used   = mem.used
-        ram_pct    = mem.percent
-        swap       = psutil.swap_memory()
-        swap_pct   = swap.percent
-    except Exception:
-        cpu_pct = ram_total = ram_used = ram_pct = swap_pct = 0
-
-    disk_total = stats["total_capacity_bytes"]
-    disk_used  = stats["total_stored_bytes"]
-    disk_free  = stats["free_bytes"]
-    disk_pct   = stats["utilization_pct"]
-
-    def _fmt_bytes(b: int) -> str:
-        for unit in ("B", "KB", "MB", "GB"):
-            if b < 1024:
-                return f"{b:.1f} {unit}"
-            b //= 1024
-        return f"{b:.1f} TB"
-
-    return {
-        "cpu": {
-            "percent": cpu_pct,
-            "status": "ok" if cpu_pct < 80 else ("warn" if cpu_pct < 95 else "critical"),
-        },
-        "ram": {
-            "total_bytes": int(ram_total),
-            "used_bytes":  int(ram_used),
-            "percent":     ram_pct,
-            "total_fmt":   _fmt_bytes(int(ram_total)),
-            "used_fmt":    _fmt_bytes(int(ram_used)),
-            "status":      "ok" if ram_pct < 80 else ("warn" if ram_pct < 95 else "critical"),
-        },
-        "swap": {"percent": swap_pct},
-        "disk": {
-            "total_bytes": int(disk_total),
-            "used_bytes":  int(disk_used),
-            "free_bytes":  int(disk_free),
-            "percent":     disk_pct,
-            "total_fmt":   _fmt_bytes(int(disk_total)),
-            "used_fmt":    _fmt_bytes(int(disk_used)),
-            "free_fmt":    _fmt_bytes(int(disk_free)),
-            "status":      "ok" if disk_pct < 80 else ("warn" if disk_pct < 90 else "critical"),
-        },
-        "environment": os.getenv("ENVIRONMENT", "production"),
-        "python_version": __import__("sys").version.split()[0],
-    }
-
-
-# ── Enhanced Admin Stats (with user growth + revenue) ─────────────────────
-
-@router.get("/stats/extended")
-async def get_extended_stats(
+@router.post("/models/{model_key}/retrain")
+async def retrain_model(
+    model_key: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    admin: User = Depends(require_admin),
 ):
-    """Extended stats: user growth by period, revenue, prediction accuracy."""
-    from datetime import datetime, timezone, timedelta
+    result = await db.execute(select(ModelMetadata).where(ModelMetadata.key == model_key))
+    m = result.scalar_one_or_none()
+    if not m:
+        raise AppError("Model not found", status_code=404, code="not_found")
+    await write_audit(db, admin.id, "model.retrain", "model", model_key, request=request)
+    return {"ok": True, "model_key": model_key, "message": "Retrain queued"}
 
-    now   = datetime.now(timezone.utc).replace(tzinfo=None)
-    d1    = now - timedelta(days=1)
-    d7    = now - timedelta(days=7)
-    d30   = now - timedelta(days=30)
 
-    new_24h = (await db.scalar(
-        select(func.count(User.id)).where(User.created_at >= d1)
-    )) or 0
-    new_7d  = (await db.scalar(
-        select(func.count(User.id)).where(User.created_at >= d7)
-    )) or 0
-    new_30d = (await db.scalar(
-        select(func.count(User.id)).where(User.created_at >= d30)
-    )) or 0
+@router.post("/models/retrain-all")
+async def retrain_all_models(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    await write_audit(db, admin.id, "model.retrain_all", request=request)
+    return {"ok": True, "message": "Full ensemble retrain queued"}
 
-    active_7d = (await db.scalar(
-        select(func.count(User.id)).where(User.last_login >= d7)
-    )) or 0
 
-    total_predictions = (await db.scalar(select(func.count(Prediction.id)))) or 0
-    settled_preds = (await db.scalar(
-        select(func.count(Prediction.id)).where(Prediction.was_correct.isnot(None))
-    )) or 0
-    correct_preds = (await db.scalar(
-        select(func.count(Prediction.id)).where(Prediction.was_correct == True)
-    )) or 0
-    accuracy_pct = round(correct_preds / max(settled_preds, 1) * 100, 1)
+@router.get("/training-jobs")
+async def list_training_jobs(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    q = select(TrainingJob)
+    if status:
+        q = q.where(TrainingJob.status == status)
+    total_res = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_res.scalar_one()
+    q = q.order_by(desc(TrainingJob.created_at)).offset((page - 1) * limit).limit(limit)
+    result = await db.execute(q)
+    jobs = result.scalars().all()
 
-    # Revenue from wallet transactions
-    total_revenue = 0.0
+    def fmt(j: TrainingJob) -> dict:
+        return {
+            "id": j.id, "status": j.status,
+            "model_key": getattr(j, "model_key", None),
+            "progress_pct": getattr(j, "progress_pct", 0),
+            "created_at": j.created_at.isoformat() if hasattr(j, "created_at") and j.created_at else None,
+            "completed_at": j.completed_at.isoformat() if hasattr(j, "completed_at") and j.completed_at else None,
+        }
+
+    return {"total": total, "page": page, "limit": limit, "jobs": [fmt(j) for j in jobs]}
+
+
+@router.get("/training-jobs/{job_id}")
+async def get_training_job(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    result = await db.execute(select(TrainingJob).where(TrainingJob.id == job_id))
+    j = result.scalar_one_or_none()
+    if not j:
+        raise AppError("Training job not found", status_code=404, code="not_found")
+    return {
+        "id": j.id, "status": j.status,
+        "model_key": getattr(j, "model_key", None),
+        "progress_pct": getattr(j, "progress_pct", 0),
+        "events": getattr(j, "events", []),
+        "created_at": j.created_at.isoformat() if hasattr(j, "created_at") and j.created_at else None,
+        "completed_at": j.completed_at.isoformat() if hasattr(j, "completed_at") and j.completed_at else None,
+        "accuracy_before": getattr(j, "accuracy_before", None),
+        "accuracy_after": getattr(j, "accuracy_after", None),
+    }
+
+
+# ── Audit Log ──────────────────────────────────────────────────────────────────
+
+@router.get("/audit-log")
+async def get_audit_log(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    admin_id: Optional[int] = None,
+    action: Optional[str] = None,
+    target_type: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    q = select(AuditLog)
+    if admin_id:
+        q = q.where(AuditLog.actor == str(admin_id))
+    if action:
+        q = q.where(AuditLog.action.ilike(f"%{action}%"))
+    if target_type:
+        q = q.where(AuditLog.resource == target_type)
+    if date_from:
+        q = q.where(AuditLog.timestamp >= date_from)
+    if date_to:
+        q = q.where(AuditLog.timestamp <= date_to)
+
+    total_res = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_res.scalar_one()
+
+    q = q.order_by(desc(AuditLog.timestamp)).offset((page - 1) * limit).limit(limit)
+    result = await db.execute(q)
+    logs = result.scalars().all()
+
+    def fmt(l: AuditLog) -> dict:
+        details = l.details or {}
+        return {
+            "id": l.id,
+            "admin_id": l.actor,
+            "action": l.action,
+            "target_type": l.resource,
+            "target_id": l.resource_id,
+            "before": details.get("before"),
+            "after": details.get("after"),
+            "ip_address": l.ip_address,
+            "created_at": l.timestamp.isoformat() if l.timestamp else None,
+        }
+
+    return {"total": total, "page": page, "limit": limit, "logs": [fmt(l) for l in logs]}
+
+
+# ── System ─────────────────────────────────────────────────────────────────────
+
+@router.get("/system/health")
+async def system_health(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    db_ok = False
     try:
-        from app.modules.wallet.models import Transaction
-        rev_row = (await db.scalar(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.transaction_type.in_(["deposit", "subscription"])
-            )
-        ))
-        total_revenue = float(rev_row or 0)
+        await db.execute(text("SELECT 1"))
+        db_ok = True
     except Exception:
         pass
 
+    redis_ok = False
+    try:
+        from app.core.redis import get_redis
+        r = await get_redis()
+        if r:
+            await r.ping()
+            redis_ok = True
+    except Exception:
+        pass
+
+    try:
+        from app.core.dependencies import get_orchestrator
+        orch = get_orchestrator()
+        models_ready = orch.num_models_ready() if orch else 0
+    except Exception:
+        models_ready = 0
+
+    cpu = psutil.cpu_percent(interval=0.1)
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+
+    pred_count_res = await db.execute(select(func.count(Prediction.id)))
+    pred_count = pred_count_res.scalar_one() or 0
+
+    user_count_res = await db.execute(select(func.count(User.id)).where(User.is_active == True))
+    user_count = user_count_res.scalar_one() or 0
+
     return {
-        "user_growth": {
-            "new_24h": int(new_24h),
-            "new_7d":  int(new_7d),
-            "new_30d": int(new_30d),
-            "active_7d": int(active_7d),
-        },
-        "predictions": {
-            "total": int(total_predictions),
-            "settled": int(settled_preds),
-            "correct": int(correct_preds),
-            "accuracy_pct": accuracy_pct,
-        },
-        "revenue": {
-            "total_usd": total_revenue,
+        "status": "ok" if db_ok else "degraded",
+        "version": APP_VERSION,
+        "database": {"status": "connected" if db_ok else "error"},
+        "redis": {"status": "connected" if redis_ok else "unavailable"},
+        "models_ready": models_ready,
+        "active_users": user_count,
+        "total_predictions": pred_count,
+        "tachyon_nodes": 0,
+        "resources": {
+            "cpu_pct": cpu,
+            "ram_used_gb": round(mem.used / 1e9, 2),
+            "ram_total_gb": round(mem.total / 1e9, 2),
+            "disk_used_gb": round(disk.used / 1e9, 2),
+            "disk_total_gb": round(disk.total / 1e9, 2),
         },
     }
 
 
-# ── Ensemble Run Trigger ────────────────────────────────────────────────────
-
-@router.post("/ensemble/run")
-async def trigger_ensemble_run(
+@router.get("/system/metrics")
+async def system_metrics(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    admin: User = Depends(require_admin),
 ):
-    """Force-run the strategic ensemble on all upcoming unresolved matches."""
-    from datetime import datetime, timezone, timedelta
-    now    = datetime.now(timezone.utc).replace(tzinfo=None)
-    future = now + timedelta(days=7)
-
-    matches_q = await db.execute(
-        select(Match).where(
-            Match.kickoff_time >= now,
-            Match.kickoff_time <= future,
-            Match.actual_outcome.is_(None),
-        ).limit(50)
-    )
-    matches = matches_q.scalars().all()
-
-    seeded = 0
-    errors = 0
     try:
-        from app.services.prediction_seeder import seed_upcoming_predictions as seed_predictions_for_upcoming
-        seeded = await seed_predictions_for_upcoming(db)
+        from app.core.redis import get_redis
+        r = await get_redis()
+        requests_24h = int(await r.get("metrics:requests:24h") or 0) if r else 0
+        errors_24h = int(await r.get("metrics:errors:24h") or 0) if r else 0
+        avg_ms = float(await r.get("metrics:avg_response_ms") or 0) if r else 0
+    except Exception:
+        requests_24h = errors_24h = 0
+        avg_ms = 0.0
+
+    error_rate = round(errors_24h / requests_24h * 100, 2) if requests_24h > 0 else 0.0
+
+    return {
+        "requests_24h": requests_24h,
+        "errors_24h": errors_24h,
+        "error_rate_pct": error_rate,
+        "avg_response_ms": avg_ms,
+    }
+
+
+@router.post("/system/cache/flush")
+async def flush_cache(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    flushed = 0
+    try:
+        from app.core.redis import get_redis
+        r = await get_redis()
+        if r:
+            admin_keys = await r.keys("admin:*")
+            pred_keys = await r.keys("predictions:*")
+            keys = admin_keys + pred_keys
+            if keys:
+                flushed = await r.delete(*keys)
     except Exception as e:
-        errors += 1
-        logger.warning("Ensemble run seeder error: %s", e)
+        logger.warning(f"Cache flush partial error: {e}")
 
-    audit = AuditLog(
-        action="ensemble_run",
-        actor=current_user.username,
-        resource="ensemble",
-        resource_id="all",
-        details={"matches_found": len(matches), "seeded": seeded, "errors": errors},
-        status="success" if errors == 0 else "partial",
-    )
-    db.add(audit)
-    await db.commit()
-
-    return {
-        "status": "ok",
-        "matches_found": len(matches),
-        "predictions_seeded": seeded,
-        "errors": errors,
-        "message": f"Ensemble run complete: {seeded} predictions seeded across {len(matches)} matches",
-    }
+    await write_audit(db, admin.id, "system.cache_flush", request=request)
+    return {"ok": True, "keys_flushed": flushed}
 
 
-# ── Deploy Status (Render) ─────────────────────────────────────────────────
+# ── Validators (admin view) ─────────────────────────────────────────────────────
 
-@router.get("/deploy/status")
-async def get_deploy_status(current_user=Depends(get_current_admin)):
-    """Returns current Render deployment status and last deploy info."""
-    import httpx
-
-    render_key    = os.getenv("RENDER_API_KEY", "").strip()
-    render_svc_id = os.getenv("RENDER_SERVICE_ID", "srv-d84gu177f7vs73a3djeg").strip()
-
-    if not render_key:
-        return {"available": False, "reason": "RENDER_API_KEY not set"}
-
-    try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            svc_r = await client.get(
-                f"https://api.render.com/v1/services/{render_svc_id}",
-                headers={"Authorization": f"Bearer {render_key}"},
-            )
-            dep_r = await client.get(
-                f"https://api.render.com/v1/services/{render_svc_id}/deploys?limit=3",
-                headers={"Authorization": f"Bearer {render_key}"},
-            )
-
-        svc = svc_r.json() if svc_r.status_code == 200 else {}
-        deps = dep_r.json() if dep_r.status_code == 200 else []
-
-        latest = deps[0] if deps else {}
-        dep_obj = latest.get("deploy", {})
-
-        return {
-            "available": True,
-            "service": {
-                "id":        svc.get("id"),
-                "name":      svc.get("name"),
-                "suspended": svc.get("suspended"),
-                "url":       svc.get("serviceDetails", {}).get("url"),
-                "plan":      svc.get("serviceDetails", {}).get("plan"),
-                "region":    svc.get("serviceDetails", {}).get("region"),
-                "updated_at": svc.get("updatedAt"),
-            },
-            "latest_deploy": {
-                "id":          dep_obj.get("id"),
-                "status":      dep_obj.get("status"),
-                "created_at":  dep_obj.get("createdAt"),
-                "finished_at": dep_obj.get("finishedAt"),
-            },
-            "recent_deploys": [
-                {
-                    "id":     d.get("deploy", {}).get("id"),
-                    "status": d.get("deploy", {}).get("status"),
-                    "created_at": d.get("deploy", {}).get("createdAt"),
-                }
-                for d in deps
-            ],
-        }
-    except Exception as exc:
-        return {"available": False, "reason": str(exc)}
-
-
-# ── Storage Network Admin Summary ──────────────────────────────────────────
-
-@router.get("/storage/network")
-async def get_storage_network_summary(
+@router.get("/validators")
+async def list_validators(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    admin: User = Depends(require_admin),
 ):
-    """Global VIT cloud storage network: all active nodes, total capacity."""
-    from app.modules.storage_verification.service import get_storage_stats
-    from app.modules.storage_verification.models import UserStorageNode, TachyonManifest
-
-    stats = await get_storage_stats(db)
-
-    total_nodes = (await db.scalar(select(func.count(UserStorageNode.id)))) or 0
-    active_nodes = (await db.scalar(
-        select(func.count(UserStorageNode.id)).where(UserStorageNode.status == "active")
-    )) or 0
-
-    tsc_earned = (await db.scalar(
-        select(func.sum(UserStorageNode.tsc_earned)).where(UserStorageNode.status == "active")
-    )) or 0
-
-    return {
-        "nodes": {
-            "total": int(total_nodes),
-            "active": int(active_nodes),
-        },
-        "capacity": {
-            "total_gb":  stats["total_capacity_gb"],
-            "used_gb":   stats["total_stored_gb"],
-            "free_gb":   stats["free_gb"],
-            "used_pct":  stats["utilization_pct"],
-        },
-        "tachyon": {
-            "files": stats["registered_content_items"],
-            "bytes": stats["total_stored_bytes"],
-            "gb":    stats["total_stored_gb"],
-        },
-        "tsc": {
-            "total_earned": float(tsc_earned),
-        },
-        "disk": {
-            "total_gb":  stats["total_capacity_gb"],
-            "used_gb":   stats["total_stored_gb"],
-            "free_gb":   stats["free_gb"],
-            "utilization_pct": stats["utilization_pct"],
-        },
-        "source": "tachyon_db"
-    }
-
-# ── CSV Fixture Upload ───────────────────────────────────────────────────
-
-@router.post("/upload/csv")
-async def upload_fixtures_csv(
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
-):
-    """Bulk-import fixtures from a CSV file (Standard or Shorthand format)."""
-    content = await file.read()
     try:
-        text = content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        text = content.decode("latin-1")
+        from app.modules.blockchain.models import ValidatorProfile
+        result = await db.execute(select(ValidatorProfile).order_by(desc(ValidatorProfile.id)))
+        validators = result.scalars().all()
+        return [
+            {
+                "id": v.id, "user_id": v.user_id,
+                "status": str(v.status.value) if hasattr(v.status, "value") else str(v.status),
+                "stake_amount": float(v.stake_amount or 0),
+                "trust_score": float(v.trust_score or 0) if hasattr(v, "trust_score") else 0,
+                "accurate_predictions": getattr(v, "accurate_predictions", 0),
+                "total_predictions": getattr(v, "total_predictions", 0),
+                "created_at": v.created_at.isoformat() if hasattr(v, "created_at") and v.created_at else None,
+            }
+            for v in validators
+        ]
+    except Exception as e:
+        logger.error(f"Error listing validators: {e}")
+        return []
 
-    reader = csv.DictReader(io.StringIO(text))
 
-    imported = 0
-    duplicates = 0
-    errors = 0
-    warnings = []
+class SlashBody(BaseModel):
+    amount: float
+    reason: str
 
-    # Map for shorthand format
-    month_map = {
-        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
-    }
 
-    current_year = datetime.now(timezone.utc).year
+@router.post("/validators/{validator_id}/slash")
+async def slash_validator(
+    validator_id: int,
+    body: SlashBody,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    try:
+        from app.modules.blockchain.models import ValidatorProfile, ValidatorSlashEvent
+        result = await db.execute(select(ValidatorProfile).where(ValidatorProfile.id == validator_id))
+        v = result.scalar_one_or_none()
+        if not v:
+            raise AppError("Validator not found", status_code=404, code="not_found")
 
-    def parse_kickoff(row):
-        # Shorthand: #,date,time,home,away,league,H,D,A
-        if "date" in row and "time" in row:
-            d_str = row["date"].strip()
-            t_str = row["time"].strip()
-            # Expect "10 May" or "10-05" or "2026-05-10"
-            parts = d_str.split()
-            if len(parts) == 2 and parts[1] in month_map:
-                day = int(parts[0])
-                month = month_map[parts[1]]
-                hour, minute = map(int, t_str.split(":"))
-                return datetime(current_year, month, day, hour, minute, tzinfo=timezone.utc)
-            # Fallback to standard parse
-            return datetime.fromisoformat(f"{d_str} {t_str}").replace(tzinfo=timezone.utc)
+        before_stake = float(v.stake_amount or 0)
+        v.stake_amount = max(0, before_stake - body.amount)
 
-        # Standard: home_team,away_team,kickoff_time,league...
-        k_str = row.get("kickoff_time")
-        if k_str:
-            return datetime.fromisoformat(k_str).replace(tzinfo=timezone.utc)
-
-        return None
-
-    for row_idx, row in enumerate(reader):
-        try:
-            # Normalize keys (handle spaces/caps)
-            row = {k.strip().lower(): v for k, v in row.items() if k}
-
-            home = row.get("home") or row.get("home_team")
-            away = row.get("away") or row.get("away_team")
-            league = row.get("league", "Unknown League")
-
-            if not home or not away:
-                errors += 1
-                warnings.append(f"Row {row_idx+1}: Missing home/away teams")
-                continue
-
-            try:
-                kickoff = parse_kickoff(row)
-                if not kickoff:
-                    raise ValueError("Missing kickoff time")
-            except Exception as e:
-                errors += 1
-                warnings.append(f"Row {row_idx+1}: Date parse error ({e})")
-                continue
-
-            # Fingerprint for deduplication
-            raw_fp = f"{kickoff.date()}::{home.lower().strip()}::{away.lower().strip()}::{league.lower().strip()}"
-            fp = hashlib.md5(raw_fp.encode()).hexdigest()
-
-            # Check for existing
-            existing = await db.execute(select(Match).where(Match.fingerprint == fp))
-            if existing.scalar_one_or_none():
-                duplicates += 1
-                continue
-
-            # Odds
-            h_odds = row.get("h") or row.get("home_odds")
-            d_odds = row.get("d") or row.get("draw_odds")
-            a_odds = row.get("a") or row.get("away_odds")
-
-            def safe_float(v):
-                try: return float(v) if v else None
-                except: return None
-
-            match = Match(
-                home_team=home.strip(),
-                away_team=away.strip(),
-                league=league.strip(),
-                kickoff_time=kickoff,
-                status="scheduled",
-                source="user_csv",
-                fingerprint=fp,
-                market_type="sports",
-                opening_odds_home=safe_float(h_odds),
-                opening_odds_draw=safe_float(d_odds),
-                opening_odds_away=safe_float(a_odds),
-            )
-            db.add(match)
-            imported += 1
-
-        except Exception as e:
-            errors += 1
-            warnings.append(f"Row {row_idx+1}: Unexpected error: {e}")
-
-    if imported > 0:
+        slash = ValidatorSlashEvent(
+            validator_id=validator_id,
+            amount=body.amount,
+            reason=body.reason,
+            admin_id=admin.id,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(slash)
         await db.commit()
-        # Trigger predictions for newly imported fixtures
-        try:
-            from app.services.prediction_seeder import seed_upcoming_predictions
-            await seed_upcoming_predictions(db)
-        except Exception as e:
-            warnings.append(f"Predictions failed: {e}")
-            logger.warning(f"CSV Import Prediction Seeding Error: {e}")
+        await write_audit(
+            db, admin.id, "validator.slash", "validator", validator_id,
+            {"stake": before_stake}, {"stake": float(v.stake_amount), "reason": body.reason},
+            request,
+        )
+        return {"ok": True}
+    except AppError:
+        raise
+    except Exception as e:
+        logger.error(f"Slash error: {e}")
+        raise AppError("Failed to slash validator", status_code=500, code="server_error")
 
-    return {
-        "imported": imported,
-        "duplicates": duplicates,
-        "errors": errors,
-        "warnings": warnings[:10],
-        "rows": [], # Returning empty list for now to satisfy interface without overhead
-    }
+
+@router.post("/validators/{validator_id}/reinstate")
+async def reinstate_validator(
+    validator_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    try:
+        from app.modules.blockchain.models import ValidatorProfile, ValidatorStatus
+        result = await db.execute(select(ValidatorProfile).where(ValidatorProfile.id == validator_id))
+        v = result.scalar_one_or_none()
+        if not v:
+            raise AppError("Validator not found", status_code=404, code="not_found")
+        before = str(v.status)
+        v.status = ValidatorStatus.active
+        await db.commit()
+        await write_audit(db, admin.id, "validator.reinstate", "validator", validator_id,
+                          {"status": before}, {"status": "active"}, request)
+        return {"ok": True}
+    except AppError:
+        raise
+    except Exception as e:
+        raise AppError("Failed to reinstate validator", status_code=500, code="server_error")
+
+
+@router.get("/validators/appeals")
+async def list_validator_appeals(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    try:
+        from app.modules.blockchain.models import ValidatorAppeal
+        result = await db.execute(
+            select(ValidatorAppeal).where(ValidatorAppeal.status == "pending").order_by(desc(ValidatorAppeal.created_at))
+        )
+        appeals = result.scalars().all()
+        return [
+            {
+                "id": a.id, "validator_id": a.validator_id,
+                "reason": getattr(a, "reason", None),
+                "evidence": getattr(a, "evidence", None),
+                "status": getattr(a, "status", "pending"),
+                "created_at": a.created_at.isoformat() if hasattr(a, "created_at") and a.created_at else None,
+            }
+            for a in appeals
+        ]
+    except Exception as e:
+        logger.error(f"Appeals error: {e}")
+        return []
+
+
+class AppealDecisionBody(BaseModel):
+    decision: str
+    admin_note: Optional[str] = None
+
+
+@router.patch("/validators/appeals/{appeal_id}")
+async def decide_appeal(
+    appeal_id: str,
+    body: AppealDecisionBody,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    if body.decision not in ("approved", "rejected"):
+        raise AppError("decision must be 'approved' or 'rejected'", status_code=400, code="invalid_input")
+    try:
+        from app.modules.blockchain.models import ValidatorAppeal
+        result = await db.execute(select(ValidatorAppeal).where(ValidatorAppeal.id == appeal_id))
+        a = result.scalar_one_or_none()
+        if not a:
+            raise AppError("Appeal not found", status_code=404, code="not_found")
+        before = {"status": a.status}
+        a.status = body.decision
+        if body.admin_note:
+            a.admin_note = body.admin_note
+        await db.commit()
+        await write_audit(db, admin.id, f"appeal.{body.decision}", "validator_appeal", appeal_id,
+                          before, {"status": body.decision}, request)
+        return {"ok": True, "decision": body.decision}
+    except AppError:
+        raise
+    except Exception as e:
+        raise AppError("Failed to update appeal", status_code=500, code="server_error")
+
+
+# ── Marketplace Admin ──────────────────────────────────────────────────────────
+
+@router.get("/marketplace/listings")
+async def list_marketplace_listings(
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    try:
+        from app.modules.marketplace.models import AIModelListing
+        q = select(AIModelListing)
+        if status == "active":
+            q = q.where(AIModelListing.is_active == True)
+        elif status == "pending":
+            q = q.where(AIModelListing.is_active == False)
+        result = await db.execute(q.order_by(desc(AIModelListing.id)))
+        listings = result.scalars().all()
+        return [
+            {
+                "id": l.id, "name": l.name, "slug": getattr(l, "slug", None),
+                "description": getattr(l, "description", None),
+                "category": getattr(l, "category", None),
+                "price_per_call": str(l.price_per_call),
+                "model_key": getattr(l, "model_key", None),
+                "gcs_uri": getattr(l, "gcs_uri", None),
+                "is_active": l.is_active,
+            }
+            for l in listings
+        ]
+    except Exception as e:
+        logger.error(f"Error listing marketplace: {e}")
+        return []
+
+
+@router.post("/marketplace/listings/{listing_id}/approve")
+async def approve_marketplace_listing(
+    listing_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    try:
+        from app.modules.marketplace.models import AIModelListing
+        result = await db.execute(select(AIModelListing).where(AIModelListing.id == listing_id))
+        l = result.scalar_one_or_none()
+        if not l:
+            raise AppError("Listing not found", status_code=404, code="not_found")
+        before = {"is_active": l.is_active}
+        l.is_active = True
+        await db.commit()
+        await write_audit(db, admin.id, "marketplace.approve", "ai_model_listing", listing_id,
+                          before, {"is_active": True}, request)
+        return {"ok": True}
+    except AppError:
+        raise
+    except Exception as e:
+        raise AppError("Failed to approve listing", status_code=500, code="server_error")
+
+
+class RejectListingBody(BaseModel):
+    approval_note: Optional[str] = None
+
+
+@router.post("/marketplace/listings/{listing_id}/reject")
+async def reject_marketplace_listing(
+    listing_id: str,
+    body: RejectListingBody,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    try:
+        from app.modules.marketplace.models import AIModelListing
+        result = await db.execute(select(AIModelListing).where(AIModelListing.id == listing_id))
+        l = result.scalar_one_or_none()
+        if not l:
+            raise AppError("Listing not found", status_code=404, code="not_found")
+        before = {"is_active": l.is_active}
+        l.is_active = False
+        await db.commit()
+        await write_audit(db, admin.id, "marketplace.reject", "ai_model_listing", listing_id,
+                          before, {"is_active": False, "note": body.approval_note}, request)
+        return {"ok": True}
+    except AppError:
+        raise
+    except Exception as e:
+        raise AppError("Failed to reject listing", status_code=500, code="server_error")
+
+
+@router.delete("/marketplace/listings/{listing_id}")
+async def delete_marketplace_listing(
+    listing_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    try:
+        from app.modules.marketplace.models import AIModelListing
+        result = await db.execute(select(AIModelListing).where(AIModelListing.id == listing_id))
+        l = result.scalar_one_or_none()
+        if not l:
+            raise AppError("Listing not found", status_code=404, code="not_found")
+        before = {"name": l.name, "is_active": l.is_active}
+        await db.delete(l)
+        await db.commit()
+        await write_audit(db, admin.id, "marketplace.delete", "ai_model_listing", listing_id,
+                          before, None, request)
+        return {"ok": True}
+    except AppError:
+        raise
+    except Exception as e:
+        raise AppError("Failed to delete listing", status_code=500, code="server_error")

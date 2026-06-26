@@ -1,0 +1,480 @@
+# VIT Network — Admin Control Panel
+## Production Readiness Audit & Rebuild
+### For: Replit Agent
+
+---
+
+## YOUR TASK
+
+Audit the existing admin panel, identify every gap, then do a complete clean rebuild. Two phases, no shortcuts.
+
+**Phase 1:** Read the codebase. Write `ADMIN_AUDIT_REPORT.md`. Do not write any code yet.
+**Phase 2:** Rebuild every admin file from scratch based on what the audit found.
+
+Do not ask questions. Do not write stubs or TODOs. Complete every file fully.
+
+---
+
+## STACK (read this before touching anything)
+
+| Layer | Detail |
+|---|---|
+| Backend | FastAPI + async SQLAlchemy + Python 3.11 |
+| DB session | `AsyncSessionLocal` from `app/db/database.py` |
+| Config | `get_env()` / `get_int_env()` from `app/config.py` — never use `os.getenv()` directly |
+| Auth | JWT bearer. Admin check: `current_user.role == "admin"`. Sub-roles: `super_admin`, `support`, `analyst` |
+| DB | Neon PostgreSQL (prod) / SQLite (dev). All queries: `await db.execute(...)` |
+| Cache | Redis via `app/core/redis.py`. Cache namespace prefix: `admin:` |
+| Errors | `AppError` from `app/core/errors.py`. Response helper: `error_response()` |
+| Background | Celery + Redis. Never call `asyncio.create_task` inside a route handler |
+| Frontend | React 19, Zustand, Tailwind only. No CSS files unless unavoidable |
+| Theme | Dark. Green: `#00E676`. Purple: `#8B5CF6`. Fonts: Barlow Condensed (headings), Outfit (body), JetBrains Mono (numbers/code) |
+| Models | Always import — never redefine. Source: `app/db/models.py` + each module's `models.py` |
+| Do not touch | `main.py`, any `webhooks.py` file, any Paystack/Stripe handler |
+
+---
+
+## PHASE 1 — AUDIT
+
+### Files to read
+
+```
+app/api/routes/admin.py
+app/api/routes/admin_rewards.py
+app/api/routes/admin_clv.py
+app/api/routes/admin_audit_predictions.py
+app/modules/wallet/admin_routes.py
+app/modules/marketplace/routes.py
+app/modules/trust/routes.py
+app/modules/blockchain/routes.py
+app/modules/security/routes.py
+app/modules/governance/routes.py
+app/modules/network/routes.py
+app/db/models.py
+app/modules/wallet/models.py
+app/modules/blockchain/models.py
+app/modules/marketplace/models.py
+app/modules/merit/models.py
+frontend/src/pages/AdminDashboard.tsx (or .jsx)
+frontend/src/pages/Admin*.tsx
+frontend/src/components/admin/*
+```
+
+### What to extract from each file
+
+- What it currently does (one sentence)
+- What endpoints or components exist
+- What is missing, broken, or not production-ready
+
+### Output: `ADMIN_AUDIT_REPORT.md`
+
+Place this file in the project root. Use exactly this structure:
+
+```markdown
+# Admin Panel — Production Readiness Gap Analysis
+
+## 1. Existing Backend Endpoints
+| Route | Method | Auth Guard | Purpose | Production Ready? | Gap |
+
+## 2. Missing Backend Endpoints
+(list every endpoint required below that does not currently exist)
+
+## 3. Existing Frontend Pages & Components
+| File | Status | Missing Features |
+
+## 4. Missing Frontend Pages
+(list every page required below that does not currently exist)
+
+## 5. Security Gaps
+(routes missing role checks, rate limiting, or audit logging)
+
+## 6. Data Integrity Gaps
+(mutations with no audit trail)
+
+## 7. Priority Matrix
+| Item | Priority | Effort | Blocks Production? |
+```
+
+Do not write any code until this file is complete and saved.
+
+---
+
+## PHASE 2 — REBUILD
+
+### Step 1: Create the `require_admin` dependency
+
+File: `app/api/dependencies/admin.py`
+
+```python
+from app.auth.jwt_utils import get_current_user
+from app.core.errors import AppError
+from app.db.models import User
+from fastapi import Depends
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise AppError(status_code=403, code="forbidden", message="Admin access required")
+    return current_user
+
+async def require_super_admin(current_user: User = Depends(require_admin)) -> User:
+    if current_user.admin_role != "super_admin":
+        raise AppError(status_code=403, code="forbidden", message="Super admin access required")
+    return current_user
+```
+
+### Step 2: Create the audit log model and helper
+
+**If `AuditLog` does not exist in `app/db/models.py`**, append this class (do not modify any existing class):
+
+```python
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True)
+    admin_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action = Column(String(100), nullable=False)
+    target_type = Column(String(50))
+    target_id = Column(String(100))
+    before_state = Column(JSON)
+    after_state = Column(JSON)
+    ip_address = Column(String(45))
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+```
+
+File: `app/services/audit.py`
+
+```python
+from app.db.models import AuditLog
+from sqlalchemy.ext.asyncio import AsyncSession
+
+async def write_audit(
+    db: AsyncSession,
+    admin_id: int,
+    action: str,
+    target_type: str = None,
+    target_id=None,
+    before: dict = None,
+    after: dict = None,
+    request=None,
+):
+    ip = request.client.host if request and request.client else None
+    db.add(AuditLog(
+        admin_id=admin_id,
+        action=action,
+        target_type=target_type,
+        target_id=str(target_id) if target_id is not None else None,
+        before_state=before,
+        after_state=after,
+        ip_address=ip,
+    ))
+    await db.commit()
+```
+
+Call `await write_audit(...)` in every route that mutates state.
+
+---
+
+### Step 3: Backend routes
+
+All routes: prefix `/api/admin`, protected by `Depends(require_admin)`.
+
+#### `app/api/routes/admin.py` — full replacement
+
+**User Management**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/users` | Paginated. Params: `page`, `limit`, `search`, `role`, `subscription_tier`, `is_active`. Return wallet balance + prediction count per user. |
+| GET | `/api/admin/users/{user_id}` | Full detail: wallet, CLV score, validator status, referral count, prediction count. |
+| PATCH | `/api/admin/users/{user_id}` | Update `role`, `subscription_tier`, `is_active`, `withdrawals_frozen`, `is_flagged`. Write audit log. |
+| POST | `/api/admin/users/{user_id}/reset-password` | Send reset email via existing notification service. Write audit log. |
+| DELETE | `/api/admin/users/{user_id}` | Soft delete: `is_active = False`. Requires `require_super_admin`. Write audit log. |
+| GET | `/api/admin/users/export` | Return CSV of filtered user list via `StreamingResponse`. |
+
+**Match & Prediction Management**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/matches` | Paginated. Params: `status`, `league`, `sport`, `date_from`, `date_to`. |
+| PATCH | `/api/admin/matches/{match_id}/result` | Set `actual_outcome`, `home_goals`, `away_goals`. Queue Celery task `tasks.settle_match`. Write audit log. |
+| DELETE | `/api/admin/matches/{match_id}` | Soft delete. Cascade-void linked predictions. Write audit log. |
+| GET | `/api/admin/predictions` | Paginated. Params: `user_id`, `match_id`, `was_correct`, `date_from`, `date_to`. Include CLV data. |
+| POST | `/api/admin/predictions/recalculate-clv` | Queue Celery task. Return `{ job_id }`. Write audit log. |
+
+**Platform Config**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/config` | Return all `PlatformConfig` rows. |
+| PUT | `/api/admin/config/{key}` | Update value. Validate: value must be valid JSON. Write audit log. |
+| POST | `/api/admin/config` | Create new key. Requires `require_super_admin`. Write audit log. |
+| DELETE | `/api/admin/config/{key}` | Delete key. Requires `require_super_admin`. Write audit log. |
+
+**AI Models & Training**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/models` | All 13 models from `ModelMetadata`: accuracy, CLV score, weight, trained_count, last_trained_at, auto_demoted. |
+| POST | `/api/admin/models/{model_key}/retrain` | Queue single-model Celery retrain. Return `{ job_id }`. |
+| POST | `/api/admin/models/retrain-all` | Queue full ensemble retrain. Return `{ job_id }`. |
+| GET | `/api/admin/training-jobs` | Paginated. Params: `status`, `date_from`. |
+| GET | `/api/admin/training-jobs/{job_id}` | Detail + `progress_pct` + `events` log. |
+
+**Audit Log**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/audit-log` | Paginated. Params: `admin_id`, `action`, `target_type`, `date_from`, `date_to`. Sort: `created_at` desc. |
+
+**System**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/system/health` | DB, Redis, Celery queue depth, background tasks, model count, Tachyon node count. |
+| GET | `/api/admin/system/metrics` | 24h request count, error rate, avg response time from Redis counters. |
+| POST | `/api/admin/system/cache/flush` | Flush `admin:` and `predictions:` namespaces. Requires `require_super_admin`. Write audit log. |
+
+---
+
+#### `app/modules/wallet/admin_routes.py` — full replacement
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/wallet/transactions` | Paginated. Params: `user_id`, `type`, `status`, `currency`, `date_from`, `date_to`. |
+| POST | `/api/admin/wallet/manual-credit` | Fields: `user_id`, `amount`, `currency`, `reason`. Create `WalletTransaction` type `admin_credit`. Write audit log. |
+| POST | `/api/admin/wallet/manual-debit` | Same as above. Validate sufficient balance before writing. Write audit log. |
+| GET | `/api/admin/wallet/vitcoin-price` | Current price + last 30 days OHLCV from `VITCoinPriceHistory` + circulating supply. |
+| POST | `/api/admin/wallet/vitcoin-price/override` | Requires `require_super_admin`. Write new `VITCoinPriceHistory` row. Write audit log. |
+| GET | `/api/admin/wallet/platform-revenue` | Total revenue by currency, fee totals, 30-day trend. |
+| GET | `/api/admin/wallet/withdrawal-queue` | Pending withdrawals sorted by `created_at`. Join user KYC status. |
+| POST | `/api/admin/wallet/withdrawal/{tx_id}/approve` | Set transaction status to `approved`. Write audit log. |
+| POST | `/api/admin/wallet/withdrawal/{tx_id}/reject` | Required field: `reason`. Set status to `rejected`. Write audit log. |
+
+---
+
+#### `app/modules/blockchain/routes.py` — add only, preserve existing routes
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/validators` | All validators: stake, trust_score, status, accurate_predictions, total_predictions. |
+| POST | `/api/admin/validators/{validator_id}/slash` | Fields: `amount`, `reason`. Write `ValidatorSlashEvent`. Write audit log. |
+| POST | `/api/admin/validators/{validator_id}/reinstate` | Requires `require_super_admin`. Write audit log. |
+| GET | `/api/admin/validators/appeals` | All pending appeals from `validator_appeals` table. |
+| PATCH | `/api/admin/validators/appeals/{appeal_id}` | Fields: `decision` (`approved`/`rejected`), `admin_note`. Write audit log. |
+
+#### `app/modules/marketplace/routes.py` — add only, preserve existing routes
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/marketplace/listings` | All listings including `approval_status = pending`. |
+| POST | `/api/admin/marketplace/listings/{listing_id}/approve` | Set `approval_status = approved`. Write audit log. |
+| POST | `/api/admin/marketplace/listings/{listing_id}/reject` | Fields: `approval_note`. Set `approval_status = rejected`. Write audit log. |
+| DELETE | `/api/admin/marketplace/listings/{listing_id}` | Hard delete. Write audit log. |
+
+---
+
+### Step 4: Frontend
+
+All admin pages: `frontend/src/pages/admin/`
+All admin components: `frontend/src/components/admin/`
+
+#### Shared components (build these first)
+
+**`AdminTable.tsx`**
+Generic sortable paginated table.
+Props: `columns: { key, label, render? }[]`, `data: any[]`, `onRowClick?`, `loading: boolean`, `pagination: { page, total, limit, onChange }`
+
+**`AdminModal.tsx`**
+Generic modal. Props: `isOpen`, `onClose`, `title`, `children`. Backdrop click closes. Escape key closes.
+
+**`AdminKPICard.tsx`**
+Stat card. Props: `label`, `value`, `delta?` (string, colored green if positive / red if negative), `color: 'green' | 'purple' | 'red' | 'yellow'`, `icon?`
+
+**`AdminStatusPill.tsx`**
+Colored badge. Map `status` to color:
+- `active` / `approved` / `connected` → green
+- `pending` → yellow
+- `flagged` / `rejected` / `slashed` → red
+- `inactive` / `degraded` → gray
+- `running` → purple
+
+**`AdminConfirmDialog.tsx`**
+Destructive action modal. Props: `isOpen`, `onClose`, `onConfirm`, `title`, `message`, `confirmLabel`, `dangerous: boolean` (makes confirm button red)
+
+**`AdminJsonDiff.tsx`**
+Side-by-side before/after. Props: `before: object`, `after: object`. Added keys green, removed keys red, unchanged keys gray. Use `JetBrains Mono` font.
+
+**`useAdminData.ts`** (custom hook)
+```typescript
+function useAdminData<T>(endpoint: string, params?: object): {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+```
+Read JWT from Zustand auth store. Attach as `Authorization: Bearer <token>`. Auto-fetch on mount and on `refetch()`.
+
+**`frontend/src/api/admin.ts`**
+Typed API client. One function per endpoint. Full TypeScript interfaces for every request and response. Export as `adminApi` object.
+
+---
+
+#### Pages
+
+**`AdminLayout.tsx`**
+Persistent sidebar + topbar wrapping all admin pages via `<Outlet />`.
+- Sidebar links: Dashboard, Users, Wallets & Finance, Matches & Predictions, Validators, AI Models, Marketplace, Platform Config, Audit Log, System Health
+- Topbar: username, role badge, logout
+- Active route highlight via `useLocation`
+- Collapsible sidebar on mobile (hamburger button)
+
+**`AdminDashboard.tsx`**
+Data: `GET /api/admin/system/health` + `GET /api/admin/system/metrics`
+- 8 KPI cards: Total Users, Active Users (30d), Total Predictions, VITCoin Price, Active Validators, Platform Revenue (30d), Models Ready, Open Withdrawals
+- 24h request volume sparkline (recharts `AreaChart`)
+- Last 10 audit log entries table
+- Background task status grid (name, status pill, restart count)
+- Quick actions: Flush Cache, Retrain All, Export Users
+
+**`AdminUsers.tsx`**
+- Paginated table. Columns: ID, Username, Email, Role, Tier, Status, Wallet Balance, Predictions, Joined
+- Debounced search (300ms)
+- Filter dropdowns: Role, Tier, Status
+- Row click → slide-over panel: full user detail + Edit Role/Tier form, Freeze Withdrawals toggle, Flag Account toggle, Reset Password button, Soft Delete button
+- All mutations show toast on success/error
+
+**`AdminWallet.tsx`**
+Three tabs:
+- **Transactions** — filterable table. Columns: ID, User, Type, Amount, Currency, Status, Date
+- **Withdrawal Queue** — table with Approve / Reject buttons. Reject opens modal for reason
+- **VITCoin Price** — current price, 30-day line chart (recharts), price override form (super_admin only, confirm dialog before submit)
+
+**`AdminMatches.tsx`**
+Two tabs:
+- **Matches** — filterable table. "Set Result" button per row → modal with home_goals, away_goals, outcome dropdown
+- **Predictions** — filterable read-only table. Export CSV button
+
+**`AdminValidators.tsx`**
+Two tabs:
+- **Validators** — table: stake, trust_score, status, accurate/total predictions. Slash button (modal: amount + reason). Reinstate button with confirm dialog
+- **Appeals** — table: reason, evidence, submitted_at. Approve / Reject with note
+
+**`AdminModels.tsx`**
+Two tabs:
+- **Models** — table: Name, Accuracy, CLV Score, Weight, Trained Count, Last Trained, Auto-Demoted, Status. Retrain button per row. Retrain All button at top
+- **Training Jobs** — table: ID, status pill, progress bar, model, start/end time
+
+**`AdminMarketplace.tsx`**
+- Listings table. Filter by approval_status
+- Approve / Reject buttons. Reject opens modal for `approval_note`
+- Delete button with confirm dialog
+
+**`AdminConfig.tsx`**
+- Table: Key, Value (JSON pretty), Description, Last Updated
+- Click row to inline-edit: JSON textarea + Save/Cancel. Validate JSON before submit
+- Add Config button → modal (super_admin only)
+- Delete button with confirm dialog (super_admin only)
+
+**`AdminAuditLog.tsx`**
+- Paginated table. Columns: Timestamp, Admin, Action, Target Type, Target ID, IP
+- Filters: admin user, action type, date range
+- Click row → expand: before/after JSON diff via `AdminJsonDiff`
+
+**`AdminSystemHealth.tsx`**
+- Polls `GET /api/admin/system/health` every 30 seconds
+- Status pills: DB, Redis, Tachyon
+- Background task grid: name, status, restart count
+- 24h error rate bar chart (recharts)
+- Cache flush button (super_admin only, with confirm dialog)
+
+---
+
+### Step 5: Route registration
+
+In `frontend/src/App.tsx` add:
+
+```tsx
+// AdminGuard component — add near top of file
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore(s => s.user)
+  if (!user || user.role !== 'admin') return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
+// Add inside your router
+<Route path="/admin" element={<AdminGuard><AdminLayout /></AdminGuard>}>
+  <Route index element={<AdminDashboard />} />
+  <Route path="users" element={<AdminUsers />} />
+  <Route path="wallet" element={<AdminWallet />} />
+  <Route path="matches" element={<AdminMatches />} />
+  <Route path="validators" element={<AdminValidators />} />
+  <Route path="models" element={<AdminModels />} />
+  <Route path="marketplace" element={<AdminMarketplace />} />
+  <Route path="config" element={<AdminConfig />} />
+  <Route path="audit" element={<AdminAuditLog />} />
+  <Route path="system" element={<AdminSystemHealth />} />
+</Route>
+```
+
+---
+
+## OUTPUT ORDER
+
+Write files in this exact sequence:
+
+1. `ADMIN_AUDIT_REPORT.md`
+2. `app/api/dependencies/admin.py`
+3. `app/services/audit.py`
+4. `app/db/models.py` — append `AuditLog` only if missing
+5. `app/api/routes/admin.py`
+6. `app/modules/wallet/admin_routes.py`
+7. `app/modules/blockchain/routes.py` — add admin routes, keep all existing
+8. `app/modules/marketplace/routes.py` — add admin routes, keep all existing
+9. `frontend/src/api/admin.ts`
+10. `frontend/src/components/admin/AdminTable.tsx`
+11. `frontend/src/components/admin/AdminModal.tsx`
+12. `frontend/src/components/admin/AdminKPICard.tsx`
+13. `frontend/src/components/admin/AdminStatusPill.tsx`
+14. `frontend/src/components/admin/AdminConfirmDialog.tsx`
+15. `frontend/src/components/admin/AdminJsonDiff.tsx`
+16. `frontend/src/hooks/useAdminData.ts`
+17. `frontend/src/pages/admin/AdminLayout.tsx`
+18. `frontend/src/pages/admin/AdminDashboard.tsx`
+19. `frontend/src/pages/admin/AdminUsers.tsx`
+20. `frontend/src/pages/admin/AdminWallet.tsx`
+21. `frontend/src/pages/admin/AdminMatches.tsx`
+22. `frontend/src/pages/admin/AdminValidators.tsx`
+23. `frontend/src/pages/admin/AdminModels.tsx`
+24. `frontend/src/pages/admin/AdminMarketplace.tsx`
+25. `frontend/src/pages/admin/AdminConfig.tsx`
+26. `frontend/src/pages/admin/AdminAuditLog.tsx`
+27. `frontend/src/pages/admin/AdminSystemHealth.tsx`
+28. `frontend/src/App.tsx` — add admin routes + AdminGuard
+
+---
+
+## RULES — NO EXCEPTIONS
+
+- No stubs. No TODOs. Every function must be fully implemented.
+- Never redefine a SQLAlchemy model. Always import from source.
+- Every DB query must be async: `await db.execute(select(...))`.
+- Every mutating route must call `await write_audit(...)`.
+- Use `get_env()` / `get_int_env()` — never `os.getenv()`.
+- No `<form>` tags in React — use `onClick` handlers.
+- No inline styles unless Tailwind has no equivalent.
+- All numbers in the UI use `font-['JetBrains_Mono']`.
+- When modifying an existing file, preserve every existing route/export.
+- Do not touch `main.py` or any webhook file.
+
+---
+
+## REUSE PATTERN
+
+This is the master template. To apply to another section, swap out:
+1. The section name
+2. The files to read in Phase 1
+3. The endpoint table in Phase 2
+4. The page list in Phase 2
+5. The output order list
+
+Keep the stack context block, audit report format, and rules section unchanged.
