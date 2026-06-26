@@ -64,7 +64,7 @@ async def _handle_agentic_query(
     context: Optional[str] = None,
 ) -> Dict[str, Any]:
     msg = message.lower()
-    thoughts = ["Initiating VIT Native Intelligence", "Accessing internal neural matrix"]
+    thoughts: list[str] = []
 
     # 1. Market Intelligence & SVI
     if any(k in msg for k in ["svi", "market health", "collateral", "inflation", "trends", "clv"]):
