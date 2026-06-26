@@ -1,5 +1,5 @@
-import React, { Suspense } from "react";
-import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
+import React, { Suspense, useState, useEffect } from "react";
+import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/lib/theme";
@@ -12,6 +12,8 @@ import { wagmiConfig } from "@/lib/web3";
 import { WagmiProvider } from "wagmi";
 import { lazyRetry } from "@/lib/lazy-retry";
 import { usePublicConfig } from "@/lib/usePublicConfig";
+import { RouteProgressBar } from "@/components/RouteProgressBar";
+import { WelcomeModal, OnboardingTour } from "@/components/onboarding";
 
 // Lazy-loaded pages with retry logic
 
@@ -107,6 +109,52 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function OnboardingController() {
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    if (user && !localStorage.getItem("vit_welcomed")) {
+      const timer = setTimeout(() => setShowWelcome(true), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
+
+  const handleClose = () => {
+    localStorage.setItem("vit_welcomed", "1");
+    setShowWelcome(false);
+    setShowTour(false);
+  };
+
+  const handleStartTour = () => {
+    setShowWelcome(false);
+    setShowTour(true);
+  };
+
+  if (!user) return null;
+
+  return (
+    <>
+      {showWelcome && (
+        <WelcomeModal
+          username={(user as any).username ?? (user as any).email ?? "Explorer"}
+          onClose={handleClose}
+          onStartTour={handleStartTour}
+        />
+      )}
+      {showTour && (
+        <OnboardingTour
+          onComplete={handleClose}
+          onSkip={handleClose}
+          onNavigate={(path) => { navigate(path); handleClose(); }}
+        />
+      )}
+    </>
+  );
+}
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
@@ -320,7 +368,9 @@ function App() {
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <ConfigInitializer><AuthProvider>
+                <RouteProgressBar />
                 <GamblingAgeDisclaimer />
+                <OnboardingController />
                 <ErrorBoundary>
                   <Router />
                 </ErrorBoundary>

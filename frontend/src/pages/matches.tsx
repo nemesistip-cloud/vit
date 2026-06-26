@@ -22,10 +22,15 @@ export default function MatchesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
 
-  const { data: matchesData, isLoading, refetch } = useQuery<any>({
+  const { data: matchesData, isLoading, refetch, dataUpdatedAt } = useQuery<any>({
     queryKey: ["/api/matches?limit=100"],
     queryFn: () => apiGet("/api/matches?limit=100"),
+    refetchInterval: 30_000,
   });
+
+  const hasLiveMatches = (matchesData?.matches ?? matchesData ?? []).some(
+    (m: any) => m.status === "live" || m.status === "in_progress"
+  );
 
   const syncMutation = useMutation({
     mutationFn: (vars: { days: number }) => apiPost("/api/admin/sync/fixtures", vars),
@@ -100,13 +105,26 @@ export default function MatchesPage() {
         <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-auto">
           <TabsList className="bg-transparent gap-4 h-auto p-0">
             <TabsTrigger value="all" className="p-0 text-xs font-bold data-[state=active]:text-vit-green border-b-2 border-transparent data-[state=active]:border-vit-green rounded-none bg-transparent">ALL</TabsTrigger>
-            <TabsTrigger value="live" className="p-0 text-xs font-bold data-[state=active]:text-vit-green border-b-2 border-transparent data-[state=active]:border-vit-green rounded-none bg-transparent">LIVE</TabsTrigger>
+            <TabsTrigger value="live" className="p-0 text-xs font-bold data-[state=active]:text-vit-green border-b-2 border-transparent data-[state=active]:border-vit-green rounded-none bg-transparent">
+              <span className="flex items-center gap-1.5">
+                {hasLiveMatches && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
+                LIVE
+              </span>
+            </TabsTrigger>
             <TabsTrigger value="upcoming" className="p-0 text-xs font-bold data-[state=active]:text-vit-green border-b-2 border-transparent data-[state=active]:border-vit-green rounded-none bg-transparent">UPCOMING</TabsTrigger>
           </TabsList>
         </Tabs>
-        <span className="text-[10px] font-mono text-vit-text-3 uppercase">
-          {filteredMatches.length} Matches Found
-        </span>
+        <div className="flex items-center gap-2">
+          {hasLiveMatches && (
+            <span className="flex items-center gap-1 text-[9px] font-mono text-red-400 uppercase">
+              <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+              Live scores updating
+            </span>
+          )}
+          <span className="text-[10px] font-mono text-vit-text-3 uppercase">
+            {filteredMatches.length} Matches
+          </span>
+        </div>
       </div>
 
       <div className="bg-vit-surface border-y border-vit-border">
