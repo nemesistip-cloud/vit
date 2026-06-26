@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
-import { useAuth } from "@/lib/useAuth";
+import { useAuth } from "@/lib/auth";
 import {
   Scale, Vote, ShieldCheck, Clock,
   Plus, Users, MessageSquare, ChevronRight,
@@ -42,6 +42,7 @@ export default function GovernancePage() {
   const vitPower = user?.merit_score ? (user.merit_score / 1000).toFixed(1) + "K" : "—";
   const participation = stats?.participation_rate ? (stats.participation_rate * 100).toFixed(1) + "%" : "—";
   const activeVotes = stats?.active_proposals ?? "—";
+  const protocolStatus = summary?.total_predictions ? "STABLE" : "—";
 
   return (
     <div className="space-y-6 pb-20">

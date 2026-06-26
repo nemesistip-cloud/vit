@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
-import { useAuth } from "@/lib/useAuth";
+import { useAuth } from "@/lib/auth";
 import {
   Users, MessageSquare, TrendingUp, Zap,
   Search, Plus, ChevronRight, Shield, Star,

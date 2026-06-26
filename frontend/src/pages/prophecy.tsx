@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
-import { useAuth } from "@/lib/useAuth";
+import { useAuth } from "@/lib/auth";
 import {
   Sparkles, Trophy, ShieldCheck, Zap,
   ChevronRight, Brain, Lock, CheckCircle2, Target
@@ -69,7 +69,7 @@ export default function ProphecyPage() {
            <div className="flex justify-between items-end">
               <div>
                  <p className="text-[10px] font-bold text-vit-text-3 uppercase tracking-widest">Active Progression</p>
-                 <h2 className="text-xl font-display font-bold text-vit-text-1">CHAPTER ${level}: THE {merit?.tier?.toUpperCase() || 'INITIATE'}'S PATH</h2>
+                 <h2 className="text-xl font-display font-bold text-vit-text-1">CHAPTER {level}: THE {merit?.tier?.toUpperCase() || 'INITIATE'}'S PATH</h2>
               </div>
               <p className="text-xs font-mono text-vit-text-2">{progress.toFixed(0)}% COMPLETE</p>
            </div>
