@@ -11,7 +11,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Trophy, TrendingUp, Activity, Coins, ArrowUpRight, ArrowDownRight,
   Brain, ChevronRight, Zap, BarChart2, Flame, Sparkles,
-  CheckCircle2, XCircle, Vote, Scale, ShoppingBag, Store
+  CheckCircle2, XCircle, Vote, Scale, ShoppingBag, Store,
+  Radio, Clock
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
@@ -195,23 +196,61 @@ export default function DashboardPage() {
           </div>
 
           {/* Live Signals teaser */}
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-2 pt-4">
+          <Card className="bg-card border-border overflow-hidden">
+            <CardHeader className="pb-3 pt-4">
               <CardTitle className="text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Live Signals
+                <Badge className="ml-auto text-[9px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                  Active
+                </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="pb-4">
-              <div className="py-6 text-center border border-dashed border-border rounded-lg">
-                <Activity size={24} className="text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground font-mono mb-3">Real-time signal stream ready</p>
-                <Link href="/matches">
-                  <Button size="sm" className="h-7 text-[10px] font-mono font-bold uppercase tracking-wider">
-                    Open Live Feed
-                  </Button>
-                </Link>
+            <CardContent className="pb-4 space-y-4">
+              {/* Waveform + stats row */}
+              <div className="flex items-center gap-4">
+                {/* Animated waveform bars */}
+                <div className="flex items-end gap-[3px] h-10 flex-shrink-0 px-1">
+                  {[3,6,4,8,5,10,4,7,5,9,6,8,4].map((h, i) => (
+                    <div
+                      key={i}
+                      className="w-[3px] rounded-full bg-emerald-400"
+                      style={{
+                        height: `${h * 4}px`,
+                        opacity: 0.55 + (i % 3) * 0.15,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* At-a-glance stats */}
+                <div className="flex-1 grid grid-cols-3 gap-2">
+                  <div className="bg-muted/50 rounded-lg p-2 text-center">
+                    <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider mb-0.5">Signals</p>
+                    <p className="text-sm font-bold font-mono text-foreground">{activityData?.length ?? 0}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-2 text-center">
+                    <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider mb-0.5">Accuracy</p>
+                    <p className="text-sm font-bold font-mono text-emerald-400">{ensembleAccuracy}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-2 text-center">
+                    <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider mb-0.5">Updated</p>
+                    <p className="text-sm font-bold font-mono text-foreground">
+                      {activityData?.[0]?.created_at
+                        ? format(new Date(activityData[0].created_at), "HH:mm")
+                        : "Live"}
+                    </p>
+                  </div>
+                </div>
               </div>
+
+              {/* CTA button — solid, prominent */}
+              <Link href="/matches" className="block">
+                <Button className="w-full h-9 text-xs font-mono font-bold uppercase tracking-wider gap-2 bg-emerald-500 hover:bg-emerald-600 text-white border-0">
+                  <Radio size={13} />
+                  Open Live Feed
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         </TabsContent>
