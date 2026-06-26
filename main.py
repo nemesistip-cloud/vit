@@ -76,6 +76,7 @@ from app.auth.routes import router as auth_router
 from app.modules.wallet.routes import router as wallet_router
 from app.modules.wallet.admin_routes import router as wallet_admin_router
 from app.modules.wallet.webhooks import router as webhooks_router
+from app.modules.wallet.ws_price import router as ws_price_router
 from app.modules.blockchain.routes import router as blockchain_router
 from app.modules.blockchain.oracle import router as oracle_router
 from app.modules.training.routes import router as training_module_router
@@ -2042,6 +2043,7 @@ app.include_router(ai_support_route.router)
 # Auth (JWT)
 app.include_router(auth_router)
 app.include_router(wallet_router)
+app.include_router(ws_price_router)
 app.include_router(webhooks_router)
 app.include_router(marketplace_router)
 app.include_router(merchant_router)
@@ -2335,9 +2337,9 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
 
     return {
         "stats": {
-            "predictions_display": _format_count(total_predictions) if total_predictions > 0 else "1.2M+",
-            "accuracy_display": f"{(settled_wins/settled_total*100):.1f}%" if settled_total > 0 else "84.2%",
-            "total_staked_display": _format_money(total_staked) if total_staked > 0 else "$4.8M",
+            "predictions_display": _format_count(total_predictions) if total_predictions > 0 else "—",
+            "accuracy_display": f"{(settled_wins/settled_total*100):.1f}%" if settled_total > 0 else "—",
+            "total_staked_display": _format_money(total_staked) if total_staked > 0 else "—",
             "ai_models": 22,
             "ai_models_ready": status.get("ready", 22),
         },

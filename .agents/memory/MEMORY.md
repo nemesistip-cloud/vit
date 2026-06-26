@@ -16,3 +16,4 @@
 - [Replit migration VIT Network](replit-migration-vit.md) — twa-dev/sdk silent crash + wrong Lucide icon names + CSP/frame-ancestors were the three blockers for blank page on Replit.
 - [Tailwind v4 VIT token system](tailwind-vit-token-system.md) — vit-* vars need --color-vit-* in @theme inline; touch main.tsx to bypass build cache; layout is pure Tailwind now.
 - [Rollover Engine](rollover-engine.md) — Poisson Monte Carlo certification pipeline; auth imports from app.auth.dependencies; route at /api/rollover/*; DB model RolloverCertificate in app/db/models.py.
+- [Wallet Phase 2 rebuild](wallet-phase2-rebuild.md) — full wallet/bridge rebuild: pages/wallet.tsx must be deleted when pages/wallet/index.tsx exists (file shadows directory); ws_price_router must be registered in main.py; routes.py docstring must come before imports.

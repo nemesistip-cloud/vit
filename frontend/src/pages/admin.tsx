@@ -36,7 +36,7 @@ import {
   ChevronRight, Shield, Lock, Unlock, Download,
   Users, UserCheck, Upload, Package, ClipboardList, Star, Send,
   Brain, HeartPulse, Stethoscope, BarChart3, Lightbulb, FileUp, Info, Loader2,
-  Network, Plug, Gift,
+  Network, Plug, Gift, History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -2393,7 +2393,7 @@ function TrainingProgressPanel({ jobId, onDismiss }: { jobId: string; onDismiss:
 
 function ModelsTab() {
   const qc = useQueryClient();
-  const [activeSection, setActiveSection] = useState<"engine" | "accountability" | "marketplace">("engine");
+  const [activeSection, setActiveSection] = useState<"engine" | "accountability" | "marketplace" | "jobs">("engine");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const { data: modelsData, isLoading: mLoading } = useQuery<{ models: ModelInfo[]; total?: number }>({
@@ -2548,6 +2548,14 @@ function ModelsTab() {
             </span>
           )}
         </Button>
+        <Button
+          variant={activeSection === "jobs" ? "default" : "outline"}
+          className={activeSection === "jobs"
+            ? "bg-cyan-500 text-black"
+            : "border-gray-600 text-gray-300"}
+          onClick={() => setActiveSection("jobs")}>
+          <History className="w-4 h-4 mr-2" /> Training Jobs
+        </Button>
       </div>
 
       {activeSection === "engine" && (
@@ -2641,6 +2649,8 @@ function ModelsTab() {
           }}
         />
       )}
+
+      {activeSection === "jobs" && <TrainingJobsList />}
 
       {activeSection === "engine" && <TrainingInsightCard />}
 
@@ -5080,6 +5090,71 @@ function IntegrationsTab() {
 
 // ─── Root Admin Page ──────────────────────────────────────────────────
 
+function TrainingJobsList() {
+  const { data, isLoading } = useQuery<{ jobs: any[]; total: number }>({
+    queryKey: ["admin-training-jobs"],
+    queryFn: () => apiGet("/api/admin/training/jobs"),
+    refetchInterval: 10000,
+  });
+
+  if (isLoading) return <div className="p-4 text-gray-400">Loading jobs...</div>;
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2">
+          <History className="w-5 h-5 text-cyan-400" /> Training History
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700 text-gray-400">
+                <th className="text-left p-3">Job ID</th>
+                <th className="text-left p-3">Status</th>
+                <th className="text-left p-3">Progress</th>
+                <th className="text-left p-3">Models</th>
+                <th className="text-left p-3">Created At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.jobs?.map((j: any) => (
+                <tr key={j.job_id} className="border-b border-gray-800 hover:bg-gray-800/40">
+                  <td className="p-3 font-mono text-xs text-cyan-300">JOB_{j.job_id.slice(0, 8)}</td>
+                  <td className="p-3">
+                    <Badge className={
+                      j.status === "completed" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                      j.status === "failed" ? "bg-red-500/20 text-red-400 border-red-500/30" :
+                      "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                    }>
+                      {j.status}
+                    </Badge>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-cyan-500" style={{ width: `${j.progress_pct}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-400">{(j.progress_pct || 0).toFixed(0)}%</span>
+                    </div>
+                  </td>
+                  <td className="p-3 text-gray-400">{j.total_models || 0} models</td>
+                  <td className="p-3 text-gray-500 text-xs">
+                    {j.created_at ? new Date(j.created_at).toLocaleString() : "—"}
+                  </td>
+                </tr>
+              ))}
+              {!data?.jobs?.length && (
+                <tr><td colSpan={5} className="text-center text-gray-500 py-8">No training jobs found</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 export default function AdminPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -5104,8 +5179,9 @@ export default function AdminPage() {
       label: "INTELLIGENCE",
       color: "text-purple-400",
       tabs: [
-        { value: "models",  label: "Models",  icon: Cpu },
-        { value: "agents",  label: "Agents",  icon: Brain },
+        { value: "models",   label: "Models",   icon: Cpu },
+        { value: "training", label: "Training", icon: History },
+        { value: "agents",   label: "Agents",   icon: Brain },
       ],
     },
     {
@@ -5248,6 +5324,7 @@ export default function AdminPage() {
           <TabsContent value="system"><SystemTab /></TabsContent>
           <TabsContent value="audit"><AuditTab /></TabsContent>
           <TabsContent value="agents"><MLAgentsTab /></TabsContent>
+          <TabsContent value="training"><TrainingJobsList /></TabsContent>
         </Tabs>
       </div>
     </div>

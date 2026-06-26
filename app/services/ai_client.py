@@ -185,9 +185,7 @@ async def provider_status() -> Dict[str, Any]:
             "total_models": total,
             "orchestrator_active": orch is not None,
             "provider_type": "internal_ensemble"
-        },
-        "gemini": {"status": "native_fallback", "available": True},
-        "openai": {"status": "native_fallback", "available": True}
+        }
     }
 
 
