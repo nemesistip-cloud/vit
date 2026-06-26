@@ -2331,9 +2331,9 @@ async def public_landing_data(db: AsyncSession = Depends(get_db)):
 
     return {
         "stats": {
-            "predictions_display": _format_count(total_predictions) if total_predictions > 0 else "1.2M+",
-            "accuracy_display": f"{(settled_wins/settled_total*100):.1f}%" if settled_total > 0 else "84.2%",
-            "total_staked_display": _format_money(total_staked) if total_staked > 0 else "$4.8M",
+            "predictions_display": _format_count(total_predictions) if total_predictions > 0 else "—",
+            "accuracy_display": f"{(settled_wins/settled_total*100):.1f}%" if settled_total > 0 else "—",
+            "total_staked_display": _format_money(total_staked) if total_staked > 0 else "—",
             "ai_models": 22,
             "ai_models_ready": status.get("ready", 22),
         },
