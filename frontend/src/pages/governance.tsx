@@ -64,7 +64,7 @@ export default function GovernancePage() {
          />
          <MetricCard
             label="Protocol Status"
-            value="Stable"
+            value={protocolStatus}
             icon={<ShieldCheck size={16} className="text-vit-purple" />}
          />
       </div>
