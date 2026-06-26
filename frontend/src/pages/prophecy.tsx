@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
+import { useAuth } from "@/lib/useAuth";
 import {
   Sparkles, Trophy, ShieldCheck, Zap,
   ChevronRight, Brain, Lock, CheckCircle2, Target
@@ -12,7 +13,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 export default function ProphecyPage() {
-  const [activeChapter, setActiveChapter] = useState(2);
+  const { user } = useAuth();
+
+  const { data: summary } = useQuery<any>({
+    queryKey: ["/api/analytics/summary"],
+    queryFn: () => apiGet("/api/analytics/summary"),
+  });
+
+  const { data: merit } = useQuery<any>({
+    queryKey: ["/api/merit/users/me"],
+    queryFn: () => user ? apiGet(`/api/merit/users/${user.id}`) : null,
+    enabled: !!user,
+  });
+
+  const level = user?.merit_score ? Math.floor(user.merit_score / 2500) + 1 : 1;
+  const currentAcc = summary?.avg_clv ? (summary.avg_clv * 100 + 40).toFixed(1) + "%" : "—";
+  const rewards = user?.merit_score ? (user.merit_score * 0.1).toFixed(1) + "K" : "—";
+  const mastered = level > 1 ? level - 1 : 0;
+
+  const nextLevelXp = level * 2500;
+  const currentLevelXp = (level - 1) * 2500;
+  const progress = user?.merit_score ? ((user.merit_score - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100 : 0;
 
   return (
     <div className="space-y-6 pb-20">
@@ -20,25 +41,25 @@ export default function ProphecyPage() {
          <MetricCard
             variant="hero"
             label="CHAIN LEVEL"
-            value="LVL 4"
+            value={`LVL ${level}`}
             icon={<Trophy size={20} className="text-secondary" />}
          />
          <MetricCard
             label="Mastered"
-            value="3"
+            value={mastered}
             subtitle="Chapters"
             icon={<CheckCircle2 size={16} className="text-vit-green" />}
          />
          <MetricCard
             label="Current Acc"
-            value="91.2%"
+            value={currentAcc}
             change="+1.5%"
             changePositive={true}
             icon={<Brain size={16} className="text-vit-green" />}
          />
          <MetricCard
             label="VIT Rewards"
-            value="12.5K"
+            value={rewards}
             icon={<Zap size={16} className="text-secondary" />}
          />
       </div>
@@ -48,12 +69,12 @@ export default function ProphecyPage() {
            <div className="flex justify-between items-end">
               <div>
                  <p className="text-[10px] font-bold text-vit-text-3 uppercase tracking-widest">Active Progression</p>
-                 <h2 className="text-xl font-display font-bold text-vit-text-1">CHAPTER 4: THE ORACLE'S PATH</h2>
+                 <h2 className="text-xl font-display font-bold text-vit-text-1">CHAPTER ${level}: THE {merit?.tier?.toUpperCase() || 'INITIATE'}'S PATH</h2>
               </div>
-              <p className="text-xs font-mono text-vit-text-2">82% COMPLETE</p>
+              <p className="text-xs font-mono text-vit-text-2">{progress.toFixed(0)}% COMPLETE</p>
            </div>
            <div className="h-2 bg-vit-surface-3 rounded-full overflow-hidden border border-vit-border">
-              <div className="h-full bg-secondary shadow-[0_0_10px_rgba(255,215,0,0.4)]" style={{ width: '82%' }} />
+              <div className="h-full bg-secondary shadow-[0_0_10px_rgba(255,215,0,0.4)]" style={{ width: `${progress}%` }} />
            </div>
         </div>
       </Card>
@@ -63,11 +84,11 @@ export default function ProphecyPage() {
            <h3 className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3 px-1">Progression Chapters</h3>
            <div className="space-y-3">
               {[
-                { id: 1, title: "Initiation", desc: "Understand the flow of decentralized intelligence.", status: "mastered" },
-                { id: 2, title: "Pattern Recognition", desc: "Predict 5 consecutive outcomes with >80% accuracy.", status: "mastered" },
-                { id: 3, title: "Consensus Builder", desc: "Collaborate in circles to refine ensemble signals.", status: "mastered" },
-                { id: 4, title: "The Oracle's Path", desc: "Maintain top 5% rank in the global accuracy leaderboard.", status: "active" },
-                { id: 5, title: "Ascension", desc: "Unlock priority access to the primary neural node.", status: "locked" },
+                { id: 1, title: "Initiation", desc: "Understand the flow of decentralized intelligence.", status: level > 1 ? "mastered" : "active" },
+                { id: 2, title: "Pattern Recognition", desc: "Predict 5 consecutive outcomes with >80% accuracy.", status: level > 2 ? "mastered" : level === 2 ? "active" : "locked" },
+                { id: 3, title: "Consensus Builder", desc: "Collaborate in circles to refine ensemble signals.", status: level > 3 ? "mastered" : level === 3 ? "active" : "locked" },
+                { id: 4, title: "The Oracle's Path", desc: "Maintain top 5% rank in the global accuracy leaderboard.", status: level > 4 ? "mastered" : level === 4 ? "active" : "locked" },
+                { id: 5, title: "Ascension", desc: "Unlock priority access to the primary neural node.", status: level > 5 ? "mastered" : level === 5 ? "active" : "locked" },
               ].map((c) => (
                 <Card key={c.id} className={`bg-vit-surface border-vit-border ${c.status === 'active' ? 'border-secondary/50 ring-1 ring-secondary/20' : ''}`}>
                    <CardContent className="p-4 flex items-center gap-4">

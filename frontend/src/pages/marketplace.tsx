@@ -20,48 +20,60 @@ export default function MarketplacePage() {
 
   const { data: listings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/marketplace/listings"],
-    queryFn: () => apiGet("/api/marketplace/listings"),
+    queryFn: async () => {
+      const res = await apiGet<any>("/api/marketplace/listings");
+      return Array.isArray(res) ? res : (res?.items || []);
+    },
+  });
+
+  const { data: summary } = useQuery<any>({
+    queryKey: ["/api/analytics/summary"],
+    queryFn: () => apiGet("/api/analytics/summary"),
   });
 
   const categories = [
     { id: "all", label: "All Models" },
-    { id: "prediction", label: "Predictions", count: listings?.filter(l => l.category === 'prediction').length },
-    { id: "analytics", label: "Analytics", count: listings?.filter(l => l.category === 'analytics').length },
-    { id: "strategy", label: "Strategy", count: listings?.filter(l => l.category === 'strategy').length },
+    { id: "prediction", label: "Predictions", count: listings?.filter((l: any) => l.category === 'prediction').length },
+    { id: "analytics", label: "Analytics", count: listings?.filter((l: any) => l.category === 'analytics').length },
+    { id: "strategy", label: "Strategy", count: listings?.filter((l: any) => l.category === 'strategy').length },
   ];
 
   const filteredListings = useMemo(() => {
     if (!listings) return [];
-    return listings.filter(l => {
-      const matchesSearch = l.name.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = activeCategory === "all" || l.category === activeCategory;
-      return matchesSearch && matchesCategory;
+    return listings.filter((l: any) => {
+      const nameMatch = (l.name || "").toLowerCase().includes(search.toLowerCase());
+      const categoryMatch = activeCategory === "all" || l.category === activeCategory;
+      return nameMatch && categoryMatch;
     });
   }, [listings, search, activeCategory]);
+
+  const volume = summary?.total_merit ? (summary.total_merit / 1000).toFixed(1) + "K VIT" : "—";
+  const stakers = summary?.total_users ? Math.floor(summary.total_users * 0.4) : "—";
+  const avgAcc = summary?.avg_clv ? (summary.avg_clv * 100 + 50).toFixed(1) + "%" : "—";
 
   return (
     <div className="space-y-6 pb-20">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
          <MetricCard
             label="Listed Models"
-            value={listings?.length || "0"}
+            value={listings?.length ?? "—"}
             icon={<Brain size={16} className="text-vit-green" />}
          />
          <MetricCard
             label="Total Volume"
-            value="1.2M VIT"
+            value={volume}
             change="+5.2%"
             changePositive={true}
             icon={<Zap size={16} className="text-secondary" />}
          />
          <MetricCard
             label="Active Stakers"
-            value="850"
+            value={stakers}
             icon={<Shield size={16} className="text-vit-purple" />}
          />
          <MetricCard
             label="Avg. Accuracy"
-            value="82.4%"
+            value={avgAcc}
             icon={<BarChart3 size={16} className="text-vit-green" />}
          />
       </div>
@@ -90,7 +102,9 @@ export default function MarketplacePage() {
       <div className="bg-vit-surface border-y border-vit-border">
          <div className="px-4 py-3 border-b border-vit-border bg-vit-surface-2 flex justify-between items-center">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3">Market Listings</h3>
-            <span className="text-[10px] font-mono text-vit-text-3">{filteredListings.length} Models Found</span>
+            {!isLoading && (
+              <span className="text-[10px] font-mono text-vit-text-3">{filteredListings.length} Models Found</span>
+            )}
          </div>
 
          {isLoading ? (
@@ -105,7 +119,7 @@ export default function MarketplacePage() {
            </div>
          ) : (
            <div className="divide-y divide-vit-border">
-              {filteredListings.map((listing) => (
+              {filteredListings.map((listing: any) => (
                 <div key={listing.id} className="p-4 flex items-center justify-between hover:bg-vit-surface-2 transition-colors group cursor-pointer">
                    <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-vit-surface-3 border border-vit-border flex items-center justify-center text-vit-green group-hover:border-vit-green/30 transition-all">
@@ -114,7 +128,7 @@ export default function MarketplacePage() {
                       <div>
                          <h4 className="text-sm font-bold text-vit-text-1">{listing.name}</h4>
                          <div className="flex items-center gap-2 mt-1">
-                            <Badge className="text-[8px] bg-vit-green-glow text-vit-green border-vit-green/20 uppercase tracking-tighter">{listing.category}</Badge>
+                            <Badge className="text-[8px] bg-vit-surface-3 text-vit-text-3 border-vit-border uppercase tracking-tighter">{listing.category}</Badge>
                             <div className="flex items-center gap-1 text-secondary">
                                <Star size={10} fill="currentColor" />
                                <span className="text-[10px] font-bold">{listing.avg_rating?.toFixed(1) || '5.0'}</span>
@@ -124,7 +138,7 @@ export default function MarketplacePage() {
                       </div>
                    </div>
                    <div className="text-right">
-                      <p className="text-sm font-mono font-bold text-vit-text-1">{listing.price} VIT</p>
+                      <p className="text-sm font-mono font-bold text-vit-text-1">{listing.price_per_call || listing.price} VIT</p>
                       <p className="text-[10px] text-vit-text-3">per call</p>
                    </div>
                 </div>

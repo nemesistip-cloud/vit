@@ -89,9 +89,9 @@ export default function DashboardPage() {
     queryFn: () => apiGet("/api/history?limit=6"),
   });
 
-  const ensembleAccuracy = modelConfidence?.ensemble_accuracy != null
+  const ensembleAccuracy = modelConfidence?.ensemble_accuracy != null && modelConfidence.ensemble_accuracy > 0
     ? modelConfidence.ensemble_accuracy.toFixed(1) + "%"
-    : "84.2%";
+    : "—";
 
   const vitBalance = user?.vitcoin_balance?.toLocaleString() || "0";
   const streak     = user?.current_streak ?? 0;
@@ -99,55 +99,38 @@ export default function DashboardPage() {
   const meritXp    = (user?.merit_score ?? 0).toLocaleString() + " XP";
 
   return (
-    <div className="p-4 space-y-5 pb-6">
-
-      {/* ── Greeting ── */}
-      <div className="pt-2">
-        <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-0.5">
-          Welcome back
-        </p>
-        <h1 className="text-xl font-bold font-mono text-foreground">
-          {user?.username || "Analyst"}
-          <span className="text-primary ml-1">↗</span>
-        </h1>
-      </div>
-
-      {/* ── Top Metrics ── */}
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-6 pb-20">
+      {/* ── Top Hero Stats ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <MetricCard
-          label="VITCoin"
+          variant="hero"
+          label="VITCoin Balance"
           value={vitBalance}
-          change="+120"
-          changePositive
-          icon={<Coins size={15} className="text-secondary" />}
+          subtitle={meritTier + " ACCOUNT"}
+          icon={<Coins size={24} className="text-secondary" />}
         />
-        <MetricCard
-          label="AI Accuracy"
-          value={ensembleAccuracy}
-          change="+1.2%"
-          changePositive
-          icon={<Brain size={15} className="text-primary" />}
-        />
-        <MetricCard
-          label="Streak"
-          value={streak}
-          subtitle="Predictions"
-          icon={<Flame size={15} className="text-orange-400" />}
-        />
-        <MetricCard
-          label="Merit Tier"
-          value={meritTier}
-          subtitle={meritXp}
-          icon={<Trophy size={15} className="text-violet-400" />}
-        />
+        <div className="md:col-span-2 grid grid-cols-2 gap-4">
+          <MetricCard
+            label="Prediction Streak"
+            value={streak}
+            subtitle="Consecutive Days"
+            icon={<Flame size={16} className="text-orange-400" />}
+          />
+          <MetricCard
+            label="Merit Points"
+            value={meritXp}
+            subtitle="Reputation Score"
+            icon={<ShieldCheck size={16} className="text-primary" />}
+          />
+        </div>
       </div>
 
-      {/* ── Main Tabs ── */}
+      {/* ── Main Navigation Hub ── */}
       <Tabs defaultValue="sports" className="w-full">
-        <div className="flex items-center justify-between mb-3">
-          <TabsList className="h-8 p-0.5 bg-muted/50 border border-border gap-0.5">
-            <TabsTrigger value="sports"  className="h-7 px-3 text-[10px] font-mono font-bold uppercase tracking-wider data-[state=active]:bg-card data-[state=active]:text-foreground">Sports</TabsTrigger>
-            <TabsTrigger value="niche"   className="h-7 px-3 text-[10px] font-mono font-bold uppercase tracking-wider data-[state=active]:bg-card data-[state=active]:text-foreground">Niche</TabsTrigger>
+        <div className="flex items-center justify-between mb-4">
+          <TabsList className="bg-muted/50 p-1 h-9">
+            <TabsTrigger value="sports" className="h-7 px-3 text-[10px] font-mono font-bold uppercase tracking-wider data-[state=active]:bg-card data-[state=active]:text-foreground">Sports</TabsTrigger>
+            <TabsTrigger value="niche" className="h-7 px-3 text-[10px] font-mono font-bold uppercase tracking-wider data-[state=active]:bg-card data-[state=active]:text-foreground">Niche</TabsTrigger>
             <TabsTrigger value="signals" className="h-7 px-3 text-[10px] font-mono font-bold uppercase tracking-wider data-[state=active]:bg-card data-[state=active]:text-foreground">Signals</TabsTrigger>
           </TabsList>
           <Link href="/matches">
