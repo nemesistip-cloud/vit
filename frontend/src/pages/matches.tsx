@@ -125,7 +125,7 @@ export default function MatchesPage() {
         </Tabs>
         <div className="text-right">
           <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-            {filteredMatches.length} NODES FOUND
+            {filteredMatches.length} MATCHES FOUND
           </span>
         </div>
       </div>
