@@ -315,6 +315,44 @@
   .glow-primary {
     box-shadow: 0 0 20px rgba(0, 200, 255, 0.2);
   }
+
+  /* ── Scrollbar hide ── */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── Thin scrollbar ── */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--vit-border) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--vit-border);
+    border-radius: 999px;
+  }
+
+  /* ── VIT glow backgrounds (used inline via Tailwind arbitrary) ── */
+  .bg-vit-green-glow { background-color: var(--vit-green-glow); }
+  .bg-vit-purple-glow { background-color: var(--vit-purple-glow); }
+
+  /* ── Tabular nums for metrics ── */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Safe-area padding ── */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 }
 
 @keyframes shimmer {

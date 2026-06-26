@@ -34,10 +34,14 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--vit-border); border-radius: var(--radius-full); }
 ::-webkit-scrollbar-thumb:hover { background: var(--vit-text-3); }
 
-/* Min tap target size for all interactive elements */
-button, a, [role="button"] {
-  min-height: 44px;
-  min-width: 44px;
+/* Tap targets: only apply to bare interactive elements that have no explicit
+   sizing classes. Component-level classes (h-*, w-*, min-h-*) take precedence. */
+a:not([class]),
+[role="button"]:not([class]) {
+  cursor: pointer;
+}
+
+button {
   cursor: pointer;
 }
 

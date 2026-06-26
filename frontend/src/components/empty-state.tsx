@@ -1,6 +1,7 @@
 import { type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
   icon?: LucideIcon;
@@ -31,33 +32,45 @@ export function EmptyState({
   className = "",
   size = "md",
 }: EmptyStateProps) {
-  const padY   = size === "sm" ? "py-6"  : size === "lg" ? "py-16" : "py-10";
+  const padY   = size === "sm" ? "py-8"  : size === "lg" ? "py-16" : "py-12";
   const iconSz = size === "sm" ? "w-8 h-8" : size === "lg" ? "w-14 h-14" : "w-10 h-10";
-  const iconBg = size === "sm" ? "p-2.5" : size === "lg" ? "p-5" : "p-3.5";
+  const iconPad = size === "sm" ? "p-2.5" : size === "lg" ? "p-4" : "p-3";
 
   return (
     <div
-      className={`rounded-xl border border-dashed border-border/50 ${padY} px-6 text-center space-y-3 bg-card/20 ${className}`}
+      className={cn(
+        "rounded-xl border border-dashed border-border/60",
+        "bg-card/30 text-center space-y-3 px-6",
+        padY,
+        className
+      )}
     >
       {Icon && (
-        <div className={`inline-flex ${iconBg} rounded-xl bg-muted/20 mb-1`}>
-          <Icon className={`${iconSz} text-muted-foreground/30`} aria-hidden="true" />
+        <div className={cn("inline-flex rounded-xl bg-muted/30 mb-1", iconPad)}>
+          <Icon className={cn(iconSz, "text-muted-foreground/50")} aria-hidden="true" />
         </div>
       )}
-      <p className="font-mono text-sm font-medium text-foreground/70">
+
+      <p className="font-mono text-sm font-semibold text-foreground/80">
         {title}
       </p>
+
       {description && (
-        <p className="font-mono text-xs text-muted-foreground/60 max-w-xs mx-auto leading-relaxed">
+        <p className="font-mono text-xs text-muted-foreground/70 max-w-xs mx-auto leading-relaxed">
           {description}
         </p>
       )}
+
       {(action || secondaryAction) && (
-        <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
+        <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
           {action && (
             action.href ? (
               <Link href={action.href}>
-                <Button size="sm" className="font-mono gap-2 text-xs" disabled={action.disabled}>
+                <Button
+                  size="sm"
+                  className="font-mono gap-2 text-xs"
+                  disabled={action.disabled}
+                >
                   {action.label}
                 </Button>
               </Link>
@@ -68,10 +81,14 @@ export function EmptyState({
                 onClick={action.onClick}
                 disabled={action.disabled || action.loading}
               >
+                {action.loading && (
+                  <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                )}
                 {action.loading ? "Loading…" : action.label}
               </Button>
             )
           )}
+
           {secondaryAction && (
             secondaryAction.href ? (
               <Link href={secondaryAction.href}>
