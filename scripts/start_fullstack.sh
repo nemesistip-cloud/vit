@@ -13,7 +13,7 @@ if command -v fuser >/dev/null 2>&1; then
 fi
 
 echo "[startup] Checking frontend dependencies..."
-if [ ! -f "node_modules/.bin/vite" ]; then
+if [ ! -f "${ROOT_DIR}/node_modules/.bin/vite" ]; then
     echo "[startup] Installing frontend dependencies..."
     npm install --legacy-peer-deps --silent 2>/dev/null || true
 fi
