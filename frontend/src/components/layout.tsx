@@ -14,7 +14,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return localStorage.getItem("vit_onboarding_completed") !== "true";
   });
 
-  const closeOnboarding = () => {
   const [navigating, setNavigating] = React.useState(false);
   const [location] = useLocation();
 
@@ -24,16 +23,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer);
   }, [location]);
 
+  const closeOnboarding = () => {
     localStorage.setItem("vit_onboarding_completed", "true");
     setShowOnboarding(false);
   };
-
 
   if (!user) return null;
 
   return (
     <>
-
       {navigating && (
         <div className="fixed top-0 left-0 right-0 z-[10000] h-1">
           <Progress value={80} className="h-full rounded-none bg-transparent" />
