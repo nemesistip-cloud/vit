@@ -28,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db, AsyncSessionLocal
-from app.db.models import Match, Prediction, CLVEntry, User
+from app.db.models import Match, Prediction, CLVEntry, User, RolloverCertificate
 from app.services.clv_tracker import CLVTracker
 
 logger = logging.getLogger(__name__)
@@ -633,6 +633,19 @@ async def settle_results(days_back: int = 2) -> dict:
                         except Exception as ne:
                             logger.warning(f"Auto-settle notification failed (non-fatal): {ne}")
 
+                # ── Update RolloverCertificate.settled_correct ────────
+                try:
+                    cert_res = await db.execute(
+                        select(RolloverCertificate).where(
+                            RolloverCertificate.fixture_id == db_match.id,
+                            RolloverCertificate.settled_correct.is_(None),
+                        )
+                    )
+                    for cert in cert_res.scalars().all():
+                        cert.settled_correct = (cert.outcome == outcome)
+                except Exception as _rc_e:
+                    logger.warning("[settle] RolloverCertificate update failed (non-fatal): %s", _rc_e)
+
                 await db.commit()
                 settled += 1
                 logger.info(
@@ -794,6 +807,19 @@ async def settle_completed_db_matches() -> dict:
                         await bm.save_state()
                     except Exception as be:
                         logger.warning(f"[settle_db] Bankroll update failed (non-fatal): {be}")
+
+                    # ── Update RolloverCertificate.settled_correct ────
+                    try:
+                        cert_res2 = await db.execute(
+                            select(RolloverCertificate).where(
+                                RolloverCertificate.fixture_id == db_match.id,
+                                RolloverCertificate.settled_correct.is_(None),
+                            )
+                        )
+                        for cert in cert_res2.scalars().all():
+                            cert.settled_correct = (cert.outcome == outcome)
+                    except Exception as _rc_e:
+                        logger.warning("[settle_db] RolloverCertificate update failed (non-fatal): %s", _rc_e)
 
                     await db.commit()
                     settled += 1

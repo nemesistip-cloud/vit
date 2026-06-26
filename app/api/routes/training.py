@@ -509,30 +509,59 @@ async def _run_training_body(job_id: str, job: dict, config, orchestrator, start
         logger.info(f"Saved {len(saved_pkls)} model weight files for job {job_id}")
 
         # ── Sequential tachyon upload (one file at a time to avoid OOM) ──────
-        async def _tachyon_upload_sequential(paths: list):
-            for p in paths:
+        # Build model_key → active_path map so we can persist the tachyon file_id index.
+        _active_pkl_map: dict[str, str] = {}
+        for mkey, info in saved_pkls.items():
+            active_fname = info.get("active")
+            if active_fname:
+                p = os.path.join(_MODELS_DIR, active_fname)
+                if os.path.exists(p):
+                    _active_pkl_map[mkey] = p
+
+        async def _tachyon_upload_sequential(key_path_pairs: list):
+            index_path = os.path.join(_MODELS_DIR, "tachyon_index.json")
+            try:
+                import json as _json
+                with open(index_path) as _f:
+                    _idx = _json.load(_f)
+            except Exception:
+                _idx = {}
+
+            for mkey, p in key_path_pairs:
                 try:
                     fid = await tachyon_client.upload_model(p)
                     if fid:
-                        logger.info("[tachyon] uploaded %s → file_id=%s", os.path.basename(p), fid)
+                        _idx[mkey] = fid
+                        logger.info("[tachyon] uploaded %s → model_key=%s file_id=%s", os.path.basename(p), mkey, fid)
                     else:
                         logger.warning("[tachyon] upload returned None for %s", os.path.basename(p))
                 except Exception as _te:
                     logger.error("[tachyon] upload failed for %s: %s", os.path.basename(p), _te)
-                await asyncio.sleep(0.5)  # yield to event loop between uploads
+                await asyncio.sleep(0.5)
 
-        all_pkl_paths = []
-        for info in saved_pkls.values():
-            for fname in (info.get("active"), info.get("archive")):
-                if fname:
-                    p = os.path.join(_MODELS_DIR, fname)
-                    if os.path.exists(p):
-                        all_pkl_paths.append(p)
+            try:
+                import json as _json
+                os.makedirs(_MODELS_DIR, exist_ok=True)
+                with open(index_path, "w") as _f:
+                    _json.dump(_idx, _f)
+                logger.info("[tachyon] index updated: %d model(s) mapped", len(_idx))
+            except Exception as _ie:
+                logger.error("[tachyon] failed to write tachyon_index.json: %s", _ie)
+
+        all_pkl_pairs = list(_active_pkl_map.items())
+
+        # Also add archive files (without adding them to the key index)
+        for mkey, info in saved_pkls.items():
+            arc_fname = info.get("archive")
+            if arc_fname:
+                p = os.path.join(_MODELS_DIR, arc_fname)
+                if os.path.exists(p):
+                    all_pkl_pairs.append((f"{mkey}_archive", p))
 
         try:
             loop = asyncio.get_event_loop()
-            loop.create_task(_tachyon_upload_sequential(all_pkl_paths))
-            logger.info("[tachyon] queued sequential upload of %d pkl files", len(all_pkl_paths))
+            loop.create_task(_tachyon_upload_sequential(all_pkl_pairs))
+            logger.info("[tachyon] queued sequential upload of %d pkl files", len(all_pkl_pairs))
         except Exception as _te:
             logger.error("[tachyon] failed to queue upload task: %s", _te)
 

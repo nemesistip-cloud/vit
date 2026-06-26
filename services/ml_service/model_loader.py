@@ -53,14 +53,33 @@ def _find_pkl(model_key: str) -> Optional[Path]:
     return None
 
 
+def _tachyon_file_id(model_key: str) -> Optional[str]:
+    """Look up the Tachyon file_id for a model_key from tachyon_index.json."""
+    index_path = _WORKSPACE_ROOT / "models" / "tachyon_index.json"
+    try:
+        import json
+        with open(index_path) as f:
+            idx = json.load(f)
+        return idx.get(model_key)
+    except Exception:
+        return None
+
+
 def _tachyon_download(model_key: str) -> Optional[Path]:
     """Try to fetch a pkl from the Tachyon storage swarm.
 
+    Looks up the model_key → file_id mapping from tachyon_index.json first,
+    then downloads from Tachyon using the UUID file_id.
     Runs the async TachyonClient in a fresh thread so it can create its own
     event loop — safe to call from both sync and async contexts.
     Returns the local temp path on success, or None if unavailable.
     """
     if os.getenv("TACHYON_STORAGE_ENABLED") != "true":
+        return None
+
+    file_id = _tachyon_file_id(model_key)
+    if not file_id:
+        logger.debug("[tachyon] no index entry for model_key='%s'", model_key)
         return None
 
     tmp = tempfile.mktemp(suffix=f"_{model_key}.pkl")
@@ -69,9 +88,9 @@ def _tachyon_download(model_key: str) -> Optional[Path]:
         try:
             from app.services.tachyon_client import TachyonClient
             client = TachyonClient()
-            return await client.download_model(model_key, tmp)
+            return await client.download_model(file_id, tmp)
         except Exception as _e:
-            logger.debug("[tachyon] download attempt for '%s' raised: %s", model_key, _e)
+            logger.debug("[tachyon] download attempt for '%s' (id=%s) raised: %s", model_key, file_id, _e)
             return False
 
     def _run_in_thread() -> bool:

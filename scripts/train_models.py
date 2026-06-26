@@ -311,6 +311,55 @@ def train_and_save(entry, X, y):
     return {"key": key, "accuracy": acc, "log_loss": ll}
 
 
+async def _tachyon_upload_all(results: list):
+    """Upload all saved pkl files to Tachyon and persist the model_key → file_id index."""
+    import json
+    index_path = MODELS_DIR / "tachyon_index.json"
+    try:
+        with open(index_path) as f:
+            idx = json.load(f)
+    except Exception:
+        idx = {}
+
+    port = os.getenv("PORT", "5000")
+    endpoint = os.getenv("TACHYON_ENDPOINT", f"http://localhost:{port}/api/tachyon")
+
+    try:
+        import httpx
+    except ImportError:
+        logger.warning("[tachyon] httpx not installed — skipping Tachyon upload")
+        return
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for r in results:
+            key = r["key"]
+            pkl_path = MODELS_DIR / f"{key}.pkl"
+            if not pkl_path.exists():
+                continue
+            try:
+                with open(pkl_path, "rb") as f:
+                    content = f.read()
+                resp = await client.post(
+                    f"{endpoint}/upload",
+                    files={"file": (f"{key}.pkl", content)},
+                )
+                if resp.status_code == 200:
+                    fid = resp.json()["file_id"]
+                    idx[key] = fid
+                    logger.info("[tachyon] ✅ %s.pkl → file_id=%s", key, fid)
+                else:
+                    logger.warning("[tachyon] upload failed for %s: %s", key, resp.status_code)
+            except Exception as e:
+                logger.error("[tachyon] upload error for %s: %s", key, e)
+
+    try:
+        with open(index_path, "w") as f:
+            json.dump(idx, f)
+        logger.info("[tachyon] index written: %d model(s)", len(idx))
+    except Exception as e:
+        logger.error("[tachyon] failed to write index: %s", e)
+
+
 async def main(args):
     logger.info("=" * 58)
     logger.info("  VIT Sports Analytics — Model Training")
@@ -368,6 +417,10 @@ async def main(args):
 
     logger.info(f"\nModels saved to: {MODELS_DIR}/")
     logger.info("Next: set USE_REAL_ML_MODELS=true in .env and restart the server.")
+
+    # ── Upload trained pkls to Tachyon storage swarm ──────────────────────────
+    if os.getenv("TACHYON_STORAGE_ENABLED") == "true":
+        await _tachyon_upload_all(results)
 
 
 if __name__ == "__main__":
