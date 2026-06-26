@@ -31,7 +31,7 @@ const LandingPage = lazyRetry(() => import("@/pages/landing"));
 const MatchesPage = lazyRetry(() => import("@/pages/matches"));
 const MatchDetailPage = lazyRetry(() => import("@/pages/match-detail"));
 const PredictionsPage = lazyRetry(() => import("@/pages/predictions"));
-const WalletPage = lazyRetry(() => import("@/pages/wallet"));
+const WalletRoot = lazyRetry(() => import("@/pages/wallet"));
 const ValidatorsPage = lazyRetry(() => import("@/pages/validators"));
 const TrainingPage = lazyRetry(() => import("@/pages/training"));
 const AnalyticsPage = lazyRetry(() => import("@/pages/analytics"));
@@ -261,8 +261,11 @@ function Router() {
       <Route path="/predictions">
         <Layout><ProtectedRoute component={PredictionsPage} /></Layout>
       </Route>
+      <Route path="/wallet/:rest*">
+        <ProtectedRoute component={WalletRoot} />
+      </Route>
       <Route path="/wallet">
-        <Layout><ProtectedRoute component={WalletPage} /></Layout>
+        <ProtectedRoute component={WalletRoot} />
       </Route>
       <Route path="/validators">
         <Layout><ProtectedRoute component={ValidatorsPage} /></Layout>

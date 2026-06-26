@@ -74,6 +74,7 @@ from app.auth.routes import router as auth_router
 from app.modules.wallet.routes import router as wallet_router
 from app.modules.wallet.admin_routes import router as wallet_admin_router
 from app.modules.wallet.webhooks import router as webhooks_router
+from app.modules.wallet.ws_price import router as ws_price_router
 from app.modules.blockchain.routes import router as blockchain_router
 from app.modules.blockchain.oracle import router as oracle_router
 from app.modules.training.routes import router as training_module_router
@@ -2036,6 +2037,7 @@ app.include_router(ai_support_route.router)
 # Auth (JWT)
 app.include_router(auth_router)
 app.include_router(wallet_router)
+app.include_router(ws_price_router)
 app.include_router(webhooks_router)
 app.include_router(marketplace_router)
 app.include_router(merchant_router)
