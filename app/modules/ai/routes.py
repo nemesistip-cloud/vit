@@ -194,7 +194,7 @@ async def upload_pkl(
         import io
         payload = joblib.load(io.BytesIO(data))
 
-        payload = joblib.load(staged_path)
+
         if not isinstance(payload, dict) or "model" not in payload:
 
             raise HTTPException(
@@ -215,7 +215,7 @@ async def upload_pkl(
     dest_path = os.path.join(MODELS_DIR, f"{key}__{safe_version}.pkl")
 
     # Refuse to overwrite an existing version file — operator must bump the version
-    if os.path.exists(dest_path):
+    if any(h.get("version") == version for h in (row.version_history or [])):
 
         raise HTTPException(
             status_code=409,
@@ -236,7 +236,7 @@ async def upload_pkl(
         "uploaded_at":      datetime.now(timezone.utc).isoformat(),
         "promoted_at":      None,
         "filename":         file.filename,
-        "size_bytes":       len(content),
+        "size_bytes":       len(data),
     }
     history.append(entry)
     row.version_history = history
@@ -262,7 +262,7 @@ async def upload_pkl(
     return {
         "key":              key,
         "filename":         file.filename,
-        "size_bytes":       len(content),
+        "size_bytes":       len(data),
         "training_samples": samples,
         "version":          version,
         "metrics":          metrics,
@@ -349,18 +349,35 @@ async def promote_version(
             detail=f"Version '{version}' not found for '{key}'. Available: {available}"
         )
 
-    pkl_path = target.get("pkl_path")
-    if not pkl_path or not os.path.exists(pkl_path):
-        raise HTTPException(
-            status_code=410,
-            detail=f"Artifact for version '{version}' is missing on disk: {pkl_path}"
-        )
+        pkl_path = target.get("pkl_path")
+    if not pkl_path:
+        raise HTTPException(status_code=410, detail="Artifact path is missing")
+    if pkl_path.startswith("/") and not os.path.exists(pkl_path):
+        raise HTTPException(status_code=410, detail=f"Local artifact missing: {pkl_path}")
 
     previous_version = row.active_version
     promoted = await _promote_version_inplace(row, version, history)
     if not promoted:
         raise HTTPException(status_code=500, detail="Promotion failed")
     await db.commit()
+    # Update tachyon_index.json for the model loader
+    if pkl_path.startswith("tachyon://"):
+        try:
+            fid = pkl_path.replace("tachyon://", "")
+            index_path = os.path.join(MODELS_DIR, "tachyon_index.json")
+            import json
+            idx = {}
+            if os.path.exists(index_path):
+                with open(index_path) as f:
+                    idx = json.load(f)
+            idx[key] = fid
+            os.makedirs(MODELS_DIR, exist_ok=True)
+            with open(index_path, "w") as f:
+                json.dump(idx, f)
+            logger.info(f"[tachyon] Updated index for {key} -> {fid}")
+        except Exception as e:
+            logger.error(f"Failed to update tachyon_index.json: {e}")
+
 
     # Hot-reload orchestrator
     reloaded = False

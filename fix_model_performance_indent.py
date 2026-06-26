@@ -1,4 +1,11 @@
-"""app/api/routes/model_performance.py — Model accountability and accuracy tracking."""
+import re
+
+with open('app/api/routes/model_performance.py', 'r') as f:
+    content = f.read()
+
+# Fix the double return / unexpected indent issue
+# I'll just rewrite the whole file content to be clean
+new_content = """\"\"\"app/api/routes/model_performance.py — Model accountability and accuracy tracking.\"\"\"
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +21,7 @@ async def get_model_performance_summary(
     days: int = Query(30, ge=1, le=90),
     db: AsyncSession = Depends(get_db)
 ):
-    """Return full performance breakdown for the dashboard."""
+    \"\"\"Return full performance breakdown for the dashboard.\"\"\"
     from app.modules.ai.routes import get_registry
     models = await get_registry(db)
 
@@ -60,10 +67,10 @@ async def get_model_history(
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db)
 ):
-    """
+    \"\"\"
     C-6: Time-series accuracy for a single model.
     In v5.5.0, this retrieves the trend from audit logs or simplified projections.
-    """
+    \"\"\"
     return {
         "model_key": model_key,
         "history": [
@@ -76,7 +83,7 @@ async def get_model_history(
 
 @router.get("/aggregate")
 async def get_aggregate_stats(db: AsyncSession = Depends(get_db)):
-    """Return platform-wide aggregate performance metrics."""
+    \"\"\"Return platform-wide aggregate performance metrics.\"\"\"
     stmt = select(
         func.avg(ModelPerformance.accuracy_score).label("avg_accuracy"),
         func.avg(ModelPerformance.positive_clv_rate).label("avg_clv"),
@@ -93,5 +100,9 @@ async def get_aggregate_stats(db: AsyncSession = Depends(get_db)):
 
 @router.post("/sync")
 async def sync_performance_data(db: AsyncSession = Depends(get_db)):
-    """Manually trigger a resync of model performance metrics."""
+    \"\"\"Manually trigger a resync of model performance metrics.\"\"\"
     return {"status": "sync_started", "message": "Model performance re-evaluation queued."}
+"""
+
+with open('app/api/routes/model_performance.py', 'w') as f:
+    f.write(new_content)
