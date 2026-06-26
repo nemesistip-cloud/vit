@@ -69,11 +69,14 @@ from app.api.routes import (
 )
 
 from app.services.firestore_events import setup_firestore_events
+from app.tasks.telegram_digest import start_telegram_digest
+from app.tasks.settlement_task import start_settlement_worker
 from app.tasks.ticker_sync import start_ticker_sync
 from app.auth.routes import router as auth_router
 from app.modules.wallet.routes import router as wallet_router
 from app.modules.wallet.admin_routes import router as wallet_admin_router
 from app.modules.wallet.webhooks import router as webhooks_router
+from app.modules.wallet.ws_price import router as ws_price_router
 from app.modules.blockchain.routes import router as blockchain_router
 from app.modules.blockchain.oracle import router as oracle_router
 from app.modules.training.routes import router as training_module_router
@@ -260,7 +263,11 @@ async def lifespan(app: FastAPI):
     setup_firestore_events()
     from app.core.redis import require_redis
     await require_redis(app)
+
     start_ticker_sync()
+    start_settlement_worker()
+    start_telegram_digest()
+
 
     print_config_status()
     print(f"🚀 VIT Network v{APP_VERSION} starting (NATIVE AI MODE)...")
@@ -2036,6 +2043,7 @@ app.include_router(ai_support_route.router)
 # Auth (JWT)
 app.include_router(auth_router)
 app.include_router(wallet_router)
+app.include_router(ws_price_router)
 app.include_router(webhooks_router)
 app.include_router(marketplace_router)
 app.include_router(merchant_router)
@@ -2139,7 +2147,7 @@ app.include_router(storage_router)
 # Phase 3 — Model Performance Dashboard + Bankroll Management
 from app.api.routes.model_performance import router as model_perf_router
 from app.api.routes.bankroll import router as bankroll_router
-app.include_router(model_perf_router)
+app.include_router(model_perf_router, prefix="/api")
 app.include_router(bankroll_router)
 
 from app.api.routes.quality_feed import router as quality_feed_router

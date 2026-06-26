@@ -31,7 +31,7 @@ const LandingPage = lazyRetry(() => import("@/pages/landing"));
 const MatchesPage = lazyRetry(() => import("@/pages/matches"));
 const MatchDetailPage = lazyRetry(() => import("@/pages/match-detail"));
 const PredictionsPage = lazyRetry(() => import("@/pages/predictions"));
-const WalletPage = lazyRetry(() => import("@/pages/wallet"));
+const WalletRoot = lazyRetry(() => import("@/pages/wallet"));
 const ValidatorsPage = lazyRetry(() => import("@/pages/validators"));
 const TrainingPage = lazyRetry(() => import("@/pages/training"));
 const AnalyticsPage = lazyRetry(() => import("@/pages/analytics"));
@@ -41,7 +41,16 @@ const TrustPage = lazyRetry(() => import("@/pages/trust"));
 const BridgePage = lazyRetry(() => import("@/pages/bridge"));
 const DeveloperPage = lazyRetry(() => import("@/pages/developer"));
 const GovernancePage = lazyRetry(() => import("@/pages/governance"));
-const AdminPage = lazyRetry(() => import("@/pages/admin"));
+const AdminDashboardPage  = lazyRetry(() => import("@/pages/admin/AdminDashboard"));
+const AdminUsersPage      = lazyRetry(() => import("@/pages/admin/AdminUsers"));
+const AdminWalletPage     = lazyRetry(() => import("@/pages/admin/AdminWallet"));
+const AdminMatchesPage    = lazyRetry(() => import("@/pages/admin/AdminMatches"));
+const AdminValidatorsPage = lazyRetry(() => import("@/pages/admin/AdminValidators"));
+const AdminModelsPage     = lazyRetry(() => import("@/pages/admin/AdminModels"));
+const AdminMarketplacePage= lazyRetry(() => import("@/pages/admin/AdminMarketplace"));
+const AdminConfigPage     = lazyRetry(() => import("@/pages/admin/AdminConfig"));
+const AdminAuditLogPage   = lazyRetry(() => import("@/pages/admin/AdminAuditLog"));
+const AdminSystemPage     = lazyRetry(() => import("@/pages/admin/AdminSystemHealth"));
 const AccumulatorPage = lazyRetry(() => import("@/pages/accumulator"));
 const RolloverPage    = lazyRetry(() => import("@/pages/rollover"));
 const BacktestPage = lazyRetry(() => import("@/pages/backtest"));
@@ -156,6 +165,30 @@ function OnboardingController() {
   );
 }
 
+function AdminGuard({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#080c12]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-[#00E676]/30 border-t-[#00E676] rounded-full animate-spin" />
+          <span className="font-mono text-xs text-white/30 uppercase tracking-widest">Loading…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return <Redirect to="/login" />;
+  if (user.role !== "admin") return <Redirect to="/dashboard" />;
+
+  return (
+    <ErrorBoundary>
+      <Component />
+    </ErrorBoundary>
+  );
+}
+
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
 
@@ -228,8 +261,11 @@ function Router() {
       <Route path="/predictions">
         <Layout><ProtectedRoute component={PredictionsPage} /></Layout>
       </Route>
+      <Route path="/wallet/:rest*">
+        <ProtectedRoute component={WalletRoot} />
+      </Route>
       <Route path="/wallet">
-        <Layout><ProtectedRoute component={WalletPage} /></Layout>
+        <ProtectedRoute component={WalletRoot} />
       </Route>
       <Route path="/validators">
         <Layout><ProtectedRoute component={ValidatorsPage} /></Layout>
@@ -258,8 +294,35 @@ function Router() {
       <Route path="/governance">
         <Layout><ProtectedRoute component={GovernancePage} /></Layout>
       </Route>
+      <Route path="/admin/users">
+        <AdminGuard component={AdminUsersPage} />
+      </Route>
+      <Route path="/admin/wallet">
+        <AdminGuard component={AdminWalletPage} />
+      </Route>
+      <Route path="/admin/matches">
+        <AdminGuard component={AdminMatchesPage} />
+      </Route>
+      <Route path="/admin/validators">
+        <AdminGuard component={AdminValidatorsPage} />
+      </Route>
+      <Route path="/admin/models">
+        <AdminGuard component={AdminModelsPage} />
+      </Route>
+      <Route path="/admin/marketplace">
+        <AdminGuard component={AdminMarketplacePage} />
+      </Route>
+      <Route path="/admin/config">
+        <AdminGuard component={AdminConfigPage} />
+      </Route>
+      <Route path="/admin/audit">
+        <AdminGuard component={AdminAuditLogPage} />
+      </Route>
+      <Route path="/admin/system">
+        <AdminGuard component={AdminSystemPage} />
+      </Route>
       <Route path="/admin">
-        <Layout><ProtectedRoute component={AdminPage} /></Layout>
+        <AdminGuard component={AdminDashboardPage} />
       </Route>
       <Route path="/accumulator">
         <Layout><ProtectedRoute component={AccumulatorPage} /></Layout>

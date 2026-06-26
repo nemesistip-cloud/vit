@@ -44,8 +44,19 @@ class TransactionType(PyEnum):
     SPEND = "spend"
     FEE = "fee"
     STAKE = "stake"
+    UNSTAKE = "unstake"
     REWARD = "reward"
     SLASH = "slash"
+    BUY = "buy"
+    SELL = "sell"
+    P2P_ESCROW = "p2p_escrow"
+    P2P_RELEASE = "p2p_release"
+    P2P_REFUND = "p2p_refund"
+    VAULT_DEPOSIT = "vault_deposit"
+    VAULT_WITHDRAWAL = "vault_withdrawal"
+    REFERRAL_CLAIM = "referral_claim"
+    BRIDGE_LOCK = "bridge_lock"
+    BRIDGE_UNLOCK = "bridge_unlock"
 
 
 class TransactionDirection(PyEnum):
@@ -83,6 +94,26 @@ class DestinationType(PyEnum):
     PAYPAL = "paypal"
     MOBILE_MONEY = "mobile_money"
     OTHER = "other"
+
+
+class P2POfferType(PyEnum):
+    BUY = "buy"
+    SELL = "sell"
+
+
+class P2POfferStatus(PyEnum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class P2POrderStatus(PyEnum):
+    PENDING = "pending"
+    PAYMENT_SENT = "payment_sent"
+    COMPLETED = "completed"
+    DISPUTED = "disputed"
+    CANCELLED = "cancelled"
 
 
 # ── Models ─────────────────────────────────────────────────────────────
@@ -127,9 +158,8 @@ class WalletProfile(Base):
     vit_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
     risk_score: Mapped[float] = mapped_column(Float, default=0.0)
     activity_score: Mapped[float] = mapped_column(Float, default=0.0)
-    trading_style: Mapped[str] = mapped_column(String(20), default="neutral")  # scalper, holder, neutral
+    trading_style: Mapped[str] = mapped_column(String(20), default="neutral")
 
-    # Behavior metrics
     total_trades: Mapped[int] = mapped_column(Integer, default=0)
     total_trade_volume: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
     avg_trade_size: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
@@ -163,6 +193,7 @@ class WalletTransaction(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
 
     reference: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     rate_snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
@@ -255,6 +286,10 @@ class WithdrawalRequest(Base):
     destination: Mapped[str] = mapped_column(String(255), nullable=False)
     destination_type: Mapped[str] = mapped_column(String(30), nullable=False)
 
+    bank_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    account_number: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    account_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+
     status: Mapped[str] = mapped_column(String(30), default="pending")
     auto_approved: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -282,11 +317,14 @@ class SavingsVault(Base):
     wallet_id: Mapped[str] = mapped_column(String(36), ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False)
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    vault_type: Mapped[str] = mapped_column(String(30), default="goal")  # goal, emergency, fixed
+    vault_type: Mapped[str] = mapped_column(String(30), default="fixed")
     currency: Mapped[str] = mapped_column(String(10), nullable=False)
 
     current_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
     target_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 8), nullable=True)
+
+    lock_period_days: Mapped[int] = mapped_column(Integer, default=30)
+    apy_pct: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=Decimal("0.0000"))
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -315,12 +353,7 @@ class PlatformConfig(Base):
 
 
 class PlatformSecret(Base):
-    """
-    Encrypted API keys / secrets set via the admin panel.
-    Values are Fernet-encrypted using a key derived from JWT_SECRET_KEY.
-    On startup, these are loaded into os.environ so the rest of the app
-    can read them with os.getenv() — identical to Replit Secrets.
-    """
+    """Encrypted API keys / secrets set via the admin panel."""
     __tablename__ = "platform_secrets"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
@@ -370,4 +403,79 @@ class WebhookEvent(Base):
         Index("idx_webhook_events_reference", "reference"),
         Index("idx_webhook_events_received_at", "received_at"),
         Index("idx_webhook_events_provider_received", "provider", "received_at"),
+    )
+
+
+# ── P2P Models ──────────────────────────────────────────────────────────
+
+class P2POffer(Base):
+    """Peer-to-peer buy/sell offer listing."""
+    __tablename__ = "p2p_offers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    wallet_id: Mapped[str] = mapped_column(String(36), ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False)
+
+    offer_type: Mapped[str] = mapped_column(String(10), nullable=False)  # buy | sell
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="VITCoin")
+
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    available_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    escrowed_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
+
+    rate_ngn: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    min_order: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    max_order: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+
+    payment_method: Mapped[str] = mapped_column(String(100), default="bank_transfer")
+    payment_details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | paused | completed | cancelled
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    orders = relationship("P2POrder", back_populates="offer", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_p2p_offer_user_id", "user_id"),
+        Index("idx_p2p_offer_type", "offer_type"),
+        Index("idx_p2p_offer_status", "status"),
+        Index("idx_p2p_offer_currency", "currency"),
+    )
+
+
+class P2POrder(Base):
+    """Executed trade against a P2P offer."""
+    __tablename__ = "p2p_orders"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    offer_id: Mapped[str] = mapped_column(String(36), ForeignKey("p2p_offers.id", ondelete="CASCADE"), nullable=False)
+
+    buyer_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    seller_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    rate_ngn: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    fiat_total_ngn: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+
+    escrow_tx_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("wallet_transactions.id"), nullable=True)
+    release_tx_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("wallet_transactions.id"), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(30), default="pending")
+    dispute_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    admin_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    payment_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    offer = relationship("P2POffer", back_populates="orders")
+
+    __table_args__ = (
+        Index("idx_p2p_order_buyer_id", "buyer_id"),
+        Index("idx_p2p_order_seller_id", "seller_id"),
+        Index("idx_p2p_order_offer_id", "offer_id"),
+        Index("idx_p2p_order_status", "status"),
     )

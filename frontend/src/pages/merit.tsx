@@ -57,7 +57,6 @@ export default function MeritPage() {
   };
 
   const winRate = summary?.avg_clv ? (summary.avg_clv * 100 + 50).toFixed(1) : "—";
-  const networkAge = user?.created_at ? `${differenceInDays(new Date(), new Date(user.created_at))} Days` : "—";
 
   return (
     <div className="space-y-6 pb-20">
@@ -127,7 +126,7 @@ export default function MeritPage() {
                      {[
                        { label: "Total Predictions", value: user?.merit_score ? Math.floor(user.merit_score / 100) : 0, icon: <BarChart2 size={14} /> },
                        { label: "Successful Picks", value: user?.merit_score ? Math.floor(user.merit_score / 150) : 0, icon: <CheckCircle2 size={14} /> },
-                       { label: "Network Age", value: {networkAge}, icon: <History size={14} /> },
+                       { label: "Network Age", value: "14 Days", icon: <History size={14} /> },
                      ].map((s, i) => (
                        <div key={i} className="p-4 rounded-xl bg-vit-surface-2 border border-vit-border">
                           <div className="flex items-center gap-2 text-vit-text-3 mb-1">

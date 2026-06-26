@@ -65,7 +65,7 @@ export default function TrainingPage() {
             <CardContent className="pt-6 space-y-4">
               <div className="text-center">
                 <div className="text-4xl font-bold font-mono text-primary">
-                  {ensembleAccuracy === "—" ? "—" : `${ensembleAccuracy}%`}
+                  {ensembleAccuracy === "—" ? "—" : `${ensembleAccuracy}%`
                 </div>
                 <div className="text-xs text-muted-foreground font-mono uppercase mt-1">Overall Accuracy</div>
               </div>

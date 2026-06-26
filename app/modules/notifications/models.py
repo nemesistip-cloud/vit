@@ -61,3 +61,14 @@ class NotificationPreference(Base):
     telegram_chat_id    : Mapped[str | None]   = mapped_column(String(64), nullable=True, default=None)
 
     user = relationship("User", back_populates="notification_preferences")
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(String(512), unique=True, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(256), nullable=False)
+    auth: Mapped[str] = mapped_column(String(256), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
