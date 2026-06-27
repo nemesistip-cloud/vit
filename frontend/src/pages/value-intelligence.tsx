@@ -109,7 +109,7 @@ function VITPredictionCard({ p }: { p: VITPrediction }) {
               {p.kickoff_time && (
                 <span className="font-mono text-[10px] text-muted-foreground flex items-center gap-0.5">
                   <Clock className="w-2.5 h-2.5" />
-                  {formatDistanceToNow(new Date(p.kickoff_time), { addSuffix: true })}
+                  {safeFormatDistanceToNow(p.kickoff_time, { addSuffix: true })}
                 </span>
               )}
             </div>

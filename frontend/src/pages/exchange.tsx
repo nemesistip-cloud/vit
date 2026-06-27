@@ -79,7 +79,7 @@ function SideLabel({ side, teams }: { side: string; teams: { home: string; away:
 function SignalCard({ prediction, onEnter }: { prediction: VITPrediction; onEnter: (p: VITPrediction) => void }) {
   const cfg = TIER_CONFIG[prediction.vit_tier] || TIER_CONFIG.SKIP;
   const kickoffStr = prediction.kickoff_time
-    ? formatDistanceToNow(new Date(prediction.kickoff_time), { addSuffix: true })
+    ? safeFormatDistanceToNow(prediction.kickoff_time, { addSuffix: true })
     : "TBD";
 
   return (
