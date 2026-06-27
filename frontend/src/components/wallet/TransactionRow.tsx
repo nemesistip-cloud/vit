@@ -1,4 +1,6 @@
+import { formatDistanceToNow } from "date-fns";
 import React from "react";
+import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import type { WalletTx } from "@/hooks/useWallet";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -50,18 +52,17 @@ export function TransactionRow({ tx, compact = false }: TransactionRowProps) {
   const symbol = CURRENCY_SYMBOLS[tx.currency] ?? tx.currency;
   const statusClass = STATUS_COLOR[tx.status] ?? "text-white/50";
   const date = new Date(tx.created_at);
-  const dateStr = compact
-    ? date.toLocaleDateString("en", { month: "short", day: "numeric" })
-    : date.toLocaleString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const relativeDate = formatDistanceToNow(date, { addSuffix: true });
+  const dateStr = compact ? relativeDate : `${relativeDate} • ${date.toLocaleString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
 
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-white/[0.04] last:border-0 gap-4">
       <div className="flex items-center gap-3 min-w-0">
         <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold
-            ${isCredit ? "bg-[#00E676]/10 text-[#00E676]" : "bg-red-500/10 text-red-400"}`}
+          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm
+            ${isCredit ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}
         >
-          {isCredit ? "+" : "−"}
+          {isCredit ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
         </div>
         <div className="min-w-0">
           <p className="text-sm text-white font-['Outfit'] truncate">{label}</p>
@@ -81,7 +82,9 @@ export function TransactionRow({ tx, compact = false }: TransactionRowProps) {
           {tx.amount.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}{" "}
           <span className="text-[10px] font-normal">{symbol}</span>
         </p>
-        <p className={`text-[10px] font-['Outfit'] ${statusClass}`}>{tx.status}</p>
+        <p className={`text-[10px] font-['Outfit'] uppercase tracking-wider ${statusClass}`}>
+          {tx.status === "pending" ? "Processing..." : tx.status}
+        </p>
       </div>
     </div>
   );
