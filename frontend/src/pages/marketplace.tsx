@@ -1,19 +1,22 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import {
   ShoppingBag, Zap, Brain, BarChart3, Search,
-  Filter, ChevronRight, Globe, Layers, Cpu, Database
+  Filter, ChevronRight, Globe, Layers, Cpu, Database, Shield, Star
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import MetricCard from "@/components/cards/MetricCard";
+import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
+import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
 
   const { data: listings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/marketplace/listings"],

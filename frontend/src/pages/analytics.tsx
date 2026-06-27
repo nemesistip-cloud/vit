@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import MetricCard from "@/components/cards/MetricCard";
+import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
 import { cn } from "@/lib/utils";
 
 export default function AnalyticsPage() {
