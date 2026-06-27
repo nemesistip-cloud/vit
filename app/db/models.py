@@ -28,22 +28,12 @@ class Market(Base):
     matches = relationship("Match", back_populates="market")
 
 
-class MarketMapping(Base):
-    """
-    Infrastructure for mapping internal markets to external providers.
-    Requirement A.4
-    """
-    __tablename__ = "market_mappings"
 
-    id = Column(Integer, primary_key=True)
-    internal_market_id = Column(String(36), ForeignKey("markets.id"), nullable=False, index=True)
-    provider_name = Column(String(50), nullable=False)
-    external_match_id = Column(String(100), nullable=True)
-    external_selection_id = Column(String(100), nullable=True)
 
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    market = relationship("Market")
+
+
+
 
 
 class Match(Base):
@@ -93,6 +83,13 @@ class Match(Base):
     predictions = relationship("Prediction", back_populates="match", uselist=True)
     clv_entries = relationship("CLVEntry", back_populates="match")
     market = relationship("Market", back_populates="matches")
+
+
+
+
+
+
+
 
 
 class Prediction(Base):
