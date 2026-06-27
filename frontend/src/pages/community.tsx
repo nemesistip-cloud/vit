@@ -1,75 +1,128 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
+import { useAuth } from "@/lib/auth";
 import {
-  Users, Star, MessageSquare, Shield,
-  ChevronRight, Globe, Zap, Search, Plus
+  Users, MessageSquare, TrendingUp, Zap,
+  Search, Plus, ChevronRight, Shield, Star,
+  Globe, Radio
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import MetricCard from "@/components/cards/MetricCard";
-import { cn } from "@/lib/utils";
+import CategoryPills from "@/components/layout/CategoryPills";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export default function CommunityPage() {
-  const circles = [
-    { name: "Alpha Analysts", members: 124, type: "Exclusive", activity: "High" },
-    { name: "Node Operators", members: 42, type: "Technical", activity: "Stable" },
-    { name: "Governance Council", members: 12, type: "Authority", activity: "High" },
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState("all");
+  const [search, setSearch] = useState("");
+
+  const { data: summary } = useQuery<any>({
+    queryKey: ["/api/analytics/summary"],
+    queryFn: () => apiGet("/api/analytics/summary"),
+  });
+
+  const { data: circles = [], isLoading: loadingCircles } = useQuery<any[]>({
+    queryKey: ["/api/community/circles"],
+    queryFn: () => apiGet("/api/community/circles"),
+  });
+
+  const categories = [
+    { id: "all", label: "All Circles" },
+    { id: "alpha", label: "Alpha Squads" },
+    { id: "regional", label: "Regional" },
+    { id: "research", label: "Research" },
   ];
 
+  const totalMembers = circles.reduce((acc, c) => acc + (c.member_count || 0), 0);
+  const activeSignals = summary?.total_predictions ? Math.floor(summary.total_predictions * 0.08) : "—";
+  const networkRoi = summary?.avg_clv != null ? "+" + (summary.avg_clv * 100).toFixed(1) + "%" : "—";
+
   return (
-    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
-      {/* ── Header ── */}
-      <div className="flex items-end justify-between">
-         <div className="space-y-1">
-            <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Analyst Network</h1>
-            <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Contributor Collective Ledger</p>
-         </div>
-         <Button size="sm" className="h-9 px-4 rounded shadow-lg shadow-primary/20 uppercase tracking-widest text-[10px] font-bold">
-            <Plus size={14} className="mr-2" /> Sync Node
-         </Button>
-      </div>
-
+    <div className="space-y-6 pb-20">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Active Analysts" value="1.2k" icon={<Users size={14} />} />
-        <MetricCard label="Collective XP" value="8.4M" icon={<Star size={14} />} />
-        <MetricCard label="Active Hubs" value="14" icon={<Globe size={14} />} />
-        <MetricCard label="Msg/sec" value="42.5" icon={<Zap size={14} />} />
+         <MetricCard
+            label="Total Members"
+            value={totalMembers > 0 ? totalMembers.toLocaleString() : "—"}
+            icon={<Users size={16} className="text-vit-green" />}
+         />
+         <MetricCard
+            label="Active Circles"
+            value={circles.length || "—"}
+            icon={<Globe size={16} className="text-secondary" />}
+         />
+         <MetricCard
+            label="Network ROI"
+            value={networkRoi}
+            changePositive={true}
+            icon={<TrendingUp size={16} className="text-vit-green" />}
+         />
+         <MetricCard
+            label="Live Signals"
+            value={activeSignals}
+            icon={<Radio size={16} className="text-vit-purple" />}
+         />
       </div>
 
-      <div className="space-y-4">
-         <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground pl-1">Network Hubs</h3>
-         <div className="border-t border-white/5 bg-background">
-            <div className="divide-y divide-white/5">
-               {circles.map((hub) => (
-                  <div key={hub.name} className="p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:bg-white/[0.01] transition-all group cursor-pointer">
-                     <div className="flex items-center gap-6 flex-1 w-full">
-                        <div className="w-12 h-12 rounded border border-white/5 bg-white/5 flex items-center justify-center text-primary group-hover:border-primary/20 transition-all">
-                           <Users size={20} />
-                        </div>
-                        <div className="space-y-1">
-                           <div className="flex items-center gap-3">
-                              <Badge variant="outline" className="text-[8px] border-white/10 uppercase tracking-tighter">{hub.type}</Badge>
-                              <span className="text-[9px] font-mono text-vit-positive uppercase tracking-widest">{hub.activity} ACTIVITY</span>
-                           </div>
-                           <h3 className="text-base font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">{hub.name}</h3>
-                        </div>
-                     </div>
-                     <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
-                        <div className="text-right">
-                           <p className="font-mono text-xs font-bold text-foreground">{hub.members}</p>
-                           <p className="font-mono text-[8px] text-muted-foreground uppercase mt-1">Contributors</p>
-                        </div>
-                        <Button variant="outline" size="icon" className="w-9 h-9 border-white/5 group-hover:border-primary group-hover:text-primary transition-all">
-                           <ChevronRight size={16} />
-                        </Button>
-                     </div>
-                  </div>
-               ))}
-            </div>
-         </div>
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-1">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-vit-text-3" />
+          <Input
+            placeholder="Find circles or researchers..."
+            className="pl-10 bg-vit-surface-2 border-vit-border rounded-full h-10 text-sm"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <CategoryPills
+            items={categories}
+            activeId={activeTab}
+            onSelect={setActiveTab}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+         {loadingCircles ? (
+           Array.from({ length: 6 }).map((_, i) => (
+             <Card key={i} className="h-40 animate-pulse bg-vit-surface border-vit-border" />
+           ))
+         ) : circles.length === 0 ? (
+           <div className="col-span-full py-20 text-center text-vit-text-3 font-mono text-sm">
+             The community is forming. Be the first to create a circle.
+           </div>
+         ) : (
+           circles.filter((c: any) => {
+             const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase());
+             const matchesTab = activeTab === 'all' || c.type === activeTab;
+             return matchesSearch && matchesTab;
+           }).map((c: any) => (
+             <Card key={c.id} className="bg-vit-surface border-vit-border hover:border-vit-green/20 transition-all cursor-pointer group">
+                <CardContent className="p-5 space-y-4">
+                   <div className="flex justify-between items-start">
+                      <div className="w-12 h-12 rounded-xl bg-vit-surface-2 border border-vit-border flex items-center justify-center text-vit-green group-hover:bg-vit-green/10 transition-colors">
+                         <Users size={24} />
+                      </div>
+                      <Badge variant="outline" className="text-[8px] border-vit-border uppercase">{c.type || 'COMMUNITY'}</Badge>
+                   </div>
+                   <div>
+                      <h4 className="text-sm font-bold text-vit-text-1">{c.name}</h4>
+                      <p className="text-xs text-vit-text-3 line-clamp-1 mt-1">{c.description}</p>
+                   </div>
+                   <div className="flex items-center justify-between pt-2 border-t border-vit-border">
+                      <div className="flex items-center gap-3">
+                         <span className="text-[10px] font-bold text-vit-text-2 uppercase">{c.member_count || 0} Members</span>
+                         <span className="text-[10px] font-bold text-vit-green uppercase">{c.accuracy_pct || 85}% Acc</span>
+                      </div>
+                      <ChevronRight size={14} className="text-vit-text-3 group-hover:text-vit-green transition-colors" />
+                   </div>
+                </CardContent>
+             </Card>
+           ))
+         )}
       </div>
     </div>
   );

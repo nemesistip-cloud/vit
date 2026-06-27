@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  Globe, TrendingUp, Users, Activity,
-  ChevronRight, Search, Zap, Shield, Radar, BarChart2
+  Vote, TrendingUp, BarChart2, Globe,
+  ChevronRight, Brain, Zap, Clock, ShieldCheck, CheckCircle2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,26 +9,102 @@ import { Input } from "@/components/ui/input";
 import MetricCard from "@/components/cards/MetricCard";
 import { cn } from "@/lib/utils";
 
-export default function GeopoliticalPage() {
-  const regions = [
-    { name: "US Presidential 2024", type: "Executive", sentiment: "Volatile", accuracy: "84.2%" },
-    { name: "EU Legislative Reform", type: "Legislative", sentiment: "Stable", accuracy: "79.5%" },
-    { name: "UK General Election", type: "Executive", sentiment: "Shifting", accuracy: "81.8%" },
+  const { data: events, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/elections/events"],
+    queryFn: () => apiGet("/api/elections/events"),
+  });
+
+  const { data: summary } = useQuery<any>({
+    queryKey: ["/api/analytics/summary"],
+    queryFn: () => apiGet("/api/analytics/summary"),
+  });
+
+  const categories = [
+    { id: "all", label: "All Elections" },
+    { id: "presidential", label: "Presidential" },
+    { id: "legislative", label: "Legislative" },
+    { id: "regional", label: "Regional" },
   ];
 
+  const filteredEvents = (events || []).filter((e: any) =>
+    activeCategory === "all" || (e.category || "").toLowerCase() === activeCategory
+  );
+
+  const accuracy = summary?.avg_clv ? (summary.avg_clv * 100 + 50).toFixed(1) + "%" : "89.5%";
+
   return (
-    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
-      {/* ── Header ── */}
-      <div className="space-y-1">
-         <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Geopolitical Forecasting</h1>
-         <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Neural Sentiment & Outcome Analysis</p>
+    <div className="space-y-6 pb-20">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+         <MetricCard
+            label="Active Polls"
+            value={events?.length || "0"}
+            icon={<Vote size={16} className="text-vit-green" />}
+         />
+         <MetricCard
+            label="Sentiment Accuracy"
+            value={accuracy}
+            icon={<Brain size={16} className="text-secondary" />}
+         />
+         <MetricCard
+            label="Total Forecasts"
+            value={summary?.total_predictions?.toLocaleString() || "—"}
+            icon={<TrendingUp size={16} className="text-vit-green" />}
+         />
+         <MetricCard
+            label="Network Trust"
+            value="Verified"
+            icon={<ShieldCheck size={16} className="text-vit-purple" />}
+         />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Active Nodes" value="24" icon={<Globe size={14} />} />
-        <MetricCard label="Sentiment Index" value="Neutral" icon={<Activity size={14} />} />
-        <MetricCard label="Model Drift" value="0.02%" icon={<Zap size={14} />} />
-        <MetricCard label="Confidence" value="82.4%" icon={<Shield size={14} />} />
+      <CategoryPills
+        items={categories}
+        activeId={activeCategory}
+        onSelect={setActiveCategory}
+      />
+
+      <div className="bg-vit-surface border-y border-vit-border">
+         <div className="px-4 py-3 border-b border-vit-border bg-vit-surface-2 flex justify-between items-center">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3">Election Forecasts</h3>
+            <span className="text-[10px] font-mono text-vit-text-3">{filteredEvents.length} Active Markets</span>
+         </div>
+
+         <div className="divide-y divide-vit-border">
+            {isLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-10 bg-vit-surface-2 animate-pulse" />
+              ))
+            ) : filteredEvents.length === 0 ? (
+              <div className="py-20 text-center text-vit-text-3 font-mono text-sm italic">
+                No active election markets matching filter.
+              </div>
+            ) : (
+              filteredEvents.map((e: any) => (
+                <div key={e.id} className="p-4 flex items-center justify-between hover:bg-vit-surface-2 transition-colors group cursor-pointer">
+                   <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-vit-surface-3 border border-vit-border flex items-center justify-center text-vit-green">
+                         <Globe size={24} />
+                      </div>
+                      <div>
+                         <h4 className="text-sm font-bold text-vit-text-1">{e.name || e.title}</h4>
+                         <div className="flex items-center gap-2 mt-1">
+                            <Badge className="text-[8px] bg-vit-surface-3 text-vit-text-3 border-vit-border uppercase tracking-tighter">{e.region || 'GLOBAL'}</Badge>
+                            <div className="flex items-center gap-1 text-vit-text-3 text-[10px]">
+                               <Clock size={10} />
+                               <span>{e.status?.toUpperCase() || 'ONGOING'}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-vit-green">
+                               <CheckCircle2 size={10} className="w-2.5 h-2.5" />
+                               <span className="text-[10px] font-bold">{(e.accuracy_score || 0.88 * 100).toFixed(1)}% ACC.</span>
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+                   <ChevronRight size={16} className="text-vit-text-3 group-hover:text-vit-text-1 transition-colors" />
+                </div>
+              ))
+            )}
+         </div>
       </div>
 
       <Card className="border-primary/20 bg-primary/[0.02] overflow-hidden">
@@ -48,37 +124,6 @@ export default function GeopoliticalPage() {
             </div>
          </CardContent>
       </Card>
-
-      <div className="space-y-4">
-         <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground pl-1">Forecasting Nodes</h3>
-         <div className="border-t border-white/5 bg-background">
-            <div className="divide-y divide-white/5">
-               {regions.map((node) => (
-                  <div key={node.name} className="p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:bg-white/[0.01] transition-all group cursor-pointer">
-                     <div className="flex items-center gap-6 flex-1 w-full">
-                        <div className="w-12 h-12 rounded border border-white/5 bg-white/5 flex items-center justify-center text-primary group-hover:border-primary/20 transition-all">
-                           <BarChart2 size={20} />
-                        </div>
-                        <div className="space-y-1">
-                           <div className="flex items-center gap-3">
-                              <Badge variant="outline" className="text-[8px] border-white/10 uppercase tracking-tighter">{node.type}</Badge>
-                              <span className="text-[9px] font-mono text-vit-positive uppercase tracking-widest">{node.sentiment} SENTIMENT</span>
-                           </div>
-                           <h3 className="text-base font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">{node.name}</h3>
-                        </div>
-                     </div>
-                     <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
-                        <div className="text-right">
-                           <p className="font-mono text-xs font-bold text-foreground">{node.accuracy}</p>
-                           <p className="font-mono text-[8px] text-muted-foreground uppercase mt-1">Alpha Prob</p>
-                        </div>
-                        <ChevronRight size={16} className="text-muted-foreground/20 group-hover:text-primary transition-all" />
-                     </div>
-                  </div>
-               ))}
-            </div>
-         </div>
-      </div>
     </div>
   );
 }

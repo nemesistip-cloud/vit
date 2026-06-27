@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format } from "date-fns";
+import { safeFormat } from "@/lib/utils";
 import PredictionRow from "@/components/cards/PredictionRow";
 import CategoryPills from "@/components/layout/CategoryPills";
 import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
@@ -109,10 +110,10 @@ export default function PredictionsPage() {
           filteredHistory.map((item) => (
             <PredictionRow
               key={item.id}
-              homeTeam={item.home_team || 'Asset A'}
-              awayTeam={item.away_team || 'Asset B'}
-              competition={item.league || 'Market'}
-              kickoff={item.created_at ? format(new Date(item.created_at), 'MMM dd, HH:mm') : '--'}
+              homeTeam={item.home_team || 'Team A'}
+              awayTeam={item.away_team || 'Team B'}
+              competition={item.league || 'Competition'}
+              kickoff={safeFormat(item.created_at, 'MMM dd')}
               odds={item.odds || '--'}
               confidence={Math.floor(Math.random() * 20) + 70}
               onTap={() => navigate(`/matches/${item.match_id}`)}

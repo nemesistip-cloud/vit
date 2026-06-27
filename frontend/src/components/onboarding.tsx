@@ -29,7 +29,7 @@ export function WelcomeModal({ username, onClose, onStartTour }: WelcomeModalPro
   };
 
   return (
-    <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 " onClick={onClose} />
       <div className={`relative bg-card border border-border rounded-2xl max-w-md w-full p-8   ${celebrating ? "" : ""}`}>
         <button
@@ -166,7 +166,7 @@ export function OnboardingTour({ onComplete, onSkip, onNavigate }: TourProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 " onClick={onSkip} />
       <div className="relative bg-card border border-border rounded-2xl max-w-sm w-full p-6  ">
 
@@ -254,7 +254,7 @@ export function FirstPredictionFlow({ match, onConfirm, onClose }: FirstPredicti
 
   if (confirmed) {
     return (
-      <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/70 " />
         <div className="relative bg-card border border-primary/40 rounded-2xl max-w-sm w-full p-8 text-center   ">
           <div className="text-5xl mb-4">🎯</div>
@@ -270,7 +270,7 @@ export function FirstPredictionFlow({ match, onConfirm, onClose }: FirstPredicti
   }
 
   return (
-    <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
       <div className="relative bg-card border border-border rounded-2xl max-w-sm w-full   overflow-hidden">
         <div className="p-6 border-b border-border">

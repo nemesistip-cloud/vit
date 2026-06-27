@@ -649,5 +649,6 @@ async def me(
         "is_verified": user.is_verified,
         "created_at": user.created_at,
         "last_login": user.last_login,
+        "wallet_address": getattr(user, "wallet_address", None),
         "permissions": get_permissions_for_admin_role(admin_role) if admin_role else [],
     }

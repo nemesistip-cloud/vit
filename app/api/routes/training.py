@@ -1904,10 +1904,8 @@ async def browse_training_dataset(
 async def clear_training_dataset(api_key: Optional[str] = Query(default=None)):
     """Clear the historical_matches.json dataset (admin only)."""
     _verify_key(api_key)
-    hist_path = os.path.join(_DATA_DIR, "historical_matches.json")
-    if os.path.exists(hist_path):
-        os.remove(hist_path)
-    return {"success": True, "message": "historical_matches.json cleared"}
+    await set_config_value("training_dataset_file_id", None)
+    return {"success": True, "message": "historical_matches.json cleared from Tachyon"}
 
 
 @router.get("/models/compare")
@@ -1915,15 +1913,9 @@ async def compare_models(api_key: Optional[str] = Query(default=None)):
     """Compare model performance metrics from training metrics file."""
     _verify_key(api_key)
 
-    metrics_path = os.path.join(_DATA_DIR, "training_metrics.json")
-    if not os.path.exists(metrics_path):
+    metrics = await _get_tachyon_json("training_metrics_file_id")
+    if metrics is None:
         return {"models": [], "message": "No training metrics available yet"}
-
-    try:
-        with open(metrics_path) as f:
-            metrics = json.load(f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read metrics: {e}")
 
     models = []
     if isinstance(metrics, dict):

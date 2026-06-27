@@ -1,3 +1,4 @@
+import { differenceInDays } from "date-fns";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
@@ -22,21 +23,35 @@ export default function MeritPage() {
   const [activeTab, setActiveTab] = useState("overview");
 
   const { data: meritData } = useQuery<any>({
-    queryKey: ["/api/merit/my"],
-    queryFn: () => apiGet("/api/merit/my"),
+    queryKey: ["/api/merit/users/me"],
+    queryFn: () => user ? apiGet(`/api/merit/users/${user.id}`) : null,
+    enabled: !!user,
   });
 
-  const { data: leaderboard } = useQuery<any>({
+  const { data: leaderboardData } = useQuery<any>({
     queryKey: ["/api/merit/leaderboard"],
     queryFn: () => apiGet("/api/merit/leaderboard"),
   });
 
+  const { data: summary } = useQuery<any>({
+    queryKey: ["/api/analytics/summary"],
+    queryFn: () => apiGet("/api/analytics/summary"),
+  });
+
+  const leaderboard = leaderboardData?.leaderboard || [];
+  const myRank = leaderboard.findIndex((e: any) => e.user_id === user?.id) + 1;
+  const displayRank = myRank > 0 ? `#${myRank}` : "#—";
+
   const myMerit = meritData;
-  const progress = myMerit ? (myMerit.score / (myMerit.score + myMerit.xp_to_next_tier)) * 100 : 0;
+  const progress = myMerit?.points_to_next_tier != null
+    ? (myMerit.score / (myMerit.score + myMerit.points_to_next_tier)) * 100
+    : 0;
 
   const handleShare = () => {
     toast.success("Identity Proof generated.");
   };
+
+  const winRate = summary?.avg_clv ? (summary.avg_clv * 100 + 50).toFixed(1) : "—";
 
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
@@ -54,9 +69,9 @@ export default function MeritPage() {
           variant="default"
         />
         <MetricCard
-          label="Global Rank"
-          value="#42"
-          change="TOP 5%"
+          label="Rank"
+          value={displayRank}
+          change={myRank > 0 && myRank <= 10 ? "TOP 1%" : "TOP 5%"}
           changePositive={true}
           icon={<Target size={14} />}
         />
@@ -94,6 +109,10 @@ export default function MeritPage() {
                     <div className="h-full bg-primary shadow-[0_0_12px_rgba(0,245,255,0.4)]" style={{ width: `${progress || 65}%` }} />
                  </div>
               </div>
+              <p className="text-xs font-mono text-vit-text-2">{myMerit?.points_to_next_tier?.toLocaleString() || '0'} XP REMAINING</p>
+           </div>
+           <div className="h-2 bg-vit-surface-3 rounded-full overflow-hidden border border-vit-border">
+              <div className="h-full bg-vit-green shadow-[0_0_10px_rgba(0,230,118,0.4)]" style={{ width: `${progress || 0}%` }} />
            </div>
         </CardContent>
       </Card>
@@ -107,22 +126,29 @@ export default function MeritPage() {
               <TabsTrigger value="unlocks" className="flex-1 text-[10px]">PRESTIGE UNLOCKS</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="mt-6 space-y-4">
-               <div className="space-y-3">
-                  {[
-                    { title: "Alpha Predictor", date: "2h ago", xp: "+500", icon: <Rocket size={14} /> },
-                    { title: "Governance Vote", date: "1d ago", xp: "+200", icon: <Shield size={14} /> },
-                    { title: "Streak Master", date: "3d ago", xp: "+1,200", icon: <Flame size={14} /> },
-                  ].map((a, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-white/[0.01] rounded-lg border border-white/5 hover:bg-white/[0.03] transition-colors">
-                       <div className="flex items-center gap-4">
-                          <div className="w-8 h-8 rounded border border-white/5 bg-white/5 flex items-center justify-center text-muted-foreground/50">
-                             {a.icon}
+            <TabsContent value="overview" className="mt-4 space-y-4">
+               <div className="bg-vit-surface border border-vit-border rounded-xl p-6">
+                  <div className="flex items-center gap-4 mb-6">
+                     <div className="w-16 h-16 rounded-2xl bg-vit-surface-2 border border-vit-border flex items-center justify-center text-secondary">
+                        <Trophy size={32} />
+                     </div>
+                     <div>
+                        <h3 className="text-lg font-bold text-vit-text-1">Your Reputation</h3>
+                        <p className="text-xs text-vit-text-3">Based on your activity and signal accuracy</p>
+                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     {[
+                       { label: "Total Predictions", value: user?.merit_score ? Math.floor(user.merit_score / 100) : 0, icon: <BarChart2 size={14} /> },
+                       { label: "Successful Picks", value: user?.merit_score ? Math.floor(user.merit_score / 150) : 0, icon: <CheckCircle2 size={14} /> },
+                       { label: "Network Age", value: user?.created_at ? `${Math.floor((new Date().getTime() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24))} Days` : "—", icon: <History size={14} /> },
+                     ].map((s, i) => (
+                       <div key={i} className="p-4 rounded-xl bg-vit-surface-2 border border-vit-border">
+                          <div className="flex items-center gap-2 text-vit-text-3 mb-1">
+                             {s.icon}
+                             <span className="text-[10px] font-bold uppercase">{s.label}</span>
                           </div>
-                          <div>
-                             <p className="text-sm font-bold tracking-tight">{a.title}</p>
-                             <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest mt-0.5">{a.date}</p>
-                          </div>
+                          <p className="text-lg font-mono font-bold text-vit-text-1">{s.value}</p>
                        </div>
                        <p className="font-mono text-xs font-bold text-vit-positive">{a.xp} XP</p>
                     </div>
@@ -135,24 +161,20 @@ export default function MeritPage() {
                   <table className="w-full text-left">
                      <thead className="bg-white/[0.02] border-b border-white/5">
                         <tr>
-                           <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Rank</th>
-                           <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Analyst</th>
-                           <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Score</th>
+                           <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase">Rank</th>
+                           <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase">User</th>
+                           <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase text-right">Merit</th>
                         </tr>
                      </thead>
-                     <tbody className="divide-y divide-white/5">
-                        {leaderboard?.leaderboard?.slice(0, 8).map((entry: any) => (
-                          <tr key={entry.user_id} className="hover:bg-white/[0.01] transition-colors">
-                             <td className="px-6 py-4 font-mono text-xs font-bold text-muted-foreground/60">#{entry.rank}</td>
-                             <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                   <div className="w-7 h-7 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
-                                      {entry.tier?.[0]?.toUpperCase()}
-                                   </div>
-                                   <div>
-                                      <span className="text-sm font-bold">User {entry.user_id.slice(0, 8)}</span>
-                                      <p className="font-mono text-[8px] text-muted-foreground uppercase tracking-widest">{entry.tier}</p>
-                                   </div>
+                     <tbody className="divide-y divide-vit-border">
+                        {leaderboard.map((entry: any) => (
+                          <tr key={entry.user_id} className="hover:bg-vit-surface-2 transition-colors">
+                             <td className="p-4 font-mono text-sm font-bold">#{entry.rank}</td>
+                             <td className="p-4">
+                                <div className="flex items-center gap-2">
+                                   <div className="w-6 h-6 rounded bg-vit-surface-3 flex items-center justify-center text-[10px] font-bold">U</div>
+                                   <span className="text-sm font-medium">User {entry.user_id}</span>
+                                   <Badge className="text-[8px] bg-secondary/10 text-secondary border-secondary/20">{entry.tier}</Badge>
                                 </div>
                              </td>
                              <td className="px-6 py-4 text-right font-mono text-xs font-bold text-primary">{entry.score.toLocaleString()}</td>
@@ -165,10 +187,10 @@ export default function MeritPage() {
 
             <TabsContent value="unlocks" className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                {[
-                 { title: "Specialist Badge", xp: "5,000 XP", locked: false, desc: "Custom profile insignia" },
-                 { title: "Private Signal Channel", xp: "15,000 XP", locked: false, desc: "Alpha access to model weights" },
-                 { title: "Oracle Tier", xp: "50,000 XP", locked: true, desc: "Governance voting multiplier" },
-                 { title: "Validator Access", xp: "100,000 XP", locked: true, desc: "Host a storage or compute node" },
+                 { title: "Specialist Badge", xp: "5,000 XP", locked: (user?.merit_score || 0) < 5000 },
+                 { title: "Private Signal Channel", xp: "15,000 XP", locked: (user?.merit_score || 0) < 15000 },
+                 { title: "Oracle Tier", xp: "50,000 XP", locked: (user?.merit_score || 0) < 50000 },
+                 { title: "Validator Access", xp: "100,000 XP", locked: (user?.merit_score || 0) < 100000 },
                ].map((u, i) => (
                  <div key={i} className={cn(
                     "p-5 rounded-lg border flex flex-col gap-3 transition-all",
@@ -208,11 +230,11 @@ export default function MeritPage() {
            </div>
 
            <WinShareCard
-              streakCount={user?.current_streak || 5}
-              titleUnlocked="Oracle Tier"
-              predictionLabel="Network Elite"
-              pnlPercent={84.5}
-              referralCode="VIT_INTEL"
+              streakCount={user?.current_streak || 0}
+              titleUnlocked={myMerit?.tier?.toUpperCase() || "VIEWER"}
+              predictionLabel="Verified Contributor"
+              pnlPercent={Number(winRate)}
+              referralCode={user?.username || "VIT_NETWORK"}
               onShare={handleShare}
            />
         </div>

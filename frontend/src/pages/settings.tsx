@@ -47,14 +47,171 @@ export default function SettingsPage() {
          <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Institutional Terminal Settings</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-           {/* ── User Profile ── */}
-           <Card className="border-primary/20 bg-primary/[0.02]">
-              <CardContent className="p-8">
-                 <div className="flex items-center gap-6">
-                    <div className="w-20 h-20 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-2xl font-black text-primary">
-                       {user?.username?.[0]?.toUpperCase()}
+      {/* Appearance */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-mono flex items-center gap-2">
+            {theme === "dark" ? <Moon className="w-4 h-4 text-blue-400" /> : <Sun className="w-4 h-4 text-yellow-400" />}
+            Appearance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-mono text-sm">Theme</p>
+              <p className="text-xs text-muted-foreground font-mono">Choose light or dark mode</p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={theme === "light" ? "default" : "outline"}
+                size="sm"
+                className="font-mono gap-1.5"
+                onClick={() => setTheme("light")}
+              >
+                <Sun className="w-3.5 h-3.5" /> Light
+              </Button>
+              <Button
+                variant={theme === "dark" ? "default" : "outline"}
+                size="sm"
+                className="font-mono gap-1.5"
+                onClick={() => setTheme("dark")}
+              >
+                <Moon className="w-3.5 h-3.5" /> Dark
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notifications */}
+      <NotificationsCard />
+
+      {/* Email verification */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-mono flex items-center gap-2">
+            <Mail className="w-4 h-4 text-muted-foreground" />
+            Email Verification
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-mono text-sm">{user?.email}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {user?.is_verified ? (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5 text-green-400" />
+                    <span className="text-xs text-green-400 font-mono">Verified</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="w-3.5 h-3.5 text-yellow-400" />
+                    <span className="text-xs text-yellow-400 font-mono">Not verified</span>
+                  </>
+                )}
+              </div>
+            </div>
+            {!user?.is_verified && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs"
+                onClick={() => sendVerifyMutation.mutate()}
+                disabled={sendVerifyMutation.isPending}
+              >
+                Send verification email
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-mono flex items-center gap-2">
+            <Sun className="w-4 h-4 text-muted-foreground" />
+            Appearance
+          </CardTitle>
+          <CardDescription className="font-mono text-xs">
+            Choose your preferred theme for the VIT Network interface.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Button
+              variant={theme === "light" ? "default" : "outline"}
+              size="sm"
+              className="flex-1 font-mono gap-2"
+              onClick={() => setTheme("light")}
+            >
+              <Sun className="w-4 h-4" /> Light
+            </Button>
+            <Button
+              variant={theme === "dark" ? "default" : "outline"}
+              size="sm"
+              className="flex-1 font-mono gap-2"
+              onClick={() => setTheme("dark")}
+            >
+              <Moon className="w-4 h-4" /> Dark
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 2FA */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-mono flex items-center gap-2">
+            <Key className="w-4 h-4 text-muted-foreground" />
+            Two-Factor Authentication
+            <Badge
+              variant="outline"
+              className={`text-xs ml-auto font-mono ${totpStatus?.totp_enabled ? "text-green-400 border-green-400/30" : "text-muted-foreground"}`}
+            >
+              {totpStatus?.totp_enabled ? "Enabled" : "Disabled"}
+            </Badge>
+          </CardTitle>
+          <CardDescription className="font-mono text-xs">
+            Use an authenticator app (Google Authenticator, Authy) for extra security.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!totpStatus?.totp_enabled ? (
+            <>
+              {!totp2faSetup ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-mono gap-1.5"
+                  onClick={handleSetup2FA}
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  Set up 2FA
+                </Button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-muted/20 rounded-lg p-4 flex flex-col items-center gap-3">
+                    {totp2faSetup.qr_code ? (
+                      <img src={totp2faSetup.qr_code} alt="QR Code" className="w-40 h-40 rounded-md" />
+                    ) : (
+                      <div className="w-40 h-40 bg-muted/30 rounded-md flex items-center justify-center">
+                        <QrCode className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground font-mono mb-1">
+                        Scan with your authenticator app, or enter this secret manually:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs bg-muted/40 px-2 py-1 rounded font-mono">
+                          {showSecret ? totp2faSetup.secret : "••••••••••••••••"}
+                        </code>
+                        <button onClick={() => setShowSecret(!showSecret)} className="text-muted-foreground hover:text-foreground">
+                          {showSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                        <div className="flex items-center gap-3">

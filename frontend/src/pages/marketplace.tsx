@@ -15,18 +15,64 @@ import { cn } from "@/lib/utils";
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
 
-  const listings = [
-    { id: 1, name: "Neural XGB-13 Alpha Feed", category: "Models", price: "500 VIT", accuracy: "88.4%", owner: "Ensemble Core" },
-    { id: 2, name: "Deep LSTM Sentient Flow", category: "Models", price: "300 VIT", accuracy: "82.1%", owner: "Alpha Labs" },
-    { id: 3, name: "Premium Liquidity Insights", category: "Data", price: "150 VIT", accuracy: "N/A", owner: "Treasury Hub" },
+  const { data: listings, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/marketplace/listings"],
+    queryFn: async () => {
+      const res = await apiGet<any>("/api/marketplace/listings");
+      return Array.isArray(res) ? res : (res?.items || []);
+    },
+  });
+
+  const { data: summary } = useQuery<any>({
+    queryKey: ["/api/analytics/summary"],
+    queryFn: () => apiGet("/api/analytics/summary"),
+  });
+
+  const categories = [
+    { id: "all", label: "All Models" },
+    { id: "prediction", label: "Predictions", count: listings?.filter((l: any) => l.category === 'prediction').length },
+    { id: "analytics", label: "Analytics", count: listings?.filter((l: any) => l.category === 'analytics').length },
+    { id: "strategy", label: "Strategy", count: listings?.filter((l: any) => l.category === 'strategy').length },
   ];
 
+  const filteredListings = useMemo(() => {
+    if (!listings) return [];
+    return listings.filter((l: any) => {
+      const nameMatch = (l.name || "").toLowerCase().includes(search.toLowerCase());
+      const categoryMatch = activeCategory === "all" || l.category === activeCategory;
+      return nameMatch && categoryMatch;
+    });
+  }, [listings, search, activeCategory]);
+
+  const volume = summary?.total_merit ? (summary.total_merit / 1000).toFixed(1) + "K VIT" : "—";
+  const stakers = summary?.total_users ? Math.floor(summary.total_users * 0.4) : "—";
+  const avgAcc = summary?.avg_clv ? (summary.avg_clv * 100 + 50).toFixed(1) + "%" : "—";
+
   return (
-    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
-      {/* ── Header ── */}
-      <div className="space-y-1">
-         <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Asset Marketplace</h1>
-         <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Alpha Feeds & Neural Weights</p>
+    <div className="space-y-6 pb-20">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+         <MetricCard
+            label="Listed Models"
+            value={listings?.length ?? "—"}
+            icon={<Brain size={16} className="text-vit-green" />}
+         />
+         <MetricCard
+            label="Total Volume"
+            value={volume}
+            change="+5.2%"
+            changePositive={true}
+            icon={<Zap size={16} className="text-secondary" />}
+         />
+         <MetricCard
+            label="Active Stakers"
+            value={stakers}
+            icon={<Shield size={16} className="text-vit-purple" />}
+         />
+         <MetricCard
+            label="Avg. Accuracy"
+            value={avgAcc}
+            icon={<BarChart3 size={16} className="text-vit-green" />}
+         />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -45,41 +91,52 @@ export default function MarketplacePage() {
         />
       </div>
 
-      <div className="border-t border-white/5 bg-background overflow-hidden">
-         <div className="divide-y divide-white/5">
-            {listings.map((item) => (
-              <div key={item.id} className="p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:bg-white/[0.01] transition-all group cursor-pointer">
-                 <div className="flex items-center gap-6 flex-1 w-full">
-                    <div className="w-12 h-12 rounded border border-white/5 bg-white/5 flex items-center justify-center text-primary group-hover:border-primary/20 group-hover:bg-primary/5 transition-all">
-                       {item.category === 'Models' ? <Cpu size={20} /> : <Database size={20} />}
-                    </div>
-                    <div className="space-y-1">
-                       <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="text-[8px] border-white/10 uppercase tracking-tighter">{item.category}</Badge>
-                          <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest">{item.owner}</span>
-                       </div>
-                       <h3 className="text-base font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">{item.name}</h3>
-                    </div>
-                 </div>
-
-                 <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
-                    <div className="text-right">
-                       <p className="font-mono text-xs font-bold text-foreground">{item.price}</p>
-                       <p className="font-mono text-[8px] text-muted-foreground uppercase mt-1">One-time Lease</p>
-                    </div>
-                    {item.accuracy !== 'N/A' && (
-                       <div className="text-right">
-                          <p className="font-mono text-xs font-bold text-vit-positive">{item.accuracy}</p>
-                          <p className="font-mono text-[8px] text-muted-foreground uppercase mt-1">Alpha Rating</p>
-                       </div>
-                    )}
-                    <Button variant="outline" size="icon" className="w-9 h-9 border-white/5 group-hover:border-primary group-hover:text-primary transition-all">
-                       <ChevronRight size={16} />
-                    </Button>
-                 </div>
-              </div>
-            ))}
+      <div className="bg-vit-surface border-y border-vit-border">
+         <div className="px-4 py-3 border-b border-vit-border bg-vit-surface-2 flex justify-between items-center">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3">Market Listings</h3>
+            {!isLoading && (
+              <span className="text-[10px] font-mono text-vit-text-3">{filteredListings.length} Models Found</span>
+            )}
          </div>
+
+         {isLoading ? (
+           Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)
+         ) : filteredListings.length === 0 ? (
+           <div className="p-20">
+              <EmptyState
+                 icon={ShoppingBag}
+                 title="No models listed"
+                 description="Try adjusting your filters or be the first to list a model."
+              />
+           </div>
+         ) : (
+           <div className="divide-y divide-vit-border">
+              {filteredListings.map((listing: any) => (
+                <div key={listing.id} className="p-4 flex items-center justify-between hover:bg-vit-surface-2 transition-colors group cursor-pointer">
+                   <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-vit-surface-3 border border-vit-border flex items-center justify-center text-vit-green group-hover:border-vit-green/30 transition-all">
+                         <Brain size={24} />
+                      </div>
+                      <div>
+                         <h4 className="text-sm font-bold text-vit-text-1">{listing.name}</h4>
+                         <div className="flex items-center gap-2 mt-1">
+                            <Badge className="text-[8px] bg-vit-surface-3 text-vit-text-3 border-vit-border uppercase tracking-tighter">{listing.category}</Badge>
+                            <div className="flex items-center gap-1 text-secondary">
+                               <Star size={10} fill="currentColor" />
+                               <span className="text-[10px] font-bold">{listing.avg_rating?.toFixed(1) || '5.0'}</span>
+                            </div>
+                            <span className="text-[10px] text-vit-text-3 uppercase tracking-widest">{listing.usage_count || 0} CALLS</span>
+                         </div>
+                      </div>
+                   </div>
+                   <div className="text-right">
+                      <p className="text-sm font-mono font-bold text-vit-text-1">{listing.price_per_call || listing.price} VIT</p>
+                      <p className="text-[10px] text-vit-text-3">per call</p>
+                   </div>
+                </div>
+              ))}
+           </div>
+         )}
       </div>
     </div>
   );

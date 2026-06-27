@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, safeFormat } from "@/lib/utils";
 import { toast } from "sonner";
 
 function FormBadge({ result }: { result: string }) {
@@ -101,7 +101,7 @@ export default function MatchDetailPage() {
             <div className="flex flex-col items-center gap-1">
                <div className="flex items-center gap-2 text-vit-positive">
                   <Clock size={12} />
-                  <span className="font-mono text-xs font-bold uppercase">{match.status === 'live' ? 'ACTIVE SESSION' : match.kickoff_time ? format(new Date(match.kickoff_time), 'MMM dd • HH:mm') : 'SESSION PENDING'}</span>
+                  <span className="font-mono text-xs font-bold uppercase">{match.status === 'live' ? 'ACTIVE SESSION' : safeFormat(match.kickoff_time, 'MMM dd • HH:mm')}</span>
                </div>
             </div>
           </CardContent>

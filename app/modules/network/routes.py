@@ -13,12 +13,14 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.auth.dependencies import get_current_user, get_current_admin
 from app.api.deps import get_current_admin
 from app.modules.network.models import NodeActivity, NetworkSnapshot
 from app.modules.storage_verification.service import get_storage_stats
@@ -32,6 +34,13 @@ def _utcnow() -> datetime:
 
 
 # ── Schemas ─────────────────────────────────────────────────────────────────
+
+
+class JoinValidatorRequest(BaseModel):
+    wallet_address: str
+    node_name: str
+    provider: str = "custom"
+    gb_contributed: float = 100.0
 
 class NodeActivityRequest(BaseModel):
     node_id: str
@@ -264,6 +273,53 @@ async def growth_timeseries(
     total = sum(b["contributions"] for b in buckets)
     return {"hours": hours, "total": total, "buckets": buckets}
 
+
+
+@router.post("/join")
+async def join_validator_network(
+    body: JoinValidatorRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """Allow a user to join the validator network and register a storage node."""
+    from app.modules.storage_verification.models import UserStorageNode
+    import uuid
+
+    # Update user's wallet address and role
+    current_user.wallet_address = body.wallet_address
+    if current_user.role == "user":
+        current_user.role = "validator"
+
+    # Register the storage node
+    config_key = f"user_{current_user.id}_{uuid.uuid4().hex[:8]}"
+    node = UserStorageNode(
+        user_id=current_user.id,
+        provider=body.provider,
+        alias=body.node_name,
+        config_key=config_key,
+        status="active",
+        gb_contributed=Decimal(str(body.gb_contributed)),
+    )
+    db.add(node)
+
+    # Record initial activity
+    activity = NodeActivity(
+        node_id=config_key,
+        node_name=body.node_name,
+        node_type="storage",
+        activity_type="validator_joined",
+        contribution_score=10.0,
+        activity_meta={"wallet": body.wallet_address}
+    )
+    db.add(activity)
+
+    await db.commit()
+    return {
+        "status": "success",
+        "message": f"Welcome to the VIT Validator network, {current_user.username}!",
+        "node_id": config_key,
+        "role": current_user.role
+    }
 
 @router.post("/activity")
 async def record_activity(

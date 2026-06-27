@@ -122,9 +122,9 @@ export default function DashboardPage() {
     queryFn: () => apiGet("/api/history?limit=6"),
   });
 
-  const ensembleAccuracy = modelConfidence?.ensemble_accuracy != null
+  const ensembleAccuracy = modelConfidence?.ensemble_accuracy != null && modelConfidence.ensemble_accuracy > 0
     ? modelConfidence.ensemble_accuracy.toFixed(1) + "%"
-    : "84.2%";
+    : "—";
 
   const vitBalance = (user as any)?.vitcoin_balance?.toLocaleString() || "0";
   const streak     = (user as any)?.current_streak ?? 0;

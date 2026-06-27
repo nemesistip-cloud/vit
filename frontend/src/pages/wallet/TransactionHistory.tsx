@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Search } from "lucide-react";
 import { useTransactions } from "@/hooks/useWallet";
 import { TransactionRow } from "@/components/wallet/TransactionRow";
 
@@ -9,6 +10,7 @@ export function TransactionHistory() {
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState("All");
   const [currencyFilter, setCurrencyFilter] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data, isLoading, isFetching } = useTransactions(
     page,
@@ -35,6 +37,17 @@ export function TransactionHistory() {
         >
           Export CSV ↓
         </a>
+      </div>
+
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+        <input
+          type="text"
+          placeholder="Search by ID, amount, or type..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-9 pr-4 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-[#00E676]/40 transition-all font-['Outfit']"
+        />
       </div>
 
       <div className="flex flex-col gap-2">
@@ -81,7 +94,14 @@ export function TransactionHistory() {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching ? "opacity-60" : ""}`}>
-            {data.transactions.map((tx) => (
+            {data.transactions.filter(tx => {
+              if (!searchTerm) return true;
+              const s = searchTerm.toLowerCase();
+              return tx.id.toLowerCase().includes(s) ||
+                     tx.amount.toString().includes(s) ||
+                     (tx.description && tx.description.toLowerCase().includes(s)) ||
+                     tx.type.toLowerCase().includes(s);
+            }).map((tx) => (
               <TransactionRow key={tx.id} tx={tx} />
             ))}
           </div>
