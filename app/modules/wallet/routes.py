@@ -494,7 +494,7 @@ async def _do_verify_deposit(reference: str, currency: str, current_user, db: As
             logger.warning(f"Paystack verification failed for ref {reference}: {_e}")
 
     if verified_status == "confirmed" and verified_amount is not None:
-        async with db.begin():
+        try:
             service = WalletService(db)
             wallet = await service.get_or_create_wallet(current_user.id)
             tx_result = await db.execute(
@@ -536,10 +536,22 @@ async def _do_verify_deposit(reference: str, currency: str, current_user, db: As
                 tx_type="deposit",
                 reference=f"{reference}-CREDIT",
             )
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            if isinstance(e, HTTPException): raise e
+            logger.error(f"Transaction error: {e}")
+            raise HTTPException(500, "Internal Server Error")
         try:
             from app.modules.tasks.service import TaskService
-            async with db.begin():
+            try:
                 await TaskService.update_task_progress(db, current_user.id, 6, 1)
+                await db.commit()
+            except Exception as e:
+                await db.rollback()
+                if isinstance(e, HTTPException): raise e
+                logger.error(f"Transaction error: {e}")
+                raise HTTPException(500, "Internal Server Error")
         except Exception as _e:
             logger.warning(f"Task progress update failed: {_e}")
         try:
@@ -646,7 +658,7 @@ async def withdraw(
     if auto_limits_config:
         auto_approve_limit = Decimal(str(auto_limits_config.value.get(role, 0)))
 
-    async with db.begin():
+    try:
         wallet_service = WalletService(db)
         withdrawal_service = WithdrawalService(db, wallet_service)
         wallet = await wallet_service.get_or_create_wallet(current_user.id)
@@ -670,6 +682,12 @@ async def withdraw(
             wr.account_number = request.account_number
             wr.account_name = request.account_name
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {
         "request_id": str(wr.id),
         "status": wr.status,
@@ -895,7 +913,7 @@ async def buy_vitcoin(
     net_usd = fiat_in_usd - fee_usd
     vitcoin_received = net_usd / price_usd if price_usd > 0 else Decimal("0")
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
 
@@ -918,6 +936,12 @@ async def buy_vitcoin(
             tx_type="buy", reference=f"{ref_base}-CREDIT",
         )
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     result = {
         "status": "success",
         "fiat_spent": float(fiat_amount),
@@ -958,7 +982,7 @@ async def sell_vitcoin(
     ngn_per_usd = prices["ngn"] / price_usd if price_usd > 0 else Decimal("1580")
     ngn_received = net_usd * ngn_per_usd
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
 
@@ -979,6 +1003,12 @@ async def sell_vitcoin(
             tx_type="sell", reference=f"{ref_base}-CREDIT",
         )
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     result = {
         "status": "success",
         "vitcoin_sold": float(vitcoin_amount),
@@ -1010,7 +1040,7 @@ async def stake_vitcoin(
     if amount < min_stake:
         raise HTTPException(400, f"Minimum stake is {min_stake} VITCoin")
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
 
@@ -1036,6 +1066,12 @@ async def stake_vitcoin(
             processed_at=datetime.now(timezone.utc),
         ))
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {
         "status": "staked",
         "amount": float(amount),
@@ -1055,7 +1091,7 @@ async def unstake_vitcoin(
     """Unstake VITCoin and return to available balance."""
     amount = Decimal(str(request.amount))
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
 
@@ -1081,6 +1117,12 @@ async def unstake_vitcoin(
             processed_at=datetime.now(timezone.utc),
         ))
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {
         "status": "unstaked",
         "amount": float(amount),
@@ -1168,7 +1210,7 @@ async def convert_currency(
     except ValueError:
         raise HTTPException(400, "Invalid currency")
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
 
@@ -1188,6 +1230,12 @@ async def convert_currency(
         except ValueError as e:
             raise HTTPException(400, str(e))
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     updated = await _require_wallet(current_user.id, db)
     result = {
         "from_currency": request.from_currency,
@@ -1265,7 +1313,7 @@ async def create_p2p_offer(
     if request.max_order > request.amount:
         raise HTTPException(400, "max_order must be ≤ offer amount")
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
 
@@ -1308,6 +1356,12 @@ async def create_p2p_offer(
         db.add(offer)
         await db.flush()
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {
         "id": offer.id,
         "offer_type": offer.offer_type,
@@ -1334,7 +1388,7 @@ async def cancel_p2p_offer(
     if offer.status not in ("active", "paused"):
         raise HTTPException(400, "Offer cannot be cancelled in its current state")
 
-    async with db.begin():
+    try:
         db.add(offer)
         offer.status = "cancelled"
         if offer.offer_type == "sell" and offer.escrowed_amount > 0:
@@ -1356,6 +1410,12 @@ async def cancel_p2p_offer(
             ))
             offer.escrowed_amount = Decimal("0")
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {"status": "cancelled", "offer_id": offer_id}
 
 
@@ -1383,7 +1443,7 @@ async def create_p2p_order(
     buyer_id = current_user.id if offer.offer_type == "sell" else offer.user_id
     seller_id = offer.user_id if offer.offer_type == "sell" else current_user.id
 
-    async with db.begin():
+    try:
         db.add(offer)
         offer.available_amount = offer.available_amount - amount
 
@@ -1397,7 +1457,12 @@ async def create_p2p_order(
             status="pending",
         )
         db.add(order)
-        await db.flush()
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"P2P create order error: {e}")
+        raise HTTPException(500, "Failed to place order")
 
     return {
         "id": order.id,
@@ -1427,11 +1492,17 @@ async def p2p_confirm_payment(
     if order.status != "pending":
         raise HTTPException(400, f"Order is already {order.status}")
 
-    async with db.begin():
+    try:
         db.add(order)
         order.status = "payment_sent"
         order.payment_confirmed_at = datetime.now(timezone.utc)
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {"order_id": order_id, "status": "payment_sent"}
 
 
@@ -1451,7 +1522,7 @@ async def p2p_release_escrow(
     if order.status != "payment_sent":
         raise HTTPException(400, "Order must be in payment_sent state")
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         buyer_wallet = await service.get_or_create_wallet(order.buyer_id)
 
@@ -1475,6 +1546,12 @@ async def p2p_release_escrow(
         order.status = "completed"
         order.completed_at = datetime.now(timezone.utc)
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {"order_id": order_id, "status": "completed", "amount_released": float(order.amount)}
 
 
@@ -1495,11 +1572,17 @@ async def p2p_raise_dispute(
     if order.status in ("completed", "cancelled"):
         raise HTTPException(400, "Cannot dispute a closed order")
 
-    async with db.begin():
+    try:
         db.add(order)
         order.status = "disputed"
         order.dispute_reason = request.reason
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {"order_id": order_id, "status": "disputed", "message": "Dispute raised. Admin will review within 24h."}
 
 
@@ -1631,7 +1714,7 @@ async def create_vault(
     except ValueError:
         raise HTTPException(400, "Invalid currency")
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
 
@@ -1672,6 +1755,12 @@ async def create_vault(
         ))
         await db.flush()
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {
         "id": vault.id,
         "currency": vault.currency,
@@ -1711,7 +1800,7 @@ async def withdraw_vault(
     ))
     total_payout = vault.current_balance + yield_amount
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
 
@@ -1734,6 +1823,12 @@ async def withdraw_vault(
             processed_at=datetime.now(timezone.utc),
         ))
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {
         "status": "withdrawn",
         "principal": float(vault.current_balance),
@@ -1798,7 +1893,7 @@ async def claim_referral_earnings(
     if pending <= 0:
         raise HTTPException(400, "No claimable referral earnings")
 
-    async with db.begin():
+    try:
         service = WalletService(db)
         wallet = await service.get_or_create_wallet(current_user.id)
         wallet.vitcoin_balance = (wallet.vitcoin_balance or Decimal("0")) + pending
@@ -1818,6 +1913,12 @@ async def claim_referral_earnings(
             processed_at=datetime.now(timezone.utc),
         ))
 
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if isinstance(e, HTTPException): raise e
+        logger.error(f"Transaction error: {e}")
+        raise HTTPException(500, "Internal Server Error")
     return {
         "status": "claimed",
         "amount": float(pending),
