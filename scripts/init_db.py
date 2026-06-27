@@ -22,6 +22,7 @@ async def sync_schema():
         import app.modules.referral.models
         import app.modules.tasks.models
         import app.modules.storage_verification.models
+        import app.modules.sports.models
 
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
