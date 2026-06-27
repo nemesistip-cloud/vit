@@ -166,6 +166,20 @@ class NotificationService:
                 except Exception as exc:
                     logger.warning(f"Email dispatch failed for user {user_id}: {exc}")
 
+
+            # ── Web Push ───────────────────────────────────────────────────
+            try:
+                from app.services.push_service import PushService
+                await PushService.notify_user(
+                    db=db,
+                    user_id=user_id,
+                    title=title,
+                    body=body,
+                    data={"type": ntype_str}
+                )
+            except Exception as exc:
+                logger.warning(f"Web Push dispatch failed for user {user_id}: {exc}")
+
             # ── Telegram ───────────────────────────────────────────────────
             if prefs.telegram_enabled and getattr(prefs, "telegram_chat_id", None):
                 try:

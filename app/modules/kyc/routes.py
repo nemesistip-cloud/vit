@@ -40,7 +40,8 @@ class KYCSubmitRequest(BaseModel):
     document_type:   str        # national_id | passport | drivers_license | ...
     document_number: str
     address:         Optional[str] = None
-    selfie_data:     Optional[dict] = None  # {thumbnail: base64, captured_at: ISO}
+    selfie_data:     Optional[dict] = None
+    document_data:   Optional[dict] = None  # {thumbnail: base64, captured_at: ISO}
 
     @field_validator("full_name")
     @classmethod
@@ -170,7 +171,7 @@ async def submit_kyc(
         date_of_birth   = body.date_of_birth,
         nationality     = body.nationality,
         document_type   = body.document_type,
-        document_number = body.document_number,
+        document_number = body.document_number.strip().upper(),
         address         = body.address,
         selfie_data     = body.selfie_data,
         status          = status,
@@ -179,6 +180,30 @@ async def submit_kyc(
         rule_checks     = result["rule_checks"],
         risk_flags      = result["risk_flags"],
     )
+
+    # SEC-09: Store KYC artifacts in Tachyon Decentralized Storage
+    from app.services.tachyon_client import tachyon_client
+    if body.selfie_data and body.selfie_data.get("image"):
+        try:
+            import base64
+            img_data = body.selfie_data["image"]
+            if "," in img_data: img_data = img_data.split(",")[1]
+            content_bytes = base64.b64decode(img_data)
+            fid = await tachyon_client.upload_bytes(content_bytes, f"kyc_selfie_{current_user.id}.jpg")
+            submission.selfie_data["tachyon_id"] = fid
+        except Exception:
+            pass
+
+    if body.document_data and body.document_data.get("image"):
+        try:
+            import base64
+            img_data = body.document_data["image"]
+            if "," in img_data: img_data = img_data.split(",")[1]
+            content_bytes = base64.b64decode(img_data)
+            fid = await tachyon_client.upload_bytes(content_bytes, f"kyc_doc_{current_user.id}.jpg")
+            submission.rule_checks["document_tachyon_id"] = fid
+        except Exception:
+            pass
 
     if status == KYCStatus.AUTO_APPROVED:
         submission.approved_at = now

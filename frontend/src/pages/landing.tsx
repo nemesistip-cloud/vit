@@ -240,9 +240,9 @@ export default function LandingPage() {
       <section className="py-16 border-b border-border/40">
         <div className="max-w-5xl mx-auto px-4 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <StatCounter value={stats?.predictions_display ?? "1.2M+"} label="Signals Generated" />
-            <StatCounter value={stats?.accuracy_display ?? "84.2%"}    label="Signal Accuracy"   />
-            <StatCounter value={stats?.total_staked_display ?? "$4.8M"} label="Total Staked"     />
+            <StatCounter value={stats?.predictions_display ?? "—"} label="Signals Generated" />
+            <StatCounter value={stats?.accuracy_display ?? "—"}    label="Signal Accuracy"   />
+            <StatCounter value={stats?.total_staked_display ?? "—"} label="Total Staked"     />
             <StatCounter value={`${modelCount}`}                        label="AI Models Active"  />
           </div>
         </div>

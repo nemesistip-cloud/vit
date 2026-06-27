@@ -19,33 +19,47 @@ export default function AnalyticsPage() {
     queryFn: () => apiGet("/api/admin/system/health"),
   });
 
+  const { data: summary } = useQuery<any>({
+    queryKey: ["/api/analytics/summary"],
+    queryFn: () => apiGet("/api/analytics/summary"),
+  });
+
   const { data: leaderboard, isLoading: loadingLb } = useQuery<any>({
     queryKey: ["/api/leaderboard"],
     queryFn: () => apiGet("/api/leaderboard"),
   });
+
+  const forecasts = summary?.total_predictions
+    ? (summary.total_predictions >= 1000 ? (summary.total_predictions / 1000).toFixed(1) + "K" : summary.total_predictions)
+    : "—";
+
+  const networkRoi = summary?.avg_clv != null ? "+" + (summary.avg_clv * 100).toFixed(1) + "%" : "—";
+  const communityXp = summary?.total_xp
+    ? (summary.total_xp >= 1000000 ? (summary.total_xp / 1000000).toFixed(1) + "M" : (summary.total_xp / 1000).toFixed(1) + "K")
+    : "—";
 
   return (
     <div className="space-y-6 pb-20">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
          <MetricCard
             label="Nodes Online"
-            value={system?.ai_models?.filter((m: any) => m.status === 'active').length || "13"}
+            value={system?.models_loaded ?? "—"}
             icon={<Globe size={16} className="text-vit-green" />}
          />
          <MetricCard
             label="Total Forecasts"
-            value="42.8K"
+            value={forecasts}
             icon={<Activity size={16} className="text-secondary" />}
          />
          <MetricCard
             label="Network ROI"
-            value="+12.4%"
+            value={networkRoi}
             changePositive={true}
             icon={<TrendingUp size={16} className="text-vit-green" />}
          />
          <MetricCard
             label="Community XP"
-            value="1.2M"
+            value={communityXp}
             icon={<Zap size={16} className="text-vit-purple" />}
          />
       </div>
@@ -66,21 +80,23 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent className="p-0">
                      <div className="divide-y divide-vit-border">
-                        {(system?.ai_models || [
-                          { name: 'XGBoost Alpha', accuracy: 84.5 },
-                          { name: 'Neural Network V2', accuracy: 88.2 },
-                          { name: 'LGBM Consenus', accuracy: 82.1 }
-                        ]).map((model: any, i: number) => (
-                           <div key={i} className="p-4 flex items-center justify-between">
-                              <span className="text-xs font-medium">{model.name}</span>
-                              <div className="flex items-center gap-3">
-                                 <div className="w-24 h-1.5 bg-vit-surface-3 rounded-full overflow-hidden">
-                                    <div className="h-full bg-vit-green" style={{ width: `${model.accuracy}%` }} />
-                                 </div>
-                                 <span className="text-xs font-mono font-bold text-vit-green">{model.accuracy}%</span>
-                              </div>
-                           </div>
-                        ))}
+                        {system?.ai_models && system.ai_models.length > 0 ? (
+                          system.ai_models.slice(0, 6).map((model: any, i: number) => (
+                             <div key={i} className="p-4 flex items-center justify-between">
+                                <span className="text-xs font-medium">{model.name}</span>
+                                <div className="flex items-center gap-3">
+                                   <div className="w-24 h-1.5 bg-vit-surface-3 rounded-full overflow-hidden">
+                                      <div className="h-full bg-vit-green" style={{ width: `${model.accuracy || 0}%` }} />
+                                   </div>
+                                   <span className="text-xs font-mono font-bold text-vit-green">{model.accuracy || 0}%</span>
+                                </div>
+                             </div>
+                          ))
+                        ) : (
+                          <div className="p-10 text-center text-xs text-vit-text-3 italic font-mono">
+                            Awaiting ensemble consensus...
+                          </div>
+                        )}
                      </div>
                   </CardContent>
                </Card>
@@ -95,19 +111,25 @@ export default function AnalyticsPage() {
                      <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 rounded-xl bg-vit-surface-2 border border-vit-border">
                            <p className="text-[10px] font-bold text-vit-text-3 uppercase mb-1">Database</p>
-                           <p className="text-sm font-bold text-vit-green">SYNCHRONIZED</p>
+                           <p className={`text-sm font-bold ${system?.database ? 'text-vit-green' : 'text-rose-400'}`}>
+                             {system?.database ? 'SYNCHRONIZED' : 'OFFLINE'}
+                           </p>
                         </div>
                         <div className="p-4 rounded-xl bg-vit-surface-2 border border-vit-border">
                            <p className="text-[10px] font-bold text-vit-text-3 uppercase mb-1">Cache Layer</p>
-                           <p className="text-sm font-bold text-vit-green">OPTIMIZED</p>
+                           <p className={`text-sm font-bold ${system?.redis ? 'text-vit-green' : 'text-amber-400'}`}>
+                             {system?.redis ? 'OPTIMIZED' : 'DEGRADED'}
+                           </p>
                         </div>
                      </div>
                      <div className="space-y-2">
                         <p className="text-[10px] font-bold text-vit-text-3 uppercase">Memory Utilization</p>
                         <div className="h-2 bg-vit-surface-3 rounded-full overflow-hidden">
-                           <div className="h-full bg-vit-green" style={{ width: '42%' }} />
+                           <div className="h-full bg-vit-green" style={{ width: `${system?.mem_pct || 0}%` }} />
                         </div>
-                        <p className="text-[10px] text-right text-vit-text-3">4.2GB / 10GB</p>
+                        <p className="text-[10px] text-right text-vit-text-3">
+                          {system?.mem_pct ? (system.mem_pct * 0.1).toFixed(1) + "GB / 10GB" : "— / 10GB"}
+                        </p>
                      </div>
                   </CardContent>
                </Card>
@@ -126,21 +148,35 @@ export default function AnalyticsPage() {
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-vit-border">
-                     {(leaderboard?.leaderboard || Array.from({length: 8})).map((entry: any, i: number) => (
-                        <tr key={i} className="hover:bg-vit-surface-2 transition-colors">
-                           <td className="p-4 font-mono text-sm font-bold">#{i + 1}</td>
-                           <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                 <div className="w-6 h-6 rounded bg-vit-surface-3 flex items-center justify-center text-[10px] font-bold">U</div>
-                                 <span className="text-sm font-medium">User {entry?.user_id || (1000 + i)}</span>
-                              </div>
-                           </td>
-                           <td className="p-4 text-center">
-                              <Badge className="bg-vit-green-glow text-vit-green border-vit-green/20 text-[10px] font-bold">84.5%</Badge>
-                           </td>
-                           <td className="p-4 text-right font-mono text-sm font-bold text-vit-green">{entry?.yield_pct != null ? `+${entry.yield_pct.toFixed(1)}%` : entry?.roi != null ? `+${entry.roi.toFixed(1)}%` : '--'}</td>
-                        </tr>
-                     ))}
+                     {loadingLb ? (
+                       Array.from({length: 5}).map((_, i) => <RowSkeleton key={i} />)
+                     ) : leaderboard?.leaderboard?.length > 0 ? (
+                       leaderboard.leaderboard.map((entry: any, i: number) => (
+                          <tr key={i} className="hover:bg-vit-surface-2 transition-colors">
+                             <td className="p-4 font-mono text-sm font-bold">#{i + 1}</td>
+                             <td className="p-4">
+                                <div className="flex items-center gap-2">
+                                   <div className="w-6 h-6 rounded bg-vit-surface-3 flex items-center justify-center text-[10px] font-bold">U</div>
+                                   <span className="text-sm font-medium">{entry?.username || `User ${entry?.user_id || (1000 + i)}`}</span>
+                                </div>
+                             </td>
+                             <td className="p-4 text-center">
+                                <Badge className="bg-vit-green-glow text-vit-green border-vit-green/20 text-[10px] font-bold">
+                                  {entry?.win_rate != null ? (entry.win_rate * 100).toFixed(1) + "%" : entry?.accuracy_rate != null ? (entry.accuracy_rate * 100).toFixed(1) + "%" : "—"}
+                                </Badge>
+                             </td>
+                             <td className="p-4 text-right font-mono text-sm font-bold text-vit-green">
+                               {entry?.roi != null ? `+${(entry.roi * 100).toFixed(1)}%` : entry?.yield_pct != null ? `+${entry.yield_pct.toFixed(1)}%` : '--'}
+                             </td>
+                          </tr>
+                       ))
+                     ) : (
+                       <tr>
+                         <td colSpan={4} className="p-10 text-center text-xs text-vit-text-3 font-mono italic">
+                           Calculating leaderboard rankings...
+                         </td>
+                       </tr>
+                     )}
                   </tbody>
                </table>
             </div>

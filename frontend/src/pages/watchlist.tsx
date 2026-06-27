@@ -1,3 +1,4 @@
+import { safeFormat } from "@/lib/utils";
 /**
  * WatchlistPage — Shows all matches bookmarked by the user.
  *
@@ -37,7 +38,7 @@ function WatchedMatchCard({ match, onRemove }: { match: any; onRemove: () => voi
           <span className="text-[10px] font-mono text-muted-foreground">{match.competition || match.league || "Football"}</span>
           {match.kickoff_time && (
             <span className="text-[10px] font-mono text-muted-foreground/60">
-              {new Date(match.kickoff_time).toLocaleDateString()}
+              {safeFormat(match.kickoff_time, 'MMM dd, yyyy')}
             </span>
           )}
           <Badge className={`text-[9px] font-mono px-1.5 py-0 border ${statusColor(match.status)}`}>
