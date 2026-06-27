@@ -150,9 +150,8 @@ export default function MeritPage() {
                           </div>
                           <p className="text-lg font-mono font-bold text-vit-text-1">{s.value}</p>
                        </div>
-                       <p className="font-mono text-xs font-bold text-vit-positive">{a.xp} XP</p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                </div>
             </TabsContent>
 
