@@ -1,149 +1,154 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import {
-  BarChart2, TrendingUp, ShieldCheck, Trophy,
-  Target, Activity, Zap, Users, Brain, Globe
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, BarChart, Bar, Cell
+} from "recharts";
+import {
+  TrendingUp, Activity, BarChart2, Zap, Globe, Brain,
+  ShieldCheck, Cpu, Database, Target, Award, ArrowUpRight
 } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import MetricCard from "@/components/cards/MetricCard";
-import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import MetricCard from "@/components/cards/MetricCard";
+import { cn } from "@/lib/utils";
 
 export default function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState("system");
-
-  const { data: system, isLoading: loadingSystem } = useQuery<any>({
-    queryKey: ["/api/admin/system/health"],
-    queryFn: () => apiGet("/api/admin/system/health"),
-  });
-
-  const { data: leaderboard, isLoading: loadingLb } = useQuery<any>({
+  const { data: leaderboard } = useQuery<any>({
     queryKey: ["/api/leaderboard"],
     queryFn: () => apiGet("/api/leaderboard"),
   });
 
   return (
-    <div className="space-y-6 pb-20">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-         <MetricCard
-            label="Nodes Online"
-            value={system?.ai_models?.filter((m: any) => m.status === 'active').length || "13"}
-            icon={<Globe size={16} className="text-vit-green" />}
-         />
-         <MetricCard
-            label="Total Forecasts"
-            value="42.8K"
-            icon={<Activity size={16} className="text-secondary" />}
-         />
-         <MetricCard
-            label="Network ROI"
-            value="+12.4%"
-            changePositive={true}
-            icon={<TrendingUp size={16} className="text-vit-green" />}
-         />
-         <MetricCard
-            label="Community XP"
-            value="1.2M"
-            icon={<Zap size={16} className="text-vit-purple" />}
-         />
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
+      {/* ── Header ── */}
+      <div className="space-y-1">
+         <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Network Intelligence</h1>
+         <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Institutional Analytics & Alpha Metrics</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-         <TabsList className="bg-vit-surface-2 border border-vit-border p-1 h-10 w-full grid grid-cols-2">
-            <TabsTrigger value="system" className="text-xs font-bold data-[state=active]:bg-vit-surface-3">NETWORK HEALTH</TabsTrigger>
-            <TabsTrigger value="leaderboard" className="text-xs font-bold data-[state=active]:bg-vit-surface-3">ALPHA LEADERBOARD</TabsTrigger>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard
+          label="Network Reliability"
+          value="99.98%"
+          icon={<Globe size={14} />}
+          className="border-primary/20"
+        />
+        <MetricCard
+          label="Total Liquidity"
+          value="4.2M"
+          change="+12.4%"
+          changePositive={true}
+          icon={<TrendingUp size={14} />}
+        />
+        <MetricCard
+          label="Ensemble Load"
+          value="42%"
+          subtitle="Processing 1.2k req/s"
+          icon={<Cpu size={14} />}
+        />
+        <MetricCard
+          label="Alpha Consensus"
+          value="84.2%"
+          change="+1.1%"
+          changePositive={true}
+          icon={<Brain size={14} />}
+        />
+      </div>
+
+      <Tabs defaultValue="system" className="w-full">
+         <TabsList className="w-full h-10 p-1 bg-white/[0.03]">
+            <TabsTrigger value="system" className="flex-1 text-[10px]">NETWORK HEALTH</TabsTrigger>
+            <TabsTrigger value="alpha" className="flex-1 text-[10px]">ALPHA LEADERBOARD</TabsTrigger>
          </TabsList>
 
          <TabsContent value="system" className="mt-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <Card className="bg-vit-surface border-vit-border">
-                  <CardHeader className="pb-3 border-b border-vit-border bg-vit-surface-2">
-                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3 flex items-center gap-2">
-                        <Brain size={14} className="text-vit-green" /> Neural Consensus Engine
+               <Card className="border-white/5 bg-white/[0.01]">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                     <CardTitle className="text-xs flex items-center gap-2">
+                        <Brain size={14} className="text-primary" /> Neural Consensus Hub
                      </CardTitle>
+                     <Badge variant="outline" className="text-[8px]">PROD-V5</Badge>
                   </CardHeader>
-                  <CardContent className="p-0">
-                     <div className="divide-y divide-vit-border">
-                        {(system?.ai_models || [
-                          { name: 'XGBoost Alpha', accuracy: 84.5 },
-                          { name: 'Neural Network V2', accuracy: 88.2 },
-                          { name: 'LGBM Consenus', accuracy: 82.1 }
-                        ]).map((model: any, i: number) => (
-                           <div key={i} className="p-4 flex items-center justify-between">
-                              <span className="text-xs font-medium">{model.name}</span>
-                              <div className="flex items-center gap-3">
-                                 <div className="w-24 h-1.5 bg-vit-surface-3 rounded-full overflow-hidden">
-                                    <div className="h-full bg-vit-green" style={{ width: `${model.accuracy}%` }} />
-                                 </div>
-                                 <span className="text-xs font-mono font-bold text-vit-green">{model.accuracy}%</span>
-                              </div>
+                  <CardContent className="space-y-5">
+                     {[
+                        { name: "Ensemble XGB-13", accuracy: 88.4, status: "Optimized" },
+                        { name: "Neural LSTM-04", accuracy: 82.1, status: "Training" },
+                        { name: "Alpha Bayesian-02", accuracy: 85.7, status: "Active" },
+                     ].map((model, i) => (
+                        <div key={i} className="space-y-2">
+                           <div className="flex justify-between text-[10px] font-mono uppercase tracking-widest">
+                              <span className="text-muted-foreground">{model.name}</span>
+                              <span className="text-primary font-bold">{model.accuracy}%</span>
                            </div>
-                        ))}
-                     </div>
+                           <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                              <div className="h-full bg-primary" style={{ width: `${model.accuracy}%` }} />
+                           </div>
+                        </div>
+                     ))}
                   </CardContent>
                </Card>
 
-               <Card className="bg-vit-surface border-vit-border">
-                  <CardHeader className="pb-3 border-b border-vit-border bg-vit-surface-2">
-                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3 flex items-center gap-2">
-                        <ShieldCheck size={14} className="text-vit-green" /> Infrastructure Nodes
+               <Card className="border-white/5 bg-white/[0.01]">
+                  <CardHeader>
+                     <CardTitle className="text-xs flex items-center gap-2">
+                        <ShieldCheck size={14} className="text-primary" /> Infrastructure Nodes
                      </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 space-y-6">
+                  <CardContent className="space-y-4">
                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 rounded-xl bg-vit-surface-2 border border-vit-border">
-                           <p className="text-[10px] font-bold text-vit-text-3 uppercase mb-1">Database</p>
-                           <p className="text-sm font-bold text-vit-green">SYNCHRONIZED</p>
+                        <div className="p-4 rounded bg-white/[0.02] border border-white/5">
+                           <p className="text-[9px] font-mono text-muted-foreground uppercase mb-1">Compute Hubs</p>
+                           <p className="text-lg font-bold text-primary">14 <span className="text-[10px] font-normal text-muted-foreground">Active</span></p>
                         </div>
-                        <div className="p-4 rounded-xl bg-vit-surface-2 border border-vit-border">
-                           <p className="text-[10px] font-bold text-vit-text-3 uppercase mb-1">Cache Layer</p>
-                           <p className="text-sm font-bold text-vit-green">OPTIMIZED</p>
+                        <div className="p-4 rounded bg-white/[0.02] border border-white/5">
+                           <p className="text-[9px] font-mono text-muted-foreground uppercase mb-1">Storage Swarm</p>
+                           <p className="text-lg font-bold text-primary">2.4 TB <span className="text-[10px] font-normal text-muted-foreground">Used</span></p>
                         </div>
                      </div>
-                     <div className="space-y-2">
-                        <p className="text-[10px] font-bold text-vit-text-3 uppercase">Memory Utilization</p>
-                        <div className="h-2 bg-vit-surface-3 rounded-full overflow-hidden">
-                           <div className="h-full bg-vit-green" style={{ width: '42%' }} />
+                     <div className="pt-2">
+                        <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">Sync Progress</p>
+                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                           <div className="h-full bg-primary" style={{ width: '94%' }} />
                         </div>
-                        <p className="text-[10px] text-right text-vit-text-3">4.2GB / 10GB</p>
                      </div>
                   </CardContent>
                </Card>
             </div>
          </TabsContent>
 
-         <TabsContent value="leaderboard" className="mt-6">
-            <div className="bg-vit-surface border border-vit-border rounded-xl overflow-hidden">
+         <TabsContent value="alpha" className="mt-6">
+            <Card className="border-white/5 bg-transparent overflow-hidden">
                <table className="w-full text-left">
-                  <thead className="bg-vit-surface-2 border-b border-vit-border">
+                  <thead className="bg-white/[0.02] border-b border-white/5">
                      <tr>
-                        <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase">Rank</th>
-                        <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase">Contributor</th>
-                        <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase text-center">Accuracy</th>
-                        <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase text-right">Yield</th>
+                        <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Rank</th>
+                        <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Analyst</th>
+                        <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Yield</th>
                      </tr>
                   </thead>
-                  <tbody className="divide-y divide-vit-border">
-                     {(leaderboard?.leaderboard || Array.from({length: 8})).map((entry: any, i: number) => (
-                        <tr key={i} className="hover:bg-vit-surface-2 transition-colors">
-                           <td className="p-4 font-mono text-sm font-bold">#{i + 1}</td>
-                           <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                 <div className="w-6 h-6 rounded bg-vit-surface-3 flex items-center justify-center text-[10px] font-bold">U</div>
-                                 <span className="text-sm font-medium">User {entry?.user_id || (1000 + i)}</span>
+                  <tbody className="divide-y divide-white/5">
+                     {leaderboard?.leaderboard?.slice(0, 10).map((entry: any, i: number) => (
+                        <tr key={i} className="hover:bg-white/[0.01]">
+                           <td className="px-6 py-4 font-mono text-xs font-bold text-muted-foreground/60">#{i+1}</td>
+                           <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                 <div className="w-7 h-7 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
+                                    {entry.username?.[0] || 'U'}
+                                 </div>
+                                 <span className="text-sm font-bold">{entry.username || `User ${entry.user_id?.slice(0,6)}`}</span>
                               </div>
                            </td>
-                           <td className="p-4 text-center">
-                              <Badge className="bg-vit-green-glow text-vit-green border-vit-green/20 text-[10px] font-bold">84.5%</Badge>
+                           <td className="px-6 py-4 text-right font-mono text-sm font-bold text-vit-positive">
+                              +{((entry.yield_pct || entry.roi || 0)).toFixed(1)}%
                            </td>
-                           <td className="p-4 text-right font-mono text-sm font-bold text-vit-green">{entry?.yield_pct != null ? `+${entry.yield_pct.toFixed(1)}%` : entry?.roi != null ? `+${entry.roi.toFixed(1)}%` : '--'}</td>
                         </tr>
                      ))}
                   </tbody>
                </table>
-            </div>
+            </Card>
          </TabsContent>
       </Tabs>
     </div>

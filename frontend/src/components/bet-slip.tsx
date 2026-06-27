@@ -1,5 +1,5 @@
 /**
- * VIT Network — Bet Slip & Accumulator Manager
+ * VIT Network — Intelligence Slip & Accumulator Manager
  * Provides global state for selections and a floating panel for placement.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState } from "react";
@@ -15,7 +15,7 @@ import { apiPost } from "@/lib/apiClient";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface BetSlipItem {
+export interface IntelligenceSlipItem {
   matchId: number;
   match:   string;         // "Team A vs Team B"
   pick:    string;         // "home" | "draw" | "away" | custom label
@@ -26,7 +26,7 @@ export interface BetSlipItem {
 
 let _dispatch: React.Dispatch<Action> | null = null;
 
-export function addToBetSlip(item: BetSlipItem) {
+export function addToBetSlip(item: IntelligenceSlipItem) {
   _dispatch?.({ type: "ADD", item });
   toast.success(`Added ${item.match} to slip`);
 }
@@ -40,11 +40,11 @@ export function clearBetSlip() {
 // ── Reducer ──────────────────────────────────────────────────────────────────
 
 type Action =
-  | { type: "ADD";    item: BetSlipItem }
+  | { type: "ADD";    item: IntelligenceSlipItem }
   | { type: "REMOVE"; matchId: number }
   | { type: "CLEAR" };
 
-function reducer(state: BetSlipItem[], action: Action): BetSlipItem[] {
+function reducer(state: IntelligenceSlipItem[], action: Action): IntelligenceSlipItem[] {
   switch (action.type) {
     case "ADD":
       // Replace if same match already in slip, otherwise append
@@ -60,7 +60,7 @@ function reducer(state: BetSlipItem[], action: Action): BetSlipItem[] {
 
 // ── Context ──────────────────────────────────────────────────────────────────
 
-const BetSlipContext = createContext<{ items: BetSlipItem[] }>({ items: [] });
+const BetSlipContext = createContext<{ items: IntelligenceSlipItem[] }>({ items: [] });
 export function useBetSlip() { return useContext(BetSlipContext); }
 
 // ── Pick label formatter ─────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ function pickLabel(pick: string) {
   return pick.toUpperCase();
 }
 
-// ── Bet Slip Panel ───────────────────────────────────────────────────────────
+// ── Intelligence Slip Panel ───────────────────────────────────────────────────────────
 export function BetSlipPanel() {
   const [items, dispatch] = useReducer(reducer, []);
   const [open, setOpen]   = useState(false);
@@ -129,7 +129,7 @@ export function BetSlipPanel() {
           <button
             onClick={() => setOpen((v) => !v)}
             className="fixed bottom-24 left-5 z-50 lg:bottom-6 flex items-center gap-1.5 h-10 px-3 rounded-full bg-gradient-to-r from-secondary/80 to-yellow-500/60  border border-secondary/40 hover:scale-105 active:scale-95 transition-transform font-mono text-xs font-bold text-black shadow-lg"
-            aria-label={`Bet Slip${hasItems ? `, ${items.length} selections` : ""}`}
+            aria-label={`Intelligence Slip${hasItems ? `, ${items.length} selections` : ""}`}
           >
             <Layers className="w-4 h-4" />
             <span>Slip</span>
@@ -142,7 +142,7 @@ export function BetSlipPanel() {
           </button>
         </TooltipTrigger>
         <TooltipContent side="right">
-          Bet Slip {hasItems ? `(${items.length} selections)` : "(Empty)"}
+          Intelligence Slip {hasItems ? `(${items.length} selections)` : "(Empty)"}
         </TooltipContent>
       </Tooltip>
 
@@ -155,7 +155,7 @@ export function BetSlipPanel() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-secondary" />
-              <span className="text-sm font-bold font-mono text-foreground">Bet Slip</span>
+              <span className="text-sm font-bold font-mono text-foreground">Intelligence Slip</span>
               {hasItems && (
                 <span className="text-[10px] font-mono text-secondary bg-secondary/10 px-1.5 py-0.5 rounded border border-secondary/20">
                   {items.length} sel.

@@ -376,8 +376,8 @@ function AllMarketsTab() {
                             { label: "1X (DC)", value: derived.dc_1x,    title: "Home or Draw" },
                             { label: "X2 (DC)", value: derived.dc_x2,    title: "Draw or Away" },
                             { label: "12 (DC)", value: derived.dc_12,    title: "Home or Away" },
-                            { label: "DNB H",   value: derived.dnb_home, title: "Draw No Bet — Home" },
-                            { label: "DNB A",   value: derived.dnb_away, title: "Draw No Bet — Away" },
+                            { label: "DNB H",   value: derived.dnb_home, title: "Draw Risk Shield — Home" },
+                            { label: "DNB A",   value: derived.dnb_away, title: "Draw Risk Shield — Away" },
                           ].map(({ label, value, title }) => (
                             value ? (
                               <div key={label} className="bg-muted/10 rounded p-2 text-center" title={title}>
@@ -795,7 +795,7 @@ export default function OddsPage() {
       <div>
         <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">Odds Analytics</h1>
         <p className="text-muted-foreground font-mono text-sm mt-1">
-          Real-time odds across all markets — 1X2, Over/Under, Asian Handicap, Double Chance, Draw No Bet
+          Real-time odds across all markets — 1X2, Over/Under, Asian Handicap, Double Chance, Draw Risk Shield
         </p>
       </div>
 

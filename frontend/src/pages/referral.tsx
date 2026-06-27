@@ -1,73 +1,43 @@
-import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/apiClient";
+import {
+  Users, Gift, Copy, Check, Share2, Trophy, Coins,
+  Globe, Zap, ArrowUpRight, ChevronRight, UserPlus
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Users, Gift, Copy, Check, Share2, Trophy, Coins } from "lucide-react";
-
-interface MyCode {
-  code: string;
-  total_referrals: number;
-  total_bonus_earned_vit: number;
-  bonus_per_referral_vit: number;
-  share_url: string;
-}
-
-interface ReferralStats {
-  referrals: Array<{
-    referee_username: string;
-    bonus_paid: boolean;
-    bonus_amount: number;
-    joined_at: string;
-  }>;
-  total: number;
-  pending_bonuses: number;
-}
-
-interface LeaderboardEntry {
-  rank: number;
-  username: string;
-  referrals: number;
-  earned_vit: number;
-}
+import MetricCard from "@/components/cards/MetricCard";
+import { cn } from "@/lib/utils";
 
 export default function ReferralPage() {
   const [copied, setCopied] = useState(false);
   const [applyCode, setApplyCode] = useState("");
   const qc = useQueryClient();
 
-  const { data: myCode, isLoading: loadingCode, isError: codeError, error: referralError } = useQuery<MyCode>({
+  const { data: myCode, isError: codeError } = useQuery<any>({
     queryKey: ["referral-code"],
     queryFn: () => apiGet("/api/referral/my-code"),
     retry: false,
   });
 
-  const { data: stats, isLoading: loadingStats } = useQuery<ReferralStats>({
+  const { data: stats } = useQuery<any>({
     queryKey: ["referral-stats"],
     queryFn: () => apiGet("/api/referral/stats"),
     retry: false,
   });
 
-  const { data: leaderboard } = useQuery<{ leaderboard: LeaderboardEntry[] }>({
-    queryKey: ["referral-leaderboard"],
-    queryFn: () => apiGet("/api/referral/leaderboard"),
-    staleTime: 120_000,
-    retry: false,
-  });
-
   const applyMutation = useMutation({
     mutationFn: (code: string) => apiPost("/api/referral/apply", { code }),
-    onSuccess: (data: any) => {
-      toast.success(data.message ?? "Referral code applied!");
+    onSuccess: () => {
+      toast.success("Referral node established.");
       qc.invalidateQueries({ queryKey: ["referral-code"] });
       qc.invalidateQueries({ queryKey: ["referral-stats"] });
       setApplyCode("");
     },
-    onError: (err: any) => toast.error(err.message ?? "Failed to apply code"),
   });
 
   const copyCode = () => {
@@ -75,176 +45,87 @@ export default function ReferralPage() {
     navigator.clipboard.writeText(myCode.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success("Referral code copied to clipboard");
+    toast.success("Node ID copied.");
   };
-
-  const shareLink = () => {
-    if (!myCode) return;
-    const url = `${window.location.origin}${myCode.share_url}`;
-    navigator.clipboard.writeText(url);
-    toast.success("Referral link copied to clipboard");
-  };
-
-  if (codeError) {
-    return (
-      <div className="p-6 max-w-3xl mx-auto space-y-6">
-        <Card className="border-border/50">
-          <CardContent className="py-10 text-center space-y-3">
-            <Gift className="w-10 h-10 text-muted-foreground mx-auto" />
-            <h1 className="text-xl font-bold font-mono tracking-tight">Network Referral Disabled</h1>
-            <p className="text-sm text-muted-foreground font-mono">
-              {(referralError as Error)?.message ?? "Referrals are currently unavailable."}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-green-500/10 border border-green-500/20 rounded-xl flex items-center justify-center">
-          <Users className="w-5 h-5 text-green-400" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold font-mono tracking-tight">Network Referral</h1>
-          <p className="text-sm text-muted-foreground font-mono">
-            Invite friends — earn VITCoin bonuses for every successful referral
-          </p>
-        </div>
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
+      {/* ── Header ── */}
+      <div className="space-y-1">
+         <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Growth Protocol</h1>
+         <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Network Expansion & Affiliate Ledger</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: "Total Referrals", value: myCode?.total_referrals ?? 0, icon: Users, color: "text-blue-400" },
-          { label: "VIT Earned", value: `${myCode?.total_bonus_earned_vit ?? 0}`, icon: Coins, color: "text-yellow-400" },
-          { label: "Per Referral", value: `${myCode?.bonus_per_referral_vit ?? 50} VIT`, icon: Gift, color: "text-green-400" },
-        ].map((stat) => (
-          <Card key={stat.label} className="border-border/50">
-            <CardContent className="pt-4 pb-3">
-              <stat.icon className={`w-4 h-4 ${stat.color} mb-2`} />
-              <div className="text-xl font-bold font-mono">{stat.value}</div>
-              <div className="text-xs text-muted-foreground font-mono">{stat.label}</div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard label="Referrals" value={myCode?.total_referrals || 0} icon={<Users size={14} />} />
+        <MetricCard label="Yield Earned" value={`${myCode?.total_bonus_earned_vit || 0} VIT`} icon={<Coins size={14} />} />
+        <MetricCard label="Node Bonus" value={`${myCode?.bonus_per_referral_vit || 50} VIT`} icon={<Gift size={14} />} />
+        <MetricCard label="Rank" value="TOP 2%" icon={<Trophy size={14} />} />
       </div>
 
-      <Card className="border-border/50">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-mono flex items-center gap-2">
-            <Gift className="w-4 h-4 text-primary" />
-            Your Referral Code
-          </CardTitle>
-          <CardDescription className="font-mono text-xs">
-            Share this code with friends. Both of you get {myCode?.bonus_per_referral_vit ?? 50} VITCoin when they sign up.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {loadingCode ? (
-            <div className="h-12 rounded-md bg-muted/30 animate-pulse" />
-          ) : (
-            <div className="flex gap-2">
-              <div className="flex-1 font-mono text-2xl font-bold tracking-[0.3em] bg-muted/30 rounded-lg px-4 py-3 border border-border/50 text-center text-primary">
-                {myCode?.code ?? "------"}
-              </div>
-              <Button variant="outline" size="icon" onClick={copyCode} className="h-auto px-4" aria-label="Copy referral code">
-                {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              </Button>
-              <Button variant="outline" size="icon" onClick={shareLink} className="h-auto px-4" aria-label="Share referral link">
-                <Share2 className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/50">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-mono">Apply a Referral Code</CardTitle>
-          <CardDescription className="font-mono text-xs">
-            Were you referred by someone? Apply their code to give them a bonus.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter referral code..."
-              value={applyCode}
-              onChange={(e) => setApplyCode(e.target.value.toUpperCase())}
-              className="font-mono tracking-widest uppercase"
-              maxLength={9}
-            />
-            <Button
-              onClick={() => applyCode && applyMutation.mutate(applyCode)}
-              disabled={!applyCode || applyMutation.isPending}
-              className="font-mono"
-            >
-              Apply
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-mono flex items-center gap-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              My Referrals
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingStats ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-              </div>
-            ) : (stats?.referrals ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground font-mono py-4 text-center">
-                No referrals yet. Share your code!
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {(stats?.referrals ?? []).map((ref, i) => (
-                  <div key={i} className="flex items-center justify-between py-1.5">
-                    <span className="font-mono text-sm">{ref.referee_username}</span>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={ref.bonus_paid ? "default" : "outline"} className="text-xs font-mono">
-                        {ref.bonus_paid ? `+${ref.bonus_amount} VIT` : "pending"}
-                      </Badge>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+           <Card className="border-primary/20 bg-primary/[0.02]">
+              <CardContent className="p-8 space-y-6">
+                 <div className="space-y-2">
+                    <p className="font-display text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Your Unique Node ID</p>
+                    <div className="flex gap-3">
+                       <div className="flex-1 bg-white/5 border border-white/5 rounded p-4 text-center">
+                          <span className="font-mono text-3xl font-bold tracking-[0.3em] text-foreground">{myCode?.code || '------'}</span>
+                       </div>
+                       <Button variant="outline" size="icon" className="w-14 h-14 border-white/5" onClick={copyCode}>
+                          {copied ? <Check size={20} className="text-vit-positive" /> : <Copy size={20} />}
+                       </Button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                 </div>
+                 <p className="text-xs text-muted-foreground leading-relaxed">
+                    Expand the VIT Network. For every analyst provisioned through your Node ID, both participants receive <span className="text-foreground">{myCode?.bonus_per_referral_vit || 50} VIT</span>.
+                 </p>
+              </CardContent>
+           </Card>
 
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-mono flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-yellow-400" />
-              Top Referrers
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {(leaderboard?.leaderboard ?? []).slice(0, 5).map((entry) => (
-                <div key={entry.rank} className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground font-mono w-5">#{entry.rank}</span>
-                    <span className="font-mono text-sm">{entry.username}</span>
-                  </div>
-                  <span className="font-mono text-xs text-primary">{entry.referrals} refs</span>
-                </div>
-              ))}
-              {(leaderboard?.leaderboard ?? []).length === 0 && (
-                <p className="text-sm text-muted-foreground font-mono py-4 text-center">No referrers yet.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+           <Card className="border-white/5 bg-white/[0.01]">
+              <CardHeader>
+                 <CardTitle className="text-xs uppercase tracking-widest">Provision Referred Node</CardTitle>
+              </CardHeader>
+              <CardContent className="flex gap-3">
+                 <Input
+                   placeholder="ENTER EXTERNAL NODE ID..."
+                   className="bg-white/5 border-white/5 font-mono uppercase tracking-widest"
+                   value={applyCode}
+                   onChange={(e) => setApplyCode(e.target.value.toUpperCase())}
+                 />
+                 <Button
+                   className="h-10 px-8 uppercase tracking-widest text-[10px] font-bold"
+                   onClick={() => applyMutation.mutate(applyCode)}
+                 >
+                    Establish
+                 </Button>
+              </CardContent>
+           </Card>
+        </div>
+
+        <div className="space-y-6">
+           <div className="bg-white/[0.02] border border-white/5 rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4 text-primary">
+                 <UserPlus size={16} />
+                 <h4 className="font-display text-[10px] font-bold uppercase tracking-[0.2em]">Recent Provisions</h4>
+              </div>
+              <div className="space-y-4">
+                 {(stats?.referrals || []).slice(0, 5).map((ref: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center">
+                       <span className="text-sm font-bold text-foreground/80">{ref.referee_username}</span>
+                       <Badge variant="outline" className="text-[8px] bg-white/5 border-white/10 uppercase">
+                          {ref.bonus_paid ? 'SUCCESS' : 'PENDING'}
+                       </Badge>
+                    </div>
+                 ))}
+                 {(!stats?.referrals || stats.referrals.length === 0) && (
+                    <p className="text-[10px] text-muted-foreground/40 uppercase text-center py-4">No active provisions</p>
+                 )}
+              </div>
+           </div>
+        </div>
       </div>
     </div>
   );

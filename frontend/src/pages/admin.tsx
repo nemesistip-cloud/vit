@@ -1564,7 +1564,7 @@ Arsenal,Chelsea,2026-05-10 15:00,premier_league,2.10,3.40,3.60`}</pre>
                   <th className="text-center p-2">ID</th>
                   <th className="text-center p-2">Status</th>
                   <th className="text-center p-2 hidden lg:table-cell">H / D / A probs</th>
-                  <th className="text-center p-2 hidden lg:table-cell">Best Bet</th>
+                  <th className="text-center p-2 hidden lg:table-cell">Top Signal</th>
                   <th className="text-center p-2 hidden lg:table-cell">Edge</th>
                 </tr>
               </thead>
@@ -1837,7 +1837,7 @@ function GlobalAccumulatorCard() {
             )}
           >
             <Coins className="w-4 h-4 mr-2" />
-            {placeBetMutation.isPending ? "Placing…" : "Place Bet"}
+            {placeBetMutation.isPending ? "Placing…" : "Deploy Signal"}
           </Button>
           <Button
             variant="outline"

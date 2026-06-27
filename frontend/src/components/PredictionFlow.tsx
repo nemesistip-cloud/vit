@@ -46,7 +46,7 @@ interface MatchInfo {
   draw_prob?: number | null;
   away_prob?: number | null;
   confidence?: number | null;
-  bet_side?: string | null;
+  signal_side?: string | null;
   edge?: number | null;
   over_25_prob?: number | null;
   under_25_prob?: number | null;
@@ -78,23 +78,23 @@ const PROCESSING_STEPS = [
 ];
 
 export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
-  const [selectedSide, setSelectedSide] = useState<Side | null>(match.bet_side || null);
+  const [selectedSide, setSelectedSide] = useState<Side | null>(match.signal_side || null);
   const [stake, setStake] = useState("10");
   const [processingStep, setProcessingStep] = useState(0);
   const [predictionResult, setPredictionResult] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  // Reset state when opening — auto-select bet_side or default to "home" (1x2 Home)
+  // Reset state when opening — auto-select signal_side or default to "home" (1x2 Home)
   // so the Run Strategic Ensemble button is never stuck in disabled state
   useEffect(() => {
     if (open) {
       setProcessingStep(0);
       setPredictionResult(null);
       // Prefer the model's recommended side; fall back to "home" so the button is enabled
-      const autoSide: Side = match.bet_side || "home";
+      const autoSide: Side = match.signal_side || "home";
       setSelectedSide(autoSide);
     }
-  }, [open, match.bet_side]);
+  }, [open, match.signal_side]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -237,7 +237,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
       ]
     },
     "draw_no_bet": {
-      title: "Draw No Bet (DNB)",
+      title: "Draw Risk Shield (DNB)",
       sides: [
         { side: "dnb_home", label: "Home DNB" },
         { side: "dnb_away", label: "Away DNB" }
@@ -455,7 +455,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
                <span className="text-[9px] text-primary font-black uppercase tracking-widest">Consensus Recommendation</span>
                <div className="flex items-center justify-between">
                  <div>
-                   <p className="text-xl font-black text-white uppercase">{predictionResult.bet_side?.replace(/_/g, " ")}</p>
+                   <p className="text-xl font-black text-white uppercase">{predictionResult.signal_side?.replace(/_/g, " ")}</p>
                    <p className="text-[10px] text-muted-foreground font-bold">Recommended Stake: {predictionResult.recommended_stake.toFixed(1)}%</p>
                  </div>
                  <div className="bg-primary px-3 py-1 rounded-lg text-[#0a0a0b] font-black text-xs">
@@ -531,7 +531,7 @@ export function PredictionFlow({ match, open, onClose }: PredictionFlowProps) {
                 <div className={`grid gap-3 ${group.sides.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
                   {group.sides.map(({ side, label }) => {
                     const isSelected = selectedSide === side;
-                    const isRecommended = match.bet_side === side;
+                    const isRecommended = match.signal_side === side;
                     const prob = probMap[side];
                     const odds = oddsMap[side];
 

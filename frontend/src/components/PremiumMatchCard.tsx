@@ -200,15 +200,15 @@ function ConfidenceMeter({ confidence, risk }: { confidence: number; risk: numbe
 function AIInsightPanel({ match }: { match: any }) {
   const confidence = match.confidence ?? match.avg_1x2_confidence ?? null;
   const edge = match.edge;
-  const betSide = match.bet_side;
+  const signalSide = match.signal_side;
   const overProb = match.over_25_prob;
   const bttsProb = match.btts_prob;
   const stake = match.recommended_stake;
 
   const insights: { label: string; value: string; accent?: string }[] = [];
 
-  if (betSide) {
-    const sideLabel = betSide === "home" ? match.home_team : betSide === "away" ? match.away_team : "Draw";
+  if (signalSide) {
+    const sideLabel = signalSide === "home" ? match.home_team : signalSide === "away" ? match.away_team : "Draw";
     insights.push({ label: "ML Signal", value: `Back ${sideLabel}`, accent: "text-primary" });
   }
 
@@ -232,7 +232,7 @@ function AIInsightPanel({ match }: { match: any }) {
   }
 
   if (stake != null) {
-    insights.push({ label: "Kelly %", value: `${(stake * 100).toFixed(1)}%` });
+    insights.push({ label: "Allocation %", value: `${(stake * 100).toFixed(1)}%` });
   }
 
   const consensus = match.model_consensus as
@@ -312,7 +312,7 @@ function AIInsightPanel({ match }: { match: any }) {
       {alternatives.length > 0 && (
         <div className="border-t border-border/30 pt-2 space-y-1">
           <div className="text-[10px] font-mono uppercase text-muted-foreground">
-            Alternative Bets
+            Alternative Signals
           </div>
           {alternatives.slice(0, 3).map((a, i) => (
             <div
@@ -391,7 +391,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
           draw_prob: drawProb || undefined,
           away_prob: awayProb || undefined,
           confidence: confidence || undefined,
-          bet_side: match.bet_side,
+          signal_side: match.signal_side,
           edge: match.edge,
           over_25_prob: match.over_25_prob,
           under_25_prob: match.under_25_prob,
@@ -446,9 +446,9 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
                     title={quality.label}>
                     {quality.grade}
                   </span>
-                  {match.bet_side && (
+                  {match.signal_side && (
                     <Badge className="font-mono text-[10px] uppercase bg-primary/10 text-primary border border-primary/20">
-                      {match.bet_side}
+                      {match.signal_side}
                     </Badge>
                   )}
                   {isSettled ? (
@@ -547,7 +547,7 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
                   </div>
                 )}
                 <div className="text-center">
-                  <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">Kelly</div>
+                  <div className="text-[9px] font-mono text-muted-foreground uppercase mb-0.5">Allocation</div>
                   <div className="text-xs font-mono font-bold text-foreground">
                     {match.recommended_stake != null ? `${(match.recommended_stake * 100).toFixed(1)}%` : "—"}
                   </div>
@@ -584,8 +584,8 @@ export function PremiumMatchCard({ match }: { match: Match & { [key: string]: an
               <span className="flex items-center gap-1.5">
                 <Brain className="w-3 h-3 text-primary/70" />
                 AI Insights
-                {match.bet_side && (
-                  <span className="text-[9px] text-primary/60 font-mono">· {match.bet_side.toUpperCase()}</span>
+                {match.signal_side && (
+                  <span className="text-[9px] text-primary/60 font-mono">· {match.signal_side.toUpperCase()}</span>
                 )}
               </span>
               {showInsights ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}

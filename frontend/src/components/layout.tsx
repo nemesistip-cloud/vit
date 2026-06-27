@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import AppShell from './layout/AppShell';
 import { GlobalSearch, openGlobalSearch } from './global-search';
 import { BetSlipPanel } from './bet-slip';
-import { KellyFAB, KellyCalculatorModal } from './kelly-calculator-modal';
+import { AllocationFAB, AllocationCalculatorModal } from './kelly-calculator-modal';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -19,8 +19,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <GlobalSearch />
       <BetSlipPanel />
-      <KellyFAB />
-      <KellyCalculatorModal />
+      <AllocationFAB />
+      <AllocationCalculatorModal />
     </>
   );
 }

@@ -18,10 +18,10 @@ export default function DesignSystemTest() {
   ];
 
   return (
-    <AppShell title="VIT DESIGN SYSTEM" showSearch={true}>
+    <AppShell>
       <div className="p-4 space-y-6">
         <section className="space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-vit-text-3">Category Pills</h2>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/40 font-display">Category Pills</h2>
           <CategoryPills
             items={categories}
             activeId={activeCategory}
@@ -30,71 +30,55 @@ export default function DesignSystemTest() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-vit-text-3">Metric Cards</h2>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/40 font-display">Metric Cards</h2>
           <div className="grid grid-cols-2 gap-4">
             <MetricCard
-              label="VITCoin Balance"
+              label="Treasury Balance"
               value="12,450.00"
               change="12.5%"
               changePositive={true}
-              icon={<Database size={16} className="text-vit-green" />}
+              icon={<Database size={16} />}
             />
             <MetricCard
-              label="Profit / Loss"
+              label="Alpha Yield"
               value="+50.20"
               change="5.2%"
               changePositive={true}
-              icon={<TrendingUp size={16} className="text-vit-green" />}
+              icon={<TrendingUp size={16} />}
             />
           </div>
           <MetricCard
             variant="hero"
-            label="Total Merit XP"
+            label="Aggregate XP"
             value="85,240"
-            subtitle="Top 2% of contributors this month"
+            subtitle="Tier: Oracle of Node 14"
           />
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-vit-text-3">Prediction Rows</h2>
-          <div className="bg-vit-surface rounded-lg border border-vit-border overflow-hidden">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/40 font-display">Signal Rows</h2>
+          <div className="bg-card rounded-lg border border-white/5 overflow-hidden">
             <PredictionRow
               homeTeam="Arsenal"
               awayTeam="Man City"
               competition="Premier League"
               kickoff="87'"
-              isLive={true}
               odds="2.45"
-              oddsChange={2.4}
-              badgeLabel="2X BOOST"
             />
             <PredictionRow
               homeTeam="Real Madrid"
               awayTeam="Barcelona"
               competition="La Liga"
               kickoff="19:30"
-              isLive={false}
               odds="1.95"
-              oddsChange={-1.2}
             />
           </div>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-vit-text-3">Win Share Card</h2>
-          <WinShareCard
-            streakCount={5}
-            titleUnlocked="Oracle of Lagos"
-            predictionLabel="Arsenal vs Man City • Over 2.5 Goals"
-            pnlPercent={245.5}
-            referralCode="VIT_LEGEND"
-          />
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-vit-text-3">Skeletons</h2>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/40 font-display">Skeletons</h2>
           <CardSkeleton />
-          <div className="bg-vit-surface rounded-lg border border-vit-border overflow-hidden">
+          <div className="bg-card rounded-lg border border-white/5 overflow-hidden">
             <RowSkeleton />
             <RowSkeleton />
           </div>

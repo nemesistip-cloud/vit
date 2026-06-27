@@ -1,7 +1,7 @@
 /**
- * KellyCalculatorModal — Quick Kelly Criterion stake calculator.
+ * AllocationCalculatorModal — Quick Capital Allocation Strategy stake calculator.
  *
- * The Kelly Criterion answers: "What fraction of my bankroll should I stake
+ * The Capital Allocation Strategy answers: "What fraction of my bankroll should I stake
  * to maximise long-run growth?" given:
  *   f* = (bp - q) / b
  *   where b = decimal_odds - 1, p = win_probability, q = 1 - p
@@ -10,10 +10,10 @@
  * recommendation (which respects the user's configured max-stake limit).
  *
  * Usage:
- *   import { KellyCalculatorModal, KellyFAB } from "@/components/kelly-calculator-modal";
- *   <KellyCalculatorModal />   — place once near root
- *   <KellyFAB />               — floating trigger button
- *   openKellyCalculator()      — programmatic open (e.g. from prediction card)
+ *   import { AllocationCalculatorModal, AllocationFAB } from "@/components/kelly-calculator-modal";
+ *   <AllocationCalculatorModal />   — place once near root
+ *   <AllocationFAB />               — floating trigger button
+ *   openAllocationCalculator()      — programmatic open (e.g. from prediction card)
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -29,9 +29,9 @@ import {
 
 // ── Module-level open/close signal ──────────────────────────────────────────
 let _setOpen: ((v: boolean) => void) | null = null;
-export function openKellyCalculator() { _setOpen?.(true); }
+export function openAllocationCalculator() { _setOpen?.(true); }
 
-// ── Local Kelly formula (instant feedback without a network round-trip) ───────
+// ── Local allocation formula (instant feedback without a network round-trip) ───────
 function localKelly(winProb: number, decimalOdds: number): number {
   const b = decimalOdds - 1;
   const p = winProb / 100;
@@ -42,14 +42,14 @@ function localKelly(winProb: number, decimalOdds: number): number {
 
 // ── Confidence level badge ───────────────────────────────────────────────────
 function ConfidenceBadge({ stake }: { stake: number }) {
-  if (stake === 0)  return <span className="text-rose-400 text-[10px] font-mono">No edge — skip this bet</span>;
+  if (stake === 0)  return <span className="text-rose-400 text-[10px] font-mono">No edge — skip this signal</span>;
   if (stake <= 2)   return <span className="text-yellow-400 text-[10px] font-mono">Low edge — small stake only</span>;
-  if (stake <= 7)   return <span className="text-emerald-400 text-[10px] font-mono">Good edge — confident bet</span>;
+  if (stake <= 7)   return <span className="text-emerald-400 text-[10px] font-mono">Good edge — confident signal</span>;
   return               <span className="text-primary text-[10px] font-mono">Very high edge — consider full Kelly</span>;
 }
 
 // ── Main modal ───────────────────────────────────────────────────────────────
-export function KellyCalculatorModal() {
+export function AllocationCalculatorModal() {
   const [open, setOpen]             = useState(false);
   const [prob, setProb]             = useState(55);        // Win probability %
   const [odds, setOdds]             = useState("2.10");   // Decimal odds string
@@ -109,7 +109,7 @@ export function KellyCalculatorModal() {
               <Calculator className="w-4 h-4 text-primary" />
             </div>
             <div>
-              <div className="text-sm font-bold font-mono text-foreground">Kelly Calculator</div>
+              <div className="text-sm font-bold font-mono text-foreground">Allocation Optimizer</div>
               <div className="text-[10px] font-mono text-muted-foreground">Optimal stake sizing</div>
             </div>
           </div>
@@ -225,7 +225,7 @@ export function KellyCalculatorModal() {
           </div>
 
           <p className="text-[9px] font-mono text-muted-foreground/40 leading-relaxed">
-            Half Kelly reduces variance while capturing ~75% of optimal growth. Never bet more than you can afford to lose.
+            Half Kelly reduces variance while capturing ~75% of optimal growth. Never deploy more than you can afford to lose.
           </p>
         </div>
       </div>
@@ -234,20 +234,20 @@ export function KellyCalculatorModal() {
 }
 
 // ── Floating trigger button ──────────────────────────────────────────────────
-export function KellyFAB() {
+export function AllocationFAB() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
-          onClick={openKellyCalculator}
-          aria-label="Kelly Calculator (stake sizing)"
+          onClick={openAllocationCalculator}
+          aria-label="Allocation Optimizer (stake sizing)"
           className="fixed bottom-24 right-5 z-50 lg:bottom-6 w-11 h-11 rounded-full bg-gradient-to-br from-primary/80 to-purple-500/80  border border-primary/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
         >
           <Calculator className="w-4.5 h-4.5 text-primary-foreground" style={{ width: 18, height: 18 }} />
         </button>
       </TooltipTrigger>
       <TooltipContent side="left">
-        Kelly Calculator (Stake Sizing)
+        Allocation Optimizer (Stake Sizing)
       </TooltipContent>
     </Tooltip>
   );

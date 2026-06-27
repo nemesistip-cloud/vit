@@ -1,136 +1,85 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import {
-  ShoppingBag, Search, Filter, Star, Zap, BarChart3,
-  ChevronRight, Brain, Shield, Info
+  ShoppingBag, Zap, Brain, BarChart3, Search,
+  Filter, ChevronRight, Globe, Layers, Cpu, Database
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import CategoryPills from "@/components/layout/CategoryPills";
 import MetricCard from "@/components/cards/MetricCard";
-import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
-import { EmptyState } from "@/components/empty-state";
+import { cn } from "@/lib/utils";
 
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
 
-  const { data: listings, isLoading } = useQuery<any[]>({
-    queryKey: ["/api/marketplace/listings"],
-    queryFn: () => apiGet("/api/marketplace/listings"),
-  });
-
-  const categories = [
-    { id: "all", label: "All Models" },
-    { id: "prediction", label: "Predictions", count: listings?.filter(l => l.category === 'prediction').length },
-    { id: "analytics", label: "Analytics", count: listings?.filter(l => l.category === 'analytics').length },
-    { id: "strategy", label: "Strategy", count: listings?.filter(l => l.category === 'strategy').length },
+  const listings = [
+    { id: 1, name: "Neural XGB-13 Alpha Feed", category: "Models", price: "500 VIT", accuracy: "88.4%", owner: "Ensemble Core" },
+    { id: 2, name: "Deep LSTM Sentient Flow", category: "Models", price: "300 VIT", accuracy: "82.1%", owner: "Alpha Labs" },
+    { id: 3, name: "Premium Liquidity Insights", category: "Data", price: "150 VIT", accuracy: "N/A", owner: "Treasury Hub" },
   ];
 
-  const filteredListings = useMemo(() => {
-    if (!listings) return [];
-    return listings.filter(l => {
-      const matchesSearch = l.name.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = activeCategory === "all" || l.category === activeCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [listings, search, activeCategory]);
-
   return (
-    <div className="space-y-6 pb-20">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-         <MetricCard
-            label="Listed Models"
-            value={listings?.length || "0"}
-            icon={<Brain size={16} className="text-vit-green" />}
-         />
-         <MetricCard
-            label="Total Volume"
-            value="1.2M VIT"
-            change="+5.2%"
-            changePositive={true}
-            icon={<Zap size={16} className="text-secondary" />}
-         />
-         <MetricCard
-            label="Active Stakers"
-            value="850"
-            icon={<Shield size={16} className="text-vit-purple" />}
-         />
-         <MetricCard
-            label="Avg. Accuracy"
-            value="82.4%"
-            icon={<BarChart3 size={16} className="text-vit-green" />}
-         />
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
+      {/* ── Header ── */}
+      <div className="space-y-1">
+         <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Asset Marketplace</h1>
+         <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Alpha Feeds & Neural Weights</p>
       </div>
 
-      <div className="flex items-center justify-between gap-4 px-1">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-vit-text-3" />
-          <Input
-            placeholder="Search prediction models..."
-            className="pl-10 bg-vit-surface-2 border-vit-border rounded-full h-10 text-sm"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Button variant="outline" className="border-vit-border rounded-full h-10 px-6 font-bold text-xs">
-           LIST MODEL
-        </Button>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <MetricCard label="Active Listings" value="42" icon={<ShoppingBag size={14} />} />
+        <MetricCard label="Avg Yield" value="12.4%" icon={<Zap size={14} />} />
+        <MetricCard label="Nodes Active" value="14" icon={<Globe size={14} />} />
       </div>
 
-      <CategoryPills
-        items={categories}
-        activeId={activeCategory}
-        onSelect={setActiveCategory}
-      />
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
+        <Input
+          placeholder="Search alpha, models, or data sets..."
+          className="pl-9 bg-white/[0.02] border-white/5 h-10 text-xs font-mono"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
-      <div className="bg-vit-surface border-y border-vit-border">
-         <div className="px-4 py-3 border-b border-vit-border bg-vit-surface-2 flex justify-between items-center">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3">Market Listings</h3>
-            <span className="text-[10px] font-mono text-vit-text-3">{filteredListings.length} Models Found</span>
+      <div className="border-t border-white/5 bg-background overflow-hidden">
+         <div className="divide-y divide-white/5">
+            {listings.map((item) => (
+              <div key={item.id} className="p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:bg-white/[0.01] transition-all group cursor-pointer">
+                 <div className="flex items-center gap-6 flex-1 w-full">
+                    <div className="w-12 h-12 rounded border border-white/5 bg-white/5 flex items-center justify-center text-primary group-hover:border-primary/20 group-hover:bg-primary/5 transition-all">
+                       {item.category === 'Models' ? <Cpu size={20} /> : <Database size={20} />}
+                    </div>
+                    <div className="space-y-1">
+                       <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="text-[8px] border-white/10 uppercase tracking-tighter">{item.category}</Badge>
+                          <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest">{item.owner}</span>
+                       </div>
+                       <h3 className="text-base font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">{item.name}</h3>
+                    </div>
+                 </div>
+
+                 <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
+                    <div className="text-right">
+                       <p className="font-mono text-xs font-bold text-foreground">{item.price}</p>
+                       <p className="font-mono text-[8px] text-muted-foreground uppercase mt-1">One-time Lease</p>
+                    </div>
+                    {item.accuracy !== 'N/A' && (
+                       <div className="text-right">
+                          <p className="font-mono text-xs font-bold text-vit-positive">{item.accuracy}</p>
+                          <p className="font-mono text-[8px] text-muted-foreground uppercase mt-1">Alpha Rating</p>
+                       </div>
+                    )}
+                    <Button variant="outline" size="icon" className="w-9 h-9 border-white/5 group-hover:border-primary group-hover:text-primary transition-all">
+                       <ChevronRight size={16} />
+                    </Button>
+                 </div>
+              </div>
+            ))}
          </div>
-
-         {isLoading ? (
-           Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)
-         ) : filteredListings.length === 0 ? (
-           <div className="p-20">
-              <EmptyState
-                 icon={ShoppingBag}
-                 title="No models listed"
-                 description="Try adjusting your filters or be the first to list a model."
-              />
-           </div>
-         ) : (
-           <div className="divide-y divide-vit-border">
-              {filteredListings.map((listing) => (
-                <div key={listing.id} className="p-4 flex items-center justify-between hover:bg-vit-surface-2 transition-colors group cursor-pointer">
-                   <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-vit-surface-3 border border-vit-border flex items-center justify-center text-vit-green group-hover:border-vit-green/30 transition-all">
-                         <Brain size={24} />
-                      </div>
-                      <div>
-                         <h4 className="text-sm font-bold text-vit-text-1">{listing.name}</h4>
-                         <div className="flex items-center gap-2 mt-1">
-                            <Badge className="text-[8px] bg-vit-green-glow text-vit-green border-vit-green/20 uppercase tracking-tighter">{listing.category}</Badge>
-                            <div className="flex items-center gap-1 text-secondary">
-                               <Star size={10} fill="currentColor" />
-                               <span className="text-[10px] font-bold">{listing.avg_rating?.toFixed(1) || '5.0'}</span>
-                            </div>
-                            <span className="text-[10px] text-vit-text-3 uppercase tracking-widest">{listing.usage_count || 0} CALLS</span>
-                         </div>
-                      </div>
-                   </div>
-                   <div className="text-right">
-                      <p className="text-sm font-mono font-bold text-vit-text-1">{listing.price} VIT</p>
-                      <p className="text-[10px] text-vit-text-3">per call</p>
-                   </div>
-                </div>
-              ))}
-           </div>
-         )}
       </div>
     </div>
   );

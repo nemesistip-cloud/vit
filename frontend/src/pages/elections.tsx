@@ -1,130 +1,84 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/apiClient";
 import {
-  Vote, TrendingUp, BarChart2, Globe,
-  ChevronRight, Brain, Zap, Clock, ShieldCheck
+  Globe, TrendingUp, Users, Activity,
+  ChevronRight, Search, Zap, Shield, Radar, BarChart2
 } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import MetricCard from "@/components/cards/MetricCard";
-import CategoryPills from "@/components/layout/CategoryPills";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import MetricCard from "@/components/cards/MetricCard";
+import { cn } from "@/lib/utils";
 
-export default function ElectionsPage() {
-  const [activeCategory, setActiveCategory] = useState("all");
-
-  const categories = [
-    { id: "all", label: "All Elections" },
-    { id: "presidential", label: "Presidential" },
-    { id: "legislative", label: "Legislative" },
-    { id: "regional", label: "Regional" },
+export default function GeopoliticalPage() {
+  const regions = [
+    { name: "US Presidential 2024", type: "Executive", sentiment: "Volatile", accuracy: "84.2%" },
+    { name: "EU Legislative Reform", type: "Legislative", sentiment: "Stable", accuracy: "79.5%" },
+    { name: "UK General Election", type: "Executive", sentiment: "Shifting", accuracy: "81.8%" },
   ];
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
+      {/* ── Header ── */}
+      <div className="space-y-1">
+         <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Geopolitical Forecasting</h1>
+         <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Neural Sentiment & Outcome Analysis</p>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-         <MetricCard
-            label="Active Polls"
-            value="8"
-            icon={<Vote size={16} className="text-vit-green" />}
-         />
-         <MetricCard
-            label="Sentiment Accuracy"
-            value="89.5%"
-            icon={<Brain size={16} className="text-secondary" />}
-         />
-         <MetricCard
-            label="Total Forecasts"
-            value="12.4K"
-            icon={<TrendingUp size={16} className="text-vit-green" />}
-         />
-         <MetricCard
-            label="Network Trust"
-            value="Verified"
-            icon={<ShieldCheck size={16} className="text-vit-purple" />}
-         />
+        <MetricCard label="Active Nodes" value="24" icon={<Globe size={14} />} />
+        <MetricCard label="Sentiment Index" value="Neutral" icon={<Activity size={14} />} />
+        <MetricCard label="Model Drift" value="0.02%" icon={<Zap size={14} />} />
+        <MetricCard label="Confidence" value="82.4%" icon={<Shield size={14} />} />
       </div>
 
-      <CategoryPills
-        items={categories}
-        activeId={activeCategory}
-        onSelect={setActiveCategory}
-      />
-
-      <div className="bg-vit-surface border-y border-vit-border">
-         <div className="px-4 py-3 border-b border-vit-border bg-vit-surface-2 flex justify-between items-center">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3">Election Forecasts</h3>
-            <span className="text-[10px] font-mono text-vit-text-3">8 Active Markets</span>
-         </div>
-
-         <div className="divide-y divide-vit-border">
-            {[
-              { name: "Global Sentiment Index 2026", region: "International", status: "Ongoing", accuracy: "92%" },
-              { name: "Regional Governance Poll", region: "West Africa", status: "Closing Soon", accuracy: "88%" },
-              { name: "Economic Policy Consensus", region: "Nigeria", status: "Active", accuracy: "95%" },
-            ].map((e) => (
-              <div key={e.name} className="p-4 flex items-center justify-between hover:bg-vit-surface-2 transition-colors group cursor-pointer">
-                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-vit-surface-3 border border-vit-border flex items-center justify-center text-vit-green">
-                       <Globe size={24} />
-                    </div>
-                    <div>
-                       <h4 className="text-sm font-bold text-vit-text-1">{e.name}</h4>
-                       <div className="flex items-center gap-2 mt-1">
-                          <Badge className="text-[8px] bg-vit-surface-3 text-vit-text-3 border-vit-border uppercase tracking-tighter">{e.region}</Badge>
-                          <div className="flex items-center gap-1 text-vit-text-3 text-[10px]">
-                             <Clock size={10} />
-                             <span>{e.status}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-vit-green">
-                             <CheckCircle2 size={10} className="w-2.5 h-2.5" />
-                             <span className="text-[10px] font-bold">{e.accuracy} ACC.</span>
-                          </div>
-                       </div>
-                    </div>
-                 </div>
-                 <ChevronRight size={16} className="text-vit-text-3 group-hover:text-vit-text-1 transition-colors" />
-              </div>
-            ))}
-         </div>
-      </div>
-
-      <Card className="bg-vit-surface border-vit-border overflow-hidden">
-         <CardHeader className="bg-vit-surface-2 border-b border-vit-border">
-            <CardTitle className="text-sm font-display font-bold flex items-center gap-2">
-               <Brain size={16} className="text-vit-green" /> AI POLICY SIMULATOR
-            </CardTitle>
-         </CardHeader>
-         <CardContent className="p-10 text-center">
-            <Zap size={40} className="text-secondary/30 mx-auto mb-4" />
-            <p className="text-xs text-vit-text-3 max-w-sm mx-auto mb-6">Simulate the impact of policy changes using the 13-model VIT ensemble before forecasting.</p>
-            <Button size="sm" className="bg-vit-green text-vit-text-inverse font-bold px-6">
-               OPEN SIMULATOR
-            </Button>
+      <Card className="border-primary/20 bg-primary/[0.02] overflow-hidden">
+         <CardContent className="p-8 flex flex-col md:flex-row items-center gap-8">
+            <div className="relative">
+               <Radar size={120} className="text-primary opacity-20 animate-spin-slow" />
+               <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_12px_rgba(0,245,255,0.8)]" />
+               </div>
+            </div>
+            <div className="space-y-3 flex-1">
+               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 uppercase tracking-widest text-[8px]">Scanning Global Pulse</Badge>
+               <h2 className="text-xl font-bold tracking-tight">Active Sentiment Scanning</h2>
+               <p className="text-xs text-muted-foreground leading-relaxed">
+                  VIT ensemble models are currently processing <span className="text-foreground">1.4M data points</span> from global news, social feeds, and market liquidity to forecast high-impact geopolitical events.
+               </p>
+            </div>
          </CardContent>
       </Card>
-    </div>
-  );
-}
 
-function CheckCircle2(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
+      <div className="space-y-4">
+         <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground pl-1">Forecasting Nodes</h3>
+         <div className="border-t border-white/5 bg-background">
+            <div className="divide-y divide-white/5">
+               {regions.map((node) => (
+                  <div key={node.name} className="p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:bg-white/[0.01] transition-all group cursor-pointer">
+                     <div className="flex items-center gap-6 flex-1 w-full">
+                        <div className="w-12 h-12 rounded border border-white/5 bg-white/5 flex items-center justify-center text-primary group-hover:border-primary/20 transition-all">
+                           <BarChart2 size={20} />
+                        </div>
+                        <div className="space-y-1">
+                           <div className="flex items-center gap-3">
+                              <Badge variant="outline" className="text-[8px] border-white/10 uppercase tracking-tighter">{node.type}</Badge>
+                              <span className="text-[9px] font-mono text-vit-positive uppercase tracking-widest">{node.sentiment} SENTIMENT</span>
+                           </div>
+                           <h3 className="text-base font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">{node.name}</h3>
+                        </div>
+                     </div>
+                     <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
+                        <div className="text-right">
+                           <p className="font-mono text-xs font-bold text-foreground">{node.accuracy}</p>
+                           <p className="font-mono text-[8px] text-muted-foreground uppercase mt-1">Alpha Prob</p>
+                        </div>
+                        <ChevronRight size={16} className="text-muted-foreground/20 group-hover:text-primary transition-all" />
+                     </div>
+                  </div>
+               ))}
+            </div>
+         </div>
+      </div>
+    </div>
   );
 }
