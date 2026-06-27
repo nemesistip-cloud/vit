@@ -188,13 +188,13 @@ export default function MatchDetailPage() {
                        <div className="flex items-center justify-between">
                           <span className="text-xs truncate max-w-[100px] text-muted-foreground">{match.home_team}</span>
                           <div className="flex gap-1">
-                             {(recentForm.home || ["W", "D", "L", "W", "W"]).map((r: string, i: number) => <FormBadge key={i} result={r} />)}
+                             {(recentForm.home?.results || ["W", "D", "L", "W", "W"]).map((r: string, i: number) => <FormBadge key={i} result={r} />)}
                           </div>
                        </div>
                        <div className="flex items-center justify-between">
                           <span className="text-xs truncate max-w-[100px] text-muted-foreground">{match.away_team}</span>
                           <div className="flex gap-1">
-                             {(recentForm.away || ["L", "L", "W", "D", "W"]).map((r: string, i: number) => <FormBadge key={i} result={r} />)}
+                             {(recentForm.away?.results || ["L", "L", "W", "D", "W"]).map((r: string, i: number) => <FormBadge key={i} result={r} />)}
                           </div>
                        </div>
                     </CardContent>

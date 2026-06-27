@@ -351,6 +351,7 @@ async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
             form.append("L")
 
     return {
+        "results": form,
         "form": "".join(form) if form else "N/A",
         "matches": [
             {
@@ -553,7 +554,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     ensemble_diversity   = model_weights.get("ensemble_diversity") or None
 
     return {
-        "match": latest,
+        **latest,
         "predictions_count": len(preds),
         "predictions": [
             {
@@ -596,7 +597,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
             "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time),
             "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time),
         },
-        "head_to_head": await _head_to_head(db, match),
+        "h2h": await _head_to_head(db, match),
     }
 
 
