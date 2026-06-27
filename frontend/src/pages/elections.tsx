@@ -1,13 +1,18 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/apiClient";
+import CategoryPills from "@/components/layout/CategoryPills";
 import {
   Vote, TrendingUp, BarChart2, Globe,
-  ChevronRight, Brain, Zap, Clock, ShieldCheck, CheckCircle2
+  ChevronRight, Brain, Zap, Clock, ShieldCheck, CheckCircle2,
+  Radar
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import MetricCard from "@/components/cards/MetricCard";
-import { cn } from "@/lib/utils";
+
+export default function GeopoliticalIntelligencePage() {
+  const [activeCategory, setActiveCategory] = useState("all");
 
   const { data: events, isLoading } = useQuery<any[]>({
     queryKey: ["/api/elections/events"],
