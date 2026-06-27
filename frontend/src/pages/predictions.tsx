@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { safeFormat } from "@/lib/utils";
 import PredictionRow from "@/components/cards/PredictionRow";
 import CategoryPills from "@/components/layout/CategoryPills";
 import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
@@ -73,7 +74,7 @@ export default function PredictionsPage() {
               homeTeam={item.home_team || 'Team A'}
               awayTeam={item.away_team || 'Team B'}
               competition={item.league || 'Competition'}
-              kickoff={item.created_at ? format(new Date(item.created_at), 'MMM dd') : '--'}
+              kickoff={safeFormat(item.created_at, 'MMM dd')}
               odds={item.odds || '--'}
               oddsChange={item.outcome === item.prediction_side ? 2.5 : -1.5}
               badgeLabel={item.prediction_side?.toUpperCase()}

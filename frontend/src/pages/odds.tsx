@@ -102,7 +102,7 @@ export default function OddsPage() {
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3">Market Intelligence</h3>
             {dataUpdatedAt && (
               <span className="text-[9px] font-mono text-vit-text-3 uppercase">
-                Updated {formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true })}
+                Updated {safeFormatDistanceToNow(dataUpdatedAt, { addSuffix: true })}
               </span>
             )}
          </div>
