@@ -72,7 +72,7 @@ function buildContext(match: any, consensus: any): string {
 
   if (match.bet_side || match.recommended_stake) {
     lines.push("");
-    lines.push("=== Best Bet (model recommendation) ===");
+    lines.push("=== Top Signal (model recommendation) ===");
     if (match.bet_side) lines.push(`Side: ${match.bet_side}`);
     if (match.entry_odds) lines.push(`Odds: ${match.entry_odds}`);
     if (match.normalized_edge !== undefined && match.normalized_edge !== null) {
@@ -103,7 +103,7 @@ function buildPrompts(match: any): string[] {
       (match?.home_prob ?? 0) >= (match?.away_prob ?? 0) ? home : away
     } here?`,
     `Is there value on Over 2.5 goals or BTTS in this match?`,
-    `What's the safest bet for ${home} vs ${away}?`,
+    `What's the safest signal for ${home} vs ${away}?`,
     `Summarise the key risks of betting on this fixture.`,
   ];
 }
@@ -201,7 +201,7 @@ export function MatchAssistantCard({ match, consensus }: MatchAssistantCardProps
           </div>
         </div>
         <CardDescription className="font-mono text-xs mt-1">
-          The model's probabilities, odds and best-bet for {match?.home_team} vs {match?.away_team} are pre-loaded as context.
+          The model's probabilities, odds and top-signal for {match?.home_team} vs {match?.away_team} are pre-loaded as context.
         </CardDescription>
       </CardHeader>
 

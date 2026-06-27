@@ -1,15 +1,18 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import {
-  BarChart2, TrendingUp, ShieldCheck, Trophy,
-  Target, Activity, Zap, Users, Brain, Globe
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, BarChart, Bar, Cell
+} from "recharts";
+import {
+  TrendingUp, Activity, BarChart2, Zap, Globe, Brain,
+  ShieldCheck, Cpu, Database, Target, Award, ArrowUpRight
 } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import MetricCard from "@/components/cards/MetricCard";
-import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import MetricCard from "@/components/cards/MetricCard";
+import { cn } from "@/lib/utils";
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState("system");
@@ -39,7 +42,13 @@ export default function AnalyticsPage() {
     : "—";
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
+      {/* ── Header ── */}
+      <div className="space-y-1">
+         <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Network Intelligence</h1>
+         <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Institutional Analytics & Alpha Metrics</p>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
          <MetricCard
             label="Nodes Online"
@@ -64,19 +73,20 @@ export default function AnalyticsPage() {
          />
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-         <TabsList className="bg-vit-surface-2 border border-vit-border p-1 h-10 w-full grid grid-cols-2">
-            <TabsTrigger value="system" className="text-xs font-bold data-[state=active]:bg-vit-surface-3">NETWORK HEALTH</TabsTrigger>
-            <TabsTrigger value="leaderboard" className="text-xs font-bold data-[state=active]:bg-vit-surface-3">ALPHA LEADERBOARD</TabsTrigger>
+      <Tabs defaultValue="system" className="w-full">
+         <TabsList className="w-full h-10 p-1 bg-white/[0.03]">
+            <TabsTrigger value="system" className="flex-1 text-[10px]">NETWORK HEALTH</TabsTrigger>
+            <TabsTrigger value="alpha" className="flex-1 text-[10px]">ALPHA LEADERBOARD</TabsTrigger>
          </TabsList>
 
          <TabsContent value="system" className="mt-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <Card className="bg-vit-surface border-vit-border">
-                  <CardHeader className="pb-3 border-b border-vit-border bg-vit-surface-2">
-                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3 flex items-center gap-2">
-                        <Brain size={14} className="text-vit-green" /> Neural Consensus Engine
+               <Card className="border-white/5 bg-white/[0.01]">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                     <CardTitle className="text-xs flex items-center gap-2">
+                        <Brain size={14} className="text-primary" /> Neural Consensus Hub
                      </CardTitle>
+                     <Badge variant="outline" className="text-[8px]">PROD-V5</Badge>
                   </CardHeader>
                   <CardContent className="p-0">
                      <div className="divide-y divide-vit-border">
@@ -101,13 +111,13 @@ export default function AnalyticsPage() {
                   </CardContent>
                </Card>
 
-               <Card className="bg-vit-surface border-vit-border">
-                  <CardHeader className="pb-3 border-b border-vit-border bg-vit-surface-2">
-                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-vit-text-3 flex items-center gap-2">
-                        <ShieldCheck size={14} className="text-vit-green" /> Infrastructure Nodes
+               <Card className="border-white/5 bg-white/[0.01]">
+                  <CardHeader>
+                     <CardTitle className="text-xs flex items-center gap-2">
+                        <ShieldCheck size={14} className="text-primary" /> Infrastructure Nodes
                      </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 space-y-6">
+                  <CardContent className="space-y-4">
                      <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 rounded-xl bg-vit-surface-2 border border-vit-border">
                            <p className="text-[10px] font-bold text-vit-text-3 uppercase mb-1">Database</p>
@@ -136,15 +146,14 @@ export default function AnalyticsPage() {
             </div>
          </TabsContent>
 
-         <TabsContent value="leaderboard" className="mt-6">
-            <div className="bg-vit-surface border border-vit-border rounded-xl overflow-hidden">
+         <TabsContent value="alpha" className="mt-6">
+            <Card className="border-white/5 bg-transparent overflow-hidden">
                <table className="w-full text-left">
-                  <thead className="bg-vit-surface-2 border-b border-vit-border">
+                  <thead className="bg-white/[0.02] border-b border-white/5">
                      <tr>
-                        <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase">Rank</th>
-                        <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase">Contributor</th>
-                        <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase text-center">Accuracy</th>
-                        <th className="p-4 text-[10px] font-bold text-vit-text-3 uppercase text-right">Yield</th>
+                        <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Rank</th>
+                        <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Analyst</th>
+                        <th className="px-6 py-4 font-display text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Yield</th>
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-vit-border">
@@ -179,7 +188,7 @@ export default function AnalyticsPage() {
                      )}
                   </tbody>
                </table>
-            </div>
+            </Card>
          </TabsContent>
       </Tabs>
     </div>

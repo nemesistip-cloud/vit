@@ -1,27 +1,18 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
-
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  // @replit
-  // Whitespace-nowrap: Badges should never wrap.
-  "whitespace-nowrap inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" +
-  " hover-elevate ",
+  "whitespace-nowrap inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest transition-all focus:outline-none",
   {
     variants: {
       variant: {
-        default:
-          // @replit  instead of , no hover because we use hover-elevate
-          "border-transparent bg-primary text-primary-foreground ",
-        secondary:
-          // @replit no hover because we use hover-elevate
-          "border-transparent bg-secondary text-secondary-foreground",
-        destructive:
-          // @replit  instead of , no hover because we use hover-elevate
-          "border-transparent bg-destructive text-destructive-foreground ",
-          // @replit " - use badge outline variable
-        outline: "text-foreground border [border-color:var(--badge-outline)]",
+        default: "border-transparent bg-primary text-primary-foreground shadow-sm",
+        secondary: "border-transparent bg-secondary text-secondary-foreground shadow-sm",
+        destructive: "border-transparent bg-destructive text-destructive-foreground shadow-sm",
+        outline: "text-muted-foreground border-white/10 bg-white/[0.02]",
+        success: "border-transparent bg-vit-positive/10 text-vit-positive",
+        warning: "border-transparent bg-amber-500/10 text-amber-500",
       },
     },
     defaultVariants: {

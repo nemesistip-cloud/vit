@@ -112,7 +112,7 @@ export default function AccumulatorPage() {
 
   const placeBetMutation = useMutation<BetReceipt, Error, { accIdx: number; acc: Accumulator; stake: number; currency: string }>({
     mutationFn: ({ acc, stake, currency }) =>
-      apiPost<BetReceipt>("/api/admin/accumulator/place-bet", { accumulator: acc, stake, currency }),
+      apiPost<BetReceipt>("/api/admin/accumulator/deploy-signal", { accumulator: acc, stake, currency }),
     onSuccess: (receipt, vars) => {
       setReceipts((r) => ({ ...r, [vars.accIdx]: receipt }));
       toast.success(`✅ Signal registered! Potential payout: ${receipt.currency} ${receipt.potential_payout.toFixed(2)}`);

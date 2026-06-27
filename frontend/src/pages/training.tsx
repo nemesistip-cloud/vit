@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import { useListTrainingJobs, useGetModelPerformance, useUploadTrainingData, API } from "@/api-client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost, apiDelete, apiFormPost } from "@/lib/apiClient";
+import { apiGet, apiPost } from "@/lib/apiClient";
+import {
+  Brain, Cpu, Database, Activity, RefreshCw, Play,
+  CheckCircle2, AlertCircle, Clock, ChevronRight, BarChart3,
+  Layers, Zap, Shield
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Terminal, Database, Server, Cpu, Activity, Upload, FolderOpen, GitCompare, Trash2, BookOpen, ChevronDown, ChevronUp, ExternalLink, History, Rocket, Undo2, CheckCircle2, Clock, Globe } from "lucide-react";
 import { format } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip as RechartsTooltip, CartesianGrid } from "recharts";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export default function TrainingPage() {

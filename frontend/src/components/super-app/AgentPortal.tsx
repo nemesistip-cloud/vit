@@ -54,7 +54,7 @@ export function AgentPortal() {
             <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center mb-2">
               <Store className="w-5 h-5 text-primary" />
             </div>
-            <CardTitle className="text-lg font-mono">Betting Shop Agent</CardTitle>
+            <CardTitle className="text-lg font-mono">Market Liquidity Agent</CardTitle>
             <CardDescription className="text-xs font-mono">Run a VIT Terminal in your existing shop. Earn 5-10% commissions.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

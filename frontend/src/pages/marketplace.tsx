@@ -1,22 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/apiClient";
 import {
-  ShoppingBag, Search, Filter, Star, Zap, BarChart3,
-  ChevronRight, Brain, Shield, Info
+  ShoppingBag, Zap, Brain, BarChart3, Search,
+  Filter, ChevronRight, Globe, Layers, Cpu, Database
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import CategoryPills from "@/components/layout/CategoryPills";
 import MetricCard from "@/components/cards/MetricCard";
-import { RowSkeleton } from "@/components/skeletons/RowSkeleton";
-import { EmptyState } from "@/components/empty-state";
+import { cn } from "@/lib/utils";
 
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
 
   const { data: listings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/marketplace/listings"],
@@ -78,26 +75,21 @@ export default function MarketplacePage() {
          />
       </div>
 
-      <div className="flex items-center justify-between gap-4 px-1">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-vit-text-3" />
-          <Input
-            placeholder="Search prediction models..."
-            className="pl-10 bg-vit-surface-2 border-vit-border rounded-full h-10 text-sm"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Button variant="outline" className="border-vit-border rounded-full h-10 px-6 font-bold text-xs">
-           LIST MODEL
-        </Button>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <MetricCard label="Active Listings" value="42" icon={<ShoppingBag size={14} />} />
+        <MetricCard label="Avg Yield" value="12.4%" icon={<Zap size={14} />} />
+        <MetricCard label="Nodes Active" value="14" icon={<Globe size={14} />} />
       </div>
 
-      <CategoryPills
-        items={categories}
-        activeId={activeCategory}
-        onSelect={setActiveCategory}
-      />
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
+        <Input
+          placeholder="Search alpha, models, or data sets..."
+          className="pl-9 bg-white/[0.02] border-white/5 h-10 text-xs font-mono"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
       <div className="bg-vit-surface border-y border-vit-border">
          <div className="px-4 py-3 border-b border-vit-border bg-vit-surface-2 flex justify-between items-center">

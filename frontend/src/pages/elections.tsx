@@ -1,19 +1,13 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/apiClient";
 import {
   Vote, TrendingUp, BarChart2, Globe,
   ChevronRight, Brain, Zap, Clock, ShieldCheck, CheckCircle2
 } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import MetricCard from "@/components/cards/MetricCard";
-import CategoryPills from "@/components/layout/CategoryPills";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-
-export default function ElectionsPage() {
-  const [activeCategory, setActiveCategory] = useState("all");
+import { Input } from "@/components/ui/input";
+import MetricCard from "@/components/cards/MetricCard";
+import { cn } from "@/lib/utils";
 
   const { data: events, isLoading } = useQuery<any[]>({
     queryKey: ["/api/elections/events"],
@@ -113,18 +107,21 @@ export default function ElectionsPage() {
          </div>
       </div>
 
-      <Card className="bg-vit-surface border-vit-border overflow-hidden">
-         <CardHeader className="bg-vit-surface-2 border-b border-vit-border">
-            <CardTitle className="text-sm font-display font-bold flex items-center gap-2">
-               <Brain size={16} className="text-vit-green" /> AI POLICY SIMULATOR
-            </CardTitle>
-         </CardHeader>
-         <CardContent className="p-10 text-center">
-            <Zap size={40} className="text-secondary/30 mx-auto mb-4" />
-            <p className="text-xs text-vit-text-3 max-w-sm mx-auto mb-6">Simulate the impact of policy changes using the 13-model VIT ensemble before forecasting.</p>
-            <Button size="sm" className="bg-vit-green text-vit-text-inverse font-bold px-6">
-               OPEN SIMULATOR
-            </Button>
+      <Card className="border-primary/20 bg-primary/[0.02] overflow-hidden">
+         <CardContent className="p-8 flex flex-col md:flex-row items-center gap-8">
+            <div className="relative">
+               <Radar size={120} className="text-primary opacity-20 animate-spin-slow" />
+               <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_12px_rgba(0,245,255,0.8)]" />
+               </div>
+            </div>
+            <div className="space-y-3 flex-1">
+               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 uppercase tracking-widest text-[8px]">Scanning Global Pulse</Badge>
+               <h2 className="text-xl font-bold tracking-tight">Active Sentiment Scanning</h2>
+               <p className="text-xs text-muted-foreground leading-relaxed">
+                  VIT ensemble models are currently processing <span className="text-foreground">1.4M data points</span> from global news, social feeds, and market liquidity to forecast high-impact geopolitical events.
+               </p>
+            </div>
          </CardContent>
       </Card>
     </div>

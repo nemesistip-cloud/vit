@@ -26,19 +26,17 @@ export default function MetricCard({
   loading = false,
   className,
 }: MetricCardProps) {
-  const pad = variant === 'hero' ? 'p-6' : variant === 'compact' ? 'p-3' : 'p-4';
+  const pad = variant === 'hero' ? 'p-8' : variant === 'compact' ? 'p-4' : 'p-6';
 
   if (loading) {
     return (
       <div
-        className={cn('bg-card border border-border rounded-xl flex gap-3', pad, className)}
+        className={cn('bg-white/[0.01] border border-white/5 rounded flex gap-4', pad, className)}
         aria-hidden="true"
       >
-        {icon && <Skeleton className="w-9 h-9 rounded-lg flex-shrink-0" />}
-        <div className="flex-1 space-y-1.5">
-          <Skeleton className="h-2.5 w-1/3" />
-          <Skeleton className={cn('w-2/3', variant === 'hero' ? 'h-8' : 'h-5')} />
-          <Skeleton className="h-2.5 w-1/4" />
+        <div className="flex-1 space-y-3">
+          <Skeleton className="h-2 w-1/3 bg-white/5" />
+          <Skeleton className={cn('w-2/3 bg-white/5', variant === 'hero' ? 'h-10' : 'h-6')} />
         </div>
       </div>
     );
@@ -47,28 +45,29 @@ export default function MetricCard({
   return (
     <div
       className={cn(
-        'bg-card border border-border rounded-xl flex gap-3 transition-colors hover:border-primary/20 group',
+        'bg-white/[0.01] border border-white/5 rounded-sm flex flex-col gap-3 transition-all hover:bg-white/[0.02] hover:border-white/10 group shadow-sm',
         pad,
         className
       )}
       role="region"
       aria-label={label}
     >
-      {icon && (
-        <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors group-hover:bg-primary/15">
-          {icon}
-        </div>
-      )}
-
-      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-        <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] font-semibold font-mono leading-none">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] text-muted-foreground uppercase tracking-[0.2em] font-bold font-mono leading-none">
           {label}
         </span>
+        {icon && (
+          <div className="text-muted-foreground group-hover:text-primary transition-colors opacity-50 group-hover:opacity-100">
+            {icon}
+          </div>
+        )}
+      </div>
 
+      <div className="flex items-baseline justify-between gap-2 mt-auto">
         <span
           className={cn(
-            'font-mono font-bold text-foreground leading-tight tabular-nums',
-            variant === 'hero' ? 'text-4xl' : 'text-lg'
+            'font-display font-bold text-foreground leading-none tracking-tight tabular-nums',
+            variant === 'hero' ? 'text-4xl' : 'text-2xl'
           )}
         >
           {value ?? '—'}
@@ -77,24 +76,24 @@ export default function MetricCard({
         {change !== undefined && (
           <span
             className={cn(
-              'flex items-center gap-0.5 text-xs font-mono font-semibold',
-              changePositive ? 'text-emerald-400' : 'text-rose-400'
+              'flex items-center gap-0.5 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full',
+              changePositive ? 'text-emerald-400 bg-emerald-400/10' : 'text-amber-500 bg-amber-500/10'
             )}
             aria-label={`${changePositive ? 'Up' : 'Down'} ${change}`}
           >
             {changePositive
-              ? <ArrowUpRight size={11} />
-              : <ArrowDownRight size={11} />}
+              ? <ArrowUpRight size={10} strokeWidth={3} />
+              : <ArrowDownRight size={10} strokeWidth={3} />}
             {change}
           </span>
         )}
-
-        {subtitle && (
-          <span className="text-xs text-muted-foreground leading-none mt-0.5 truncate">
-            {subtitle}
-          </span>
-        )}
       </div>
+
+      {subtitle && (
+        <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest leading-none mt-1 truncate">
+          {subtitle}
+        </span>
+      )}
     </div>
   );
 }

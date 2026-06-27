@@ -45,7 +45,18 @@ export default function GovernancePage() {
   const protocolStatus = summary?.total_predictions ? "STABLE" : "—";
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500 px-1">
+      {/* ── Header ── */}
+      <div className="flex items-end justify-between">
+         <div className="space-y-1">
+            <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-foreground">Protocol Governance</h1>
+            <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Decentralized Decision Engine</p>
+         </div>
+         <Button size="sm" className="h-9 px-4 rounded shadow-lg shadow-primary/20 uppercase tracking-widest text-[10px] font-bold">
+            <Plus size={14} className="mr-2" /> Draft Proposal
+         </Button>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
          <MetricCard
             variant="hero"
@@ -70,15 +81,12 @@ export default function GovernancePage() {
          />
       </div>
 
-      <div className="flex items-center justify-between gap-4 px-1">
+      <div className="px-1">
         <CategoryPills
           items={categories}
           activeId={activeTab}
           onSelect={setActiveTab}
         />
-        <Button size="sm" className="bg-vit-green text-vit-text-inverse font-bold rounded-full gap-2">
-           <Plus size={14} /> NEW PROPOSAL
-        </Button>
       </div>
 
       <div className="space-y-4">
