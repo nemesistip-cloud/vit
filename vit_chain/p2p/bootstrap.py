@@ -24,8 +24,7 @@ class BootstrapManager:
                 try:
                     async with session.get(node["http_url"], timeout=10) as resp:
                         if resp.status == 200:
-                            data = await resp.json()
-                            peers = data.get("peers") if isinstance(data, dict) else data
+                            peers = await resp.json()
                             if isinstance(peers, list):
                                 all_peers.extend(peers)
                 except Exception:

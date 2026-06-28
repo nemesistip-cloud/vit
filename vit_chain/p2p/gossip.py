@@ -17,12 +17,10 @@ class GossipHandler:
     SEEN_CACHE_SIZE = 10000
 
     def __init__(self, connection_manager: ConnectionManager,
-                 chain: VITChain = None, mempool: Mempool = None,
-                 monitor: Any = None):
+                 chain: VITChain = None, mempool: Mempool = None):
         self.connection_manager = connection_manager
         self.chain = chain or VITChain()
         self.mempool = mempool or Mempool()
-        self.monitor = monitor
         self.seen_messages_queue = deque(maxlen=self.SEEN_CACHE_SIZE)
         self.seen_messages_set: Set[str] = set()
         self._seen_lock = asyncio.Lock()
@@ -58,19 +56,6 @@ class GossipHandler:
             await self._handle_blocks_response(msg["blocks"], from_node_id, db)
         elif msg_type == MessageType.HANDSHAKE:
             await self._handle_handshake(msg, from_node_id, db)
-        elif msg_type == MessageType.PONG:
-            if self.monitor:
-                self.monitor.missed_pings[from_node_id] = 0
-
-            # Update score in DB periodically or on latency change
-            if db:
-                from .registry import PeerRegistry
-                registry = PeerRegistry()
-                if from_node_id in self.connection_manager.connections:
-                    latency = self.connection_manager.connections[from_node_id].latency_ms
-                    await registry.mark_seen(db, from_node_id, latency)
-                    await db.commit()
-
         elif msg_type == MessageType.PEERS_RESPONSE:
             # Handle in discovery/connection logic
             pass
