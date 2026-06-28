@@ -1,30 +1,25 @@
-# AUDIT - vit_chain (Session 1.2)
+# AUDIT - vit_chain
 
 ## Status
-Audit for Chain State Machine implementation. Cryptographic foundation (Session 1.1) is complete and verified.
+Initial audit for `vit_chain` package. This is a new package part of Track 1 — VIT Chain Core.
 
 ## What Exists
-- `vit_chain/crypto/`: Hashing, Merkle, ECDSA, and Address utilities.
-- `vit_chain/core/`: Package initialized.
-- Existing database models in `app/db/models.py` and `app/modules/wallet/models.py` for `User` and `Wallet`.
+- `vit_chain/` directory structure.
+- `requirements.txt` updated with `eth-hash[pycryptodome]` and `coincurve`.
 
 ## What's Missing
-- `vit_chain/core/transaction.py`: Transaction structure and Mempool.
-- `vit_chain/core/block.py`: Block structure and validation.
-- `vit_chain/core/state.py`: Chain state management (balances, nonces).
-- `vit_chain/core/chain.py`: Blockchain management logic.
-- `vit_chain/genesis.py`: Genesis block creation and initialization.
-- `vit_chain/tests/test_chain.py`: Integration tests for the state machine.
+- `vit_chain/crypto/hash.py`: Cryptographic hashing functions.
+- `vit_chain/crypto/merkle.py`: Merkle Tree implementation.
+- `vit_chain/crypto/ecdsa.py`: ECDSA keypair generation and signing.
+- `vit_chain/crypto/address.py`: VIT address derivation.
+- `vit_chain/tests/test_crypto.py`: Test suite for the above.
 
-## Implementation Details
-- `VITTransaction` will use `keccak256` for its hash.
-- `Mempool` will prioritize transactions by `gas_fee`.
-- `ChainState` will interact with `Wallet` models for balances and `User` models for identity.
-- Genesis block will mint the initial 1M VITCoin to the treasury.
-- All database mutations will be performed within `async with db.begin()` to ensure atomicity.
+## What's Broken
+- N/A (New implementation).
 
-## Hard Constraints Check
-- No modifications to `main.py`.
-- No new SQLAlchemy models — using existing `Wallet` and `User`.
-- No `os.getenv()` — using `get_env` from `app.config`.
-- Async SQLAlchemy only.
+## Implementation Plan
+1. Implement `hash.py` using `hashlib` and `eth-hash`.
+2. Implement `merkle.py` for block and transaction hashing.
+3. Implement `ecdsa.py` using `coincurve`.
+4. Implement `address.py` following the specified derivation path.
+5. Verify everything with `test_crypto.py`.
