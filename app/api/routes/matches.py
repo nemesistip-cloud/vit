@@ -613,7 +613,8 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         },
         "predictions_count": len(preds),
         "enabled_markets": markets,
-        "form": {
+        "recent_form": {
+            "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time),
             "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time),
         },
         "h2h": await _head_to_head(db, match),
