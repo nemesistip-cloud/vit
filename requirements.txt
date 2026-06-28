@@ -17,6 +17,7 @@ firebase-admin>=6.5.0
 fpdf2
 google-api-python-client
 google-auth
+google-auth-httplib2
 google-cloud-secret-manager
 greenlet
 gunicorn

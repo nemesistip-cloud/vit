@@ -21,6 +21,8 @@ from tachyon.providers.disk import DiskProvider
 from tachyon.providers.dropbox import DropboxProvider
 from tachyon.providers.gdrive import GoogleDriveProvider
 from tachyon.providers.onedrive import OneDriveProvider
+from tachyon.core.s3_compat import router as s3_router
+from tachyon.api.admin_routes import router as admin_router
 
 logger = logging.getLogger(__name__)
 
@@ -446,3 +448,6 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         "tachyon_disk_gb": round(tachyon_disk_bytes / (1024 ** 3), 3),
         "disk": disk_info,
     }
+
+router.include_router(s3_router, prefix="/s3", tags=["tachyon-s3"])
+router.include_router(admin_router, prefix="/admin", tags=["tachyon-admin"])

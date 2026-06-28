@@ -1,28 +1,33 @@
 import asyncio
 import logging
 import random
-from sqlalchemy import select
+import json
+from datetime import datetime, timezone
+from sqlalchemy import select, func
 from app.db.database import AsyncSessionLocal
-from app.modules.storage_verification.models import StorageProof, StorageProofStatus
-from app.modules.storage_verification.service import issue_challenge, respond_to_challenge
+from app.modules.storage_verification.models import TachyonManifest
+from tachyon.core.orchestrator import TachyonOrchestrator
+from tachyon.core.healing import SelfHealingManager
 
 logger = logging.getLogger(__name__)
 
 class TachyonVerificationWorker:
     """
-    Background worker that periodically audits storage nodes.
+    Background worker that periodically audits Tachyon manifests.
     """
 
     def __init__(self, interval_seconds: int = 3600):
         self.interval = interval_seconds
         self.running = False
+        self.orchestrator = TachyonOrchestrator()
+        self.healing = SelfHealingManager()
 
     async def start(self):
         self.running = True
         logger.info(f"Tachyon Verification Worker started (interval: {self.interval}s)")
         while self.running:
             try:
-                await self.audit_cycle()
+                await self.run_verification_cycle()
             except Exception as e:
                 logger.error(f"Error in verification audit cycle: {e}")
             await asyncio.sleep(self.interval)
@@ -30,36 +35,63 @@ class TachyonVerificationWorker:
     async def stop(self):
         self.running = False
 
-    async def audit_cycle(self):
-        """Randomly challenge a subset of anchored proofs."""
+    async def run_verification_cycle(self):
+        """Audit up to 50 manifests with the oldest last_verified_at."""
         async with AsyncSessionLocal() as db:
-            # Find anchored proofs to challenge
-            stmt = select(StorageProof).where(
-                StorageProof.status == StorageProofStatus.ANCHORED
-            ).limit(10)
-
+            # We need to sort by last_verified_at stored in JSON
+            # Since SQL sorting on JSON can be complex, we fetch active ones and sort in Python
+            # In production, we'd use a more optimized query or a dedicated column
+            stmt = select(TachyonManifest).limit(200) # Buffer to find candidates
             result = await db.execute(stmt)
-            proofs = result.scalars().all()
+            manifests = result.scalars().all()
 
-            if not proofs:
+            # Filter active and sort by last_verified_at
+            candidates = []
+            for m in manifests:
+                meta = m.provider_mapping.get("_metadata", {})
+                if meta.get("status") == "active":
+                    lva_str = meta.get("last_verified_at")
+                    lva = datetime.fromisoformat(lva_str) if lva_str else datetime.min
+                    candidates.append((lva, m))
+
+            candidates.sort(key=lambda x: x[0])
+            to_verify = [c[1] for c in candidates[:50]]
+
+            if not to_verify:
                 return
 
-            logger.info(f"Issuing challenges for {len(proofs)} storage proofs")
-            for proof in proofs:
-                challenge = await issue_challenge(db, proof.id)
-                # In this simulated cycle, we will auto-respond with valid data
-                # to simulate nodes being honest.
-                # In a real distributed system, the node would receive the challenge via RPC.
+            logger.info(f"Auditing {len(to_verify)} Tachyon manifests")
+            stats = {"checked": 0, "healthy": 0, "degraded": 0, "healed": 0}
 
-                # Simulate network delay
-                await asyncio.sleep(0.5)
+            for manifest in to_verify:
+                try:
+                    result = await self.orchestrator.verify(db, manifest.file_id)
+                    stats["checked"] += 1
+                    if result["verified"]:
+                        stats["healthy"] += 1
+                    else:
+                        stats["degraded"] += 1
+                        # Publish degradation event
+                        from app.services.cache import _get_redis
+                        redis = _get_redis()
+                        if redis:
+                            await redis.publish("vit:tachyon:shard_degraded", json.dumps({"file_id": manifest.file_id}))
 
-                # For simulation, just provide valid response
-                # (The expected hash was derived from proof.proof_hash in service.py)
-                # Here we just trigger the resolution logic
-                await respond_to_challenge(db, challenge.id, "simulated_honest_response_data")
+                        # Trigger healing
+                        logger.info(f"Triggering healing for degraded manifest: {manifest.file_id}")
+                        async with db.begin_nested():
+                            healed = await self.healing.heal_manifest(db, manifest, self.orchestrator.pool, self.orchestrator.codec)
+                            if healed:
+                                stats["healed"] += 1
+                except Exception as e:
+                    logger.error(f"Failed to verify/heal {manifest.file_id}: {e}")
 
-            logger.info("Verification audit cycle complete")
+            await db.commit()
+            logger.info(f"Verification audit cycle complete: {stats}")
+
+    async def audit_cycle(self):
+        # Compatibility shim for old interface if needed, but spec says update to manifest verification
+        await self.run_verification_cycle()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
