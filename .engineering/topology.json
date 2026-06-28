@@ -1,0 +1,19 @@
+{
+  "nodes": [
+    {"id": "app", "label": "Main Application (FastAPI)", "domain": "Core"},
+    {"id": "packages", "label": "Shared Packages (Contracts/SDK)", "domain": "Blockchain"},
+    {"id": "tachyon", "label": "Tachyon Engine (Real-time)", "domain": "Tachyon"},
+    {"id": "frontend", "label": "Frontend (React)", "domain": "Frontend"},
+    {"id": "infrastructure", "label": "Infrastructure (GCP/Render)", "domain": "Infrastructure"},
+    {"id": "database", "label": "PostgreSQL Database", "domain": "Database"}
+  ],
+  "edges": [
+    {"source": "app", "target": "database", "relation": "reads/writes"},
+    {"source": "app", "target": "packages", "relation": "uses sdk/contracts"},
+    {"source": "tachyon", "target": "app", "relation": "integrates via api"},
+    {"source": "tachyon", "target": "database", "relation": "reads/writes"},
+    {"source": "frontend", "target": "app", "relation": "consumes apis"},
+    {"source": "infrastructure", "target": "app", "relation": "deploys"},
+    {"source": "infrastructure", "target": "tachyon", "relation": "deploys"}
+  ]
+}
