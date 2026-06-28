@@ -365,3 +365,28 @@ async def get_storage_stats(db: AsyncSession) -> dict:
             {"name": n.alias or n.provider, "bytes_stored": int(n.gb_used * 1024**3)} for n in nodes
         ]
     }
+
+async def list_storage_nodes(db: AsyncSession, limit: int = 50) -> list[dict]:
+    """List all active storage nodes with their health and contribution metrics."""
+    from app.modules.storage_verification.models import UserStorageNode
+    from sqlalchemy import select
+
+    query = select(UserStorageNode).where(UserStorageNode.status == "active").order_by(UserStorageNode.reliability_score.desc()).limit(limit)
+    result = await db.execute(query)
+    nodes = result.scalars().all()
+
+    return [
+        {
+            "id": n.id,
+            "alias": n.alias,
+            "provider": n.provider,
+            "status": n.status,
+            "reliability": float(n.reliability_score),
+            "gb_contributed": float(n.gb_contributed),
+            "gb_used": float(n.gb_used),
+            "tsc_earned": float(n.tsc_earned),
+            "verification_rate": (n.verification_pass / n.verification_count * 100) if n.verification_count > 0 else 100.0,
+            "last_verified": n.last_verified_at.isoformat() if n.last_verified_at else None,
+        }
+        for n in nodes
+    ]

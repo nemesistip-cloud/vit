@@ -27,9 +27,9 @@ export default function GovernancePage() {
     queryFn: () => apiGet("/api/governance/stats"),
   });
 
-  const { data: proposals = [], isLoading: loadingProposals } = useQuery<any[]>({
+  const { data: proposalsData, isLoading: loadingProposals } = useQuery<any>({
     queryKey: ["/api/governance/proposals", activeTab],
-    queryFn: () => apiGet(`/api/governance/proposals?category=${activeTab}`),
+    queryFn: () => apiGet(`/api/governance/proposals?category=${activeTab === "all" ? "" : activeTab}`),
   });
 
   const categories = [
@@ -39,6 +39,7 @@ export default function GovernancePage() {
     { id: "parameters", label: "Parameters" },
   ];
 
+  const proposals = proposalsData?.items || [];
   const vitPower = user?.merit_score ? (user.merit_score / 1000).toFixed(1) + "K" : "—";
   const participation = stats?.participation_rate ? (stats.participation_rate * 100).toFixed(1) + "%" : "—";
   const activeVotes = stats?.active_proposals ?? "—";

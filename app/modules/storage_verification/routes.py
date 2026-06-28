@@ -187,3 +187,8 @@ async def attest(req: AttestRequest, db: AsyncSession = Depends(get_db)):
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/nodes")
+async def get_storage_nodes(limit: int = 50, db: AsyncSession = Depends(get_db)):
+    from app.modules.storage_verification.service import list_storage_nodes
+    return await list_storage_nodes(db, limit=limit)

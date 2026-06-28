@@ -8,7 +8,7 @@ from app.modules.storage_verification.models import ContentHashRegistry
 async def test_list_objects_empty():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.get("/api/objects")
+        response = await ac.get("/api/storage/objects")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
@@ -16,7 +16,7 @@ async def test_list_objects_empty():
 async def test_list_objects_with_data():
     async with AsyncSessionLocal() as db:
         content = ContentHashRegistry(
-            content_hash="0xTEST",
+            content_hash="0xTEST_1782626733.8523111",
             content_type="text/plain",
             description="Test object",
             size_bytes=100
@@ -26,15 +26,15 @@ async def test_list_objects_with_data():
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.get("/api/objects")
+        response = await ac.get("/api/storage/objects")
 
     assert response.status_code == 200
     data = response.json()
     assert len(data) >= 1
-    assert any(obj["content_hash"] == "0xTEST" for obj in data)
+    assert any(obj["content_hash"] == "0xTEST_1782626733.8523111" for obj in data)
 
     # Cleanup
     async with AsyncSessionLocal() as db:
         from sqlalchemy import delete
-        await db.execute(delete(ContentHashRegistry).where(ContentHashRegistry.content_hash == "0xTEST"))
+        await db.execute(delete(ContentHashRegistry).where(ContentHashRegistry.content_hash == "0xTEST_1782626733.8523111"))
         await db.commit()
