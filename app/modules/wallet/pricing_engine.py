@@ -184,22 +184,6 @@ class VITCoinPricingEngine:
         final_price = max(computed_price, floor_usd)
 
         result = {
-            "price_usd": float(final_price),
-            "phase": phase,
-            "floor_usd": float(floor_usd),
-            "governors": {
-                "g1": float(g1),
-                "g2": float(g2),
-                "g3": float(g3)
-            },
-            "computed_at": datetime.now(timezone.utc).isoformat()
-        }
-
-        # 6. Cache and Return
-        await cache.set(PRICE_CACHE_KEY, result, ttl=60)
-
-        # Return with original types for internal use, but cached as JSON-serializable
-        return {
             "price_usd": final_price,
             "phase": phase,
             "floor_usd": floor_usd,
@@ -210,3 +194,7 @@ class VITCoinPricingEngine:
             },
             "computed_at": datetime.now(timezone.utc)
         }
+
+        # 6. Cache and Return
+        await cache.set(PRICE_CACHE_KEY, result, ttl=60)
+        return result
