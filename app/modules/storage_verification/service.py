@@ -25,6 +25,10 @@ from app.modules.wallet.services import WalletService
 logger = logging.getLogger(__name__)
 
 
+def _now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _sha3(data: str) -> str:
     return "0x" + hashlib.sha3_256(data.encode()).hexdigest()
 
@@ -69,7 +73,7 @@ async def register_content(
         tachyon_shards=tachyon_shards,
         tachyon_parity_shards=tachyon_parity_shards,
         quantum_state_hash=quantum_state_hash,
-        registered_at=datetime.now(timezone.utc),
+        registered_at=_now_naive(),
     )
     db.add(entry)
     await db.commit()
@@ -106,13 +110,13 @@ async def submit_storage_proof(
         proof_hash=proof_hash,
         stake_locked=stake_locked,
         status=StorageProofStatus.ANCHORED,
-        submitted_at=datetime.now(timezone.utc),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=validity_days),
+        submitted_at=_now_naive(),
+        expires_at=_now_naive() + timedelta(days=validity_days),
     )
     db.add(proof)
 
     content.replication_factor += 1
-    content.last_verified_at = datetime.now(timezone.utc)
+    content.last_verified_at = _now_naive()
 
     await db.commit()
     await db.refresh(proof)
@@ -128,6 +132,12 @@ async def issue_challenge(
     proof = await db.get(StorageProof, proof_id)
     if not proof:
         raise ValueError("Proof not found")
+    # Check for existing challenge to prevent UNIQUE constraint failure
+    stmt = select(StorageChallenge).where(StorageChallenge.proof_id == proof_id)
+    existing = (await db.execute(stmt)).scalar_one_or_none()
+    if existing:
+        return existing
+
     if proof.status == StorageProofStatus.CHALLENGED:
         raise ValueError("Already challenged")
 
@@ -139,7 +149,7 @@ async def issue_challenge(
         challenger_user_id=challenger_user_id,
         challenge_nonce=nonce,
         expected_response_hash=expected,
-        response_deadline=datetime.now(timezone.utc) + timedelta(hours=response_hours),
+        response_deadline=_now_naive() + timedelta(hours=response_hours),
     )
     db.add(challenge)
     proof.status = StorageProofStatus.CHALLENGED
@@ -158,26 +168,26 @@ async def respond_to_challenge(
         raise ValueError("Challenge not found")
     if challenge.status != ChallengeStatus.OPEN:
         raise ValueError("Challenge not open")
-    if datetime.now(timezone.utc) > challenge.response_deadline:
+    if _now_naive() > challenge.response_deadline:
         challenge.status = ChallengeStatus.EXPIRED
         await db.commit()
         raise ValueError("Challenge deadline passed")
 
     response_hash = _sha3(f"{challenge.challenge_nonce}:{response_data}")
     challenge.actual_response_hash = response_hash
-    challenge.responded_at = datetime.now(timezone.utc)
+    challenge.responded_at = _now_naive()
 
     valid = response_hash == challenge.expected_response_hash
     challenge.status = (
         ChallengeStatus.RESOLVED_VALID if valid else ChallengeStatus.RESOLVED_INVALID
     )
-    challenge.resolved_at = datetime.now(timezone.utc)
+    challenge.resolved_at = _now_naive()
 
     proof = await db.get(StorageProof, challenge.proof_id)
     if proof:
         if valid:
             proof.status = StorageProofStatus.VERIFIED
-            proof.verified_at = datetime.now(timezone.utc)
+            proof.verified_at = _now_naive()
             reward = proof.stake_locked * Decimal("0.1")
             proof.reward_earned = reward
 
@@ -203,7 +213,7 @@ async def respond_to_challenge(
                         node.tsc_earned += reward
                         node.verification_count += 1
                         node.verification_pass += 1
-                        node.last_verified_at = datetime.now(timezone.utc)
+                        node.last_verified_at = _now_naive()
                         # Calculate reliability score (EWMA style)
                         node.reliability_score = Decimal(str(min(1.0, float(node.reliability_score) * 0.95 + 0.05)))
                 except Exception as e:
@@ -254,7 +264,7 @@ async def attest_availability(
         existing.available = available
         existing.latency_ms = latency_ms
         existing.signature = signature
-        existing.attested_at = datetime.now(timezone.utc)
+        existing.attested_at = _now_naive()
         await db.commit()
         await db.refresh(existing)
         return existing

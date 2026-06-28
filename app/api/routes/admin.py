@@ -174,7 +174,7 @@ async def update_user(
     body: UpdateUserBody,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_super_admin),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
     u = result.scalar_one_or_none()
@@ -319,7 +319,7 @@ async def delete_match(
     match_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_super_admin),
 ):
     result = await db.execute(select(Match).where(Match.id == match_id))
     m = result.scalar_one_or_none()
@@ -410,7 +410,7 @@ async def update_config(
     body: ConfigUpdateBody,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_super_admin),
 ):
     result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == key))
     cfg = result.scalar_one_or_none()
@@ -769,7 +769,7 @@ async def slash_validator(
     body: SlashBody,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_super_admin),
 ):
     try:
         from app.modules.blockchain.models import ValidatorProfile, ValidatorSlashEvent
