@@ -5,7 +5,8 @@ import { useAuth } from "@/lib/auth";
 import {
   TrendingUp, Activity, BarChart2, Zap, ArrowRight,
   ArrowUpRight, ArrowDownRight, RefreshCw, Layers,
-  Wallet, Landmark, ShieldCheck, Search
+  Wallet, Landmark, ShieldCheck, Search,
+  Trophy, Shield, Clock, AlertTriangle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
