@@ -53,7 +53,7 @@ import app.modules.prophecy_chain.models
 import app.modules.community.models
 import app.modules.watchlist.models
 import app.modules.academy.models
-from app.api.routes import admin_soc, admin_finance, admin_search, admin_ops, admin_ws
+from app.api.routes import admin_finance, admin_ops
 import app.modules.ai_core.models
 import app.modules.quant.models
 
