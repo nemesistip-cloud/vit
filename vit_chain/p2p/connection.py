@@ -99,8 +99,6 @@ class PeerConnection:
                             await self.ws.send(serialize(MessageType.PONG, timestamp=msg["timestamp"]))
                         elif msg["type"] == MessageType.PONG:
                             self._latency = int((time.time() * 1000) - msg["timestamp"])
-                            # Notify handler or monitor if needed to reset missed pings
-                            await handler(msg, self.node_id, None) # Pass None for DB if not needed for PONG
                         else:
                             async with db_factory() as db:
                                 await handler(msg, self.node_id, db)
@@ -114,8 +112,7 @@ class PeerConnection:
 
     @property
     def is_connected(self) -> bool:
-        # Check ws.open if it's a real websocket, or trust status if it's a mock/server-side wrapper
-        return self.ws is not None and getattr(self.ws, "open", True) and self._handshake_complete
+        return self.ws is not None and self.ws.open and self._handshake_complete
 
     @property
     def latency_ms(self) -> int:

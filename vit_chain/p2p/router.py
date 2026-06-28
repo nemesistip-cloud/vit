@@ -50,20 +50,7 @@ async def p2p_websocket_peer(websocket: WebSocket):
             )
             await db.commit()
 
-        # 3. Wrap connection for ConnectionManager
-        class ServerWSPeer:
-            def __init__(self, ws: WebSocket):
-                self.ws = ws
-                self.open = True
-            async def send(self, data: str):
-                await self.ws.send_text(data)
-
-        conn = PeerConnection(node_id, "", _connection_manager.our_node_id, _connection_manager.our_key)
-        conn.ws = ServerWSPeer(websocket)
-        conn._handshake_complete = True
-        _connection_manager.connections[node_id] = conn
-
-        # 4. Send Handshake ACK
+        # 3. Send Handshake ACK
         ack = serialize(
             MessageType.HANDSHAKE_ACK,
             node_id=_connection_manager.our_node_id,
@@ -72,7 +59,7 @@ async def p2p_websocket_peer(websocket: WebSocket):
         )
         await websocket.send_text(ack)
 
-        # 5. Handle incoming messages
+        # 4. Handle incoming messages
         async for message_raw in websocket.iter_text():
             msg = deserialize(message_raw)
             if validate_message(msg):

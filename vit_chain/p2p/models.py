@@ -26,7 +26,7 @@ class PeerNode(Base):
     @property
     def ws_url(self) -> str:
         """Computed WebSocket URL for peer connection."""
-        return f"ws://{self.ip_address}:{self.ws_port}/api/chain/peer"
+        return f"ws://{self.ip_address}:{self.ws_port}/chain/peer"
 
     def to_dict(self):
         return {

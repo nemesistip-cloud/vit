@@ -16,7 +16,7 @@ async def test_peer_node_model():
         ws_port=7765,
         node_type="validator"
     )
-    assert peer.ws_url == "ws://127.0.0.1:7765/api/chain/peer"
+    assert peer.ws_url == "ws://127.0.0.1:7765/chain/peer"
 
     d = peer.to_dict()
     assert d["node_id"] == "VIT_TEST_1"
