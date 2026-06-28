@@ -54,3 +54,5 @@ tenacity
 uvicorn[standard]
 web3>=6.0.0
 xgboost
+eth-hash[pycryptodome]
+coincurve
