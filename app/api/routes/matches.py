@@ -250,6 +250,7 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         "dnb_home_prob": dnb_home_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "dnb_away_prob": dnb_away_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "confidence": confidence,
+        "edge": edge,
     }
 
 
@@ -563,37 +564,45 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     elo_diff = features.get("elo_diff", 0.0)
 
     # Tactical Insights (Native SCIE)
-    tactical_insights = await generate_match_insights(
-        home_team=match.home_team,
-        away_team=match.away_team,
-        league=match.league or "unknown",
-        home_prob=h,
-        draw_prob=d,
-        away_prob=a,
-        over_25_prob=float(latest.get("over_25_prob") or 0.5),
-        btts_prob=float(latest.get("btts_prob") or 0.5),
-        bet_side=latest_pred.bet_side if latest_pred else None,
-        edge=float(latest.get("edge") or 0.0),
-        entry_odds=float(latest.get("odds", {}).get("home") or 2.0),
-        confidence=float(latest_pred.confidence or 0.5) if latest_pred else 0.5,
-    )
+    try:
+        tactical_insights = await generate_match_insights(
+            home_team=match.home_team,
+            away_team=match.away_team,
+            league=match.league or "unknown",
+            home_prob=h,
+            draw_prob=d,
+            away_prob=a,
+            over_25_prob=float(latest.get("over_25_prob") or 0.5),
+            btts_prob=float(latest.get("btts_prob") or 0.5),
+            bet_side=getattr(latest_pred, 'bet_side', None),
+            edge=float(latest.get("edge") or 0.0),
+            entry_odds=float(latest.get("odds", {}).get("home") or 2.0),
+            confidence=float(getattr(latest_pred, 'confidence', 0.5) or 0.5),
+        )
+    except Exception as e:
+        logger.error(f"Tactical insight generation failed: {e}")
+        tactical_insights = {
+            "summary": "Intelligence gathering in progress.",
+            "key_factors": [],
+            "recommendation": "Monitor market movements."
+        }
 
     return {
         **latest,
         "intelligence": {
             "consensus": {
-                "home_prob": h,
-                "draw_prob": d,
-                "away_prob": a,
-                "confidence": float(latest_pred.confidence or 0.5) if latest_pred else 0.5,
-                "risk_score": float(latest_audit.risk_score or 0.0) if latest_audit else 0.0,
-                "model_agreement": float(latest_audit.model_agreement or 0.0) if latest_audit else 0.0,
-                "models_active": int(latest_audit.pkl_models_active or 0) if latest_audit else 0,
-                "elo_diff": elo_diff,
-                "squad_value_diff": round(elo_diff * 1.2, 2),
-                "timestamp": latest_pred.timestamp.isoformat() if latest_pred else None,
+                "home_prob": float(h),
+                "draw_prob": float(d),
+                "away_prob": float(a),
+                "confidence": float(getattr(latest_pred, 'confidence', 0.5) or 0.5),
+                "risk_score": float(getattr(latest_audit, 'risk_score', 0.0) or 0.0),
+                "model_agreement": float(getattr(latest_audit, 'model_agreement', 0.0) or 0.0),
+                "models_active": int(getattr(latest_audit, 'pkl_models_active', 0) or 0),
+                "elo_diff": float(elo_diff),
+                "squad_value_diff": round(float(elo_diff) * 1.2, 2),
+                "timestamp": latest_pred.timestamp.isoformat() if (latest_pred and getattr(latest_pred, 'timestamp', None)) else None,
             },
-            "attribution": latest_audit.individual_results if latest_audit else (latest_pred.model_insights if latest_pred else []),
+            "attribution": getattr(latest_audit, 'individual_results', None) or getattr(latest_pred, 'model_insights', []) or [],
             "tactical": tactical_insights,
             "radar_data": [
                 {"subject": "Attacking", "A": 80 + (elo_diff / 10 if elo_diff > 0 else 0), "B": 80 + (-elo_diff / 10 if elo_diff < 0 else 0), "fullMark": 100},
@@ -604,11 +613,11 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
                 {"subject": "Set Pieces", "A": 65, "B": 70, "fullMark": 100},
             ],
             "market_edge": {
-                "ai_prob": max(h, d, a),
-                "bookmaker_prob": 1.0 / (latest.get("odds", {}).get(latest_pred.bet_side) or 2.0) if latest_pred and latest_pred.bet_side in latest.get("odds", {}) else None,
+                "ai_prob": float(max(h, d, a)),
+                "bookmaker_prob": 1.0 / float(latest.get("odds", {}).get(getattr(latest_pred, 'bet_side', None)) or 2.0) if (latest_pred and getattr(latest_pred, 'bet_side', None) and latest.get("odds", {}).get(latest_pred.bet_side)) else None,
                 "edge": float(latest.get("edge") or 0.0),
                 "expected_roi": float(latest.get("edge") or 0.0) * 100,
-                "kelly_stake": float(latest_pred.recommended_stake or 0.0) if latest_pred else 0.0,
+                "kelly_stake": float(getattr(latest_pred, 'recommended_stake', 0.0) or 0.0),
             }
         },
         "predictions_count": len(preds),
