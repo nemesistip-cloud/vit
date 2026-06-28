@@ -45,21 +45,7 @@
 - `ProviderPool` is currently missing; its logic seems partially implemented within `tachyon/api/router.py` and `TachyonScheduler`.
 
 ## Missing / To be implemented
-- `tachyon/core/erasure.py`: A dedicated Reed-Solomon codec class. (Implemented in 4.1)
-- `tachyon/core/providers/`: New provider implementations matching the spec's naming and structure. (Implemented in 4.1)
-- `tachyon/core/providers/pool.py`: A dedicated `ProviderPool` class for better provider management. (Implemented in 4.1)
-- `tachyon/tests/test_erasure.py`: Unit tests for the erasure coding logic. (Implemented in 4.1)
-
-## Session 4.2 - Upload Orchestrator + Self-Healing
-
-### Missing Components
-- `tachyon/core/manifest.py`: `ManifestManager` to handle persistence and health tracking.
-- `tachyon/core/orchestrator.py`: `TachyonOrchestrator` to coordinate upload/retrieve/delete/verify.
-- `tachyon/core/retrieval.py`: `ShardRetriever` for parallel shard downloads.
-- `tachyon/core/healing.py`: `SelfHealingManager` for repair and background healing loop.
-
-### Model Constraints & Strategy
-- `TachyonManifest` model is fixed.
-- Strategy: Store `sha256`, `health_score`, `status`, and `last_verified_at` inside the `provider_mapping` JSON column as a nested `_metadata` key.
-- Store `shard_locations` (list of dicts) in the `provider_mapping` column under a `shards` key.
-- Maintain compatibility with `tachyon/api/router.py` where possible, or migrate it to use the new Orchestrator.
+- `tachyon/core/erasure.py`: A dedicated Reed-Solomon codec class.
+- `tachyon/core/providers/`: New provider implementations matching the spec's naming and structure.
+- `tachyon/core/providers/pool.py`: A dedicated `ProviderPool` class for better provider management.
+- `tachyon/tests/test_erasure.py`: Unit tests for the erasure coding logic.
