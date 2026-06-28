@@ -58,7 +58,7 @@ Optimized for **Google Cloud Run**. Deployment is managed via `cloudbuild.yaml` 
 
 ## 📈 Roadmap & Deliveries
 
-- **Current (v5.2.0)**: EEC-upgraded storage, AI-powered election sentiment, and unified ecosystem identity.
+- **Current (v5.5.0)**: P2P Network Layer, decentralized discovery, and real-time gossip protocol.
 - **Next Phase**: Full Base L2 migration for all treasury operations and expansion into Western & Eastern African corridors.
 
 ---
