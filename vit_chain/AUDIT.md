@@ -1,26 +1,25 @@
-# AUDIT - vit_chain (Session 1.3)
+# AUDIT - vit_chain
 
 ## Status
-Audit for Chain Storage and EVM-Compatible RPC implementation. Session 1.2 core logic is complete.
+Initial audit for `vit_chain` package. This is a new package part of Track 1 — VIT Chain Core.
 
 ## What Exists
-- `vit_chain/crypto/`: Hashing, Merkle, ECDSA, Address.
-- `vit_chain/core/`: Transaction, Block, State, Chain.
-- `vit_chain/genesis.py`: Genesis logic.
+- `vit_chain/` directory structure.
+- `requirements.txt` updated with `eth-hash[pycryptodome]` and `coincurve`.
 
 ## What's Missing
-- `vit_chain/storage/db.py`: Dedicated SQLAlchemy models for the chain.
-- `vit_chain/storage/indexer.py`: Logic to sync core blocks to storage models.
-- `vit_chain/rpc/`: EVM-compatible JSON-RPC server and handlers.
-- `vit_chain/tests/test_rpc.py`: Tests for RPC and Indexing.
+- `vit_chain/crypto/hash.py`: Cryptographic hashing functions.
+- `vit_chain/crypto/merkle.py`: Merkle Tree implementation.
+- `vit_chain/crypto/ecdsa.py`: ECDSA keypair generation and signing.
+- `vit_chain/crypto/address.py`: VIT address derivation.
+- `vit_chain/tests/test_crypto.py`: Test suite for the above.
 
-## Implementation Details
-- Dedicated tables with `chain_` prefix to avoid conflict with main app tables.
-- `ChainIndexer` will provide high-level chain stats.
-- RPC will mimic Ethereum's JSON-RPC 2.0 to allow MetaMask connectivity.
-- `eth_getBalance` will report in "wei" (1e18) for compatibility.
+## What's Broken
+- N/A (New implementation).
 
-## Hard Constraints Check
-- No modifications to `main.py` or existing webhooks.
-- Using `Base` from `app.db.database`.
-- Async SQLAlchemy throughout.
+## Implementation Plan
+1. Implement `hash.py` using `hashlib` and `eth-hash`.
+2. Implement `merkle.py` for block and transaction hashing.
+3. Implement `ecdsa.py` using `coincurve`.
+4. Implement `address.py` following the specified derivation path.
+5. Verify everything with `test_crypto.py`.

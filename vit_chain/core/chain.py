@@ -4,31 +4,17 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from .block import VITBlock, validate_block
-from .transaction import VITTransaction, Mempool
+from .transaction import VITTransaction
 from .state import ChainState
 from app.db.models import IoTEvent
-from ..storage.db import ChainBlock, ChainTransaction, ChainAccount
-from ..storage.indexer import ChainIndexer
 from decimal import Decimal
 
 class VITChain:
     CHAIN_ID = 7764
     GENESIS_HASH = "8f0376d859187321685794178550186178864700877041857917856018617886"
 
-    # Singleton instance for shared mempool
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(VITChain, cls).__new__(cls)
-            cls._instance.state = ChainState()
-            cls._instance.indexer = ChainIndexer()
-            cls._instance.mempool = Mempool()
-        return cls._instance
-
     def __init__(self):
-        # Already initialized in __new__
-        pass
+        self.state = ChainState()
 
     def _to_block(self, event: IoTEvent) -> VITBlock:
         p = event.payload
@@ -96,7 +82,7 @@ class VITChain:
 
     async def add_block(self, db: AsyncSession, block: VITBlock) -> bool:
         """
-        Validates block, applies all transactions, updates state, and indexes.
+        Validates block, applies all transactions, updates state.
         Returns False if invalid
         """
         latest = await self.get_latest_block(db)
@@ -104,15 +90,20 @@ class VITChain:
         if not validate_block(block, latest, []):
             return False
 
-        # 2. Apply transactions and rewards to core state (Wallet/User)
+        # 2. Apply transactions and rewards
+        # Caller is responsible for db.begin() as per specs usually,
+        # but we use a nested transaction to be safe or just assume it's one atomic op.
+
+        # Apply each transaction
         for tx in block.transactions:
             success = await self.state.apply_transaction(db, tx)
             if not success:
                 return False
 
+        # Apply block reward
         await self.state.apply_block_reward(db, block.validator_id, block.block_reward + block.total_fees)
 
-        # 3. Persist the block in IoTEvent (Legacy storage compatibility)
+        # 3. Persist the block
         p = {
             "height": block.height,
             "prev_hash": block.prev_hash,
@@ -135,10 +126,6 @@ class VITChain:
         )
         db.add(event)
 
-        # 4. Index block into dedicated chain tables (Session 1.3 storage)
-        state_root = await self.state.get_state_root(db)
-        await self.indexer.index_block(db, block, state_root=state_root)
-
         return True
 
     async def get_transaction(self, db: AsyncSession, tx_hash: str) -> Optional[VITTransaction]:
@@ -157,7 +144,7 @@ class VITChain:
         return None
 
     async def pending_transactions(self, db: AsyncSession) -> list[VITTransaction]:
-        return self.mempool.get_pending()
+        return []
 
     async def chain_height(self, db: AsyncSession) -> int:
         latest = await self.get_latest_block(db)
