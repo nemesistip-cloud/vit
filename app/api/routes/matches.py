@@ -613,6 +613,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         },
         "predictions_count": len(preds),
         "enabled_markets": markets,
+        "recent_form": {
             "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time),
             "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time),
         },
@@ -645,9 +646,6 @@ async def get_match_analytics(match_id: int, db: AsyncSession = Depends(get_db))
             "risk_score": float(audit.risk_score or 0.0) if audit else 0.0,
             "model_agreement": float(audit.model_agreement or 0.0) if audit else 0.0,
         } if pred else None,
-        "market_efficiency": "High" if fmt.get("odds", {}).get("draw") else "Medium",
-    }
- if pred else None,
         "market_efficiency": "High" if fmt.get("odds", {}).get("draw") else "Medium",
     }
 
