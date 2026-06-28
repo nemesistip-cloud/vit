@@ -76,7 +76,11 @@ class ReedSolomonCodec:
 
         if not missing_indices:
             # No missing shards, just concatenate data shards
-            return b"".join(shards[:data_shards])
+            # We still need to know the original size to strip padding correctly,
+            # but the spec doesn't provide it in the decode signature.
+            # Assuming we strip trailing null bytes from the reconstructed data.
+            data = b"".join(shards[:data_shards])
+            return data.rstrip(b'\0')
 
         # Find shard size from first non-None shard
         shard_size = 0
@@ -109,7 +113,8 @@ class ReedSolomonCodec:
             except ReedSolomonError:
                 raise AppError("storage_unrecoverable", status_code=500, code="storage_unrecoverable")
 
-        return b"".join(recovered_shards)
+        data = b"".join(recovered_shards)
+        return data.rstrip(b'\0')
 
     def shard_hash(self, shard: bytes) -> str:
         """Returns sha256_hex(shard) — used for challenge verification."""

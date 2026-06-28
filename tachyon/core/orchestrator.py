@@ -60,8 +60,8 @@ class TachyonOrchestrator:
         if existing:
             return existing
 
-        # 4. Encode in thread pool to avoid blocking event loop
-        shards = await asyncio.to_thread(self.codec.encode, data, data_shards=6, parity_shards=3)
+        # 4. Encode
+        shards = self.codec.encode(data, data_shards=6, parity_shards=3)
 
         # 5. Upload shards in parallel
         async def _upload_one(i, shard):
@@ -136,11 +136,9 @@ class TachyonOrchestrator:
              if i < len(downloaded_shards):
                  shards_with_nones[loc["shard_index"]] = downloaded_shards[i]
 
-        # 3. Decode in thread pool
+        # 3. Decode
         try:
-            full_data = await asyncio.to_thread(self.codec.decode, shards_with_nones, data_shards=6, parity_shards=3)
-            # Truncate to original size to avoid corruption from padding
-            data = full_data[:manifest.size_bytes]
+            data = self.codec.decode(shards_with_nones, data_shards=6, parity_shards=3)
         except Exception as e:
             logger.error(f"Decoding failed for {file_id}: {e}")
             raise AppError("Retrieval failed: data unrecoverable", status_code=503, code="retrieval_failed")

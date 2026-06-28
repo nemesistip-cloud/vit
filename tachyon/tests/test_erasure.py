@@ -14,7 +14,7 @@ def test_encode_decode_roundtrip():
 
     # Decode with all shards
     decoded = codec.decode(shards, data_shards=4, parity_shards=2)
-    assert decoded[:len(data)] == data
+    assert decoded == data
 
 def test_decode_with_missing_shards():
     codec = ReedSolomonCodec()
@@ -27,13 +27,13 @@ def test_decode_with_missing_shards():
     # 1 missing shard (data)
     shards_1 = list(shards)
     shards_1[0] = None
-    assert codec.decode(shards_1, data_shards, parity_shards)[:len(data)] == data
+    assert codec.decode(shards_1, data_shards, parity_shards) == data
 
     # 2 missing shards (data + parity)
     shards_2 = list(shards)
     shards_2[1] = None
     shards_2[4] = None
-    assert codec.decode(shards_2, data_shards, parity_shards)[:len(data)] == data
+    assert codec.decode(shards_2, data_shards, parity_shards) == data
 
 def test_decode_with_max_parity_missing():
     codec = ReedSolomonCodec()
@@ -48,14 +48,14 @@ def test_decode_with_max_parity_missing():
     shards_3[4] = None
     shards_3[5] = None
     shards_3[6] = None
-    assert codec.decode(shards_3, data_shards, parity_shards)[:len(data)] == data
+    assert codec.decode(shards_3, data_shards, parity_shards) == data
 
     # 3 missing shards (all data)
     shards_3_data = list(shards)
     shards_3_data[0] = None
     shards_3_data[1] = None
     shards_3_data[2] = None
-    assert codec.decode(shards_3_data, data_shards, parity_shards)[:len(data)] == data
+    assert codec.decode(shards_3_data, data_shards, parity_shards) == data
 
 def test_decode_fails_with_too_many_missing():
     codec = ReedSolomonCodec()

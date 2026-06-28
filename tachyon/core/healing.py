@@ -48,17 +48,15 @@ class SelfHealingManager:
             await self.manifests.update_health(db, file_id, 1.0, datetime.now(timezone.utc))
             return True
 
-        # 3. Try to decode with available shards in thread pool
+        # 3. Try to decode with available shards
         try:
-            full_data = await asyncio.to_thread(codec.decode, shards_with_nones, data_shards=6, parity_shards=3)
-            # Truncate to original size to avoid corruption from padding
-            data = full_data[:manifest.size_bytes]
+            data = codec.decode(shards_with_nones, data_shards=6, parity_shards=3)
         except Exception as e:
             logger.error(f"Healing failed for {file_id}: data unrecoverable ({e})")
             return False
 
-        # 4. Re-encode in thread pool
-        all_shards = await asyncio.to_thread(codec.encode, data, data_shards=6, parity_shards=3)
+        # 4. Re-encode to get full 9 shards again
+        all_shards = codec.encode(data, data_shards=6, parity_shards=3)
 
         # 5. Re-upload missing shards to healthy providers
         new_shard_locations = []

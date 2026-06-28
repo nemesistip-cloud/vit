@@ -43,7 +43,6 @@ async def test_orchestrator_retrieve_success():
 
     # Mock manifest
     mock_manifest = MagicMock()
-    mock_manifest.size_bytes = len(b"Hello world")
     mock_manifest.provider_mapping = {
         "shards": [
             {"shard_index": i, "provider_id": "p1", "file_id": f"f{i}", "shard_hash": "hash"}
