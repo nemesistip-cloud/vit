@@ -14,20 +14,23 @@ def sign_transaction(private_key_hex: str, tx_hash: bytes) -> str:
 def verify_signature(public_key_hex: str,
                    tx_hash: bytes,
                    signature_hex: str) -> bool:
-    """Returns True if signature is valid."""
+    """Returns True if signature is valid. Supports both DER and recoverable formats."""
     try:
         pub = PublicKey(bytes.fromhex(public_key_hex))
-        return pub.verify(bytes.fromhex(signature_hex), tx_hash)
+        sig_bytes = bytes.fromhex(signature_hex)
+        if len(sig_bytes) == 65:
+            # Try as recoverable first
+            try:
+                recovered = PublicKey.from_signature_and_message(sig_bytes, tx_hash)
+                return recovered.format(compressed=False).hex() == public_key_hex
+            except Exception:
+                return False
+        return pub.verify(sig_bytes, tx_hash)
     except Exception:
         return False
 
 def recover_public_key(tx_hash: bytes, signature_hex: str) -> str:
-    """Recovers public key from signature + hash (for tx validation)."""
-    # Note: Traditional DER signatures are not recoverable without the recovery ID (v).
-    # However, coincurve's PublicKey.from_signature_and_message expects a 65-byte
-    # recoverable signature [r (32) | s (32) | v (1)].
-    # If the provided signature is 65 bytes, we treat it as recoverable.
-    # If it is DER, recovery is not possible with this function.
+    """Recovers public key from 65-byte recoverable signature + hash."""
     try:
         sig_bytes = bytes.fromhex(signature_hex)
         pub = PublicKey.from_signature_and_message(sig_bytes, tx_hash)
