@@ -18,6 +18,7 @@ celery = Celery(
         "app.worker.tasks.ml",
         "app.worker.tasks.reports",
         "app.worker.tasks.tachyon",
+        "app.tasks.settlement_tasks",
     ],
 )
 
