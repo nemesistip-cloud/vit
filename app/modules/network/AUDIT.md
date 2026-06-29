@@ -1,17 +1,16 @@
-# Audit: Node Ecosystem (Track 9.2)
+# Audit: Node Ecosystem (Track 9.1)
 
 ## What Exists
-- `app/modules/network/node_types.py`: Implemented in Session 9.1, defines the "campus" node type with a multiplier of 3.0.
-- `app/modules/network/models.py`: Contains `NodeActivity` which is used to track node actions and can be leveraged for registration state tracking since no dedicated `CampusNode` model exists.
-- `app/modules/did/engine.py`: Provides `issue_credential` and identity management needed for `NodeContributionCredential`.
-- `app/modules/wallet/services.py`: `WalletService` is available for crediting rewards.
+- `app/modules/network/models.py`: Contains `NodeActivity` and `NetworkSnapshot` models. `NodeActivity` has a `node_type` field but no validation against a registry.
+- `app/modules/network/routes.py`: Contains API endpoints for network stats, node listing, and activity recording. Has a `/join` endpoint that hardcodes `node_type="storage"`.
 
 ## What's Missing
-- `app/modules/network/campus_node.py`: The registration and activation flow for university-level infrastructure is not yet implemented.
-- `app/modules/network/university_api.py`: Public endpoints for listing verified universities and their contribution stats are missing.
-- `app/modules/network/campus_rewards.py`: The 70/30 reward split logic between operators and university scholarship pools is not implemented.
+- `app/modules/network/node_types.py`: The registry defining different node types (storage, validator, campus, android, gpu) and their requirements/multipliers is missing.
+- `app/modules/network/capabilities.py`: The client-side component for reporting node capabilities is missing.
+- `app/modules/network/rewards_matrix.py`: The logic for calculating epoch rewards based on node type and performance is missing.
+- `/api/network/nodes/{node_id}/capabilities` endpoint: Mentioned in the build spec for `capabilities.py` but not present in `routes.py`. (Note: I am restricted from modifying `routes.py`).
 
 ## What's Broken / Improvements Needed
-- The system currently lacks a formal way to verify "Campus" status beyond manual admin intervention via the proposed `activate` endpoint.
-- Reward distribution for campus nodes needs to handle two separate recipients (operator and university pool), which requires clear wallet identification.
-- `NodeActivity` records will be used to store registration metadata; this should be carefully managed to ensure only the latest active registration is considered.
+- The `node_type` in `routes.py` and `models.py` is currently a plain string without centralized validation or metadata.
+- Reward calculations are currently not implemented in the existing codebase; they seem to be handled by the upcoming `RewardsMatrix`.
+- `NodeActivity` in `models.py` uses `node_type` of length 20, but some display names or future types might exceed this if not careful (though current types fit).
