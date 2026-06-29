@@ -12,10 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
-from app.modules.blockchain.models import OracleResult, ConsensusPrediction, ConsensusStatus, ValidatorPrediction
+from app.modules.blockchain.models import OracleResult, ConsensusPrediction, ConsensusStatus
 from app.modules.blockchain.settlement import settle_match as core_settle_match
-from app.modules.blockchain.validator_rewards import ValidatorRewardDistributor
-from app.modules.blockchain.slash_engine import ValidatorSlashEngine
 
 logger = logging.getLogger(__name__)
 
@@ -95,39 +93,6 @@ class OracleSettlementBridge:
             try:
                 # Core settlement logic (financial mutations)
                 settlement = await core_settle_match(match_id, outcome, db)
-
-                # Fetch validator submissions for reward/slash evaluation
-                val_preds_res = await db.execute(
-                    select(ValidatorPrediction).where(ValidatorPrediction.match_id == match_id)
-                )
-                val_preds = val_preds_res.scalars().all()
-
-                submissions = []
-                consensus_validators = []
-                for vp in val_preds:
-                    sub = {
-                        "validator_id": vp.validator_id,
-                        "p_home": vp.p_home,
-                        "p_draw": vp.p_draw,
-                        "p_away": vp.p_away
-                    }
-                    submissions.append(sub)
-
-                    # Align check: if they predicted > 50% for the actual outcome, consider them aligned for reward
-                    # Actually, the spec in 7.2 says "voted with consensus".
-                    # If we use the 30% deviation threshold from slash engine,
-                    # alignment means prob_assigned >= 0.7.
-                    prob_assigned = getattr(vp, f"p_{outcome}", 0)
-                    if prob_assigned >= (1 - ValidatorSlashEngine.DEVIATION_THRESHOLD):
-                        consensus_validators.append(vp.validator_id)
-
-                # Distribute rewards
-                if consensus_validators:
-                    await ValidatorRewardDistributor.distribute(db, match_id, outcome, consensus_validators)
-
-                # Evaluate and execute slashes
-                if submissions:
-                    await ValidatorSlashEngine.evaluate_slash(db, match_id, outcome, submissions)
 
                 # We do NOT publish the Redis event here because the transaction
                 # might still fail at the top level (in the route handler).
