@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.dependencies import get_db
+from app.db.database import get_db
 from .server import VITChainRPC
 
 router = APIRouter(prefix="/api/chain/rpc", tags=["Chain RPC"])
