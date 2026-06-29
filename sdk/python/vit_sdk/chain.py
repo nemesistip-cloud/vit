@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Dict, Any, Optional
+import hashlib
 from .exceptions import VITSDKError
 
 class ChainAPI:
