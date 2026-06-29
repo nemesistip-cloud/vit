@@ -1515,6 +1515,18 @@ async def _run_bootstrap(app, _done_event):
             except Exception as _e:
                 print(f"⚠️  Gamification task seeding failed: {_e}")
 
+            # VIT Chain genesis
+            try:
+                from vit_chain.genesis import ensure_genesis
+                from vit_chain.storage.db import ensure_chain_tables
+                from app.db.database import engine as _engine, AsyncSessionLocal as _ASL
+                await ensure_chain_tables(_engine)
+                async with _ASL() as _db:
+                    await ensure_genesis(_db)
+                print("✅ VIT Chain: genesis block confirmed")
+            except Exception as _e:
+                print(f"⚠️  VIT Chain genesis failed: {_e}")
+
             # SEED PROPHECY CHAPTERS
             try:
                 from app.db.database import AsyncSessionLocal
@@ -2178,6 +2190,33 @@ app.include_router(admin_audit_route.router, prefix="/api")
 # Rollover Engine
 from app.api.routes import rollover as rollover_route
 app.include_router(rollover_route.router, prefix="/api")
+
+# VIT Chain Core
+from vit_chain.rpc.router import router as chain_rpc_router
+app.include_router(chain_rpc_router)
+
+# VIT P2P Network
+from vit_chain.p2p.router import router as p2p_router
+app.include_router(p2p_router)
+
+# Block Explorer
+from app.api.routes.explorer.blocks import router as explorer_blocks_router
+from app.api.routes.explorer.transactions import router as explorer_tx_router
+from app.api.routes.explorer.accounts import router as explorer_accounts_router
+from app.api.routes.explorer.nodes import router as explorer_nodes_router
+app.include_router(explorer_blocks_router, prefix="/api")
+app.include_router(explorer_tx_router, prefix="/api")
+app.include_router(explorer_accounts_router, prefix="/api")
+app.include_router(explorer_nodes_router, prefix="/api")
+
+# VIT Cloud Status
+from app.api.routes.cloud_status import router as cloud_status_router
+app.include_router(cloud_status_router, prefix="/api")
+
+# VITCoin Direct Sale + P2P Exchange
+from app.modules.wallet.direct_sale import router as direct_sale_router
+app.include_router(direct_sale_router, prefix="/api")
+
 app.include_router(explorer_router, prefix="/api")
 
 
