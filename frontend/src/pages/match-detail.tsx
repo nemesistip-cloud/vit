@@ -2,7 +2,6 @@ import React from 'react';
 import { useRoute, useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { apiGet as apiClient } from '@/lib/apiClient';
-import { Layout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -30,28 +29,32 @@ export default function MatchDetailPage() {
 
   const { data: match, isLoading: loading, error } = useQuery<any>({
     queryKey: ['match', id],
-    queryFn: () => apiClient(`/matches/${id}`),
+    queryFn: () => apiClient(`/api/matches/${id}`),
     enabled: !!id,
   });
 
   if (loading) {
     return (
-      <Layout>
-        <div className="p-6 space-y-6">
-          <RowSkeleton count={5} />
-        </div>
-      </Layout>
+      <div className="p-6 space-y-6">
+        <RowSkeleton count={5} />
+      </div>
     );
   }
 
   if (error || !match) {
     return (
-       <Layout>
-          <div className="p-6 text-center space-y-4">
-             <p className="text-red-500 font-mono text-sm">FAILED TO SYNCHRONIZE INTELLIGENCE FEED</p>
-             <Button variant="outline" onClick={() => window.location.reload()}>RETRY CONNECTION</Button>
-          </div>
-       </Layout>
+      <div className="p-6 text-center space-y-4">
+        <p className="text-red-500 font-mono text-sm uppercase tracking-widest">
+          Failed to synchronize intelligence feed
+        </p>
+        <Button
+          variant="outline"
+          className="font-mono text-xs"
+          onClick={() => window.location.reload()}
+        >
+          Retry Connection
+        </Button>
+      </div>
     );
   }
 
@@ -75,9 +78,8 @@ export default function MatchDetailPage() {
   const marketEdge = intel?.market_edge || {};
 
   return (
-    <Layout>
-      <div className="min-h-screen bg-[#0C0E12] pb-32">
-        {/* ── Header ── */}
+    <div className="min-h-screen bg-[#0C0E12] pb-32">
+      {/* ── Header ── */}
         <div className="sticky top-0 z-40 bg-[#0C0E12]/80 backdrop-blur-md border-b border-white/5 p-4 flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setLocation('/matches')} className="text-muted-foreground hover:text-foreground">
             <ChevronLeft size={20} />
@@ -243,7 +245,6 @@ export default function MatchDetailPage() {
               </Button>
            </div>
         </div>
-      </div>
-    </Layout>
+    </div>
   );
 }
