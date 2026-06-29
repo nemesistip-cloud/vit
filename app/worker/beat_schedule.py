@@ -23,4 +23,6 @@ CELERYBEAT_SCHEDULE = {
     # ── Tachyon tasks ──────────────────────────────────────────────────────
     "tachyon-health-check":    {"task": "tachyon.health_check", "schedule": 3600, "options": {"expires": 3540}},
     "tachyon-gc-orphans":      {"task": "tachyon.gc_orphans",   "schedule": crontab(hour=2, minute=0)},
+    # ── Settlement tasks ───────────────────────────────────────────────────
+    "oracle-settlement-check-every-5min": {"task": "oracle_settlement_check", "schedule": 300, "options": {"expires": 240}},
 }
