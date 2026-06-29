@@ -74,21 +74,16 @@ async def check_infrastructure_health(request: Request) -> Dict[str, Any]:
         peer_count = 0
         try:
             from vit_chain.p2p.models import PeerNode
-            from app.db.database import AsyncSessionLocal
-            async with AsyncSessionLocal() as db:
-                peer_count = (await db.execute(select(func.count(PeerNode.node_id)).where(PeerNode.is_active == True))).scalar() or 0
-        except Exception as e:
-            logger.debug(f"P2P peer count check skipped: {e}")
+            # We skip DB check here as it's an infrastructure liveness check
+        except ImportError:
+            pass
 
         score = 100.0 if latency < 50 else max(50.0, 100.0 - (latency - 50) / 2)
         return {
             "status": "healthy" if score > 80 else "degraded",
             "score": round(score, 1),
             "latency_ms": round(latency, 2),
-            "details": {
-                "redis": "online",
-                "active_peers": peer_count
-            }
+            "details": {"redis": "online"}
         }
     except Exception as e:
         return {"status": "offline", "score": 0.0, "error": str(e)}

@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db, AsyncSessionLocal
 from app.db.models import Match, Prediction, CLVEntry, User, RolloverCertificate
+from app.modules.wallet.models import PlatformConfig
 from app.services.clv_tracker import CLVTracker
 
 logger = logging.getLogger(__name__)
@@ -410,7 +411,7 @@ async def _fetch_finished_from_sportsdb(days_back: int = 7) -> list:
         return []
 
 
-async def settle_results(days_back: int = 2) -> dict:
+async def settle_results(days_back: int = 2, require_oracle_consensus: Optional[bool] = None) -> dict:
     """
     Full settlement pass:
 
@@ -449,6 +450,14 @@ async def settle_results(days_back: int = 2) -> dict:
     details         = []
 
     async with AsyncSessionLocal() as db:
+        # Load default policy from PlatformConfig if not specified
+        if require_oracle_consensus is None:
+            config_res = await db.execute(
+                select(PlatformConfig).where(PlatformConfig.key == "oracle_settlement_required")
+            )
+            cfg = config_res.scalar_one_or_none()
+            require_oracle_consensus = (str(cfg.value).lower() == "true") if cfg and cfg.value else False
+
         # Pre-load all matches (any status) to avoid N+1 queries
         all_matches_result = await db.execute(select(Match))
         all_matches: list[Match] = all_matches_result.scalars().all()
@@ -521,6 +530,14 @@ async def settle_results(days_back: int = 2) -> dict:
                 db_match.away_goals     = away_g
                 db_match.actual_outcome = outcome
                 db_match.status         = "completed"
+
+                # If oracle consensus is required, we skip local financial settlement
+                # and let the OracleSettlementBridge handle it via the Celery task or Oracle API.
+                if require_oracle_consensus:
+                    await db.commit()
+                    settled += 1
+                    logger.info(f"[settle] Result recorded for match {db_match.id}, awaiting oracle consensus.")
+                    continue
 
                 # ── Settle ALL linked predictions (multi-user support) ─
                 pred_res = await db.execute(

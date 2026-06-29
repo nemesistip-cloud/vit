@@ -13,21 +13,6 @@ from vit_chain.storage.db import ChainBlock, ChainTransaction
 
 router = APIRouter(prefix="/blocks", tags=["Explorer Blocks"])
 
-@router.get("/stats")
-async def get_chain_stats(db: AsyncSession = Depends(get_db)):
-    """Get live network statistics (latest block, circulation, etc)."""
-    from vit_chain.storage.indexer import ChainIndexer
-    from vit_chain.p2p.models import PeerNode
-
-    indexer = ChainIndexer()
-    stats = await indexer.get_chain_stats(db)
-
-    # Active nodes from PeerNode
-    active_nodes = await db.scalar(select(func.count(PeerNode.node_id)).where(PeerNode.is_active == True)) or 0
-    stats["total_nodes"] = active_nodes
-
-    return stats
-
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class BlockSummary(BaseModel):
