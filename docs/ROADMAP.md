@@ -4,6 +4,7 @@
 - [x] AI Ensemble for high-precision sports signals.
 - [x] ERC-20 VITToken & On-chain staking.
 - [x] Universal Oracle for verifiable sports results.
+- [x] **P2P Network Layer (Track 3)**: Decentralized peer discovery, registry, and gossip protocol.
 
 ## Phase 2: Modern Betting Shops (Q4 2025)
 - [ ] Agent Recruitment Portal launch.
