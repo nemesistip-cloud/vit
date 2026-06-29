@@ -19,14 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
 from app.db.database import get_db
+from app.db.models import User
 from app.modules.blockchain.models import OracleResult, ConsensusPrediction, ConsensusStatus
-from app.modules.blockchain.settlement import settle_match
+from app.services.oracle_settlement_bridge import OracleSettlementBridge
 
 router = APIRouter(tags=["Oracle"])
 logger = logging.getLogger(__name__)
-
-_MIN_AGREEMENT = 2
-_MAX_SOURCES = 3
 
 
 @router.get("/api/oracle/stats")
@@ -149,48 +147,27 @@ async def submit_oracle_result(
     db.add(oracle_rec)
     await db.flush()
 
-    all_results_res = await db.execute(
-        select(OracleResult).where(OracleResult.match_id == body.match_id)
-    )
-    all_results = all_results_res.scalars().all()
-
-    outcome_counts: dict[str, int] = {}
-    for r in all_results:
-        outcome_counts[r.result] = outcome_counts.get(r.result, 0) + 1
-
-    agreed_outcome: Optional[str] = None
-    for outcome_val, count in outcome_counts.items():
-        if count >= _MIN_AGREEMENT:
-            agreed_outcome = outcome_val
-            break
-
-    response: dict = {"status": "received", "source": body.source, "result": outcome}
-
-    if agreed_outcome:
-        for r in all_results:
-            r.is_accepted = r.result == agreed_outcome
-        await db.flush()
-
-        cp_res = await db.execute(
-            select(ConsensusPrediction).where(ConsensusPrediction.match_id == body.match_id)
-        )
-        cp = cp_res.scalar_one_or_none()
-        if cp and cp.status not in (ConsensusStatus.SETTLED.value, ConsensusStatus.VOIDED.value):
-            try:
-                await settle_match(body.match_id, agreed_outcome, db)
-            except Exception as exc:
-                logger.error(f"Settlement failed for {body.match_id}: {exc}")
-
-        response["consensus"] = agreed_outcome
-        response["status"] = "settled"
-
-    elif len(all_results) >= _MAX_SOURCES:
-        for r in all_results:
-            r.dispute_flag = True
-        logger.warning(f"Dispute flagged for match {body.match_id}: {outcome_counts}")
-        response["status"] = "dispute_flagged"
+    # Delegate consensus check and settlement to the bridge
+    bridge_resp = await OracleSettlementBridge.check_and_settle(body.match_id, db)
 
     await db.commit()
+
+    # Publish Redis event after successful commit if settled
+    if bridge_resp.get("status") == "settled":
+        await OracleSettlementBridge.publish_settlement_event(
+            body.match_id,
+            bridge_resp["outcome"],
+            bridge_resp["settlement_id"]
+        )
+
+    response = {
+        "status": bridge_resp.get("status", "received"),
+        "source": body.source,
+        "result": outcome,
+    }
+    if "outcome" in bridge_resp:
+        response["consensus"] = bridge_resp["outcome"]
+
     return response
 
 
@@ -226,7 +203,7 @@ async def resolve_dispute(
     match_id: str,
     body: ResolveDisputeBody,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_admin),
+    admin: User = Depends(get_current_admin),
 ):
     """Admin: manually resolve a disputed match result and trigger settlement."""
     if body.result not in ("home", "draw", "away"):
@@ -241,14 +218,32 @@ async def resolve_dispute(
 
     for r in records:
         r.dispute_flag = False
-        r.is_accepted = r.result == body.result
+        r.is_accepted = (r.result == body.result)
 
-    cp_res = await db.execute(
-        select(ConsensusPrediction).where(ConsensusPrediction.match_id == match_id)
-    )
-    cp = cp_res.scalar_one_or_none()
-    if cp and cp.status not in (ConsensusStatus.SETTLED.value, ConsensusStatus.VOIDED.value):
-        await settle_match(match_id, body.result, db)
+    # Use bridge to finalize settlement
+    bridge_resp = await OracleSettlementBridge.settle_match(match_id, body.result, db)
+
+    # Log audit entry for admin mutation
+    try:
+        from app.services.audit import write_audit
+        await write_audit(
+            db=db,
+            admin_id=admin.id,
+            action="oracle.resolve_dispute",
+            target_type="match",
+            target_id=match_id,
+            after={"result": body.result}
+        )
+    except Exception as ae:
+        logger.warning(f"Audit log failed: {ae}")
 
     await db.commit()
+
+    # Publish Redis event after successful commit if settled
+    if bridge_resp.get("status") == "settled":
+        await OracleSettlementBridge.publish_settlement_event(
+            match_id,
+            body.result,
+            bridge_resp["settlement_id"]
+        )
     return {"status": "resolved", "match_id": match_id, "result": body.result}
