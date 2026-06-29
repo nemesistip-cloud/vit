@@ -459,3 +459,10 @@ MODEL_CACHE_TTL_SECONDS: int = get_int_env("MODEL_CACHE_TTL_SECONDS", "300")
 TACHYON_DATA_SHARDS: int = get_int_env("TACHYON_DATA_SHARDS", "4")
 TACHYON_PARITY_SHARDS: int = get_int_env("TACHYON_PARITY_SHARDS", "2")
 TACHYON_ENCRYPTION_KEY: str = get_env("TACHYON_ENCRYPTION_KEY", "")
+
+VIT_CHAIN_ID = get_int_env("VIT_CHAIN_ID", 7764)
+VIT_VALIDATOR_KEY = get_env("VIT_VALIDATOR_KEY", "")
+VIT_TREASURY_PRIVATE_KEY = get_env("VIT_TREASURY_PRIVATE_KEY", "")
+VIT_BOOTSTRAP_WS_URL = get_env("VIT_BOOTSTRAP_WS_URL",
+                                 "wss://vit.network/api/chain/peer")
+TACHYON_S3_API_KEY = get_env("TACHYON_S3_API_KEY", "")

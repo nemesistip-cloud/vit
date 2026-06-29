@@ -18,7 +18,7 @@ from .monitor import PeerMonitor
 # For this implementation, we assume they are accessible.
 _connection_manager = ConnectionManager(our_node_id="VIT_SERVER", our_key="SERVER_KEY")
 _monitor = PeerMonitor()
-_gossip_handler = GossipHandler(_connection_manager, monitor=_monitor)
+_gossip_handler = GossipHandler(_connection_manager)
 _registry = PeerRegistry()
 
 @router.websocket("/peer")
