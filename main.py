@@ -98,6 +98,7 @@ from app.modules.developer.routes import router as developer_router
 from app.modules.governance.routes import router as governance_router
 from app.auth.verification import router as verification_router
 from app.auth.totp import router as totp_router
+from app.api.routes.explorer import router as explorer_router
 from app.modules.referral.routes import router as referral_router
 from app.api.routes.leaderboard import router as leaderboard_router
 from app.api.routes.exports import router as exports_router
@@ -2177,6 +2178,7 @@ app.include_router(admin_audit_route.router, prefix="/api")
 # Rollover Engine
 from app.api.routes import rollover as rollover_route
 app.include_router(rollover_route.router, prefix="/api")
+app.include_router(explorer_router, prefix="/api")
 
 
 def _format_count(value: int) -> str:
