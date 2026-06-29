@@ -28,7 +28,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db, AsyncSessionLocal
-from app.db.models import Match, Prediction, CLVEntry, User, RolloverCertificate, PlatformConfig
+from app.db.models import Match, Prediction, CLVEntry, User, RolloverCertificate
+from app.modules.wallet.models import PlatformConfig
 from app.services.clv_tracker import CLVTracker
 
 logger = logging.getLogger(__name__)
