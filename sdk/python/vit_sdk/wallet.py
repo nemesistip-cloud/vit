@@ -4,6 +4,7 @@ import uuid
 from decimal import Decimal
 from typing import List, Optional, Any
 from coincurve import PrivateKey
+import hashlib
 
 class WalletAPI:
     """
@@ -44,6 +45,10 @@ class WalletAPI:
         timestamp = int(time.time())
         gas_fee = Decimal("0.001")
 
+        # VIT Chain RPC expects amount in VIT as string for JSON-RPC handlers.py
+        # but internal vit_chain/core/transaction.py handles it as Decimal.
+        # handlers.py uses Decimal(tx_data["amount"])
+
         payload = {
             "from_address": from_address,
             "to_address": to_address,
@@ -71,10 +76,11 @@ class WalletAPI:
         headers = {}
         if idempotency_key:
             headers["X-Idempotency-Key"] = idempotency_key
-        else:
-            headers["X-Idempotency-Key"] = str(uuid.uuid4())
+        elif not idempotency_key:
+             headers["X-Idempotency-Key"] = str(uuid.uuid4())
 
-        # Call client.request directly to include headers
+        # NOTE: rpc_call helper needs to support headers if we want idempotency on RPC
+        # For now we'll call client.request directly
         rpc_payload = {
             "jsonrpc": "2.0",
             "method": "eth_sendRawTransaction",
@@ -92,21 +98,9 @@ class WalletAPI:
     async def get_transactions(self, address: str, limit: int = 20) -> List[dict]:
         """
         Returns recent transactions for the given address.
-        Note: Currently calls the custodial history API for the authenticated user.
-        Filtering by the provided address is done locally on the results.
+        Note: Currently calls the custodial history API.
         """
-        resp = await self.client.request("GET", "/api/wallet/transactions", params={"limit": 100})
-        txs = resp.get("transactions", [])
-
-        # Local filtering by address (checking both source and destination if possible)
-        # Note: Custodial API schema might differ slightly from chain txs
-        filtered = [
-            t for t in txs
-            if t.get("reference") == address or t.get("description", "").find(address) != -1
-        ]
-
-        if not filtered:
-            # Fallback to returning all user txs if no address match found (legacy behavior)
-            return txs[:limit]
-
-        return filtered[:limit]
+        # Note: address is ignored in the current custodial /api/wallet/transactions endpoint
+        # which returns history for the authenticated user (via api_key).
+        resp = await self.client.request("GET", "/api/wallet/transactions", params={"limit": limit})
+        return resp.get("transactions", [])

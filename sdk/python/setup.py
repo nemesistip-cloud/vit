@@ -1,19 +1,10 @@
-import os
 from setuptools import setup, find_packages
-
-# Robust README resolution
-base_dir = os.path.abspath(os.path.dirname(__file__))
-readme_path = os.path.join(base_dir, "..", "README.md")
-long_description = ""
-if os.path.exists(readme_path):
-    with open(readme_path, "r", encoding="utf-8") as f:
-        long_description = f.read()
 
 setup(
     name="vit-sdk",
     version="0.1.0",
     description="Python SDK for the VIT Network (Value Analytics Trust)",
-    long_description=long_description,
+    long_description=open("../../sdk/README.md").read() if hasattr(open("../../sdk/README.md"), "read") else "",
     long_description_content_type="text/markdown",
     author="VIT Network Developers",
     url="https://github.com/Value-analytics-trust/vit-sdk",
