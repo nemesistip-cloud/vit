@@ -1,7 +1,7 @@
 # 21 Master Execution Roadmap
 
 ## Phase 1: Core Infrastructure (The Foundation)
-- **TRACK-001: Bootstrap Engine**
+- **TRACK-001: VIT Runtime Kernel**
   - Unified lifecycle manager and configuration loader.
 - **TRACK-002: Module Registry**
   - Formal domain registration and isolation logic.
