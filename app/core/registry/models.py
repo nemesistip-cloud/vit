@@ -1,19 +1,23 @@
 from enum import Enum
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
+from datetime import datetime
 
 class ModuleStatus(Enum):
     DISCOVERED = "DISCOVERED"
     REGISTERED = "REGISTERED"
+    VALIDATED = "VALIDATED"
     INITIALIZING = "INITIALIZING"
     INITIALIZED = "INITIALIZED"
     STARTING = "STARTING"
-    STARTED = "STARTED"
+    RUNNING = "RUNNING"
     READY = "READY"
     DEGRADED = "DEGRADED"
+    PAUSED = "PAUSED"
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
     FAILED = "FAILED"
+    RECOVERING = "RECOVERING"
     SHUTDOWN = "SHUTDOWN"
 
 class HealthStatus(Enum):
@@ -45,3 +49,19 @@ class ModuleRuntimeInfo(BaseModel):
     error_count: int = 0
     uptime_start: float = 0.0
     diagnostics: Dict[str, Any] = Field(default_factory=dict)
+
+class LifecycleEvent(BaseModel):
+    module_id: str
+    previous_state: ModuleStatus
+    current_state: ModuleStatus
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    reason: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+class LifecycleDiagnostic(BaseModel):
+    module_id: str
+    state_timeline: List[Dict[str, Any]] = Field(default_factory=list)
+    failure_reports: List[Dict[str, Any]] = Field(default_factory=list)
+    recovery_attempts: int = 0
+    last_error: Optional[str] = None
+    boot_time_ms: float = 0.0
