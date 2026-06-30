@@ -1,11 +1,12 @@
 import logging
 import os
 import asyncio
+from typing import Dict, Any
 from app.core.kernel import Subsystem, kernel
 from app.db.database import AsyncSessionLocal, engine, Base
 from app.modules.wallet.models import PlatformConfig
 from sqlalchemy import select, text
-from app.config import APP_NAME, APP_VERSION, ENVIRONMENT, REDIS_URL, get_env, print_config_status
+from app.config import APP_NAME, APP_VERSION, ENVIRONMENT, REDIS_URL, print_config_status
 from app.services.firestore_events import setup_firestore_events
 from app.tasks.telegram_digest import start_telegram_digest
 from app.tasks.settlement_task import start_settlement_worker
@@ -17,7 +18,7 @@ class ConfigSubsystem(Subsystem):
     name = "config"
     dependencies = []
 
-    async def _on_start(self):
+    async def _on_initialize(self, config: Dict[str, Any]):
         # Load environment variables into kernel config
         self.kernel.config["app_name"] = APP_NAME
         self.kernel.config["app_version"] = APP_VERSION
@@ -66,7 +67,6 @@ class DatabaseSubsystem(Subsystem):
         logger.info("[kernel] Database connectivity verified and schema synchronized.")
 
     async def health_check(self) -> bool:
-        await super().health_check()
         try:
             async with AsyncSessionLocal() as session:
                 await session.execute(text("SELECT 1"))
