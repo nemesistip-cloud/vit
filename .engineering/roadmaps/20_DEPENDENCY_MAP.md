@@ -3,7 +3,6 @@
 ## 1. System Classification
 
 ### Core Services (Critical)
-- **VIT Runtime Kernel**: The foundational execution and orchestration layer.
 - **FastAPI Application**: The central orchestrator and API Gateway.
 - **PostgreSQL (Cloud SQL)**: Primary relational data store.
 - **Redis (Memorystore)**: Distributed cache and task broker.
@@ -30,14 +29,13 @@
 
 | Module | Dependencies | Dependents | Startup Priority | Failure Impact | Health Requirements |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **VIT Runtime Kernel** | Infrastructure, Secrets | All Modules | 0 (Foundational) | Total System Outage | Config Loaded, Secrets Active |
-| **API Gateway (Core)** | Kernel, DB, Redis | Frontend, Tachyon | 1 (Primary) | Total System Outage | DB Connected, Redis Ping |
+| **API Gateway (Core)** | DB, Redis, Secrets | Frontend, Tachyon | 1 (Primary) | Total System Outage | DB Connected, Redis Ping |
 | **Database** | Infrastructure | API, AI, Tachyon | 0 (Foundational) | Total System Outage | Connectivity, < 100ms Latency |
 | **Redis** | Infrastructure | API, Task System | 0 (Foundational) | Degraded Performance | Connectivity |
-| **AI Module** | Kernel, API, Secrets | Core (Sports/Niche) | 2 | Intelligence Gaps | Model Loaded, GPU/CPU Ready |
-| **Tachyon Swarm** | Kernel, API, DB | Blockchain, AI | 3 | Storage Loss | > 50% Shard Availability |
-| **Blockchain** | Kernel, API, Base L2 | Wallet, Core | 3 | Settlement Delay | RPC Endpoint Active |
-| **Task System** | Kernel, Redis, API | All Domains | 2 | Async Failures | Worker Alive, Queue Depth < 1k |
+| **AI Module** | API, Secrets | Core (Sports/Niche) | 2 | Intelligence Gaps | Model Loaded, GPU/CPU Ready |
+| **Tachyon Swarm** | API, DB, Secrets | Blockchain, AI | 3 | Storage Loss | > 50% Shard Availability |
+| **Blockchain** | API, Base L2 | Wallet, Core | 3 | Settlement Delay | RPC Endpoint Active |
+| **Task System** | Redis, API | All Domains | 2 | Async Failures | Worker Alive, Queue Depth < 1k |
 | **Frontend** | API Gateway | Users | 4 | User Unreachable | App Loaded, Gateway 200 OK |
 
 ## 3. Dependency Rules

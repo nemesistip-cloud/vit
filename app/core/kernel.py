@@ -6,10 +6,6 @@ import os
 from enum import Enum
 from typing import Dict, List, Optional, Type, Any, Set
 
-from app.core.registry.manager import registry
-from app.core.registry.models import ModuleStatus, HealthStatus, ModuleMetadata
-from app.core.registry.contract import ModuleContract
-
 logger = logging.getLogger(__name__)
 
 class KernelState(Enum):
@@ -20,59 +16,43 @@ class KernelState(Enum):
     SHUTTING_DOWN = "SHUTTING_DOWN"
     STOPPED = "STOPPED"
 
-class Subsystem(ModuleContract):
-    """Base class for all VIT Kernel Subsystems, implementing ModuleContract."""
+class Subsystem:
+    """Base class for all VIT Kernel Subsystems."""
     name: str = "base_subsystem"
     dependencies: List[str] = []
-    domain: str = "Core"
-    owner: str = "Core Team"
 
     def __init__(self, kernel: 'VITRuntimeKernel'):
         self.kernel = kernel
-        self._metadata = ModuleMetadata(
-            module_id=self.name,
-            name=self.name.replace("_", " ").title(),
-            owner=self.owner,
-            domain=self.domain,
-            dependencies=self.dependencies
-        )
-
-    @property
-    def metadata(self) -> ModuleMetadata:
-        return self._metadata
-
-    async def initialize(self, config: Dict[str, Any]):
-        await registry.update_status(self.name, ModuleStatus.INITIALIZING)
-        await self._on_initialize(config)
-        await registry.update_status(self.name, ModuleStatus.INITIALIZED)
+        self.state = KernelState.STOPPED
+        self.last_health_check = time.time()
+        self.error_count = 0
 
     async def start(self):
+        """Initialize and start the subsystem."""
         logger.info(f"[kernel] Starting subsystem: {self.name}")
-        await registry.update_status(self.name, ModuleStatus.STARTING)
+        self.state = KernelState.STARTING
         await self._on_start()
-        await registry.update_status(self.name, ModuleStatus.STARTED)
-        await registry.update_status(self.name, ModuleStatus.READY)
+        self.state = KernelState.RUNNING
 
     async def stop(self):
+        """Gracefully stop the subsystem."""
         logger.info(f"[kernel] Stopping subsystem: {self.name}")
-        await registry.update_status(self.name, ModuleStatus.STOPPING)
+        self.state = KernelState.SHUTTING_DOWN
         await self._on_stop()
-        await registry.update_status(self.name, ModuleStatus.STOPPED)
-
-    async def check_health(self) -> HealthStatus:
-        return HealthStatus.HEALTHY
-
-    async def get_diagnostics(self) -> Dict[str, Any]:
-        return {}
-
-    async def _on_initialize(self, config: Dict[str, Any]):
-        pass
+        self.state = KernelState.STOPPED
 
     async def _on_start(self):
+        """Subsystem specific startup logic."""
         pass
 
     async def _on_stop(self):
+        """Subsystem specific shutdown logic."""
         pass
+
+    async def health_check(self) -> bool:
+        """Return True if the subsystem is healthy."""
+        self.last_health_check = time.time()
+        return True
 
 class VITRuntimeKernel:
     """The foundational execution layer of the VIT Ecosystem."""
@@ -89,18 +69,22 @@ class VITRuntimeKernel:
             return
         self._initialized = True
         self.state = KernelState.INITIALIZING
+        self.subsystems: Dict[str, Subsystem] = {}
         self.startup_time = time.time()
         self.config: Dict[str, Any] = {}
         self._health_loop_task: Optional[asyncio.Task] = None
 
-    async def register_subsystem(self, subsystem_class: Type[Subsystem]):
-        """Register a subsystem with the kernel and registry."""
+    def register_subsystem(self, subsystem_class: Type[Subsystem]):
+        """Register a subsystem with the kernel."""
         sub = subsystem_class(self)
-        await registry.register(sub)
-        logger.debug(f"[kernel] Registered subsystem: {sub.name}")
+        if sub.name in self.subsystems:
+            logger.warning(f"[kernel] Subsystem {sub.name} already registered.")
+            return
+        self.subsystems[sub.name] = sub
+        logger.debug(f"[kernel] Registered subsystem: {sub.name} (deps: {sub.dependencies})")
 
     async def boot(self):
-        """Deterministic startup of all registered subsystems via the registry."""
+        """Deterministic startup of all registered subsystems."""
         if self.state != KernelState.INITIALIZING:
             logger.warning(f"[kernel] Kernel already in {self.state.value} state.")
             return
@@ -108,36 +92,36 @@ class VITRuntimeKernel:
         logger.info("[kernel] VIT Runtime Kernel booting...")
         self.state = KernelState.STARTING
 
-        # 1. Resolve startup order from registry
+        # 1. Resolve startup order
         try:
-            registry.validate_dependencies()
-            module_ids = registry.list_modules()
-            ordered_ids = self._resolve_dependencies(module_ids)
+            ordered_subsystems = self._resolve_dependencies()
         except Exception as e:
-            logger.critical(f"[kernel] Boot validation failed: {e}")
+            logger.critical(f"[kernel] Dependency resolution failed: {e}")
             self.state = KernelState.STOPPED
             raise
 
         # 2. Sequential Startup
-        for mid in ordered_ids:
-            sub = registry.get_module(mid)
+        for sub_name in ordered_subsystems:
+            sub = self.subsystems[sub_name]
             try:
                 start_ts = time.time()
-                await sub.initialize(self.config)
                 await sub.start()
-                logger.info(f"[kernel] Subsystem {mid} started in {time.time() - start_ts:.3f}s")
+                logger.info(f"[kernel] Subsystem {sub_name} started in {time.time() - start_ts:.3f}s")
             except Exception as e:
-                logger.error(f"[kernel] Critical failure starting {mid}: {e}", exc_info=True)
+                logger.error(f"[kernel] Critical failure starting {sub_name}: {e}", exc_info=True)
                 self.state = KernelState.DEGRADED
-                if mid in ["config", "database", "redis"]:
-                    logger.critical(f"[kernel] Foundational subsystem {mid} failed. Halting.")
+                # Decision: In production we may want to stop booting if a critical dependency fails
+                if sub_name in ["database", "redis", "config"]:
+                    logger.critical(f"[kernel] Foundational subsystem {sub_name} failed. Halting.")
                     await self.shutdown()
                     raise
 
         if self.state != KernelState.DEGRADED:
             self.state = KernelState.RUNNING
 
+        # 3. Start Health Supervision
         self._health_loop_task = asyncio.create_task(self._health_supervision_loop())
+
         logger.info(f"[kernel] VIT Runtime Kernel RUNNING (boot time: {time.time() - self.startup_time:.2f}s)")
 
     async def shutdown(self):
@@ -151,18 +135,18 @@ class VITRuntimeKernel:
         if self._health_loop_task:
             self._health_loop_task.cancel()
 
-        module_ids = registry.list_modules()
+        # Stop in reverse order of startup
         try:
-            ordered_ids = self._resolve_dependencies(module_ids)
-            for mid in reversed(ordered_ids):
-                sub = registry.get_module(mid)
+            ordered_subsystems = self._resolve_dependencies()
+            for sub_name in reversed(ordered_subsystems):
+                sub = self.subsystems[sub_name]
                 try:
                     await sub.stop()
                 except Exception as e:
-                    logger.error(f"[kernel] Error stopping {mid}: {e}")
+                    logger.error(f"[kernel] Error stopping {sub_name}: {e}")
         except Exception:
-            for mid in reversed(module_ids):
-                sub = registry.get_module(mid)
+            # Fallback if dependency resolution fails during shutdown
+            for sub in reversed(list(self.subsystems.values())):
                 try:
                     await sub.stop()
                 except Exception:
@@ -171,49 +155,48 @@ class VITRuntimeKernel:
         self.state = KernelState.STOPPED
         logger.info("[kernel] VIT Runtime Kernel STOPPED.")
 
-    def _resolve_dependencies(self, module_ids: List[str]) -> List[str]:
-        """Dependency resolution for a list of modules."""
+    def _resolve_dependencies(self) -> List[str]:
+        """Simple topological sort for subsystem dependencies."""
         visited = set()
         stack = []
         path = set()
 
-        def visit(mid):
-            if mid in path:
-                raise Exception(f"Circular dependency detected at {mid}")
-            if mid in visited:
+        def visit(name):
+            if name in path:
+                raise Exception(f"Circular dependency detected at {name}")
+            if name in visited:
                 return
 
-            sub = registry.get_module(mid)
+            sub = self.subsystems.get(name)
             if not sub:
-                raise Exception(f"Module {mid} not found in registry.")
+                raise Exception(f"Subsystem {name} not found but listed as a dependency.")
 
-            path.add(mid)
-            for dep in sub.metadata.dependencies:
+            path.add(name)
+            for dep in sub.dependencies:
                 visit(dep)
-            path.remove(mid)
+            path.remove(name)
 
-            visited.add(mid)
-            stack.append(mid)
+            visited.add(name)
+            stack.append(name)
 
-        for mid in module_ids:
-            visit(mid)
+        for name in self.subsystems:
+            visit(name)
         return stack
 
     async def _health_supervision_loop(self):
-        """Supervise subsystem health via registry."""
-        while self.state in [KernelState.RUNNING, KernelState.DEGRADED]:
+        """Supervise subsystem health and update kernel state."""
+        while self.state == KernelState.RUNNING or self.state == KernelState.DEGRADED:
             try:
                 all_healthy = True
-                for mid in registry.list_modules():
-                    sub = registry.get_module(mid)
+                for name, sub in self.subsystems.items():
                     try:
-                        h = await sub.check_health()
-                        await registry.update_health(mid, h)
-                        if h != HealthStatus.HEALTHY:
+                        is_healthy = await sub.health_check()
+                        if not is_healthy:
+                            logger.warning(f"[kernel] Subsystem {name} reported unhealthy.")
                             all_healthy = False
                     except Exception as e:
-                        logger.error(f"[kernel] Health check failed for {mid}: {e}")
-                        await registry.report_error(mid)
+                        logger.error(f"[kernel] Health check failed for {name}: {e}")
+                        sub.error_count += 1
                         all_healthy = False
 
                 self.state = KernelState.RUNNING if all_healthy else KernelState.DEGRADED
@@ -223,13 +206,21 @@ class VITRuntimeKernel:
             await asyncio.sleep(30)
 
     def get_status(self) -> Dict[str, Any]:
-        """Diagnostic snapshot from kernel and registry."""
+        """Return diagnostic information about the kernel and subsystems."""
         return {
             "kernel_state": self.state.value,
             "uptime_seconds": round(time.time() - self.startup_time, 2),
-            "registry": registry.get_diagnostics()
+            "subsystem_count": len(self.subsystems),
+            "subsystems": {
+                name: {
+                    "state": sub.state.value,
+                    "last_check_delta": round(time.time() - sub.last_health_check, 2),
+                    "error_count": sub.error_count
+                } for name, sub in self.subsystems.items()
+            }
         }
 
+# Global Kernel Instance
 kernel = VITRuntimeKernel()
 
 def setup_signal_handlers():
@@ -239,4 +230,5 @@ def setup_signal_handlers():
         try:
             loop.add_signal_handler(sig, lambda: asyncio.create_task(kernel.shutdown()))
         except NotImplementedError:
+            # Windows fallback
             pass
