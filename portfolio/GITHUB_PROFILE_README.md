@@ -31,7 +31,7 @@ Check out my [Technical Portfolio](./README.md) for deep-dives into:
 
 ## 📫 Connect with Me
 - **X:** [@anselemcrizyx](https://x.com/anselemcrizyx)
-- **LinkedIn:** [Anselem Anyigor Chijioke](https://www.linkedin.com/in/anselemcrizy)
-- **Portfolio:** [vitnetwork-nls4.onrender.com](https://vitnetwork-nls4.onrender.com)
+- **LinkedIn:** [Anselem Anyigor Chijioke]([Your LinkedIn URL])
+- **Portfolio:** [vitnetwork.io](https://vitnetwork.io)
 
 *"Verifiable Intelligence. Universal Trust."*
