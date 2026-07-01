@@ -5,7 +5,7 @@ LABEL org.opencontainers.image.description="AI-powered sports intelligence platf
 LABEL org.opencontainers.image.version="5.5.0"
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 LABEL org.opencontainers.image.source="https://github.com/nemesistip-cloud/vit"
-LABEL org.opencontainers.image.url="https://vitnetwork.io"
+LABEL org.opencontainers.image.url="https://vitnetwork-nls4.onrender.com"
 LABEL org.opencontainers.image.vendor="VIT Network"
 
 WORKDIR /app
