@@ -4,18 +4,23 @@
 import asyncio
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text, select, func
+
 from app.config import APP_NAME, APP_VERSION, get_env
 from app.core.kernel import kernel, setup_signal_handlers
 from app.core.subsystems import register_core_subsystems
+from app.db.database import get_db
+from app.schemas.schemas import HealthResponse
+from app.core.dependencies import get_orchestrator
 
 # --- VIT Runtime Kernel ---
-from app.core.kernel import kernel, setup_signal_handlers
-from app.core.subsystems import register_core_subsystems
 register_core_subsystems()
 
 @asynccontextmanager
@@ -26,6 +31,7 @@ async def lifespan(app: FastAPI):
     yield
     await kernel.shutdown()
     print('🛑 Shutdown complete')
+
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
@@ -76,7 +82,6 @@ async def health(db: AsyncSession = Depends(get_db)):
         running_count = 0
         if coordinator:
             snap = coordinator.status() if hasattr(coordinator, "status") else {}
-            # coordinator.status() returns {"coordinator": {...}, "agents": {name: snapshot, ...}}
             agents_snap = snap.get("agents", {})
             for name, info in agents_snap.items():
                 agent_names.append(name)
@@ -127,12 +132,10 @@ async def health(db: AsyncSession = Depends(get_db)):
     # C-5 — AI provider status
     ai_providers: dict = {}
     try:
-        from app.services.ai_client import provider_status as _ps, verify_provider as _vp
+        from app.services.ai_client import provider_status as _ps
         _status = await _ps()
         for name, info in _status.items():
             ai_providers[name] = info.get("status", "unknown")
-
-
     except Exception:
         pass
 
@@ -156,7 +159,7 @@ async def health(db: AsyncSession = Depends(get_db)):
 async def system_status(db: AsyncSession = Depends(get_db)):
     """Public system health/status endpoint — returns live platform stats for the ecosystem ticker."""
     from app.db.models import User
-    from sqlalchemy import func, select, text
+    from sqlalchemy import func, select
     from datetime import datetime, timezone, timedelta
 
     now = datetime.now(timezone.utc)
@@ -264,8 +267,3 @@ def _sanitize_validation_errors(errors: list) -> list:
         {"loc": e["loc"], "msg": e["msg"], "type": e["type"]}
         for e in errors
     ]
-
-@app.get("/api/system/kernel", tags=["System"])
-async def get_kernel_status():
-    """Diagnostic endpoint for the VIT Runtime Kernel."""
-    return kernel.get_status()

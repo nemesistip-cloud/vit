@@ -1,7 +1,7 @@
 # Anselem Anyigor Chijioke | GitHub Portfolio
 
-📍 **Abuja, Nigeria** | 📧 anselemcr07@gmail.com | 📞 +234 813 245 4609
-**X:** [@anselemcrizyx](https://x.com/anselemcrizyx) | **Portfolio:** [vitnetwork-nls4.onrender.com](https://vitnetwork-nls4.onrender.com)
+📍 **Abuja, Nigeria** | 📧 [Email] | 📞 [Phone]
+**X:** [@anselemcrizyx](https://x.com/anselemcrizyx) | **Portfolio:** [vitnetwork.io](https://vitnetwork.io)
 
 ---
 
@@ -50,4 +50,4 @@ Expertise in defining complex system architectures, leading AI-assisted software
 ---
 
 ## 📫 Connect with Me
-I am always open to discussing AI product engineering, blockchain infrastructure, and high-density system design. Reach out via [LinkedIn](https://www.linkedin.com/in/anselemcrizy) or follow my work on [X](https://x.com/anselemcrizyx).
+I am always open to discussing AI product engineering, blockchain infrastructure, and high-density system design. Reach out via [LinkedIn]([Your LinkedIn URL]) or follow my work on [X](https://x.com/anselemcrizyx).
