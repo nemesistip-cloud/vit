@@ -5,6 +5,12 @@ VIT Network is an institutional-grade intelligence layer providing verifiable, h
 
 ---
 
+## 🏛️ Leadership & Architecture
+
+VIT Network is architected and led by **Anselem Anyigor Chijioke**, focusing on the integration of institutional-grade AI, decentralized storage (Tachyon), and blockchain-anchored intelligence. The platform follows a "Mission Control" design philosophy, prioritizing high-density data and verifiable trust.
+
+For a deep-dive into the architectural vision, see the [Technical Portfolio](./portfolio/README.md).
+
 ## 🏗️ System Architecture
 
 - **Intelligence Layer**: 13-model ML ensemble (LSTM, XGBoost, Transformers) with autonomous re-weighting.
