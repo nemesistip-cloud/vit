@@ -146,6 +146,44 @@ class PlatformSubsystem(Subsystem):
         except Exception as e:
             logger.warning(f"[kernel] Platform subsystem failed to start fully: {e}")
 
+
+class PluginSubsystem(Subsystem):
+    name = "plugins"
+    dependencies = ["config", "observability", "database"]
+
+    async def _on_initialize(self, config: Dict[str, Any]):
+        from app.core.plugins.manager import plugin_manager
+        await plugin_manager.bootstrap()
+        logger.info("[kernel] Plugin framework discovered and loaded extensions.")
+
+    async def _on_start(self):
+        from app.core.plugins.manager import plugin_manager
+        from app.core.observability.manager import obs_manager
+        from app.core.observability.models import HealthStatus
+
+        await plugin_manager.activate_all()
+
+        # Report status to observability
+        diags = plugin_manager.get_diagnostics()
+        obs_manager.health.update_status("plugins", HealthStatus.HEALTHY, f"Active ({diags['total_plugins']} plugins)")
+        logger.info("[kernel] All plugins activated and running.")
+
+    async def _on_stop(self):
+        from app.core.plugins.manager import plugin_manager
+        await plugin_manager.shutdown_all()
+        logger.info("[kernel] Plugin framework shut down.")
+
+    async def health_check(self) -> bool:
+        from app.core.plugins.manager import plugin_manager
+        from app.core.plugins.models import PluginStatus
+
+        diags = plugin_manager.get_diagnostics()
+        # Subsystem is degraded if any plugin is in FAILING state
+        for pid, info in diags['plugins'].items():
+            if info['status'] == PluginStatus.FAILING.value:
+                return False
+        return True
+
 def register_core_subsystems():
     kernel.register_subsystem(ObservabilitySubsystem)
     kernel.register_subsystem(ConfigSubsystem)
@@ -154,3 +192,4 @@ def register_core_subsystems():
     kernel.register_subsystem(AISubsystem)
     kernel.register_subsystem(TaskSubsystem)
     kernel.register_subsystem(PlatformSubsystem)
+    kernel.register_subsystem(PluginSubsystem)
