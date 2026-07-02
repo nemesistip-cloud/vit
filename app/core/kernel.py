@@ -9,6 +9,8 @@ from app.core.registry.manager import registry
 from app.core.registry.contract import ModuleContract
 from app.core.registry.models import ModuleMetadata, HealthStatus, ModuleStatus
 from app.core.lifecycle.manager import lifecycle_manager
+from app.core.observability.manager import obs_manager
+from app.core.observability.models import HealthStatus as ObsHealthStatus
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +55,13 @@ class Subsystem(ModuleContract):
 
     async def check_health(self) -> HealthStatus:
         self.last_health_check = time.time()
-        if await self.health_check():
-            return HealthStatus.HEALTHY
-        return HealthStatus.UNHEALTHY
+        is_healthy = await self.health_check()
+
+        # Report to Observability Platform
+        obs_status = ObsHealthStatus.HEALTHY if is_healthy else ObsHealthStatus.UNHEALTHY
+        obs_manager.health.update_status(self.name, obs_status)
+
+        return HealthStatus.HEALTHY if is_healthy else HealthStatus.UNHEALTHY
 
     async def get_diagnostics(self) -> Dict[str, Any]:
         return {
@@ -86,12 +92,13 @@ class VITRuntimeKernel:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(VITRuntimeKernel, cls).__new__(cls)
+            cls._instance._initialized_kernel = False
         return cls._instance
 
     def __init__(self):
-        if hasattr(self, '_initialized'):
+        if getattr(self, '_initialized_kernel', False):
             return
-        self._initialized = True
+        self._initialized_kernel = True
         self.state = KernelState.INITIALIZING
         self.subsystems: Dict[str, Subsystem] = {}
         self.startup_time = time.time()
@@ -107,8 +114,6 @@ class VITRuntimeKernel:
         self.subsystems[sub.name] = sub
 
         # Bridge to Module Registry
-        # Note: registry.register is async, but we are in a sync method.
-        # Subsystems are registered before boot.
         asyncio.get_event_loop().create_task(registry.register(sub))
         logger.debug(f"[kernel] Registered subsystem: {sub.name} (deps: {sub.dependencies})")
 
@@ -120,6 +125,9 @@ class VITRuntimeKernel:
 
         logger.info("[kernel] VIT Runtime Kernel booting...")
         self.state = KernelState.STARTING
+
+        # Observability: Record start
+        obs_manager.record_metric("kernel_boot_sequence_start", 1.0)
 
         # 0. Load authoritative configuration
         from app.core.config.manager import config_manager
@@ -134,10 +142,15 @@ class VITRuntimeKernel:
 
         self.state = KernelState.RUNNING
 
+        # Observability: Record boot time
+        boot_time = time.time() - self.startup_time
+        obs_manager.record_metric("kernel_uptime_seconds", boot_time)
+        obs_manager.record_metric("kernel_boot_time_ms", boot_time * 1000)
+
         # 3. Start Health Supervision
         self._health_loop_task = asyncio.create_task(self._health_supervision_loop())
 
-        logger.info(f"[kernel] VIT Runtime Kernel RUNNING (boot time: {time.time() - self.startup_time:.2f}s)")
+        logger.info(f"[kernel] VIT Runtime Kernel RUNNING (boot time: {boot_time:.2f}s)")
 
     async def shutdown(self):
         """Graceful shutdown delegating to LifecycleManager."""
@@ -146,6 +159,8 @@ class VITRuntimeKernel:
 
         logger.info("[kernel] VIT Runtime Kernel shutting down...")
         self.state = KernelState.SHUTTING_DOWN
+
+        obs_manager.record_metric("kernel_shutdown_start", 1.0)
 
         if self._health_loop_task:
             self._health_loop_task.cancel()
@@ -160,9 +175,24 @@ class VITRuntimeKernel:
         """Supervise ecosystem health."""
         while self.state == KernelState.RUNNING or self.state == KernelState.DEGRADED:
             try:
-                # In Track-003 we rely on ModuleRegistry for health status updates
-                # but we could also trigger explicit checks here.
-                pass
+                # Trigger health checks for all subsystems
+                for sub in self.subsystems.values():
+                    await sub.check_health()
+
+                # Check overall status
+                obs_status = obs_manager.health.get_overall_status()
+                if obs_status == ObsHealthStatus.UNHEALTHY:
+                    if self.state != KernelState.DEGRADED:
+                        logger.error("[kernel] SYSTEM DEGRADED: Unhealthy subsystems detected.")
+                        self.state = KernelState.DEGRADED
+                elif obs_status == ObsHealthStatus.HEALTHY:
+                    if self.state == KernelState.DEGRADED:
+                        logger.info("[kernel] SYSTEM RECOVERED: All subsystems healthy.")
+                        self.state = KernelState.RUNNING
+
+                # Record metrics
+                obs_manager.record_metric("active_subsystems", len(self.subsystems))
+
             except Exception as e:
                 logger.error(f"[kernel] Global health supervision error: {e}")
 

@@ -1,7 +1,10 @@
 from enum import Enum
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from app.core.registry.contract import ModuleContract
 
 class ModuleStatus(Enum):
     DISCOVERED = "DISCOVERED"
@@ -49,6 +52,11 @@ class ModuleRuntimeInfo(BaseModel):
     error_count: int = 0
     uptime_start: float = 0.0
     diagnostics: Dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def module(self) -> 'ModuleContract':
+        from app.core.registry.manager import registry
+        return registry.get_module(self.metadata.module_id)
 
 class LifecycleEvent(BaseModel):
     module_id: str
