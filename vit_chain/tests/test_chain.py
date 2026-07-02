@@ -12,7 +12,8 @@ def keys():
     priv, pub = generate_keypair()
     return priv, pub
 
-def test_transaction_creation_and_verification(keys):
+@pytest.mark.asyncio
+async def test_transaction_creation_and_verification(keys):
     priv, pub = keys
     addr = public_key_to_address(pub)
 
@@ -28,11 +29,12 @@ def test_transaction_creation_and_verification(keys):
 
     assert verify_transaction(tx)
 
-def test_mempool():
+@pytest.mark.asyncio
+async def test_mempool():
     mempool = Mempool()
     priv, pub = generate_keypair()
     to_addr = "VIT" + "1" * 40
-    tx = create_transaction(priv, to_addr, Decimal("10"), 0, timestamp=123)
+    tx = create_transaction(priv, to_addr, Decimal("10"), 0)
 
     assert mempool.add(tx)
     assert mempool.size() == 1
@@ -45,7 +47,8 @@ def test_mempool():
     mempool.remove([tx.tx_hash])
     assert mempool.size() == 0
 
-def test_block_building_and_validation(keys):
+@pytest.mark.asyncio
+async def test_block_building_and_validation(keys):
     priv, pub = keys
     to_addr = "VIT" + "1" * 40
     tx = create_transaction(priv, to_addr, Decimal("10"), 0)
@@ -59,7 +62,8 @@ def test_block_building_and_validation(keys):
 
     assert validate_block(block, None, [])
 
-def test_genesis_block():
+@pytest.mark.asyncio
+async def test_genesis_block():
     genesis = build_genesis_block()
     assert genesis.height == 0
     assert genesis.prev_hash == "0" * 64
@@ -72,7 +76,4 @@ async def test_chain_state_logic(mocker):
     # Mock DB session and models
     db = mocker.Mock()
     state = ChainState()
-
-    # We'll need more complex mocking for async DB calls if we want to test apply_transaction fully here.
-    # For now, we've implemented the logic.
     pass

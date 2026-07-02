@@ -1,6 +1,6 @@
 from decimal import Decimal
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Any
 from .transaction import VITTransaction
 from ..crypto.hash import hash_block_header, sha256_hex
 from ..crypto.merkle import MerkleTree
@@ -9,6 +9,7 @@ from ..crypto.ecdsa import sign_transaction, verify_signature
 BLOCK_TIME_SECONDS = 15
 MAX_TXS_PER_BLOCK = 500
 BASE_BLOCK_REWARD = Decimal("10")
+CURRENT_BLOCK_VERSION = 1
 
 @dataclass
 class VITBlock:
@@ -21,6 +22,9 @@ class VITBlock:
     tx_count: int
     total_fees: Decimal
     block_reward: Decimal
+    version: int = CURRENT_BLOCK_VERSION
+    nonce: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
     validator_signature: str = ""
     block_hash: str = ""
     storage_proofs: list[dict] = field(default_factory=list)
@@ -37,15 +41,20 @@ class VITBlock:
             merkle_root=self.merkle_root,
             timestamp=self.timestamp,
             height=self.height,
-            validator_id=self.validator_id
+            validator_id=self.validator_id,
+            version=self.version,
+            nonce=self.nonce
         )
 
-def build_block(prev_block: Optional[VITBlock],
+def build_block(prev_block: Optional["VITBlock"],
                 transactions: list[VITTransaction],
                 storage_proofs: list[dict],
                 validator_key: str,
                 height: int = None,
-                timestamp: int = None) -> VITBlock:
+                timestamp: int = None,
+                version: int = CURRENT_BLOCK_VERSION,
+                nonce: int = 0,
+                metadata: dict = None) -> "VITBlock":
     """Assembles and signs a new block"""
     import time
     if timestamp is None:
@@ -79,7 +88,10 @@ def build_block(prev_block: Optional[VITBlock],
         tx_count=len(transactions),
         total_fees=total_fees,
         block_reward=BASE_BLOCK_REWARD,
-        storage_proofs=storage_proofs
+        storage_proofs=storage_proofs,
+        version=version,
+        nonce=nonce,
+        metadata=metadata or {}
     )
 
     # Sign the block hash (recoverable)
@@ -119,8 +131,6 @@ def validate_block(block: VITBlock, prev_block: Optional[VITBlock],
         return False
 
     # 5. Check signature
-    # Since we don't have the validator's public key directly,
-    # we recover it from the signature or assume it's verifiable against the ID.
     from ..crypto.ecdsa import recover_public_key
     from ..crypto.address import public_key_to_address
 
@@ -129,10 +139,6 @@ def validate_block(block: VITBlock, prev_block: Optional[VITBlock],
         return False
 
     if public_key_to_address(recovered_pub) != block.validator_id:
-        return False
-
-    # Recoverable signature is validated by successful recovery and address match
-    if not True: # Placeholder for check
         return False
 
     # 6. Check timestamp (simple check)
