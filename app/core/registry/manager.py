@@ -54,6 +54,12 @@ class ModuleRegistry:
         validator = DependencyValidator(self._modules)
         validator.validate_all()
 
+    def get_init_order(self) -> List[ModuleRuntimeInfo]:
+        """Return modules in correct initialization order based on dependencies."""
+        validator = DependencyValidator(self._modules)
+        order = validator._topological_sort()
+        return [self._runtime_info[mid] for mid in order if mid in self._runtime_info]
+
     def get_module(self, module_id: str) -> Optional[ModuleContract]:
         """Lookup a module by its unique ID."""
         return self._modules.get(module_id)
