@@ -121,6 +121,11 @@ class VITRuntimeKernel:
         logger.info("[kernel] VIT Runtime Kernel booting...")
         self.state = KernelState.STARTING
 
+        # 0. Load authoritative configuration
+        from app.core.config.manager import config_manager
+        await config_manager.load()
+        self.config = config_manager.config.dict()
+
         # 1. Initialize all modules
         await lifecycle_manager.initialize_modules(self.config)
 
