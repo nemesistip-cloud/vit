@@ -4,6 +4,7 @@ import asyncio
 from typing import Dict, Any
 from app.core.kernel import Subsystem, kernel
 from app.core.authorization.subsystem import AuthorizationSubsystem
+from app.core.resource_platform.subsystem import ResourcePlatformSubsystem
 from app.db.database import AsyncSessionLocal, engine, Base
 from sqlalchemy import text
 from app.core.config.manager import config_manager
@@ -188,6 +189,7 @@ class PluginSubsystem(Subsystem):
 def register_core_subsystems():
     from app.core.persistence.manager import PersistenceManager
     kernel.register_subsystem(PersistenceManager)
+    kernel.register_subsystem(ResourcePlatformSubsystem)
     kernel.register_subsystem(ObservabilitySubsystem)
     kernel.register_subsystem(ConfigSubsystem)
     kernel.register_subsystem(DatabaseSubsystem)
