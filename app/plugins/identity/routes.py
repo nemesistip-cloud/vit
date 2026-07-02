@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from app.db.database import get_db
 from app.plugins.identity.services.identity_manager import IdentityManager
 from app.plugins.identity.services.authentication_manager import AuthenticationManager
