@@ -114,3 +114,28 @@ ENABLE_ODDS: bool = os.getenv("ENABLE_ODDS", "true").lower() == "true"
 ENABLE_PAYMENTS: bool = os.getenv("ENABLE_PAYMENTS", "true").lower() == "true"
 
 REPLIT_DEPLOYMENT: bool = os.getenv("REPL_SLUG") is not None
+
+# Newly discovered missing constants
+MAX_STAKE: float = float(os.getenv("MAX_STAKE", "100.0"))
+MIN_EDGE_THRESHOLD: float = float(os.getenv("MIN_EDGE_THRESHOLD", "0.02"))
+PUBLIC_APP_URL: str = os.getenv("PUBLIC_APP_URL", "https://vit.network")
+GOOGLE_APPLICATION_CREDENTIALS: str = get_val("external", "google_application_credentials", "")
+
+# UI branding constants
+APP_TAGLINE: str = os.getenv("APP_TAGLINE", "AI Intelligence & Blockchain Super App")
+APP_SHORT_NAME: str = os.getenv("APP_SHORT_NAME", "VIT")
+
+# Service discovery and additional missing constants
+TELEGRAM_BOT_USERNAME: str = os.getenv("TELEGRAM_BOT_USERNAME", "VITNetworkBot")
+SMTP_FROM: str = os.getenv("SMTP_FROM", "noreply@vit.network")
+SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.resend.com")
+SMTP_PASS: str = get_val("external", "smtp_pass", "")
+SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER: str = os.getenv("SMTP_USER", "resend")
+GOOGLE_APPLICATION_CREDENTIALS_JSON: str = get_val("external", "google_application_credentials_json", "")
+EMBEDDING_CACHE_TTL: int = int(get_val("ai", "embedding_cache_ttl", 3600))
+PI_APP_SECRET: str = get_val("external", "pi_app_secret", "")
+PI_WEBHOOK_SECRET: str = get_val("external", "pi_webhook_secret", "")
+REPLIT_DEV_DOMAIN: str = os.getenv("REPL_SLUG", "") # Simplified
+PAYSTACK_WEBHOOK_SECRET: str = get_val("external", "paystack_webhook_secret", "")
+USDT_MIN_CONFIRMATIONS: int = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
