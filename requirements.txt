@@ -1,3 +1,4 @@
+SQLAlchemy[asyncio]
 aiofiles
 aiohttp
 aioredis
@@ -7,10 +8,12 @@ asyncpg
 bcrypt
 beautifulsoup4
 celery
+coincurve
 cryptography
 dropbox
 email-validator>=2.0
 eth-account>=0.8.0
+eth-hash[pycryptodome]
 fakeredis
 fastapi
 firebase-admin>=6.5.0
@@ -48,12 +51,10 @@ reedsolo
 reportlab
 scikit-learn
 scipy
-SQLAlchemy[asyncio]
+semver
 starlette
 stripe
 tenacity
 uvicorn[standard]
 web3>=6.0.0
 xgboost
-eth-hash[pycryptodome]
-coincurve
