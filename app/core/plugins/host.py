@@ -1,7 +1,9 @@
 import logging
+import asyncio
 from typing import Dict, List, Optional, Any, TypeVar, Type
 from app.core.plugins.models import Capability
 from app.core.plugins.contract import PluginContract
+from app.core.event_bus import event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +44,16 @@ class ExtensionHost:
             return provider
         return None
 
-    def emit_event(self, event_name: str, payload: Dict[str, Any]):
+    async def emit_event(self, event_name: str, payload: Dict[str, Any], sender: str = "system"):
         """Publish events to the platform Event Bus."""
-        # Future: Integrate with app.core.event_bus
+        await event_bus.publish(event_name, payload, sender=sender)
         logger.debug(f"[host] Event emitted: {event_name}")
 
     def log(self, level: str, message: str):
         """Standardized logging for plugins."""
         # Future: Scope log messages to the plugin ID
         logger.info(f"[plugin-log] {message}")
+
+# Singleton-like access for plugins if needed, but usually passed in init
+_registry = CapabilityRegistry()
+extension_host = ExtensionHost(_registry)

@@ -229,6 +229,9 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 from app.api.routes.observability import router as obs_router
 app.include_router(obs_router, prefix="/api/obs", tags=["Observability"])
 
+from app.plugins.identity.routes import router as identity_router
+app.include_router(identity_router, prefix="/api/identity", tags=["Identity"])
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 10000))
