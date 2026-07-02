@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, List, Type
+from typing import Dict, Any, List, Type, Optional
 from sqlalchemy.orm import DeclarativeBase
 
 logger = logging.getLogger(__name__)
