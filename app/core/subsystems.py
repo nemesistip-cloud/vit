@@ -3,6 +3,7 @@ import os
 import asyncio
 from typing import Dict, Any
 from app.core.kernel import Subsystem, kernel
+from app.core.authorization.subsystem import AuthorizationSubsystem
 from app.db.database import AsyncSessionLocal, engine, Base
 from sqlalchemy import text
 from app.core.config.manager import config_manager
@@ -188,6 +189,7 @@ def register_core_subsystems():
     kernel.register_subsystem(ObservabilitySubsystem)
     kernel.register_subsystem(ConfigSubsystem)
     kernel.register_subsystem(DatabaseSubsystem)
+    kernel.register_subsystem(AuthorizationSubsystem)
     kernel.register_subsystem(RedisSubsystem)
     kernel.register_subsystem(AISubsystem)
     kernel.register_subsystem(TaskSubsystem)
