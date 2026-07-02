@@ -1,55 +1,68 @@
 # app/core/permissions.py — FastAPI permission dependency factories
+from typing import Dict, Any, Optional
 from fastapi import Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.auth.dependencies import get_current_user, get_current_admin
+from app.db.database import get_db
 from app.db.models import User
-from app.core.roles import Permission, has_permission, SubscriptionTier, TIER_LIMITS
+from app.modules.authz.manager import authz_manager
 
 
-def require_permission(permission: Permission):
-    """Return a FastAPI dependency that enforces the given permission."""
-    async def _dep(current_user: User = Depends(get_current_admin)) -> User:
-        admin_role = getattr(current_user, "admin_role", None) or "admin"
-        if not has_permission(admin_role, permission):
+def require_permission(permission: str, resource: str = "*"):
+    """
+    Return a FastAPI dependency that enforces the given permission
+    using the centralized Authorization & Policy Engine.
+    """
+    async def _dep(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ) -> User:
+        # Evaluate using the Policy Engine
+        context = {
+            "user": {
+                "id": current_user.id,
+                "tier": getattr(current_user, "subscription_tier", "basic"),
+                "is_active": current_user.is_active
+            }
+        }
+
+        is_allowed = await authz_manager.check_permission(
+            db=db,
+            user_id=current_user.id,
+            action=permission,
+            resource=resource,
+            context=context
+        )
+
+        if not is_allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Missing permission: {permission.value}",
+                detail=f"Access denied: Missing permission '{permission}' for resource '{resource}'",
             )
+
         return current_user
     return _dep
 
 
-def require_admin_roles(*allowed_roles: str):
-    """Dependency that allows only specific admin roles."""
-    async def _dep(current_user: User = Depends(get_current_admin)) -> User:
-        admin_role = getattr(current_user, "admin_role", None) or "admin"
-        if admin_role not in allowed_roles:
+def require_admin_permission(permission: str, resource: str = "*"):
+    """Dependency that enforces a permission specifically for admin users."""
+    async def _dep(
+        current_user: User = Depends(get_current_admin),
+        db: AsyncSession = Depends(get_db)
+    ) -> User:
+        is_allowed = await authz_manager.check_permission(
+            db=db,
+            user_id=current_user.id,
+            action=permission,
+            resource=resource
+        )
+
+        if not is_allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires one of: {', '.join(allowed_roles)}",
+                detail=f"Admin Access Denied: Missing permission '{permission}'",
             )
+
         return current_user
     return _dep
-
-
-def require_subscription(min_tier: str):
-    """Dependency that enforces a minimum subscription tier."""
-    tier_order = {t.value: i for i, t in enumerate(SubscriptionTier)}
-
-    async def _dep(current_user: User = Depends(get_current_user)) -> User:
-        user_tier = getattr(current_user, "subscription_tier", "viewer") or "viewer"
-        if tier_order.get(user_tier, 0) < tier_order.get(min_tier, 0):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires {min_tier} subscription or higher",
-            )
-        return current_user
-    return _dep
-
-
-def get_user_tier_limits(user: User) -> dict:
-    """Return tier limits for a user based on their subscription tier."""
-    tier = getattr(user, "subscription_tier", "viewer") or "viewer"
-    try:
-        return TIER_LIMITS[SubscriptionTier(tier)]
-    except (ValueError, KeyError):
-        return TIER_LIMITS[SubscriptionTier.VIEWER]
