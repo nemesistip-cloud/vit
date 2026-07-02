@@ -1,7 +1,7 @@
 # Anselem Anyigor Chijioke | GitHub Portfolio
 
 📍 **Abuja, Nigeria** | 📧 [Email] | 📞 [Phone]
-**X:** [@anselemcrizyx](https://x.com/anselemcrizyx) | **Portfolio:** [vitnetwork.io](https://vitnetwork.io)
+**X:** [@anselemcrizyx](https://x.com/anselemcrizyx) | **Portfolio:** [(https://vitnetwork-nls4.onrender.com)]
 
 ---
 
