@@ -186,6 +186,8 @@ class PluginSubsystem(Subsystem):
         return True
 
 def register_core_subsystems():
+    from app.core.persistence.manager import PersistenceManager
+    kernel.register_subsystem(PersistenceManager)
     kernel.register_subsystem(ObservabilitySubsystem)
     kernel.register_subsystem(ConfigSubsystem)
     kernel.register_subsystem(DatabaseSubsystem)
