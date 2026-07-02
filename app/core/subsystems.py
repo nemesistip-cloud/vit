@@ -9,39 +9,63 @@ from app.core.config.manager import config_manager
 
 logger = logging.getLogger(__name__)
 
+class ObservabilitySubsystem(Subsystem):
+    name = "observability"
+    dependencies = ["config"]
+
+    async def _on_initialize(self, config: Dict[str, Any]):
+        from app.core.observability.manager import obs_manager
+        from app.core.observability.logger import setup_observability_logging
+
+        # Configure logging first
+        log_level = config.get("app", {}).get("log_level", "INFO")
+        setup_observability_logging(log_level)
+
+        await obs_manager.initialize(config)
+        logger.info("[kernel] Observability platform integrated.")
+
+    async def _on_start(self):
+        from app.core.observability.manager import obs_manager
+        from app.core.observability.models import HealthStatus
+
+        obs_manager.record_metric("kernel_boot_start", 1.0)
+        obs_manager.health.update_status("kernel", HealthStatus.HEALTHY, "Kernel is starting")
+
+    async def health_check(self) -> bool:
+        from app.core.observability.manager import obs_manager
+        from app.core.observability.models import HealthStatus
+
+        # Overall status check
+        status = obs_manager.health.get_overall_status()
+        return status != HealthStatus.UNHEALTHY
+
 class ConfigSubsystem(Subsystem):
-    """
-    Subsystem responsible for bridging the new ConfigurationManager
-    with legacy code and ensuring configuration is ready.
-    """
     name = "config"
     dependencies = []
 
     async def _on_initialize(self, config: Dict[str, Any]):
-        # Configuration is already loaded by the Kernel before initializing modules.
-        # This subsystem now acts as a diagnostic bridge.
         vit_config = config_manager.config
-
-        # Log effective environment
-        logger.info(f"[kernel] Configuration active: {vit_config.app.name} v{vit_config.app.version} ({vit_config.app.environment.value})")
-
-        # Diagnostic report
-        diag = config_manager.get_diagnostics()
-        logger.debug(f"[kernel] Configuration Diagnostics: {diag}")
+        env_val = getattr(vit_config.app.environment, 'value', str(vit_config.app.environment))
+        logger.info(f"[kernel] Configuration active: {vit_config.app.name} v{vit_config.app.version} ({env_val})")
 
 class DatabaseSubsystem(Subsystem):
     name = "database"
-    dependencies = ["config"]
+    dependencies = ["config", "observability"]
 
     async def _on_start(self):
-        # Verify database connectivity
+        from app.core.observability.manager import obs_manager
+        from app.core.observability.models import HealthStatus
+
+        start = asyncio.get_event_loop().time()
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
 
-        # Ensure schema initialization (Bootstrap logic)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
+        duration = asyncio.get_event_loop().time() - start
+        obs_manager.record_metric("database_init_time_ms", duration * 1000)
+        obs_manager.health.update_status("database", HealthStatus.HEALTHY, "Connected")
         logger.info("[kernel] Database connectivity verified and schema synchronized.")
 
     async def health_check(self) -> bool:
@@ -55,52 +79,75 @@ class DatabaseSubsystem(Subsystem):
 
 class RedisSubsystem(Subsystem):
     name = "redis"
-    dependencies = ["config"]
+    dependencies = ["config", "observability"]
 
     async def _on_start(self):
         from app.core.redis import require_redis
-        # Mock app for legacy compatibility if needed
+        from app.core.observability.manager import obs_manager
+        from app.core.observability.models import HealthStatus
+
         class MockApp:
             state = type('State', (), {'redis': None})
         await require_redis(MockApp())
+        obs_manager.health.update_status("redis", HealthStatus.HEALTHY, "Connected")
         logger.info("[kernel] Redis configured.")
 
 class AISubsystem(Subsystem):
     name = "ai"
-    dependencies = ["config", "database"]
+    dependencies = ["config", "database", "observability"]
 
     async def _on_start(self):
         from app.services.ai_client import provider_status
-        await provider_status()
+        from app.core.observability.manager import obs_manager
+        from app.core.observability.models import HealthStatus
+
+        status = await provider_status()
+        obs_manager.health.update_status("ai", HealthStatus.HEALTHY, "Providers online", details=status)
         logger.info("[kernel] AI Intelligence system initialized.")
 
 class TaskSubsystem(Subsystem):
     name = "tasks"
-    dependencies = ["database", "redis"]
+    dependencies = ["database", "redis", "observability"]
 
     async def _on_start(self):
-        from app.tasks.ticker_sync import start_ticker_sync
-        from app.tasks.settlement_task import start_settlement_worker
-        from app.tasks.telegram_digest import start_telegram_digest
+        try:
+            from app.tasks.ticker_sync import start_ticker_sync
+            from app.tasks.settlement_task import start_settlement_worker
+            from app.tasks.telegram_digest import start_telegram_digest
+            from app.core.observability.manager import obs_manager
+            from app.core.observability.models import HealthStatus
 
-        start_ticker_sync()
-        start_settlement_worker()
-        start_telegram_digest()
-        logger.info("[kernel] Background task workers started.")
+            start_ticker_sync()
+            start_settlement_worker()
+            start_telegram_digest()
+            obs_manager.health.update_status("tasks", HealthStatus.HEALTHY, "Workers started")
+            logger.info("[kernel] Background task workers started.")
+        except ImportError as e:
+            logger.warning(f"[kernel] Task subsystem partially started (some tasks unavailable): {e}")
+            from app.core.observability.manager import obs_manager
+            from app.core.observability.models import HealthStatus
+            obs_manager.health.update_status("tasks", HealthStatus.DEGRADED, f"Import error: {e}")
 
 class PlatformSubsystem(Subsystem):
     name = "platform"
-    dependencies = ["tasks", "ai"]
+    dependencies = ["tasks", "ai", "observability"]
 
     async def _on_start(self):
-        from app.services.firestore_events import setup_firestore_events
-        from app.config import print_config_status
+        try:
+            from app.services.firestore_events import setup_firestore_events
+            from app.config import print_config_status
+            from app.core.observability.manager import obs_manager
+            from app.core.observability.models import HealthStatus
 
-        setup_firestore_events()
-        print_config_status()
-        logger.info("[kernel] Platform OS features active.")
+            setup_firestore_events()
+            print_config_status()
+            obs_manager.health.update_status("platform", HealthStatus.HEALTHY, "Active")
+            logger.info("[kernel] Platform OS features active.")
+        except Exception as e:
+            logger.warning(f"[kernel] Platform subsystem failed to start fully: {e}")
 
 def register_core_subsystems():
+    kernel.register_subsystem(ObservabilitySubsystem)
     kernel.register_subsystem(ConfigSubsystem)
     kernel.register_subsystem(DatabaseSubsystem)
     kernel.register_subsystem(RedisSubsystem)

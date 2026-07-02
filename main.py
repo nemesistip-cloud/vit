@@ -226,6 +226,9 @@ async def get_kernel_status():
 from app.auth.routes import router as auth_router
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 
+from app.api.routes.observability import router as obs_router
+app.include_router(obs_router, prefix="/api/obs", tags=["Observability"])
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 10000))
