@@ -90,8 +90,18 @@ class BlockchainSubsystem(Subsystem):
         """Return runtime diagnostics for the blockchain platform."""
         diags = await super().get_diagnostics()
         mempool_stats = await self.manager.get_mempool_stats()
+
+        chain_stats = {}
+        try:
+            async with AsyncSessionLocal() as session:
+                chain_stats = await self.manager.indexer.get_chain_stats(session)
+        except Exception as e:
+            logger.warning(f"Failed to fetch chain stats for diagnostics: {e}")
+
         diags.update({
             "mempool": mempool_stats,
-            "version": self._metadata.version
+            "chain": chain_stats,
+            "version": self._metadata.version,
+            "domain": self._metadata.domain
         })
         return diags

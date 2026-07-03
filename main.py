@@ -232,6 +232,18 @@ app.include_router(obs_router, prefix="/api/obs", tags=["Observability"])
 from app.plugins.identity.routes import router as identity_router
 app.include_router(identity_router, prefix="/api/identity", tags=["Identity"])
 
+from app.api.routes.blockchain import router as blockchain_router
+app.include_router(blockchain_router)
+
+from app.api.routes.explorer import router as explorer_router
+app.include_router(explorer_router, prefix="/api")
+
+from app.api.routes.blockchain_ws import router as blockchain_ws_router
+app.include_router(blockchain_ws_router)
+
+from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
+app.include_router(blockchain_analytics_router)
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 10000))
