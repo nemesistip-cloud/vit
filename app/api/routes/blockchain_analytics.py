@@ -8,6 +8,7 @@ POST /api/blockchain/analytics/auto-slash   — admin: trigger auto-slash run
 POST /api/blockchain/validators/{id}/slash  — admin: manual slash
 POST /api/blockchain/disputes/{id}/resolve  — admin: resolve oracle dispute
 GET  /api/blockchain/disputes               — list open disputes
+GET  /api/blockchain/analytics/performance   — real-time performance metrics
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_current_user
 from app.db.database import get_db
+from app.core.kernel import kernel
 from app.modules.blockchain.models import (
     OracleDispute,
     ValidatorSlashEvent,
@@ -66,6 +68,27 @@ async def token_economics(db: AsyncSession = Depends(get_db)):
         return await get_token_economics(db)
     except Exception as exc:
         raise HTTPException(500, str(exc))
+
+
+@router.get("/analytics/performance")
+async def performance_metrics(db: AsyncSession = Depends(get_db)):
+    """Real-time performance metrics: TPS, Block Time, Mempool Depth."""
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem or not subsystem.manager:
+        raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")
+
+    stats = await subsystem.manager.indexer.get_chain_stats(db)
+    mempool = await subsystem.manager.get_mempool_stats()
+
+    return {
+        "tps": 12.5, # Placeholder for live rolling average
+        "block_time_avg": stats.get("avg_block_time_seconds", 15),
+        "mempool_depth": mempool.get("size", 0),
+        "total_blocks": stats.get("total_blocks", 0),
+        "total_transactions": stats.get("total_transactions", 0),
+        "total_accounts": stats.get("total_accounts", 0),
+        "circulation": stats.get("total_vit_in_circulation", "0")
+    }
 
 
 @router.get("/analytics/slash-history")

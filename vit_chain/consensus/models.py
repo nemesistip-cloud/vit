@@ -43,7 +43,7 @@ class Validator(Base):
     status: Mapped[str] = mapped_column(String(20), default="active") # active, jailed, inactive
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
     last_active: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    extra_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     reputation = relationship("ValidatorReputation", back_populates="validator", uselist=False)
 

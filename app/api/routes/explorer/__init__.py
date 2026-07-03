@@ -8,6 +8,7 @@ from .blocks import router as blocks_router
 from .transactions import router as transactions_router
 from .accounts import router as accounts_router
 from .nodes import router as nodes_router
+from .search import router as search_router
 
 router = APIRouter(prefix="/explorer", tags=["Block Explorer"])
 
@@ -15,6 +16,7 @@ router.include_router(blocks_router)
 router.include_router(transactions_router)
 router.include_router(accounts_router)
 router.include_router(nodes_router)
+router.include_router(search_router)
 
 # Special alias for /tx/{hash} to match build spec requirement
 from .transactions import get_transaction

@@ -25,7 +25,7 @@ class ValidatorRegistry:
 
         if validator:
             validator.public_key = public_key
-            validator.metadata = metadata or validator.metadata
+            validator.extra_metadata = metadata or validator.extra_metadata
             validator.last_active = datetime.datetime.now(datetime.timezone.utc)
         else:
             validator = Validator(
@@ -53,7 +53,7 @@ class ValidatorRegistry:
         """Sets validator status to 'jailed'."""
         stmt = update(Validator).where(Validator.node_id == node_id).values(
             status="jailed",
-            metadata=func.json_set(Validator.metadata, "$.jail_reason", reason)
+            metadata=func.json_set(Validator.extra_metadata, "$.jail_reason", reason)
         )
         await db.execute(stmt)
         # flush/commit handled by caller
