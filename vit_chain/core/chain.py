@@ -1,13 +1,12 @@
 import json
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Callable
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from .block import VITBlock, validate_block
 from .transaction import VITTransaction
 from .state import ChainState
 from app.db.models import IoTEvent
-from decimal import Decimal
 
 class VITChain:
     CHAIN_ID = 7764
@@ -80,21 +79,19 @@ class VITChain:
         event = result.scalar_one_or_none()
         return self._to_block(event) if event else None
 
-    async def add_block(self, db: AsyncSession, block: VITBlock) -> bool:
+    async def add_block(self, db: AsyncSession, block: VITBlock,
+                        known_validators: list[str] = None,
+                        consensus_validator: Callable = None) -> bool:
         """
         Validates block, applies all transactions, updates state.
         Returns False if invalid
         """
         latest = await self.get_latest_block(db)
-        # 1. Validate block structure and signature
-        if not validate_block(block, latest, []):
+        # 1. Validate block structure, signature and consensus rules
+        if not validate_block(block, latest, known_validators, consensus_validator):
             return False
 
         # 2. Apply transactions and rewards
-        # Caller is responsible for db.begin() as per specs usually,
-        # but we use a nested transaction to be safe or just assume it's one atomic op.
-
-        # Apply each transaction
         for tx in block.transactions:
             success = await self.state.apply_transaction(db, tx)
             if not success:

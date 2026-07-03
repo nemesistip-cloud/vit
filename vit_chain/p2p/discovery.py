@@ -4,6 +4,7 @@ import redis.asyncio as aioredis
 from app.config import REDIS_URL
 from app.db.database import AsyncSessionLocal
 from .registry import PeerRegistry
+from vit_chain.consensus.registry import ValidatorRegistry
 
 class PeerDiscovery:
     REDIS_PEER_KEY = "vit:p2p:peers"
@@ -14,6 +15,7 @@ class PeerDiscovery:
         self.redis_url = redis_url
         self._redis = None
         self.registry = PeerRegistry()
+        self.validator_registry = ValidatorRegistry()
 
     async def _get_redis(self):
         if not self._redis and self.redis_url:
@@ -38,17 +40,20 @@ class PeerDiscovery:
             except Exception:
                 pass
 
-    async def get_peers(self, count: int = 20) -> list[dict]:
+    async def get_peers(self, count: int = 20, validator_only: bool = False) -> list[dict]:
         """Read peers from Redis fast-path, falling back to DB."""
         redis = await self._get_redis()
+        peers = []
         if redis:
             try:
                 all_peers_raw = await redis.hgetall(self.REDIS_PEER_KEY)
-                peers = []
                 for node_id, info_json in all_peers_raw.items():
                     ttl_key = f"{self.REDIS_PEER_KEY}:{node_id}:ttl"
                     if await redis.exists(ttl_key):
-                        peers.append(json.loads(info_json))
+                        info = json.loads(info_json)
+                        if validator_only and info.get("node_type") != "validator":
+                            continue
+                        peers.append(info)
                     else:
                         await redis.hdel(self.REDIS_PEER_KEY, node_id)
 
@@ -59,7 +64,23 @@ class PeerDiscovery:
 
         # Fallback to DB
         async with AsyncSessionLocal() as db:
-            active_peers = await self.registry.get_active_peers(db, limit=count)
+            if validator_only:
+                validators = await self.validator_registry.get_active_validators(db)
+                # We need to map validators to their peer info, which might be in p2p_peers table
+                stmt = select(self.registry.PeerNode).where(
+                    self.registry.PeerNode.node_id.in_([v.node_id for v in validators])
+                ).limit(count)
+                # Wait, PeerRegistry.PeerNode is not accessible like that if PeerRegistry is a class.
+                # Let's import the model directly if possible or use registry methods.
+                from .models import PeerNode
+                stmt = select(PeerNode).where(
+                    PeerNode.node_id.in_([v.node_id for v in validators]),
+                    PeerNode.is_active == True
+                ).limit(count)
+                active_peers = (await db.execute(stmt)).scalars().all()
+            else:
+                active_peers = await self.registry.get_active_peers(db, limit=count)
+
             return [p.to_dict() for p in active_peers]
 
     async def remove_peer(self, node_id: str):
