@@ -5,6 +5,7 @@ from typing import Dict, Any
 from app.core.kernel import Subsystem, kernel
 from app.core.authorization.subsystem import AuthorizationSubsystem
 from app.core.resource_platform.subsystem import ResourcePlatformSubsystem
+from vit_chain.core.subsystem import BlockchainSubsystem
 from app.db.database import AsyncSessionLocal, engine, Base
 from sqlalchemy import text
 from app.core.config.manager import config_manager
@@ -199,3 +200,4 @@ def register_core_subsystems():
     kernel.register_subsystem(TaskSubsystem)
     kernel.register_subsystem(PlatformSubsystem)
     kernel.register_subsystem(PluginSubsystem)
+    kernel.register_subsystem(BlockchainSubsystem)

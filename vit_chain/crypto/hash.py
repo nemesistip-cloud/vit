@@ -19,7 +19,7 @@ def double_sha256(data: bytes) -> bytes:
 
 def hash_block_header(prev_hash: str, merkle_root: str,
                     timestamp: int, height: int,
-                    validator_id: str) -> str:
+                    validator_id: str, version: int = 1, nonce: int = 0) -> str:
     """Canonical block header hash — deterministic field ordering."""
-    header_str = f"{prev_hash}:{merkle_root}:{timestamp}:{height}:{validator_id}"
+    header_str = f"{version}:{prev_hash}:{merkle_root}:{timestamp}:{height}:{validator_id}:{nonce}"
     return sha256_hex(header_str.encode("utf-8"))
