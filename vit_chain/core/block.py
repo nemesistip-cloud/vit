@@ -1,10 +1,11 @@
 from decimal import Decimal
 from dataclasses import dataclass, field
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 from .transaction import VITTransaction
 from ..crypto.hash import hash_block_header, sha256_hex
 from ..crypto.merkle import MerkleTree
-from ..crypto.ecdsa import sign_transaction, verify_signature
+from ..crypto.ecdsa import recover_public_key
+from ..crypto.address import public_key_to_address
 
 BLOCK_TIME_SECONDS = 15
 MAX_TXS_PER_BLOCK = 500
@@ -75,7 +76,6 @@ def build_block(prev_block: Optional["VITBlock"],
 
     from coincurve import PrivateKey
     priv = PrivateKey.from_hex(validator_key)
-    from ..crypto.address import public_key_to_address
     validator_id = public_key_to_address(priv.public_key.format(compressed=False).hex())
 
     block = VITBlock(
@@ -99,7 +99,8 @@ def build_block(prev_block: Optional["VITBlock"],
     return block
 
 def validate_block(block: VITBlock, prev_block: Optional[VITBlock],
-                   known_validators: list[str]) -> bool:
+                   known_validators: Optional[list[str]] = None,
+                   consensus_validator: Optional[Callable] = None) -> bool:
     """
     Validates: hash correct, prev_hash matches, merkle_root valid,
                validator signature valid, timestamp reasonable
@@ -127,13 +128,11 @@ def validate_block(block: VITBlock, prev_block: Optional[VITBlock],
         return False
 
     # 4. Check validator
-    if known_validators and block.validator_id not in known_validators:
-        return False
+    if known_validators is not None:
+        if block.validator_id not in known_validators:
+            return False
 
     # 5. Check signature
-    from ..crypto.ecdsa import recover_public_key
-    from ..crypto.address import public_key_to_address
-
     recovered_pub = recover_public_key(bytes.fromhex(block.block_hash), block.validator_signature)
     if not recovered_pub:
         return False
@@ -144,5 +143,10 @@ def validate_block(block: VITBlock, prev_block: Optional[VITBlock],
     # 6. Check timestamp (simple check)
     if prev_block and block.timestamp <= prev_block.timestamp:
         return False
+
+    # 7. Consensus-specific validation (if provided)
+    if consensus_validator:
+        if not consensus_validator(block):
+            return False
 
     return True

@@ -1,39 +1,114 @@
-import asyncio, logging, time, json
+import asyncio
+import logging
+import time
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import AsyncSessionLocal
-from vit_chain.consensus.challenge import ChallengeGenerator
-from vit_chain.consensus.verifier import ChallengeVerifier
-from vit_chain.consensus.voting import VoteCollector
-from vit_chain.consensus.producer import BlockProducer
-from vit_chain.consensus.finalizer import BlockFinalizer
-from vit_chain.consensus.slashing import SlashEngine
-from vit_chain.consensus.rewards import StorageRewardCalculator
-from app.services.cache import _get_redis
+from vit_chain.consensus.storage_engine import StorageConsensusEngine
+from vit_chain.consensus.base import AbstractConsensusEngine
+from vit_chain.consensus.reputation import ReputationManager
+from vit_chain.consensus.events import ConsensusEventBus
+from vit_chain.consensus.models import ConsensusCheckpoint
+from vit_chain.core.blockchain import VITChain
+
 logger = logging.getLogger(__name__)
 EPOCH_SECONDS = 15
-class ConsensusEngine:
+CHECKPOINT_INTERVAL = 100
+
+class ConsensusManager:
+    """
+    Coordinates multiple consensus engines and manages the validator lifecycle.
+    """
     def __init__(self, validator_key: str):
         self.validator_key = validator_key
-        self.generator = ChallengeGenerator(); self.verifier = ChallengeVerifier(); self.collector = VoteCollector()
-        self.producer = BlockProducer(); self.finalizer = BlockFinalizer(); self.slash_engine = SlashEngine(); self.reward_calculator = StorageRewardCalculator()
+        self.engines: dict[str, AbstractConsensusEngine] = {
+            "storage": StorageConsensusEngine(validator_key)
+        }
+        self.primary_engine = "storage"
+        self.reputation_manager = ReputationManager()
+        self.event_bus = ConsensusEventBus()
         self._running = False
+
     async def run(self):
         self._running = True
+        logger.info(f"ConsensusManager started with engines: {list(self.engines.keys())}")
+
         while self._running:
             try:
                 epoch = int(time.time()) // EPOCH_SECONDS
+
+                # 1. Start Epoch logic (Generates challenges etc.)
                 async with AsyncSessionLocal() as db:
-                    await self.generator.generate_epoch_challenges(db, epoch)
-                    await asyncio.sleep(10)
-                    results = await self.verifier.collect_epoch_results(db, epoch)
-                    if results.get("consensus_weight", 0.0) >= 0.67:
-                        block = await self.producer.produce_block(db, epoch, results, self.validator_key)
-                        vote_result = await self.collector.collect_votes(db, epoch, block.block_hash)
-                        if await self.finalizer.finalize(db, epoch, block, vote_result):
-                            rewards = await self.reward_calculator.calculate_epoch_rewards(db, epoch, vote_result.voting_nodes)
-                            await self.reward_calculator.distribute_storage_rewards(db, rewards)
-                        await self.slash_engine.check_absent_nodes(db, vote_result.absent_nodes, epoch)
-                        for node in vote_result.voting_nodes: await self.slash_engine.record_participation(node)
-                next_epoch = (int(time.time() // EPOCH_SECONDS) + 1) * EPOCH_SECONDS
-                await asyncio.sleep(max(0, next_epoch - time.time()))
-            except asyncio.CancelledError: break
-            except Exception as e: logger.error(f"Engine error: {e}"); await asyncio.sleep(1)
+                    for engine in self.engines.values():
+                        await engine.run_epoch_logic(db, epoch)
+                    await db.commit() # Persist challenges
+
+                # Release DB session during network wait period
+                await asyncio.sleep(10)
+
+                # 2. Block Production and Finalization phase
+                async with AsyncSessionLocal() as db:
+                    engine = self.engines.get(self.primary_engine)
+                    if engine:
+                        block = await engine.produce_block_candidate(db, epoch)
+                        if block:
+                            if hasattr(engine, 'finalize_block'):
+                                success = await engine.finalize_block(db, epoch, block)
+                                if success:
+                                    await self.reputation_manager.record_production(db, block.validator_id)
+                                    await self.event_bus.emit_block_produced(
+                                        block.height, block.block_hash, block.validator_id
+                                    )
+                                    if block.height > 0 and block.height % CHECKPOINT_INTERVAL == 0:
+                                        await self.create_checkpoint(db, block)
+
+                                    await db.commit() # Finalize all changes
+                                    logger.info(f"Block finalized at height {block.height}")
+                                else:
+                                    # Record miss if finalization fails
+                                    if block.validator_id:
+                                        await self.reputation_manager.record_miss(db, block.validator_id)
+                                        await db.commit()
+                                    logger.warning(f"Block finalization failed for epoch {epoch}")
+                        else:
+                            # Potential slot miss - logic to identify whose slot it was would go here
+                            pass
+
+                now = time.time()
+                next_epoch_time = (int(now // EPOCH_SECONDS) + 1) * EPOCH_SECONDS
+                await asyncio.sleep(max(0, next_epoch_time - now))
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"ConsensusManager error: {e}")
+                await asyncio.sleep(1)
+
+    async def create_checkpoint(self, db: AsyncSession, block):
+        """Creates a state checkpoint at the current block."""
+        checkpoint = ConsensusCheckpoint(
+            height=block.height,
+            block_hash=block.block_hash,
+            state_root=block.merkle_root,
+            validator_set_hash="0x" + "f"*64
+        )
+        db.add(checkpoint)
+        # commit() is handled by the caller
+
+    async def validate_block(self, db: AsyncSession, block) -> bool:
+        """Runs validation across all engines."""
+        for engine in self.engines.values():
+            if not await engine.validate_block_rules(db, block):
+                return False
+        return True
+
+    async def on_new_block(self, db: AsyncSession, block):
+        """Notify all engines and update reputation."""
+        for engine in self.engines.values():
+            await engine.on_new_block(db, block)
+
+        if block.validator_id:
+            await self.reputation_manager.record_production(db, block.validator_id)
+
+        await db.commit()
+
+    def stop(self):
+        self._running = False

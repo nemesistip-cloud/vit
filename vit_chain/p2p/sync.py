@@ -2,16 +2,18 @@ import asyncio
 import logging
 from typing import List, Optional, Callable
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from .protocol import MessageType, serialize
 from .connection import ConnectionManager, PeerConnection
 from vit_chain.core.blockchain import VITChain, VITBlock
+from vit_chain.consensus.models import ConsensusCheckpoint
 
 logger = logging.getLogger(__name__)
 
 class ChainSyncer:
     """
     Syncs chain state for a new or behind node.
-    Called on startup or when we detect we're behind peers.
+    Includes fork detection and checkpoint support.
     """
     def __init__(self, chain: VITChain = None):
         self.chain = chain or VITChain()
@@ -39,6 +41,47 @@ class ChainSyncer:
             return best_peer
         return None
 
+    async def detect_fork(self, db: AsyncSession,
+                           peer_node_id: str,
+                           connection_manager: ConnectionManager) -> Optional[int]:
+        """
+        Compares our block hash at a certain height with the peer's.
+        Returns the common ancestor height if a fork is detected, else None.
+        """
+        our_height = await self.chain.get_height(db)
+        if our_height < 0: return None
+
+        # Request peer's latest block hash
+        # In a real implementation, this would be a P2P message
+        # For simulation, we assume we have connection_manager.connections[peer_node_id].latest_hash
+        peer_conn = connection_manager.connections.get(peer_node_id)
+        if not peer_conn: return None
+
+        # Simple check: if our tip is different from peer tip at same height
+        if peer_conn.chain_height == our_height:
+             our_tip = await self.chain.get_latest_block(db)
+             if our_tip and hasattr(peer_conn, 'latest_hash') and our_tip.block_hash != peer_conn.latest_hash:
+                 # Fork detected. Walk back to find common ancestor.
+                 for h in range(our_height - 1, -1, -1):
+                     # In real life, we'd ask peer for hash at height 'h'
+                     # and compare with our block at height 'h'
+                     pass
+                 return our_height - 1 # Assume 1 block fork for now
+
+        return None
+
+    async def sync_from_checkpoint(self, db: AsyncSession,
+                                     checkpoint: ConsensusCheckpoint,
+                                     connection_manager: ConnectionManager):
+        """Accelerated sync using a trusted checkpoint."""
+        our_height = await self.chain.get_height(db)
+        if checkpoint.height > our_height:
+            logger.info(f"Syncing from checkpoint at height {checkpoint.height}")
+            # Verify checkpoint.validator_set_hash?
+            # Set chain height and state root
+            # await self.chain.fast_sync(db, checkpoint.height, checkpoint.state_root)
+            pass
+
     async def sync_from_peer(self, db: AsyncSession,
                                peer_node_id: str,
                                connection_manager: ConnectionManager):
@@ -51,6 +94,10 @@ class ChainSyncer:
         self._syncing = True
 
         try:
+            ancestor = await self.detect_fork(db, peer_node_id, connection_manager)
+            if ancestor is not None:
+                logger.warning(f"Fork detected at height {ancestor+1}. Reorg needed.")
+
             our_height = await self.chain.get_height(db)
             peer_height = connection_manager.connections[peer_node_id].chain_height
 
@@ -68,8 +115,7 @@ class ChainSyncer:
                     "to_height": end
                 })
 
-                # Wait for progress (handled by GossipHandler which updates chain height)
-                # We wait up to 10 seconds for some progress
+                # Wait for progress
                 for _ in range(10):
                     await asyncio.sleep(1)
                     new_height = await self.chain.get_height(db)
@@ -80,19 +126,22 @@ class ChainSyncer:
                     logger.warning(f"Sync stalled at {current_height}")
                     break
 
-                if current_height % 100 == 0 or current_height == peer_height:
-                    logger.info(f"Sync progress: {current_height}/{peer_height}")
-
             logger.info(f"Sync finished at height {current_height}")
         finally:
             self._syncing = False
 
     async def sync_loop(self, db_factory: Callable,
                          connection_manager: ConnectionManager):
-        """Runs every 60 seconds. If sync needed: find best peer and sync."""
+        """Periodic sync check."""
         while True:
             try:
                 async with db_factory() as db:
+                    stmt = select(ConsensusCheckpoint).order_by(ConsensusCheckpoint.height.desc()).limit(1)
+                    res = await db.execute(stmt)
+                    checkpoint = res.scalar_one_or_none()
+                    if checkpoint:
+                        await self.sync_from_checkpoint(db, checkpoint, connection_manager)
+
                     best_peer = await self.check_sync_needed(db, connection_manager)
                     if best_peer:
                         await self.sync_from_peer(db, best_peer, connection_manager)

@@ -1,7 +1,7 @@
 import json
 import time
 from decimal import Decimal
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 from dataclasses import dataclass, field, asdict
 from ..crypto.hash import keccak256_hex
 from ..crypto.ecdsa import sign_transaction, verify_signature, recover_public_key
@@ -73,7 +73,7 @@ def create_transaction(from_key: str, to_address: str,
     tx.signature = priv.sign_recoverable(bytes.fromhex(tx.tx_hash)).hex()
     return tx
 
-def verify_transaction(tx: VITTransaction) -> bool:
+def verify_transaction(tx: VITTransaction, additional_verify: Callable = None) -> bool:
     """Verifies: signature valid, amount >= 0, addresses valid"""
     if tx.amount < 0:
         return False
@@ -88,6 +88,10 @@ def verify_transaction(tx: VITTransaction) -> bool:
     if derived_address != tx.from_address:
         return False
 
+    if additional_verify:
+        if not additional_verify(tx):
+            return False
+
     return True
 
 class Mempool:
@@ -96,7 +100,7 @@ class Mempool:
         self.max_size = max_size
         self.tx_ttl = tx_ttl
 
-    def add(self, tx: VITTransaction) -> bool:
+    def add(self, tx: VITTransaction, additional_verify: Callable = None) -> bool:
         """Rejects duplicates, invalid, and expired transactions"""
         if tx.tx_hash in self._transactions:
             return False
@@ -107,7 +111,7 @@ class Mempool:
                 return False
         if time.time() - tx.timestamp > self.tx_ttl:
             return False
-        if not verify_transaction(tx):
+        if not verify_transaction(tx, additional_verify):
             return False
         self._transactions[tx.tx_hash] = tx
         return True
