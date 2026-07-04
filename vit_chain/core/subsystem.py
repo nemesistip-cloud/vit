@@ -1,8 +1,9 @@
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.core.kernel import Subsystem
 from app.core.registry.models import ModuleMetadata, HealthStatus
 from .manager import BlockchainManager
+from .query import BlockchainQueryEngine
 from ..genesis import ensure_genesis
 from app.db.database import AsyncSessionLocal
 from app.core.event_bus import event_bus
@@ -20,6 +21,8 @@ class BlockchainSubsystem(Subsystem):
     def __init__(self, kernel):
         super().__init__(kernel)
         self.manager = None
+        self.query_engine = None
+        self._sdk = None
         self._metadata = ModuleMetadata(
             module_id=self.name,
             name="Blockchain Runtime",
@@ -30,7 +33,8 @@ class BlockchainSubsystem(Subsystem):
                 "LedgerProvider",
                 "TransactionExecution",
                 "MempoolService",
-                "ChainVerification"
+                "ChainVerification",
+                "BlockchainSDK"
             ],
             dependencies=self.dependencies
         )
@@ -44,6 +48,12 @@ class BlockchainSubsystem(Subsystem):
         tx_ttl = bc_config.get("transaction_ttl", 3600)
 
         self.manager = BlockchainManager(mempool_size=mempool_size, tx_ttl=tx_ttl)
+        self.query_engine = BlockchainQueryEngine()
+
+        # Lazy load SDK to avoid circular imports if any
+        from app.modules.blockchain.sdk import BlockchainSDK
+        self._sdk = BlockchainSDK(self)
+
         logger.info(f"[blockchain] Manager initialized (mempool: {mempool_size}, ttl: {tx_ttl}s)")
 
     async def _on_start(self):
@@ -73,6 +83,10 @@ class BlockchainSubsystem(Subsystem):
 
         await event_bus.publish("ChainInitialized", {"height": 0}, sender="blockchain_subsystem")
         logger.info("[blockchain] Subsystem active.")
+
+    def get_sdk(self):
+        """Returns the public SDK for this subsystem."""
+        return self._sdk
 
     async def health_check(self) -> bool:
         """Check the health of the blockchain manager and ledger."""

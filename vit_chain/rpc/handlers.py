@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from ..storage.db import ChainBlock, ChainTransaction, ChainAccount
 from ..core.transaction import VITTransaction, verify_transaction
-from ..core.chain import VITChain
+from app.core.kernel import kernel
 import json
 
 def to_hex(n: int) -> str:
@@ -23,12 +23,23 @@ async def eth_chainId() -> str:
 
 async def eth_blockNumber(db: AsyncSession) -> str:
     """Returns latest height as hex string"""
+    subsystem = kernel.get_subsystem("blockchain")
+    if subsystem and subsystem.manager:
+        height = await subsystem.manager.chain.chain_height(db)
+        return to_hex(height) if height >= 0 else "0x0"
+
     result = await db.execute(select(ChainBlock.height).order_by(desc(ChainBlock.height)).limit(1))
     height = result.scalar_one_or_none()
     return to_hex(height) if height is not None else "0x0"
 
 async def eth_getBalance(address: str, block: str, db: AsyncSession) -> str:
     """Returns balance in hex wei-equivalent"""
+    subsystem = kernel.get_subsystem("blockchain")
+    if subsystem:
+        sdk = subsystem.get_sdk()
+        balance = await sdk.get_balance(db, address)
+        return vit_to_wei_hex(balance)
+
     result = await db.execute(select(ChainAccount.balance).where(ChainAccount.address == address))
     balance = result.scalar_one_or_none() or Decimal("0")
     return vit_to_wei_hex(balance)
@@ -41,7 +52,10 @@ async def eth_getTransactionCount(address: str, block: str, db: AsyncSession) ->
 
 async def eth_sendRawTransaction(raw_tx_hex: str, db: AsyncSession) -> str:
     """Accepts hex-encoded VIT transaction, adds to mempool"""
-    # In this simplified RPC, we expect hex-encoded JSON string for VITTransaction
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem or not subsystem.manager:
+        raise ValueError("Blockchain subsystem unavailable")
+
     try:
         if raw_tx_hex.startswith("0x"):
             raw_tx_hex = raw_tx_hex[2:]
@@ -50,17 +64,16 @@ async def eth_sendRawTransaction(raw_tx_hex: str, db: AsyncSession) -> str:
         tx = VITTransaction(
             from_address=tx_data["from_address"],
             to_address=tx_data["to_address"],
-            amount=Decimal(tx_data["amount"]),
+            amount=Decimal(str(tx_data["amount"])),
             nonce=tx_data["nonce"],
             timestamp=tx_data["timestamp"],
-            gas_fee=Decimal(tx_data["gas_fee"]),
+            gas_fee=Decimal(str(tx_data.get("gas_fee", "0.001"))),
             data=tx_data.get("data"),
             signature=tx_data["signature"],
             tx_hash=tx_data.get("tx_hash", "")
         )
 
-        chain = VITChain()
-        success = chain.mempool.add(tx)
+        success = await subsystem.manager.add_transaction(tx)
         if success:
             return tx.tx_hash
         else:
@@ -71,14 +84,19 @@ async def eth_sendRawTransaction(raw_tx_hex: str, db: AsyncSession) -> str:
 
 async def eth_getBlockByNumber(block_number: str, full_txs: bool, db: AsyncSession) -> dict:
     """Returns block in Ethereum block format (MetaMask compatible)"""
-    if block_number == "latest":
-        stmt = select(ChainBlock).order_by(desc(ChainBlock.height)).limit(1)
-    else:
-        height = int(block_number, 16)
-        stmt = select(ChainBlock).where(ChainBlock.height == height)
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem or not subsystem.manager:
+        return None
 
-    result = await db.execute(stmt)
-    block = result.scalar_one_or_none()
+    if block_number == "latest":
+        block = await subsystem.manager.get_latest_block(db)
+    else:
+        try:
+            height = int(block_number, 16)
+            block = await subsystem.manager.get_block_by_height(db, height)
+        except (ValueError, TypeError):
+            return None
+
     if not block:
         return None
 
@@ -87,32 +105,44 @@ async def eth_getBlockByNumber(block_number: str, full_txs: bool, db: AsyncSessi
         "hash": block.block_hash,
         "parentHash": block.prev_hash,
         "timestamp": to_hex(block.timestamp),
-        "transactions": [] # Simplified
+        "transactions": [tx.tx_hash for tx in block.transactions] if not full_txs else [tx.to_dict() for tx in block.transactions]
     }
 
 async def eth_getTransactionByHash(tx_hash: str, db: AsyncSession) -> dict:
-    result = await db.execute(select(ChainTransaction).where(ChainTransaction.tx_hash == tx_hash))
-    tx = result.scalar_one_or_none()
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem:
+        return None
+
+    sdk = subsystem.get_sdk()
+    tx = await sdk.get_transaction(db, tx_hash)
     if not tx:
         return None
+
     return {
-        "hash": tx.tx_hash,
-        "blockNumber": to_hex(tx.block_height) if tx.block_height else None,
-        "from": tx.from_address,
-        "to": tx.to_address,
-        "value": vit_to_wei_hex(tx.amount),
-        "nonce": to_hex(tx.nonce)
+        "hash": tx["tx_hash"],
+        "blockNumber": to_hex(tx["block_height"]) if tx.get("block_height") else None,
+        "from": tx["from_address"],
+        "to": tx["to_address"],
+        "value": vit_to_wei_hex(Decimal(tx["amount"])),
+        "nonce": to_hex(tx["nonce"])
     }
 
 async def eth_getTransactionReceipt(tx_hash: str, db: AsyncSession) -> dict:
-    result = await db.execute(select(ChainTransaction).where(ChainTransaction.tx_hash == tx_hash))
-    tx = result.scalar_one_or_none()
-    if not tx:
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem:
         return None
+
+    sdk = subsystem.get_sdk()
+    tx = await sdk.get_transaction(db, tx_hash)
+    if not tx or not tx.get("block_height"):
+        return None
+
     return {
-        "transactionHash": tx.tx_hash,
-        "blockNumber": to_hex(tx.block_height),
-        "status": "0x1" if tx.status == "confirmed" else "0x0"
+        "transactionHash": tx["tx_hash"],
+        "blockNumber": to_hex(tx["block_height"]),
+        "status": "0x1" if tx["status"] == "confirmed" else "0x0",
+        "from": tx["from_address"],
+        "to": tx["to_address"]
     }
 
 async def eth_call(call_object: dict, block: str, db: AsyncSession) -> str:
