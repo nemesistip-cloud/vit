@@ -142,5 +142,8 @@ class Mempool:
     def size(self) -> int:
         return len(self._transactions)
 
+    def get(self, tx_hash: str) -> Optional[VITTransaction]:
+        return self._transactions.get(tx_hash)
+
     def contains(self, tx_hash: str) -> bool:
         return tx_hash in self._transactions

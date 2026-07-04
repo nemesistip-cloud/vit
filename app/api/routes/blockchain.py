@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from app.db.database import get_db
 from app.core.kernel import kernel
 from vit_chain.core.transaction import VITTransaction
-from vit_chain.core.block import VITBlock
 
 router = APIRouter(prefix="/api/chain", tags=["Blockchain Platform"])
 logger = logging.getLogger(__name__)
@@ -69,21 +68,18 @@ async def submit_transaction(tx_data: TxSubmitRequest):
 
 @router.get("/block/{height_or_hash}")
 async def get_block(height_or_hash: str, db: AsyncSession = Depends(get_db)):
-    """Retrieve block details by height or hash."""
+    """Retrieve block details by height or hash using the SDK/Manager."""
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.manager:
         raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")
 
-    if height_or_hash.isdigit():
-        block = await subsystem.manager.get_block_by_height(db, int(height_or_hash))
-    else:
-        # manager currently doesn't have get_block_by_hash directly, but chain does
-        block = await subsystem.manager.chain.get_block_by_hash(db, height_or_hash)
+    sdk = subsystem.get_sdk()
+    block_dict = await sdk.get_block(db, height_or_hash)
 
-    if not block:
+    if not block_dict:
         raise HTTPException(status_code=404, detail="Block not found")
 
-    return block.to_dict()
+    return block_dict
 
 @router.get("/latest", response_model=BlockHeader)
 async def get_latest_block(db: AsyncSession = Depends(get_db)):
@@ -111,47 +107,56 @@ async def get_chain_height(db: AsyncSession = Depends(get_db)):
     if not subsystem or not subsystem.manager:
         raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")
 
-    # Using chain directly
     height = await subsystem.manager.chain.chain_height(db)
     return {"height": height}
 
 @router.get("/tx/{tx_hash}")
 async def get_transaction(tx_hash: str, db: AsyncSession = Depends(get_db)):
-    """Get transaction details and status."""
+    """Get transaction details and status using the SDK."""
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.manager:
         raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")
 
-    # We use the indexer for historical txs
-    from vit_chain.storage.db import ChainTransaction
-    from sqlalchemy import select
+    sdk = subsystem.get_sdk()
+    tx = await sdk.get_transaction(db, tx_hash)
 
-    stmt = select(ChainTransaction).where(ChainTransaction.tx_hash == tx_hash)
-    res = await db.execute(stmt)
-    tx = res.scalar_one_or_none()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
 
-    if tx:
-        return {
-            "hash": tx.tx_hash,
-            "block_height": tx.block_height,
-            "from": tx.from_address,
-            "to": tx.to_address,
-            "amount": float(tx.amount),
-            "status": tx.status,
-            "timestamp": tx.timestamp
-        }
+    return tx
 
-    # Check mempool
-    mempool_tx = subsystem.manager.mempool.get(tx_hash)
-    if mempool_tx:
-        return {
-            "hash": mempool_tx.tx_hash,
-            "block_height": None,
-            "from": mempool_tx.from_address,
-            "to": mempool_tx.to_address,
-            "amount": float(mempool_tx.amount),
-            "status": "pending",
-            "timestamp": mempool_tx.timestamp
-        }
+@router.get("/recent-blocks")
+async def get_recent_blocks(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves a list of recent blocks via the Query Engine."""
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem or not subsystem.query_engine:
+        raise HTTPException(status_code=503, detail="Blockchain query engine unavailable")
 
-    raise HTTPException(status_code=404, detail="Transaction not found")
+    return await subsystem.query_engine.get_recent_blocks(db, limit, offset)
+
+@router.get("/address/{address}/history")
+async def get_address_history(
+    address: str,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves transaction history for an address via the Query Engine."""
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem or not subsystem.query_engine:
+        raise HTTPException(status_code=503, detail="Blockchain query engine unavailable")
+
+    return await subsystem.query_engine.get_address_history(db, address, limit, offset)
+
+@router.get("/metrics")
+async def get_chain_metrics(db: AsyncSession = Depends(get_db)):
+    """Retrieves high-level blockchain metrics."""
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem or not subsystem.query_engine:
+        raise HTTPException(status_code=503, detail="Blockchain query engine unavailable")
+
+    return await subsystem.query_engine.get_chain_metrics(db)

@@ -35,6 +35,26 @@ class VITBlock:
         if not self.block_hash:
             self.block_hash = self.compute_hash()
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "height": self.height,
+            "prev_hash": self.prev_hash,
+            "merkle_root": self.merkle_root,
+            "timestamp": self.timestamp,
+            "validator_id": self.validator_id,
+            "transactions": [tx.to_dict() for tx in self.transactions],
+            "tx_count": self.tx_count,
+            "total_fees": str(self.total_fees),
+            "block_reward": str(self.block_reward),
+            "version": self.version,
+            "nonce": self.nonce,
+            "metadata": self.metadata,
+            "validator_signature": self.validator_signature,
+            "block_hash": self.block_hash,
+            "storage_proofs": self.storage_proofs,
+            "consensus_votes": self.consensus_votes
+        }
+
     def compute_hash(self) -> str:
         """Canonical block header hash — deterministic field ordering."""
         return hash_block_header(
