@@ -6,6 +6,7 @@ from app.core.kernel import Subsystem, kernel
 from app.core.authorization.subsystem import AuthorizationSubsystem
 from app.core.resource_platform.subsystem import ResourcePlatformSubsystem
 from vit_chain.core.subsystem import BlockchainSubsystem
+from app.core.wallet.subsystem import WalletSubsystem
 from app.db.database import AsyncSessionLocal, engine, Base
 from sqlalchemy import text
 from app.core.config.manager import config_manager
@@ -201,3 +202,4 @@ def register_core_subsystems():
     kernel.register_subsystem(PlatformSubsystem)
     kernel.register_subsystem(PluginSubsystem)
     kernel.register_subsystem(BlockchainSubsystem)
+    kernel.register_subsystem(WalletSubsystem)

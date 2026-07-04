@@ -38,6 +38,17 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+@app.get("/")
+async def root():
+    return {
+        "name": "VIT Platform",
+        "status": "healthy",
+        "version": APP_VERSION,
+        "environment": os.getenv("ENVIRONMENT", "production"),
+        "uptime": f"{round(time.time() - kernel.startup_time, 2)}s",
+        "subsystems": list(kernel.subsystems.keys())
+    }
+
 @app.get("/ping")
 async def ping():
     """Always-available liveness probe — < 50ms, zero external resources.
@@ -242,6 +253,7 @@ from app.api.routes.blockchain_ws import router as blockchain_ws_router
 app.include_router(blockchain_ws_router)
 
 from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
+from app.core.wallet.subsystem import WalletSubsystem
 app.include_router(blockchain_analytics_router)
 
 if __name__ == "__main__":
