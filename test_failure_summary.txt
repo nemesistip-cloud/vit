@@ -1,0 +1,5 @@
+      1 ==================================== ERRORS ====================================
+      1 ERROR tests/test_background_supervisor.py
+      1 ERROR tests/test_team_a_refactor.py
+      1 _____________ ERROR collecting tests/test_background_supervisor.py _____________
+      1 ________________ ERROR collecting tests/test_team_a_refactor.py ________________
