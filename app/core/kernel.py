@@ -198,6 +198,10 @@ class VITRuntimeKernel:
 
             await asyncio.sleep(30)
 
+    def get_subsystem(self, name: str) -> Optional[Subsystem]:
+        """Retrieve a registered subsystem by name."""
+        return self.subsystems.get(name)
+
     def get_status(self) -> Dict[str, Any]:
         """Return diagnostic information about the kernel and lifecycle."""
         return {
