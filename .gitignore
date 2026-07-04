@@ -48,3 +48,12 @@ Thumbs.db
 # Test artifacts
 tests_tmp/
 attached_assets/Screenshot_*.jpg
+
+# Runtime-uploaded data (should never be committed)
+data/uploads/
+
+# Nested trained model binaries
+models/**/*.pkl
+
+# Generated test output
+test-results/

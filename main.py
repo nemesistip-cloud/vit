@@ -254,6 +254,7 @@ app.include_router(blockchain_ws_router)
 
 from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
 from app.core.wallet.subsystem import WalletSubsystem
+wallet_sdk = kernel.get_subsystem("wallet").get_sdk()
 app.include_router(blockchain_analytics_router)
 
 if __name__ == "__main__":
