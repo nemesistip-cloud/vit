@@ -13,7 +13,7 @@ async def test_endpoint_exists():
 
     paths = [route.path for route in router.routes]
     print(f"Admin Paths: {paths}")
-    assert "/upload/csv" in paths
+    assert "/admin/upload/csv" in paths
     print("Endpoint verified in router.")
 
 if __name__ == "__main__":
