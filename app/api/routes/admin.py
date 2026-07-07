@@ -1001,3 +1001,58 @@ async def delete_marketplace_listing(
         raise
     except Exception as e:
         raise AppError("Failed to delete listing", status_code=500, code="server_error")
+
+# ── CSV Operations ────────────────────────────────────────────────────────────
+
+@router.post("/upload/csv")
+async def upload_users_csv(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    """
+    Bulk upload/update users via CSV.
+    Expected columns: username, email, role, password (optional)
+    """
+    try:
+        body = await request.body()
+        stream = io.StringIO(body.decode("utf-8"))
+        reader = csv.DictReader(stream)
+
+        count = 0
+        for row in reader:
+            email = row.get("email")
+            if not email:
+                continue
+
+            # Check if user exists
+            res = await db.execute(select(User).where(User.email == email))
+            user = res.scalar_one_or_none()
+
+            if not user:
+                # Create new user
+                from app.auth.pwd_utils import get_password_hash
+                pwd = row.get("password", "Temporary123!")
+                user = User(
+                    email=email,
+                    username=row.get("username", email.split("@")[0]),
+                    hashed_password=get_password_hash(pwd),
+                    role=row.get("role", "user"),
+                    is_active=True,
+                )
+                db.add(user)
+            else:
+                # Update existing
+                if "role" in row:
+                    user.role = row["role"]
+                if "username" in row:
+                    user.username = row["username"]
+
+            count += 1
+
+        await db.commit()
+        await write_audit(db, admin.id, "users.bulk_upload", "user", None, None, {"count": count}, request)
+        return {"ok": True, "processed": count}
+    except Exception as e:
+        logger.error(f"CSV upload error: {e}")
+        raise AppError(f"Failed to process CSV: {str(e)}", status_code=400, code="invalid_input")

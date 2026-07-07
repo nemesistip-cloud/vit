@@ -4,6 +4,7 @@
 # G09:  vit_* developer API keys are DB-authenticated and billed per call.
 import hashlib
 import logging
+import os
 from fastapi import Request, HTTPException
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -59,6 +60,10 @@ async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, 
 
 
 def auth_enabled() -> bool:
+    # Dynamic check for testing or env changes
+    env_val = os.getenv("AUTH_ENABLED")
+    if env_val is not None:
+        return env_val.lower() == "true"
     if AUTH_ENABLED is not None:
         return AUTH_ENABLED
     return API_KEY not in ("", "your_api_key_here")
