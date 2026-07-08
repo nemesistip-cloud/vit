@@ -29,6 +29,12 @@ RUN cd frontend && pnpm install --frozen-lockfile
 COPY frontend/ frontend/
 RUN cd frontend && pnpm run build
 
+COPY explorer/package.json explorer/package-lock.json* explorer/
+RUN cd explorer && npm install
+
+COPY explorer/ explorer/
+RUN cd explorer && npm run build
+
 COPY . .
 
 ENV PORT=8080
