@@ -215,6 +215,9 @@ app.include_router(blockchain_router)
 from app.modules.blockchain.routes import router as blockchain_module_router
 app.include_router(blockchain_module_router)
 
+from vit_chain.rpc.router import router as chain_rpc_router
+app.include_router(chain_rpc_router)
+
 from app.api.routes.explorer import router as explorer_router
 app.include_router(explorer_router, prefix="/api")
 
@@ -357,3 +360,11 @@ async def get_health_summary():
     if unhealthy_count > 0:
         summary["overall_status"] = "DEGRADED" if unhealthy_count < len(modules) else "UNHEALTHY"
     return summary
+
+# --- Static Files for Explorer ---
+from fastapi.staticfiles import StaticFiles
+import os
+
+explorer_path = "explorer/dist"
+if os.path.exists(explorer_path):
+    app.mount("/explorer", StaticFiles(directory=explorer_path, html=True), name="explorer")
