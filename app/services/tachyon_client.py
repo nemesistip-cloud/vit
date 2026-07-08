@@ -43,7 +43,7 @@ class TachyonClient:
 
     async def download_model(self, file_id: str, target_path: str) -> bool:
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(f"{TACHYON_ENDPOINT}/download/{file_id}")
                 if resp.status_code == 200:
                     with open(target_path, "wb") as f:
