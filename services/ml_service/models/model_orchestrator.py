@@ -266,6 +266,9 @@ class ModelOrchestrator:
 
     def _try_tachyon_load(self, key: str, cache_on: bool) -> Optional[Dict]:
         """Attempt to pull a trained model from Tachyon distributed storage."""
+        import os
+        if os.getenv("TACHYON_STORAGE_ENABLED") != "true":
+            return None
         try:
             from app.services.tachyon_client import tachyon_client
             from services.ml_service.model_loader import load_model
