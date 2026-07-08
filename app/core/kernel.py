@@ -112,12 +112,17 @@ class VITRuntimeKernel:
             logger.warning(f"[kernel] Subsystem {sub.name} already registered.")
             return
         self.subsystems[sub.name] = sub
-
-        # Bridge to Module Registry
-        asyncio.get_event_loop().create_task(registry.register(sub))
         logger.debug(f"[kernel] Registered subsystem: {sub.name} (deps: {sub.dependencies})")
 
     async def boot(self):
+        """Authoritative boot sequence delegating to LifecycleManager."""
+        if self.state != KernelState.INITIALIZING:
+            logger.warning(f"[kernel] Kernel already in {self.state.value} state.")
+            return
+
+        # Formalize registration in the Module Registry now that we have an event loop
+        for sub in self.subsystems.values():
+            await registry.register(sub)
         """Authoritative boot sequence delegating to LifecycleManager."""
         if self.state != KernelState.INITIALIZING:
             logger.warning(f"[kernel] Kernel already in {self.state.value} state.")

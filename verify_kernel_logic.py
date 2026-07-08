@@ -1,31 +1,29 @@
-import sys
-import os
-from unittest.mock import MagicMock
-
-# Mock enough to import kernel
-sys.modules['app.core.registry.manager'] = MagicMock()
-sys.modules['app.core.lifecycle.manager'] = MagicMock()
-sys.modules['app.core.observability.manager'] = MagicMock()
-sys.modules['app.core.observability.models'] = MagicMock()
-
+import asyncio
+import logging
 from app.core.kernel import VITRuntimeKernel, Subsystem
+from app.core.registry.manager import registry
 
-def run_verify():
-    k = VITRuntimeKernel()
-    # Check if get_subsystem is present
-    if not hasattr(k, 'get_subsystem'):
-        print("FAIL: get_subsystem missing")
-        return
+async def test_boot_sequence():
+    kernel = VITRuntimeKernel()
 
     class MockSub(Subsystem):
-        name = "test_bc"
+        name = "mock_sub"
+        async def _on_start(self):
+            print("MockSub Started")
 
-    k.subsystems["test_bc"] = MockSub(k)
-    retrieved = k.get_subsystem("test_bc")
-    if retrieved and retrieved.name == "test_bc":
-        print("SUCCESS: get_subsystem functional")
+    kernel.register_subsystem(MockSub)
+    print(f"Subsystems in kernel: {list(kernel.subsystems.keys())}")
+    print(f"Modules in registry before boot: {len(registry.list_modules())}")
+
+    await kernel.boot()
+
+    print(f"Modules in registry after boot: {len(registry.list_modules())}")
+    print(f"Kernel state: {kernel.state}")
+
+    if len(registry.list_modules()) > 0:
+        print("SUCCESS: Subsystems correctly registered during boot.")
     else:
-        print("FAIL: get_subsystem failed to retrieve")
+        print("FAILURE: Subsystems missing from registry.")
 
 if __name__ == "__main__":
-    run_verify()
+    asyncio.run(test_boot_sequence())
