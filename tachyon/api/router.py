@@ -171,8 +171,23 @@ async def upload_file(
     if not _providers:
         await initialize_providers(db)
 
-    file_id = str(uuid.uuid4())
+    from app.config import VIT_STORAGE_USE_EXTERNAL
     content = await file.read()
+    if VIT_STORAGE_USE_EXTERNAL:
+        from app.services.tachyon_client import tachyon_client
+        external_file_id = await tachyon_client.upload_bytes(content, file.filename)
+        if not external_file_id:
+            raise HTTPException(status_code=500, detail="External vit-storage upload failed")
+        return {
+            "file_id": external_file_id,
+            "filename": file.filename,
+            "size_bytes": len(content),
+            "fragment_count": 0,
+            "fragment_names": [],
+            "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+
+    file_id = str(uuid.uuid4())
 
     file_hash = "0x" + hashlib.sha3_256(content).hexdigest()
 
@@ -247,6 +262,22 @@ async def upload_file(
 async def download_file(file_id: str, db: AsyncSession = Depends(get_db)):
     if not _providers:
         await initialize_providers(db)
+
+    from app.config import VIT_STORAGE_USE_EXTERNAL
+    if VIT_STORAGE_USE_EXTERNAL:
+        import httpx
+        from app.services.tachyon_client import TACHYON_ENDPOINT
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(f"{TACHYON_ENDPOINT}/download/{file_id}")
+                if resp.status_code == 200:
+                    from fastapi.responses import Response
+                    return Response(content=resp.content, media_type="application/octet-stream")
+                else:
+                    raise HTTPException(status_code=resp.status_code, detail=f"External download failed: {resp.text}")
+        except Exception as e:
+            logger.exception("External download request failed")
+            raise HTTPException(status_code=500, detail=str(e))
 
     manifest = await _load_manifest(file_id, db)
     if not manifest:

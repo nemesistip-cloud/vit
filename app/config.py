@@ -108,6 +108,7 @@ EMBEDDING_MODEL = get_val("ai", "embedding_model", "all-MiniLM-L6-v2")
 EMBEDDING_DIM = get_val("ai", "embedding_dim", 384)
 TACHYON_DATA_SHARDS = get_val("tachyon", "data_shards", 4)
 TACHYON_PARITY_SHARDS = get_val("tachyon", "parity_shards", 2)
+VIT_STORAGE_USE_EXTERNAL: bool = os.getenv("VIT_STORAGE_USE_EXTERNAL", "false").lower() == "true"
 
 # Additional legacy flags
 ENABLE_ODDS: bool = os.getenv("ENABLE_ODDS", "true").lower() == "true"
