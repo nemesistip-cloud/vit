@@ -2,7 +2,7 @@ import logging
 import os
 import redis.asyncio as redis
 from fakeredis import FakeAsyncRedis
-from app.config import REDIS_URL, ENVIRONMENT
+from app.config import ENVIRONMENT, _clean_redis_url
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +11,12 @@ redis_client = None
 
 async def require_redis(app):
     global redis_client
+    # NOTE: Read REDIS_URL live from the environment at call-time rather than
+    # relying on app.config's module-level constant, which is computed at
+    # import time (before ConfigurationManager.load() runs in kernel.boot())
+    # and therefore can be permanently stale/empty even when the real
+    # environment variable is set correctly.
+    REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))
     if not REDIS_URL:
         if ENVIRONMENT == "production":
             logger.critical("REDIS_URL is not configured. Redis is required in production.")

@@ -306,9 +306,14 @@ async def _take_snapshot():
         def __init__(self, r): self.app = MockApp(r)
 
     async with AsyncSessionLocal() as db:
-        # We need a redis client.
-        from app.config import REDIS_URL
+        # We need a redis client. Read live from the environment: app.config's
+        # REDIS_URL constant is frozen at import time (before
+        # ConfigurationManager.load() runs) and can be stale/empty even when
+        # the real env var is set correctly.
+        import os
+        from app.config import _clean_redis_url
         import redis.asyncio as aioredis
+        REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))
         r = aioredis.from_url(REDIS_URL, decode_responses=True) if REDIS_URL else None
 
         mock_req = MockRequest(r)
