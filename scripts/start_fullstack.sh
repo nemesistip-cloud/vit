@@ -22,7 +22,7 @@ fi
 if [ -n "${REPLIT_DEV_DOMAIN:-}" ] || [ -n "${REPL_ID:-}" ]; then
     echo "[startup] Replit environment detected — starting frontend dev server..."
     cd "${ROOT_DIR}/frontend"
-    exec npm run dev
+    exec node_modules/.bin/vite --port 5000 --host 0.0.0.0
 fi
 
 # Production: build frontend then start Python backend
