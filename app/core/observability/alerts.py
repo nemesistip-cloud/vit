@@ -26,7 +26,8 @@ class AlertManager:
         # In a real system, this might push to PagerDuty/Slack/Email
         import logging
         logger = logging.getLogger("app.alerts")
-        logger.error(f"[ALERT] {severity.value}: {title} - {description} (module: {module_id})")
+        severity_label = severity.value if isinstance(severity, AlertSeverity) else str(severity)
+        logger.error(f"[ALERT] {severity_label}: {title} - {description} (module: {module_id})")
 
     def get_active_alerts(self) -> List[Alert]:
         return list(self._alerts)
