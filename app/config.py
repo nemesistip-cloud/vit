@@ -30,6 +30,66 @@ def _get_config():
     except (ImportError, RuntimeError):
         return None
 
+# Static mirror of the (section, key) -> env var alias mapping defined in
+# app/core/config/models.py. This MUST stay a plain dict (no imports from
+# app.core.config.models) because app.config is imported very early during
+# process bootstrap (before app.core.config.manager.config_manager.load()
+# has run), and importing app.core.config.models transitively imports the
+# app.core package, which imports app.core.dependencies, which imports back
+# into app.config — a circular import that silently breaks mid-bootstrap
+# and is easy to reintroduce if this is refactored to look the alias up
+# dynamically from the pydantic models instead.
+_ENV_ALIASES = {
+    ("app", "secret_key"): "SECRET_KEY",
+    ("app", "jwt_secret_key"): "JWT_SECRET_KEY",
+    ("app", "session_secret"): "SESSION_SECRET",
+    ("app", "pytorch_device"): "PYTORCH_DEVICE",
+    ("app", "bootstrap_match_months"): "BOOTSTRAP_MATCH_MONTHS",
+    ("db", "url"): "DATABASE_URL",
+    ("db", "pool_size"): "DB_POOL_SIZE",
+    ("db", "max_overflow"): "DB_MAX_OVERFLOW",
+    ("db", "echo"): "DB_ECHO",
+    ("redis", "url"): "REDIS_URL",
+    ("redis", "pool_size"): "REDIS_POOL_SIZE",
+    ("ai", "isports_api_key"): "ISPORTS_API_KEY",
+    ("ai", "football_data_api_key"): "FOOTBALL_DATA_API_KEY",
+    ("ai", "the_odds_api_key"): "ODDS_API_KEY",
+    ("ai", "the_sportsdb_api_key"): "THESPORTSDB_API_KEY",
+    ("ai", "embedding_model"): "EMBEDDING_MODEL",
+    ("ai", "embedding_dim"): "EMBEDDING_DIM",
+    ("ai", "embedding_cache_ttl"): "EMBEDDING_CACHE_TTL",
+    ("ai", "max_predictions_per_day"): "MAX_PREDICTIONS_PER_DAY",
+    ("blockchain", "base_chain_id"): "BASE_CHAIN_ID",
+    ("blockchain", "base_rpc_url"): "BASE_RPC_URL",
+    ("blockchain", "vitcoin_contract_address"): "VITCOIN_CONTRACT_ADDRESS",
+    ("external", "resend_api_key"): "RESEND_API_KEY",
+    ("external", "paystack_secret_key"): "PAYSTACK_SECRET_KEY",
+    ("external", "flw_secret_key"): "FLW_SECRET_KEY",
+    ("external", "pi_app_id"): "PI_APP_ID",
+    ("external", "pi_app_secret"): "PI_APP_SECRET",
+    ("external", "pi_webhook_secret"): "PI_WEBHOOK_SECRET",
+    ("external", "pi_sandbox_mode"): "PI_SANDBOX_MODE",
+    ("external", "telegram_bot_token"): "TELEGRAM_BOT_TOKEN",
+    ("external", "telegram_chat_id"): "TELEGRAM_CHAT_ID",
+    ("external", "gcp_project_id"): "GCP_PROJECT_ID",
+    ("external", "google_application_credentials"): "GOOGLE_APPLICATION_CREDENTIALS",
+    ("external", "google_application_credentials_json"): "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+    ("external", "smtp_pass"): "SMTP_PASS",
+    ("external", "paystack_webhook_secret"): "PAYSTACK_WEBHOOK_SECRET",
+    ("tachyon", "data_shards"): "TACHYON_DATA_SHARDS",
+    ("tachyon", "parity_shards"): "TACHYON_PARITY_SHARDS",
+    ("tachyon", "encryption_key"): "TACHYON_ENCRYPTION_KEY",
+    ("tachyon", "s3_api_key"): "TACHYON_S3_API_KEY",
+}
+
+def _resolve_env_alias(section: str, key: str) -> Optional[str]:
+    """Look up the real environment variable name for a given section/key,
+    so the pre-config-load fallback in get_val() reads the correct env var
+    instead of guessing `key.upper()` (which is wrong for almost every
+    field, e.g. section="db", key="url" -> "URL" instead of
+    "DATABASE_URL")."""
+    return _ENV_ALIASES.get((section, key))
+
 def get_val(section: str, key: str, default: Any = None) -> Any:
     cfg = _get_config()
     if cfg:
@@ -41,7 +101,11 @@ def get_val(section: str, key: str, default: Any = None) -> Any:
             return val
         except AttributeError:
             return default
-    return os.getenv(key.upper(), default)
+    # Config not loaded yet (e.g. this module is being imported before
+    # kernel.boot() runs config_manager.load()) — fall back to reading the
+    # real environment variable directly via its known alias.
+    env_name = _resolve_env_alias(section, key) or key.upper()
+    return os.getenv(env_name, default)
 
 # Redefine legacy constants
 SECRET_KEY: str = get_val("app", "secret_key", "dev-secret-key")
