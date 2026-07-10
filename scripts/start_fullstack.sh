@@ -13,23 +13,29 @@ if command -v fuser >/dev/null 2>&1; then
 fi
 
 echo "[startup] Checking frontend dependencies..."
-if [ ! -f "${ROOT_DIR}/node_modules/.bin/vite" ]; then
+if [ ! -d "${ROOT_DIR}/frontend/node_modules" ]; then
     echo "[startup] Installing frontend dependencies..."
-    npm install --legacy-peer-deps --silent 2>/dev/null || true
+    (cd "${ROOT_DIR}/frontend" && npm install --legacy-peer-deps --silent 2>/dev/null) || true
 fi
 
+# In Replit dev environment: run Vite dev server only (no Python backend needed)
+if [ -n "${REPLIT_DEV_DOMAIN:-}" ] || [ -n "${REPL_ID:-}" ]; then
+    echo "[startup] Replit environment detected — starting frontend dev server..."
+    exec npm --prefix "${ROOT_DIR}/frontend" run dev
+fi
+
+# Production: build frontend then start Python backend
 echo "[startup] Building frontend..."
-if [ ! -f "frontend/dist/index.html" ] \
-    || [ "frontend/src/main.tsx" -nt "frontend/dist/index.html" ] \
-    || [ "frontend/vite.config.ts" -nt "frontend/dist/index.html" ]; then
-    (cd "${ROOT_DIR}/frontend" && node "${ROOT_DIR}/node_modules/.bin/vite" build 2>&1 | tail -5)
+if [ ! -f "${ROOT_DIR}/frontend/dist/index.html" ] \
+    || [ "${ROOT_DIR}/frontend/src/main.tsx" -nt "${ROOT_DIR}/frontend/dist/index.html" ] \
+    || [ "${ROOT_DIR}/frontend/vite.config.ts" -nt "${ROOT_DIR}/frontend/dist/index.html" ]; then
+    (cd "${ROOT_DIR}/frontend" && npm run build 2>&1 | tail -5)
     echo "[startup] Frontend build complete."
 else
-    echo "[startup] Frontend build up to date, skipping build."
+    echo "[startup] Frontend build up to date, skipping rebuild."
 fi
 
 echo "[startup] Database schema ready"
-echo "[startup] Starting server on port ${BACKEND_PORT}..."
-
+echo "[startup] Starting Python backend on port ${BACKEND_PORT}..."
 cd "${ROOT_DIR}"
 exec python -m uvicorn main:app --host 0.0.0.0 --port "${BACKEND_PORT}"
