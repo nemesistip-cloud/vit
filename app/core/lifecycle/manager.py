@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from app.core.registry.manager import registry
 from app.core.registry.models import ModuleStatus, LifecycleEvent, LifecycleDiagnostic
 from app.core.observability.manager import obs_manager
-from app.core.observability.models import MetricType
+from app.core.observability.models import MetricType, AlertSeverity
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class LifecycleManager:
                 logger.error(f"[lifecycle] Failed to initialize {mid}: {e}")
                 await registry.update_status(mid, ModuleStatus.FAILED)
                 obs_manager.emit_alert(
-                    severity="ERROR",
+                    severity=AlertSeverity.ERROR,
                     title="Module Initialization Failed",
                     description=f"Module {mid} failed to initialize: {str(e)}",
                     module_id=mid
@@ -60,7 +60,7 @@ class LifecycleManager:
                 logger.error(f"[lifecycle] Failed to start {mid}: {e}")
                 await registry.update_status(mid, ModuleStatus.FAILED)
                 obs_manager.emit_alert(
-                    severity="CRITICAL",
+                    severity=AlertSeverity.CRITICAL,
                     title="Module Startup Failed",
                     description=f"Module {mid} failed to start: {str(e)}",
                     module_id=mid
