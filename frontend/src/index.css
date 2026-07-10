@@ -1,25 +1,70 @@
-@import "tailwindcss";
-@import "./styles/tokens.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme {
-  --font-display: var(--font-display);
-  --font-mono: var(--font-mono);
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-  --color-vit-positive: var(--vit-positive);
-  --color-vit-warning: var(--vit-warning);
-  --color-vit-negative: var(--vit-negative);
+  html {
+    scroll-behavior: smooth;
+  }
 
-  --radius-sm: var(--radius);
-  --radius-md: calc(var(--radius) * 2);
-  --radius-lg: calc(var(--radius) * 4);
+  body {
+    @apply bg-surface-900 text-white font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-vit-700 rounded-full;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+
+  .glass-hover {
+    @apply glass hover:bg-white/8 hover:border-white/20 transition-all duration-300;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-vit-300 to-vit-500 bg-clip-text text-transparent;
+  }
+
+  .status-dot-green {
+    @apply w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_theme(colors.emerald.400)];
+  }
+
+  .status-dot-yellow {
+    @apply w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_8px_theme(colors.yellow.400)];
+  }
+
+  .status-dot-red {
+    @apply w-2 h-2 rounded-full bg-red-400 shadow-[0_0_8px_theme(colors.red.400)];
+  }
+
+  .section-grid {
+    background-image: linear-gradient(rgba(59,101,255,0.06) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(59,101,255,0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
 }
 
 @layer utilities {
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  .bg-white\/8 {
+    background-color: rgba(255, 255, 255, 0.08);
   }
 }
