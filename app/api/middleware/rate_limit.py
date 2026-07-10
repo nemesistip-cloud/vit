@@ -9,7 +9,8 @@ from fastapi import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 from app.core.errors import error_response
 
-from app.config import RATE_LIMIT_ENABLED, REDIS_URL
+import os
+from app.config import RATE_LIMIT_ENABLED, _clean_redis_url
 
 log = logging.getLogger(__name__)
 
@@ -50,10 +51,14 @@ def _get_redis():
     global _redis_client, _redis_checked
     if _redis_checked: return _redis_client
     _redis_checked = True
-    if not REDIS_URL: return None
+    # Read live from the environment: app.config's REDIS_URL constant is
+    # frozen at import time (before ConfigurationManager.load() runs) and
+    # can be stale/empty even when the real env var is set correctly.
+    redis_url = _clean_redis_url(os.getenv("REDIS_URL", ""))
+    if not redis_url: return None
     try:
         import redis.asyncio as aioredis
-        _redis_client = aioredis.from_url(REDIS_URL, decode_responses=True, socket_timeout=0.5)
+        _redis_client = aioredis.from_url(redis_url, decode_responses=True, socket_timeout=0.5)
         log.info("Rate limiter: Redis backend enabled")
     except Exception as exc:
         log.warning("Rate limiter: Redis unavailable (%s) — using in-memory fallback", exc)

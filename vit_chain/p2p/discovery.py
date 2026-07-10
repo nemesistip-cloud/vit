@@ -1,7 +1,8 @@
+import os
 import json
 import asyncio
 import redis.asyncio as aioredis
-from app.config import REDIS_URL
+from app.config import _clean_redis_url
 from app.db.database import AsyncSessionLocal
 from .registry import PeerRegistry
 from vit_chain.consensus.registry import ValidatorRegistry
@@ -11,7 +12,12 @@ class PeerDiscovery:
     REDIS_PEER_TTL = 600  # 10 minutes
     ANNOUNCE_CHANNEL = "vit:p2p:announce"
 
-    def __init__(self, redis_url: str = REDIS_URL):
+    def __init__(self, redis_url: str = None):
+        # Read live from the environment: app.config's REDIS_URL constant is
+        # frozen at import time (before ConfigurationManager.load() runs) and
+        # can be stale/empty even when the real env var is set correctly.
+        if redis_url is None:
+            redis_url = _clean_redis_url(os.getenv("REDIS_URL", ""))
         self.redis_url = redis_url
         self._redis = None
         self.registry = PeerRegistry()
