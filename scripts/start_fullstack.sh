@@ -21,7 +21,8 @@ fi
 # In Replit dev environment: run Vite dev server only (no Python backend needed)
 if [ -n "${REPLIT_DEV_DOMAIN:-}" ] || [ -n "${REPL_ID:-}" ]; then
     echo "[startup] Replit environment detected — starting frontend dev server..."
-    exec npm --prefix "${ROOT_DIR}/frontend" run dev
+    cd "${ROOT_DIR}/frontend"
+    exec npm run dev
 fi
 
 # Production: build frontend then start Python backend
