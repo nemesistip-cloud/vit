@@ -25,7 +25,7 @@ echo "[production] Hybrid Mode: ML + SCIE Active"
 # SQLite dev fallback uses create_all() elsewhere and doesn't need this.
 if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; then
     echo "[production] Running database migrations (alembic upgrade heads)..."
-    if ! python3 -m alembic upgrade heads; then
+    if ! alembic upgrade heads; then
         echo "[production] WARNING: alembic upgrade failed — continuing startup, but the app may hit 'relation does not exist' errors until this is resolved." >&2
     fi
 else
