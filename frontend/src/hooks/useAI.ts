@@ -17,6 +17,7 @@ export function useAIKernelStatus() {
   })
 }
 
+// Returns string[] e.g. ["internal", "ensemble"]
 export function useAIProviders() {
   return useQuery({
     queryKey: ['ai', 'providers'],
@@ -25,11 +26,21 @@ export function useAIProviders() {
   })
 }
 
-export function useAIFeatures() {
+export function useEnsembleStatus() {
   return useQuery({
-    queryKey: ['ai', 'features'],
-    queryFn: ({ signal }) => aiApi.features(signal),
-    staleTime: 120_000,
+    queryKey: ['ai', 'ensemble-status'],
+    queryFn: ({ signal }) => aiApi.ensembleStatus(signal),
+    refetchInterval: 30_000,
+    retry: 1,
+  })
+}
+
+export function useAIDatasets() {
+  return useQuery({
+    queryKey: ['ai', 'datasets'],
+    queryFn: ({ signal }) => aiApi.datasets(signal),
+    staleTime: 60_000,
+    retry: 1,
   })
 }
 
