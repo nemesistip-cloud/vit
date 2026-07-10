@@ -1,30 +1,19 @@
 import { motion } from 'framer-motion'
-import { Brain, Zap, Activity, Cpu, RefreshCw, Server, Database, Layers } from 'lucide-react'
+import { Brain, Zap, Activity, Cpu, RefreshCw } from 'lucide-react'
 import { useAIHealth } from '@/hooks/useHealth'
-import { useAIModels, useAIKernelStatus, useAIProviders, useAIVersion, useEnsembleStatus } from '@/hooks/useAI'
+import { useAIModels } from '@/hooks/useAI'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { StatCard } from '@/components/StatCard'
 import { Spinner } from '@/components/ui/Spinner'
 import { useQueryClient } from '@tanstack/react-query'
-import type { Model } from '@/lib/api'
-import { cn } from '@/lib/utils'
-
-function EmptyNote({ message }: { message: string }) {
-  return <p className="text-sm text-white/40 text-center py-6">{message}</p>
-}
 
 export default function AI() {
-  const { data: health,  isLoading: healthLoading }    = useAIHealth()
-  const { data: version }                               = useAIVersion()
-  const { data: kernelStatus, isLoading: statusLoad }  = useAIKernelStatus()
-  // providers is string[] e.g. ["internal", "ensemble"]
-  const { data: providers,    isLoading: provLoad }    = useAIProviders()
-  const { data: ensembleData, isLoading: ensLoad }     = useEnsembleStatus()
-  const { data: models,       isLoading: modLoad }     = useAIModels()
+  const { data: health, isLoading: healthLoading } = useAIHealth()
+  const { data: modelsData, isLoading: modelsLoading } = useAIModels()
   const qc = useQueryClient()
 
-  const modelList: Model[]  = Array.isArray(models) ? models : []
-  const providerList: string[] = Array.isArray(providers) ? providers : []
+  const models    = health?.models ?? modelsData?.models ?? []
+  const providers = health?.providers ?? []
 
   function refresh() {
     qc.invalidateQueries({ queryKey: ['health', 'ai'] })
@@ -34,7 +23,6 @@ export default function AI() {
   return (
     <div className="pt-24 pb-16">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
@@ -44,163 +32,107 @@ export default function AI() {
             </div>
             <h1 className="text-4xl font-bold text-white mb-2">vit-ai</h1>
             <p className="text-white/50 max-w-lg">
-              Multi-provider AI inference engine with model registry, ensemble orchestration, and feature store.
-              Data sourced live from <span className="font-mono text-white/70">vit-ai.onrender.com</span>.
+              Multi-provider AI inference engine. Data sourced directly from the vit-ai service — never duplicated in the gateway.
             </p>
           </motion.div>
-          <button
-            onClick={refresh}
-            disabled={healthLoading}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-sm transition-all"
-          >
-            <RefreshCw className={cn('w-4 h-4', healthLoading && 'animate-spin')} />
+          <button onClick={refresh} disabled={healthLoading} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-sm transition-all">
+            <RefreshCw className={`w-4 h-4 ${healthLoading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           {[
-            { label: 'Service Status',  value: health?.status ?? '—',                                         icon: Activity },
-            { label: 'Version',         value: version?.version ?? '—',                                       icon: Cpu },
-            { label: 'Response Time',   value: health?._latency != null ? `${health._latency}ms` : '—',      icon: Zap },
-            { label: 'Models Loaded',   value: kernelStatus?.loaded_models_count != null ? kernelStatus.loaded_models_count : (modLoad ? '…' : modelList.length || '—'), icon: Brain },
+            { label: 'Service Status', value: health?.status ?? '—',           icon: Activity },
+            { label: 'Version',        value: health?.version ?? '—',          icon: Cpu },
+            { label: 'Latency',        value: health?._latency != null ? `${health._latency}ms` : '—', icon: Zap },
+            { label: 'Models',         value: models.length > 0 ? models.length : '—', icon: Brain },
           ].map((s, i) => <StatCard key={s.label} {...s} index={i} />)}
         </div>
 
-        {/* Kernel status + Ensemble row */}
-        <div className="grid sm:grid-cols-2 gap-4 mb-6">
-          {/* Kernel */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-            className="rounded-xl border border-white/10 bg-white/5 p-5"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                <Server className="w-4 h-4 text-vit-400" /> AI Kernel
-              </h2>
-              {statusLoad ? <Spinner className="w-4 h-4" /> : <StatusBadge status={kernelStatus?.status ?? health?.status} size="sm" pulse />}
-            </div>
-            {kernelStatus ? (
-              <div className="space-y-2">
-                {[
-                  ['Status',        kernelStatus.status          ?? '—'],
-                  ['Version',       kernelStatus.version         ?? '—'],
-                  ['Models Loaded', kernelStatus.loaded_models_count != null ? String(kernelStatus.loaded_models_count) : '—'],
-                  ['Mode',          kernelStatus.mode            ?? '—'],
-                  ['Inferences',    kernelStatus.total_inferences != null ? String(kernelStatus.total_inferences) : '—'],
-                  ['Avg Latency',   kernelStatus.avg_latency     != null ? String(kernelStatus.avg_latency) : '—'],
-                ].map(([l, v]) => (
-                  <div key={l} className="flex justify-between text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0">
-                    <span className="text-white/40">{l}</span>
-                    <span className="text-white font-mono text-xs">{v as string}</span>
-                  </div>
-                ))}
-              </div>
-            ) : !statusLoad ? (
-              <EmptyNote message="Kernel status unavailable" />
-            ) : <div className="flex justify-center py-4"><Spinner /></div>}
-          </motion.div>
-
-          {/* Ensemble */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-            className="rounded-xl border border-white/10 bg-white/5 p-5"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                <Layers className="w-4 h-4 text-vit-400" /> Ensemble Engine
-              </h2>
-              {ensLoad ? <Spinner className="w-4 h-4" /> : <StatusBadge status={ensembleData?.status} size="sm" pulse />}
-            </div>
-            {ensembleData ? (
-              <div className="space-y-2">
-                {Object.entries(ensembleData)
-                  .filter(([k]) => !k.startsWith('_'))
-                  .map(([k, v]) => (
-                    <div key={k} className="flex justify-between text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0">
-                      <span className="text-white/40 capitalize">{k.replace(/_/g, ' ')}</span>
-                      <span className="text-white font-mono text-xs">{String(v ?? '—')}</span>
-                    </div>
-                  ))}
-              </div>
-            ) : !ensLoad ? (
-              <EmptyNote message="Ensemble status unavailable" />
-            ) : <div className="flex justify-center py-4"><Spinner /></div>}
-          </motion.div>
-        </div>
-
-        {/* Providers */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+        {/* Inference Status */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="rounded-xl border border-white/10 bg-white/5 p-6 mb-6"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Zap className="w-4 h-4 text-vit-400" /> Registered Providers
-            </h2>
-            {provLoad && <Spinner className="w-4 h-4" />}
+            <h2 className="text-lg font-semibold text-white">Inference Engine</h2>
+            {healthLoading ? <Spinner className="w-4 h-4" /> : (
+              <StatusBadge status={(health as any)?.inference?.status ?? health?.status} pulse />
+            )}
           </div>
-          {providerList.length > 0 ? (
-            <div className="flex flex-wrap gap-3">
-              {providerList.map(name => (
-                <div key={name} className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-white/10 bg-white/5">
-                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-sm font-medium text-white capitalize">{name}</span>
-                  <StatusBadge status="healthy" size="sm" />
+          <div className="grid sm:grid-cols-3 gap-4">
+            {[
+              { label: 'Provider Count', value: providers.length > 0 ? providers.length : (health?.providers as any)?.length ?? '—' },
+              { label: 'Inference Latency', value: (health as any)?.inference?.latency != null ? `${(health as any).inference.latency}ms` : (health?._latency != null ? `${health._latency}ms` : '—') },
+              { label: 'Status', value: (health as any)?.inference?.status ?? health?.status ?? '—' },
+            ].map(m => (
+              <div key={m.label} className="bg-white/5 rounded-lg p-4">
+                <p className="text-xs text-white/40 mb-1">{m.label}</p>
+                <p className="text-lg font-semibold text-white font-mono">{m.value}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Providers */}
+        {providers.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="rounded-xl border border-white/10 bg-white/5 p-6 mb-6"
+          >
+            <h2 className="text-lg font-semibold text-white mb-4">Provider Status</h2>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {providers.map((p: any) => (
+                <div key={p.name} className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10">
+                  <div>
+                    <p className="font-medium text-white text-sm">{p.name}</p>
+                    {p.models != null && <p className="text-xs text-white/40">{p.models} models</p>}
+                    {p.latency != null && <p className="text-xs font-mono text-vit-400">{p.latency}ms</p>}
+                  </div>
+                  <StatusBadge status={p.status} size="sm" pulse />
                 </div>
               ))}
             </div>
-          ) : !provLoad ? (
-            <EmptyNote message="No providers registered yet" />
-          ) : <div className="flex justify-center py-4"><Spinner /></div>}
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Model Registry */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
           className="rounded-xl border border-white/10 bg-white/5 p-6"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Database className="w-4 h-4 text-vit-400" /> Model Registry
-              {modelList.length > 0 && (
-                <span className="text-xs font-normal text-white/40 ml-1">({modelList.length} models)</span>
-              )}
-            </h2>
-            {modLoad && <Spinner className="w-4 h-4" />}
+            <h2 className="text-lg font-semibold text-white">Model Registry</h2>
+            {modelsLoading && <Spinner className="w-4 h-4" />}
           </div>
-          {modelList.length > 0 ? (
+          {models.length === 0 && !modelsLoading ? (
+            <div className="text-center py-10">
+              <Brain className="w-8 h-8 text-white/20 mx-auto mb-3" />
+              <p className="text-white/40 text-sm">No models returned by vit-ai — check the service logs.</p>
+            </div>
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/10">
-                    {['Model ID', 'Name', 'Provider', 'Task', 'Version', 'Status'].map(h => (
-                      <th key={h} className="text-left text-white/40 font-medium pb-3 pr-5">{h}</th>
-                    ))}
+                    <th className="text-left text-white/40 font-medium pb-3 pr-4">Model ID</th>
+                    <th className="text-left text-white/40 font-medium pb-3 pr-4">Provider</th>
+                    <th className="text-left text-white/40 font-medium pb-3 pr-4">Status</th>
+                    <th className="text-right text-white/40 font-medium pb-3">Latency</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {modelList.map((m: any) => (
+                  {models.map((m: any) => (
                     <tr key={m.id} className="border-b border-white/5 last:border-0">
-                      <td className="py-3 pr-5 font-mono text-vit-300 text-xs">{m.id}</td>
-                      <td className="py-3 pr-5 text-white/80">{m.name ?? '—'}</td>
-                      <td className="py-3 pr-5 text-white/60">{m.provider ?? '—'}</td>
-                      <td className="py-3 pr-5 text-white/40 text-xs">{m.task ?? '—'}</td>
-                      <td className="py-3 pr-5 font-mono text-white/40 text-xs">{m.version ?? m.latest_version ?? '—'}</td>
-                      <td className="py-3 pr-5"><StatusBadge status={m.status} size="sm" /></td>
+                      <td className="py-3 pr-4 font-mono text-white text-xs">{m.id}</td>
+                      <td className="py-3 pr-4 text-white/60">{m.provider ?? '—'}</td>
+                      <td className="py-3 pr-4"><StatusBadge status={m.status} size="sm" /></td>
+                      <td className="py-3 text-right font-mono text-vit-400 text-xs">{m.latency != null ? `${m.latency}ms` : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          ) : !modLoad ? (
-            <div className="text-center py-10">
-              <Brain className="w-8 h-8 text-white/20 mx-auto mb-3" />
-              <p className="text-sm text-white/40 mb-1">No models registered yet</p>
-              <p className="text-xs text-white/25 font-mono">POST /api/v1/models to register the first model</p>
-            </div>
-          ) : <div className="flex justify-center py-8"><Spinner /></div>}
+          )}
         </motion.div>
       </div>
     </div>

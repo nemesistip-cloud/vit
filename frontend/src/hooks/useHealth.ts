@@ -1,12 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { gatewayApi, aiApi, storageApi } from '@/lib/api'
 
-const HEALTHY_STATUSES = new Set(['healthy', 'quantum_stable', 'operational', 'ok', 'up'])
-
-function isHealthy(status?: string) {
-  return status ? HEALTHY_STATUSES.has(status.toLowerCase()) : false
-}
-
 export function useGatewayHealth() {
   return useQuery({
     queryKey: ['health', 'gateway'],
@@ -41,15 +35,12 @@ export function useAllHealth() {
 
   const overallStatus = (() => {
     if (isLoading) return 'loading'
-    const gwOk  = gateway.data ? (isHealthy(gateway.data.status) || gateway.data.status === 'degraded') : !gateway.isError
-    const aiOk  = ai.data      ? isHealthy(ai.data.status) : !ai.isError
-    const stOk  = storage.data ? isHealthy(storage.data.status) : !storage.isError
-    if (isError && !(gwOk && aiOk && stOk)) return 'unhealthy'
     if (
-      isHealthy(gateway.data?.status) &&
-      isHealthy(ai.data?.status) &&
-      isHealthy(storage.data?.status)
+      gateway.data?.status?.toLowerCase() === 'healthy' &&
+      ai.data?.status?.toLowerCase() === 'healthy' &&
+      storage.data?.status?.toLowerCase() === 'healthy'
     ) return 'healthy'
+    if (isError) return 'unhealthy'
     return 'degraded'
   })()
 
