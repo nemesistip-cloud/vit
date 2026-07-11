@@ -167,6 +167,13 @@ class PlatformSubsystem(Subsystem):
             except Exception as e:
                 logger.error(f"[kernel] Failed to dynamically include notification routes: {e}")
 
+            # Dynamically register Tachyon VESS API router
+            try:
+                from tachyon.api.router import router as tachyon_router
+                app.include_router(tachyon_router, prefix="/api/tachyon")
+            except Exception as e:
+                logger.error(f"[kernel] Failed to dynamically include tachyon routes: {e}")
+
             # Remove default root route ("/") from main.py to allow SPA to serve at root
             for r in list(app.routes):
                 if getattr(r, "path", None) == "/":
