@@ -180,6 +180,16 @@ ENABLE_PAYMENTS: bool = os.getenv("ENABLE_PAYMENTS", "true").lower() == "true"
 
 REPLIT_DEPLOYMENT: bool = os.getenv("REPL_SLUG") is not None
 
+# ── Phase 0: Service Registry URLs ───────────────────────────────────────────
+# Override these env vars when services move hosts — nothing else needs to change.
+VIT_GATEWAY_URL: str = os.getenv("VIT_GATEWAY_URL", "https://vitnetwork-nls4.onrender.com")
+VIT_AI_URL: str      = os.getenv("VIT_AI_URL",      "https://vit-ai.onrender.com")
+VIT_STORAGE_URL: str = os.getenv("VIT_STORAGE_URL", "https://vit-storage-4trt.onrender.com")
+
+# ── Phase 0: Internal Service Auth ────────────────────────────────────────────
+# Set to a random 32+ byte string shared across all VIT services.
+SERVICE_TOKEN_SECRET: str = os.getenv("SERVICE_TOKEN_SECRET", "")
+
 # Newly discovered missing constants
 MAX_STAKE: float = float(os.getenv("MAX_STAKE", "100.0"))
 MIN_EDGE_THRESHOLD: float = float(os.getenv("MIN_EDGE_THRESHOLD", "0.02"))

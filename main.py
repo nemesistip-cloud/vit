@@ -32,8 +32,12 @@ register_core_subsystems()
 async def lifespan(app: FastAPI):
     setup_signal_handlers()
     await kernel.boot()
+    # Phase 0: connect event bus Redis layer so events persist across restarts
+    from app.core.event_bus import event_bus
+    await event_bus.connect_redis()
     print(f'🚀 VIT Network v{APP_VERSION} starting (RUNTIME KERNEL MODE)...')
     yield
+    await event_bus.disconnect_redis()
     await kernel.shutdown()
     print('🛑 Shutdown complete')
 
@@ -287,6 +291,10 @@ app.include_router(ai_assistant_router, prefix="/api")
 
 from app.api.routes.admin import router as admin_router
 app.include_router(admin_router, prefix="/api")
+
+# --- Phase 0: Service Registry & Cross-Service Status ---
+from app.api.routes.registry import router as registry_router
+app.include_router(registry_router, prefix="/api", tags=["Registry"])
 
 # --- Niche & Expansion Routers (from app/modules) ---
 from app.modules.elections.routes import router as elections_router

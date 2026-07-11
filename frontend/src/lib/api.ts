@@ -1,14 +1,25 @@
-const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL ?? 'https://vitnetwork-nls4.onrender.com'
-const AI_URL      = import.meta.env.VITE_AI_URL      ?? 'https://vit-ai.onrender.com'
-const STORAGE_URL = import.meta.env.VITE_STORAGE_URL ?? 'https://vit-storage-4trt.onrender.com'
+/**
+ * api.ts — VIT Platform API Client
+ *
+ * Phase 0: Service URLs are resolved from the registry singleton instead
+ * of being hardcoded. Call bootstrapRegistry() before using any api method
+ * (done in main.tsx on app startup).
+ *
+ * Direct imports of ENDPOINTS are still exported for backwards-compat with
+ * any page that already uses them — they remain live references into the
+ * registry so they update automatically after bootstrap.
+ */
 
+import { registry } from '@/lib/registry'
+
+/** Live URL accessors — always read from the registry singleton. */
 export const ENDPOINTS = {
-  gateway: GATEWAY_URL.replace(/\/$/, ''),
-  ai:      AI_URL.replace(/\/$/, ''),
-  storage: STORAGE_URL.replace(/\/$/, ''),
+  get gateway() { return registry.get('gateway') },
+  get ai()      { return registry.get('ai') },
+  get storage() { return registry.get('storage') },
 }
 
-// ---------- helpers ----------
+// ── HTTP helper ───────────────────────────────────────────────────────────────
 
 async function get<T>(url: string, signal?: AbortSignal): Promise<T> {
   const start = performance.now()
@@ -19,51 +30,51 @@ async function get<T>(url: string, signal?: AbortSignal): Promise<T> {
   return { ...data, _latency: latency } as T
 }
 
-// ---------- gateway ----------
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface GatewayHealth {
-  name: string
+  name?: string
   status: string
-  version: string
-  environment: string
+  version?: string
+  environment?: string
   timestamp?: string
-  uptime?: number
+  uptime?: number | string
   services?: Record<string, unknown>
   redis?: { status: string; latency?: number }
   postgres?: { status: string; latency?: number }
   _latency?: number
 }
 
+export interface ServiceDiscovery {
+  name: string
+  url?: string
+  status?: string
+  version?: string
+  latency_ms?: number
+  reachable?: boolean
+}
+
 export interface GatewayServices {
-  services?: ServiceDiscovery[]
+  status?: string
+  version?: string
+  timestamp?: string
+  services?: Record<string, ServiceDiscovery>
   [key: string]: unknown
 }
 
-export interface ServiceDiscovery {
-  name: string
-  version?: string
-  health?: string
-  responseTime?: number
-  dependencies?: string[]
-  lastHeartbeat?: string
-  url?: string
-}
-
-export const gatewayApi = {
-  health:   (signal?: AbortSignal) => get<GatewayHealth>(`${ENDPOINTS.gateway}/health`, signal),
-  services: (signal?: AbortSignal) => get<GatewayServices>(`${ENDPOINTS.gateway}/api/services`, signal),
-  status:   (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.gateway}/api/status`, signal),
-  metrics:  (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.gateway}/api/metrics`, signal),
-}
-
-// ---------- AI ----------
-
-export interface AIHealth {
+export interface PlatformStatus {
   status: string
   version?: string
-  models?: Model[]
-  providers?: Provider[]
-  inference?: { status: string; latency?: number }
+  timestamp?: string
+  services?: {
+    gateway?: Record<string, unknown>
+    ai?: Record<string, unknown>
+    storage?: Record<string, unknown>
+  }
+  infrastructure?: {
+    database?: { status: string }
+    redis?: { status: string }
+  }
   _latency?: number
 }
 
@@ -82,18 +93,19 @@ export interface Provider {
   latency?: number
 }
 
+export interface AIHealth {
+  status: string
+  version?: string
+  models?: Model[]
+  providers?: Provider[]
+  inference?: { status: string; latency?: number }
+  _latency?: number
+}
+
 export interface AIModels {
   models?: Model[]
   [key: string]: unknown
 }
-
-export const aiApi = {
-  health:  (signal?: AbortSignal) => get<AIHealth>(`${ENDPOINTS.ai}/health`, signal),
-  models:  (signal?: AbortSignal) => get<AIModels>(`${ENDPOINTS.ai}/api/models`, signal),
-  status:  (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.ai}/api/status`, signal),
-}
-
-// ---------- Storage ----------
 
 export interface StorageHealth {
   status: string
@@ -118,8 +130,24 @@ export interface StorageList {
   [key: string]: unknown
 }
 
+// ── API clients ───────────────────────────────────────────────────────────────
+
+export const gatewayApi = {
+  health:   (signal?: AbortSignal) => get<GatewayHealth>(`${ENDPOINTS.gateway}/health`, signal),
+  registry: (signal?: AbortSignal) => get<GatewayServices>(`${ENDPOINTS.gateway}/api/registry`, signal),
+  services: (signal?: AbortSignal) => get<GatewayServices>(`${ENDPOINTS.gateway}/api/registry`, signal),
+  status:   (signal?: AbortSignal) => get<PlatformStatus>(`${ENDPOINTS.gateway}/api/status`, signal),
+  metrics:  (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.gateway}/api/metrics`, signal),
+}
+
+export const aiApi = {
+  health:  (signal?: AbortSignal) => get<AIHealth>(`${ENDPOINTS.ai}/health`, signal),
+  models:  (signal?: AbortSignal) => get<AIModels>(`${ENDPOINTS.ai}/api/v1/models`, signal),
+  status:  (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.ai}/api/v1/ai/status`, signal),
+}
+
 export const storageApi = {
   health:  (signal?: AbortSignal) => get<StorageHealth>(`${ENDPOINTS.storage}/health`, signal),
-  list:    (signal?: AbortSignal) => get<StorageList>(`${ENDPOINTS.storage}/api/objects`, signal),
-  metrics: (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.storage}/api/metrics`, signal),
+  list:    (signal?: AbortSignal) => get<StorageList>(`${ENDPOINTS.storage}/api/v1/files`, signal),
+  metrics: (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.storage}/metrics`, signal),
 }
