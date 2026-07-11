@@ -33,6 +33,39 @@ class PluginContract(ModuleContract):
         pass
 
     # Compatibility with ModuleContract
+    async def initialize(self, config: Dict[str, Any]):
+        """Default initializer delegating to hook if present."""
+        if hasattr(self, '_on_initialize'):
+            await self._on_initialize(config)
+
+    async def start(self):
+        """Default start hook delegating to hook if present."""
+        if hasattr(self, '_on_start'):
+            await self._on_start()
+
+    async def stop(self):
+        """Default stop hook delegating to hook if present."""
+        if hasattr(self, '_on_stop'):
+            await self._on_stop()
+
+    async def check_health(self):
+        """Default health check delegating to health_check or returning healthy."""
+        from app.core.registry.models import HealthStatus
+        is_healthy = True
+        if hasattr(self, 'health_check'):
+            is_healthy = await self.health_check()
+        elif hasattr(self, '_on_health_check'):
+            is_healthy = await self._on_health_check()
+        return HealthStatus.HEALTHY if is_healthy else HealthStatus.UNHEALTHY
+
+    async def get_diagnostics(self) -> Dict[str, Any]:
+        """Default diagnostics returning basic status."""
+        if hasattr(self, '_on_get_diagnostics'):
+            return await self._on_get_diagnostics()
+        return {
+            "status": getattr(self, "state", "unknown")
+        }
+
     @property
     def metadata(self):
         # Bridge PluginManifest to ModuleMetadata if needed,

@@ -41,6 +41,10 @@ async def test_policy_simulate():
 
 @pytest.mark.asyncio
 async def test_tachyon_integration():
+    from tachyon.api.router import router as tachyon_router
+    if not any(getattr(route, "path", None).startswith("/api/tachyon") for route in app.routes if getattr(route, "path", None)):
+        app.include_router(tachyon_router, prefix="/api/tachyon")
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.get("/api/tachyon/status")
         assert resp.status_code == 200

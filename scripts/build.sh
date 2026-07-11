@@ -8,29 +8,28 @@ echo "[build] Project root: $ROOT_DIR"
 echo "[build] Installing Python dependencies..."
 pip install -r requirements.txt
 
+# Determine safe pnpm command (Render environment safe, avoiding global permission errors)
+PNPM_CMD="pnpm"
 if ! command -v pnpm &> /dev/null; then
-    echo "[build] Installing pnpm..."
-    npm install -g pnpm
+    echo "[build] pnpm not found globally. Using 'npx pnpm' as safe fallback..."
+    PNPM_CMD="npx pnpm"
 fi
 
 echo "[build] Executing frontend build..."
 cd "$ROOT_DIR/frontend"
 
 # Always use pnpm if lockfile exists, otherwise fallback to npm
-if [ -f "pnpm-lock.yaml" ]; then
+if [ -f "pnpm-lock.yaml" ] || [ -f "../pnpm-lock.yaml" ]; then
     echo "[build] Using pnpm (pnpm-lock.yaml detected)"
-    pnpm install --no-frozen-lockfile
-elif [ -f "../pnpm-lock.yaml" ]; then
-    echo "[build] Using pnpm (root pnpm-lock.yaml detected)"
-    pnpm install --no-frozen-lockfile
+    $PNPM_CMD install --no-frozen-lockfile --production=false
 else
     echo "[build] pnpm-lock.yaml not found. Falling back to npm install."
-    npm install --prefer-offline --no-audit --no-fund
+    npm install --prefer-offline --no-audit --no-fund --production=false
 fi
 
 echo "[build] Building frontend for production..."
-if command -v pnpm &> /dev/null; then
-    pnpm run build
+if [ -f "pnpm-lock.yaml" ] || [ -f "../pnpm-lock.yaml" ]; then
+    $PNPM_CMD run build
 else
     npm run build
 fi
