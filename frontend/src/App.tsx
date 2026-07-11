@@ -1,15 +1,19 @@
-import { Routes, Route } from 'react-router-dom'
-import { Navbar } from '@/components/layout/Navbar'
-import { Footer } from '@/components/layout/Footer'
-import Home        from '@/pages/Home'
-import Platform    from '@/pages/Platform'
-import AI          from '@/pages/AI'
-import Storage     from '@/pages/Storage'
-import Status      from '@/pages/Status'
-import Developers  from '@/pages/Developers'
-import Documentation from '@/pages/Documentation'
-import Roadmap     from '@/pages/Roadmap'
-import About       from '@/pages/About'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { Navbar }        from '@/components/layout/Navbar'
+import { Footer }        from '@/components/layout/Footer'
+import Home              from '@/pages/Home'
+import Platform          from '@/pages/Platform'
+import AI                from '@/pages/AI'
+import Storage           from '@/pages/Storage'
+import Status            from '@/pages/Status'
+import Developers        from '@/pages/Developers'
+import Documentation     from '@/pages/Documentation'
+import Roadmap           from '@/pages/Roadmap'
+import About             from '@/pages/About'
+import Login             from '@/pages/Login'
+import Matches           from '@/pages/Matches'
+import Admin             from '@/pages/Admin'
+import Dashboard         from '@/pages/Dashboard'
 
 export default function App() {
   return (
@@ -26,6 +30,13 @@ export default function App() {
           <Route path="/docs"       element={<Documentation />} />
           <Route path="/roadmap"    element={<Roadmap />} />
           <Route path="/about"      element={<About />} />
+          <Route path="/login"      element={<Login />} />
+          <Route path="/register"   element={<Login />} />
+          <Route path="/matches"    element={<Matches />} />
+          <Route path="/admin"      element={<Admin />} />
+          <Route path="/dashboard"  element={<Dashboard />} />
+          {/* Catch-all: redirect unknown paths to home */}
+          <Route path="*"           element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       <Footer />

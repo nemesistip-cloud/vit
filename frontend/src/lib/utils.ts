@@ -25,17 +25,38 @@ export function formatUptime(seconds: number): string {
 export function timeAgo(date: string | Date): string {
   const diff = Date.now() - new Date(date).getTime()
   const s = Math.floor(diff / 1000)
-  if (s < 60)   return `${s}s ago`
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 60)    return `${s}s ago`
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`
   return `${Math.floor(s / 86400)}d ago`
 }
 
+/**
+ * Maps a service status string to a colour token.
+ * Handles all known status strings across VIT gateway, AI, and storage services.
+ */
 export function statusColor(status: string | undefined): 'green' | 'yellow' | 'red' | 'gray' {
   if (!status) return 'gray'
-  const s = status.toLowerCase()
-  if (s === 'healthy' || s === 'ok' || s === 'operational' || s === 'online') return 'green'
-  if (s === 'degraded' || s === 'warning' || s === 'partial') return 'yellow'
-  if (s === 'unhealthy' || s === 'error' || s === 'offline' || s === 'down') return 'red'
+  const s = status.toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ')
+
+  // Green — fully operational
+  if (
+    s === 'healthy' || s === 'ok' || s === 'operational' || s === 'online' ||
+    s === 'quantum stable' || s === 'stable' || s === 'active' || s === 'running' ||
+    s === 'connected' || s === 'live'
+  ) return 'green'
+
+  // Yellow — running but impaired
+  if (
+    s === 'degraded' || s === 'warning' || s === 'partial' ||
+    s === 'partially operational' || s === 'starting' || s === 'initializing'
+  ) return 'yellow'
+
+  // Red — down
+  if (
+    s === 'unhealthy' || s === 'error' || s === 'offline' || s === 'down' ||
+    s === 'failed' || s === 'unavailable' || s === 'critical'
+  ) return 'red'
+
   return 'gray'
 }
