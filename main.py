@@ -177,6 +177,11 @@ async def readiness(db: AsyncSession = Depends(get_db)):
 
 @app.get("/health", response_model=HealthResponse)
 async def health(db: AsyncSession = Depends(get_db)):
+    # db_connected must reflect the actual database connection only.
+    # Do NOT fold in unrelated kernel/subsystem degradation here -- a
+    # degraded blockchain/AI subsystem previously forced db_connected=False
+    # even though Postgres was reachable, which misled dashboards into
+    # showing "PostgreSQL DEGRADED" during unrelated incidents.
     db_ok = True
     try:
         await db.execute(text("SELECT 1"))
@@ -187,10 +192,17 @@ async def health(db: AsyncSession = Depends(get_db)):
     models = orch.num_models_ready() if orch else 0
 
     kernel_status = kernel.get_status()
-    if kernel_status['kernel_state'] == 'DEGRADED':
-        db_ok = False
+    kernel_degraded = kernel_status['kernel_state'] == 'DEGRADED'
+
+    if not db_ok:
+        overall_status = "degraded"
+    elif kernel_degraded or models == 0:
+        overall_status = "starting" if models == 0 and not kernel_degraded else "degraded"
+    else:
+        overall_status = "ok"
+
     return HealthResponse(
-        status="ok" if db_ok and models > 0 else ("starting" if db_ok else "degraded"),
+        status=overall_status,
         version=APP_VERSION,
         models_loaded=models,
         db_connected=db_ok,
