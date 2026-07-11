@@ -27,6 +27,8 @@ async def db_session():
     from app.modules.sports.models import Base as SportsBase
     from app.modules.blockchain.models import Base as BlockchainBase
     from app.modules.ai.models import Base as AIBase
+    import vit_chain.storage.db # noqa: F401
+    import vit_chain.consensus.models # noqa: F401
 
     async with engine.begin() as conn:
         all_metas = [AppBase.metadata, WalletBase.metadata, SportsBase.metadata, BlockchainBase.metadata, AIBase.metadata]
@@ -67,12 +69,12 @@ async def auth_headers(client):
     import uuid
     email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     os.environ["AUTH_ENABLED"] = "true"
-    await client.post("/api/auth/register", json={
+    await client.post("/auth/register", json={
         "email": email,
         "username": f"user_{uuid.uuid4().hex[:8]}",
         "password": "Password123!",
     })
-    resp = await client.post("/api/auth/login", json={
+    resp = await client.post("/auth/login", json={
         "email": email,
         "password": "Password123!",
     })

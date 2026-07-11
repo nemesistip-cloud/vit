@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import select
 from app.db.database import AsyncSessionLocal
 from app.db.models import Match, Prediction
@@ -18,7 +18,7 @@ async def send_daily_digest():
     try:
         async with AsyncSessionLocal() as db:
             now = datetime.now(timezone.utc).replace(tzinfo=None)
-            lookahead = now + asyncio.timedelta(days=1)
+            lookahead = now + timedelta(days=1)
 
             stmt = (
                 select(Match, Prediction)
@@ -58,7 +58,7 @@ async def telegram_digest_worker():
         now = datetime.now(timezone.utc)
         target = now.replace(hour=9, minute=0, second=0, microsecond=0)
         if now >= target:
-            target += asyncio.timedelta(days=1)
+            target += timedelta(days=1)
 
         sleep_seconds = (target - now).total_seconds()
         await asyncio.sleep(sleep_seconds)

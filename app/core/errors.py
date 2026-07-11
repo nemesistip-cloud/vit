@@ -82,6 +82,25 @@ def get_request_id(request: Request) -> str:
     return getattr(request.state, "request_id", None) or "unknown"
 
 
+def _clean_non_serializable(obj: Any) -> Any:
+    """Recursively converts non-JSON-serializable objects (like Exceptions) to string representations."""
+    if isinstance(obj, dict):
+        return {k: _clean_non_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_clean_non_serializable(x) for x in obj]
+    elif isinstance(obj, tuple):
+        return tuple(_clean_non_serializable(x) for x in obj)
+    elif isinstance(obj, Exception):
+        return str(obj)
+
+    try:
+        import json
+        json.dumps(obj)
+        return obj
+    except (TypeError, OverflowError):
+        return str(obj)
+
+
 def error_payload(
     *,
     request: Request,
@@ -116,7 +135,7 @@ def error_payload(
     # Only include the details key when there is something to show —
     # avoids cluttering responses with a ``null`` field.
     if details is not None:
-        payload["error"]["details"] = details
+        payload["error"]["details"] = _clean_non_serializable(details)
     return payload
 
 
