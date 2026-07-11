@@ -150,6 +150,52 @@ class PlatformSubsystem(Subsystem):
         except Exception as e:
             logger.warning(f"[kernel] Platform subsystem failed to start fully: {e}")
 
+        # Integrate and serve production React SPA frontend
+        try:
+            from main import app
+            from fastapi.staticfiles import StaticFiles
+            from fastapi.responses import FileResponse, Response
+            from fastapi import Request
+            import os
+
+            # Dynamically register actual notification routes to bypass main.py mocks and fix tests
+            try:
+                from app.modules.notifications.routes import router as notifications_router
+                from app.modules.notifications.websocket import router as notifications_ws_router
+                app.include_router(notifications_router)
+                app.include_router(notifications_ws_router)
+            except Exception as e:
+                logger.error(f"[kernel] Failed to dynamically include notification routes: {e}")
+
+            # Remove default root route ("/") from main.py to allow SPA to serve at root
+            for r in list(app.routes):
+                if getattr(r, "path", None) == "/":
+                    app.routes.remove(r)
+
+            frontend_path = "frontend/dist"
+            if os.path.exists(frontend_path):
+                # We register a catch-all route at the very end of app.router.routes to act as SPA fallback
+                @app.get("/{catchall:path}", include_in_schema=False)
+                async def frontend_spa_fallback(catchall: str, request: Request):
+                    clean_path = catchall.strip("/")
+                    # If it's a dynamic API route or other system route, let the core API handle it (return 404 if not found)
+                    if clean_path.startswith("api/") or clean_path.startswith("explorer/") or clean_path in ["docs", "openapi.json", "health", "ping"]:
+                        return Response(status_code=404, content="Not Found")
+
+                    # Resolve real file on disk
+                    file_on_disk = os.path.join(frontend_path, clean_path)
+                    if clean_path and os.path.exists(file_on_disk) and os.path.isfile(file_on_disk):
+                        return FileResponse(file_on_disk)
+
+                    # Default fallback to serve index.html for React SPA Router
+                    return FileResponse(os.path.join(frontend_path, "index.html"))
+
+                logger.info(f"[kernel] Production frontend SPA successfully mounted from {frontend_path}")
+            else:
+                logger.warning(f"[kernel] Production frontend build {frontend_path} not found. Serve disabled.")
+        except Exception as e:
+            logger.error(f"[kernel] Failed to mount production frontend SPA: {e}")
+
 
 class PluginSubsystem(Subsystem):
     name = "plugins"
