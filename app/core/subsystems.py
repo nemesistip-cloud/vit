@@ -36,12 +36,19 @@ class ObservabilitySubsystem(Subsystem):
         obs_manager.health.update_status("kernel", HealthStatus.HEALTHY, "Kernel is starting")
 
     async def health_check(self) -> bool:
+        # NOTE: this must check the observability platform's OWN liveness,
+        # not the aggregate status of every other subsystem. It used to
+        # mirror obs_manager.health.get_overall_status(), which meant a
+        # single unrelated unhealthy subsystem (e.g. blockchain) made
+        # "observability" itself report UNHEALTHY too, masking the real
+        # offender in dashboards and diagnostics.
         from app.core.observability.manager import obs_manager
-        from app.core.observability.models import HealthStatus
 
-        # Overall status check
-        status = obs_manager.health.get_overall_status()
-        return status != HealthStatus.UNHEALTHY
+        try:
+            obs_manager.record_metric("observability_self_check", 1.0)
+            return True
+        except Exception:
+            return False
 
 class ConfigSubsystem(Subsystem):
     name = "config"
