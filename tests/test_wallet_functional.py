@@ -155,7 +155,7 @@ async def test_withdraw_more_than_balance_returns_error():
         token, _ = await _register(client, "overWith")
         resp = await client.post(
             "/api/wallet/withdraw",
-            json={"amount": 999999999, "currency": "USD", "bank_code": "044", "account_number": "1234567890"},
+            json={"amount": 49999, "currency": "USD", "bank_code": "044", "account_number": "1234567890"},
             headers=_auth(token),
         )
     assert resp.status_code in (400, 404, 409, 422, 503)
