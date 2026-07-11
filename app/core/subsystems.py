@@ -152,54 +152,75 @@ class PlatformSubsystem(Subsystem):
 
         # Integrate and serve production React SPA frontend
         try:
-            from main import app
-            from fastapi.staticfiles import StaticFiles
+            import os
+            import sys
             from fastapi.responses import FileResponse, Response
             from fastapi import Request
-            import os
 
-            # Dynamically register actual notification routes to bypass main.py mocks and fix tests
-            try:
-                from app.modules.notifications.routes import router as notifications_router
-                from app.modules.notifications.websocket import router as notifications_ws_router
-                app.include_router(notifications_router)
-                app.include_router(notifications_ws_router)
-            except Exception as e:
-                logger.error(f"[kernel] Failed to dynamically include notification routes: {e}")
+            main_module = sys.modules.get("main")
+            if main_module and hasattr(main_module, "app"):
+                app = main_module.app
 
-            # Dynamically register Tachyon VESS API router
-            try:
-                from tachyon.api.router import router as tachyon_router
-                app.include_router(tachyon_router, prefix="/api/tachyon")
-            except Exception as e:
-                logger.error(f"[kernel] Failed to dynamically include tachyon routes: {e}")
+                # Dynamically register actual notification routes to bypass main.py mocks and fix tests
+                try:
+                    from app.modules.notifications.routes import router as notifications_router
+                    from app.modules.notifications.websocket import router as notifications_ws_router
+                    app.include_router(notifications_router)
+                    app.include_router(notifications_ws_router)
+                except Exception as e:
+                    logger.error(f"[kernel] Failed to dynamically include notification routes: {e}")
 
-            # Remove default root route ("/") from main.py to allow SPA to serve at root
-            for r in list(app.routes):
-                if getattr(r, "path", None) == "/":
-                    app.routes.remove(r)
+                # Dynamically register Tachyon VESS API router
+                try:
+                    from tachyon.api.router import router as tachyon_router
+                    app.include_router(tachyon_router, prefix="/api/tachyon")
+                except Exception as e:
+                    logger.error(f"[kernel] Failed to dynamically include tachyon routes: {e}")
 
-            frontend_path = "frontend/dist"
-            if os.path.exists(frontend_path):
-                # We register a catch-all route at the very end of app.router.routes to act as SPA fallback
-                @app.get("/{catchall:path}", include_in_schema=False)
-                async def frontend_spa_fallback(catchall: str, request: Request):
-                    clean_path = catchall.strip("/")
-                    # If it's a dynamic API route or other system route, let the core API handle it (return 404 if not found)
-                    if clean_path.startswith("api/") or clean_path.startswith("explorer/") or clean_path in ["docs", "openapi.json", "health", "ping"]:
-                        return Response(status_code=404, content="Not Found")
+                # Remove default root route ("/") and explorer mount from main.py to allow unified SPA fallback serving
+                for r in list(app.routes):
+                    if getattr(r, "path", None) in ["/", "/explorer"]:
+                        app.routes.remove(r)
 
-                    # Resolve real file on disk
-                    file_on_disk = os.path.join(frontend_path, clean_path)
-                    if clean_path and os.path.exists(file_on_disk) and os.path.isfile(file_on_disk):
-                        return FileResponse(file_on_disk)
+                frontend_path = "frontend/dist"
+                explorer_path = "explorer/dist"
 
-                    # Default fallback to serve index.html for React SPA Router
-                    return FileResponse(os.path.join(frontend_path, "index.html"))
+                frontend_base = os.path.abspath(frontend_path) if os.path.exists(frontend_path) else None
+                explorer_base = os.path.abspath(explorer_path) if os.path.exists(explorer_path) else None
 
-                logger.info(f"[kernel] Production frontend SPA successfully mounted from {frontend_path}")
-            else:
-                logger.warning(f"[kernel] Production frontend build {frontend_path} not found. Serve disabled.")
+                if frontend_base:
+                    # Secure and unified SPA Fallback Router
+                    @app.get("/{catchall:path}", include_in_schema=False)
+                    async def frontend_spa_fallback(catchall: str, request: Request):
+                        clean_path = catchall.strip("/")
+
+                        # 1. Prevent fallbacks for dynamic API routes, documentation, and system health checks
+                        if clean_path.startswith("api/") or clean_path in ["docs", "openapi.json", "health", "ping"]:
+                            return Response(status_code=404, content="Not Found")
+
+                        # 2. Block Explorer SPA fallback routing
+                        if clean_path.startswith("explorer"):
+                            sub_path = clean_path[len("explorer"):].strip("/")
+                            if explorer_base:
+                                # Securely resolve and verify the absolute path to prevent directory traversal
+                                file_on_disk = os.path.abspath(os.path.join(explorer_base, sub_path))
+                                if sub_path and file_on_disk.startswith(explorer_base) and os.path.exists(file_on_disk) and os.path.isfile(file_on_disk):
+                                    return FileResponse(file_on_disk)
+                                return FileResponse(os.path.join(explorer_base, "index.html"))
+                            return Response(status_code=404, content="Explorer Not Found")
+
+                        # 3. Main Frontend SPA routing
+                        # Securely resolve and verify the absolute path to prevent directory traversal
+                        file_on_disk = os.path.abspath(os.path.join(frontend_base, clean_path))
+                        if clean_path and file_on_disk.startswith(frontend_base) and os.path.exists(file_on_disk) and os.path.isfile(file_on_disk):
+                            return FileResponse(file_on_disk)
+
+                        # Default main portal fallback
+                        return FileResponse(os.path.join(frontend_base, "index.html"))
+
+                    logger.info(f"[kernel] Production frontend and explorer SPAs successfully integrated")
+                else:
+                    logger.warning(f"[kernel] Production frontend build {frontend_path} not found. Serve disabled.")
         except Exception as e:
             logger.error(f"[kernel] Failed to mount production frontend SPA: {e}")
 

@@ -34,6 +34,11 @@ else
     npm run build
 fi
 
+echo "[build] Executing explorer build..."
+cd "$ROOT_DIR/explorer"
+npm install --prefer-offline --no-audit --no-fund
+npm run build
+
 # Database Schema Sync
 echo "[build] Synchronizing database schema..."
 cd "$ROOT_DIR"
