@@ -21,10 +21,10 @@ cd "$ROOT_DIR/frontend"
 # Always use pnpm if lockfile exists, otherwise fallback to npm
 if [ -f "pnpm-lock.yaml" ] || [ -f "../pnpm-lock.yaml" ]; then
     echo "[build] Using pnpm (pnpm-lock.yaml detected)"
-    $PNPM_CMD install --no-frozen-lockfile
+    $PNPM_CMD install --no-frozen-lockfile --production=false
 else
     echo "[build] pnpm-lock.yaml not found. Falling back to npm install."
-    npm install --prefer-offline --no-audit --no-fund
+    npm install --prefer-offline --no-audit --no-fund --production=false
 fi
 
 echo "[build] Building frontend for production..."
