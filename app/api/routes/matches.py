@@ -262,42 +262,52 @@ async def get_matches(
     db: AsyncSession = Depends(get_db),
 ):
     _cache_key = f"{FIXTURE_LIST}:{league}:{status}"
-    _cached = await cache.get(_cache_key)
-    if _cached:
-        return _cached
-    stmt = select(Match, Prediction).outerjoin(
-        Prediction,
-        and_(
-            Match.id == Prediction.match_id,
-            # If multiple predictions exist, we'll take the most recent one
-            # using a subquery or by ordering in Python later.
+    try:
+        _cached = await cache.get(_cache_key)
+        if _cached:
+            return _cached
+    except Exception:
+        pass
+    try:
+        stmt = select(Match, Prediction).outerjoin(
+            Prediction,
+            and_(
+                Match.id == Prediction.match_id,
+                # If multiple predictions exist, we'll take the most recent one
+                # using a subquery or by ordering in Python later.
+            )
         )
-    )
-    if league:
-        stmt = stmt.where(Match.league == league)
-    if status:
-        stmt = stmt.where(Match.status == status)
+        if league:
+            stmt = stmt.where(Match.league == league)
+        if status:
+            stmt = stmt.where(Match.status == status)
 
-    stmt = stmt.order_by(Match.kickoff_time.asc())
-    result = await db.execute(stmt)
-    rows = result.all()
+        stmt = stmt.order_by(Match.kickoff_time.asc())
+        result = await db.execute(stmt)
+        rows = result.all()
 
-    # Deduplicate matches if multiple predictions exist
-    match_map = {}
-    markets = await _load_markets(db)
+        # Deduplicate matches if multiple predictions exist
+        match_map = {}
+        markets = await _load_markets(db)
 
-    for m, p in rows:
-        if m.id not in match_map:
-            match_map[m.id] = (m, p)
-        else:
-            # Keep the latest prediction
-            _, existing_p = match_map[m.id]
-            if p and (not existing_p or p.timestamp > existing_p.timestamp):
+        for m, p in rows:
+            if m.id not in match_map:
                 match_map[m.id] = (m, p)
+            else:
+                # Keep the latest prediction
+                _, existing_p = match_map[m.id]
+                if p and (not existing_p or p.timestamp > existing_p.timestamp):
+                    match_map[m.id] = (m, p)
 
-    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-    await cache.set(_cache_key, res, ttl=300)
-    return res
+        res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+        try:
+            await cache.set(_cache_key, res, ttl=300)
+        except Exception:
+            pass
+        return res
+    except Exception as e:
+        logger.warning(f"get_matches DB error: {e}")
+        return []
 
 
 @router.get("/upcoming")

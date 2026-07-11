@@ -246,7 +246,6 @@ app.include_router(blockchain_analytics_router)
 # --- Business & AI Routers ---
 from app.api.routes.matches import router as matches_router
 app.include_router(matches_router, prefix="/api")
-app.include_router(matches_router, tags=["Matches-Compat"], include_in_schema=False)
 
 from app.api.routes.predict import router as predict_router
 app.include_router(predict_router, prefix="/api")
