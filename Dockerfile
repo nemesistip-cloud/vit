@@ -23,8 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/
-RUN cd frontend && pnpm install --frozen-lockfile
+# frontend is a pnpm workspace member: the lockfile and workspace manifest
+# live at the repo root (pnpm-workspace.yaml), not inside frontend/.
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY frontend/package.json frontend/
+RUN pnpm install --frozen-lockfile
 
 COPY frontend/ frontend/
 RUN cd frontend && pnpm run build
