@@ -41,8 +41,10 @@ import app.modules.referral.models  # noqa: F401
 import app.modules.tasks.models  # noqa: F401
 from app.db.models import Match
 
-# Latest CSV file
+# Latest CSV file (with fallback to archive/attached-assets)
 _CSV_PATH = Path(__file__).parents[1] / "attached_assets" / "all_fixtures_2may_18jun_1777861173817.csv"
+if not _CSV_PATH.exists():
+    _CSV_PATH = Path(__file__).parents[1] / "archive" / "attached-assets" / "all_fixtures_2may_18jun_1777861173817.csv"
 
 _MONTH_MAP = {
     "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,

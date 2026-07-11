@@ -5,7 +5,7 @@ from app.api.routes.explorer import router as explorer_router
 from app.db.database import AsyncSessionLocal
 
 @pytest.fixture
-def test_app():
+def test_app(db_session):
     app = FastAPI()
     app.include_router(explorer_router, prefix="/api")
     return app
