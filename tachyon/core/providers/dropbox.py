@@ -31,7 +31,7 @@ class DropboxProvider:
             return res.id
         except Exception as e:
             logger.error(f"Dropbox upload failed: {e}")
-            raise AppError(500, f"dropbox_upload_failed: {str(e)}")
+            raise AppError(f"dropbox_upload_failed: {str(e)}", status_code=500, code="dropbox_upload_failed")
 
     async def download_shard(self, file_id: str) -> bytes:
         try:
@@ -41,7 +41,7 @@ class DropboxProvider:
             return response.content
         except Exception as e:
             logger.error(f"Dropbox download failed: {e}")
-            raise AppError(404, "shard_not_found")
+            raise AppError("shard_not_found", status_code=404, code="shard_not_found")
 
     async def delete_shard(self, file_id: str) -> bool:
         try:
