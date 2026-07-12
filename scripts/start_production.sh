@@ -18,18 +18,24 @@ fi
 echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Hybrid Mode: ML + SCIE Active"
 
-# Apply any pending Alembic migrations before boot. Safe to run on every
-# deploy/restart — Alembic no-ops if the DB is already at the latest
-# revision(s). This repo has two divergent migration heads, so we use
-# `heads` (plural) rather than `head`. Only runs against Postgres; the
-# SQLite dev fallback uses create_all() elsewhere and doesn't need this.
 if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; then
+    # Step 1 — Pre-flight column guard (idempotent ALTER TABLE IF NOT EXISTS).
+    # Runs BEFORE Alembic so that even if the migration chain is partially broken
+    # the columns the ORM depends on are guaranteed to exist.
+    echo "[production] Running pre-flight schema guard (ensure_columns.py)..."
+    if ! python3 scripts/ensure_columns.py; then
+        echo "[production] WARNING: ensure_columns failed — continuing, schema may be incomplete." >&2
+    fi
+
+    # Step 2 — Apply any pending Alembic migrations. Safe to run on every deploy;
+    # Alembic no-ops if the DB is already at the latest revision(s).
+    # This repo has divergent migration heads, so we use `heads` (plural).
     echo "[production] Running database migrations (alembic upgrade heads)..."
     if ! alembic upgrade heads; then
-        echo "[production] WARNING: alembic upgrade failed — continuing startup, but the app may hit 'relation does not exist' errors until this is resolved." >&2
+        echo "[production] WARNING: alembic upgrade failed — continuing startup." >&2
     fi
 else
-    echo "[production] Skipping alembic migrations (no Postgres DATABASE_URL detected)."
+    echo "[production] Skipping DB setup (no Postgres DATABASE_URL detected)."
 fi
 
 # Start FastAPI (Background Supervisor handles the agents)
