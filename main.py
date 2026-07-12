@@ -380,7 +380,40 @@ async def get_health_summary():
         summary["overall_status"] = "DEGRADED" if unhealthy_count < len(modules) else "UNHEALTHY"
     return summary
 
-# --- Static Files for Explorer ---
+
+
+    @app.get("/api/debug/schema-check", include_in_schema=False)
+    async def debug_schema_check(db: AsyncSession = Depends(get_db)):
+      """Temporary diagnostic: lists users columns and tests select(User)."""
+      results = {}
+      try:
+          from sqlalchemy import text
+          col_result = await db.execute(text(
+              "SELECT column_name FROM information_schema.columns "
+              "WHERE table_name = 'users' ORDER BY ordinal_position"
+          ))
+          results["users_columns"] = [r[0] for r in col_result.fetchall()]
+      except Exception as e:
+          results["users_columns_error"] = str(e)
+      try:
+          from app.db.models import User
+          from sqlalchemy import select, func
+          cnt = (await db.execute(select(func.count(User.id)))).scalar()
+          results["count_users"] = cnt
+      except Exception as e:
+          results["count_users_error"] = str(e)
+      try:
+          from app.db.models import User
+          from sqlalchemy import select
+          stmt = select(User).limit(1)
+          row = (await db.execute(stmt)).scalar_one_or_none()
+          results["select_user_ok"] = True
+          results["select_user_id"] = row.id if row else None
+      except Exception as e:
+          results["select_user_error"] = str(e)
+      return results
+
+    # --- Static Files for Explorer ---
 from fastapi.staticfiles import StaticFiles
 import os
 
