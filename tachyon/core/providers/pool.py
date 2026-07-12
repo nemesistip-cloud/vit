@@ -111,7 +111,7 @@ class ProviderPool:
                 self.degraded_until[pid] = time.time() + self.DEGRADED_TIMEOUT_SECONDS
                 continue
 
-        raise AppError(503, "storage_unavailable")
+        raise AppError("storage_unavailable", status_code=503, code="storage_unavailable")
 
     async def download_shard(self, provider_id: str, file_id: str) -> bytes:
         for provider in self.providers:
@@ -120,9 +120,9 @@ class ProviderPool:
                     return await provider.download_shard(file_id)
                 except Exception as e:
                     logger.error(f"Download failed from provider {provider_id}: {e}")
-                    raise AppError(404, "shard_unavailable")
+                    raise AppError("shard_unavailable", status_code=404, code="shard_unavailable")
 
-        raise AppError(404, "provider_not_found")
+        raise AppError("provider_not_found", status_code=404, code="provider_not_found")
 
     async def delete_shard(self, provider_id: str, file_id: str) -> bool:
         for provider in self.providers:
