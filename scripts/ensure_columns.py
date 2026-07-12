@@ -20,16 +20,17 @@ if "postgres" not in DATABASE_URL:
     print("[ensure_columns] Not a Postgres DB — skipping.", flush=True)
     sys.exit(0)
 
-# Convert async URL to sync psycopg2 URL
+# Normalise the URL so psycopg2 can connect.
+# Render may supply  postgres://  or  postgresql+asyncpg://  or  postgresql://
 sync_url = DATABASE_URL
 for old, new in [
     ("postgresql+asyncpg://", "postgresql://"),
-    ("postgres+asyncpg://", "postgresql://"),
+    ("postgres+asyncpg://",   "postgresql://"),
+    ("postgres://",            "postgresql://"),   # Render shorthand → psycopg2 form
 ]:
-    sync_url = sync_url.replace(old, new)
-
-# Remove ?sslmode=... if needed — psycopg2 handles it differently
-# Keep sslmode in the URL; psycopg2 understands it.
+    if sync_url.startswith(old):
+        sync_url = new + sync_url[len(old):]
+        break
 
 COLUMNS = [
     # (table, column, DDL)
