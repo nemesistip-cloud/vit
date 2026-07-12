@@ -777,56 +777,79 @@ async def list_withdrawals(
 @router.get("/vitcoin/price")
 async def get_vitcoin_price_v2(db: AsyncSession = Depends(get_db)):
     """Current VITCoin price with 24h change, 7d array, supply, market cap."""
-    _cached = await cache.get(VITCOIN_PRICE)
-    if _cached:
-        return _cached
+    try:
+        _cached = await cache.get(VITCOIN_PRICE)
+        if _cached:
+            return _cached
+    except Exception:
+        pass
 
-    pricing = VITCoinPricingEngine(db)
-    prices = await pricing.get_current_price()
-    supply = await pricing.get_circulating_supply()
-
-    last_result = await db.execute(
-        select(VITCoinPriceHistory)
-        .order_by(VITCoinPriceHistory.calculated_at.desc())
-        .limit(1)
-    )
-    last = last_result.scalar_one_or_none()
-
-    cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
-    prev_result = await db.execute(
-        select(VITCoinPriceHistory)
-        .where(VITCoinPriceHistory.calculated_at <= cutoff_24h)
-        .order_by(VITCoinPriceHistory.calculated_at.desc())
-        .limit(1)
-    )
-    prev = prev_result.scalar_one_or_none()
-    change_24h = 0.0
-    if prev and float(prev.price_usd) > 0:
-        change_24h = round((float(prices["usd"]) - float(prev.price_usd)) / float(prev.price_usd) * 100, 4)
-
-    cutoff_7d = datetime.now(timezone.utc) - timedelta(days=7)
-    week_result = await db.execute(
-        select(VITCoinPriceHistory)
-        .where(VITCoinPriceHistory.calculated_at >= cutoff_7d)
-        .order_by(VITCoinPriceHistory.calculated_at.asc())
-    )
-    week_rows = week_result.scalars().all()
-    price_7d = [float(r.price_usd) for r in week_rows]
-
-    res = {
-        "price_usd": float(prices["usd"]),
-        "price_ngn": float(prices["ngn"]),
-        "price_usdt": float(prices["usdt"]),
-        "price_pi": float(prices["pi"]),
-        "change_24h_pct": change_24h,
-        "price_7d": price_7d,
-        "circulating_supply": float(supply),
-        "market_cap_usd": float(prices["usd"] * supply),
-        "calculated_at": last.calculated_at.isoformat() if last else None,
-        "next_update_at": (last.calculated_at + timedelta(hours=6)).isoformat() if last else None,
+    _FALLBACK = {
+        "price_usd": 0.10,
+        "price_ngn": 158.0,
+        "price_usdt": 0.10,
+        "price_pi": 0.318,
+        "change_24h_pct": 0.0,
+        "price_7d": [],
+        "circulating_supply": 0.0,
+        "market_cap_usd": 0.0,
+        "calculated_at": None,
+        "next_update_at": None,
     }
-    await cache.set(VITCOIN_PRICE, res, ttl=30)
-    return res
+
+    try:
+        pricing = VITCoinPricingEngine(db)
+        prices = await pricing.get_current_price()
+        supply = await pricing.get_circulating_supply()
+
+        last_result = await db.execute(
+            select(VITCoinPriceHistory)
+            .order_by(VITCoinPriceHistory.calculated_at.desc())
+            .limit(1)
+        )
+        last = last_result.scalar_one_or_none()
+
+        cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+        prev_result = await db.execute(
+            select(VITCoinPriceHistory)
+            .where(VITCoinPriceHistory.calculated_at <= cutoff_24h)
+            .order_by(VITCoinPriceHistory.calculated_at.desc())
+            .limit(1)
+        )
+        prev = prev_result.scalar_one_or_none()
+        change_24h = 0.0
+        if prev and float(prev.price_usd) > 0:
+            change_24h = round((float(prices["usd"]) - float(prev.price_usd)) / float(prev.price_usd) * 100, 4)
+
+        cutoff_7d = datetime.now(timezone.utc) - timedelta(days=7)
+        week_result = await db.execute(
+            select(VITCoinPriceHistory)
+            .where(VITCoinPriceHistory.calculated_at >= cutoff_7d)
+            .order_by(VITCoinPriceHistory.calculated_at.asc())
+        )
+        week_rows = week_result.scalars().all()
+        price_7d = [float(r.price_usd) for r in week_rows]
+
+        res = {
+            "price_usd": float(prices["usd"]),
+            "price_ngn": float(prices["ngn"]),
+            "price_usdt": float(prices["usdt"]),
+            "price_pi": float(prices["pi"]),
+            "change_24h_pct": change_24h,
+            "price_7d": price_7d,
+            "circulating_supply": float(supply),
+            "market_cap_usd": float(prices["usd"] * supply),
+            "calculated_at": last.calculated_at.isoformat() if last else None,
+            "next_update_at": (last.calculated_at + timedelta(hours=6)).isoformat() if last else None,
+        }
+        try:
+            await cache.set(VITCOIN_PRICE, res, ttl=30)
+        except Exception:
+            pass
+        return res
+    except Exception as e:
+        logger.warning(f"vitcoin-price DB error: {e}")
+        return _FALLBACK
 
 
 @router.get("/vitcoin-price")
