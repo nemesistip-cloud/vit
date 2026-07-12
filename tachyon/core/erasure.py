@@ -60,11 +60,14 @@ class ReedSolomonCodec:
 
     def decode(self, shards: List[Optional[bytes]],
                data_shards: int = DATA_SHARDS,
-               parity_shards: int = PARITY_SHARDS) -> bytes:
+               parity_shards: int = PARITY_SHARDS,
+               original_size: int = 0) -> bytes:
         """
         Accepts None for missing shards (up to parity_shards can be None).
         Uses reedsolo to reconstruct missing shards.
-        Concatenates data shards (not parity) and strips padding.
+        Concatenates data shards (not parity) and removes padding precisely using
+        original_size when provided (avoids corrupting files that legitimately end
+        with null bytes).  Falls back to rstrip only when original_size is 0.
         Raises AppError(500, "storage_unrecoverable") if too many shards missing.
         """
         if len(shards) != data_shards + parity_shards:
@@ -75,12 +78,8 @@ class ReedSolomonCodec:
             raise AppError("storage_unrecoverable", status_code=500, code="storage_unrecoverable")
 
         if not missing_indices:
-            # No missing shards, just concatenate data shards
-            # We still need to know the original size to strip padding correctly,
-            # but the spec doesn't provide it in the decode signature.
-            # Assuming we strip trailing null bytes from the reconstructed data.
             data = b"".join(shards[:data_shards])
-            return data.rstrip(b'\0')
+            return data[:original_size] if original_size > 0 else data.rstrip(b'\0')
 
         # Find shard size from first non-None shard
         shard_size = 0
@@ -114,7 +113,7 @@ class ReedSolomonCodec:
                 raise AppError("storage_unrecoverable", status_code=500, code="storage_unrecoverable")
 
         data = b"".join(recovered_shards)
-        return data.rstrip(b'\0')
+        return data[:original_size] if original_size > 0 else data.rstrip(b'\0')
 
     def shard_hash(self, shard: bytes) -> str:
         """Returns sha256_hex(shard) — used for challenge verification."""
