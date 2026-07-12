@@ -278,14 +278,15 @@ async def attest_availability(
     )
     db.add(att)
 
-    attestations_q = await db.execute(
-        select(func.avg(DataAvailabilityAttestation.available.cast(type_=None))).where(
+    all_atts_q = await db.execute(
+        select(DataAvailabilityAttestation.available).where(
             DataAvailabilityAttestation.content_id == content.id
         )
     )
-    avg_available = attestations_q.scalar()
-    if avg_available is not None:
-        content.availability_score = Decimal(str(round(float(avg_available), 4)))
+    all_available = all_atts_q.scalars().all()
+    if all_available:
+        avg_available = sum(1 for v in all_available if v) / len(all_available)
+        content.availability_score = Decimal(str(round(avg_available, 4)))
 
     await db.commit()
     await db.refresh(att)
