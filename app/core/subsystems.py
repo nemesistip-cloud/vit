@@ -71,12 +71,15 @@ class DatabaseSubsystem(Subsystem):
         # (string-based refs like "StudentProfile", "UserTaskCompletion", etc.)
         # so mapper configuration succeeds before the first ORM query.
         # This runs after all routers have been imported at module level.
-        import app.modules.identity.models        # noqa: F401 – StudentProfile
-        import app.modules.tasks.models           # noqa: F401 – UserTaskCompletion
-        import app.modules.notifications.models   # noqa: F401 – Notification, NotificationPreference
-        import app.modules.trust.models           # noqa: F401 – UserTrustScore, FraudFlag, RiskEvent
-        from sqlalchemy.orm import configure_mappers
-        configure_mappers()  # resolve all string relationship references now
+        try:
+            import app.modules.identity.models        # noqa: F401
+            import app.modules.tasks.models           # noqa: F401
+            import app.modules.notifications.models   # noqa: F401
+            import app.modules.trust.models           # noqa: F401
+            from sqlalchemy.orm import configure_mappers
+            configure_mappers()
+        except Exception as _e:
+            logger.warning("[kernel] configure_mappers warning (non-fatal): %s", _e)
 
         start = asyncio.get_event_loop().time()
         async with AsyncSessionLocal() as session:

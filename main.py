@@ -96,6 +96,27 @@ async def root():
         "subsystems": list(kernel.subsystems.keys())
     }
 
+@app.get("/debug/login-test", include_in_schema=False)
+async def debug_login_test(db: AsyncSession = Depends(get_db)):
+    """Temporary diagnostic — returns the raw exception from the login query path."""
+    result = {}
+    try:
+        from sqlalchemy import text
+        r = await db.execute(text("SELECT COUNT(*) FROM users"))
+        result["raw_sql_users_count"] = r.scalar()
+    except Exception as e:
+        result["raw_sql_error"] = f"{type(e).__name__}: {e}"
+    try:
+        from app.db.models import User
+        from sqlalchemy import select
+        r2 = await db.execute(select(User).limit(1))
+        u = r2.scalar_one_or_none()
+        result["orm_select_ok"] = True
+        result["found_user"] = u.email if u else None
+    except Exception as e:
+        result["orm_select_error"] = f"{type(e).__name__}: {e}"
+    return result
+
 @app.get("/ping")
 async def ping():
     return {"status": "ok", "ts": int(time.time())}
