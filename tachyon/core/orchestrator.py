@@ -46,22 +46,17 @@ class TachyonOrchestrator:
         sha256 = hashlib.sha256(data).hexdigest()
 
         # 3. Check for duplicate using JSON-aware query
-        # Metadata is stored as {"_metadata": {"sha256": "..."}}
-        # SQLite: TachyonManifest.provider_mapping["_metadata"]["sha256"].as_string() == sha256
-        # Postgres: TachyonManifest.provider_mapping[("_metadata", "sha256")].as_string() == sha256
-        print(f"DEBUG: Checking for duplicate with sha256: {sha256}")
         stmt = select(TachyonManifest).where(
             TachyonManifest.provider_mapping["_metadata"]["sha256"].as_string() == sha256
         ).limit(1)
         result = await db.execute(stmt)
-        print(f"DEBUG: Result is {result}")
         existing = result.scalar_one_or_none()
-        print(f"DEBUG: Existing is {existing}")
         if existing:
             return existing
 
         # 4. Encode
-        shards = self.codec.encode(data, data_shards=6, parity_shards=3)
+        from tachyon.core.erasure import DATA_SHARDS, PARITY_SHARDS
+        shards = self.codec.encode(data, data_shards=DATA_SHARDS, parity_shards=PARITY_SHARDS)
 
         # 5. Upload shards in parallel
         async def _upload_one(i, shard):
@@ -126,19 +121,24 @@ class TachyonOrchestrator:
         shard_locations = manifest.provider_mapping.get("shards", [])
 
         # 2. Download shards in parallel
-        total_expected = 9
+        from tachyon.core.erasure import DATA_SHARDS, PARITY_SHARDS
+        total_expected = DATA_SHARDS + PARITY_SHARDS
         downloaded_shards = await self.retriever.retrieve_shards_parallel(shard_locations, self.pool)
 
         shards_with_nones = [None] * total_expected
-        # Correctly map downloaded shards to their indices
         sorted_locs = sorted(shard_locations, key=lambda x: x["shard_index"])
         for i, loc in enumerate(sorted_locs):
-             if i < len(downloaded_shards):
-                 shards_with_nones[loc["shard_index"]] = downloaded_shards[i]
+            if i < len(downloaded_shards):
+                shards_with_nones[loc["shard_index"]] = downloaded_shards[i]
 
         # 3. Decode
         try:
-            data = self.codec.decode(shards_with_nones, data_shards=6, parity_shards=3)
+            data = self.codec.decode(
+                shards_with_nones,
+                data_shards=DATA_SHARDS,
+                parity_shards=PARITY_SHARDS,
+                original_size=manifest.size_bytes,
+            )
         except Exception as e:
             logger.error(f"Decoding failed for {file_id}: {e}")
             raise AppError("Retrieval failed: data unrecoverable", status_code=503, code="retrieval_failed")
