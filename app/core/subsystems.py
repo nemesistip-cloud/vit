@@ -67,17 +67,12 @@ class DatabaseSubsystem(Subsystem):
         from app.core.observability.manager import obs_manager
         from app.core.observability.models import HealthStatus
 
-        # Ensure all module models are imported so SQLAlchemy mapper can
-        # resolve string-referenced relationships before any ORM query.
+        # Ensure all module models referenced by User relationships are imported
+        # so SQLAlchemy can configure mappers before the first ORM query.
         import app.modules.notifications.models   # noqa: F401
         import app.modules.tasks.models           # noqa: F401
         import app.modules.identity.models        # noqa: F401
         import app.modules.trust.models           # noqa: F401
-        import app.modules.wallet.models          # noqa: F401
-        import app.modules.blockchain.models      # noqa: F401
-        import app.modules.developer.models       # noqa: F401
-        import app.modules.rewards.models         # noqa: F401
-        import app.modules.freemium.models        # noqa: F401
 
         start = asyncio.get_event_loop().time()
         async with AsyncSessionLocal() as session:

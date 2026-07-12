@@ -213,22 +213,14 @@ async def health(db: AsyncSession = Depends(get_db)):
         clv_tracking_enabled=True
     )
 
-# --- Model registry: import all module models so SQLAlchemy mapper can
-# resolve string-referenced relationships (e.g. "Notification", "StudentProfile")
-# before the first ORM query fires.  Order matches alembic/env.py.
-import app.modules.notifications.models      # noqa: F401
-import app.modules.tasks.models              # noqa: F401
-import app.modules.identity.models           # noqa: F401
-import app.modules.trust.models              # noqa: F401
-import app.modules.wallet.models             # noqa: F401
-import app.modules.blockchain.models         # noqa: F401
-import app.modules.ai.models                 # noqa: F401
-import app.modules.marketplace.models        # noqa: F401
-import app.modules.bridge.models             # noqa: F401
-import app.modules.developer.models          # noqa: F401
-import app.modules.governance.models         # noqa: F401
-import app.modules.rewards.models            # noqa: F401
-import app.modules.freemium.models           # noqa: F401
+# --- Model registry: import module models that User relationships reference
+# by string so SQLAlchemy can configure mappers before the first ORM query.
+# (Wallet / Blockchain / Marketplace / etc. are already registered via their
+#  routers below; only the modules with no registered router need explicit imports.)
+import app.modules.notifications.models   # noqa: F401 – "Notification", "NotificationPreference"
+import app.modules.tasks.models           # noqa: F401 – "UserTaskCompletion"
+import app.modules.identity.models        # noqa: F401 – "StudentProfile"
+import app.modules.trust.models           # noqa: F401 – "UserTrustScore", "FraudFlag", "RiskEvent"
 
 # --- Router Registrations ---
 from app.auth.routes import router as auth_router
