@@ -35,7 +35,7 @@ class OneDriveProvider:
         if "access_token" in result:
             return result["access_token"]
         else:
-            raise AppError(500, f"onedrive_auth_failed: {result.get('error_description')}")
+            raise AppError(f"onedrive_auth_failed: {result.get('error_description')}", status_code=500, code="onedrive_auth_failed")
 
     async def upload_shard(self, shard_id: str, data: bytes, folder_id: str = None) -> str:
         try:
@@ -54,7 +54,7 @@ class OneDriveProvider:
                 return resp.json()["id"]
         except Exception as e:
             logger.error(f"OneDrive upload failed: {e}")
-            raise AppError(500, f"onedrive_upload_failed: {str(e)}")
+            raise AppError(f"onedrive_upload_failed: {str(e)}", status_code=500, code="onedrive_upload_failed")
 
     async def download_shard(self, file_id: str) -> bytes:
         try:
@@ -66,14 +66,14 @@ class OneDriveProvider:
                     headers={"Authorization": f"Bearer {token}"}
                 )
                 if resp.status_code == 404:
-                    raise AppError(404, "shard_not_found")
+                    raise AppError("shard_not_found", status_code=404, code="shard_not_found")
                 resp.raise_for_status()
                 return resp.content
         except AppError:
             raise
         except Exception as e:
             logger.error(f"OneDrive download failed: {e}")
-            raise AppError(500, f"onedrive_download_failed: {str(e)}")
+            raise AppError(f"onedrive_download_failed: {str(e)}", status_code=500, code="onedrive_download_failed")
 
     async def delete_shard(self, file_id: str) -> bool:
         try:
