@@ -8,8 +8,6 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
-
 from app.db.database import get_db
 from app.db.models import User, AuditLog
 from app.modules.wallet.models import Wallet
@@ -119,11 +117,6 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     )
 
 @router.post("/login", response_model=TokenResponse)
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception(is_transient_db_error),
-)
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     stmt = select(User).where(User.email == body.email.lower())
     result = await db.execute(stmt)

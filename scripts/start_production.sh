@@ -34,6 +34,12 @@ if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; th
     if ! alembic upgrade heads; then
         echo "[production] WARNING: alembic upgrade failed — continuing startup." >&2
     fi
+
+    # Step 3 — Ensure admin user exists (idempotent).
+    echo "[production] Ensuring admin user exists..."
+    if ! python3 scripts/ensure_admin.py; then
+        echo "[production] WARNING: ensure_admin failed — admin user may be missing." >&2
+    fi
 else
     echo "[production] Skipping DB setup (no Postgres DATABASE_URL detected)."
 fi
