@@ -19,6 +19,13 @@ echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Hybrid Mode: ML + SCIE Active"
 
 if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; then
+    # Step 0 — Ensure all tables exist via SQLAlchemy create_all (safety net).
+    # This is idempotent and handles fresh DBs where alembic hasn't run yet.
+    echo "[production] Running DB table bootstrap (init_db.py)..."
+    if ! python3 scripts/init_db.py; then
+        echo "[production] WARNING: init_db failed — continuing." >&2
+    fi
+
     # Step 1 — Pre-flight column guard (idempotent ALTER TABLE IF NOT EXISTS).
     # Runs BEFORE Alembic so that even if the migration chain is partially broken
     # the columns the ORM depends on are guaranteed to exist.
