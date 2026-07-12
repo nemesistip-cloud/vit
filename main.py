@@ -213,15 +213,6 @@ async def health(db: AsyncSession = Depends(get_db)):
         clv_tracking_enabled=True
     )
 
-# --- Model registry: import module models that User relationships reference
-# by string so SQLAlchemy can configure mappers before the first ORM query.
-# (Wallet / Blockchain / Marketplace / etc. are already registered via their
-#  routers below; only the modules with no registered router need explicit imports.)
-import app.modules.notifications.models   # noqa: F401 – "Notification", "NotificationPreference"
-import app.modules.tasks.models           # noqa: F401 – "UserTaskCompletion"
-import app.modules.identity.models        # noqa: F401 – "StudentProfile"
-import app.modules.trust.models           # noqa: F401 – "UserTrustScore", "FraudFlag", "RiskEvent"
-
 # --- Router Registrations ---
 from app.auth.routes import router as auth_router
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
