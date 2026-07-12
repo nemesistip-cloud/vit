@@ -32,17 +32,16 @@ def is_transient_db_error(exception):
 async def _write_audit(db: AsyncSession, action: str, email: str, target_type: str, target_id: str):
     try:
         audit = AuditLog(
-            admin_id=None,
             action=action,
-            target_type=target_type,
-            target_id=target_id,
+            actor=email,
+            resource=target_type,
+            resource_id=target_id,
             details={"email": email},
-            created_at=datetime.now(timezone.utc),
         )
         db.add(audit)
         await db.commit()
     except Exception:
-        pass
+        await db.rollback()
 
 class RegisterRequest(BaseModel):
     email: EmailStr
