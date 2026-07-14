@@ -217,10 +217,10 @@ async def health(db: AsyncSession = Depends(get_db)):
 # by string so SQLAlchemy can configure mappers before the first ORM query.
 # (Wallet / Blockchain / Marketplace / etc. are already registered via their
 #  routers below; only the modules with no registered router need explicit imports.)
-import app.modules.notifications.models   # noqa: F401 – "Notification", "NotificationPreference"
-import app.modules.tasks.models           # noqa: F401 – "UserTaskCompletion"
-import app.modules.identity.models        # noqa: F401 – "StudentProfile"
-import app.modules.trust.models           # noqa: F401 – "UserTrustScore", "FraudFlag", "RiskEvent"
+from app.modules.notifications import models as notifications_models  # noqa: F401 – "Notification", "NotificationPreference"
+from app.modules.tasks import models as tasks_models                  # noqa: F401 – "UserTaskCompletion"
+from app.modules.identity import models as identity_models            # noqa: F401 – "StudentProfile"
+from app.modules.trust import models as trust_models                  # noqa: F401 – "UserTrustScore", "FraudFlag", "RiskEvent"
 
 # --- Router Registrations ---
 from app.auth.routes import router as auth_router

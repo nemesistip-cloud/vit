@@ -698,6 +698,54 @@ async def collect_and_persist_metrics(
     return {"updated_models": updated, "window": window}
 
 
+# ── Hot Registration & Custom Metadata Management ────────────────────────────
+
+from typing import List
+
+class HotRegisterRequest(BaseModel):
+    key: str = Field(..., max_length=64, description="Unique identifier for the new model")
+    name: str = Field(..., max_length=128, description="Human-readable name")
+    model_type: str = Field(..., max_length=64, description="Type of model (e.g. XGBoost, Transformer, LLM)")
+    description: Optional[str] = None
+    supported_markets: List[str] = Field(default_factory=lambda: ["1x2"])
+
+@router.post("/models/register", status_code=201, summary="Hot-Register a New Model")
+async def hot_register_model(
+    body: HotRegisterRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Dynamically register a new custom model into the ensemble registry on-the-fly."""
+    existing = await get_model_by_key(db, body.key)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Model with key '{body.key}' already registered.")
+
+    new_model = ModelMetadata(
+        key=body.key,
+        name=body.name,
+        model_type=body.model_type,
+        version="v1.0.0",
+        weight=1.0,
+        is_active=True,
+        supported_markets=body.supported_markets,
+        description=body.description or f"Hot-registered custom model: {body.name}",
+    )
+    db.add(new_model)
+    await db.commit()
+
+    # Refresh live orchestrator in-memory map
+    orch = get_orchestrator()
+    if orch:
+        try:
+            orch.load_all_models()
+        except Exception as e:
+            logger.warning(f"Could not automatically sync newly registered model to in-memory orchestrator: {e}")
+
+    return {
+        "status": "success",
+        "message": f"Successfully registered new model '{body.key}' in the active registry.",
+        "model": _row_to_dict(new_model)
+    }
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _audit_to_dict(r: AIPredictionAudit) -> dict:

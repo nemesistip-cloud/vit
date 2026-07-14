@@ -178,6 +178,16 @@ async def sync_weights_to_orchestrator(db: AsyncSession, orchestrator: Any) -> D
 
 
 def _row_to_dict(row: ModelMetadata) -> dict:
+    # Upgrade Model Registry with token limit, pricing, priority, endpoint, etc.
+    is_llm = "llm" in row.key or "consensus" in row.key
+    token_limit = 32768 if is_llm else 4096
+    pricing = {
+        "input_1k_tokens": 0.0015 if is_llm else 0.0,
+        "output_1k_tokens": 0.0020 if is_llm else 0.0
+    }
+    fallback_priority = 1 if is_llm else 2
+    endpoint = f"https://vit-ai.onrender.com/api/v1/models/{row.key}"
+
     return {
         "id":                 row.id,
         "key":                row.key,
@@ -198,6 +208,13 @@ def _row_to_dict(row: ModelMetadata) -> dict:
         "training_samples":   row.training_samples,
         "supported_markets":  row.supported_markets,
         "description":        row.description,
+        "token_limit":        token_limit,
+        "pricing_metadata":   pricing,
+        "fallback_priority":  fallback_priority,
+        "endpoint":           endpoint,
+        "enabled":            row.is_active,
+        "default":            row.key in ("xgb_v2", "llm_consensus_v1"),
+        "capabilities":       ["prediction", "inference"] + (["reasoning"] if is_llm else []),
         "created_at":         row.created_at.isoformat() if row.created_at else None,
         "updated_at":         row.updated_at.isoformat() if row.updated_at else None,
     }
