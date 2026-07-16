@@ -12,7 +12,7 @@ const PUBLIC_LINKS = [
   { label: 'Matches',    path: '/matches' },
   { label: 'AI',         path: '/ai' },
   { label: 'Leaderboard', path: '/leaderboard' },
-  { label: 'Explorer',   path: '/explorer' },
+  { label: 'Explorer',   path: '/chain' },
   { label: 'Platform',   path: '/platform' },
   { label: 'Docs',       path: '/docs' },
 ]
