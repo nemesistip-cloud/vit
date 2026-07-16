@@ -5,6 +5,9 @@ from app.db.database import AsyncSessionLocal
 from app.modules.blockchain.models import ValidatorProfile
 from app.db.models import User
 
+# Uses the module-level AsyncSessionLocal — needs a real migrated database.
+pytestmark = pytest.mark.integration
+
 @pytest.mark.asyncio
 async def test_validator_metrics_route():
     transport = ASGITransport(app=app)

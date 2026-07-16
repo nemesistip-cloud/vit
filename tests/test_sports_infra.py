@@ -6,6 +6,10 @@ from app.db.models import Match
 from app.modules.sports.models import MarketMapping, AffiliateClick
 from sqlalchemy import select
 
+# These tests insert rows via the module-level AsyncSessionLocal (real DB),
+# so they need a pre-migrated database.  Run with: pytest -m integration
+pytestmark = pytest.mark.integration
+
 @pytest.mark.asyncio
 async def test_sports_endpoints():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:

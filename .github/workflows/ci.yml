@@ -75,11 +75,19 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run test suite
+      - name: Run unit & smoke tests
+        # Excludes:
+        #  - tests/test_live.py        — live prod endpoints
+        #  - tests/test_env_example.py — just validates .env.example format
+        # Marker filter:
+        #  - not live        — tests that hit external services (iSports, Paystack, etc.)
+        #  - not integration — tests that require a real, pre-migrated database
         run: |
-          python -m pytest tests/ -x -q \
+          python -m pytest tests/ -q \
             --ignore=tests/test_live.py \
             --ignore=tests/test_env_example.py \
+            -m "not live and not integration" \
+            --tb=short \
             -p no:warnings \
             --cov=app \
             --cov-report=term-missing \
@@ -90,3 +98,7 @@ jobs:
           AUTH_ENABLED: 'false'
           USE_REAL_ML_MODELS: 'false'
           RATE_LIMIT_ENABLED: 'false'
+          JWT_SECRET_KEY: 'ci-test-secret-key-not-for-production'
+          SESSION_SECRET: 'ci-test-session-secret'
+          PAYSTACK_SECRET_KEY: 'sk_test_placeholder'
+          PAYSTACK_WEBHOOK_SECRET: 'whsec_test_placeholder'

@@ -4,6 +4,10 @@ from main import app
 from app.db.database import AsyncSessionLocal
 from app.modules.storage_verification.models import ContentHashRegistry
 
+# test_list_objects_with_data inserts rows via the module-level AsyncSessionLocal
+# (bypasses conftest patch) — requires a real migrated database.
+pytestmark = pytest.mark.integration
+
 @pytest.mark.asyncio
 async def test_list_objects_empty():
     transport = ASGITransport(app=app)

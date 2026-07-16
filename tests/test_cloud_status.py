@@ -3,6 +3,10 @@ from httpx import AsyncClient
 from main import app
 from app.db.database import get_db, AsyncSessionLocal
 
+# test_cloud_status_endpoint opens an AsyncSessionLocal directly, bypassing
+# the conftest test-DB patch.  Needs a real migrated DB.
+pytestmark = pytest.mark.integration
+
 @pytest.mark.asyncio
 async def test_cloud_status_endpoint():
     from fastapi import FastAPI
