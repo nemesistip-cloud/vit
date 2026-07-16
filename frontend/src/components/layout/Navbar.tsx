@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Activity, LogIn, LogOut, LayoutDashboard, Shield, Trophy, Wallet, Brain, ChevronDown } from 'lucide-react'
+import { Menu, X, Activity, LogIn, LogOut, LayoutDashboard, Shield, Trophy, Wallet, Brain, ChevronDown, Vote, Landmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGatewayHealth } from '@/hooks/useHealth'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -22,6 +22,8 @@ const AUTH_LINKS = [
   { label: 'Dashboard',   path: '/dashboard',   icon: LayoutDashboard },
   { label: 'Predictions', path: '/predictions', icon: Brain },
   { label: 'Wallet',      path: '/wallet',       icon: Wallet },
+  { label: 'Governance',  path: '/governance',  icon: Vote },
+  { label: 'Treasury',    path: '/treasury',    icon: Landmark },
 ]
 
 export function Navbar() {
@@ -164,6 +166,12 @@ export function Navbar() {
                     </Link>
                     <Link to="/wallet" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
                       <Wallet className="w-4 h-4" /> Wallet
+                    </Link>
+                    <Link to="/governance" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <Vote className="w-4 h-4" /> Governance
+                    </Link>
+                    <Link to="/treasury" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <Landmark className="w-4 h-4" /> Treasury
                     </Link>
                     <div className="h-px bg-white/10 my-1" />
                     <button

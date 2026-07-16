@@ -50,7 +50,7 @@ const PHASES = [
   {
     phase: 'Phase IV',
     title: 'Blockchain & On-Chain Verification',
-    status: 'active',
+    status: 'complete',
     items: [
       { label: 'VIT chain ledger (vit_chain)',         done: true },
       { label: 'Block explorer UI',                   done: true },
@@ -58,19 +58,19 @@ const PHASES = [
       { label: 'Node map & network stats',            done: true },
       { label: 'On-chain prediction attestation',     done: true },
       { label: 'Smart contract module (SimpleVM)',     done: true },
-      { label: 'Trustless payout verification',       done: false },
-      { label: 'Multi-chain routing in gateway',      done: false },
+      { label: 'Trustless payout verification',       done: true },
+      { label: 'Multi-chain routing in gateway',      done: true },
     ],
   },
   {
     phase: 'Phase V',
     title: 'Governance & DAO',
-    status: 'planned',
+    status: 'active',
     items: [
-      { label: 'Proposal creation & voting',          done: false },
-      { label: 'On-chain governance execution',       done: false },
-      { label: 'Validator staking & slashing',        done: false },
-      { label: 'Treasury management module',          done: false },
+      { label: 'Proposal creation & voting',          done: true },
+      { label: 'On-chain governance execution',       done: true },
+      { label: 'Validator staking & slashing',        done: true },
+      { label: 'Treasury management module',          done: true },
     ],
   },
   {

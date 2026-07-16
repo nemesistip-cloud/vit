@@ -18,6 +18,8 @@ import Leaderboard       from '@/pages/Leaderboard'
 import Wallet            from '@/pages/Wallet'
 import Predictions       from '@/pages/Predictions'
 import Explorer          from '@/pages/Explorer'
+import Governance        from '@/pages/Governance'
+import Treasury          from '@/pages/Treasury'
 
 export default function App() {
   return (
@@ -42,7 +44,9 @@ export default function App() {
           <Route path="/leaderboard"  element={<Leaderboard />} />
           <Route path="/wallet"       element={<Wallet />} />
           <Route path="/predictions"  element={<Predictions />} />
-          <Route path="/chain"     element={<Explorer />} />
+          <Route path="/chain"        element={<Explorer />} />
+          <Route path="/governance"   element={<Governance />} />
+          <Route path="/treasury"     element={<Treasury />} />
           {/* Catch-all: redirect unknown paths to home */}
           <Route path="*"             element={<Navigate to="/" replace />} />
         </Routes>

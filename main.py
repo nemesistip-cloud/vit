@@ -271,6 +271,12 @@ app.include_router(predict_router, tags=["Predict-Compat"], include_in_schema=Fa
 from app.api.routes.attestation import router as attestation_router
 app.include_router(attestation_router)
 
+from app.api.routes.payout_verify import router as payout_verify_router
+app.include_router(payout_verify_router)
+
+from app.api.routes.multichain import router as multichain_router
+app.include_router(multichain_router, tags=["Multichain"])
+
 from app.api.routes.dashboard import router as dashboard_router
 app.include_router(dashboard_router)
 
@@ -348,6 +354,9 @@ app.include_router(quant_router, prefix="/api", tags=["Quant"])
 
 from app.modules.bridge.routes import router as bridge_router
 app.include_router(bridge_router, prefix="/api", tags=["Bridge"])
+
+from app.modules.treasury.routes import router as treasury_router
+app.include_router(treasury_router, tags=["Treasury"])
 
 # --- Wallet Routers ---
 from app.modules.wallet.routes import router as wallet_router
