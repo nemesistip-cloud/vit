@@ -186,7 +186,7 @@ function CreateProposalModal({ onClose }: { onClose: () => void }) {
               disabled={mutation.isPending || form.title.length < 5 || form.description.length < 20}
               className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-vit-500 hover:bg-vit-400 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {mutation.isPending ? <Spinner size="sm" /> : <Plus className="w-4 h-4" />}
+              {mutation.isPending ? <Spinner className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
               Submit Proposal
             </button>
           </div>
@@ -292,7 +292,7 @@ function VoteModal({ proposal, onClose }: { proposal: Proposal; onClose: () => v
               disabled={mutation.isPending}
               className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-vit-500 hover:bg-vit-400 text-white transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
             >
-              {mutation.isPending ? <Spinner size="sm" /> : <Vote className="w-4 h-4" />}
+              {mutation.isPending ? <Spinner className="w-4 h-4" /> : <Vote className="w-4 h-4" />}
               Submit Vote
             </button>
           </div>
@@ -467,7 +467,7 @@ export default function Governance() {
         {/* Proposal list */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Spinner size="lg" />
+            <Spinner className="w-8 h-8" />
           </div>
         ) : proposals.length === 0 ? (
           <div className="text-center py-20">

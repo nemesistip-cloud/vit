@@ -206,7 +206,7 @@ export default function Treasury() {
         <div>
           <h2 className="text-sm font-semibold text-white/60 uppercase tracking-widest mb-4">Pool Distribution</h2>
           {loadingPools ? (
-            <div className="flex items-center justify-center py-12"><Spinner size="lg" /></div>
+            <div className="flex items-center justify-center py-12"><Spinner className="w-8 h-8" /></div>
           ) : pools.length === 0 ? (
             <div className="text-center py-12 text-white/30 text-sm">
               <PieChart className="w-8 h-8 mx-auto mb-2 opacity-30" />
