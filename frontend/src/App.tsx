@@ -14,6 +14,10 @@ import Login             from '@/pages/Login'
 import Matches           from '@/pages/Matches'
 import Admin             from '@/pages/Admin'
 import Dashboard         from '@/pages/Dashboard'
+import Leaderboard       from '@/pages/Leaderboard'
+import Wallet            from '@/pages/Wallet'
+import Predictions       from '@/pages/Predictions'
+import Explorer          from '@/pages/Explorer'
 
 export default function App() {
   return (
@@ -21,22 +25,26 @@ export default function App() {
       <Navbar />
       <main className="flex-1">
         <Routes>
-          <Route path="/"           element={<Home />} />
-          <Route path="/platform"   element={<Platform />} />
-          <Route path="/ai"         element={<AI />} />
-          <Route path="/storage"    element={<Storage />} />
-          <Route path="/status"     element={<Status />} />
-          <Route path="/developers" element={<Developers />} />
-          <Route path="/docs"       element={<Documentation />} />
-          <Route path="/roadmap"    element={<Roadmap />} />
-          <Route path="/about"      element={<About />} />
-          <Route path="/login"      element={<Login />} />
-          <Route path="/register"   element={<Login />} />
-          <Route path="/matches"    element={<Matches />} />
-          <Route path="/admin"      element={<Admin />} />
-          <Route path="/dashboard"  element={<Dashboard />} />
+          <Route path="/"             element={<Home />} />
+          <Route path="/platform"     element={<Platform />} />
+          <Route path="/ai"           element={<AI />} />
+          <Route path="/storage"      element={<Storage />} />
+          <Route path="/status"       element={<Status />} />
+          <Route path="/developers"   element={<Developers />} />
+          <Route path="/docs"         element={<Documentation />} />
+          <Route path="/roadmap"      element={<Roadmap />} />
+          <Route path="/about"        element={<About />} />
+          <Route path="/login"        element={<Login />} />
+          <Route path="/register"     element={<Login />} />
+          <Route path="/matches"      element={<Matches />} />
+          <Route path="/admin"        element={<Admin />} />
+          <Route path="/dashboard"    element={<Dashboard />} />
+          <Route path="/leaderboard"  element={<Leaderboard />} />
+          <Route path="/wallet"       element={<Wallet />} />
+          <Route path="/predictions"  element={<Predictions />} />
+          <Route path="/explorer"     element={<Explorer />} />
           {/* Catch-all: redirect unknown paths to home */}
-          <Route path="*"           element={<Navigate to="/" replace />} />
+          <Route path="*"             element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       <Footer />
