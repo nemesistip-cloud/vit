@@ -19,56 +19,90 @@ const PHASES = [
   },
   {
     phase: 'Phase II',
-    title: 'Frontend Reconstruction',
-    status: 'active',
+    title: 'Frontend & Intelligence Layer',
+    status: 'complete',
     items: [
       { label: 'React + Vite + TypeScript frontend', done: true },
       { label: 'TailwindCSS design system',          done: true },
       { label: 'Live service health dashboard',      done: true },
       { label: 'AI model registry UI',               done: true },
       { label: 'Storage object browser',             done: true },
-      { label: 'Service discovery integration',      done: false },
-      { label: 'Asset CDN via vit-storage',          done: false },
+      { label: 'Matches & fixture system',           done: true },
+      { label: 'AI-powered prediction engine',       done: true },
+      { label: 'Leaderboard & scoring system',       done: true },
     ],
   },
   {
     phase: 'Phase III',
-    title: 'Blockchain Layer',
-    status: 'planned',
+    title: 'Wallet, Identity & Rewards',
+    status: 'active',
     items: [
-      { label: 'Distributed ledger integration',    done: false },
-      { label: 'On-chain verification primitives',  done: false },
-      { label: 'Trustless transaction support',     done: false },
-      { label: 'Gateway blockchain routing',        done: false },
+      { label: 'VIT token wallet & balance',         done: true },
+      { label: 'JWT auth with refresh tokens',       done: true },
+      { label: 'Role-based access control (RBAC)',   done: true },
+      { label: 'TOTP two-factor authentication',     done: true },
+      { label: 'Reward accumulator & payouts',       done: false },
+      { label: 'CLV tier system (Free → Pro → VIP)', done: false },
+      { label: 'KYC screening pipeline',             done: false },
+      { label: 'Withdrawal gatekeeper agent',        done: false },
     ],
   },
   {
     phase: 'Phase IV',
-    title: 'Identity & Wallet',
-    status: 'planned',
+    title: 'Blockchain & On-Chain Verification',
+    status: 'active',
     items: [
-      { label: 'Decentralized identity (DID)',    done: false },
-      { label: 'Verifiable credentials',          done: false },
-      { label: 'Multi-chain wallet integration',  done: false },
-      { label: 'Value transfer primitives',       done: false },
+      { label: 'VIT chain ledger (vit_chain)',        done: true },
+      { label: 'Block explorer UI',                  done: true },
+      { label: 'Transaction indexing',               done: true },
+      { label: 'Node map & network stats',           done: true },
+      { label: 'On-chain prediction attestation',    done: false },
+      { label: 'Trustless payout verification',      done: false },
+      { label: 'Smart contract integration layer',   done: false },
+      { label: 'Multi-chain routing in gateway',     done: false },
     ],
   },
   {
     phase: 'Phase V',
-    title: 'Commerce',
+    title: 'Governance & DAO',
     status: 'planned',
     items: [
-      { label: 'Decentralized marketplace layer', done: false },
-      { label: 'Peer-to-peer transactions',       done: false },
-      { label: 'Commerce API surface',            done: false },
+      { label: 'Proposal creation & voting',         done: false },
+      { label: 'On-chain governance execution',      done: false },
+      { label: 'Validator staking & slashing',       done: false },
+      { label: 'Treasury management module',         done: false },
+    ],
+  },
+  {
+    phase: 'Phase VI',
+    title: 'Commerce & Marketplace',
+    status: 'planned',
+    items: [
+      { label: 'Decentralised prediction marketplace', done: false },
+      { label: 'Peer-to-peer tip trading',             done: false },
+      { label: 'Affiliate & referral engine',          done: false },
+      { label: 'Commerce API surface',                 done: false },
+    ],
+  },
+  {
+    phase: 'Phase VII',
+    title: 'Mobile & Ecosystem Expansion',
+    status: 'planned',
+    items: [
+      { label: 'vit-mobile React Native app',        done: false },
+      { label: 'Push notifications (Firebase)',      done: false },
+      { label: 'Telegram bot integration',           done: false },
+      { label: 'SDK & third-party developer API',    done: false },
+      { label: 'Asset CDN via vit-storage',          done: false },
+      { label: 'Service discovery integration',      done: false },
     ],
   },
 ]
 
 const STATUS_STYLES = {
   complete: { pill: 'bg-emerald-400/15 text-emerald-400 border-emerald-400/30', dot: 'bg-emerald-400', label: 'Complete' },
-  active:   { pill: 'bg-vit-400/15 text-vit-400 border-vit-400/30',           dot: 'bg-vit-400 animate-pulse', label: 'In Progress' },
-  planned:  { pill: 'bg-white/10 text-white/50 border-white/10',               dot: 'bg-white/30',  label: 'Planned' },
+  active:   { pill: 'bg-vit-400/15 text-vit-400 border-vit-400/30',            dot: 'bg-vit-400 animate-pulse', label: 'In Progress' },
+  planned:  { pill: 'bg-white/10 text-white/50 border-white/10',                dot: 'bg-white/30', label: 'Planned' },
 }
 
 export default function Roadmap() {
@@ -82,7 +116,7 @@ export default function Roadmap() {
           </div>
           <h1 className="text-4xl font-bold text-white mb-3">Platform Roadmap</h1>
           <p className="text-white/50 max-w-lg mx-auto">
-            From a healthy backend to a full decentralized ecosystem. Each phase adds a new owned service to the gateway.
+            From a healthy backend to a full decentralised prediction & intelligence ecosystem. Each phase adds owned services to the gateway.
           </p>
         </motion.div>
 
@@ -99,7 +133,7 @@ export default function Roadmap() {
                   initial={{ opacity: 0, x: -16 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: i * 0.08 }}
+                  transition={{ delay: i * 0.06 }}
                   className="flex gap-6"
                 >
                   {/* Dot */}

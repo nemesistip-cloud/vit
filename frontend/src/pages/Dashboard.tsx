@@ -180,7 +180,7 @@ export default function Dashboard() {
             <div>
               <p className="text-white/40 text-sm mb-1">Welcome back</p>
               <h1 className="text-2xl font-bold text-white">
-                {user?.username || user?.email?.split('@')[0] || 'Predictor'}
+                {user?.username || 'Predictor'}
               </h1>
               <div className="flex items-center gap-2 mt-2">
                 {user?.role === 'admin' && (

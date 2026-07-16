@@ -65,9 +65,11 @@ export default function Login() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-vit-500 to-vit-700 flex items-center justify-center shadow-lg shadow-vit-500/30">
-              <span className="text-white font-bold text-xl">V</span>
-            </div>
+            <img
+              src="/logo.jpg"
+              alt="VIT Network"
+              className="w-12 h-12 rounded-xl object-cover shadow-lg shadow-vit-500/30"
+            />
             <div>
               <h1 className="text-2xl font-bold text-white">VIT Network</h1>
               <p className="text-white/40 text-sm mt-0.5">The AI-powered decentralised gateway</p>
