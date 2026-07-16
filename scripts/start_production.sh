@@ -3,8 +3,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PORT="${PORT:-10000}"
-APP_VERSION="5.5.0"
+# PORT: read from env (Render dashboard sets PORT=8000).
+# Default to 8000 to match the Render dashboard value — do NOT hardcode 10000
+# here since that would cause a mismatch and the service would bind on a port
+# Render doesn't proxy.
+PORT="${PORT:-8000}"
+APP_VERSION="1.1.0"
 
 export ENVIRONMENT="${ENVIRONMENT:-production}"
 export PYTHONPATH="${PYTHONPATH:-}:."

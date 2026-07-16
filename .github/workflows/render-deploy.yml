@@ -9,6 +9,9 @@ concurrency:
   group: render-deploy-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  SERVICE_URL: https://vitnetwork-nls4.onrender.com
+
 jobs:
   deploy:
     name: Trigger Render Deploy
@@ -32,11 +35,39 @@ jobs:
           fi
           DEPLOY_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
           echo "Deploy triggered: $DEPLOY_ID"
-      - name: Summary
+
+      # Health gate: poll /ping for up to 60 s after triggering the deploy.
+      # Render deploys can take 30-90 s; the poll gives the new instance a
+      # chance to come up.  We wait 30 s first so we don't hammer a still-
+      # building instance, then poll every 10 s for up to 30 more seconds.
+      - name: Health gate — wait for /ping to return 200
         run: |
-          echo "## Render deploy triggered" >> $GITHUB_STEP_SUMMARY
+          echo "Waiting 30s for Render build to complete..."
+          sleep 30
+
+          echo "Polling ${{ env.SERVICE_URL }}/ping ..."
+          for i in 1 2 3; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+              --max-time 10 \
+              "${{ env.SERVICE_URL }}/ping" || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Service is healthy: ${{ env.SERVICE_URL }}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "❌ Health gate failed — /ping did not return 200 within 60s."
+          echo "The deploy may still be in progress. Check the Render dashboard."
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Render deploy" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **URL** | https://vitnetwork-nls4.onrender.com |" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | ${{ env.SERVICE_URL }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY

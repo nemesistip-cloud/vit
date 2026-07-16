@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import PAYSTACK_SECRET_KEY
+from app.config import PAYSTACK_SECRET_KEY, PAYSTACK_WEBHOOK_SECRET
 from app.db.database import get_db, AsyncSessionLocal
 from app.db.models import User, UserSubscription, AuditLog
 from app.api.routes.subscription import PLANS
@@ -17,11 +17,32 @@ from app.api.routes.subscription import PLANS
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/paystack", tags=["paystack-webhooks"])
 
+
 def verify_paystack_signature(payload: bytes, signature: str) -> bool:
-    if not PAYSTACK_SECRET_KEY:
+    """Validate the X-Paystack-Signature header.
+
+    Prefers PAYSTACK_WEBHOOK_SECRET (a dedicated webhook validation secret)
+    over PAYSTACK_SECRET_KEY so the two concerns — making API calls TO Paystack
+    and validating inbound webhook payloads — use separate secrets.
+
+    Per Paystack docs the signature is HMAC-SHA512 of the raw request body
+    using the secret key.  If neither secret is configured the request is
+    rejected (returns False) so unsigned payloads are never silently accepted.
+    """
+    # Prefer dedicated webhook secret; fall back to the API secret key.
+    signing_secret = PAYSTACK_WEBHOOK_SECRET or PAYSTACK_SECRET_KEY
+    if not signing_secret:
+        logger.error(
+            "verify_paystack_signature: neither PAYSTACK_WEBHOOK_SECRET nor "
+            "PAYSTACK_SECRET_KEY is configured — rejecting webhook."
+        )
         return False
-    hash = hmac.new(PAYSTACK_SECRET_KEY.encode('utf-8'), payload, hashlib.sha512).hexdigest()
-    return hmac.compare_digest(hash, signature)
+
+    expected = hmac.new(
+        signing_secret.encode("utf-8"), payload, hashlib.sha512
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
 
 @router.post("/webhook")
 async def paystack_webhook(

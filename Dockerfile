@@ -1,8 +1,10 @@
 FROM python:3.11-slim
 
+# Version label aligned with APP_VERSION in app/config.py.
+# Keep these in sync: bump here when APP_VERSION changes.
 LABEL org.opencontainers.image.title="VIT Network"
 LABEL org.opencontainers.image.description="AI-powered sports intelligence platform — Python/FastAPI backend"
-LABEL org.opencontainers.image.version="5.5.0"
+LABEL org.opencontainers.image.version="1.1.0"
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 LABEL org.opencontainers.image.source="https://github.com/nemesistip-cloud/vit"
 LABEL org.opencontainers.image.url="https://vitnetwork-nls4.onrender.com"
@@ -40,11 +42,11 @@ RUN cd explorer && npm run build
 
 COPY . .
 
-ENV PORT=8080
+ENV PORT=8000
 ENV ENVIRONMENT=production
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=".:$PYTHONPATH"
 
-EXPOSE 8080
+EXPOSE 8000
 
 CMD ["bash", "scripts/start_production.sh"]

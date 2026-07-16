@@ -1,0 +1,92 @@
+name: CI — Lint, Type-check, Tests
+
+# Required check on every PR targeting main.
+# Merge is blocked until this passes.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]   # also run on direct pushes so the badge stays accurate
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff
+        run: ruff check . --output-format=github
+
+  type-check:
+    name: Type-check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies + mypy
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install mypy types-redis types-passlib types-python-jose
+
+      - name: Run mypy
+        # Check the core app package only; third-party stubs are optional.
+        # --ignore-missing-imports lets CI pass even for libs without stubs.
+        run: |
+          mypy app/ vit_chain/ \
+            --ignore-missing-imports \
+            --no-error-summary \
+            --pretty \
+            || true   # non-blocking until baseline is established
+        env:
+          ENVIRONMENT: test
+
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run test suite
+        run: |
+          python -m pytest tests/ -x -q \
+            --ignore=tests/test_live.py \
+            --ignore=tests/test_env_example.py \
+            -p no:warnings \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-fail-under=0
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///./test.db
+          ENVIRONMENT: test
+          AUTH_ENABLED: 'false'
+          USE_REAL_ML_MODELS: 'false'
+          RATE_LIMIT_ENABLED: 'false'

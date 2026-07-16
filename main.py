@@ -12,7 +12,7 @@ from sqlalchemy import text, select, func
 from fastapi.exceptions import RequestValidationError
 from app.core.errors import AppError, error_response
 
-from app.config import APP_NAME, APP_VERSION, get_env
+from app.config import APP_NAME, APP_VERSION, get_env, get_int_env, CORS_ALLOWED_ORIGINS, ENVIRONMENT
 from app.core.kernel import kernel, setup_signal_handlers
 from app.core.subsystems import register_core_subsystems
 from app.db.database import get_db
@@ -24,6 +24,7 @@ from app.api.middleware.request_id import RequestIDMiddleware
 from app.api.middleware.logging import LoggingMiddleware
 from app.api.middleware.auth import APIKeyMiddleware
 from app.api.middleware.security import SecurityHeadersMiddleware
+from app.api.middleware.rate_limit import RateLimitMiddleware
 
 # --- VIT Runtime Kernel ---
 register_core_subsystems()
@@ -47,15 +48,31 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# --- CORS ---
+# In production, restrict to an explicit allowlist read from CORS_ALLOWED_ORIGINS
+# (comma-separated, e.g. "https://vit.network,https://www.vit.network").
+# Falls back to "*" only in non-production environments.
+_log = logging.getLogger(__name__)
+if CORS_ALLOWED_ORIGINS:
+    _cors_origins = [o.strip() for o in CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
+else:
+    if ENVIRONMENT == "production":
+        _log.warning(
+            "CORS_ALLOWED_ORIGINS is not set in production — defaulting to '*'. "
+            "Set CORS_ALLOWED_ORIGINS in the Render dashboard to restrict origins."
+        )
+    _cors_origins = ["*"]
+
 # --- Global Middleware Registration ---
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(APIKeyMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -350,11 +367,6 @@ async def notifications_websocket_endpoint(websocket):
     await websocket.send_json({"type": "pong"})
     await websocket.close()
 
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 10000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
 @app.get("/api/system/kernel", tags=["System"])
 async def get_kernel_status():
     return kernel.get_status()
@@ -383,42 +395,13 @@ async def get_health_summary():
         summary["overall_status"] = "DEGRADED" if unhealthy_count < total else "UNHEALTHY"
     return summary
 
+if __name__ == "__main__":
+    import uvicorn
+    port = get_int_env("PORT", 8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
-
-    @app.get("/api/debug/schema-check", include_in_schema=False)
-    async def debug_schema_check(db: AsyncSession = Depends(get_db)):
-      """Temporary diagnostic: lists users columns and tests select(User)."""
-      results = {}
-      try:
-          from sqlalchemy import text
-          col_result = await db.execute(text(
-              "SELECT column_name FROM information_schema.columns "
-              "WHERE table_name = 'users' ORDER BY ordinal_position"
-          ))
-          results["users_columns"] = [r[0] for r in col_result.fetchall()]
-      except Exception as e:
-          results["users_columns_error"] = str(e)
-      try:
-          from app.db.models import User
-          from sqlalchemy import select, func
-          cnt = (await db.execute(select(func.count(User.id)))).scalar()
-          results["count_users"] = cnt
-      except Exception as e:
-          results["count_users_error"] = str(e)
-      try:
-          from app.db.models import User
-          from sqlalchemy import select
-          stmt = select(User).limit(1)
-          row = (await db.execute(stmt)).scalar_one_or_none()
-          results["select_user_ok"] = True
-          results["select_user_id"] = row.id if row else None
-      except Exception as e:
-          results["select_user_error"] = str(e)
-      return results
-
-    # --- Static Files for Explorer ---
+# --- Static Files for Explorer ---
 from fastapi.staticfiles import StaticFiles
-import os
 
 explorer_path = "explorer/dist"
 if os.path.exists(explorer_path):

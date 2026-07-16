@@ -13,8 +13,9 @@ ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 def get_env(key: str, default: str = "") -> str:
     return os.getenv(key, default)
 
-def get_int_env(key: str, default: str = "0") -> int:
-    return int(os.getenv(key, default))
+def get_int_env(key: str, default: int = 0) -> int:
+    """Read an integer from the environment. Accepts default as int (not str)."""
+    return int(os.getenv(key, str(default)))
 
 def _clean_redis_url(url: str) -> str:
     if not url: return ""
@@ -140,6 +141,20 @@ VITCOIN_CONTRACT_ADDRESS: str = get_val("blockchain", "vitcoin_contract_address"
 ENABLE_SCRAPING: bool = os.getenv("ENABLE_SCRAPING", "false").lower() == "true"
 AUTH_ENABLED: bool = os.getenv("AUTH_ENABLED", "true").lower() == "true"
 API_KEY: str = os.getenv("API_KEY", "")
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+# Set RATE_LIMIT_ENABLED=false to disable globally (e.g. during load testing).
+# Defaults to true in production; the middleware also bypasses /health, /docs,
+# /static, and websocket paths regardless of this flag.
+RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# CORS_ALLOWED_ORIGINS: comma-separated list of allowed origins in production.
+# Example: "https://vit.network,https://www.vit.network"
+# Leave empty (or unset) to default to "*" in development only.
+# In production (ENVIRONMENT=production) an explicit list is required;
+# the middleware will log a warning if "*" is used in production.
+CORS_ALLOWED_ORIGINS: str = os.getenv("CORS_ALLOWED_ORIGINS", "")
 
 def print_config_status() -> None:
     try:
