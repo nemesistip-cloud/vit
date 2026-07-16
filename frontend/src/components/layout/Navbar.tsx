@@ -70,9 +70,11 @@ export function Navbar() {
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 group shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-vit-500 to-vit-700 flex items-center justify-center shadow-lg shadow-vit-500/30 group-hover:shadow-vit-500/50 transition-shadow">
-            <span className="text-white font-bold text-sm">V</span>
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="VIT Network"
+            className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-vit-500/20 group-hover:shadow-vit-500/40 transition-shadow"
+          />
           <span className="font-bold text-lg tracking-tight text-white">
             VIT <span className="text-vit-400">Network</span>
           </span>
