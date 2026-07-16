@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -219,7 +219,7 @@ function VoteModal({ proposal, onClose }: { proposal: Proposal; onClose: () => v
     },
   })
 
-  const choices: Array<{ value: typeof choice; label: string; icon: React.ReactNode; color: string }> = [
+  const choices: Array<{ value: typeof choice; label: string; icon: ReactNode; color: string }> = [
     { value: 'for', label: 'Vote For',     icon: <CheckCircle2 className="w-4 h-4" />, color: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' },
     { value: 'against', label: 'Vote Against', icon: <XCircle className="w-4 h-4" />,     color: 'border-red-500/40 bg-red-500/10 text-red-400' },
     { value: 'abstain', label: 'Abstain',       icon: <Clock className="w-4 h-4" />,       color: 'border-white/20 bg-white/5 text-white/40' },

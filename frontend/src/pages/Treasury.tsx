@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -97,7 +97,7 @@ const POOL_COLORS: Record<string, string> = {
   staking_reserve: 'bg-rose-500',
 }
 
-const GRANT_STATUS_STYLES: Record<string, { pill: string; icon: React.ReactNode }> = {
+const GRANT_STATUS_STYLES: Record<string, { pill: string; icon: ReactNode }> = {
   pending:  { pill: 'bg-amber-500/15 text-amber-400 border-amber-500/30',   icon: <Clock className="w-3.5 h-3.5" /> },
   approved: { pill: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   rejected: { pill: 'bg-red-500/15 text-red-400 border-red-500/30',         icon: <XCircle className="w-3.5 h-3.5" /> },
