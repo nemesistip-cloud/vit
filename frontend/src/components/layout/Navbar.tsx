@@ -140,9 +140,9 @@ export function Navbar() {
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-white"
               >
                 <div className="w-6 h-6 rounded-full bg-vit-500 flex items-center justify-center text-xs font-bold">
-                  {(storedUser?.username || storedUser?.email || 'U')[0].toUpperCase()}
+                  {(storedUser?.username || 'U')[0].toUpperCase()}
                 </div>
-                <span className="max-w-[100px] truncate">{storedUser?.username || storedUser?.email || 'Account'}</span>
+                <span className="max-w-[100px] truncate">{storedUser?.username || 'Account'}</span>
                 <ChevronDown className="w-3.5 h-3.5 text-white/40" />
               </button>
               <AnimatePresence>
