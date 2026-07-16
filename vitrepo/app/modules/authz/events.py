@@ -1,0 +1,10 @@
+"""Authorization-specific events for the platform event bus."""
+
+ROLE_ASSIGNED = "authz.role_assigned"
+ROLE_REVOKED = "authz.role_revoked"
+PERMISSION_GRANTED = "authz.permission_granted"
+PERMISSION_REVOKED = "authz.permission_revoked"
+POLICY_CREATED = "authz.policy_created"
+POLICY_UPDATED = "authz.policy_updated"
+ACCESS_GRANTED = "authz.access_granted"
+ACCESS_DENIED = "authz.access_denied"

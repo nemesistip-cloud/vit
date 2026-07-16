@@ -71,7 +71,7 @@ export function Navbar() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 group shrink-0">
           <img
-            src="/logo.jpg"
+            src="/logo.png"
             alt="VIT Network"
             className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-vit-500/20 group-hover:shadow-vit-500/40 transition-shadow"
           />

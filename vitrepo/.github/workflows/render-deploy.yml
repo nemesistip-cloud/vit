@@ -1,0 +1,73 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: render-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SERVICE_URL: https://vitnetwork-nls4.onrender.com
+
+jobs:
+  deploy:
+    name: Trigger Render Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy via Render API
+        run: |
+          echo "Triggering deploy for ${{ secrets.RENDER_SERVICE_ID }}..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+            -d '{"clearCache":"do_not_clear"}')
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
+          echo "Status: $HTTP_STATUS"
+          echo "Body: $BODY"
+          if [ "$HTTP_STATUS" != "201" ] && [ "$HTTP_STATUS" != "200" ]; then
+            echo "Deploy trigger failed (HTTP $HTTP_STATUS)" && exit 1
+          fi
+          DEPLOY_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+          echo "Deploy triggered: $DEPLOY_ID"
+
+      # Health gate: poll /ping for up to 60 s after triggering the deploy.
+      # Render deploys can take 30-90 s; the poll gives the new instance a
+      # chance to come up.  We wait 30 s first so we don't hammer a still-
+      # building instance, then poll every 10 s for up to 30 more seconds.
+      - name: Health gate — wait for /ping to return 200
+        run: |
+          echo "Waiting 30s for Render build to complete..."
+          sleep 30
+
+          echo "Polling ${{ env.SERVICE_URL }}/ping ..."
+          for i in 1 2 3; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+              --max-time 10 \
+              "${{ env.SERVICE_URL }}/ping" || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Service is healthy: ${{ env.SERVICE_URL }}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "❌ Health gate failed — /ping did not return 200 within 60s."
+          echo "The deploy may still be in progress. Check the Render dashboard."
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Render deploy" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | ${{ env.SERVICE_URL }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY

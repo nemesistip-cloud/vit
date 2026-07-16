@@ -66,7 +66,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex flex-col items-center gap-3">
             <img
-              src="/logo.jpg"
+              src="/logo.png"
               alt="VIT Network"
               className="w-12 h-12 rounded-xl object-cover shadow-lg shadow-vit-500/30"
             />

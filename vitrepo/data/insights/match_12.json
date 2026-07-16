@@ -1,0 +1,35 @@
+{
+  "match_id": 12,
+  "generated_at": "2026-05-04T15:18:10.809234+00:00",
+  "insights": {
+    "deterministic": {
+      "available": true,
+      "source": "deterministic",
+      "label": "VIT Statistical Engine",
+      "home_prob": 0.3336,
+      "draw_prob": 0.2684,
+      "away_prob": 0.3981,
+      "confidence": 0.4069,
+      "summary": "The 13-model ensemble assigns Away Win a marginal 39.8% probability in Cremonese vs Lazio (Serie A). The home side carries a 33.4% win probability versus 39.8% for the visitors, with a draw at 26.8%. Goals market signals Lean Under (37% O2.5).",
+      "key_factors": [
+        "ML ensemble conviction: marginal (39.8% for Away Win)",
+        "Home team underperforms historical base rate by 12.1pp",
+        "Market edge is positive at 5.42% vs vig-free fair price",
+        "Over 2.5 Goals at 36.7% — below 50% threshold",
+        "Ensemble entropy at 99% of maximum — uncertain split"
+      ],
+      "value_assessment": "Edge of 5.42% at 3.50 represents a value bet opportunity per the ML ensemble.",
+      "recommendation": "BUY — ensemble edge of 5.42% on HOME meets minimum threshold.",
+      "risk_level": "MEDIUM",
+      "insight_tags": [
+        "conviction:marginal",
+        "risk:medium",
+        "goals-market",
+        "edge-bet",
+        "deterministic-fallback"
+      ],
+      "error": null,
+      "is_fallback": true
+    }
+  }
+}

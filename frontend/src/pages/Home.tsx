@@ -141,7 +141,13 @@ export default function Home() {
     <div className="pt-16">
       {/* Hero */}
       <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 section-grid opacity-30" />
+        {/* Hero banner image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: 'url(/hero-banner.jpg)' }}
+        />
+        {/* Overlay: darken image so text stays legible */}
+        <div className="absolute inset-0 bg-surface-900/70" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-surface-900" />
 
         {/* Ambient glow */}

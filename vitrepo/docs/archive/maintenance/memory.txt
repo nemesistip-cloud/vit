@@ -1,0 +1,15 @@
+### Google & Firebase Auth Configuration
+The VIT Network now supports dynamic configuration of Google and Firebase authentication via the Admin Dashboard.
+
+#### Backend Changes
+- **Configuration**: Added `GOOGLE_APPLICATION_CREDENTIALS_JSON` and `GOOGLE_CLIENT_ID` to the Admin `_KEY_REGISTRY` in `app/api/routes/admin.py`.
+- **Public Config**: The `/api/config/public` endpoint now returns the Firebase web configuration (`VITE_FIREBASE_*` keys) in the `platform.firebase` object.
+- **Initialization**: `app/services/firestore_sync.py` supports initializing Firebase Admin SDK from a JSON string provided in `GOOGLE_APPLICATION_CREDENTIALS_JSON`.
+
+#### Frontend Changes
+- **Config Initialization**: Added a `ConfigInitializer` component in `App.tsx` that populates `window._VIT_CONFIG` from the public config API.
+- **Dynamic Firebase**: `frontend/src/lib/firebase.ts` now checks `window._VIT_CONFIG` as a fallback if environment variables are missing at build time.
+- **Auth Robustness**: `AuthPage` and `firebase.ts` were updated to handle lazy initialization of the Firebase App and Auth instances.
+
+#### Deployment Procedure
+Secrets can be set via the Admin Dashboard under "System Configuration" or via Render environment variables. Setting them in the Admin Dashboard is preferred as it takes effect immediately without a redeploy.

@@ -1,0 +1,349 @@
+VIT Network — User Wallet & VITCoin Economy
+Production Readiness Audit & Rebuild
+For: Replit Agent
+YOUR TASK
+Audit the existing wallet and VITCoin pages, identify every gap, then do a complete clean rebuild. Two phases, no shortcuts.
+Phase 1: Read the codebase. Write WALLET_AUDIT_REPORT.md. Do not write any code yet.
+Phase 2: Rebuild every wallet/VITCoin file from scratch based on what the audit found.
+Do not ask questions. Do not write stubs or TODOs. Complete every file fully.
+STACK
+Layer
+Detail
+Backend
+FastAPI + async SQLAlchemy + Python 3.11
+DB session
+AsyncSessionLocal from app/db/database.py
+Config
+get_env() / get_int_env() from app/config.py — never os.getenv()
+Auth
+JWT bearer. Use get_current_user from app/auth/jwt_utils.py
+DB
+Neon PostgreSQL (prod) / SQLite (dev). All queries: await db.execute(...)
+Cache
+Redis via app/core/redis.py. Cache namespace: wallet:
+Errors
+AppError from app/core/errors.py. Response: error_response()
+Background
+Celery + Redis. Never asyncio.create_task inside a route handler
+Payments
+Paystack (NGN) + Stripe (USD/USDT). Webhook files already exist — do not touch them
+Frontend
+React 19, Zustand, Tailwind only. Dark theme. Green: #00E676. Purple: #8B5CF6
+Fonts
+Barlow Condensed (headings), Outfit (body), JetBrains Mono (all numbers/amounts)
+Models
+Always import — never redefine. Source: app/modules/wallet/models.py
+Do not touch
+main.py, any webhooks.py, any Paystack/Stripe handler file
+PHASE 1 — AUDIT
+Files to read
+Code
+What to extract from each file
+What it currently does (one sentence)
+What endpoints or components exist
+What is missing, broken, or not production-ready
+Output: WALLET_AUDIT_REPORT.md
+Place in project root. Use exactly this structure:
+Markdown
+Do not write any code until this file is complete and saved.
+PHASE 2 — REBUILD
+Backend routes
+app/modules/wallet/routes.py — full replacement
+All routes protected by Depends(get_current_user).
+Wallet Overview
+Method
+Path
+Notes
+GET
+/api/wallet
+Return wallet balances: vitcoin_balance, ngn_balance, usd_balance, usdt_balance. Include staked amount, pending withdrawals total, and 30d earnings.
+GET
+/api/wallet/transactions
+Paginated transaction history. Params: page, limit, type, currency, status, date_from, date_to. Return: id, type, amount, currency, direction, status, reference, created_at, description.
+GET
+/api/wallet/transactions/{tx_id}
+Single transaction detail.
+Deposits
+Method
+Path
+Notes
+POST
+/api/wallet/deposit/initiate
+Fields: amount, currency (NGN or USD). For NGN: create Paystack payment link via Paystack API. For USD: create Stripe PaymentIntent. Return: payment_url or client_secret. Write WalletTransaction with status pending.
+GET
+/api/wallet/deposit/verify/{reference}
+Manually verify a Paystack payment by reference. Update transaction status. Credit wallet on success.
+Withdrawals
+Method
+Path
+Notes
+POST
+/api/wallet/withdraw
+Fields: amount, currency, bank_code, account_number, account_name. Validate: sufficient balance, daily limit from PlatformConfig withdrawal_limits, KYC status if amount > threshold. Debit wallet immediately, create WalletTransaction status pending_review. Queue Celery task.
+GET
+/api/wallet/withdraw/status/{tx_id}
+Return withdrawal status and any rejection reason.
+VITCoin
+Method
+Path
+Notes
+GET
+/api/wallet/vitcoin/price
+Current price from latest VITCoinPriceHistory row. Include 24h change %, 7d price array, circulating supply, market cap.
+GET
+/api/wallet/vitcoin/price/history
+Params: days (default 30, max 365). Return OHLCV array from VITCoinPriceHistory.
+POST
+/api/wallet/vitcoin/buy
+Fields: amount_ngn or amount_usd. Calculate VITCoin received at current price + conversion fee from PlatformConfig. Debit fiat, credit VITCoin. Write both transactions. Idempotency key via request header X-Idempotency-Key.
+POST
+/api/wallet/vitcoin/sell
+Fields: vitcoin_amount. Calculate fiat received. Debit VITCoin, credit fiat. Write both transactions. Idempotency key required.
+Staking
+Method
+Path
+Notes
+POST
+/api/wallet/stake
+Fields: amount. Minimum from PlatformConfig vitcoin_min_stake. Debit vitcoin_balance, credit staked_balance. Write transaction type stake.
+POST
+/api/wallet/unstake
+Fields: amount. Validate: amount ≤ staked balance. Credit back to vitcoin_balance. Write transaction type unstake.
+GET
+/api/wallet/stake/status
+Return: staked amount, unlock date if any, estimated rewards accrued.
+Currency Conversion
+Method
+Path
+Notes
+POST
+/api/wallet/convert
+Fields: from_currency, to_currency, amount. Use rates from PlatformConfig exchange_rates_usd. Apply fee from conversion_fee_pct. Validate sufficient balance. Write two transactions (debit + credit). Idempotency key required.
+GET
+/api/wallet/convert/quote
+Params: from_currency, to_currency, amount. Return: received_amount, fee, rate, rate_expires_at (30 seconds). No state change.
+P2P Exchange
+Method
+Path
+Notes
+GET
+/api/wallet/p2p/offers
+List active P2P buy/sell offers. Params: currency, type (buy/sell), page, limit.
+POST
+/api/wallet/p2p/offers
+Create offer. Fields: type, amount, currency, rate_ngn, min_order, max_order, payment_method. Escrow VITCoin immediately for sell offers.
+DELETE
+/api/wallet/p2p/offers/{offer_id}
+Cancel own offer. Release escrow if sell offer.
+POST
+/api/wallet/p2p/orders
+Initiate trade against an offer. Fields: offer_id, amount. Lock the offer portion. Create escrow.
+POST
+/api/wallet/p2p/orders/{order_id}/confirm-payment
+Buyer confirms fiat sent. Update order status to payment_sent.
+POST
+/api/wallet/p2p/orders/{order_id}/release
+Seller releases escrow to buyer. Update order status to completed. Credit buyer VITCoin.
+POST
+/api/wallet/p2p/orders/{order_id}/dispute
+Fields: reason. Create dispute record. Flag order for admin review.
+GET
+/api/wallet/p2p/orders
+Own orders history. Params: status, page, limit.
+GET
+/api/wallet/p2p/orders/{order_id}
+Single order detail including escrow status and counterparty info.
+Savings Vaults
+Method
+Path
+Notes
+GET
+/api/wallet/vaults
+Return user's active savings vaults: amount, currency, lock_period_days, unlock_date, projected_yield.
+POST
+/api/wallet/vaults
+Fields: amount, currency, lock_period_days (30, 90, 180, 365). Lock funds, write vault record, write transaction type vault_deposit.
+POST
+/api/wallet/vaults/{vault_id}/withdraw
+Validate: unlock_date has passed. Release funds. Write transaction type vault_withdrawal.
+Referral Earnings
+Method
+Path
+Notes
+GET
+/api/wallet/referral/earnings
+Total VITCoin earned from referrals, referral count, pending claimable amount.
+POST
+/api/wallet/referral/claim
+Transfer pending referral earnings to vitcoin_balance. Write transaction type referral_claim.
+app/modules/bridge/routes.py — full replacement
+Cross-chain bridge for VITCoin ↔ Base L2 ERC-20.
+Method
+Path
+Notes
+GET
+/api/bridge/status
+Bridge health: locked liquidity, pending transactions count, supported chains.
+POST
+/api/bridge/lock
+Lock VITCoin on platform to receive ERC-20 on Base L2. Fields: amount, destination_address (must be valid EVM address). Validate address format. Debit vitcoin_balance. Write bridge transaction status locked.
+POST
+/api/bridge/unlock
+Burn ERC-20 on Base L2, receive VITCoin on platform. Fields: tx_hash, amount. Verify tx_hash via provider. Credit vitcoin_balance. Write bridge transaction status completed.
+GET
+/api/bridge/transactions
+Own bridge transaction history.
+GET
+/api/bridge/transactions/{tx_id}
+Single bridge transaction detail + on-chain verification status.
+Models to add (only if they do not exist)
+Check app/modules/wallet/models.py before adding anything. If these do not exist, append them:
+P2POffer
+Python
+P2POrder
+Python
+SavingsVault
+Python
+Frontend
+All wallet pages: frontend/src/pages/wallet/
+All wallet components: frontend/src/components/wallet/
+Shared wallet components
+WalletBalanceCard.tsx
+Props: currency, balance, usdValue, icon, staked?
+Displays balance in JetBrains Mono. Staked sub-line if provided. Green accent border on hover.
+TransactionRow.tsx
+Props: transaction
+One row for a transaction list. Direction indicator (↑ debit = red, ↓ credit = green). Amount in JetBrains Mono. Status pill via StatusPill component.
+PriceChart.tsx
+Props: data: { date, price }[], height?
+Recharts AreaChart. Green fill (#00E676 at 30% opacity). Tooltip showing date + price in USD.
+AmountInput.tsx
+Props: value, onChange, currency, max?, label
+Input with currency label on right. "Max" button if max prop provided. Validates: positive number, ≤ max if provided, ≤ 8 decimal places.
+CurrencySelector.tsx
+Props: value, onChange, options: string[]
+Dropdown selector with currency icons.
+useWallet.ts (custom hook)
+Typescript
+Fetches GET /api/wallet and GET /api/wallet/transactions. Reads JWT from Zustand auth store.
+Pages
+WalletLayout.tsx
+Persistent tab bar: Overview | Buy & Sell | P2P | Staking | Vaults | Bridge | History
+Mobile-friendly bottom tab navigation.
+WalletOverview.tsx
+4 balance cards: VITCoin, NGN, USD, USDT
+Staked VITCoin sub-section
+Quick action buttons: Deposit, Withdraw, Convert, Buy VITCoin
+Recent 5 transactions list
+VITCoin 7-day sparkline price card
+Referral earnings banner if unclaimed amount > 0
+WalletDeposit.tsx
+Two tabs: NGN | USD
+NGN: amount input → "Pay with Paystack" button → redirect to Paystack hosted page
+USD: amount input → Stripe card element → confirm payment
+After payment: polling GET /api/wallet/deposit/verify/{reference} every 3 seconds for up to 60 seconds, show animated pending state, redirect to Overview on success
+WalletWithdraw.tsx
+Amount input with currency selector (NGN only for MVP)
+Bank code + account number + account name fields
+Daily limit display (from PlatformConfig)
+KYC warning banner if not verified
+Fee preview before submit
+Confirm dialog before final submit
+VITCoinBuySell.tsx
+Two tabs: Buy | Sell
+Buy: fiat amount input → live quote showing VITCoin received + fee → "Buy VITCoin" button → confirm dialog → execute
+Sell: VITCoin amount input → live quote showing fiat received + fee → "Sell VITCoin" button → confirm dialog → execute
+30-day price chart above the form
+Current price, 24h change, market cap stats row
+Quote refreshes every 30 seconds with countdown
+CurrencyConvert.tsx
+From/To currency selectors with swap button
+Amount input
+Live quote: received amount, rate, fee, expiry countdown
+"Convert" button → confirm dialog → execute
+Recent conversions list below
+P2PExchange.tsx
+Three tabs: Market | My Orders | My Offers
+Market: list of active offers. Filter by buy/sell, currency. Each offer row: user (anonymized), amount, rate, min/max. "Trade" button → opens order creation panel
+My Orders: own orders list. Status pill. Click → order detail with chat/status timeline
+My Offers: own offers. Create Offer button → form: type, amount, rate, min/max, payment method. Cancel button per offer
+Order Detail panel:
+Status timeline: Pending → Payment Sent → Completed
+"Confirm Payment Sent" button (buyer)
+"Release VITCoin" button (seller)
+"Dispute" button with reason input
+StakingPage.tsx
+Current staked amount and status
+Stake form: amount input, minimum requirement note
+Unstake form: amount input
+Validator eligibility indicator (stake ≥ 100 VIT = eligible)
+Estimated APY display (from PlatformConfig or hardcoded from config)
+SavingsVaults.tsx
+Active vaults list: amount, currency, lock period, unlock date, projected yield
+Create Vault button → modal: amount, currency, lock period selector (30 / 90 / 180 / 365 days), yield preview
+Withdraw button on unlocked vaults
+BridgePage.tsx
+Explainer: "Move VITCoin to Base L2 as ERC-20"
+Lock section: amount input, destination EVM address, fee display, "Lock & Bridge" button → confirm dialog
+Unlock section: tx_hash input, amount, "Unlock" button
+Bridge transaction history table: id, type, amount, status, tx_hash, date
+Network status card (liquidity, pending count)
+TransactionHistory.tsx
+Full paginated transaction list
+Filters: type, currency, status, date range
+Export to CSV button
+Click row → modal with full transaction detail
+WebSocket: Live Price Feed
+File: app/modules/wallet/ws_price.py (create if not exists)
+Python
+Full implementation required. Use app/core/redis.py pub/sub. On connect, send current price immediately. Broadcast on every vitcoin_pricing_loop price update. Handle disconnects cleanly.
+In the frontend, VITCoinBuySell.tsx and WalletOverview.tsx connect to this WebSocket and update price in real time.
+OUTPUT ORDER
+Write files in this exact sequence:
+WALLET_AUDIT_REPORT.md
+app/modules/wallet/models.py — append P2POffer, P2POrder, SavingsVault only if missing
+app/modules/wallet/routes.py — full replacement
+app/modules/bridge/routes.py — full replacement
+app/modules/wallet/ws_price.py — new file
+frontend/src/hooks/useWallet.ts
+frontend/src/components/wallet/WalletBalanceCard.tsx
+frontend/src/components/wallet/TransactionRow.tsx
+frontend/src/components/wallet/PriceChart.tsx
+frontend/src/components/wallet/AmountInput.tsx
+frontend/src/components/wallet/CurrencySelector.tsx
+frontend/src/pages/wallet/WalletLayout.tsx
+frontend/src/pages/wallet/WalletOverview.tsx
+frontend/src/pages/wallet/WalletDeposit.tsx
+frontend/src/pages/wallet/WalletWithdraw.tsx
+frontend/src/pages/wallet/VITCoinBuySell.tsx
+frontend/src/pages/wallet/CurrencyConvert.tsx
+frontend/src/pages/wallet/P2PExchange.tsx
+frontend/src/pages/wallet/StakingPage.tsx
+frontend/src/pages/wallet/SavingsVaults.tsx
+frontend/src/pages/wallet/BridgePage.tsx
+frontend/src/pages/wallet/TransactionHistory.tsx
+frontend/src/App.tsx — add wallet routes under /wallet
+RULES — NO EXCEPTIONS
+No stubs. No TODOs. Every function must be fully implemented.
+Never redefine a SQLAlchemy model. Always import from source.
+Every DB query must be async: await db.execute(select(...)).
+All financial mutations must be wrapped in a single async with db.begin() transaction block — if any step fails, the entire operation rolls back.
+Idempotency: all buy/sell/convert endpoints must check for duplicate X-Idempotency-Key before executing.
+Use get_env() / get_int_env() — never os.getenv().
+No <form> tags in React — use onClick handlers.
+No inline styles unless Tailwind has no equivalent.
+All currency amounts in the UI use font-['JetBrains_Mono'].
+When modifying an existing file, preserve every existing route/export.
+Do not touch main.py, any webhooks.py, or any Paystack/Stripe handler.
+REUSE PATTERN
+This is iteration 2 of the master template. Completed iterations:
+✅ Iteration 1: Admin Control Panel
+Up next after this:
+Iteration 3: AI Homework Helper dapp
+Iteration 4: Prophecy Chain & Gamification
+Iteration 5: Tachyon Storage Dashboard
+Iteration 6: Campus Community & Marketplace
+Iteration 7: User Profile & Merit Protocol
+Iteration 8: Elections & Governance
+Iteration 9: Telegram Mini App
+Iteration 10: Landing Page & Onboarding Flow

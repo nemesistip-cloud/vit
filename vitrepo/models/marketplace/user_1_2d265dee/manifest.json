@@ -1,0 +1,33 @@
+{
+  "package_id": "user_1_2d265dee",
+  "system_model_slot": "lgbm_v1",
+  "primary_file": "logistic_v1.pkl",
+  "supported_extensions": [
+    ".bin",
+    ".csv",
+    ".h5",
+    ".joblib",
+    ".json",
+    ".md",
+    ".npy",
+    ".npz",
+    ".onnx",
+    ".pkl",
+    ".pt",
+    ".pth",
+    ".py",
+    ".pyd",
+    ".txt",
+    ".yaml",
+    ".yml"
+  ],
+  "files": [
+    {
+      "filename": "logistic_v1.pkl",
+      "size_bytes": 2083,
+      "sha256": "e89c292a07432e5bc57ff4d297eeecc2f1ec411af1301b7efb17076aa23fc908",
+      "primary": true
+    }
+  ],
+  "execution_status": "binary_loadable"
+}

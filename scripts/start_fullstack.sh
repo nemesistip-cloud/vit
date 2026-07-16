@@ -18,6 +18,16 @@ if [ ! -d "${ROOT_DIR}/frontend/node_modules" ]; then
     (cd "${ROOT_DIR}/frontend" && npm install --legacy-peer-deps --silent 2>/dev/null) || true
 fi
 
+# Fix pnpm-workspace hoisting conflict:
+# pnpm may have hoisted @vitejs/plugin-react to workspace root but left vite
+# only in frontend/node_modules. Bridge the gap with a symlink so node
+# resolution finds vite from wherever it resolves @vitejs/plugin-react.
+if [ -d "${ROOT_DIR}/frontend/node_modules/vite" ] && \
+   [ ! -e "${ROOT_DIR}/node_modules/vite" ]; then
+    echo "[startup] Bridging vite symlink for workspace hoisting..."
+    ln -sfn "${ROOT_DIR}/frontend/node_modules/vite" "${ROOT_DIR}/node_modules/vite" 2>/dev/null || true
+fi
+
 # In Replit dev environment: run Vite dev server only (no Python backend needed)
 if [ -n "${REPLIT_DEV_DOMAIN:-}" ] || [ -n "${REPL_ID:-}" ]; then
     echo "[startup] Replit environment detected — starting frontend dev server..."

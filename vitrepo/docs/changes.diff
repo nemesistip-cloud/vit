@@ -1,0 +1,985 @@
+diff --git a/add_task_status_model.py b/add_task_status_model.py
+deleted file mode 100644
+index 1466b31..0000000
+--- a/add_task_status_model.py
++++ /dev/null
+@@ -1,28 +0,0 @@
+-import re
+-
+-path = 'app/db/models.py'
+-with open(path, 'r') as f:
+-    content = f.read()
+-
+-model_code = """
+-
+-class BackgroundTaskStatus(Base):
+-    \"\"\"ENG-05: DB-backed persistent background task health monitor\"\"\"
+-    __tablename__ = "background_task_status"
+-
+-    id = Column(Integer, primary_key=True, index=True)
+-    task_name = Column(String(100), unique=True, nullable=False, index=True)
+-    status = Column(String(20), default="stopped")  # running, crashed, stopped
+-    restart_count = Column(Integer, default=0)
+-    last_started_at = Column(DateTime(timezone=True), nullable=True)
+-    last_crashed_at = Column(DateTime(timezone=True), nullable=True)
+-    last_error = Column(TEXT, nullable=True)
+-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+-"""
+-
+-# Append before the last few lines or at the end
+-content += model_code
+-
+-with open(path, 'w') as f:
+-    f.write(content)
+-print("BackgroundTaskStatus model added")
+diff --git a/app/agents/base.py b/app/agents/base.py
+index dc746d5..097ad56 100644
+--- a/app/agents/base.py
++++ b/app/agents/base.py
+@@ -77,7 +77,16 @@ class BaseAgent(ABC):
+         metadata: Optional[Dict] = None,
+     ) -> None:
+         """Post a NodeActivity record for network contribution tracking."""
+-        try:
++        from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
++        from sqlalchemy.exc import DBAPIError
++
++        @retry(
++            stop=stop_after_attempt(3),
++            wait=wait_exponential(multiplier=1, min=2, max=10),
++            retry=retry_if_exception_type((DBAPIError, Exception)),
++            reraise=True
++        )
++        async def _do_record():
+             from app.db.database import AsyncSessionLocal
+             from app.modules.network.models import NodeActivity
+             async with AsyncSessionLocal() as db:
+@@ -91,10 +100,13 @@ class BaseAgent(ABC):
+                 )
+                 db.add(record)
+                 await db.commit()
++
++        try:
++            await _do_record()
+             self.contribution_count += 1
+             self.contribution_score += score
+         except Exception as exc:
+-            logger.debug("[agent:%s] network contribution record failed: %s", self.name, exc)
++            logger.debug("[agent:%s] network contribution record failed after retries: %s", self.name, exc)
+
+     async def loop(self) -> None:
+         """Main async loop — register with supervisor."""
+diff --git a/app/auth/routes.py b/app/auth/routes.py
+index 2264afc..9372511 100644
+--- a/app/auth/routes.py
++++ b/app/auth/routes.py
+@@ -326,9 +326,10 @@ async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_
+
+     google_client_id = GOOGLE_CLIENT_ID
+     if not google_client_id:
+-        # Fallback to check if we can at least verify without specific client ID
+-        # but usually it's required for security.
+-        logger.warning("GOOGLE_CLIENT_ID not set in environment")
++        raise HTTPException(
++            status_code=status.HTTP_501_NOT_IMPLEMENTED,
++            detail="Google Login is not configured on this server."
++        )
+
+     try:
+         # Verify the ID token
+diff --git a/app/config.py b/app/config.py
+index 45b560f..4e82217 100644
+--- a/app/config.py
++++ b/app/config.py
+@@ -225,6 +225,9 @@ JWT_SECRET_KEY: str = get_env("JWT_SECRET_KEY") or SECRET_KEY
+
+ # ══════════════════════════════════════════════════════════════════════════════
+ # EXTERNAL API KEYS
++# Google Auth
++GOOGLE_CLIENT_ID: str        = get_env("GOOGLE_CLIENT_ID", "")
++
+ # All empty-string defaults make missing keys safe to detect with ``if KEY:``.
+ # ══════════════════════════════════════════════════════════════════════════════
+
+diff --git a/app/db/database.py b/app/db/database.py
+index ab8e9ff..0231a92 100644
+--- a/app/db/database.py
++++ b/app/db/database.py
+@@ -62,6 +62,8 @@ else:
+         future=True,
+         pool_size=5,
+         max_overflow=10,
++        pool_recycle=1800,
++        pool_timeout=30,
+         pool_pre_ping=True,
+         connect_args={"ssl": True},
+     )
+diff --git a/app/modules/blockchain/routes.py b/app/modules/blockchain/routes.py
+index 098f40c..9e185e8 100644
+--- a/app/modules/blockchain/routes.py
++++ b/app/modules/blockchain/routes.py
+@@ -1,6 +1,7 @@
+ """Blockchain economy API routes — Module C4."""
+
+ import logging
++from typing import Optional, List, Any, Dict
+ from decimal import Decimal
+
+ from fastapi import APIRouter, Depends, HTTPException
+diff --git a/app/services/sportsdb_api.py b/app/services/sportsdb_api.py
+index d11bee8..ddb1c20 100644
+--- a/app/services/sportsdb_api.py
++++ b/app/services/sportsdb_api.py
+@@ -585,10 +585,9 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
+         if key not in seen_keys:
+             seen_keys.add(key)
+             all_events.append(ev)
+-
+     logger.info(
+-        "[sportsdb] sync_upcoming: %d next + %d range = %d unique events to process",
+-        len(next_events), len(range_events), len(all_events),
++        "[sportsdb] sync_upcoming: %d events to process",
++        len(all_events),
+     )
+
+     inserted = 0
+diff --git a/fix_admin_imports.py b/fix_admin_imports.py
+deleted file mode 100644
+index 507db25..0000000
+--- a/fix_admin_imports.py
++++ /dev/null
+@@ -1,23 +0,0 @@
+-import os
+-
+-PATH = "app/api/routes/admin.py"
+-with open(PATH, "r") as f:
+-    content = f.read()
+-
+-# Add necessary imports if missing
+-imports = [
+-    "from sqlalchemy import select",
+-    "from app.db.database import AsyncSessionLocal",
+-    "from app.db.models import Match",
+-]
+-
+-for imp in imports:
+-    if imp not in content:
+-        content = "from sqlalchemy import select\n" + content if "from sqlalchemy" not in content else content
+-        if "from app.db.database import AsyncSessionLocal" not in content:
+-            content = "from app.db.database import AsyncSessionLocal\n" + content
+-        if "from app.db.models import Match" not in content:
+-            content = "from app.db.models import Match\n" + content
+-
+-with open(PATH, "w") as f:
+-    f.write(content)
+diff --git a/fix_ai_async.py b/fix_ai_async.py
+deleted file mode 100644
+index fc06a12..0000000
+--- a/fix_ai_async.py
++++ /dev/null
+@@ -1,35 +0,0 @@
+-import os
+-import re
+-
+-def fix_file(path):
+-    if not os.path.exists(path): return
+-    with open(path, 'r') as f:
+-        content = f.read()
+-
+-    # 1. Update provider_status calls
+-    # provider_status() -> await provider_status()
+-    # But only if it's not already awaited.
+-    new_content = re.sub(r'(?<!await )provider_status\(', 'await provider_status(', content)
+-    # Also for aliases like _ps()
+-    new_content = re.sub(r'(?<!await )_ps\(', 'await _ps(', new_content)
+-
+-    # 2. Update reset_provider_backoff calls
+-    new_content = re.sub(r'(?<!await )reset_provider_backoff\(', 'await reset_provider_backoff(', new_content)
+-
+-    if new_content != content:
+-        with open(path, 'w') as f:
+-            f.write(new_content)
+-        print(f"Fixed async calls in {path}")
+-
+-# List of files to check
+-files = [
+-    'main.py',
+-    'app/api/routes/ai_upload.py',
+-    'app/api/routes/ai_support.py',
+-    'app/api/routes/ai_analytics.py',
+-    'app/api/routes/agents.py',
+-    'app/api/routes/ai_assistant.py'
+-]
+-
+-for f in files:
+-    fix_file(f)
+diff --git a/fix_ai_client_redis.py b/fix_ai_client_redis.py
+deleted file mode 100644
+index 2e45e70..0000000
+--- a/fix_ai_client_redis.py
++++ /dev/null
+@@ -1,88 +0,0 @@
+-import re
+-
+-path = 'app/services/ai_client.py'
+-with open(path, 'r') as f:
+-    content = f.read()
+-
+-# Add import
+-content = content.replace('import time', 'import time\nfrom app.services.cache import cache')
+-
+-# Update backoff state to be helper functions instead of dicts
+-content = content.replace('_backoff_until: dict[str, float] = {}', '')
+-content = content.replace('_provider_failures: dict[str, dict] = {}', '')
+-
+-# Update reset_provider_backoff
+-new_reset = """async def reset_provider_backoff(name: str | None = None) -> dict:
+-    if name:
+-        await cache.delete(f"ai_backoff:{name}")
+-        await cache.delete(f"ai_failures:{name}")
+-        logger.info("[ai-client] backoff+failures reset for: %s", name)
+-        return {name: 0.0}
+-    else:
+-        await cache.delete_pattern("ai_backoff:*")
+-        await cache.delete_pattern("ai_failures:*")
+-        logger.info("[ai-client] backoff+failures reset for all")
+-        return {}"""
+-content = re.sub(r'def reset_provider_backoff\(name: str \| None = None\).*?return cleared', new_reset, content, flags=re.DOTALL)
+-
+-# Update _provider_available
+-new_available = """async def _provider_available(name: str) -> bool:
+-    until = await cache.get(f"ai_backoff:{name}")
+-    if until is None:
+-        return True
+-    return time.monotonic() >= float(until)"""
+-content = re.sub(r'def _provider_available\(name: str\).*?return time\.monotonic\(\) >= _backoff_until\.get\(name, 0\.0\)', new_available, content, flags=re.DOTALL)
+-
+-# Update _mark_provider_failed
+-new_mark_failed = """async def _mark_provider_failed(name: str, status_code: int) -> None:
+-    fail_data = {
+-        "status_code": status_code,
+-        "failed_at": time.time(),
+-    }
+-    await cache.set(f"ai_failures:{name}", fail_data, ttl=3600)
+-    await cache.set(f"ai_backoff:{name}", time.monotonic() + _FATAL_BACKOFF_SECONDS, ttl=_FATAL_BACKOFF_SECONDS)
+-    logger.warning(
+-        "[ai-client] %s returned HTTP %d — marked as failing, backing off for %d min",
+-        name, status_code, _FATAL_BACKOFF_SECONDS // 60,
+-    )"""
+-content = re.sub(r'def _mark_provider_failed\(name: str, status_code: int\).*?_FATAL_BACKOFF_SECONDS // 60,.*?\)', new_mark_failed, content, flags=re.DOTALL)
+-
+-# Update _mark_rate_limited
+-new_mark_limited = """async def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
+-    wait = 8.0
+-    if retry_after:
+-        try:
+-            wait = max(float(retry_after), 4.0)
+-        except ValueError:
+-            pass
+-    await cache.set(f"ai_backoff:{name}", time.monotonic() + wait, ttl=int(wait) + 1)
+-    logger.warning("[ai-client] %s rate-limited — cooling for %.0fs", name, wait)"""
+-content = re.sub(r'def _mark_rate_limited\(name: str, retry_after: Optional\[str\] = None\).*?wait, wait\)', new_mark_limited, content, flags=re.DOTALL)
+-
+-# Now we need to update all calls to these functions to be awaited.
+-content = content.replace('if not _provider_available(name):', 'if not await _provider_available(name):')
+-content = content.replace('if not _provider_available("gemini"):', 'if not await _provider_available("gemini"):')
+-content = content.replace('if not _provider_available("claude"):', 'if not await _provider_available("claude"):')
+-content = content.replace('if not _provider_available("openai"):', 'if not await _provider_available("openai"):')
+-content = content.replace('if not _provider_available("deepseek"):', 'if not await _provider_available("deepseek"):')
+-content = content.replace('if not _provider_available("grok"):', 'if not await _provider_available("grok"):')
+-content = content.replace('if not _provider_available("puter"):', 'if not await _provider_available("puter"):')
+-
+-content = content.replace('_mark_rate_limited(', 'await _mark_rate_limited(')
+-content = content.replace('_mark_provider_failed(', 'await _mark_provider_failed(')
+-
+-# And provider_status needs to be async
+-content = content.replace('def provider_status() -> dict[str, dict]:', 'async def provider_status() -> dict[str, dict]:')
+-
+-# Inside provider_status, we need to fetch all backoffs and failures
+-new_status_loop = """
+-    result = {}
+-    for name, has_key in keys.items():
+-        cooling_until = await cache.get(f"ai_backoff:{name}") or 0.0
+-        cooling = cooling_until > now
+-        failure = await cache.get(f"ai_failures:{name}")
+-"""
+-content = re.sub(r'result = \{\}.*?failure = _provider_failures\.get\(name\)', new_status_loop, content, flags=re.DOTALL)
+-
+-with open(path, 'w') as f:
+-    f.write(content)
+diff --git a/fix_ai_client_v4.py b/fix_ai_client_v4.py
+deleted file mode 100644
+index c1fed0c..0000000
+--- a/fix_ai_client_v4.py
++++ /dev/null
+@@ -1,28 +0,0 @@
+-import re
+-
+-path = 'app/services/ai_client.py'
+-with open(path, 'r') as f:
+-    content = f.read()
+-
+-# Fix the broken "async def await _mark..." syntax
+-content = content.replace('async def await _mark_provider_failed', 'async def _mark_provider_failed')
+-content = content.replace('def await _mark_rate_limited', 'async def _mark_rate_limited')
+-
+-# Correct the mark_rate_limited body to use cache
+-new_mark_limited = """async def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
+-    wait = 8.0
+-    if retry_after:
+-        try:
+-            wait = max(float(retry_after), 4.0)
+-        except ValueError:
+-            pass
+-    await cache.set(f"ai_backoff:{name}", time.monotonic() + wait, ttl=int(wait) + 1)
+-    logger.warning("[ai-client] %s rate-limited — cooling for %.0fs", name, wait)"""
+-
+-content = re.sub(r'async def _mark_rate_limited.*?wait, wait\)', new_mark_limited, content, flags=re.DOTALL)
+-
+-# Fix get_provider_failures
+-content = content.replace('return dict(_provider_failures)', 'return {}  # Managed via cache')
+-
+-with open(path, 'w') as f:
+-    f.write(content)
+diff --git a/fix_ai_client_v5.py b/fix_ai_client_v5.py
+deleted file mode 100644
+index 7fcbae0..0000000
+--- a/fix_ai_client_v5.py
++++ /dev/null
+@@ -1,22 +0,0 @@
+-import re
+-
+-path = 'app/services/ai_client.py'
+-with open(path, 'r') as f:
+-    content = f.read()
+-
+-# Fix the broken mark_rate_limited body again, it was mangled in previous sed/python runs
+-pattern = r'async def _mark_rate_limited\(name: str, retry_after: Optional\[str\] = None\) -> None:.*?wait, wait\)'
+-replacement = """async def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
+-    wait = 8.0
+-    if retry_after:
+-        try:
+-            wait = max(float(retry_after), 4.0)
+-        except ValueError:
+-            pass
+-    await cache.set(f"ai_backoff:{name}", time.monotonic() + wait, ttl=int(wait) + 1)
+-    logger.warning("[ai-client] %s rate-limited — cooling for %.0fs", name, wait)"""
+-
+-content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+-
+-with open(path, 'w') as f:
+-    f.write(content)
+diff --git a/fix_ai_client_v6.py b/fix_ai_client_v6.py
+deleted file mode 100644
+index cc25119..0000000
+--- a/fix_ai_client_v6.py
++++ /dev/null
+@@ -1,22 +0,0 @@
+-import re
+-
+-path = 'app/services/ai_client.py'
+-with open(path, 'r') as f:
+-    content = f.read()
+-
+-# Fix the broken mark_rate_limited body AGAIN. _backoff_until[name] is wrong, should be cache.set
+-pattern = r'async def _mark_rate_limited\(name: str, retry_after: Optional\[str\] = None\) -> None:.*?wait, wait\)'
+-replacement = """async def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
+-    wait = 8.0
+-    if retry_after:
+-        try:
+-            wait = max(float(retry_after), 4.0)
+-        except ValueError:
+-            pass
+-    await cache.set(f"ai_backoff:{name}", time.monotonic() + wait, ttl=int(wait) + 1)
+-    logger.warning("[ai-client] %s rate-limited — cooling for %.0fs", name, wait)"""
+-
+-content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+-
+-with open(path, 'w') as f:
+-    f.write(content)
+diff --git a/fix_ai_client_v7.py b/fix_ai_client_v7.py
+deleted file mode 100644
+index c1ec90a..0000000
+--- a/fix_ai_client_v7.py
++++ /dev/null
+@@ -1,22 +0,0 @@
+-import re
+-
+-path = 'app/services/ai_client.py'
+-with open(path, 'r') as f:
+-    content = f.read()
+-
+-# I will replace the entire _mark_rate_limited function including the header
+-pattern = r'async def _mark_rate_limited\(name: str, retry_after: Optional\[str\] = None\) -> None:.*?wait, wait\)'
+-replacement = """async def _mark_rate_limited(name: str, retry_after: Optional[str] = None) -> None:
+-    wait = 8.0
+-    if retry_after:
+-        try:
+-            wait = max(float(retry_after), 4.0)
+-        except ValueError:
+-            pass
+-    await cache.set(f"ai_backoff:{name}", time.monotonic() + wait, ttl=int(wait) + 1)
+-    logger.warning("[ai-client] %s rate-limited — cooling for %.0fs", name, wait)"""
+-
+-content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+-
+-with open(path, 'w') as f:
+-    f.write(content)
+diff --git a/fix_ai_routes.py b/fix_ai_routes.py
+deleted file mode 100644
+index 273d9fb..0000000
+--- a/fix_ai_routes.py
++++ /dev/null
+@@ -1,11 +0,0 @@
+-import os
+-
+-PATH = "app/modules/ai/routes.py"
+-with open(PATH, "r") as f:
+-    content = f.read()
+-
+-# Fix TemperatureScaler.load() calls to await
+-content = content.replace("TemperatureScaler.load().temperature", "(await TemperatureScaler.load()).temperature")
+-
+-with open(PATH, "w") as f:
+-    f.write(content)
+diff --git a/fix_indentation.py b/fix_indentation.py
+deleted file mode 100644
+index a8dbd70..0000000
+--- a/fix_indentation.py
++++ /dev/null
+@@ -1,11 +0,0 @@
+-import re
+-
+-with open("main.py", "r") as f:
+-    lines = f.readlines()
+-
+-with open("main.py", "w") as f:
+-    for i, line in enumerate(lines):
+-        if 615 <= i + 1 <= 650:
+-             # Remove 16 leading spaces and add 4
+-             line = re.sub(r'^ {16}', '    ', line)
+-        f.write(line)
+diff --git a/fix_indentation_v2.py b/fix_indentation_v2.py
+deleted file mode 100644
+index 880ed20..0000000
+--- a/fix_indentation_v2.py
++++ /dev/null
+@@ -1,14 +0,0 @@
+-import re
+-
+-with open("main.py", "r") as f:
+-    lines = f.readlines()
+-
+-with open("main.py", "w") as f:
+-    for i, line in enumerate(lines):
+-        # Fix lines 615 to 700
+-        if 615 <= i + 1 <= 700:
+-             # If line starts with 16 spaces, replace them with 8
+-             line = re.sub(r'^ {16}', '        ', line)
+-             # If it starts with 4, maybe it was a top level try I moved
+-             # This is tricky.
+-        f.write(line)
+diff --git a/fix_main.py b/fix_main.py
+deleted file mode 100644
+index 3a4a630..0000000
+--- a/fix_main.py
++++ /dev/null
+@@ -1,46 +0,0 @@
+-import sys
+-import re
+-
+-with open("main.py", "r") as f:
+-    content = f.read()
+-
+-# Remove the incorrectly inserted blocks
+-# (Searching for the pattern of the messy insert)
+-content = re.sub(r'\n\n# ============================================\n# LIFECYCLE\n# ============================================\n\n@asynccontextmanager.*?\n\napp = FastAPI\(.*?\)\n\n', '', content, flags=re.DOTALL)
+-
+-# Also remove them if they exist anywhere else
+-content = re.sub(r'@asynccontextmanager\s+async def lifespan\(app: FastAPI\):.*?# Shutdown complete', '', content, flags=re.DOTALL)
+-content = re.sub(r'app = FastAPI\(.*?\)', '', content, flags=re.DOTALL)
+-
+-lines = content.splitlines()
+-new_lines = []
+-inserted = False
+-
+-for line in lines:
+-    new_lines.append(line)
+-    if "from app.config import get_env, APP_VERSION, print_config_status" in line and not inserted:
+-        new_lines.append("\n@asynccontextmanager")
+-        new_lines.append("async def lifespan(app: FastAPI):")
+-        new_lines.append("    from app.core.logging_config import configure_logging")
+-        new_lines.append("    configure_logging(level=get_env('LOG_LEVEL', 'INFO'))")
+-        new_lines.append("    print_config_status()")
+-        new_lines.append("    print(f'🚀 VIT Network v{APP_VERSION} starting...')")
+-        new_lines.append("    from app.agents.coordinator import get_coordinator")
+-        new_lines.append("    coordinator = get_coordinator()")
+-        new_lines.append("    tasks = coordinator.start()")
+-        new_lines.append("    yield")
+-        new_lines.append("    print('🛑 VIT Network shutting down...')")
+-        new_lines.append("    await coordinator.stop()")
+-        new_lines.append("    for task in tasks:")
+-        new_lines.append("        task.cancel()")
+-        new_lines.append("    await asyncio.gather(*tasks, return_exceptions=True)")
+-        new_lines.append("    print('🛑 Shutdown complete')\n")
+-        new_lines.append("app = FastAPI(")
+-        new_lines.append("    title='VIT Sports Analytics Network',")
+-        new_lines.append("    version=APP_VERSION,")
+-        new_lines.append("    lifespan=lifespan,")
+-        new_lines.append(")\n")
+-        inserted = True
+-
+-with open("main.py", "w") as f:
+-    f.write("\n".join(new_lines))
+diff --git a/fix_main_bootstrap.py b/fix_main_bootstrap.py
+deleted file mode 100644
+index fcf37bd..0000000
+--- a/fix_main_bootstrap.py
++++ /dev/null
+@@ -1,20 +0,0 @@
+-import os
+-
+-PATH = "main.py"
+-with open(PATH, "r") as f:
+-    content = f.read()
+-
+-# Add AIInsight and PlatformConfig creation to bootstrap
+-search_text = 'await conn.run_sync(Base.metadata.create_all)'
+-replacement_text = """await conn.run_sync(Base.metadata.create_all)
+-            # Ensure AIInsight and PlatformConfig are explicitly created
+-            from app.modules.ai.models import AIInsight
+-            from app.modules.wallet.models import PlatformConfig
+-            await conn.run_sync(AIInsight.__table__.create, checkfirst=True)
+-            await conn.run_sync(PlatformConfig.__table__.create, checkfirst=True)"""
+-
+-if search_text in content and replacement_text not in content:
+-    content = content.replace(search_text, replacement_text)
+-
+-with open(PATH, "w") as f:
+-    f.write(content)
+diff --git a/fix_orchestrator_params.py b/fix_orchestrator_params.py
+deleted file mode 100644
+index 0756e97..0000000
+--- a/fix_orchestrator_params.py
++++ /dev/null
+@@ -1,20 +0,0 @@
+-import os
+-
+-PATH = "app/modules/ai/orchestrator.py"
+-with open(PATH, "r") as f:
+-    lines = f.readlines()
+-
+-new_lines = []
+-for line in lines:
+-    if 'sport: str = "soccer",' in line:
+-        new_lines.append('    sport: str,\n') # or just move it. Let's make it required or move it.
+-    else:
+-        new_lines.append(line)
+-
+-# Actually let's just swap them
+-content = "".join(new_lines)
+-content = content.replace('    sport: str,', '    orchestrator: Any,')
+-content = content.replace('    orchestrator: Any,', '    sport: str = "soccer",', 1)
+-
+-with open(PATH, "w") as f:
+-    f.write(content)
+diff --git a/relocate_app.py b/relocate_app.py
+deleted file mode 100644
+index 62e67fe..0000000
+--- a/relocate_app.py
++++ /dev/null
+@@ -1,49 +0,0 @@
+-import sys
+-
+-with open("main.py", "r") as f:
+-    lines = f.readlines()
+-
+-lifespan_start = -1
+-lifespan_end = -1
+-app_def_line = -1
+-
+-for i, line in enumerate(lines):
+-    if "async def lifespan(app: FastAPI):" in line:
+-        lifespan_start = i - 5 # include comments
+-    if lifespan_start != -1 and lifespan_end == -1 and i > lifespan_start and line.strip() == "" and (i+1 < len(lines) and lines[i+1].startswith("#")):
+-         lifespan_end = i
+-    if "app = FastAPI(" in line:
+-        app_def_line = i
+-
+-# Find the end of lifespan more reliably
+-for i in range(lifespan_start + 5, len(lines)):
+-    if lines[i].startswith("# ============================================") or lines[i].startswith("app = FastAPI"):
+-        lifespan_end = i
+-        break
+-    if i > lifespan_start + 50: # safety
+-        lifespan_end = i
+-        break
+-
+-# Extract the blocks
+-lifespan_block = lines[lifespan_start:lifespan_end]
+-app_block = lines[app_def_line : app_def_line + 5]
+-
+-# Clean original lines
+-new_lines = []
+-skip_until = -1
+-for i, line in enumerate(lines):
+-    if i == lifespan_start:
+-        skip_until = lifespan_end
+-    if i == app_def_line:
+-        skip_until = app_def_line + 5
+-
+-    if i < skip_until:
+-        continue
+-    new_lines.append(line)
+-
+-# Insert at top (after imports, around line 55)
+-insert_pos = 55
+-final_lines = new_lines[:insert_pos] + ["\n"] + lifespan_block + ["\n"] + app_block + ["\n"] + new_lines[insert_pos:]
+-
+-with open("main.py", "w") as f:
+-    f.writelines(final_lines)
+diff --git a/relocate_app_v2.py b/relocate_app_v2.py
+deleted file mode 100644
+index 8f7ccd2..0000000
+--- a/relocate_app_v2.py
++++ /dev/null
+@@ -1,24 +0,0 @@
+-with open("main.py", "r") as f:
+-    lines = f.readlines()
+-
+-# Positions (0-indexed)
+-lifespan_range = range(593, 633)
+-app_range = range(1949, 1954)
+-
+-lifespan_block = [lines[i] for i in lifespan_range]
+-app_block = [lines[i] for i in app_range]
+-
+-new_lines = []
+-for i, line in enumerate(lines):
+-    if i in lifespan_range or i in app_range:
+-        continue
+-    new_lines.append(line)
+-    if i == 23: # Insertion point
+-        new_lines.append("\n")
+-        new_lines.extend(lifespan_block)
+-        new_lines.append("\n")
+-        new_lines.extend(app_block)
+-        new_lines.append("\n")
+-
+-with open("main.py", "w") as f:
+-    f.writelines(new_lines)
+diff --git a/restore_main.py b/restore_main.py
+deleted file mode 100644
+index a566dfd..0000000
+--- a/restore_main.py
++++ /dev/null
+@@ -1,11 +0,0 @@
+-import re
+-
+-with open("main.py", "r") as f:
+-    content = f.read()
+-
+-# Remove the messy block
+-pattern = r'\n\n\s+if col not in user_col_names:.*?await conn\.execute\(text\(f"ALTER TABLE users ADD COLUMN {col} {ddl}"\)\)'
+-content = re.sub(pattern, '', content, flags=re.DOTALL)
+-
+-with open("main.py", "w") as f:
+-    f.write(content)
+diff --git a/test_tools_simple.py b/test_tools_simple.py
+deleted file mode 100644
+index d7e1c4f..0000000
+--- a/test_tools_simple.py
++++ /dev/null
+@@ -1,19 +0,0 @@
+-import asyncio
+-import os
+-
+-# Mock the environment
+-os.environ["GEMINI_API_KEY"] = "fake"
+-
+-async def test():
+-    try:
+-        from app.services.assistant_tools import GEMINI_TOOLS, TOOL_MAP
+-        print("Successfully imported assistant_tools")
+-        print(f"Tools available: {[t['function_declarations'][0]['name'] for t in GEMINI_TOOLS]}")
+-
+-        from app.services.gemini_chat import chat
+-        print("Successfully imported gemini_chat")
+-    except Exception as e:
+-        print(f"Import failed: {e}")
+-
+-if __name__ == "__main__":
+-    asyncio.run(test())
+diff --git a/update_admin_ai_sources.py b/update_admin_ai_sources.py
+deleted file mode 100644
+index b5c6d34..0000000
+--- a/update_admin_ai_sources.py
++++ /dev/null
+@@ -1,14 +0,0 @@
+-import sys
+-
+-file_path = 'app/api/routes/admin_ai_sources.py'
+-with open(file_path, 'r') as f:
+-    content = f.read()
+-
+-content = content.replace(
+-    'result = await generate_ai_prediction(\n            features, str(fixture_id), orchestrator, db=db\n        )',
+-    'result = await generate_ai_prediction(\n            features, str(fixture_id), "soccer", orchestrator, db=db\n        )'
+-)
+-
+-with open(file_path, 'w') as f:
+-    f.write(content)
+-print("Successfully updated app/api/routes/admin_ai_sources.py")
+diff --git a/update_build.py b/update_build.py
+deleted file mode 100644
+index 5c9eea8..0000000
+--- a/update_build.py
++++ /dev/null
+@@ -1,138 +0,0 @@
+-import os
+-
+-script_content = r"""#!/usr/bin/env bash
+-set -euo pipefail
+-cd "$(dirname "$0")/.."
+-echo "[build] Installing Python dependencies..."
+-pip install -r requirements.txt
+-
+-# Ensure node is available
+-if ! command -v node &> /dev/null; then
+-    echo "[build] Error: node is not installed." >&2
+-    # Use return 1 in a subshell or just let it fail naturally
+-    false
+-fi
+-
+-echo "[build] Node version: $(node -v)"
+-
+-echo "[build] Installing frontend dependencies..."
+-cd frontend
+-
+-# Detect lockfiles and use appropriate package manager
+-if [ -f "pnpm-lock.yaml" ]; then
+-    echo "[build] Using pnpm (pnpm-lock.yaml detected)"
+-    # Render should have pnpm if it detected the lockfile, but let's be safe
+-    pnpm install --frozen-lockfile
+-elif [ -f "package-lock.json" ]; then
+-    echo "[build] Using npm ci (package-lock.json detected)"
+-    npm ci --prefer-offline --no-audit --no-fund
+-else
+-    echo "[build] Using npm install fallback"
+-    npm install --prefer-offline --no-audit --no-fund
+-fi
+-
+-echo "[build] Building frontend for production..."
+-if [ -f "pnpm-lock.yaml" ]; then
+-    pnpm run build
+-else
+-    npm run build
+-fi
+-cd ..
+-
+-echo "[build] Running database schema setup..."
+-python -c "
+-import asyncio, os
+-
+-async def ensure_schema():
+-    try:
+-        from app.db.database import engine, Base
+-        import app.db.models
+-        import app.modules.wallet.models
+-        import app.modules.blockchain.models
+-        import app.modules.training.models
+-        import app.modules.ai.models
+-        import app.data.models
+-        import app.modules.notifications.models
+-        import app.modules.marketplace.models
+-        import app.modules.trust.models
+-        import app.modules.bridge.models
+-        import app.modules.developer.models
+-        import app.modules.governance.models
+-        import app.modules.did.models
+-        import app.modules.network.models
+-        import app.modules.tasks.models
+-        import app.modules.rewards.models
+-        import app.modules.referral.models
+-        import app.modules.smart_contracts.models
+-        import app.modules.treasury.models
+-        import app.modules.merit.models
+-        import app.modules.ai_verification.models
+-        import app.modules.security.models
+-        import app.modules.subchain.models
+-        import app.modules.agent_registry.models
+-        import app.modules.storage_verification.models
+-        import app.modules.identity.models
+-        import app.modules.kyc.models
+-        import app.modules.prophecy_chain.models
+-        import app.modules.academy.models
+-        import app.modules.ai_core.models
+-        import app.modules.quant.models
+-        async with engine.begin() as conn:
+-            await conn.run_sync(Base.metadata.create_all)
+-            if conn.dialect.name == 'sqlite':
+-                cols = (await conn.exec_driver_sql('PRAGMA table_info(predictions)')).fetchall()
+-                col_names = {row[1] for row in cols}
+-                pred_additions = {
+-                    'user_id': 'INTEGER',
+-                    'was_correct': 'BOOLEAN',
+-                    'settled_profit': 'REAL',
+-                }
+-                for col, ddl in pred_additions.items():
+-                    if col not in col_names:
+-                        await conn.exec_driver_sql(f'ALTER TABLE predictions ADD COLUMN {col} {ddl}')
+-                user_cols = (await conn.exec_driver_sql('PRAGMA table_info(users)')).fetchall()
+-                user_col_names = {row[1] for row in user_cols}
+-                user_additions = {
+-                    'kyc_status': \"VARCHAR(20) DEFAULT 'none'\",
+-                    'kyc_submitted_at': 'DATETIME',
+-                    'kyc_data': 'JSON',
+-                    'current_streak': 'INTEGER DEFAULT 0',
+-                    'best_streak': 'INTEGER DEFAULT 0',
+-                    'total_xp': 'INTEGER DEFAULT 0',
+-                }
+-                for col, ddl in user_additions.items():
+-                    if col not in user_col_names:
+-                        await conn.exec_driver_sql(f'ALTER TABLE users ADD COLUMN {col} {ddl}')
+-                task_cols = (await conn.exec_driver_sql('PRAGMA table_info(tasks)')).fetchall()
+-                task_col_names = {row[1] for row in task_cols}
+-                task_additions = {
+-                    'action_url':   'TEXT',
+-                    'action_label': 'TEXT',
+-                }
+-                for col, ddl in task_additions.items():
+-                    if col not in task_col_names:
+-                        await conn.exec_driver_sql(f'ALTER TABLE tasks ADD COLUMN {col} {ddl}')
+-            else:
+-                await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS user_id INTEGER')
+-                await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS was_correct BOOLEAN')
+-                await conn.exec_driver_sql('ALTER TABLE predictions ADD COLUMN IF NOT EXISTS settled_profit DOUBLE PRECISION')
+-                await conn.exec_driver_sql(\"ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'none'\")
+-                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMP WITH TIME ZONE')
+-                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSON')
+-                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0')
+-                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0')
+-                await conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0')
+-                await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_url TEXT')
+-                await conn.exec_driver_sql('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS action_label TEXT')
+-        print('[build] Database schema ready')
+-    except Exception as e:
+-        print(f'[build] DB schema warning: {e}')
+-
+-asyncio.run(ensure_schema())
+-" || echo "[build] DB schema setup skipped"
+-
+-echo "[build] Build complete."
+-"""
+-
+-with open("scripts/build.sh", "w") as f:
+-    f.write(script_content)
+diff --git a/update_supervisor.py b/update_supervisor.py
+deleted file mode 100644
+index 7c0e53b..0000000
+--- a/update_supervisor.py
++++ /dev/null
+@@ -1,76 +0,0 @@
+-import re
+-
+-path = 'main.py'
+-with open(path, 'r') as f:
+-    content = f.read()
+-
+-# Add persistent logging logic to the monitor loop
+-# We need to import BackgroundTaskStatus and datetime
+-
+-monitor_search = r'async def _monitor\(self\):.*?while not self\.stopping:.*?await asyncio\.sleep\(self\.check_interval\)'
+-monitor_replace = """async def _monitor(self):
+-        # ENG-05: Persistent task tracking
+-        from app.db.database import AsyncSessionLocal
+-        from app.db.models import BackgroundTaskStatus
+-        from sqlalchemy import select, update
+-        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+-        from datetime import datetime, timezone
+-
+-        while not self.stopping:
+-            await asyncio.sleep(self.check_interval)"""
+-
+-content = re.sub(monitor_search, monitor_replace, content, flags=re.DOTALL)
+-
+-# Add the DB update logic inside the loop
+-task_loop_search = r'self\._start_task\(name, factory\)'
+-task_loop_replace = """self._start_task(name, factory)
+-
+-                # ENG-05: Update DB status
+-                try:
+-                    async with AsyncSessionLocal() as db:
+-                        stmt = sqlite_insert(BackgroundTaskStatus).values(
+-                            task_name=name,
+-                            status="running",
+-                            restart_count=self.restart_counts[name],
+-                            last_started_at=datetime.now(timezone.utc),
+-                            updated_at=datetime.now(timezone.utc)
+-                        ).on_conflict_do_update(
+-                            index_elements=['task_name'],
+-                            set_={
+-                                "status": "running",
+-                                "restart_count": self.restart_counts[name],
+-                                "last_started_at": datetime.now(timezone.utc),
+-                                "updated_at": datetime.now(timezone.utc)
+-                            }
+-                        )
+-                        await db.execute(stmt)
+-                        await db.commit()
+-                except Exception as db_err:
+-                    logger.warning(f"[supervisor] Failed to persist task status to DB: {db_err}")"""
+-
+-content = content.replace(task_loop_search, task_loop_replace)
+-
+-# Also handle the crash case
+-crash_search = r'logger\.error\("\[supervisor\] task failed name=%s error=%s", name, exc, exc_info=exc\)'
+-crash_replace = """logger.error("[supervisor] task failed name=%s error=%s", name, exc, exc_info=exc)
+-                        # ENG-05: Log crash to DB
+-                        try:
+-                            async with AsyncSessionLocal() as db:
+-                                await db.execute(
+-                                    update(BackgroundTaskStatus)
+-                                    .where(BackgroundTaskStatus.task_name == name)
+-                                    .values(
+-                                        status="crashed",
+-                                        last_crashed_at=datetime.now(timezone.utc),
+-                                        last_error=str(exc),
+-                                        updated_at=datetime.now(timezone.utc)
+-                                    )
+-                                )
+-                                await db.commit()
+-                        except Exception: pass"""
+-
+-content = content.replace(crash_search, crash_replace)
+-
+-with open(path, 'w') as f:
+-    f.write(content)
+-print("Supervisor updated with ENG-05 persistence")
+diff --git a/verify_assistant_ui.spec.ts b/verify_assistant_ui.spec.ts
+deleted file mode 100644
+index 4f78848..0000000
+--- a/verify_assistant_ui.spec.ts
++++ /dev/null
+@@ -1,21 +0,0 @@
+-import { test, expect } from '@playwright/test';
+-
+-test('AI Assistant Page should have AGENTIC badge and thinking process elements', async ({ page }) => {
+-  // We'll mock the API responses if possible, or just check the static elements
+-  // Since we can't easily run the whole app, we'll check the source code/rendered component logic via unit tests if possible,
+-  // but the instructions ask for Playwright. I'll write the script as if it's running.
+-
+-  await page.goto('/assistant');
+-
+-  // Check for the AGENTIC badge
+-  const badge = page.locator('text=AGENTIC');
+-  // await expect(badge).toBeVisible();
+-
+-  // Check for the description
+-  const description = page.locator('text=Agentic copilot for the VIT Sports Analytics Network');
+-  // await expect(description).toBeVisible();
+-
+-  // Check for suggested prompts
+-  const prompt = page.locator('text=Find upcoming high-value matches');
+-  // await expect(prompt).toBeVisible();
+-});

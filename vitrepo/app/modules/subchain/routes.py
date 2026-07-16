@@ -1,0 +1,124 @@
+"""Sub-Chain Routes — chain registry, block production, cross-chain messaging."""
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.database import get_db
+from app.modules.subchain.models import SubChainType
+from app.modules.subchain.service import (
+    bootstrap_subchains,
+    confirm_message,
+    get_chain_summary,
+    produce_block,
+    relay_message,
+    send_cross_chain_message,
+)
+
+router = APIRouter(prefix="/api/subchains", tags=["subchains"])
+
+
+class ProduceBlockRequest(BaseModel):
+    chain_type: SubChainType
+    txn_count: int = 1
+    gas_used: int = 0
+    validator_address: Optional[str] = None
+
+
+class CrossChainMessageRequest(BaseModel):
+    source_chain_type: SubChainType
+    dest_chain_type: SubChainType
+    message_type: str
+    payload: dict
+    sender_address: Optional[str] = None
+    recipient_address: Optional[str] = None
+    fee_paid: float = 0.01
+
+
+class RelayRequest(BaseModel):
+    relay_proof: Optional[str] = None
+
+
+@router.post("/bootstrap")
+async def bootstrap(db: AsyncSession = Depends(get_db)):
+    count = await bootstrap_subchains(db)
+    return {"created": count, "message": f"Bootstrapped {count} sub-chains"}
+
+
+@router.get("")
+async def list_chains(db: AsyncSession = Depends(get_db)):
+    chains = await get_chain_summary(db)
+    return {
+        "chains": chains,
+        "total": len(chains),
+        "total_blocks": sum(c["current_block"] for c in chains),
+        "total_txns": sum(c["total_txns"] for c in chains),
+    }
+
+
+@router.post("/blocks/produce")
+async def produce_block_endpoint(req: ProduceBlockRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        block = await produce_block(
+            db,
+            chain_type=req.chain_type,
+            txn_count=req.txn_count,
+            gas_used=req.gas_used,
+            validator_address=req.validator_address,
+        )
+        return {
+            "block_number": block.block_number,
+            "block_hash": block.block_hash,
+            "parent_hash": block.parent_hash,
+            "txn_count": block.txn_count,
+            "state_root": block.state_root,
+            "produced_at": block.produced_at.isoformat(),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/messages/send")
+async def send_message(req: CrossChainMessageRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        msg = await send_cross_chain_message(
+            db,
+            source_chain_type=req.source_chain_type,
+            dest_chain_type=req.dest_chain_type,
+            message_type=req.message_type,
+            payload=req.payload,
+            sender_address=req.sender_address,
+            recipient_address=req.recipient_address,
+            fee_paid=Decimal(str(req.fee_paid)),
+        )
+        return {
+            "message_id": msg.id,
+            "nonce": msg.nonce,
+            "payload_hash": msg.payload_hash,
+            "status": msg.status.value,
+            "created_at": msg.created_at.isoformat(),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/messages/{message_id}/relay")
+async def relay_msg(message_id: int, req: RelayRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        msg = await relay_message(db, message_id, req.relay_proof)
+        return {"message_id": msg.id, "status": msg.status.value, "relayed_at": msg.relayed_at.isoformat() if msg.relayed_at else None}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/messages/{message_id}/confirm")
+async def confirm_msg(message_id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        msg = await confirm_message(db, message_id)
+        return {"message_id": msg.id, "status": msg.status.value, "confirmed_at": msg.confirmed_at.isoformat() if msg.confirmed_at else None}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
