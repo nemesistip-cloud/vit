@@ -47,6 +47,15 @@ if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; th
     if ! python3 scripts/ensure_admin.py; then
         echo "[production] WARNING: ensure_admin failed — admin user may be missing." >&2
     fi
+
+    # Step 4 — Seed blockchain genesis block if not already present.
+    # The genesis block is stored as an IoTEvent row; if it never made it to
+    # the DB (e.g. first-deploy race where tables were not ready yet), every
+    # subsequent health-check returns False and the kernel stays DEGRADED.
+    echo "[production] Seeding blockchain genesis block (idempotent)..."
+    if ! python3 scripts/seed_genesis.py; then
+        echo "[production] WARNING: seed_genesis failed -- blockchain may stay UNHEALTHY." >&2
+    fi
 else
     echo "[production] Skipping DB setup (no Postgres DATABASE_URL detected)."
 fi

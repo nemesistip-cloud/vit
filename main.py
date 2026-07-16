@@ -366,18 +366,21 @@ async def get_registry_diagnostics():
 
 @app.get("/api/system/health/summary", tags=["System"])
 async def get_health_summary():
-    from app.core.registry.manager import registry
-    from app.core.registry.models import HealthStatus
-    diagnostics = registry.get_diagnostics()
-    modules = diagnostics.get("modules", {})
+    # Read from obs_manager.health — this is the live source updated by the
+    # kernel health-supervision loop.  The module registry health field is
+    # never populated at runtime, so reading from it always shows UNKNOWN.
+    from app.core.observability.manager import obs_manager as _obs
+    from app.core.observability.models import HealthStatus as _HS
+    statuses = _obs.health.get_all_statuses()
     summary = {"overall_status": "HEALTHY", "details": {}}
     unhealthy_count = 0
-    for mid, info in modules.items():
-        h = info.get("health")
-        summary["details"][mid] = h
-        if h != "HEALTHY": unhealthy_count += 1
+    for sub in statuses:
+        summary["details"][sub.name] = sub.status.value
+        if sub.status != _HS.HEALTHY:
+            unhealthy_count += 1
     if unhealthy_count > 0:
-        summary["overall_status"] = "DEGRADED" if unhealthy_count < len(modules) else "UNHEALTHY"
+        total = len(statuses)
+        summary["overall_status"] = "DEGRADED" if unhealthy_count < total else "UNHEALTHY"
     return summary
 
 

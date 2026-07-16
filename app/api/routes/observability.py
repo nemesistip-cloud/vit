@@ -18,11 +18,14 @@ async def get_health():
     elif status == HealthStatus.DEGRADED:
         status_code = 200 # Still operational
 
+    # Use model_dump(mode='json') so that datetime fields are serialized to
+    # ISO-8601 strings — plain s.dict() returns native datetime objects which
+    # json.dumps (used internally by JSONResponse) cannot handle.
     return JSONResponse(
         status_code=status_code,
         content={
-            "status": status,
-            "subsystems": [s.dict() for s in details]
+            "status": status.value if hasattr(status, "value") else status,
+            "subsystems": [s.model_dump(mode="json") for s in details],
         }
     )
 
