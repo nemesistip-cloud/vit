@@ -42,7 +42,7 @@ export default function App() {
           <Route path="/leaderboard"  element={<Leaderboard />} />
           <Route path="/wallet"       element={<Wallet />} />
           <Route path="/predictions"  element={<Predictions />} />
-          <Route path="/explorer"     element={<Explorer />} />
+          <Route path="/chain"     element={<Explorer />} />
           {/* Catch-all: redirect unknown paths to home */}
           <Route path="*"             element={<Navigate to="/" replace />} />
         </Routes>
