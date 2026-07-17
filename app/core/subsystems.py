@@ -191,6 +191,13 @@ class PlatformSubsystem(Subsystem):
                 except Exception as e:
                     logger.error(f"[kernel] Failed to dynamically include notification routes: {e}")
 
+                # Dynamically register actual modules AI routes to bypass main.py limitations
+                try:
+                    from app.modules.ai.routes import router as ai_module_router
+                    app.include_router(ai_module_router)
+                except Exception as e:
+                    logger.error(f"[kernel] Failed to dynamically include modules AI routes: {e}")
+
                 # Dynamically register Tachyon VESS API router
                 try:
                     from tachyon.api.router import router as tachyon_router
