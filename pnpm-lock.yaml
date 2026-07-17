@@ -61,6 +61,10 @@ importers:
       vite:
         specifier: ^5.4.21
         version: 5.4.21(@types/node@22.19.20)(lightningcss@1.32.0)
+    devDependencies:
+      '@types/prop-types':
+        specifier: ^15.7.15
+        version: 15.7.15
 
 packages:
 
