@@ -184,7 +184,7 @@ export default function MatchDetail() {
   if (matchLoading) {
     return (
       <div className="pt-24 min-h-screen flex items-center justify-center">
-        <Spinner size="lg" />
+        <Spinner className="w-8 h-8" />
       </div>
     )
   }

@@ -330,7 +330,7 @@ export default function Tasks() {
 
         {/* Tasks */}
         {isLoading ? (
-          <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+          <div className="flex justify-center py-16"><Spinner className="w-8 h-8" /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-white/40">
             <Gift className="w-10 h-10 mx-auto mb-3 opacity-30" />

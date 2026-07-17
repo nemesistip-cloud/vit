@@ -272,7 +272,7 @@ export default function Odds() {
         {/* Table */}
         <div className="bg-surface-800/40 border border-white/8 rounded-2xl overflow-hidden">
           {isLoading ? (
-            <div className="flex justify-center py-20"><Spinner size="lg" /></div>
+            <div className="flex justify-center py-20"><Spinner className="w-8 h-8" /></div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-white/40">
               <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />

@@ -284,7 +284,7 @@ export default function Validators() {
         <div className="mb-8">
           <h2 className="font-semibold text-white mb-4">Active Validator Set</h2>
           {isLoading ? (
-            <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+            <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>
           ) : validators.length === 0 ? (
             <div className="text-center py-12 text-white/40 text-sm">No validators data available</div>
           ) : (
