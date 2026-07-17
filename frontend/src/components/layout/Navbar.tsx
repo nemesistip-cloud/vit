@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Activity, LogIn, LogOut, LayoutDashboard, Shield, Trophy, Wallet, Brain, ChevronDown, Vote, Landmark } from 'lucide-react'
+import { Menu, X, Activity, LogIn, LogOut, LayoutDashboard, Shield, Trophy, Wallet, Brain, ChevronDown, Vote, Landmark, Store, Share2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGatewayHealth } from '@/hooks/useHealth'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -24,6 +24,8 @@ const AUTH_LINKS = [
   { label: 'Wallet',      path: '/wallet',       icon: Wallet },
   { label: 'Governance',  path: '/governance',  icon: Vote },
   { label: 'Treasury',    path: '/treasury',    icon: Landmark },
+  { label: 'Marketplace', path: '/marketplace', icon: Store },
+  { label: 'Referral',    path: '/referral',    icon: Share2 },
 ]
 
 export function Navbar() {
@@ -172,6 +174,12 @@ export function Navbar() {
                     </Link>
                     <Link to="/treasury" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
                       <Landmark className="w-4 h-4" /> Treasury
+                    </Link>
+                    <Link to="/marketplace" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <Store className="w-4 h-4" /> Marketplace
+                    </Link>
+                    <Link to="/referral" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <Share2 className="w-4 h-4" /> Referral
                     </Link>
                     <div className="h-px bg-white/10 my-1" />
                     <button

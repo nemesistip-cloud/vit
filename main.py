@@ -343,6 +343,12 @@ app.include_router(academy_router, prefix="/api", tags=["Academy"])
 from app.modules.marketplace.routes import router as marketplace_router
 app.include_router(marketplace_router, prefix="/api", tags=["Marketplace"])
 
+from app.modules.referral.routes import router as referral_router
+app.include_router(referral_router)
+
+from app.api.routes.affiliate import router as affiliate_router
+app.include_router(affiliate_router, prefix="/api")
+
 from app.modules.rewards.routes import router as rewards_router
 app.include_router(rewards_router, prefix="/api", tags=["Rewards"])
 

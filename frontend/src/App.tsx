@@ -20,6 +20,8 @@ import Predictions       from '@/pages/Predictions'
 import Explorer          from '@/pages/Explorer'
 import Governance        from '@/pages/Governance'
 import Treasury          from '@/pages/Treasury'
+import Marketplace       from '@/pages/Marketplace'
+import Referral          from '@/pages/Referral'
 
 export default function App() {
   return (
@@ -47,6 +49,8 @@ export default function App() {
           <Route path="/chain"        element={<Explorer />} />
           <Route path="/governance"   element={<Governance />} />
           <Route path="/treasury"     element={<Treasury />} />
+          <Route path="/marketplace"  element={<Marketplace />} />
+          <Route path="/referral"     element={<Referral />} />
           {/* Catch-all: redirect unknown paths to home */}
           <Route path="*"             element={<Navigate to="/" replace />} />
         </Routes>

@@ -76,12 +76,12 @@ const PHASES = [
   {
     phase: 'Phase VI',
     title: 'Commerce & Marketplace',
-    status: 'planned',
+    status: 'active',
     items: [
-      { label: 'Decentralised prediction marketplace', done: false },
-      { label: 'Peer-to-peer tip trading',             done: false },
-      { label: 'Affiliate & referral engine',          done: false },
-      { label: 'Commerce API surface',                 done: false },
+      { label: 'Decentralised prediction marketplace', done: true },
+      { label: 'Peer-to-peer tip trading',             done: true },
+      { label: 'Affiliate & referral engine',          done: true },
+      { label: 'Commerce API surface',                 done: true },
     ],
   },
   {
