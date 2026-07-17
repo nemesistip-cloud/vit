@@ -23,6 +23,11 @@ import Treasury          from '@/pages/Treasury'
 import Marketplace       from '@/pages/Marketplace'
 import Referral          from '@/pages/Referral'
 import Ecosystem         from '@/pages/Ecosystem'
+import Social           from '@/pages/Social'
+import DeFi             from '@/pages/DeFi'
+import InPlay           from '@/pages/InPlay'
+import AnalyticsStudio  from '@/pages/AnalyticsStudio'
+import Enterprise       from '@/pages/Enterprise'
 
 export default function App() {
   return (
@@ -53,6 +58,11 @@ export default function App() {
           <Route path="/marketplace"  element={<Marketplace />} />
           <Route path="/referral"     element={<Referral />} />
           <Route path="/ecosystem"    element={<Ecosystem />} />
+          <Route path="/social"       element={<Social />} />
+          <Route path="/defi"         element={<DeFi />} />
+          <Route path="/inplay"       element={<InPlay />} />
+          <Route path="/analytics-studio" element={<AnalyticsStudio />} />
+          <Route path="/enterprise"   element={<Enterprise />} />
           {/* Catch-all: redirect unknown paths to home */}
           <Route path="*"             element={<Navigate to="/" replace />} />
         </Routes>

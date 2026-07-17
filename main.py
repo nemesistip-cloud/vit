@@ -364,6 +364,22 @@ app.include_router(did_router, prefix="/api", tags=["DID"])
 from app.modules.quant.routes import router as quant_router
 app.include_router(quant_router, prefix="/api", tags=["Quant"])
 
+# --- Phase VIII: DeFi, Social & Enterprise ---
+from app.modules.social.routes import router as social_router
+app.include_router(social_router, tags=["Social"])
+
+from app.modules.defi.routes import router as defi_router
+app.include_router(defi_router, tags=["DeFi"])
+
+from app.modules.inplay.routes import router as inplay_router
+app.include_router(inplay_router, tags=["In-Play"])
+
+from app.modules.analytics_studio.routes import router as analytics_studio_router
+app.include_router(analytics_studio_router, tags=["Analytics Studio"])
+
+from app.modules.enterprise.routes import router as enterprise_router
+app.include_router(enterprise_router, tags=["Enterprise"])
+
 from app.modules.bridge.routes import router as bridge_router
 app.include_router(bridge_router, prefix="/api", tags=["Bridge"])
 

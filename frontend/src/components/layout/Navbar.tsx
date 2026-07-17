@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Activity, LogIn, LogOut, LayoutDashboard, Shield, Trophy, Wallet, Brain, ChevronDown, Vote, Landmark, Store, Share2, Smartphone } from 'lucide-react'
+import { Menu, X, Activity, LogIn, LogOut, LayoutDashboard, Shield, Trophy, Wallet, Brain, ChevronDown, Vote, Landmark, Store, Share2, Smartphone, Users, Coins, Radio, BarChart3, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGatewayHealth } from '@/hooks/useHealth'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -27,6 +27,11 @@ const AUTH_LINKS = [
   { label: 'Marketplace', path: '/marketplace', icon: Store },
   { label: 'Referral',    path: '/referral',    icon: Share2 },
   { label: 'Ecosystem',   path: '/ecosystem',   icon: Smartphone },
+  { label: 'Social',      path: '/social',      icon: Users      },
+  { label: 'DeFi',        path: '/defi',        icon: Coins      },
+  { label: 'In-Play',     path: '/inplay',      icon: Radio      },
+  { label: 'Analytics',   path: '/analytics-studio', icon: BarChart3 },
+  { label: 'Enterprise',  path: '/enterprise',  icon: Building2  },
 ]
 
 export function Navbar() {
@@ -184,6 +189,21 @@ export function Navbar() {
                     </Link>
                     <Link to="/ecosystem" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
                       <Smartphone className="w-4 h-4" /> Ecosystem
+                    </Link>
+                    <Link to="/social" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <Users className="w-4 h-4" /> Social Feed
+                    </Link>
+                    <Link to="/defi" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <Coins className="w-4 h-4" /> DeFi Pools
+                    </Link>
+                    <Link to="/inplay" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <Radio className="w-4 h-4" /> In-Play
+                    </Link>
+                    <Link to="/analytics-studio" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <BarChart3 className="w-4 h-4" /> Analytics Studio
+                    </Link>
+                    <Link to="/enterprise" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5">
+                      <Building2 className="w-4 h-4" /> Enterprise
                     </Link>
                     <div className="h-px bg-white/10 my-1" />
                     <button

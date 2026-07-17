@@ -96,6 +96,30 @@ const PHASES = [
       { label: 'Asset CDN via vit-storage',            done: true },
     ],
   },
+  {
+    phase: 'Phase VIII',
+    title: 'DeFi, Social & Enterprise',
+    status: 'active',
+    items: [
+      { label: 'Social prediction feed (follow, react, comment)', done: true },
+      { label: 'DeFi yield & liquidity pools',                    done: true },
+      { label: 'Live in-play prediction markets',                 done: true },
+      { label: 'Analytics Studio (personal + model comparison)',  done: true },
+      { label: 'Enterprise API, data licensing & webhooks',       done: true },
+    ],
+  },
+  {
+    phase: 'Phase IX',
+    title: 'Cross-Chain & Institutional Scale',
+    status: 'planned',
+    items: [
+      { label: 'Cross-chain liquidity bridges (ETH, BNB, Polygon)', done: false },
+      { label: 'Institutional oracle SLA (99.9% uptime guarantee)', done: false },
+      { label: 'On-chain DeFi settlement via vit-contracts',         done: false },
+      { label: 'AI model marketplace (buy/sell model access)',        done: false },
+      { label: 'ZK-proof prediction attestation',                    done: false },
+    ],
+  },
 ]
 
 const STATUS_STYLES = {
