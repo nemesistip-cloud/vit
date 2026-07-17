@@ -1,0 +1,403 @@
+home_team,away_team,home_goals,away_goals,actual_outcome,league,date,season,B365H,B365D,B365A
+Manchester City,Crystal Palace,4,0,H,EPL,2021-05-01,2020/21,1.22,7.0,16.0
+Liverpool,Southampton,2,0,H,EPL,2020-11-07,2020/21,1.44,4.75,8.0
+Chelsea,Newcastle,2,0,H,EPL,2020-11-21,2020/21,1.4,5.0,8.5
+Arsenal,Wolves,2,3,A,EPL,2020-11-29,2020/21,1.75,3.8,5.0
+Tottenham,Arsenal,2,0,H,EPL,2020-12-06,2020/21,2.37,3.3,3.25
+Leicester,Manchester United,3,1,H,EPL,2020-12-26,2020/21,2.87,3.25,2.75
+Manchester City,Chelsea,3,1,H,EPL,2021-01-03,2020/21,1.57,4.0,6.5
+West Ham,Chelsea,3,3,D,EPL,2021-01-18,2020/21,3.4,3.3,2.25
+Everton,Tottenham,5,4,H,EPL,2021-01-20,2020/21,2.62,3.25,2.87
+Brighton,Chelsea,1,1,D,EPL,2021-01-16,2020/21,4.25,3.6,1.95
+Arsenal,Crystal Palace,0,0,D,EPL,2021-01-14,2020/21,1.44,4.75,8.0
+Liverpool,Burnley,3,0,H,EPL,2021-05-10,2020/21,1.25,6.5,14.0
+Manchester United,Fulham,1,1,D,EPL,2021-01-20,2020/21,1.44,4.75,8.0
+Leeds,Leicester,1,3,A,EPL,2021-01-31,2020/21,3.5,3.4,2.25
+West Brom,Leeds,0,5,A,EPL,2021-05-03,2020/21,4.75,3.75,1.87
+Sheffield United,Wolves,0,1,A,EPL,2021-02-02,2020/21,3.6,3.3,2.3
+Newcastle,Tottenham,2,2,D,EPL,2021-04-04,2021/21,3.4,3.3,2.3
+Southampton,Arsenal,1,3,A,EPL,2021-01-22,2020/21,3.25,3.3,2.4
+Burnley,Aston Villa,0,3,A,EPL,2021-05-19,2020/21,3.1,3.3,2.5
+Chelsea,Fulham,1,0,H,EPL,2021-03-01,2020/21,1.4,5.0,8.5
+Crystal Palace,Wolves,0,0,D,EPL,2021-03-06,2020/21,3.1,3.3,2.5
+Arsenal,Burnley,3,0,H,EPL,2021-03-06,2020/21,1.25,6.5,14.0
+Tottenham,Crystal Palace,4,1,H,EPL,2021-03-07,2020/21,1.53,4.25,7.0
+Sheffield United,Southampton,0,2,A,EPL,2021-02-20,2020/21,3.25,3.3,2.4
+Wolves,Leeds,0,0,D,EPL,2021-02-19,2020/21,2.37,3.25,3.25
+Aston Villa,Newcastle,1,1,D,EPL,2021-03-12,2020/21,2.0,3.5,4.0
+Chelsea,Everton,2,0,H,EPL,2021-03-08,2020/21,1.57,4.0,6.5
+Liverpool,Wolves,1,0,H,EPL,2021-03-04,2020/21,1.4,5.0,8.5
+Tottenham,Newcastle,2,2,D,EPL,2021-04-04,2020/21,1.5,4.5,7.5
+West Ham,Arsenal,3,3,D,EPL,2021-03-21,2020/21,2.62,3.25,2.87
+Liverpool,Crystal Palace,7,0,H,EPL,2022-04-23,2021/22,1.18,7.5,19.0
+Manchester City,Watford,5,1,H,EPL,2022-03-15,2021/22,1.14,8.0,21.0
+Arsenal,Manchester United,3,1,H,EPL,2022-04-23,2021/22,1.95,3.5,4.25
+Tottenham,Leicester,3,1,H,EPL,2022-04-23,2021/22,1.75,3.8,5.0
+Chelsea,Southampton,6,0,H,EPL,2021-08-28,2021/22,1.36,5.25,10.0
+Manchester City,Burnley,2,0,H,EPL,2021-11-20,2021/22,1.18,7.5,19.0
+Liverpool,Norwich,3,0,H,EPL,2021-08-14,2021/22,1.22,7.0,16.0
+Arsenal,Tottenham,3,1,H,EPL,2022-01-16,2021/22,2.1,3.4,3.75
+Tottenham,Arsenal,3,0,H,EPL,2021-09-26,2021/22,2.37,3.3,3.25
+Manchester United,Wolves,0,1,A,EPL,2021-11-22,2021/22,1.8,3.75,4.75
+West Ham,Arsenal,0,0,D,EPL,2021-12-15,2021/22,2.75,3.25,2.87
+Brighton,Manchester City,1,4,A,EPL,2022-05-07,2021/22,6.5,4.75,1.53
+Everton,Chelsea,1,1,D,EPL,2021-12-16,2021/22,4.25,3.6,1.95
+Leicester,Chelsea,2,3,A,EPL,2021-11-20,2021/22,3.25,3.3,2.4
+Southampton,Brentford,2,2,D,EPL,2021-12-12,2021/22,2.25,3.4,3.4
+Manchester City,Leicester,6,3,H,EPL,2021-05-11,2021/22,1.25,6.5,14.0
+Crystal Palace,Brighton,1,1,D,EPL,2022-01-14,2021/22,2.87,3.25,2.75
+Burnley,Brighton,1,2,A,EPL,2021-10-02,2021/22,3.0,3.3,2.5
+Liverpool,Arsenal,4,0,H,EPL,2022-01-13,2021/22,1.44,4.75,8.0
+Leeds,Manchester United,2,4,A,EPL,2021-08-14,2021/22,3.75,3.5,2.1
+Brentford,Wolves,2,0,H,EPL,2021-09-11,2021/22,2.37,3.25,3.25
+Wolves,Manchester City,0,1,A,EPL,2021-09-17,2021/22,5.75,4.25,1.62
+Norwich,Manchester City,0,5,A,EPL,2021-08-14,2021/22,10.0,6.0,1.33
+Watford,Liverpool,0,5,A,EPL,2021-08-14,2021/22,7.5,5.0,1.44
+Chelsea,Arsenal,2,2,D,EPL,2022-04-20,2021/22,1.8,3.75,4.75
+Arsenal,Chelsea,4,2,H,EPL,2022-05-12,2021/22,2.1,3.4,3.75
+Tottenham,Manchester City,0,3,A,EPL,2022-02-19,2021/22,3.0,3.3,2.5
+Manchester City,Tottenham,3,2,H,EPL,2022-05-08,2021/22,1.3,5.75,11.0
+Newcastle,Manchester United,1,1,D,EPL,2022-04-02,2021/22,3.6,3.3,2.25
+Manchester United,Leicester,1,1,D,EPL,2021-10-16,2021/22,1.83,3.7,4.75
+Arsenal,Fulham,2,1,H,EPL,2022-08-27,2022/23,1.36,5.25,10.0
+Manchester City,Bournemouth,4,0,H,EPL,2022-08-13,2022/23,1.2,7.0,17.0
+Liverpool,Crystal Palace,1,0,H,EPL,2022-08-15,2022/23,1.35,5.5,10.0
+Arsenal,Leicester,4,2,H,EPL,2022-08-13,2022/23,1.44,4.75,8.0
+Tottenham,Southampton,4,1,H,EPL,2022-08-06,2022/23,1.53,4.25,7.0
+Chelsea,Tottenham,2,2,D,EPL,2022-08-14,2022/23,2.0,3.6,4.0
+Newcastle,Nottm Forest,2,0,H,EPL,2022-08-06,2022/23,1.8,3.8,4.75
+West Ham,Manchester City,0,2,A,EPL,2022-08-07,2022/23,5.0,4.0,1.75
+Brighton,Manchester United,2,1,H,EPL,2022-08-07,2022/23,2.87,3.3,2.75
+Everton,Nottm Forest,1,1,D,EPL,2022-08-20,2022/23,2.25,3.4,3.4
+Wolves,Tottenham,0,1,A,EPL,2022-08-20,2022/23,3.6,3.3,2.25
+Leicester,Southampton,2,0,H,EPL,2022-10-25,2022/23,2.25,3.3,3.4
+Fulham,Manchester United,1,2,A,EPL,2022-11-13,2022/23,3.75,3.5,2.1
+Crystal Palace,Bournemouth,1,1,D,EPL,2022-10-15,2022/23,2.37,3.25,3.25
+Bournemouth,Liverpool,1,9,A,EPL,2022-08-27,2022/23,8.5,5.25,1.4
+Nottm Forest,Manchester United,1,0,H,EPL,2022-09-18,2022/23,4.0,3.6,2.0
+Manchester City,Nottm Forest,6,0,H,EPL,2022-10-05,2022/23,1.14,8.0,21.0
+Arsenal,Southampton,3,2,H,EPL,2023-04-21,2022/23,1.33,5.5,10.0
+Southampton,Liverpool,1,2,A,EPL,2023-05-13,2022/23,5.5,4.25,1.65
+Bournemouth,Arsenal,0,4,A,EPL,2023-03-04,2022/23,7.5,5.0,1.44
+Arsenal,Burnley,5,0,H,EPL,2023-09-16,2023/24,1.22,7.0,16.0
+Manchester City,Fulham,5,1,H,EPL,2023-10-05,2023/24,1.22,6.5,16.0
+Luton,Manchester City,1,2,A,EPL,2023-11-11,2023/24,10.0,6.0,1.33
+Burnley,Manchester City,0,3,A,EPL,2023-08-11,2023/24,9.0,5.0,1.33
+Sheffield United,Manchester City,0,2,A,EPL,2023-08-27,2023/24,10.0,6.5,1.3
+Chelsea,Arsenal,2,2,D,EPL,2023-10-21,2023/24,3.0,3.3,2.5
+Arsenal,Chelsea,5,0,H,EPL,2024-04-23,2023/24,1.72,3.8,5.25
+Nottm Forest,Arsenal,1,2,A,EPL,2023-09-18,2023/24,4.25,3.6,1.95
+Arsenal,Nottm Forest,5,0,H,EPL,2024-01-30,2023/24,1.22,7.0,16.0
+West Ham,Liverpool,2,4,A,EPL,2024-02-10,2023/24,3.75,3.5,2.1
+Liverpool,West Ham,4,2,H,EPL,2023-09-24,2023/24,1.36,5.25,10.0
+Tottenham,Fulham,3,0,H,EPL,2023-09-16,2023/24,1.53,4.25,7.0
+Fulham,Tottenham,0,3,A,EPL,2024-03-16,2023/24,4.25,3.6,1.95
+Aston Villa,Arsenal,1,0,H,EPL,2023-12-09,2023/24,3.6,3.3,2.25
+Arsenal,Aston Villa,2,0,H,EPL,2024-04-14,2023/24,1.62,4.0,6.0
+Newcastle,Chelsea,4,1,H,EPL,2024-03-11,2023/24,2.5,3.3,3.1
+Chelsea,Newcastle,0,0,D,EPL,2023-11-25,2023/24,1.8,3.75,4.75
+Liverpool,Luton,4,1,H,EPL,2023-11-05,2023/24,1.18,7.5,19.0
+Luton,Liverpool,0,4,A,EPL,2024-04-07,2023/24,10.0,6.0,1.33
+Manchester United,Aston Villa,2,0,H,EPL,2023-12-26,2023/24,2.37,3.3,3.25
+Real Madrid,Eibar,3,1,H,La Liga,2021-04-03,2020/21,1.22,7.0,16.0
+Barcelona,Huesca,4,1,H,La Liga,2021-03-15,2020/21,1.18,7.5,19.0
+Atletico Madrid,Deportivo Alaves,5,1,H,La Liga,2021-02-14,2020/21,1.36,5.0,10.0
+Sevilla,Real Betis,2,0,H,La Liga,2021-02-13,2020/21,2.1,3.4,3.75
+Real Betis,Sevilla,0,3,A,La Liga,2020-11-07,2020/21,2.62,3.25,2.87
+Barcelona,Real Madrid,1,3,A,La Liga,2021-04-24,2020/21,2.1,3.4,3.75
+Real Madrid,Barcelona,2,1,H,La Liga,2020-10-24,2020/21,2.25,3.4,3.4
+Atletico Madrid,Real Madrid,1,1,D,La Liga,2021-03-07,2020/21,2.75,3.25,2.87
+Real Madrid,Atletico Madrid,1,1,D,La Liga,2020-12-12,2020/21,2.1,3.4,3.75
+Barcelona,Atletico Madrid,0,1,A,La Liga,2021-05-08,2020/21,1.72,3.8,5.25
+Valencia,Atletico Madrid,0,2,A,La Liga,2021-04-11,2020/21,3.75,3.5,2.1
+Atletico Madrid,Valencia,3,1,H,La Liga,2020-12-08,2020/21,1.62,4.0,6.0
+Real Sociedad,Atletico Madrid,1,2,A,La Liga,2021-01-10,2020/21,3.4,3.3,2.3
+Atletico Madrid,Real Sociedad,2,0,H,La Liga,2020-09-27,2020/21,1.57,4.0,6.5
+Villarreal,Real Madrid,0,2,A,La Liga,2021-04-17,2020/21,3.75,3.5,2.1
+Real Madrid,Villarreal,2,1,H,La Liga,2020-07-16,2020/21,1.44,4.75,8.0
+Celta Vigo,Barcelona,2,2,D,La Liga,2021-05-16,2020/21,4.25,3.6,1.95
+Barcelona,Celta Vigo,5,1,H,La Liga,2021-02-27,2020/21,1.25,6.5,14.0
+Osasuna,Real Madrid,0,2,A,La Liga,2020-10-31,2020/21,7.5,5.0,1.44
+Real Madrid,Osasuna,2,0,H,La Liga,2021-05-01,2020/21,1.22,7.0,16.0
+Real Madrid,Barcelona,2,1,H,La Liga,2022-03-20,2021/22,2.1,3.4,3.75
+Barcelona,Real Madrid,4,0,H,La Liga,2021-10-24,2021/22,2.0,3.5,4.0
+Atletico Madrid,Real Madrid,0,0,D,La Liga,2021-09-18,2021/22,2.87,3.25,2.75
+Real Madrid,Atletico Madrid,2,0,H,La Liga,2022-02-12,2021/22,2.0,3.5,4.0
+Barcelona,Atletico Madrid,0,1,A,La Liga,2022-02-06,2021/22,1.72,3.8,5.25
+Atletico Madrid,Barcelona,2,0,H,La Liga,2021-10-02,2021/22,2.62,3.25,2.87
+Sevilla,Real Madrid,2,3,A,La Liga,2022-05-01,2021/22,3.75,3.5,2.1
+Real Madrid,Sevilla,3,2,H,La Liga,2021-11-28,2021/22,1.36,5.0,10.0
+Real Betis,Barcelona,1,1,D,La Liga,2022-05-07,2021/22,3.6,3.3,2.25
+Barcelona,Real Betis,3,0,H,La Liga,2022-01-16,2021/22,1.36,5.0,10.0
+Valencia,Real Madrid,2,1,H,La Liga,2021-12-11,2021/22,4.75,3.75,1.87
+Real Madrid,Valencia,2,0,H,La Liga,2022-01-08,2021/22,1.3,5.75,11.0
+Villarreal,Barcelona,3,1,H,La Liga,2021-09-18,2021/22,3.6,3.3,2.25
+Barcelona,Villarreal,3,1,H,La Liga,2022-01-23,2021/22,1.36,5.0,10.0
+Getafe,Real Madrid,0,2,A,La Liga,2021-12-04,2021/22,7.5,5.0,1.44
+Real Madrid,Getafe,1,0,H,La Liga,2022-05-18,2021/22,1.22,7.0,16.0
+Rayo Vallecano,Atletico Madrid,0,2,A,La Liga,2022-01-16,2021/22,4.25,3.6,1.95
+Atletico Madrid,Rayo Vallecano,2,0,H,La Liga,2022-05-21,2021/22,1.44,4.75,8.0
+Real Sociedad,Real Madrid,0,2,A,La Liga,2022-04-30,2021/22,4.0,3.6,2.0
+Real Madrid,Real Sociedad,5,3,H,La Liga,2022-02-05,2021/22,1.36,5.0,10.0
+Real Madrid,Valladolid,6,0,H,La Liga,2023-04-02,2022/23,1.14,8.0,21.0
+Valladolid,Barcelona,0,1,A,La Liga,2022-12-30,2022/23,7.5,5.0,1.44
+Real Madrid,Girona,3,2,H,La Liga,2022-10-30,2022/23,1.36,5.0,10.0
+Girona,Barcelona,0,0,D,La Liga,2022-09-10,2022/23,4.5,3.75,1.87
+Athletic Bilbao,Real Madrid,2,0,H,La Liga,2022-10-22,2022/23,4.25,3.6,1.95
+Real Madrid,Athletic Bilbao,2,0,H,La Liga,2023-04-16,2022/23,1.25,6.5,14.0
+Sevilla,Atletico Madrid,0,1,A,La Liga,2022-10-05,2022/23,3.0,3.3,2.5
+Atletico Madrid,Sevilla,2,0,H,La Liga,2023-01-29,2022/23,1.65,4.0,5.5
+Real Betis,Atletico Madrid,0,0,D,La Liga,2022-11-20,2022/23,2.75,3.25,2.87
+Atletico Madrid,Real Betis,2,0,H,La Liga,2023-05-08,2022/23,1.65,4.0,5.5
+Real Madrid,Mallorca,4,0,H,La Liga,2023-09-03,2023/24,1.22,7.0,16.0
+Mallorca,Real Madrid,0,1,A,La Liga,2024-03-02,2023/24,8.5,5.25,1.4
+Barcelona,Las Palmas,2,1,H,La Liga,2023-09-30,2023/24,1.25,6.5,14.0
+Las Palmas,Barcelona,1,2,A,La Liga,2024-02-03,2023/24,8.0,5.25,1.44
+Atletico Madrid,Celta Vigo,2,0,H,La Liga,2023-10-28,2023/24,1.5,4.5,7.5
+Celta Vigo,Atletico Madrid,0,2,A,La Liga,2024-03-17,2023/24,4.75,3.75,1.87
+Real Sociedad,Barcelona,1,1,D,La Liga,2024-03-17,2023/24,3.25,3.3,2.4
+Barcelona,Real Sociedad,1,0,H,La Liga,2023-10-14,2023/24,1.36,5.0,10.0
+Getafe,Atletico Madrid,0,2,A,La Liga,2023-12-03,2023/24,5.5,4.25,1.65
+Atletico Madrid,Getafe,1,0,H,La Liga,2024-04-07,2023/24,1.44,4.75,8.0
+Real Betis,Real Madrid,1,1,D,La Liga,2023-11-26,2023/24,4.0,3.6,2.0
+Real Madrid,Real Betis,2,0,H,La Liga,2024-05-05,2023/24,1.25,6.5,14.0
+Bayern Munich,Hertha Berlin,4,3,H,Bundesliga,2020-11-07,2020/21,1.22,7.0,16.0
+Borussia Dortmund,Schalke,3,0,H,Bundesliga,2020-10-24,2020/21,1.44,4.75,8.0
+Schalke,Bayern Munich,0,3,A,Bundesliga,2020-09-26,2020/21,8.5,5.25,1.4
+RB Leipzig,Schalke,2,2,D,Bundesliga,2020-09-19,2020/21,1.3,5.75,11.0
+Bayern Munich,Dortmund,4,2,H,Bundesliga,2021-03-06,2020/21,1.44,4.75,8.0
+Dortmund,Bayern Munich,2,3,A,Bundesliga,2020-11-07,2020/21,2.87,3.3,2.75
+RB Leipzig,Bayern Munich,0,1,A,Bundesliga,2021-04-03,2020/21,3.0,3.3,2.5
+Bayern Munich,RB Leipzig,5,1,H,Bundesliga,2020-09-26,2020/21,1.57,4.0,6.5
+Bayer Leverkusen,Dortmund,4,3,H,Bundesliga,2020-11-07,2020/21,2.87,3.25,2.75
+Dortmund,Bayer Leverkusen,2,0,H,Bundesliga,2021-01-22,2020/21,1.8,3.75,4.75
+Eintracht Frankfurt,Bayern Munich,0,5,A,Bundesliga,2020-09-05,2020/21,4.25,3.6,1.95
+Bayern Munich,Eintracht Frankfurt,2,1,H,Bundesliga,2021-02-20,2020/21,1.3,5.75,11.0
+Freiburg,Dortmund,0,1,A,Bundesliga,2020-10-03,2020/21,3.6,3.3,2.25
+Dortmund,Freiburg,4,0,H,Bundesliga,2021-03-13,2020/21,1.4,5.0,8.5
+Hoffenheim,Bayern Munich,1,4,A,Bundesliga,2020-09-26,2020/21,6.5,4.75,1.53
+Bayern Munich,Hoffenheim,6,0,H,Bundesliga,2021-03-06,2020/21,1.18,7.5,19.0
+VfB Stuttgart,Bayern Munich,0,3,A,Bundesliga,2020-10-17,2020/21,5.5,4.25,1.65
+Bayern Munich,VfB Stuttgart,4,0,H,Bundesliga,2021-01-09,2020/21,1.2,7.0,17.0
+Union Berlin,Dortmund,1,2,A,Bundesliga,2020-10-10,2020/21,4.25,3.6,1.95
+Dortmund,Union Berlin,3,0,H,Bundesliga,2021-01-19,2020/21,1.3,5.75,11.0
+Bayern Munich,Dortmund,3,1,H,Bundesliga,2021-12-04,2021/22,1.44,4.75,8.0
+Dortmund,Bayern Munich,2,3,A,Bundesliga,2022-04-23,2021/22,2.87,3.3,2.75
+RB Leipzig,Dortmund,0,2,A,Bundesliga,2021-12-18,2021/22,2.25,3.4,3.4
+Dortmund,RB Leipzig,3,1,H,Bundesliga,2022-04-16,2021/22,1.75,3.8,5.0
+Bayern Munich,Leverkusen,1,0,H,Bundesliga,2021-10-17,2021/22,1.44,4.75,8.0
+Leverkusen,Bayern Munich,1,5,A,Bundesliga,2022-02-05,2021/22,3.6,3.3,2.25
+Eintracht Frankfurt,Bayern Munich,2,3,A,Bundesliga,2021-11-06,2021/22,4.25,3.6,1.95
+Bayern Munich,Eintracht Frankfurt,1,0,H,Bundesliga,2022-04-30,2021/22,1.3,5.75,11.0
+Union Berlin,Bayern Munich,2,4,A,Bundesliga,2022-02-20,2021/22,6.5,4.75,1.53
+Bayern Munich,Union Berlin,4,0,H,Bundesliga,2021-09-11,2021/22,1.18,7.5,19.0
+Stuttgart,Dortmund,1,2,A,Bundesliga,2021-10-30,2021/22,3.75,3.5,2.1
+Dortmund,Stuttgart,2,1,H,Bundesliga,2022-03-05,2021/22,1.36,5.0,10.0
+Mainz,Bayern Munich,2,1,H,Bundesliga,2022-03-05,2021/22,6.5,4.75,1.53
+Bayern Munich,Mainz,3,2,H,Bundesliga,2021-09-25,2021/22,1.22,7.0,16.0
+Freiburg,Leverkusen,2,1,H,Bundesliga,2022-02-06,2021/22,2.87,3.25,2.75
+Leverkusen,Freiburg,3,2,H,Bundesliga,2021-12-04,2021/22,1.75,3.8,5.0
+Hoffenheim,Dortmund,1,3,A,Bundesliga,2021-10-02,2021/22,3.75,3.5,2.1
+Dortmund,Hoffenheim,3,0,H,Bundesliga,2022-01-22,2021/22,1.36,5.0,10.0
+Wolfsburg,Bayern Munich,1,4,A,Bundesliga,2021-09-18,2021/22,5.0,4.0,1.75
+Bayern Munich,Wolfsburg,4,0,H,Bundesliga,2022-03-19,2021/22,1.18,7.5,19.0
+Bayer Leverkusen,Dortmund,3,4,A,Bundesliga,2022-10-08,2022/23,2.75,3.25,2.87
+Dortmund,Leverkusen,4,2,H,Bundesliga,2023-01-14,2022/23,1.72,3.8,5.25
+Union Berlin,Dortmund,2,0,H,Bundesliga,2022-10-29,2022/23,3.1,3.3,2.5
+Dortmund,Union Berlin,2,0,H,Bundesliga,2023-02-11,2022/23,1.36,5.0,10.0
+Freiburg,RB Leipzig,0,1,A,Bundesliga,2022-09-10,2022/23,2.62,3.25,2.87
+RB Leipzig,Freiburg,2,0,H,Bundesliga,2023-01-21,2022/23,1.72,3.8,5.25
+Hoffenheim,RB Leipzig,1,2,A,Bundesliga,2022-09-17,2022/23,3.25,3.3,2.4
+RB Leipzig,Hoffenheim,3,0,H,Bundesliga,2023-02-11,2022/23,1.36,5.0,10.0
+Mainz,Bayern Munich,2,1,H,Bundesliga,2022-10-01,2022/23,6.5,4.75,1.53
+Bayern Munich,Mainz,6,2,H,Bundesliga,2023-01-28,2022/23,1.18,7.5,19.0
+Bayer Leverkusen,Koln,3,0,H,Bundesliga,2024-01-20,2023/24,1.22,7.0,16.0
+Koln,Bayer Leverkusen,0,2,A,Bundesliga,2023-10-07,2023/24,7.5,5.0,1.44
+Bayer Leverkusen,Augsburg,3,0,H,Bundesliga,2024-01-14,2023/24,1.2,7.0,17.0
+Augsburg,Bayer Leverkusen,0,2,A,Bundesliga,2023-11-04,2023/24,7.5,5.0,1.44
+Bayer Leverkusen,Union Berlin,3,0,H,Bundesliga,2024-03-30,2023/24,1.22,7.0,16.0
+Union Berlin,Bayer Leverkusen,0,4,A,Bundesliga,2023-12-03,2023/24,6.5,4.75,1.53
+Bayer Leverkusen,Gladbach,3,0,H,Bundesliga,2024-03-16,2023/24,1.25,6.5,14.0
+Gladbach,Bayer Leverkusen,1,3,A,Bundesliga,2023-10-21,2023/24,5.5,4.25,1.65
+Eintracht Frankfurt,Bayer Leverkusen,2,3,A,Bundesliga,2024-04-06,2023/24,3.75,3.5,2.1
+Bayer Leverkusen,Eintracht Frankfurt,5,1,H,Bundesliga,2023-08-18,2023/24,1.3,5.75,11.0
+Inter Milan,Juventus,2,0,H,Serie A,2021-01-17,2020/21,2.25,3.3,3.4
+Juventus,Inter Milan,3,2,H,Serie A,2020-10-24,2020/21,2.0,3.4,4.0
+Napoli,Juventus,1,1,D,Serie A,2021-04-07,2020/21,2.75,3.25,2.87
+Juventus,Napoli,2,1,H,Serie A,2020-08-31,2020/21,1.87,3.6,4.5
+AC Milan,Inter Milan,0,3,A,Serie A,2021-02-21,2020/21,2.5,3.3,3.0
+Inter Milan,AC Milan,1,2,A,Serie A,2021-05-02,2020/21,2.25,3.3,3.4
+Roma,Juventus,2,0,H,Serie A,2021-01-09,2020/21,3.4,3.3,2.25
+Juventus,Roma,2,0,H,Serie A,2020-12-22,2020/21,1.87,3.6,4.5
+Fiorentina,Inter Milan,0,2,A,Serie A,2020-09-26,2020/21,3.25,3.3,2.4
+Inter Milan,Fiorentina,3,2,H,Serie A,2021-03-19,2020/21,1.57,4.0,6.5
+Lazio,Inter Milan,1,3,A,Serie A,2021-04-04,2020/21,2.75,3.25,2.87
+Inter Milan,Lazio,2,1,H,Serie A,2020-10-04,2020/21,1.65,4.0,5.5
+Atalanta,Juventus,1,1,D,Serie A,2021-04-18,2020/21,2.87,3.25,2.75
+Juventus,Atalanta,3,2,H,Serie A,2020-11-28,2020/21,1.72,3.8,5.25
+Torino,Juventus,2,2,D,Serie A,2021-05-12,2020/21,3.75,3.4,2.1
+Juventus,Torino,2,1,H,Serie A,2020-12-05,2020/21,1.57,4.0,6.5
+Bologna,Inter Milan,0,1,A,Serie A,2020-10-03,2020/21,4.0,3.6,2.0
+Inter Milan,Bologna,3,1,H,Serie A,2021-05-16,2020/21,1.36,5.0,10.0
+Verona,Juventus,1,1,D,Serie A,2021-05-01,2020/21,5.0,4.0,1.75
+Juventus,Verona,1,0,H,Serie A,2020-10-25,2020/21,1.57,4.0,6.5
+Inter Milan,Juventus,2,0,H,Serie A,2022-04-03,2021/22,2.1,3.4,3.75
+Juventus,Inter Milan,0,2,A,Serie A,2021-11-24,2021/22,2.0,3.4,4.0
+Napoli,Juventus,3,2,H,Serie A,2022-04-10,2021/22,2.62,3.25,2.87
+Juventus,Napoli,1,0,H,Serie A,2021-09-11,2021/22,1.95,3.5,4.25
+AC Milan,Napoli,0,1,A,Serie A,2022-04-18,2021/22,2.1,3.4,3.75
+Napoli,AC Milan,1,0,H,Serie A,2021-10-16,2021/22,2.2,3.4,3.5
+Roma,Napoli,0,2,A,Serie A,2022-05-18,2021/22,3.0,3.3,2.5
+Napoli,Roma,1,0,H,Serie A,2021-10-24,2021/22,1.65,3.9,5.5
+Fiorentina,Napoli,2,3,A,Serie A,2021-10-03,2021/22,3.25,3.3,2.4
+Napoli,Fiorentina,2,1,H,Serie A,2022-05-21,2021/22,1.53,4.25,7.0
+Torino,Napoli,1,1,D,Serie A,2022-04-30,2021/22,4.0,3.6,2.0
+Napoli,Torino,1,1,D,Serie A,2021-10-17,2021/22,1.36,5.0,10.0
+Empoli,Napoli,3,2,H,Serie A,2022-05-22,2021/22,5.25,4.0,1.72
+Napoli,Empoli,2,0,H,Serie A,2021-08-22,2021/22,1.25,6.5,14.0
+Lazio,Napoli,2,1,H,Serie A,2021-11-20,2021/22,3.0,3.3,2.5
+Napoli,Lazio,2,1,H,Serie A,2022-04-07,2021/22,1.57,4.0,6.5
+Udinese,Napoli,0,2,A,Serie A,2021-09-20,2021/22,5.5,4.25,1.65
+Napoli,Udinese,4,0,H,Serie A,2022-01-09,2021/22,1.22,7.0,16.0
+Sassuolo,Napoli,2,2,D,Serie A,2022-02-20,2021/22,3.4,3.3,2.3
+Napoli,Sassuolo,4,0,H,Serie A,2021-11-28,2021/22,1.22,7.0,16.0
+Napoli,Ajax,4,2,H,Champions League,2022-10-04,2022/23,1.44,4.75,8.0
+Ajax,Napoli,1,6,A,Champions League,2022-10-12,2022/23,2.87,3.25,2.75
+Napoli,Liverpool,4,1,H,Champions League,2022-09-07,2022/23,2.62,3.25,2.87
+Liverpool,Napoli,2,0,H,Champions League,2022-11-01,2022/23,1.65,4.0,5.5
+Fiorentina,AC Milan,1,1,D,Serie A,2022-10-29,2022/23,2.87,3.25,2.75
+AC Milan,Fiorentina,2,1,H,Serie A,2023-03-11,2022/23,1.87,3.6,4.5
+Atalanta,Roma,0,1,A,Serie A,2022-10-02,2022/23,2.62,3.25,2.87
+Roma,Atalanta,1,0,H,Serie A,2023-03-12,2022/23,2.5,3.25,3.1
+Lazio,Roma,1,0,H,Serie A,2022-09-11,2022/23,2.37,3.3,3.25
+Roma,Lazio,1,0,H,Serie A,2023-03-19,2022/23,2.62,3.25,2.87
+Inter Milan,Lazio,2,0,H,Serie A,2024-04-20,2023/24,1.53,4.25,7.0
+Lazio,Inter Milan,1,2,A,Serie A,2023-12-17,2023/24,3.5,3.4,2.25
+AC Milan,Fiorentina,2,1,H,Serie A,2024-03-30,2023/24,1.83,3.7,4.75
+Fiorentina,AC Milan,2,2,D,Serie A,2023-11-04,2023/24,2.87,3.25,2.75
+Roma,AC Milan,0,0,D,Serie A,2024-01-14,2023/24,3.25,3.3,2.4
+AC Milan,Roma,3,1,H,Serie A,2023-10-29,2023/24,1.87,3.6,4.5
+Atalanta,Roma,2,2,D,Serie A,2024-03-02,2023/24,2.5,3.25,3.1
+Roma,Atalanta,1,1,D,Serie A,2023-10-28,2023/24,2.87,3.25,2.75
+Torino,Juventus,0,3,A,Serie A,2024-04-13,2023/24,4.25,3.6,1.95
+Juventus,Torino,4,0,H,Serie A,2023-11-04,2023/24,1.44,4.75,8.0
+PSG,Angers,6,1,H,Ligue 1,2020-10-17,2020/21,1.18,7.5,19.0
+Marseille,Bordeaux,3,1,H,Ligue 1,2020-09-20,2020/21,1.83,3.7,4.75
+Monaco,Brest,4,0,H,Ligue 1,2020-10-03,2020/21,1.57,4.0,6.5
+Lens,Nice,1,0,H,Ligue 1,2020-10-04,2020/21,2.5,3.3,3.1
+Lyon,Nantes,4,1,H,Ligue 1,2020-10-03,2020/21,1.65,3.9,5.5
+PSG,Bordeaux,2,2,D,Ligue 1,2020-11-28,2020/21,1.3,5.75,11.0
+Marseille,Lens,1,1,D,Ligue 1,2020-11-21,2020/21,1.95,3.5,4.25
+Lyon,Strasbourg,4,1,H,Ligue 1,2020-10-24,2020/21,1.57,4.0,6.5
+Monaco,Metz,3,0,H,Ligue 1,2020-11-07,2020/21,1.57,4.0,6.5
+Nice,PSG,1,1,D,Ligue 1,2020-10-18,2020/21,5.0,4.0,1.75
+Reims,Marseille,0,0,D,Ligue 1,2020-11-01,2020/21,3.4,3.3,2.3
+Brest,PSG,0,3,A,Ligue 1,2020-09-10,2020/21,9.0,5.75,1.36
+Angers,Lyon,0,2,A,Ligue 1,2020-11-22,2020/21,3.25,3.3,2.4
+Nantes,Monaco,0,2,A,Ligue 1,2020-12-13,2020/21,3.75,3.5,2.1
+Lorient,PSG,1,3,A,Ligue 1,2020-09-27,2020/21,8.5,5.25,1.4
+PSG,Dijon,4,0,H,Ligue 1,2020-10-24,2020/21,1.14,8.0,21.0
+Montpellier,Marseille,2,1,H,Ligue 1,2020-12-06,2020/21,2.87,3.25,2.75
+Monaco,Lyon,2,1,H,Ligue 1,2021-03-07,2020/21,2.0,3.5,4.0
+Lille,PSG,1,0,H,Ligue 1,2021-04-10,2020/21,4.0,3.6,2.0
+PSG,Lille,0,1,A,Ligue 1,2021-02-14,2020/21,1.36,5.0,10.0
+PSG,Lyon,2,1,H,Ligue 1,2021-09-19,2021/22,1.3,5.75,11.0
+Lyon,PSG,1,2,A,Ligue 1,2022-01-09,2021/22,4.75,3.75,1.87
+Monaco,PSG,0,2,A,Ligue 1,2021-11-20,2021/22,3.75,3.5,2.1
+PSG,Monaco,2,0,H,Ligue 1,2022-02-20,2021/22,1.3,5.75,11.0
+Marseille,Monaco,2,2,D,Ligue 1,2021-10-10,2021/22,2.0,3.5,4.0
+Monaco,Marseille,1,0,H,Ligue 1,2022-03-20,2021/22,2.1,3.4,3.75
+Nice,PSG,0,0,D,Ligue 1,2021-10-01,2021/22,4.75,3.75,1.87
+PSG,Nice,1,0,H,Ligue 1,2021-12-01,2021/22,1.25,6.5,14.0
+Lens,Monaco,1,2,A,Ligue 1,2021-12-04,2021/22,2.87,3.25,2.75
+Monaco,Lens,2,0,H,Ligue 1,2022-03-06,2021/22,1.72,3.8,5.25
+Reims,PSG,0,2,A,Ligue 1,2021-08-29,2021/22,8.5,5.25,1.4
+PSG,Reims,2,0,H,Ligue 1,2022-04-23,2021/22,1.2,7.0,17.0
+Nantes,PSG,1,3,A,Ligue 1,2022-02-19,2021/22,7.5,5.0,1.44
+PSG,Nantes,3,0,H,Ligue 1,2021-09-11,2021/22,1.18,7.5,19.0
+Angers,Marseille,0,2,A,Ligue 1,2022-01-23,2021/22,3.4,3.3,2.3
+Marseille,Angers,2,0,H,Ligue 1,2022-04-16,2021/22,1.4,5.0,8.5
+Lille,Marseille,0,0,D,Ligue 1,2022-02-06,2021/22,2.62,3.25,2.87
+Marseille,Lille,2,1,H,Ligue 1,2021-10-24,2021/22,1.95,3.5,4.25
+St Etienne,PSG,1,3,A,Ligue 1,2022-04-30,2021/22,8.0,5.25,1.44
+PSG,St Etienne,3,1,H,Ligue 1,2021-11-28,2021/22,1.18,7.5,19.0
+Lorient,PSG,1,5,A,Ligue 1,2023-01-29,2022/23,8.5,5.25,1.4
+PSG,Lorient,2,1,H,Ligue 1,2022-09-11,2022/23,1.18,7.5,19.0
+Clermont,PSG,0,6,A,Ligue 1,2022-08-06,2022/23,10.0,6.0,1.3
+PSG,Clermont,5,0,H,Ligue 1,2023-04-22,2022/23,1.14,8.0,21.0
+Brest,Monaco,1,2,A,Ligue 1,2022-10-30,2022/23,2.87,3.25,2.75
+Monaco,Brest,3,0,H,Ligue 1,2023-01-21,2022/23,1.57,4.0,6.5
+Auxerre,PSG,1,5,A,Ligue 1,2022-11-13,2022/23,10.0,6.0,1.3
+PSG,Auxerre,2,1,H,Ligue 1,2023-03-12,2022/23,1.14,8.0,21.0
+Ajaccio,Monaco,0,4,A,Ligue 1,2022-11-06,2022/23,7.0,5.0,1.44
+Monaco,Ajaccio,6,0,H,Ligue 1,2022-08-13,2022/23,1.3,5.75,11.0
+Reims,PSG,0,3,A,Ligue 1,2024-04-12,2023/24,10.0,6.0,1.33
+PSG,Reims,3,0,H,Ligue 1,2023-08-26,2023/24,1.18,7.5,19.0
+Metz,PSG,2,5,A,Ligue 1,2023-12-09,2023/24,8.5,5.25,1.4
+PSG,Metz,3,0,H,Ligue 1,2024-02-10,2023/24,1.14,8.0,21.0
+Le Havre,Monaco,1,2,A,Ligue 1,2024-01-13,2023/24,3.4,3.3,2.3
+Monaco,Le Havre,4,1,H,Ligue 1,2023-09-16,2023/24,1.36,5.0,10.0
+Strasbourg,Monaco,0,2,A,Ligue 1,2024-03-03,2023/24,3.75,3.5,2.1
+Monaco,Strasbourg,5,0,H,Ligue 1,2023-10-07,2023/24,1.3,5.75,11.0
+Montpellier,PSG,0,6,A,Ligue 1,2024-04-27,2023/24,10.0,6.0,1.3
+PSG,Montpellier,6,0,H,Ligue 1,2023-11-25,2023/24,1.14,8.0,21.0
+Chelsea,Real Madrid,2,0,H,Champions League,2021-04-06,2020/21,2.37,3.3,3.25
+Real Madrid,Chelsea,1,2,A,Champions League,2021-04-12,2020/21,2.0,3.5,4.0
+Manchester City,PSG,2,1,H,Champions League,2021-04-06,2020/21,1.75,3.75,5.25
+PSG,Manchester City,1,2,A,Champions League,2021-04-28,2020/21,2.37,3.3,3.25
+Bayern Munich,PSG,2,3,A,Champions League,2021-04-07,2020/21,1.53,4.25,7.0
+PSG,Bayern Munich,0,1,A,Champions League,2021-04-13,2020/21,2.37,3.3,3.25
+Real Madrid,Atalanta,3,1,H,Champions League,2021-03-16,2020/21,1.65,4.0,5.5
+Atalanta,Real Madrid,0,1,A,Champions League,2021-02-24,2020/21,4.0,3.6,2.0
+Liverpool,Leipzig,2,0,H,Champions League,2021-03-10,2020/21,1.44,4.75,8.0
+Leipzig,Liverpool,0,2,A,Champions League,2021-02-16,2020/21,3.25,3.3,2.4
+Dortmund,Sevilla,2,2,D,Champions League,2021-03-09,2020/21,1.83,3.7,4.75
+Sevilla,Dortmund,2,3,A,Champions League,2021-03-17,2020/21,2.37,3.3,3.25
+Manchester City,Dortmund,2,1,H,Champions League,2021-04-06,2020/21,1.62,4.0,6.0
+Dortmund,Manchester City,1,2,A,Champions League,2021-04-14,2020/21,2.87,3.25,2.75
+Porto,Chelsea,1,0,H,Champions League,2021-04-07,2020/21,3.5,3.4,2.25
+Chelsea,Porto,2,0,H,Champions League,2021-04-13,2020/21,1.72,3.8,5.25
+PSG,Barcelona,4,1,H,Champions League,2021-02-16,2020/21,2.1,3.4,3.75
+Barcelona,PSG,1,4,A,Champions League,2021-03-10,2020/21,2.0,3.5,4.0
+Juventus,Porto,3,2,H,Champions League,2021-03-09,2020/21,1.65,4.0,5.5
+Porto,Juventus,0,3,A,Champions League,2021-02-17,2020/21,2.62,3.25,2.87
+Chelsea,Juventus,4,0,H,Champions League,2021-09-29,2021/22,1.65,4.0,5.5
+Juventus,Chelsea,1,0,H,Champions League,2021-11-23,2021/22,2.5,3.25,3.1
+Manchester United,Villarreal,2,1,H,Champions League,2021-09-29,2021/22,1.65,3.9,5.5
+Villarreal,Manchester United,2,0,H,Champions League,2021-11-23,2021/22,2.37,3.3,3.25
+Liverpool,Atletico Madrid,2,0,H,Champions League,2022-03-08,2021/22,1.57,4.25,6.5
+Atletico Madrid,Liverpool,1,0,H,Champions League,2022-02-22,2021/22,3.0,3.3,2.62
+Benfica,Liverpool,1,3,A,Champions League,2022-04-05,2021/22,4.0,3.6,2.0
+Liverpool,Benfica,3,3,D,Champions League,2022-04-13,2021/22,1.44,4.75,8.0
+Real Madrid,Chelsea,3,1,H,Champions League,2022-04-12,2021/22,1.87,3.6,4.5
+Chelsea,Real Madrid,1,3,A,Champions League,2022-04-06,2021/22,2.37,3.3,3.25
+Bayern Munich,Villarreal,1,0,H,Champions League,2022-04-12,2021/22,1.4,5.0,8.5
+Villarreal,Bayern Munich,1,1,D,Champions League,2022-04-06,2021/22,4.0,3.6,2.0
+Manchester City,Atletico Madrid,1,0,H,Champions League,2022-04-05,2021/22,1.72,3.8,5.25
+Atletico Madrid,Manchester City,0,0,D,Champions League,2022-04-13,2021/22,2.87,3.25,2.75
+Benfica,Ajax,1,2,A,Champions League,2021-12-08,2021/22,3.0,3.3,2.5
+Ajax,Benfica,4,2,H,Champions League,2021-11-23,2021/22,1.72,3.8,5.25
+Dortmund,Ajax,1,3,A,Champions League,2021-11-03,2021/22,2.1,3.5,3.75
+Ajax,Dortmund,4,0,H,Champions League,2021-10-19,2021/22,1.87,3.6,4.5
+Liverpool,AC Milan,3,2,H,Champions League,2021-09-15,2021/22,1.53,4.25,7.0
+AC Milan,Liverpool,1,2,A,Champions League,2021-12-07,2021/22,2.75,3.25,2.87
+Bayern Munich,PSG,2,0,H,Champions League,2023-03-08,2022/23,1.62,4.0,6.0
+PSG,Bayern Munich,1,0,H,Champions League,2023-02-14,2022/23,2.5,3.3,3.0
+Benfica,Club Brugge,5,1,H,Champions League,2022-10-05,2022/23,1.44,4.75,8.0
+Club Brugge,Benfica,0,4,A,Champions League,2022-11-01,2022/23,3.4,3.3,2.3
+Liverpool,Ajax,2,1,H,Champions League,2022-09-13,2022/23,1.53,4.25,7.0
+Ajax,Liverpool,0,3,A,Champions League,2022-10-04,2022/23,3.25,3.3,2.4
+Real Madrid,Leipzig,2,0,H,Champions League,2022-09-14,2022/23,1.3,5.75,11.0
+Leipzig,Real Madrid,3,2,H,Champions League,2022-10-25,2022/23,3.4,3.3,2.3
+Manchester City,FC Copenhagen,5,0,H,Champions League,2022-10-05,2022/23,1.18,7.5,19.0
+FC Copenhagen,Manchester City,0,0,D,Champions League,2022-11-02,2022/23,9.5,5.75,1.36
+Dortmund,Manchester City,0,0,D,Champions League,2022-10-25,2022/23,2.75,3.25,2.87
+Manchester City,Dortmund,2,1,H,Champions League,2022-09-14,2022/23,1.44,4.75,8.0
+Juventus,Benfica,1,2,A,Champions League,2022-10-25,2022/23,2.25,3.3,3.4
+Benfica,Juventus,4,3,H,Champions League,2022-11-02,2022/23,2.0,3.4,4.0
+Eintracht Frankfurt,Tottenham,0,3,A,Champions League,2022-10-04,2022/23,2.75,3.25,2.87
+Tottenham,Eintracht Frankfurt,3,2,H,Champions League,2022-09-13,2022/23,1.75,3.8,5.0
+Leverkusen,Atletico Madrid,2,0,H,Champions League,2022-10-04,2022/23,2.62,3.25,2.87
+Atletico Madrid,Leverkusen,2,1,H,Champions League,2022-11-02,2022/23,1.75,3.75,5.25
+Porto,Club Brugge,4,0,H,Champions League,2022-10-26,2022/23,1.44,4.75,8.0
+Club Brugge,Porto,0,4,A,Champions League,2022-11-01,2022/23,3.6,3.3,2.25

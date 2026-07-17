@@ -1,0 +1,6 @@
+PREDICTION_RESULT = "predictions:{}"
+FIXTURE_LIST = "fixtures:list"
+ODDS_SNAPSHOT = "odds:{}"
+LEADERBOARD_TOP = "leaderboard:top"
+VITCOIN_PRICE = "wallet:vitcoin_price"
+SEM_SEARCH = "sem_search:{}:{}"

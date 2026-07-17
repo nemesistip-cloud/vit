@@ -1,0 +1,343 @@
+"""
+app/ai/market_trainer.py — Phase 2: Specialized Market Model Training Pipeline
+(sklearn-based — no torch dependency)
+
+Trains BTTSModel, OverUnderModel, and CorrectScoreModel using data from:
+  1. The DB (settled match predictions, when available)
+  2. The historical_matches.json CSV-sourced dataset (always available)
+
+This ensures market models always train, even on a fresh install.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+
+from app.ai.market_models import (
+    BTTSModel,
+    OverUnderModel,
+    CorrectScoreModel,
+    _BTTS_FEATURE_KEYS,
+    _OU_FEATURE_KEYS,
+    _CS_FEATURE_KEYS,
+    _btts_label,
+    _ou_label,
+    _cs_label,
+    build_feature_vector,
+)
+
+logger = logging.getLogger(__name__)
+
+MODELS_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "models")
+)
+HIST_JSON = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "data", "historical_matches.json")
+)
+
+
+# ---------------------------------------------------------------------------
+# Data loading helpers
+# ---------------------------------------------------------------------------
+
+async def _load_training_data(db) -> List[Dict]:
+    """Pull settled matches with features from the DB."""
+    try:
+        from sqlalchemy import select, and_
+        from app.db.models import Match, Prediction
+
+        rows = (await db.execute(
+            select(
+                Match.id,
+                Match.home_goals,
+                Match.away_goals,
+                Match.opening_odds_home, Match.opening_odds_draw, Match.opening_odds_away,
+                Match.closing_odds_home, Match.closing_odds_draw, Match.closing_odds_away,
+                Prediction.home_prob, Prediction.draw_prob, Prediction.away_prob,
+                Prediction.over_25_prob, Prediction.btts_prob,
+                Prediction.model_insights,
+            ).join(Prediction, Prediction.match_id == Match.id).where(
+                and_(
+                    Match.home_goals.isnot(None),
+                    Match.away_goals.isnot(None),
+                    Match.closing_odds_home.isnot(None),
+                )
+            ).limit(5000)
+        )).fetchall()
+
+        cols = [
+            "match_id", "home_goals", "away_goals",
+            "open_home", "open_draw", "open_away",
+            "close_home", "close_draw", "close_away",
+            "home_prob", "draw_prob", "away_prob",
+            "over_25_prob", "btts_prob", "model_insights",
+        ]
+        records = []
+        for r in rows:
+            d = dict(zip(cols, r))
+            hp = d.get("home_prob") or 0.333
+            dp = d.get("draw_prob") or 0.333
+            ap = d.get("away_prob") or 0.334
+            lam_h = hp * 2.5
+            lam_a = ap * 2.0
+            feat = {
+                "home_xg_per_game": lam_h, "away_xg_per_game": lam_a,
+                "market_home_prob_vf": hp, "market_draw_prob_vf": dp, "market_away_prob_vf": ap,
+                "market_over25_prob_vf": 0.5, "market_btts_prob_vf": 0.5,
+                "lambda_home": lam_h, "lambda_away": lam_a,
+                "xg_total_expected": lam_h + lam_a, "xg_dominance": lam_h / max(0.1, lam_a),
+            }
+            d["features"] = feat
+            records.append(d)
+        return records
+    except Exception as exc:
+        logger.warning("[market-trainer] DB load failed: %s", exc)
+        return []
+
+
+def _load_from_hist_json() -> List[Dict]:
+    """
+    Load historical_matches.json as a training fallback.
+    Returns dicts with 'home_goals', 'away_goals', 'features' keys.
+    """
+    if not os.path.exists(HIST_JSON):
+        return []
+    try:
+        with open(HIST_JSON) as f:
+            matches = json.load(f)
+    except Exception as exc:
+        logger.warning("[market-trainer] Could not load hist JSON: %s", exc)
+        return []
+
+    records = []
+    for m in matches:
+        try:
+            hg = int(m.get("home_goals", 0) or 0)
+            ag = int(m.get("away_goals", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if m.get("actual_outcome") not in ("home", "draw", "away"):
+            continue
+
+        vfp  = m.get("vig_free_probs") or {}
+        hp   = float(vfp.get("home", 0.333))
+        dp   = float(vfp.get("draw", 0.333))
+        ap   = float(vfp.get("away", 0.334))
+
+        lam_h = max(0.1, hp * 2.5)
+        lam_a = max(0.1, ap * 2.0)
+
+        feat = {
+            "home_xg_per_game":          lam_h,
+            "away_xg_per_game":          lam_a,
+            "home_xg_against_per_game":  lam_a * 0.9,
+            "away_xg_against_per_game":  lam_h * 0.9,
+            "home_form_gf":              lam_h,
+            "home_form_ga":              lam_a * 0.9,
+            "away_form_gf":              lam_a,
+            "away_form_ga":              lam_h * 0.9,
+            "home_form_games":           5.0,
+            "away_form_games":           5.0,
+            "h2h_btts_rate":             0.5,
+            "h2h_avg_goals":             2.5,
+            "poisson_btts_prob":         min(0.95, lam_h * lam_a / 4.0),
+            "poisson_over25_prob":       0.5,
+            "lambda_home":               lam_h,
+            "lambda_away":               lam_a,
+            "ref_discipline_index":      0.5,
+            "ref_fouls_per_game":        24.0,
+            "market_btts_prob_vf":       0.5,
+            "market_over25_prob_vf":     0.5,
+            "market_home_prob_vf":       hp,
+            "market_draw_prob_vf":       dp,
+            "market_away_prob_vf":       ap,
+            "home_injury_score":         0.0,
+            "away_injury_score":         0.0,
+            "home_rest_days":            4.0,
+            "away_rest_days":            4.0,
+            "xg_total_expected":         lam_h + lam_a,
+            "home_shots_per_game":       lam_h * 4.0,
+            "away_shots_per_game":       lam_a * 4.0,
+            "home_shot_accuracy":        0.35,
+            "away_shot_accuracy":        0.35,
+            "home_form_ppg":             hp * 3.0,
+            "away_form_ppg":             ap * 3.0,
+            "injury_balance":            0.0,
+            "home_goal_threat":          lam_h * 0.8,
+            "away_goal_threat":          lam_a * 0.8,
+            "home_position":             10,
+            "away_position":             10,
+            "position_gap":              0,
+            "ref_yellows_per_game":      3.5,
+            "xg_dominance":              lam_h / max(0.1, lam_a),
+            "h2h_home_win_rate":         0.4,
+            "h2h_draw_rate":             0.3,
+            "h2h_away_win_rate":         0.3,
+        }
+        records.append({
+            "home_goals": hg,
+            "away_goals":  ag,
+            "features":    feat,
+        })
+
+    logger.info("[market-trainer] Loaded %d records from historical_matches.json", len(records))
+    return records
+
+
+def _build_arrays(
+    records: List[Dict],
+    feature_keys: List[str],
+    label_fn,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    if not records:
+        return None, None
+    X, y = [], []
+    for r in records:
+        hg = int(r.get("home_goals") or 0)
+        ag = int(r.get("away_goals") or 0)
+        vec = build_feature_vector(r.get("features", {}), feature_keys).squeeze()
+        lbl = label_fn(hg, ag)
+        X.append(vec)
+        y.append(lbl)
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int64)
+
+
+# ---------------------------------------------------------------------------
+# Save / load helpers
+# ---------------------------------------------------------------------------
+
+def _save_model(model, model_key: str) -> str:
+    import joblib
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    path = os.path.join(MODELS_DIR, f"{model_key}.pkl")
+    joblib.dump({"model": model, "model_key": model_key}, path)
+    logger.info("[market-trainer] saved %s → %s", model_key, path)
+    return path
+
+
+def load_market_model(model_cls, model_key: str, **kwargs):
+    """Load a saved market model, returning None if not found."""
+    import joblib
+    path = os.path.join(MODELS_DIR, f"{model_key}.pkl")
+    if not os.path.isfile(path):
+        return None
+    try:
+        ckpt = joblib.load(path)
+        if isinstance(ckpt, dict) and "model" in ckpt:
+            return ckpt["model"]
+        logger.warning("[market-trainer] unexpected format for %s", model_key)
+        return None
+    except Exception as exc:
+        logger.warning("[market-trainer] failed to load %s: %s", model_key, exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Training logic
+# ---------------------------------------------------------------------------
+
+def _train_sklearn_model(
+    model,
+    X: np.ndarray,
+    y: np.ndarray,
+    model_key: str,
+) -> Dict[str, Any]:
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, log_loss
+
+    if len(X) < 20:
+        return {"error": "Insufficient samples", "samples": len(X)}
+
+    X_tr, X_val, y_tr, y_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y if len(np.unique(y)) > 1 else None)
+
+    model.fit(X_tr, y_tr)
+
+    preds  = model.predict(X_val)
+    probas = model.predict_proba(X_val)
+    acc    = float(accuracy_score(y_val, preds))
+    try:
+        ll = float(log_loss(y_val, probas))
+    except Exception:
+        ll = 0.0
+
+    logger.info(
+        "[market-trainer] %s trained — val_acc=%.4f  log_loss=%.4f  samples=%d",
+        model_key, acc, ll, len(X),
+    )
+    return {
+        "model_key":     model_key,
+        "val_accuracy":  round(acc, 4),
+        "log_loss":      round(ll, 4),
+        "train_samples": len(X_tr),
+        "val_samples":   len(X_val),
+        "total_samples": len(X),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public training entry points
+# ---------------------------------------------------------------------------
+
+async def train_btts_model(db, epochs: int = 60) -> Dict[str, Any]:
+    records = await _load_training_data(db)
+    if len(records) < 20:
+        records = _load_from_hist_json()
+
+    X, y = _build_arrays(records, _BTTS_FEATURE_KEYS, _btts_label)
+    if X is None or len(X) < 20:
+        return {"error": "Insufficient data", "samples": len(records) if records else 0}
+
+    model = BTTSModel(input_size=len(_BTTS_FEATURE_KEYS))
+    stats = _train_sklearn_model(model, X, y, BTTSModel.MODEL_KEY)
+    path  = _save_model(model, BTTSModel.MODEL_KEY)
+    return {**stats, "saved_to": path}
+
+
+async def train_over_under_model(db, epochs: int = 60) -> Dict[str, Any]:
+    records = await _load_training_data(db)
+    if len(records) < 20:
+        records = _load_from_hist_json()
+
+    X, y = _build_arrays(records, _OU_FEATURE_KEYS, _ou_label)
+    if X is None or len(X) < 20:
+        return {"error": "Insufficient data", "samples": len(records) if records else 0}
+
+    model = OverUnderModel(input_size=len(_OU_FEATURE_KEYS))
+    stats = _train_sklearn_model(model, X, y, OverUnderModel.MODEL_KEY)
+    path  = _save_model(model, OverUnderModel.MODEL_KEY)
+    return {**stats, "saved_to": path}
+
+
+async def train_correct_score_model(db, epochs: int = 80) -> Dict[str, Any]:
+    records = await _load_training_data(db)
+    if len(records) < 30:
+        records = _load_from_hist_json()
+
+    X, y = _build_arrays(records, _CS_FEATURE_KEYS, _cs_label)
+    if X is None or len(X) < 30:
+        return {"error": "Insufficient data", "samples": len(records) if records else 0}
+
+    model = CorrectScoreModel(input_size=len(_CS_FEATURE_KEYS))
+    stats = _train_sklearn_model(model, X, y, CorrectScoreModel.MODEL_KEY)
+    path  = _save_model(model, CorrectScoreModel.MODEL_KEY)
+    return {**stats, "saved_to": path}
+
+
+async def train_all_market_models(db, epochs: int = 60) -> Dict[str, Any]:
+    """Train all three specialized market models and return a combined report."""
+    results: Dict[str, Any] = {}
+    for key, fn in [
+        ("btts",          lambda: train_btts_model(db, epochs)),
+        ("over_under",    lambda: train_over_under_model(db, epochs)),
+        ("correct_score", lambda: train_correct_score_model(db, max(epochs, 80))),
+    ]:
+        try:
+            results[key] = await fn()
+        except Exception as exc:
+            logger.error("[market-trainer] %s training failed: %s", key, exc)
+            results[key] = {"error": str(exc)}
+    return results

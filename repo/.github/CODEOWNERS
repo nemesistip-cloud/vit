@@ -1,0 +1,30 @@
+# VIT Network — Code Owners
+# Each line maps a file pattern to the team responsible.
+
+# Default — Core Engineering owns everything not listed below
+* @Value-intelligence-trust/core-engineering
+
+# AI / ML
+app/modules/ai/ @Value-intelligence-trust/ai-ml-research
+app/agents/ @Value-intelligence-trust/ai-ml-research
+app/services/clv_*.py @Value-intelligence-trust/ai-ml-research
+models/ @Value-intelligence-trust/ai-ml-research
+scripts/train*.py @Value-intelligence-trust/ai-ml-research
+
+# Blockchain
+packages/contracts/ @Value-intelligence-trust/blockchain-web3
+app/modules/blockchain/ @Value-intelligence-trust/blockchain-web3
+app/modules/did/ @Value-intelligence-trust/blockchain-web3
+app/modules/wallet/ @Value-intelligence-trust/blockchain-web3
+
+# Frontend
+frontend/ @Value-intelligence-trust/frontend-design
+
+# Infrastructure
+Dockerfile @Value-intelligence-trust/devops-infrastructure
+scripts/start*.sh @Value-intelligence-trust/devops-infrastructure
+alembic/ @Value-intelligence-trust/devops-infrastructure
+
+# Security — all changes reviewed
+app/auth/ @Value-intelligence-trust/security-compliance
+app/modules/kyc/ @Value-intelligence-trust/security-compliance

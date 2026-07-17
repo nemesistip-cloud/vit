@@ -37,7 +37,11 @@
   }
 
   .glass-hover {
-    @apply glass hover:bg-white/8 hover:border-white/20 transition-all duration-300;
+    @apply glass transition-all duration-300;
+  }
+  .glass-hover:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.20);
   }
 
   .gradient-text {

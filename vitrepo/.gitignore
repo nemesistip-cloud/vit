@@ -1,0 +1,59 @@
+# Environment & secrets
+.env
+.env.*
+.vit_jwt_secret
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.Python
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Trained ML models (large binary files — retrained at deploy)
+models/*.pkl
+backend/models/trained/*.pkl
+
+# Frontend build output & dependencies
+frontend/node_modules/
+frontend/dist/
+
+frontend/.vite/
+node_modules/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Replit environment (agent memory, config, cache)
+.local/
+.agents/
+.cache/
+.replit.bak
+
+# Git backup files
+.git.backup.*
+
+# Test artifacts
+tests_tmp/
+attached_assets/Screenshot_*.jpg
+
+# Runtime-uploaded data (should never be committed)
+data/uploads/
+
+# Nested trained model binaries
+models/**/*.pkl
+
+# Generated test output
+test-results/

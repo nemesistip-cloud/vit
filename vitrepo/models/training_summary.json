@@ -1,0 +1,109 @@
+{
+  "trained_at": "2026-06-11T13:56:57Z",
+  "training_samples": 6743,
+  "ensemble": {
+    "results": {
+      "logistic_v2": {
+        "model_name": "LogisticRegression",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "rf_v2": {
+        "model_name": "RandomForest",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "xgb_v2": {
+        "model_name": "XGBoost",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "poisson_v2": {
+        "model_name": "PoissonGoals",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "elo_v2": {
+        "model_name": "EloRating",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "dixon_coles_v2": {
+        "model_name": "DixonColes",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "lstm_v2": {
+        "model_name": "LSTM",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "transformer_v2": {
+        "model_name": "Transformer",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "ensemble_v2": {
+        "model_name": "NeuralEnsemble",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "market_v2": {
+        "model_name": "MarketImplied",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "bayes_v2": {
+        "model_name": "BayesianNet",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "hybrid_v2": {
+        "model_name": "HybridStack",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      },
+      "llm_consensus_v1": {
+        "model_name": "LLMConsensus",
+        "status": "failed",
+        "error": "'_BaseModel' object has no attribute 'train'"
+      }
+    },
+    "avg_accuracy": 0.0,
+    "avg_ou_accuracy": 0.0,
+    "models_ok": 0,
+    "models_failed": 13,
+    "saved_pkls": 0,
+    "job_id": "train_1781186093"
+  },
+  "market": {
+    "btts": {
+      "model_key": "btts_v2",
+      "val_accuracy": 0.5256,
+      "log_loss": 0.6938,
+      "train_samples": 5394,
+      "val_samples": 1349,
+      "total_samples": 6743,
+      "saved_to": "/app/models/btts_v2.pkl"
+    },
+    "over_under": {
+      "model_key": "over_under_v2",
+      "val_accuracy": 0.2498,
+      "log_loss": 1.59,
+      "train_samples": 5394,
+      "val_samples": 1349,
+      "total_samples": 6743,
+      "saved_to": "/app/models/over_under_v2.pkl"
+    },
+    "correct_score": {
+      "model_key": "correct_score_v2",
+      "val_accuracy": 0.1127,
+      "log_loss": 3.5349,
+      "train_samples": 5394,
+      "val_samples": 1349,
+      "total_samples": 6743,
+      "saved_to": "/app/models/correct_score_v2.pkl"
+    }
+  },
+  "use_real_ml": true
+}

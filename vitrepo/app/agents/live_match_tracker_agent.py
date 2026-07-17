@@ -1,0 +1,248 @@
+"""app/agents/live_match_tracker_agent.py — Live Match Tracking Agent
+
+Runs every 60 seconds during active match windows (08:00-23:59 UTC).
+
+Responsibilities:
+  1. Pull IN_PLAY matches from Football-Data.org
+  2. Update Match.status → "live" and live score (home_goals/away_goals)
+  3. Broadcast live_score_update events via IoT stream
+  4. Detect score changes and emit goal_scored events
+  5. Trigger result settlement for newly FINISHED matches
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
+from app.agents.base import BaseAgent
+
+logger = logging.getLogger(__name__)
+
+# in-memory: match_id → {"home": int, "away": int, "minute": int}
+_prev_scores: Dict[int, Dict[str, Any]] = {}
+
+
+class LiveMatchTrackerAgent(BaseAgent):
+    def __init__(self) -> None:
+        super().__init__(
+            name="live-match-tracker",
+            interval_seconds=60,
+            initial_delay_seconds=30,
+        )
+
+    async def run_cycle(self) -> Dict[str, Any]:
+        from app.services.results_settler import fetch_live_matches
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import Match
+        from app.iot.processor import store_and_broadcast
+        from sqlalchemy import select
+        from difflib import SequenceMatcher
+
+        now = datetime.now(timezone.utc)
+        hour = now.hour
+        # Only run during match hours
+        if hour < 8:
+            return {"skipped": True, "reason": "outside match window"}
+
+        live_api = await fetch_live_matches()
+
+        if not live_api:
+            # No live matches — make sure any stale "live" DB records get reset
+            await self._clear_stale_live(now)
+            return {"live_matches": 0, "score_changes": 0}
+
+        score_changes = 0
+        matches_updated = 0
+        goal_events = []
+
+        async with AsyncSessionLocal() as db:
+            for api_match in live_api:
+                home_name = api_match.get("home_team", "")
+                away_name = api_match.get("away_team", "")
+                home_score: Optional[int] = api_match.get("home_score")
+                away_score: Optional[int] = api_match.get("away_score")
+                minute = api_match.get("minute")
+                league  = api_match.get("league", "")
+
+                # Find DB record via fuzzy name matching
+                rows = await db.execute(
+                    select(Match).where(
+                        Match.status.in_(["scheduled", "upcoming", "live", "in_play"])
+                    ).limit(500)
+                )
+                candidates = rows.scalars().all()
+                match_db: Optional[Match] = None
+                for c in candidates:
+                    if (
+                        SequenceMatcher(None, c.home_team.lower(), home_name.lower()).ratio() > 0.7
+                        and SequenceMatcher(None, c.away_team.lower(), away_name.lower()).ratio() > 0.7
+                    ):
+                        match_db = c
+                        break
+
+                if match_db is None:
+                    continue
+
+                mid = match_db.id
+                prev = _prev_scores.get(mid, {})
+                prev_home = prev.get("home")
+                prev_away = prev.get("away")
+
+                # Update DB record
+                match_db.status = "live"
+                if home_score is not None:
+                    match_db.home_goals = home_score
+                if away_score is not None:
+                    match_db.away_goals = away_score
+                await db.commit()
+                matches_updated += 1
+
+                # Detect score change
+                changed = (
+                    home_score is not None and prev_home is not None
+                    and (home_score != prev_home or away_score != prev_away)
+                )
+                if changed or prev_home is None:
+                    score_str = f"{home_score}-{away_score}" if home_score is not None else "?"
+                    # Broadcast live score update
+                    await store_and_broadcast(
+                        source="live-tracker",
+                        event_type="live_score_update",
+                        match_id=mid,
+                        payload={
+                            "match_id":   mid,
+                            "home_team":  match_db.home_team,
+                            "away_team":  match_db.away_team,
+                            "league":     league,
+                            "score":      score_str,
+                            "home_score": home_score,
+                            "away_score": away_score,
+                            "minute":     minute,
+                            "ts":         now.isoformat(),
+                        },
+                    )
+                    if changed:
+                        score_changes += 1
+                        scorer_team = (
+                            match_db.home_team if home_score and home_score > (prev_home or 0)
+                            else match_db.away_team
+                        )
+                        goal_events.append(f"{scorer_team} scored ({score_str} — {minute}')")
+                        await store_and_broadcast(
+                            source="live-tracker",
+                            event_type="goal_scored",
+                            match_id=mid,
+                            payload={
+                                "match_id":    mid,
+                                "scorer_team": scorer_team,
+                                "score":       score_str,
+                                "minute":      minute,
+                                "home_team":   match_db.home_team,
+                                "away_team":   match_db.away_team,
+                            },
+                        )
+
+                _prev_scores[mid] = {
+                    "home": home_score, "away": away_score, "minute": minute,
+                }
+
+        # NOTE: Settlement is handled by two dedicated loops in main.py:
+        #   • live_match_tracker_loop  → calls settle_completed_db_matches() (DB-only, fast)
+        #   • auto_settle_loop         → calls settle_results() (API-backed, every N minutes)
+        # Calling settle_results() here too would cause triple-settlement of predictions.
+
+        logger.info(
+            "[live-tracker] %d live matches, %d score changes, %d goals",
+            matches_updated, score_changes, len(goal_events),
+        )
+        return {
+            "live_matches":   matches_updated,
+            "score_changes":  score_changes,
+            "goal_events":    goal_events,
+            "api_live_count": len(live_api),
+        }
+
+    async def _clear_stale_live(self, now: datetime) -> None:
+        """Reset status on matches that were marked live but API shows no live games."""
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import Match
+        from sqlalchemy import select
+        from datetime import timedelta
+
+        cutoff = now - timedelta(hours=3)
+        async with AsyncSessionLocal() as db:
+            rows = await db.execute(
+                select(Match).where(
+                    Match.status == "live",
+                    Match.kickoff_time <= cutoff.replace(tzinfo=None),
+                    Match.actual_outcome.is_(None),
+                )
+            )
+            stale = rows.scalars().all()
+            for m in stale:
+                m.status = "completed"
+            if stale:
+                await db.commit()
+                logger.info("[live-tracker] reset %d stale live matches", len(stale))
+
+        # Also auto-complete any past matches (kickoff + 2h) regardless of source
+        await self._auto_complete_past_matches(now)
+
+    async def _auto_complete_past_matches(self, now: datetime) -> None:
+        """Mark matches whose kickoff + 2 hours is in the past as completed.
+
+        Uses deterministic score simulation for local-only matches so the
+        frontend always shows a result. Real-source matches are left to the
+        settlement pipeline but their status is still advanced so they don't
+        show as 'upcoming' forever when the API is unavailable.
+        """
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import Match
+        from sqlalchemy import select
+        from datetime import timedelta
+
+        match_duration = timedelta(hours=2)
+        cutoff = now - match_duration
+
+        async with AsyncSessionLocal() as db:
+            rows = await db.execute(
+                select(Match).where(
+                    Match.kickoff_time <= cutoff.replace(tzinfo=None),
+                    Match.status.notin_(["completed", "finished", "ft", "FT", "FINISHED"]),
+                )
+            )
+            past = rows.scalars().all()
+            if not past:
+                return
+
+            from app.services.ft_backfill import _simulate_ft_score, _outcome, _is_real_source
+
+            completed = 0
+            for m in past:
+                try:
+                    if m.home_goals is None or m.away_goals is None:
+                        if _is_real_source(m):
+                            # Real source — advance status but don't fabricate score
+                            m.status = "completed"
+                        else:
+                            # Local/synthetic — simulate a plausible result
+                            hg, ag = _simulate_ft_score(m)
+                            m.home_goals = hg
+                            m.away_goals = ag
+                            m.actual_outcome = _outcome(hg, ag)
+                            m.status = "completed"
+                            base_src = (m.source or "unknown").split("+")[0]
+                            if "+sim_ft" not in (m.source or ""):
+                                m.source = f"{base_src}+sim_ft"
+                    else:
+                        # Already has scores — just update status
+                        m.status = "completed"
+                    completed += 1
+                except Exception as exc:
+                    logger.debug("[live-tracker] auto-complete failed for match %s: %s", m.id, exc)
+
+            if completed:
+                await db.commit()
+                logger.info("[live-tracker] auto-completed %d past matches", completed)

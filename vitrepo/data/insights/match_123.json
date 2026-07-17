@@ -1,0 +1,13 @@
+{
+  "match_id": 123,
+  "generated_at": "2026-05-28T21:43:10.582112+00:00",
+  "insights": {
+    "gemini": {
+      "available": true,
+      "home_prob": 0.7,
+      "draw_prob": 0.2,
+      "away_prob": 0.1,
+      "summary": "Mocked analytics"
+    }
+  }
+}

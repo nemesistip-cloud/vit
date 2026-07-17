@@ -12,7 +12,7 @@ from sqlalchemy import text, select, func
 from fastapi.exceptions import RequestValidationError
 from app.core.errors import AppError, error_response
 
-from app.config import APP_NAME, APP_VERSION, get_env
+from app.config import APP_NAME, APP_VERSION, get_env, get_int_env, CORS_ALLOWED_ORIGINS, ENVIRONMENT
 from app.core.kernel import kernel, setup_signal_handlers
 from app.core.subsystems import register_core_subsystems
 from app.db.database import get_db
@@ -24,6 +24,7 @@ from app.api.middleware.request_id import RequestIDMiddleware
 from app.api.middleware.logging import LoggingMiddleware
 from app.api.middleware.auth import APIKeyMiddleware
 from app.api.middleware.security import SecurityHeadersMiddleware
+from app.api.middleware.rate_limit import RateLimitMiddleware
 
 # --- VIT Runtime Kernel ---
 register_core_subsystems()
@@ -47,15 +48,31 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# --- CORS ---
+# In production, restrict to an explicit allowlist read from CORS_ALLOWED_ORIGINS
+# (comma-separated, e.g. "https://vit.network,https://www.vit.network").
+# Falls back to "*" only in non-production environments.
+_log = logging.getLogger(__name__)
+if CORS_ALLOWED_ORIGINS:
+    _cors_origins = [o.strip() for o in CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
+else:
+    if ENVIRONMENT == "production":
+        _log.warning(
+            "CORS_ALLOWED_ORIGINS is not set in production — defaulting to '*'. "
+            "Set CORS_ALLOWED_ORIGINS in the Render dashboard to restrict origins."
+        )
+    _cors_origins = ["*"]
+
 # --- Global Middleware Registration ---
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(APIKeyMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -213,15 +230,6 @@ async def health(db: AsyncSession = Depends(get_db)):
         clv_tracking_enabled=True
     )
 
-# --- Model registry: import module models that User relationships reference
-# by string so SQLAlchemy can configure mappers before the first ORM query.
-# (Wallet / Blockchain / Marketplace / etc. are already registered via their
-#  routers below; only the modules with no registered router need explicit imports.)
-from app.modules.notifications import models as notifications_models  # noqa: F401 – "Notification", "NotificationPreference"
-from app.modules.tasks import models as tasks_models                  # noqa: F401 – "UserTaskCompletion"
-from app.modules.identity import models as identity_models            # noqa: F401 – "StudentProfile"
-from app.modules.trust import models as trust_models                  # noqa: F401 – "UserTrustScore", "FraudFlag", "RiskEvent"
-
 # --- Router Registrations ---
 from app.auth.routes import router as auth_router
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
@@ -259,6 +267,15 @@ app.include_router(matches_router, prefix="/api")
 from app.api.routes.predict import router as predict_router
 app.include_router(predict_router, prefix="/api")
 app.include_router(predict_router, tags=["Predict-Compat"], include_in_schema=False)
+
+from app.api.routes.attestation import router as attestation_router
+app.include_router(attestation_router)
+
+from app.api.routes.payout_verify import router as payout_verify_router
+app.include_router(payout_verify_router)
+
+from app.api.routes.multichain import router as multichain_router
+app.include_router(multichain_router, tags=["Multichain"])
 
 from app.api.routes.dashboard import router as dashboard_router
 app.include_router(dashboard_router)
@@ -326,6 +343,18 @@ app.include_router(academy_router, prefix="/api", tags=["Academy"])
 from app.modules.marketplace.routes import router as marketplace_router
 app.include_router(marketplace_router, prefix="/api", tags=["Marketplace"])
 
+from app.modules.referral.routes import router as referral_router
+app.include_router(referral_router)
+
+from app.api.routes.affiliate import router as affiliate_router
+app.include_router(affiliate_router, prefix="/api")
+
+from app.modules.notifications.routes import router as notifications_router
+app.include_router(notifications_router)
+
+from app.modules.developer.routes import router as developer_router
+app.include_router(developer_router)
+
 from app.modules.rewards.routes import router as rewards_router
 app.include_router(rewards_router, prefix="/api", tags=["Rewards"])
 
@@ -337,6 +366,9 @@ app.include_router(quant_router, prefix="/api", tags=["Quant"])
 
 from app.modules.bridge.routes import router as bridge_router
 app.include_router(bridge_router, prefix="/api", tags=["Bridge"])
+
+from app.modules.treasury.routes import router as treasury_router
+app.include_router(treasury_router, tags=["Treasury"])
 
 # --- Wallet Routers ---
 from app.modules.wallet.routes import router as wallet_router
@@ -359,11 +391,6 @@ async def notifications_websocket_endpoint(websocket):
     await websocket.send_json({"type": "pong"})
     await websocket.close()
 
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 10000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
 @app.get("/api/system/kernel", tags=["System"])
 async def get_kernel_status():
     return kernel.get_status()
@@ -375,56 +402,30 @@ async def get_registry_diagnostics():
 
 @app.get("/api/system/health/summary", tags=["System"])
 async def get_health_summary():
-    from app.core.registry.manager import registry
-    from app.core.registry.models import HealthStatus
-    diagnostics = registry.get_diagnostics()
-    modules = diagnostics.get("modules", {})
+    # Read from obs_manager.health — this is the live source updated by the
+    # kernel health-supervision loop.  The module registry health field is
+    # never populated at runtime, so reading from it always shows UNKNOWN.
+    from app.core.observability.manager import obs_manager as _obs
+    from app.core.observability.models import HealthStatus as _HS
+    statuses = _obs.health.get_all_statuses()
     summary = {"overall_status": "HEALTHY", "details": {}}
     unhealthy_count = 0
-    for mid, info in modules.items():
-        h = info.get("health")
-        summary["details"][mid] = h
-        if h != "HEALTHY": unhealthy_count += 1
+    for sub in statuses:
+        summary["details"][sub.name] = sub.status.value
+        if sub.status != _HS.HEALTHY:
+            unhealthy_count += 1
     if unhealthy_count > 0:
-        summary["overall_status"] = "DEGRADED" if unhealthy_count < len(modules) else "UNHEALTHY"
+        total = len(statuses)
+        summary["overall_status"] = "DEGRADED" if unhealthy_count < total else "UNHEALTHY"
     return summary
 
+if __name__ == "__main__":
+    import uvicorn
+    port = get_int_env("PORT", 8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
-
-    @app.get("/api/debug/schema-check", include_in_schema=False)
-    async def debug_schema_check(db: AsyncSession = Depends(get_db)):
-      """Temporary diagnostic: lists users columns and tests select(User)."""
-      results = {}
-      try:
-          from sqlalchemy import text
-          col_result = await db.execute(text(
-              "SELECT column_name FROM information_schema.columns "
-              "WHERE table_name = 'users' ORDER BY ordinal_position"
-          ))
-          results["users_columns"] = [r[0] for r in col_result.fetchall()]
-      except Exception as e:
-          results["users_columns_error"] = str(e)
-      try:
-          from app.db.models import User
-          from sqlalchemy import select, func
-          cnt = (await db.execute(select(func.count(User.id)))).scalar()
-          results["count_users"] = cnt
-      except Exception as e:
-          results["count_users_error"] = str(e)
-      try:
-          from app.db.models import User
-          from sqlalchemy import select
-          stmt = select(User).limit(1)
-          row = (await db.execute(stmt)).scalar_one_or_none()
-          results["select_user_ok"] = True
-          results["select_user_id"] = row.id if row else None
-      except Exception as e:
-          results["select_user_error"] = str(e)
-      return results
-
-    # --- Static Files for Explorer ---
+# --- Static Files for Explorer ---
 from fastapi.staticfiles import StaticFiles
-import os
 
 explorer_path = "explorer/dist"
 if os.path.exists(explorer_path):

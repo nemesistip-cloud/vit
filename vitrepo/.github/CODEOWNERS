@@ -1,0 +1,42 @@
+# CODEOWNERS — GitHub requires at least one review from an owner before merge.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: every PR needs a review from the core team
+*                                   @nemesistip-cloud/core
+
+# Infrastructure & deployment
+Dockerfile                          @nemesistip-cloud/devops
+render.yaml                         @nemesistip-cloud/devops
+docker-compose.yml                  @nemesistip-cloud/devops
+scripts/                            @nemesistip-cloud/devops
+.github/workflows/                  @nemesistip-cloud/devops
+alembic/                            @nemesistip-cloud/devops
+
+# Security-sensitive paths — require explicit sign-off
+app/auth/                           @nemesistip-cloud/security @nemesistip-cloud/core
+app/api/middleware/                 @nemesistip-cloud/security @nemesistip-cloud/core
+app/api/routes/paystack_webhooks.py @nemesistip-cloud/security @nemesistip-cloud/core
+SECURITY.md                         @nemesistip-cloud/security
+.github/CODEOWNERS                  @nemesistip-cloud/security
+
+# Kernel & core runtime
+app/core/kernel.py                  @nemesistip-cloud/core
+app/core/lifecycle/                 @nemesistip-cloud/core
+app/core/subsystems.py              @nemesistip-cloud/core
+vit_chain/core/                     @nemesistip-cloud/core
+
+# Blockchain & wallet (financial code — extra caution)
+vit_chain/                          @nemesistip-cloud/blockchain @nemesistip-cloud/core
+app/core/wallet/                    @nemesistip-cloud/blockchain @nemesistip-cloud/core
+app/modules/blockchain/             @nemesistip-cloud/blockchain
+
+# AI/ML subsystem
+app/ai/                             @nemesistip-cloud/ai
+app/modules/ai/                     @nemesistip-cloud/ai
+
+# Configuration & secrets (high risk — changes here affect all environments)
+app/config.py                       @nemesistip-cloud/devops @nemesistip-cloud/core
+requirements.txt                    @nemesistip-cloud/devops
+
+# Engineering standards
+.engineering/                       @nemesistip-cloud/core
