@@ -53,6 +53,12 @@ import Social            from '@/pages/Social'
 import Ecosystem         from '@/pages/Ecosystem'
 import Enterprise        from '@/pages/Enterprise'
 
+// ── Betting tools ─────────────────────────────────────────────────────────────
+import Accumulator       from '@/pages/Accumulator'
+import Rollover          from '@/pages/Rollover'
+import Backtest          from '@/pages/Backtest'
+import Bankroll          from '@/pages/Bankroll'
+
 // ── Admin & 404 ───────────────────────────────────────────────────────────────
 import Admin             from '@/pages/Admin'
 import NotFound          from '@/pages/NotFound'
@@ -115,6 +121,12 @@ export default function App() {
             <Route path="/social"       element={<Social />} />
             <Route path="/ecosystem"    element={<Ecosystem />} />
             <Route path="/enterprise"   element={<Enterprise />} />
+
+            {/* ── Betting tools ──────────────────────────────────────── */}
+            <Route path="/accumulator"  element={<Accumulator />} />
+            <Route path="/rollover"     element={<Rollover />} />
+            <Route path="/backtest"     element={<Backtest />} />
+            <Route path="/bankroll"     element={<Bankroll />} />
 
             {/* ── Admin ──────────────────────────────────────────────── */}
             <Route path="/admin"        element={<Admin />} />

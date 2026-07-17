@@ -29,6 +29,10 @@ const LINKS = {
     { label: 'Odds Compare',  path: '/odds' },
     { label: 'AI Assistant',  path: '/assistant' },
     { label: 'Analytics',     path: '/analytics' },
+    { label: 'Accumulator',   path: '/accumulator' },
+    { label: 'Rollover',      path: '/rollover' },
+    { label: 'Backtest',      path: '/backtest' },
+    { label: 'Bankroll',      path: '/bankroll' },
   ],
   Resources: [
     { label: 'Documentation', path: '/docs' },
