@@ -1,0 +1,341 @@
+You are building Phase 4 of the VIT Sports Intelligence Network — a football prediction platform
+with 22 autonomous agents, 12 ML models, JWT auth, wallet, blockchain oracle, and multi-AI
+provider support. The codebase is Python 3.11 / FastAPI / SQLAlchemy (aiosqlite for dev,
+asyncpg for prod) / React 19 / TypeScript / Vite / TailwindCSS 4.
+
+Current version: 4.7.5. You are upgrading to 5.0.0.
+
+Read the entire codebase before making changes. Key entry points:
+- main.py — app startup, all router mounting, agent boot sequence
+- app/config.py — all env var reads (module-level, no Settings class)
+- app/db/models.py — all ORM models
+- app/agents/coordinator.py — 22-agent registry
+- app/services/ai_client.py — shared AI cascade (Gemini→Claude→OpenAI→Grok→Puter)
+- ROADMAP.md — full history of what is done vs. pending
+
+---
+
+PHASE 4 OBJECTIVES — Complete ALL of the following in this order:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK A — CRITICAL BUG FIXES (do these first)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A-1. FIX: Settlement loop gated behind blocked Football-Data.org API
+  - File: main.py line ~257 and app/services/results_settler.py
+  - Problem: auto_settle_loop only runs when FOOTBALL_DATA_API_KEY is set, but
+    api.football-data.org is TCP-blocked on Replit. Settlement never happens.
+  - Fix: 
+    1. Remove the `if os.getenv("FOOTBALL_DATA_API_KEY"):` guard in auto_settle_loop.
+    2. In results_settler.py, add a TheSportsDB settlement path:
+       - Use app/services/sportsdb_api.py (already exists) to fetch finished matches.
+       - Map TheSportsDB event data to Match records using fuzzy name matching (already
+         in results_settler.py as _strip_suffixes + SequenceMatcher).
+       - Call the existing settle_results() logic after TheSportsDB fetch.
+    3. The loop must run every 30 minutes unconditionally.
+    4. Keep Football-Data.org as a secondary path if the key is set AND not blocked.
+
+A-2. FIX: Wallet try/except/else logic inversion
+  - File: app/modules/wallet/services.py method _get_rates_to_usd lines ~84-95
+  - Problem: Python's try/except/else runs the `else` block on SUCCESS, not failure.
+    Code has an `else` block that logs "missing or malformed" — fires on every
+    successful DB lookup. The outer `return dict(self._DEFAULT_RATES_TO_USD)` at the
+    end is also unreachable on success (already returned inside try).
+  - Fix: Remove the `else` block entirely. The except block already handles failure.
+    Keep `return dict(self._DEFAULT_RATES_TO_USD)` only inside the except handler.
+
+A-3. FIX: AI provider placeholder keys causing 30-minute penalty backoffs
+  - File: app/services/ai_client.py
+  - Problem: CLAUDE_API_KEY="Key" and XAI_API_KEY="Key" (3 chars each). They
+    cause a real HTTP 401 then 30-min backoff. Every restart repeats this.
+  - Fix: In _provider_available() or the call path for each provider, add a
+    pre-check: if len(api_key) < 20: skip provider immediately (no network call,
+    no backoff penalty). Log once at startup: "[ai-client] {provider}: key too
+    short — skipping (configure a real key to enable)".
+  - This immediately fixes /api/support/status showing 2 providers down.
+
+A-4. FIX: /api/ai-feed requires wrong auth type
+  - File: app/api/routes/ai_feed.py
+  - Problem: Uses Depends(verify_api_key) but frontend sends JWT Bearer token.
+    All AI feed requests from logged-in users return 401.
+  - Fix: Change dependency to Depends(get_optional_user) — same pattern as
+    app/api/routes/predict.py. If user is None (unauthenticated), still serve
+    the feed with reduced data (no personalization).
+
+A-5. FIX: WalletService missing db session
+  - File: app/modules/wallet/services.py
+  - Problem: _get_rates_to_usd() calls self.db.execute() but WalletService
+    does not always receive a db session in its constructor.
+  - Fix: Audit every WalletService() instantiation. Add __init__(self, db: AsyncSession)
+    and self.db = db everywhere. Update all call sites to pass db.
+
+A-6. FIX: model_performances empty — performance monitor not finding settled matches
+  - File: app/agents/performance_monitor.py
+  - Problem: Zero rows in model_performances. Agent runs but finds nothing to report
+    because settlement never happens (A-1) and synthetic predictions may be filtered.
+  - Fix: 
+    1. After A-1 is done, confirm performance_monitor.py does not exclude source='synthetic'.
+    2. Add a fallback: if model_performances has < 5 rows, generate bootstrap performance
+       rows from the 9 existing synthetic settled predictions (was_correct is set).
+    3. Lower AUTO_CALIBRATE_MIN_SAMPLES from 30 to 10 for the bootstrap period.
+
+A-7. FIX: Gamification task completions never fire
+  - Files: app/api/routes/predict.py, app/auth/routes.py, app/modules/referral/routes.py
+  - Problem: Tasks are seeded but never completed — no hooks at action points.
+  - Fix: After each of these actions succeeds, call:
+    from app.modules.tasks.service import TaskService
+    await TaskService.complete_task(db, user_id, "first_prediction")  # in predict route
+    await TaskService.complete_task(db, user_id, "complete_profile")  # in profile update
+    await TaskService.complete_task(db, user_id, "refer_friend")      # in referral route
+  - TaskService.complete_task should be idempotent (no error if already done).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK B — REAL DATA PIPELINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+B-1. IMPLEMENT: TheSportsDB startup backfill
+  - File: app/services/sportsdb_api.py (extend existing file)
+  - Add these functions:
+    async def backfill_historical_matches(db: AsyncSession, months: int = 12) -> dict:
+      """Fetch last 12 months of results from TheSportsDB for all 8 leagues.
+      Insert as Match rows with source='sportsdb'. Skip duplicates via fingerprint.
+      Set actual_outcome for completed matches. Return {inserted, skipped, errors}."""
+    
+    async def sync_upcoming_fixtures(db: AsyncSession, days_ahead: int = 14) -> dict:
+      """Fetch next 14 days of fixtures from TheSportsDB.
+      Upsert as Match rows with status='upcoming'. Return {inserted, updated}."""
+  
+  - Call backfill_historical_matches() in main.py lifespan startup, after DB init,
+    with a guard: only run if matches table has < 100 rows.
+  - Call sync_upcoming_fixtures() in a new background loop every 6 hours.
+  - Target: 500+ historical matches, 50+ with actual_outcome set.
+
+B-2. IMPLEMENT: Admin CSV fixture import endpoint
+  - File: new file app/api/routes/admin_fixtures.py
+  - Endpoint: POST /api/admin/fixtures/import-csv
+  - Accept: multipart/form-data with a CSV file
+  - Supported columns (both standard and shorthand formats):
+    Standard: home_team, away_team, kickoff_time, league, home_odds, draw_odds, away_odds
+    Shorthand: #, date, time, home, away, league, H, D, A
+  - Processing:
+    1. Auto-detect format from column names.
+    2. For shorthand: combine date+time into kickoff_time (assume current year).
+    3. Map league names to internal slugs (e.g. "England - Premier League" → "premier_league").
+    4. Upsert Match rows (dedup via fingerprint: "{date}::{home}::{away}::{league}").
+    5. Return {imported, skipped_duplicates, errors: [{row, reason}]}.
+  - Auth: require admin role (Depends(get_current_admin_user)).
+  - Mount in main.py under prefix="/api".
+
+B-3. IMPLEMENT: Seed 50+ synthetic settled predictions for ML bootstrap
+  - File: new script scripts/seed_extended_predictions.py + call from startup
+  - Logic: For each Match with actual_outcome set, generate 1-3 Prediction rows:
+    - Assign realistic probabilities (home 35-65%, draw 15-30%, away 15-45%)
+    - Set was_correct based on actual_outcome vs. predicted bet_side (60% accuracy)
+    - Set settled_profit (win: (odds-1)*stake, loss: -stake)
+    - Add to startup sequence: only if predictions table has < 50 rows
+  - Target: 150+ prediction rows, 100+ settled (was_correct set), CLV entries created.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK C — NEW FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+C-1. FEATURE: Per-user prediction rate limiting
+  - File: app/api/routes/predict.py, app/core/rate_limit.py
+  - Add: max 20 predictions per user per day (configurable via PlatformConfig key
+    "max_predictions_per_day", default 20 for free tier, 100 for Pro/Elite).
+  - Track in Redis if available, in-memory dict (user_id → {date, count}) as fallback.
+  - Return HTTP 429 with {"error": "Daily prediction limit reached", "limit": 20,
+    "resets_at": "<UTC midnight ISO string>"} when exceeded.
+
+C-2. FEATURE: Admin manual ML retrain endpoint
+  - File: new endpoint in app/api/routes/admin.py or app/api/routes/training.py
+  - POST /api/admin/ml/retrain
+  - Body: {"model_key": "xgb_v1", "force": true}
+  - Action: Create a TrainingJob row, enqueue Celery task if Redis available,
+    otherwise run inline asynchronously. Return {job_id, status, estimated_minutes}.
+  - Also add: POST /api/admin/ml/calibrate (force re-calibration of all models
+    from current settled predictions).
+
+C-3. FEATURE: Bankroll initialization and tracking
+  - File: app/services/bankroll.py, app/api/routes/bankroll.py
+  - On startup: if bankroll_states table is empty, create a default BankrollState
+    for user_id=1 (admin) with initial_bankroll=1000.0 (units), currency=USD.
+  - Add endpoint: GET /api/bankroll/summary → returns current bankroll, ROI,
+    win rate, average CLV, Kelly fraction recommendation.
+  - Wire bankroll update into settlement: after each prediction settles,
+    call bankroll_service.record_bet_result(user_id, profit, stake).
+
+C-4. FEATURE: Notification event hooks
+  - File: app/modules/notifications/service.py + call sites
+  - Wire create_notification() at these events:
+    - Prediction created → "Your prediction for {home} vs {away} is ready"
+    - Match settled → "Result: {outcome}. P&L: {profit:+.2f} units"
+    - Withdrawal approved → "Withdrawal of {amount} {currency} approved"
+    - KYC approved/rejected → "Your KYC verification has been {status}"
+    - New accumulator published → "New accumulator available: {name}"
+  - All notifications also push via WebSocket if user is connected.
+
+C-5. FEATURE: Enhanced /health endpoint with agent status
+  - File: app/api/routes/health.py (create if needed) or add to existing health check
+  - GET /health → extend to include:
+    {
+      "status": "ok",
+      "version": "5.0.0",
+      "models_loaded": 12,
+      "db_connected": true,
+      "agents": {
+        "total": 22,
+        "running": 20,
+        "stopped": 2,
+        "stopped_names": ["live-match-tracker", "oracle-node"]
+      },
+      "data": {
+        "matches": 523,
+        "settled_predictions": 157,
+        "clv_entries": 98
+      },
+      "ai_providers": {
+        "gemini": "ok",
+        "claude": "key_invalid",
+        "openai": "ok",
+        "grok": "key_invalid"
+      }
+    }
+
+C-6. FEATURE: ML model performance dashboard data endpoint
+  - File: app/api/routes/model_performance.py (extend existing)
+  - GET /api/model-performance/summary → aggregate accuracy, Brier score,
+    ROI, and CLV correlation per model over last 30/90/365 days.
+  - GET /api/model-performance/{model_key}/history → time-series accuracy
+    for a single model (for charting in the frontend).
+  - Data should come from model_performances table (populated by fix A-6).
+
+C-7. FEATURE: Prediction confidence calibration display
+  - File: app/api/routes/predict.py
+  - Add to PredictionResponse: "calibration_note" field.
+  - Rule: if confidence > 0.80 and agreement_pct < 0.60 → "High confidence but low
+    model agreement — treat with caution"
+  - If edge > 0.05 and confidence < 0.55 → "Good edge but low confidence —
+    consider half-kelly staking"
+  - If all 13+ models agree and edge > 0.03 → "Strong consensus signal"
+
+C-8. FEATURE: Closing-odds-at-kickoff capture
+  - File: app/data/pipeline.py or new app/services/odds_snapshot.py
+  - Every 5 minutes starting 2 hours before each upcoming match's kickoff_time,
+    fetch current odds from The Odds API (if THE_ODDS_API_KEY set) and update
+    Match.closing_odds_home/draw/away. This provides real CLV data.
+  - If odds API is not available, derive closing odds from last available
+    opening odds × a small random drift (±3%) as a synthetic approximation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK D — ML MODEL ENHANCEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+D-1. ENHANCE: Add Poisson Dixon-Coles correction to goals model
+  - File: services/ml_service/models/algorithmic.py
+  - The existing PoissonGoals model uses independent Poisson distributions.
+    Add Dixon-Coles correction for low-scoring outcomes (0-0, 1-0, 0-1, 1-1)
+    using the rho parameter (set rho=-0.13 as default, tune from data).
+  - This improves draw probability accuracy by ~3-5% Brier score.
+
+D-2. ENHANCE: Asian Handicap ladder completeness
+  - File: app/api/routes/predict.py, app/services/market_utils.py
+  - Current AH ladder is computed but may have gaps at quarter-ball lines
+    (e.g., -0.25, -0.75). Add quarter-ball AH computation using the split-line
+    method: P(-0.25) = 0.5 * P(-0.5 AH wins) + 0.5 * (1 - P(draw or better)).
+  - Expose full ladder (lines: -2.5 to +2.5, step 0.25) in the prediction response.
+
+D-3. ENHANCE: Model weight hot-reload without restart
+  - File: app/modules/ai/weight_adjuster.py, app/modules/ai/orchestrator.py
+  - After adjust_weights_for_match() updates model weights in the DB, call
+    orchestrator.reload_weights() to immediately apply new weights to the
+    in-memory ModelOrchestrator without restarting the server.
+  - Add: GET /api/admin/ml/weights → return current live weights per model.
+  - Add: POST /api/admin/ml/weights → manually override weights (admin only).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK E — ENVIRONMENT & CONFIG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+E-1. Update .env.example with all missing keys:
+  RESEND_API_KEY=          # Required for email — get from resend.com
+  THESPORTSDB_API_KEY=3    # Free key for TheSportsDB (default is "3")
+  MAX_PREDICTIONS_PER_DAY=20
+  BOOTSTRAP_MATCH_MONTHS=12
+
+E-2. Update app/config.py to read new keys:
+  RESEND_API_KEY: str = get_env("RESEND_API_KEY", "")
+  THESPORTSDB_API_KEY: str = get_env("THESPORTSDB_API_KEY", "3")
+  MAX_PREDICTIONS_PER_DAY: int = int(get_env("MAX_PREDICTIONS_PER_DAY", "20"))
+
+E-3. Update print_config_status() in app/config.py to show:
+  - Resend email: ✅/❌
+  - TheSportsDB: always ✅ (free, no key required)
+  - Settlement mode: "TheSportsDB (live)" vs "Synthetic only"
+
+E-4. Bump APP_VERSION to "5.0.0" in app/config.py.
+
+E-5. Update alembic migration: Create a merge migration that resolves the
+  existing merge-head (71b62dcde5da) and adds any new columns from Phase 4:
+  - No new tables needed if using existing schema.
+  - Verify all new columns (if any) from C-3, C-8 are in a clean migration.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK F — TESTING & VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+F-1. After all changes, run the existing test suite:
+  pytest tests/ -x -q --tb=short
+  Fix any failures before proceeding.
+
+F-2. Add tests for new features:
+  - tests/test_sportsdb_backfill.py: mock TheSportsDB responses, verify Match rows created.
+  - tests/test_csv_import.py: upload sample CSV in both formats, verify import counts.
+  - tests/test_rate_limiting.py: verify 20-prediction daily limit enforced per user.
+  - tests/test_settlement_sportsdb.py: mock finished events, verify CLVEntry created.
+
+F-3. Smoke test checklist (run manually after deployment):
+  curl http://localhost:8000/health   # should show agents.running > 20
+  curl http://localhost:8000/api/agents/status   # should list all 22 agents
+  curl http://localhost:8000/api/support/status  # gemini + openai should be "ok"
+  # POST a prediction and verify:
+  #   - CLV task enqueued
+  #   - Edge calculation not None
+  #   - model_consensus block present
+  #   - ah_lines array has 21 entries (-2.5 to +2.5)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPLEMENTATION ORDER & PRIORITIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Priority 1 (do first, others depend on these):
+  A-1 (settlement fix), A-3 (AI key guard), A-4 (ai-feed auth), B-1 (TheSportsDB backfill)
+
+Priority 2 (do after P1 is working):
+  A-2 (wallet bug), A-5 (wallet db), A-6 (performance monitor), B-3 (seed predictions)
+
+Priority 3 (features, do in parallel):
+  A-7, B-2, C-1 through C-8, D-1 through D-3
+
+Priority 4 (final):
+  E-1 through E-5, F-1 through F-3
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONSTRAINTS & CODING CONVENTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Database: Always use AsyncSession. Never sqlite3 directly in app code.
+- Config: Read env vars via get_env() from app/config.py. No Settings object.
+- AI calls: Always use call_ai() from app/services/ai_client.py. Never add new
+  isolated httpx clients to AI providers.
+- Auth: Protected endpoints use Depends(get_current_user). Admin uses role check.
+- Never hardcode secrets. All keys via os.getenv() or get_env().
+- TheSportsDB free key is "3" — no registration required.
+- Keep all agent intervals configurable via ml_config (not hardcoded).
+- The SQLite WAL mode is already configured — do not change database.py.
+- Frontend: All API calls go through apiClient.ts which prepends /api.
+  New backend routes must be under /api prefix.
+- Update ROADMAP.md at the end with a "Phase 4 Completed" section.
+
+Output the diff for each changed file as you go, and confirm each fix with
+a brief "✅ Fixed: <description>" before moving to the next item.

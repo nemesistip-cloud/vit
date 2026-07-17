@@ -1,0 +1,13 @@
+{
+  "premier_league": { "home": 2.20, "draw": 3.35, "away": 3.30 },
+  "la_liga": { "home": 2.15, "draw": 3.30, "away": 3.50 },
+  "bundesliga": { "home": 2.10, "draw": 3.40, "away": 3.60 },
+  "serie_a": { "home": 2.25, "draw": 3.20, "away": 3.40 },
+  "ligue_1": { "home": 2.20, "draw": 3.30, "away": 3.45 },
+  "championship": { "home": 2.25, "draw": 3.25, "away": 3.20 },
+  "eredivisie": { "home": 2.05, "draw": 3.60, "away": 4.20 },
+  "primeira_liga": { "home": 2.10, "draw": 3.30, "away": 3.80 },
+  "scottish_premiership": { "home": 2.40, "draw": 3.20, "away": 2.90 },
+  "belgian_pro_league": { "home": 2.15, "draw": 3.40, "away": 3.50 },
+  "default": { "home": 2.30, "draw": 3.30, "away": 3.10 }
+}

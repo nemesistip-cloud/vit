@@ -67,12 +67,19 @@ class DatabaseSubsystem(Subsystem):
         from app.core.observability.manager import obs_manager
         from app.core.observability.models import HealthStatus
 
-        # Ensure all module models referenced by User relationships are imported
-        # so SQLAlchemy can configure mappers before the first ORM query.
-        import app.modules.notifications.models   # noqa: F401
-        import app.modules.tasks.models           # noqa: F401
-        import app.modules.identity.models        # noqa: F401
-        import app.modules.trust.models           # noqa: F401
+        # Import module models referenced by User's SQLAlchemy relationships
+        # (string-based refs like "StudentProfile", "UserTaskCompletion", etc.)
+        # so mapper configuration succeeds before the first ORM query.
+        # This runs after all routers have been imported at module level.
+        try:
+            import app.modules.identity.models        # noqa: F401
+            import app.modules.tasks.models           # noqa: F401
+            import app.modules.notifications.models   # noqa: F401
+            import app.modules.trust.models           # noqa: F401
+            from sqlalchemy.orm import configure_mappers
+            configure_mappers()
+        except Exception as _e:
+            logger.warning("[kernel] configure_mappers warning (non-fatal): %s", _e)
 
         start = asyncio.get_event_loop().time()
         async with AsyncSessionLocal() as session:

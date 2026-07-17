@@ -7,7 +7,8 @@ import uuid
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, UploadFile, File, Form
+from pydantic import BaseModel
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -90,3 +91,69 @@ async def upload_model_file(
 async def my_listings(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     listings = await svc.my_listings(db, current_user.id)
     return [_fmt_listing(l) for l in listings]
+
+
+@router.get("/stats")
+async def marketplace_stats(db: AsyncSession = Depends(get_db)):
+    """Aggregate stats for the marketplace panel."""
+    from pydantic import BaseModel as _BM  # local import to avoid circular
+    listings, total = await svc.list_listings(db, active_only=True, page=1, page_size=1000)
+    total_calls = sum(l.usage_count for l in listings)
+    categories: dict[str, int] = {}
+    for l in listings:
+        categories[l.category] = categories.get(l.category, 0) + 1
+    top_category = max(categories, key=lambda k: categories[k]) if categories else "prediction"
+    return {
+        "active_models": total,
+        "total_calls": total_calls,
+        "top_category": top_category,
+        "categories": categories,
+        "protocol_fee_pct": 15,
+    }
+
+
+@router.get("/models/{slug}")
+async def get_model_detail(slug: str, db: AsyncSession = Depends(get_db)):
+    """Full detail for a single model listing."""
+    listing = await svc.get_listing_by_slug(db, slug)
+    if not listing:
+        raise HTTPException(404, "Model not found")
+    rating_avg = round(listing.rating_sum / listing.rating_count, 2) if listing.rating_count else None
+    return {
+        **_fmt_listing(listing),
+        "approval_status": listing.approval_status,
+        "is_verified": listing.is_verified,
+        "usage_count": listing.usage_count,
+        "rating_avg": rating_avg,
+        "rating_count": listing.rating_count,
+        "total_staked": str(listing.total_staked),
+        "staker_count": listing.staker_count,
+        "total_revenue": str(listing.total_revenue),
+        "creator_revenue": str(listing.creator_revenue),
+        "tags": listing.tags,
+    }
+
+
+class _ModelCallRequest(BaseModel):
+    input_data: dict = {}
+
+
+@router.post("/models/{slug}/call")
+async def call_model_endpoint(
+    slug: str,
+    body: _ModelCallRequest = Body(default_factory=_ModelCallRequest),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Invoke a marketplace model; deducts price_per_call from user wallet."""
+    listing = await svc.get_listing_by_slug(db, slug)
+    if not listing or not listing.is_active:
+        raise HTTPException(404, "Model not found or not active")
+    if listing.approval_status != "approved":
+        raise HTTPException(400, "Model is not yet approved for public use")
+    try:
+        result = await svc.call_model(db, listing=listing, user=current_user, input_data=body.input_data)
+        return result
+    except Exception as exc:
+        logger.warning("[marketplace] call_model error slug=%s: %s", slug, exc)
+        raise HTTPException(500, f"Model call failed: {exc}") from exc

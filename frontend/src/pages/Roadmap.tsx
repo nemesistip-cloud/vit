@@ -7,99 +7,181 @@ const PHASES = [
     title: 'Core Platform',
     status: 'complete',
     items: [
-      { label: 'VIT Gateway (vitnetwork)', done: true },
-      { label: 'vit-ai inference engine',   done: true },
-      { label: 'vit-storage object layer',  done: true },
-      { label: 'PostgreSQL 16 integration', done: true },
-      { label: 'Valkey (Redis) caching',    done: true },
-      { label: 'Health monitoring endpoints', done: true },
-      { label: 'Docker production deployment', done: true },
-      { label: 'Render environment groups',  done: true },
+      { label: 'VIT Gateway (vitnetwork)',         done: true },
+      { label: 'vit-ai inference engine',          done: true },
+      { label: 'vit-storage object layer',         done: true },
+      { label: 'PostgreSQL 16 integration',        done: true },
+      { label: 'Valkey (Redis) caching',           done: true },
+      { label: 'Health monitoring endpoints',      done: true },
+      { label: 'Docker production deployment',     done: true },
+      { label: 'Render environment groups',        done: true },
     ],
   },
   {
     phase: 'Phase II',
-    title: 'Frontend Reconstruction',
-    status: 'active',
+    title: 'Frontend & Intelligence Layer',
+    status: 'complete',
     items: [
       { label: 'React + Vite + TypeScript frontend', done: true },
       { label: 'TailwindCSS design system',          done: true },
       { label: 'Live service health dashboard',      done: true },
       { label: 'AI model registry UI',               done: true },
       { label: 'Storage object browser',             done: true },
-      { label: 'Service discovery integration',      done: false },
-      { label: 'Asset CDN via vit-storage',          done: false },
+      { label: 'Matches & fixture system',           done: true },
+      { label: 'AI-powered prediction engine',       done: true },
+      { label: 'Leaderboard & scoring system',       done: true },
     ],
   },
   {
     phase: 'Phase III',
-    title: 'Blockchain Layer',
-    status: 'planned',
+    title: 'Wallet, Identity & Rewards',
+    status: 'complete',
     items: [
-      { label: 'Distributed ledger integration',    done: false },
-      { label: 'On-chain verification primitives',  done: false },
-      { label: 'Trustless transaction support',     done: false },
-      { label: 'Gateway blockchain routing',        done: false },
+      { label: 'VIT token wallet & balance',          done: true },
+      { label: 'JWT auth with refresh tokens',        done: true },
+      { label: 'Role-based access control (RBAC)',    done: true },
+      { label: 'TOTP two-factor authentication',      done: true },
+      { label: 'Reward accumulator & payouts',        done: true },
+      { label: 'CLV tier system (Viewer → Elite)',    done: true },
+      { label: 'KYC screening pipeline',              done: true },
+      { label: 'Withdrawal gatekeeper agent',         done: true },
     ],
   },
   {
     phase: 'Phase IV',
-    title: 'Identity & Wallet',
-    status: 'planned',
+    title: 'Blockchain & On-Chain Verification',
+    status: 'complete',
     items: [
-      { label: 'Decentralized identity (DID)',    done: false },
-      { label: 'Verifiable credentials',          done: false },
-      { label: 'Multi-chain wallet integration',  done: false },
-      { label: 'Value transfer primitives',       done: false },
+      { label: 'VIT chain ledger (vit_chain)',         done: true },
+      { label: 'Block explorer UI',                   done: true },
+      { label: 'Transaction indexing',                done: true },
+      { label: 'Node map & network stats',            done: true },
+      { label: 'On-chain prediction attestation',     done: true },
+      { label: 'Smart contract module (SimpleVM)',     done: true },
+      { label: 'Trustless payout verification',       done: true },
+      { label: 'Multi-chain routing in gateway',      done: true },
     ],
   },
   {
     phase: 'Phase V',
-    title: 'Commerce',
+    title: 'Governance & DAO',
+    status: 'active',
+    items: [
+      { label: 'Proposal creation & voting',          done: true },
+      { label: 'On-chain governance execution',       done: true },
+      { label: 'Validator staking & slashing',        done: true },
+      { label: 'Treasury management module',          done: true },
+    ],
+  },
+  {
+    phase: 'Phase VI',
+    title: 'Commerce & Marketplace',
+    status: 'active',
+    items: [
+      { label: 'Decentralised prediction marketplace', done: true },
+      { label: 'Peer-to-peer tip trading',             done: true },
+      { label: 'Affiliate & referral engine',          done: true },
+      { label: 'Commerce API surface',                 done: true },
+    ],
+  },
+  {
+    phase: 'Phase VII',
+    title: 'Mobile & Ecosystem Expansion',
+    status: 'active',
+    items: [
+      { label: 'vit-mobile React Native app',          done: true },
+      { label: 'Push notifications (Firebase)',        done: true },
+      { label: 'Telegram bot integration',             done: true },
+      { label: 'SDK & third-party developer API',      done: true },
+      { label: 'Asset CDN via vit-storage',            done: true },
+    ],
+  },
+  {
+    phase: 'Phase VIII',
+    title: 'DeFi, Social & Enterprise',
+    status: 'active',
+    items: [
+      { label: 'Social prediction feed (follow, react, comment)', done: true },
+      { label: 'DeFi yield & liquidity pools',                    done: true },
+      { label: 'Live in-play prediction markets',                 done: true },
+      { label: 'Analytics Studio (personal + model comparison)',  done: true },
+      { label: 'Enterprise API, data licensing & webhooks',       done: true },
+    ],
+  },
+  {
+    phase: 'Phase IX',
+    title: 'Cross-Chain & Institutional Scale',
     status: 'planned',
     items: [
-      { label: 'Decentralized marketplace layer', done: false },
-      { label: 'Peer-to-peer transactions',       done: false },
-      { label: 'Commerce API surface',            done: false },
+      { label: 'Cross-chain liquidity bridges (ETH, BNB, Polygon)', done: false },
+      { label: 'Institutional oracle SLA (99.9% uptime guarantee)', done: false },
+      { label: 'On-chain DeFi settlement via vit-contracts',         done: false },
+      { label: 'AI model marketplace (buy/sell model access)',        done: false },
+      { label: 'ZK-proof prediction attestation',                    done: false },
     ],
   },
 ]
 
 const STATUS_STYLES = {
-  complete: { pill: 'bg-emerald-400/15 text-emerald-400 border-emerald-400/30', dot: 'bg-emerald-400', label: 'Complete' },
-  active:   { pill: 'bg-vit-400/15 text-vit-400 border-vit-400/30',           dot: 'bg-vit-400 animate-pulse', label: 'In Progress' },
-  planned:  { pill: 'bg-white/10 text-white/50 border-white/10',               dot: 'bg-white/30',  label: 'Planned' },
+  complete: { dot: 'bg-emerald-500',  pill: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', label: 'Complete'  },
+  active:   { dot: 'bg-vit-500 animate-pulse', pill: 'bg-vit-500/15 border-vit-500/30 text-vit-400', label: 'Active'    },
+  planned:  { dot: 'bg-white/20',     pill: 'bg-white/5 border-white/10 text-white/30',               label: 'Planned'   },
 }
 
 export default function Roadmap() {
+  const done    = PHASES.filter(p => p.status === 'complete').length
+  const active  = PHASES.filter(p => p.status === 'active').length
+  const planned = PHASES.filter(p => p.status === 'planned').length
+
   return (
-    <div className="pt-24 pb-16">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-16">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Map className="w-5 h-5 text-vit-400" />
-            <span className="text-sm text-vit-400 font-medium uppercase tracking-wider">Roadmap</span>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-3">Platform Roadmap</h1>
-          <p className="text-white/50 max-w-lg mx-auto">
-            From a healthy backend to a full decentralized ecosystem. Each phase adds a new owned service to the gateway.
-          </p>
-        </motion.div>
+    <div className="pt-16 min-h-screen">
+      {/* Header */}
+      <div className="relative border-b border-white/8">
+        <div className="absolute inset-0 section-grid opacity-20" />
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 py-10">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-vit-500/10 border border-vit-500/20 flex items-center justify-center">
+              <Map className="w-5 h-5 text-vit-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Platform Roadmap</h1>
+              <p className="text-white/50 text-sm">Live development progress across all VIT Network phases</p>
+            </div>
+          </motion.div>
 
+          {/* Progress summary */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Phases Complete', value: done,    color: 'text-emerald-400' },
+              { label: 'In Progress',     value: active,  color: 'text-vit-400'    },
+              { label: 'Planned',         value: planned, color: 'text-white/30'   },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-white/5 border border-white/8 rounded-xl p-4 text-center">
+                <p className={`text-3xl font-bold ${color}`}>{value}</p>
+                <p className="text-xs text-white/40 mt-1">{label}</p>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+        {/* Timeline */}
         <div className="relative">
-          {/* Timeline line */}
-          <div className="absolute left-[22px] top-6 bottom-6 w-0.5 bg-gradient-to-b from-emerald-400 via-vit-500 to-white/10" />
+          {/* Vertical line */}
+          <div className="absolute left-5 top-2 bottom-2 w-px bg-gradient-to-b from-emerald-500/40 via-vit-500/30 to-white/5" />
 
-          <div className="space-y-8">
+          <div className="space-y-6">
             {PHASES.map((phase, i) => {
-              const style = STATUS_STYLES[phase.status as keyof typeof STATUS_STYLES]
+              const style = STATUS_STYLES[phase.status as keyof typeof STATUS_STYLES] ?? STATUS_STYLES.planned
               return (
                 <motion.div
                   key={phase.phase}
                   initial={{ opacity: 0, x: -16 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: i * 0.08 }}
+                  transition={{ delay: i * 0.06 }}
                   className="flex gap-6"
                 >
                   {/* Dot */}

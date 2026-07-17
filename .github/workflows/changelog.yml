@@ -1,0 +1,58 @@
+name: CHANGELOG — append merged PR title
+
+# Appends the merged PR title to CHANGELOG.md on every merge to main.
+# Uses only built-in GitHub Actions steps and the gh CLI (pre-installed on
+# ubuntu-latest) — no new dependencies required.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  update-changelog:
+    name: Append to CHANGELOG.md
+    runs-on: ubuntu-latest
+    # Only run when this push is the result of a PR merge (not a direct push).
+    if: github.event.head_commit.message != '' && startsWith(github.event.head_commit.message, 'Merge pull request')
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use the PAT so the push back to main is allowed without branch
+          # protection blocking the bot commit.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 2
+
+      - name: Extract PR title and append to CHANGELOG.md
+        run: |
+          # Pull the PR title from the merge commit message.
+          # Format: "Merge pull request #N from branch\n\nPR Title"
+          PR_TITLE=$(git log -1 --pretty=%B | sed -n '3p')
+          DATE=$(date -u +"%Y-%m-%d")
+          COMMIT="${{ github.sha }}"
+          SHORT_SHA="${COMMIT:0:7}"
+
+          if [ -z "$PR_TITLE" ]; then
+            echo "No PR title found — skipping CHANGELOG update."
+            exit 0
+          fi
+
+          # Prepend to CHANGELOG.md so the latest entry is always at the top.
+          ENTRY="- ${DATE} \`${SHORT_SHA}\` ${PR_TITLE}"
+          TMP=$(mktemp)
+          echo "$ENTRY" > "$TMP"
+          echo "" >> "$TMP"
+          cat CHANGELOG.md >> "$TMP" 2>/dev/null || true
+          mv "$TMP" CHANGELOG.md
+
+          echo "Appended: $ENTRY"
+
+      - name: Commit updated CHANGELOG.md
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          # Only commit if there are staged changes.
+          git diff --cached --quiet || git commit -m "chore: update CHANGELOG.md [skip ci]"
+          git push

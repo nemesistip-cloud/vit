@@ -1,0 +1,84 @@
+name: "🐛 Bug report"
+description: "Report a reproducible bug in the VIT Network backend."
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in as much detail as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "What happened?"
+      description: "A clear and concise description of the bug."
+      placeholder: "When I call /api/... with payload {...}, I get a 500 instead of 200."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to reproduce"
+      description: "Minimal steps to reproduce the issue."
+      placeholder: |
+        1. POST /api/auth/login with payload { "email": "...", "password": "..." }
+        2. Use the returned token in Authorization header
+        3. GET /api/wallet/me
+        4. Observe 500 Internal Server Error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Expected behaviour"
+      placeholder: "Should return 200 with wallet balances."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: "Actual behaviour"
+      description: "Paste the response body or error logs here."
+      render: "json"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: "Environment"
+      options:
+        - Production (vitnetwork-nls4.onrender.com)
+        - Staging
+        - Local development
+        - CI
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: "App version"
+      description: "From /health → version field."
+      placeholder: "1.1.0"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Relevant log output"
+      description: "Paste Render logs or traceback here."
+      render: "text"
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Before submitting"
+      options:
+        - label: "I searched existing issues and this is not a duplicate."
+          required: true
+        - label: "I reproduced this on the latest version."
+          required: false

@@ -1,0 +1,26 @@
+[project]
+name = "vit-network"
+version = "5.6.0"
+requires-python = ">=3.11"
+license = { text = "AGPL-3.0-only" }
+dependencies = [
+    "click",
+    "httpx",
+    "websockets",
+    "cryptography",
+    "google-auth-oauthlib",
+    "google-api-python-client",
+    "tabulate",
+    "coincurve",
+    "eth-hash[pycryptodome]",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv"
+]
+
+[project.scripts]
+vit-node = "vit_node.cli:cli"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
