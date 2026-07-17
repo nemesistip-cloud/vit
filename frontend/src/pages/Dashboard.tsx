@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Trophy, Brain, Wallet, Users, TrendingUp,
   Activity, ChevronRight, LogOut, Shield, Star, Zap, Target,
-  BarChart3, Bell, Clock,
+  BarChart3, Bell, Clock, Vote, Coins, Store, Share2,
 } from 'lucide-react'
 import { getAuthToken, getStoredUser, clearAuth, authHeaders } from '@/hooks/useAuth'
 import { ENDPOINTS } from '@/lib/api'
@@ -302,10 +302,14 @@ export default function Dashboard() {
         <div>
           <h2 className="font-semibold text-white mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <QuickCard icon={Trophy}   label="Browse Matches"    sub="View fixtures & AI picks" href="/matches"     color="bg-vit-500/20" />
-            <QuickCard icon={BarChart3} label="Leaderboard"      sub="See top predictors"       href="/leaderboard" color="bg-amber-500/20" />
-            <QuickCard icon={Wallet}   label="Wallet"            sub="VIT balance & transfers"  href="/wallet"      color="bg-emerald-500/20" />
-            <QuickCard icon={Brain}    label="AI Intelligence"   sub="Model insights & signals" href="/ai"          color="bg-purple-500/20" />
+            <QuickCard icon={Trophy}   label="Browse Matches"    sub="Fixtures & AI picks"       href="/matches"          color="bg-vit-500/20"     />
+            <QuickCard icon={Brain}    label="Predictions"       sub="My picks & AI signals"     href="/predictions"      color="bg-purple-500/20"  />
+            <QuickCard icon={Wallet}   label="Wallet"            sub="VIT balance & transfers"   href="/wallet"           color="bg-emerald-500/20" />
+            <QuickCard icon={Vote}     label="Governance"        sub="Vote on proposals"         href="/governance"       color="bg-cyan-500/20"    />
+            <QuickCard icon={BarChart3} label="Leaderboard"      sub="See top predictors"        href="/leaderboard"      color="bg-amber-500/20"   />
+            <QuickCard icon={Coins}    label="DeFi Pools"        sub="Yield & liquidity"         href="/defi"             color="bg-teal-500/20"    />
+            <QuickCard icon={Store}    label="Marketplace"       sub="Buy & sell signals"        href="/marketplace"      color="bg-rose-500/20"    />
+            <QuickCard icon={Share2}   label="Referral"          sub="Earn from your network"    href="/referral"         color="bg-orange-500/20"  />
           </div>
         </div>
 

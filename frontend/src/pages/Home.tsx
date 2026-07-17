@@ -83,7 +83,7 @@ const FEATURES = [
     glow: 'shadow-cyan-500/20',
     title: 'VIT Chain',
     desc: 'A native PoS blockchain (Chain ID 7764) for transparent prediction records, staking, and governance.',
-    href: '/explorer',
+    href: '/chain',
     tag: 'Beta',
   },
   {

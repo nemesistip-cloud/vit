@@ -3,19 +3,36 @@ import { Github, ExternalLink } from 'lucide-react'
 
 const LINKS = {
   Platform: [
-    { label: 'Overview',    path: '/platform' },
-    { label: 'AI',          path: '/ai' },
-    { label: 'Storage',     path: '/storage' },
-    { label: 'Status',      path: '/status' },
+    { label: 'Overview',     path: '/platform' },
+    { label: 'AI Engine',    path: '/ai' },
+    { label: 'Storage',      path: '/storage' },
+    { label: 'Chain Explorer', path: '/chain' },
+    { label: 'Status',       path: '/status' },
   ],
-  Developers: [
+  'Earn & Trade': [
+    { label: 'Wallet',       path: '/wallet' },
+    { label: 'DeFi Pools',   path: '/defi' },
+    { label: 'Marketplace',  path: '/marketplace' },
+    { label: 'In-Play',      path: '/inplay' },
+    { label: 'Referral',     path: '/referral' },
+  ],
+  Community: [
+    { label: 'Governance',       path: '/governance' },
+    { label: 'Social Feed',      path: '/social' },
+    { label: 'Leaderboard',      path: '/leaderboard' },
+    { label: 'Analytics Studio', path: '/analytics-studio' },
+    { label: 'Ecosystem',        path: '/ecosystem' },
+  ],
+  Resources: [
     { label: 'Documentation', path: '/docs' },
     { label: 'API Reference', path: '/docs#api' },
     { label: 'Developers',    path: '/developers' },
+    { label: 'Roadmap',       path: '/roadmap' },
   ],
   Company: [
-    { label: 'About',    path: '/about' },
-    { label: 'Roadmap',  path: '/roadmap' },
+    { label: 'About',       path: '/about' },
+    { label: 'Enterprise',  path: '/enterprise' },
+    { label: 'Treasury',    path: '/treasury' },
   ],
 }
 
@@ -23,10 +40,27 @@ export function Footer() {
   return (
     <footer className="border-t border-white/10 bg-surface-800/50 mt-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-8 mb-10">
+          {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-vit-500 to-vit-700 flex items-center justify-center">
+              <img
+                src="/logo.png"
+                alt="VIT Network"
+                className="w-7 h-7 rounded-lg object-cover"
+                onError={(e) => {
+                  const img = e.currentTarget
+                  img.style.display = 'none'
+                  const fallback = document.getElementById('footer-logo-fallback')
+                  if (fallback) fallback.style.display = 'flex'
+                }}
+              />
+              {/* Fallback shown only if logo.png fails to load */}
+              <div
+                id="footer-logo-fallback"
+                style={{ display: 'none' }}
+                className="w-7 h-7 rounded-lg bg-gradient-to-br from-vit-500 to-vit-700 items-center justify-center"
+              >
                 <span className="text-white font-bold text-xs">V</span>
               </div>
               <span className="font-bold text-white">VIT Network</span>

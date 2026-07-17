@@ -19,6 +19,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.414.0",
+    "sonner": "^1.7.4",
     "postcss": "^8.5.16",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

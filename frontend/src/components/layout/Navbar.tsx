@@ -7,14 +7,16 @@ import { useGatewayHealth } from '@/hooks/useHealth'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { getAuthToken, getStoredUser, clearAuth } from '@/hooks/useAuth'
 
-// Public nav links
+// Public nav links (shown for all users; duplicates hidden when logged in via filter below)
 const PUBLIC_LINKS = [
-  { label: 'Matches',    path: '/matches' },
-  { label: 'AI',         path: '/ai' },
+  { label: 'Matches',     path: '/matches' },
+  { label: 'Governance',  path: '/governance' },
+  { label: 'Marketplace', path: '/marketplace' },
+  { label: 'AI',          path: '/ai' },
   { label: 'Leaderboard', path: '/leaderboard' },
-  { label: 'Explorer',   path: '/chain' },
-  { label: 'Platform',   path: '/platform' },
-  { label: 'Docs',       path: '/docs' },
+  { label: 'Explorer',    path: '/chain' },
+  { label: 'Platform',    path: '/platform' },
+  { label: 'Docs',        path: '/docs' },
 ]
 
 // Auth-only links
@@ -108,7 +110,8 @@ export function Navbar() {
             </Link>
           ))}
           <div className="w-px h-5 bg-white/10 mx-1" hidden={!isLoggedIn} />
-          {PUBLIC_LINKS.map(link => (
+          {/* When logged in, skip links already shown in AUTH_LINKS to avoid duplicates */}
+          {PUBLIC_LINKS.filter(link => !isLoggedIn || !AUTH_LINKS.some(a => a.path === link.path)).map(link => (
             <Link
               key={link.path}
               to={link.path}
