@@ -3,6 +3,8 @@ import { Toaster } from 'sonner'
 import { Navbar }        from '@/components/layout/Navbar'
 import { Footer }        from '@/components/layout/Footer'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+
+// ── Public / marketing ────────────────────────────────────────────────────────
 import Home              from '@/pages/Home'
 import Platform          from '@/pages/Platform'
 import AI                from '@/pages/AI'
@@ -12,25 +14,48 @@ import Developers        from '@/pages/Developers'
 import Documentation     from '@/pages/Documentation'
 import Roadmap           from '@/pages/Roadmap'
 import About             from '@/pages/About'
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
 import Login             from '@/pages/Login'
-import Matches           from '@/pages/Matches'
-import Admin             from '@/pages/Admin'
+import ForgotPassword    from '@/pages/ForgotPassword'
+import ResetPassword     from '@/pages/ResetPassword'
+import VerifyEmail       from '@/pages/VerifyEmail'
+
+// ── Core app ──────────────────────────────────────────────────────────────────
 import Dashboard         from '@/pages/Dashboard'
-import Leaderboard       from '@/pages/Leaderboard'
-import Wallet            from '@/pages/Wallet'
+import Settings          from '@/pages/Settings'
+import Subscription      from '@/pages/Subscription'
+import Matches           from '@/pages/Matches'
+import MatchDetail       from '@/pages/MatchDetail'
 import Predictions       from '@/pages/Predictions'
-import Explorer          from '@/pages/Explorer'
-import Governance        from '@/pages/Governance'
-import Treasury          from '@/pages/Treasury'
+import Odds              from '@/pages/Odds'
+import Leaderboard       from '@/pages/Leaderboard'
+import Analytics         from '@/pages/Analytics'
+import AnalyticsStudio   from '@/pages/AnalyticsStudio'
+import Assistant         from '@/pages/Assistant'
+import Tasks             from '@/pages/Tasks'
+
+// ── Finance ───────────────────────────────────────────────────────────────────
+import Wallet            from '@/pages/Wallet'
+import DeFi              from '@/pages/DeFi'
+import InPlay            from '@/pages/InPlay'
 import Marketplace       from '@/pages/Marketplace'
 import Referral          from '@/pages/Referral'
+
+// ── Governance & network ──────────────────────────────────────────────────────
+import Governance        from '@/pages/Governance'
+import Treasury          from '@/pages/Treasury'
+import Validators        from '@/pages/Validators'
+import Explorer          from '@/pages/Explorer'
+
+// ── Social & ecosystem ────────────────────────────────────────────────────────
+import Social            from '@/pages/Social'
 import Ecosystem         from '@/pages/Ecosystem'
-import Social           from '@/pages/Social'
-import DeFi             from '@/pages/DeFi'
-import InPlay           from '@/pages/InPlay'
-import AnalyticsStudio  from '@/pages/AnalyticsStudio'
-import Enterprise       from '@/pages/Enterprise'
-import NotFound         from '@/pages/NotFound'
+import Enterprise        from '@/pages/Enterprise'
+
+// ── Admin & 404 ───────────────────────────────────────────────────────────────
+import Admin             from '@/pages/Admin'
+import NotFound          from '@/pages/NotFound'
 
 export default function App() {
   return (
@@ -39,6 +64,7 @@ export default function App() {
         <Navbar />
         <main className="flex-1">
           <Routes>
+            {/* ── Public / marketing ─────────────────────────────────── */}
             <Route path="/"             element={<Home />} />
             <Route path="/platform"     element={<Platform />} />
             <Route path="/ai"           element={<AI />} />
@@ -48,28 +74,52 @@ export default function App() {
             <Route path="/docs"         element={<Documentation />} />
             <Route path="/roadmap"      element={<Roadmap />} />
             <Route path="/about"        element={<About />} />
-            <Route path="/login"        element={<Login />} />
-            <Route path="/register"     element={<Login />} />
-            <Route path="/matches"      element={<Matches />} />
-            <Route path="/admin"        element={<Admin />} />
-            <Route path="/dashboard"    element={<Dashboard />} />
-            <Route path="/leaderboard"  element={<Leaderboard />} />
+
+            {/* ── Auth ───────────────────────────────────────────────── */}
+            <Route path="/login"           element={<Login />} />
+            <Route path="/register"        element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password"  element={<ResetPassword />} />
+            <Route path="/verify-email"    element={<VerifyEmail />} />
+
+            {/* ── Core app ───────────────────────────────────────────── */}
+            <Route path="/dashboard"        element={<Dashboard />} />
+            <Route path="/settings"         element={<Settings />} />
+            <Route path="/subscription"     element={<Subscription />} />
+            <Route path="/matches"          element={<Matches />} />
+            <Route path="/matches/:id"      element={<MatchDetail />} />
+            <Route path="/predictions"      element={<Predictions />} />
+            <Route path="/odds"             element={<Odds />} />
+            <Route path="/leaderboard"      element={<Leaderboard />} />
+            <Route path="/analytics"        element={<Analytics />} />
+            <Route path="/analytics-studio" element={<AnalyticsStudio />} />
+            <Route path="/assistant"        element={<Assistant />} />
+            <Route path="/tasks"            element={<Tasks />} />
+
+            {/* ── Finance ────────────────────────────────────────────── */}
             <Route path="/wallet"       element={<Wallet />} />
-            <Route path="/predictions"  element={<Predictions />} />
-            <Route path="/chain"        element={<Explorer />} />
-            {/* Legacy /explorer redirect — keeps old links working */}
-            <Route path="/explorer"     element={<Navigate to="/chain" replace />} />
-            <Route path="/governance"   element={<Governance />} />
-            <Route path="/treasury"     element={<Treasury />} />
-            <Route path="/marketplace"  element={<Marketplace />} />
-            <Route path="/referral"     element={<Referral />} />
-            <Route path="/ecosystem"    element={<Ecosystem />} />
-            <Route path="/social"       element={<Social />} />
             <Route path="/defi"         element={<DeFi />} />
             <Route path="/inplay"       element={<InPlay />} />
-            <Route path="/analytics-studio" element={<AnalyticsStudio />} />
+            <Route path="/marketplace"  element={<Marketplace />} />
+            <Route path="/referral"     element={<Referral />} />
+
+            {/* ── Governance & network ───────────────────────────────── */}
+            <Route path="/governance"   element={<Governance />} />
+            <Route path="/treasury"     element={<Treasury />} />
+            <Route path="/validators"   element={<Validators />} />
+            <Route path="/chain"        element={<Explorer />} />
+            {/* Legacy redirect */}
+            <Route path="/explorer"     element={<Navigate to="/chain" replace />} />
+
+            {/* ── Social & ecosystem ─────────────────────────────────── */}
+            <Route path="/social"       element={<Social />} />
+            <Route path="/ecosystem"    element={<Ecosystem />} />
             <Route path="/enterprise"   element={<Enterprise />} />
-            {/* 404 — must be last */}
+
+            {/* ── Admin ──────────────────────────────────────────────── */}
+            <Route path="/admin"        element={<Admin />} />
+
+            {/* ── 404 — must be last ─────────────────────────────────── */}
             <Route path="*"             element={<NotFound />} />
           </Routes>
         </main>

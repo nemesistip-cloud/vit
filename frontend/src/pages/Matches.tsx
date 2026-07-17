@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Trophy, TrendingUp, Calendar, Filter, RefreshCw,
@@ -77,6 +77,7 @@ function ProbBar({ label, prob, color }: { label: string; prob?: number; color: 
 }
 
 function MatchCard({ match, i }: { match: Match; i: number }) {
+  const navigate = useNavigate()
   const conf = match.confidence != null ? Math.round(match.confidence * 100) : null
   const isLive = match.status?.toLowerCase() === 'live' || match.status?.toLowerCase() === 'in_play'
 
@@ -85,6 +86,7 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: i * 0.04 }}
+      onClick={() => navigate(`/matches/${match.id}`)}
       className="bg-surface-800/60 border border-white/8 rounded-xl p-5 hover:border-vit-500/30 hover:bg-surface-800/80 transition-all group cursor-pointer relative overflow-hidden"
     >
       {isLive && (

@@ -23,16 +23,25 @@ const LINKS = {
     { label: 'Analytics Studio', path: '/analytics-studio' },
     { label: 'Ecosystem',        path: '/ecosystem' },
   ],
+  Predict: [
+    { label: 'Matches',       path: '/matches' },
+    { label: 'Predictions',   path: '/predictions' },
+    { label: 'Odds Compare',  path: '/odds' },
+    { label: 'AI Assistant',  path: '/assistant' },
+    { label: 'Analytics',     path: '/analytics' },
+  ],
   Resources: [
     { label: 'Documentation', path: '/docs' },
     { label: 'API Reference', path: '/docs#api' },
     { label: 'Developers',    path: '/developers' },
     { label: 'Roadmap',       path: '/roadmap' },
+    { label: 'Validators',    path: '/validators' },
   ],
   Company: [
-    { label: 'About',       path: '/about' },
-    { label: 'Enterprise',  path: '/enterprise' },
-    { label: 'Treasury',    path: '/treasury' },
+    { label: 'About',         path: '/about' },
+    { label: 'Enterprise',    path: '/enterprise' },
+    { label: 'Subscription',  path: '/subscription' },
+    { label: 'Treasury',      path: '/treasury' },
   ],
 }
 
