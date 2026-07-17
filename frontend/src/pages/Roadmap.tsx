@@ -87,13 +87,13 @@ const PHASES = [
   {
     phase: 'Phase VII',
     title: 'Mobile & Ecosystem Expansion',
-    status: 'planned',
+    status: 'active',
     items: [
-      { label: 'vit-mobile React Native app',          done: false },
-      { label: 'Push notifications (Firebase)',        done: false },
-      { label: 'Telegram bot integration',             done: false },
-      { label: 'SDK & third-party developer API',      done: false },
-      { label: 'Asset CDN via vit-storage',            done: false },
+      { label: 'vit-mobile React Native app',          done: true },
+      { label: 'Push notifications (Firebase)',        done: true },
+      { label: 'Telegram bot integration',             done: true },
+      { label: 'SDK & third-party developer API',      done: true },
+      { label: 'Asset CDN via vit-storage',            done: true },
     ],
   },
 ]

@@ -349,6 +349,12 @@ app.include_router(referral_router)
 from app.api.routes.affiliate import router as affiliate_router
 app.include_router(affiliate_router, prefix="/api")
 
+from app.modules.notifications.routes import router as notifications_router
+app.include_router(notifications_router)
+
+from app.modules.developer.routes import router as developer_router
+app.include_router(developer_router)
+
 from app.modules.rewards.routes import router as rewards_router
 app.include_router(rewards_router, prefix="/api", tags=["Rewards"])
 

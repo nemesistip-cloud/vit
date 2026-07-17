@@ -22,6 +22,7 @@ import Governance        from '@/pages/Governance'
 import Treasury          from '@/pages/Treasury'
 import Marketplace       from '@/pages/Marketplace'
 import Referral          from '@/pages/Referral'
+import Ecosystem         from '@/pages/Ecosystem'
 
 export default function App() {
   return (
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/treasury"     element={<Treasury />} />
           <Route path="/marketplace"  element={<Marketplace />} />
           <Route path="/referral"     element={<Referral />} />
+          <Route path="/ecosystem"    element={<Ecosystem />} />
           {/* Catch-all: redirect unknown paths to home */}
           <Route path="*"             element={<Navigate to="/" replace />} />
         </Routes>
