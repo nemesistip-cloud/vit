@@ -24,3 +24,69 @@ vit-node = "vit_node.cli:cli"
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+# ---------------------------------------------------------------------------
+# Ruff — lint configuration
+# ---------------------------------------------------------------------------
+# Strategy: select E9 (syntax errors) + the pyflakes F-series as the default
+# gate, matching ruff's own recommended starter ruleset.  Directories that
+# are archived code, generated migrations, or vendor snapshots are excluded
+# entirely so they do not inflate the error count.  Additional rules can be
+# added incrementally as the codebase improves.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [
+    # Archived / vendor snapshots — not active code
+    "vitrepo",
+    "archive",
+    "docs/archive",
+    # Build artefacts
+    ".git",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    # Misc one-off scripts at repo root (not part of the app)
+    "test_*.py",
+]
+
+[tool.ruff.lint]
+# E9xx — syntax + runtime errors (always fatal)
+# Fxxx — pyflakes (imports, undefined names, etc.)
+select = ["E9", "F"]
+
+ignore = [
+    # F401: imported but unused — extremely common in this codebase due to
+    #       re-export patterns, conditional imports, and __init__.py passthrough.
+    #       Address file-by-file rather than as a blanket CI gate.
+    "F401",
+
+    # F811: redefinition of unused name — appears in pytest fixtures and
+    #       modules that intentionally shadow imports.
+    "F811",
+
+    # F841: local variable assigned but never used — often intentional in
+    #       exception handlers (`except Exception as _e`).
+    "F841",
+
+    # F821: undefined name — suppressed globally because many F821s are
+    #       false-positives from SQLAlchemy string relationships and dynamic
+    #       attribute access.  Re-enable once mypy covers these paths.
+    "F821",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic auto-generated migration scripts include boilerplate imports
+# (op, sa) that are sometimes unused in merge/empty migrations.
+"alembic/**" = ["F401", "E402", "F811"]
+"alembic/env.py" = ["F401", "E402"]
+
+# __init__.py files use star-imports and re-exports by design.
+"**/__init__.py" = ["F401", "F811"]
+
+# Test helpers import fixtures that appear unused to ruff.
+"tests/**" = ["F401", "F811"]
+"conftest.py" = ["F401", "F811"]
