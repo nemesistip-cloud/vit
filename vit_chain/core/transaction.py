@@ -74,13 +74,28 @@ def create_transaction(from_key: str, to_address: str,
     return tx
 
 def verify_transaction(tx: VITTransaction, additional_verify: Callable = None) -> bool:
-    """Verifies: signature valid, amount >= 0, addresses valid"""
+    """Verify a transaction:
+    1. Amount is non-negative.
+    2. Addresses are well-formed.
+    3. tx_hash matches a recomputed hash of the canonical fields — this
+       detects any post-signing field tampering (amount, addresses, nonce…).
+    4. The ECDSA signature over tx_hash recovers to from_address.
+    """
     if tx.amount < 0:
         return False
     if not validate_address(tx.from_address) or not validate_address(tx.to_address):
         return False
 
-    recovered_pub = recover_public_key(bytes.fromhex(tx.tx_hash), tx.signature)
+    # Recompute hash from current field values and compare — catches tampering
+    expected_hash = tx.compute_hash()
+    if tx.tx_hash != expected_hash:
+        return False
+
+    try:
+        recovered_pub = recover_public_key(bytes.fromhex(tx.tx_hash), tx.signature)
+    except Exception:
+        return False
+
     if not recovered_pub:
         return False
 
@@ -138,6 +153,12 @@ class Mempool:
         for tx_hash in tx_hashes:
             if tx_hash in self._transactions:
                 del self._transactions[tx_hash]
+
+    # Alias used by consumers that expect add_transaction() (matches
+    # the blockchain facade API in vit_chain/core/blockchain.py)
+    def add_transaction(self, tx: "VITTransaction", additional_verify: Callable = None) -> bool:
+        """Alias for add() — reject duplicates, invalid, and full-pool."""
+        return self.add(tx, additional_verify)
 
     def size(self) -> int:
         return len(self._transactions)

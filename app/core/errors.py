@@ -139,6 +139,74 @@ def error_payload(
     return payload
 
 
+def success_response(
+    *,
+    data: Any | None = None,
+    message: str = "OK",
+    meta: dict[str, Any] | None = None,
+    status_code: int = 200,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """Return a structured success ``JSONResponse``.
+
+    Shape::
+
+        {
+            "success": true,
+            "message": "OK",
+            "data": { ... },      # present when data is not None
+            "meta": { ... }       # present when meta is not None (pagination etc.)
+        }
+
+    Args:
+        data:        Response payload (dict, list, scalar, or None).
+        message:     Human-readable status string.
+        meta:        Optional metadata (pagination, totals, etc.).
+        status_code: HTTP status code (default 200).
+        headers:     Extra response headers.
+
+    Example::
+
+        return success_response(data=prediction.dict(), meta={"model": "xgboost"})
+    """
+    payload: dict[str, Any] = {"success": True, "message": message}
+    if data is not None:
+        payload["data"] = data
+    if meta is not None:
+        payload["meta"] = meta
+    return JSONResponse(
+        status_code=status_code,
+        content=payload,
+        headers=headers or {},
+    )
+
+
+def paginate(
+    items: list[Any],
+    *,
+    total: int,
+    page: int,
+    page_size: int,
+) -> tuple[list[Any], dict[str, Any]]:
+    """Return (items, meta) for use with success_response.
+
+    Example::
+
+        page_items, meta = paginate(rows, total=count, page=page, page_size=20)
+        return success_response(data=page_items, meta=meta)
+    """
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    meta = {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1,
+    }
+    return items, meta
+
+
 def error_response(
     *,
     request: Request,
