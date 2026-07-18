@@ -7,7 +7,6 @@ rather than silently using ephemeral in-memory state.
 """
 import logging
 import os
-import ssl
 
 import redis.asyncio as redis
 from fakeredis import FakeAsyncRedis
@@ -23,26 +22,25 @@ redis_client = None
 def _build_redis_client(redis_url: str):
     """Return a configured async Redis client for the given URL.
 
-    Automatically enables TLS for rediss:// URLs (Render managed Redis uses TLS).
+    For rediss:// (TLS) URLs — which Render managed Redis uses — we set
+    ssl_cert_reqs="none" to skip certificate verification.  Render's Redis
+    is signed by a private CA; without this flag the connection handshake
+    raises ssl.SSLCertVerificationError and require_redis() fails hard in
+    production.
+
+    NOTE: the parameter is ssl_cert_reqs (with underscore between cert and reqs),
+    NOT ssl_certreqs.  The latter is silently ignored by redis-py, leaving the
+    default "required" in place and breaking TLS on Render.
     """
+    common_kwargs: dict = {
+        "decode_responses": True,
+        "socket_connect_timeout": 5,
+        "socket_timeout": 5,
+    }
     if redis_url.startswith("rediss://"):
-        # TLS connection — skip certificate verification for managed Redis
-        ssl_ctx = ssl.create_default_context()
-        ssl_ctx.check_hostname = False
-        ssl_ctx.verify_mode = ssl.CERT_NONE
-        return redis.from_url(
-            redis_url,
-            decode_responses=True,
-            ssl_certreqs=ssl.CERT_NONE,
-            socket_connect_timeout=3,
-            socket_timeout=3,
-        )
-    return redis.from_url(
-        redis_url,
-        decode_responses=True,
-        socket_connect_timeout=3,
-        socket_timeout=3,
-    )
+        # TLS — disable cert verification for Render managed Redis
+        common_kwargs["ssl_cert_reqs"] = "none"
+    return redis.from_url(redis_url, **common_kwargs)
 
 
 async def require_redis(app):
@@ -72,7 +70,9 @@ async def require_redis(app):
             logger.critical("Failed to connect to Redis: %s", e)
             raise RuntimeError(f"Redis connection failed: {e}") from e
         else:
-            logger.warning("Redis connection failed: %s. Falling back to fakeredis (development).", e)
+            logger.warning(
+                "Redis connection failed: %s. Falling back to fakeredis (development).", e
+            )
             redis_client = FakeAsyncRedis()
             app.state.redis = redis_client
 
