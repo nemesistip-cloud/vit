@@ -595,6 +595,207 @@ try:
 except Exception as _e:
     logging.error("admin_ops router not mounted — routes unavailable: %s", _e, exc_info=True)
 
+# ---------------------------------------------------------------------------
+# Phase 4-5 Gap Resolution — mount remaining module routers
+# All wrapped in try/except so a broken import never kills the whole process
+# ---------------------------------------------------------------------------
+
+# AI Verification — anchor proofs, verify, dispute (/api/ai-verify/*)
+try:
+    from app.modules.ai_verification.routes import router as ai_verify_router
+    app.include_router(ai_verify_router, tags=["AI Verification"])
+except Exception as _e:
+    logging.error("ai_verification router not mounted: %s", _e, exc_info=True)
+
+# Trust & Reputation — anti-fraud, reputation scoring (/api/trust/*)
+try:
+    from app.modules.trust.routes import router as trust_router
+    app.include_router(trust_router, tags=["Trust"])
+except Exception as _e:
+    logging.error("trust router not mounted: %s", _e, exc_info=True)
+
+# Community Circles (/api/community/*)
+try:
+    from app.modules.community.routes import router as community_router
+    app.include_router(community_router, prefix="/api", tags=["Community"])
+except Exception as _e:
+    logging.error("community router not mounted: %s", _e, exc_info=True)
+
+# Task System — module-level task queue (/api/tasks/*)
+try:
+    from app.modules.tasks.routes import router as tasks_module_router
+    app.include_router(tasks_module_router, tags=["Tasks"])
+except Exception as _e:
+    logging.error("tasks module router not mounted: %s", _e, exc_info=True)
+
+# Freemium — IQ Test & Oracle Mic (/api/freemium/*)
+try:
+    from app.modules.freemium.routes import router as freemium_router
+    app.include_router(freemium_router, tags=["Freemium"])
+except Exception as _e:
+    logging.error("freemium router not mounted: %s", _e, exc_info=True)
+
+# Security — anti-Sybil, fraud alerts, multi-sig, wallet freeze (/api/security/*)
+try:
+    from app.modules.security.routes import router as security_router
+    app.include_router(security_router, tags=["Security"])
+except Exception as _e:
+    logging.error("security router not mounted: %s", _e, exc_info=True)
+
+# Storage Verification — Tachyon VESS content registry & proofs (/api/storage/*)
+try:
+    from app.modules.storage_verification.routes import router as storage_verify_router
+    app.include_router(storage_verify_router, tags=["Storage Verification"])
+except Exception as _e:
+    logging.error("storage_verification router not mounted: %s", _e, exc_info=True)
+
+# KYC Engine — offline verification, risk scoring (/api/kyc/*)
+try:
+    from app.modules.kyc.routes import router as kyc_router
+    app.include_router(kyc_router, tags=["KYC"])
+except Exception as _e:
+    logging.error("kyc router not mounted: %s", _e, exc_info=True)
+
+# Smart Contracts — deploy, call, query, upgrade (/api/contracts/*)
+try:
+    from app.modules.smart_contracts.routes import router as smart_contracts_router
+    app.include_router(smart_contracts_router, tags=["Smart Contracts"])
+except Exception as _e:
+    logging.error("smart_contracts router not mounted: %s", _e, exc_info=True)
+
+# Sub-Chain Registry — chain registry & cross-chain messaging (/api/subchains/*)
+try:
+    from app.modules.subchain.routes import router as subchain_router
+    app.include_router(subchain_router, tags=["Sub-Chain"])
+except Exception as _e:
+    logging.error("subchain router not mounted: %s", _e, exc_info=True)
+
+# AI Core — Atomic Match Model, Player DNA, Causal Inference (/api/ai-core/*)
+try:
+    from app.modules.ai_core.routes import router as ai_core_router
+    app.include_router(ai_core_router, tags=["AI Core"])
+except Exception as _e:
+    logging.error("ai_core router not mounted: %s", _e, exc_info=True)
+
+# Merchant Services — onboarding & business profiles (/api/merchant/*)
+try:
+    from app.modules.marketplace.merchant import router as merchant_router
+    app.include_router(merchant_router, tags=["Merchant"])
+except Exception as _e:
+    logging.error("merchant router not mounted: %s", _e, exc_info=True)
+
+# Agent Registry — register, manage & track AI agents (/api/agents/registry/*)
+try:
+    from app.modules.agent_registry.routes import router as agent_registry_router
+    app.include_router(agent_registry_router, tags=["Agent Registry"])
+except Exception as _e:
+    logging.error("agent_registry router not mounted: %s", _e, exc_info=True)
+
+# Prophecy Chain — prediction anchoring (/prophecy/*)
+try:
+    from app.modules.prophecy_chain.routes import router as prophecy_chain_router
+    app.include_router(prophecy_chain_router, tags=["Prophecy Chain"])
+except Exception as _e:
+    logging.error("prophecy_chain router not mounted: %s", _e, exc_info=True)
+
+# Network — VIT P2P node registry & stats (/api/network/*)
+try:
+    from app.modules.network.routes import router as network_router
+    app.include_router(network_router, tags=["Network"])
+except Exception as _e:
+    logging.error("network router not mounted: %s", _e, exc_info=True)
+
+# Network — Campus Node Registry (/api/network/campus/*)
+try:
+    from app.modules.network.campus_node import router as campus_node_router
+    app.include_router(campus_node_router, tags=["Campus Nodes"])
+except Exception as _e:
+    logging.error("campus_node router not mounted: %s", _e, exc_info=True)
+
+# Network — University Nodes (/api/network/universities/*)
+try:
+    from app.modules.network.university_api import router as university_api_router
+    app.include_router(university_api_router, tags=["Universities"])
+except Exception as _e:
+    logging.error("university_api router not mounted: %s", _e, exc_info=True)
+
+# Network — Android (Mobile) Nodes (/api/network/android/*)
+try:
+    from app.modules.network.android_node import router as android_node_router
+    app.include_router(android_node_router, tags=["Android Nodes"])
+except Exception as _e:
+    logging.error("android_node router not mounted: %s", _e, exc_info=True)
+
+# Academy — Campus Hub overview (/api/campus/*)
+try:
+    from app.modules.academy.campus import router as campus_hub_router
+    app.include_router(campus_hub_router, tags=["Campus Hub"])
+except Exception as _e:
+    logging.error("campus hub router not mounted: %s", _e, exc_info=True)
+
+# Academy — Campus Circles (Communities) (/api/campus/circles/*)
+try:
+    from app.modules.academy.communities import router as campus_circles_router
+    app.include_router(campus_circles_router, tags=["Campus Circles"])
+except Exception as _e:
+    logging.error("campus_circles router not mounted: %s", _e, exc_info=True)
+
+# Academy — Campus Gigs (Micro-tasks) (/api/campus/gigs/*)
+try:
+    from app.modules.academy.gigs import router as campus_gigs_router
+    app.include_router(campus_gigs_router, tags=["Campus Gigs"])
+except Exception as _e:
+    logging.error("campus_gigs router not mounted: %s", _e, exc_info=True)
+
+# Wallet — Payment Webhooks (Paystack, Flutterwave, USDT) (/api/webhooks/*)
+try:
+    from app.modules.wallet.webhooks import router as wallet_webhooks_router
+    app.include_router(wallet_webhooks_router, tags=["Wallet Webhooks"])
+except Exception as _e:
+    logging.error("wallet_webhooks router not mounted: %s", _e, exc_info=True)
+
+# Wallet — Direct VITCoin Sale (/api/wallet/vitcoin/*)
+try:
+    from app.modules.wallet.direct_sale import router as direct_sale_router
+    app.include_router(direct_sale_router, prefix="/api", tags=["Direct Sale"])
+except Exception as _e:
+    logging.error("direct_sale router not mounted: %s", _e, exc_info=True)
+
+# Wallet — On-Chain Transfer & Bridge (/api/wallet/bridge/*)
+try:
+    from app.modules.wallet.on_chain_transfer import router as on_chain_transfer_router
+    app.include_router(on_chain_transfer_router, prefix="/api", tags=["Chain Bridge"])
+except Exception as _e:
+    logging.error("on_chain_transfer router not mounted: %s", _e, exc_info=True)
+
+# Wallet — Real-Time Price WebSocket (/ws/wallet/price)
+try:
+    from app.modules.wallet.ws_price import router as ws_price_router
+    app.include_router(ws_price_router, tags=["Wallet WebSocket"])
+except Exception as _e:
+    logging.error("ws_price router not mounted: %s", _e, exc_info=True)
+
+# Blockchain Oracle — match result consensus (/api/oracle/*)
+try:
+    from app.modules.blockchain.oracle import router as oracle_router
+    app.include_router(oracle_router, tags=["Oracle"])
+except Exception as _e:
+    logging.error("oracle router not mounted: %s", _e, exc_info=True)
+
+# Tachyon VESS — Distributed Storage API (/api/tachyon/*)
+try:
+    from tachyon.api.router import router as tachyon_router
+    app.include_router(tachyon_router, prefix="/api/tachyon", tags=["Tachyon"])
+except Exception as _e:
+    logging.error("tachyon router not mounted: %s", _e, exc_info=True)
+
+# Tachyon VESS — Admin (/api/tachyon/admin/*)
+try:
+    from tachyon.api.admin_routes import router as tachyon_admin_router
+    app.include_router(tachyon_admin_router, prefix="/api/tachyon/admin", tags=["Tachyon Admin"])
+except Exception as _e:
+    logging.error("tachyon_admin router not mounted: %s", _e, exc_info=True)
+
 # --- Notification & Websocket Routers (Mocked as missing) ---
 @app.get("/api/notifications/status")
 async def get_notification_status():

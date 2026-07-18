@@ -1,37 +1,141 @@
-academy_router
-admin_router
-ai_assistant_router
+# Auto-updated — reflects all routers mounted in main.py
+# Last updated: 2026-07-18 (Phase 4-5 gap resolution)
+
+# Core / Auth
+auth_router
+verification_router
+totp_router
+identity_router
+obs_router
+registry_router
+
+# Blockchain & Chain
+blockchain_router
+blockchain_module_router
+chain_rpc_router
+blockchain_ws_router
+blockchain_analytics_router
+explorer_router
+multichain_router
+oracle_router
+subchain_router
+smart_contracts_router
+prophecy_chain_router
+bridge_router
+
+# AI & Intelligence
 ai_feed_router
 ai_intel_router
 ai_support_router
-analytics_router
-auth_router
-basketball_router
-blockchain_analytics_router
-blockchain_module_router
-blockchain_router
-blockchain_ws_router
-bridge_router
-config_router
-dashboard_router
-did_router
-elections_router
-explorer_router
-governance_router
-identity_router
-marketplace_router
+ai_assistant_router
+ai_mgmt_router
+ai_core_router
+ai_verify_router
+agents_router
+agent_status_router
+agent_registry_router
+
+# Sports & Predictions
 matches_router
-merit_router
-obs_router
-p2p_router
-policy_router
 predict_router
-quant_router
+sports_router
+basketball_router
+tennis_router
+attestation_router
+payout_verify_router
+
+# Analytics & Dashboards
+analytics_router
+analytics_studio_router
+dashboard_router
+model_breakdown_router
+model_performance_router
+market_training_router
+bankroll_router
+odds_compare_router
+quality_feed_router
+similarity_router
+
+# Wallet & Finance
+wallet_router
+wallet_admin_router
+p2p_router
+direct_sale_router
+on_chain_transfer_router
+wallet_webhooks_router
+ws_price_router
+treasury_router
 remittance_router
 rewards_router
-sports_router
-tennis_router
+
+# Identity & KYC
+kyc_router
+did_router
+trust_router
+security_router
+
+# Governance & Niche Markets
+governance_router
+elections_router
+merit_router
+policy_router
+quant_router
+
+# Academy & Community
+academy_router
+campus_hub_router
+campus_circles_router
+campus_gigs_router
+community_router
+developer_router
+
+# Marketplace & Commerce
+marketplace_router
+merchant_router
+freemium_router
+affiliate_router
+subscription_router
+referral_router
+
+# Network & Infrastructure
+network_router
+campus_node_router
+university_api_router
+android_node_router
+storage_verify_router
+storage_nodes_router
+tachyon_router
+tachyon_admin_router
+
+# Admin
+admin_router
+admin_missing_router
+admin_tasks_router
+admin_rewards_router
+admin_audit_pred_router
+admin_clv_router
+admin_finance_router
+admin_ops_router
+
+# Notifications & Events
+notifications_router
+
+# Misc & Utilities
+config_router
 training_router
-wallet_admin_router
-wallet_router
 watchlist_router
+history_router
+result_router
+rollover_router
+exports_router
+leaderboard_router
+audit_router
+inplay_router
+social_router
+defi_router
+enterprise_router
+cloud_status_router
+postbacks_router
+sports_webhooks_router
+paystack_webhooks_router
+wrapped_router
