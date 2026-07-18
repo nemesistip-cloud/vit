@@ -77,7 +77,7 @@ class CreateAPIKey(BaseModel):
 
 class WebhookCreate(BaseModel):
     url:        str         = Field(..., description="HTTPS endpoint to receive events")
-    events:     List[str]   = Field(..., min_items=1,
+    events:     List[str]   = Field(..., min_length=1,
                                     description="prediction.settled | match.result | odds.update | user.stake | defi.yield")
     secret:     Optional[str] = Field(None, description="If provided, used for HMAC signature header")
     name:       str          = Field(default="", max_length=80)

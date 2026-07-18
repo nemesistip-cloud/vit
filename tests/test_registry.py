@@ -36,12 +36,23 @@ async def test_registration_and_discovery():
     assert m1 in results
 
 @pytest.mark.asyncio
+async def test_idempotent_same_instance_registration():
+    """Registering the exact same instance twice is a no-op (idempotent)."""
+    reg = ModuleRegistry()
+    m1 = MockModule("dup-same")
+    await reg.register(m1)
+    await reg.register(m1)  # should NOT raise
+
+
+@pytest.mark.asyncio
 async def test_duplicate_registration():
+    """Registering a different instance with the same ID raises ValueError."""
     reg = ModuleRegistry()
     m1 = MockModule("dup")
+    m2 = MockModule("dup")  # same module_id, different Python object
     await reg.register(m1)
     with pytest.raises(ValueError, match="Module duplication detected"):
-        await reg.register(m1)
+        await reg.register(m2)
 
 @pytest.mark.asyncio
 async def test_dependency_validation():

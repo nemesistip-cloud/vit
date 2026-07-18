@@ -33,10 +33,14 @@ class ModuleRegistry:
 
         async with self._lock:
             if module_id in self._modules:
-                # Update existing if same instance, otherwise raise
+                # Same instance → idempotent no-op
                 if self._modules[module_id] is module:
                     return
-                logger.warning(f"Module {module_id} already registered. Overwriting.")
+                # Different instance with same ID → programming error
+                raise ValueError(
+                    f"Module duplication detected: '{module_id}' is already registered "
+                    f"with a different instance. Use a unique module_id."
+                )
 
             logger.info(f"[registry] Registering module: {module_id} v{metadata.version}")
 

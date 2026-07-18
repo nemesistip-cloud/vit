@@ -31,7 +31,7 @@ class AuditManager:
             self._history.pop(0)
 
         # Log to isolated audit logger
-        audit_logger.info(record.json())
+        audit_logger.info(record.model_dump_json())
 
     def get_records(self, limit: int = 100) -> List[AuditRecord]:
         return self._history[-limit:]

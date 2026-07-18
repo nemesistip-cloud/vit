@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import semver
 
 class PluginStatus(Enum):
@@ -59,8 +59,9 @@ class PluginManifest(BaseModel):
     lifecycle_hooks: List[str] = Field(default_factory=list, description="Custom lifecycle hook names supported")
     security_classification: SecurityClassification = SecurityClassification.COMMUNITY
 
-    @validator('version', 'platform_version', 'min_runtime_version')
-    def validate_semver(cls, v):
+    @field_validator('version', 'platform_version', 'min_runtime_version')
+    @classmethod
+    def validate_semver(cls, v: str) -> str:
         if not semver.VersionInfo.is_valid(v):
             raise ValueError(f"Invalid semantic version: {v}")
         return v
