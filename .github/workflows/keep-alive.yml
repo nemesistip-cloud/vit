@@ -37,6 +37,6 @@ jobs:
 
             if [ "$STATUS_FRONT" != "200" ] && [ "$STATUS_FRONT" != "301" ] && [ "$STATUS_FRONT" != "302" ]; then
                echo "ERROR: Service seems down or unreachable."
-               false
+               exit 1
             fi
           fi
