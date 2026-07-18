@@ -14,8 +14,10 @@
 
 import { updateServiceUrls } from '@/lib/api'
 
+// Empty string → relative URL → Vite dev proxy handles it.
+// Production builds inject VITE_GATEWAY_URL as an absolute URL.
 const GATEWAY_URL = (
-  import.meta.env.VITE_GATEWAY_URL ?? 'https://vitnetwork-nls4.onrender.com'
+  import.meta.env.VITE_GATEWAY_URL ?? ''
 ).replace(/\/$/, '')
 
 // ── Payload shape from GET /api/registry ─────────────────────────────────────

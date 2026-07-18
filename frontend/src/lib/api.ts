@@ -12,9 +12,12 @@
 // ── Internal mutable service URLs ─────────────────────────────────────────────
 // Defaults come from Vite env vars (set at build time) or hardcoded fallbacks.
 
-let _gatewayUrl = (import.meta.env.VITE_GATEWAY_URL ?? 'https://vitnetwork-nls4.onrender.com').replace(/\/$/, '')
-let _aiUrl      = (import.meta.env.VITE_AI_URL      ?? 'https://vit-ai.onrender.com').replace(/\/$/, '')
-let _storageUrl = (import.meta.env.VITE_STORAGE_URL ?? 'https://vit-storage-4trt.onrender.com').replace(/\/$/, '')
+// In dev (no VITE_GATEWAY_URL set) use an empty string so API calls are
+// relative — the Vite dev proxy will forward them to localhost:8000.
+// In production the build injects the real absolute URL.
+let _gatewayUrl = (import.meta.env.VITE_GATEWAY_URL ?? '').replace(/\/$/, '')
+let _aiUrl      = (import.meta.env.VITE_AI_URL      ?? '').replace(/\/$/, '')
+let _storageUrl = (import.meta.env.VITE_STORAGE_URL ?? '').replace(/\/$/, '')
 
 /**
  * Live URL accessors. Getter properties ensure that code reading
