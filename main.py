@@ -36,8 +36,48 @@ async def lifespan(app: FastAPI):
     # Phase 0: connect event bus Redis layer so events persist across restarts
     from app.core.event_bus import event_bus
     await event_bus.connect_redis()
+
+    # TRACK-007: Start Agent Workflow Dispatcher
+    try:
+        from app.modules.agents.workflow import workflow_dispatcher
+        await workflow_dispatcher.start()
+        _log = logging.getLogger(__name__)
+        _log.info("[lifespan] Agent Workflow Dispatcher started")
+    except Exception as _we:
+        logging.getLogger(__name__).warning("[lifespan] workflow dispatcher start failed: %s", _we)
+
+    # TRACK-008: Start Tachyon Storage Challenge Scheduler
+    try:
+        from tachyon.core.challenge import challenge_scheduler
+        await challenge_scheduler.start()
+        logging.getLogger(__name__).info("[lifespan] Tachyon Challenge Scheduler started")
+    except Exception as _ce:
+        logging.getLogger(__name__).warning("[lifespan] challenge scheduler start failed: %s", _ce)
+
+    # TRACK-008: Start Tachyon Verification Worker
+    try:
+        from tachyon.core.worker import TachyonVerificationWorker
+        _tachyon_worker = TachyonVerificationWorker(interval_seconds=3600)
+        asyncio.create_task(_tachyon_worker.start(), name="tachyon-verification-worker")
+        logging.getLogger(__name__).info("[lifespan] Tachyon Verification Worker started")
+    except Exception as _te:
+        logging.getLogger(__name__).warning("[lifespan] tachyon verification worker failed: %s", _te)
+
     print(f'🚀 VIT Network v{APP_VERSION} starting (RUNTIME KERNEL MODE)...')
     yield
+
+    # Graceful shutdown of background workers
+    try:
+        from app.modules.agents.workflow import workflow_dispatcher as _wd
+        await _wd.stop()
+    except Exception:
+        pass
+    try:
+        from tachyon.core.challenge import challenge_scheduler as _cs
+        await _cs.stop()
+    except Exception:
+        pass
+
     await event_bus.disconnect_redis()
     await kernel.shutdown()
     print('🛑 Shutdown complete')
@@ -795,6 +835,27 @@ try:
     app.include_router(tachyon_admin_router, prefix="/api/tachyon/admin", tags=["Tachyon Admin"])
 except Exception as _e:
     logging.error("tachyon_admin router not mounted: %s", _e, exc_info=True)
+
+# TRACK-009: Global Search (/api/search)
+try:
+    from app.api.routes.search import router as global_search_router
+    app.include_router(global_search_router, tags=["Global Search"])
+except Exception as _e:
+    logging.error("global_search router not mounted: %s", _e, exc_info=True)
+
+# TRACK-007: Agent Workflow Manager (/api/agents/workflow)
+try:
+    from app.api.routes.agent_workflow import router as agent_workflow_router
+    app.include_router(agent_workflow_router, tags=["Agent Workflow"])
+except Exception as _e:
+    logging.error("agent_workflow router not mounted: %s", _e, exc_info=True)
+
+# TRACK-008: Tachyon Storage Challenges (/api/tachyon/challenges)
+try:
+    from app.api.routes.tachyon_challenges import router as tachyon_challenges_router
+    app.include_router(tachyon_challenges_router, tags=["Tachyon Challenges"])
+except Exception as _e:
+    logging.error("tachyon_challenges router not mounted: %s", _e, exc_info=True)
 
 # --- Notification & Websocket Routers (Mocked as missing) ---
 @app.get("/api/notifications/status")
