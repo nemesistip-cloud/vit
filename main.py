@@ -238,9 +238,22 @@ async def health(db: AsyncSession = Depends(get_db)):
 
 # --- Router Registrations ---
 from app.auth.routes import router as auth_router
-app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
-# Compat: expose auth routes at /auth/* for legacy clients
+# auth_router already has prefix="/auth"; mount at /api to produce /api/auth/...
+app.include_router(auth_router, prefix="/api", tags=["Auth"])
+# Compat: expose auth routes at /auth/* for legacy clients (router self-prefixes /auth)
 app.include_router(auth_router, tags=["Auth-Compat"], include_in_schema=False)
+
+# Phase 3: Mount email verification and TOTP/2FA routers
+try:
+    from app.auth.verification import router as verification_router
+    app.include_router(verification_router, prefix="/api", tags=["Auth — Verification"])
+except Exception as _ve:
+    logging.warning("verification router not mounted: %s", _ve)
+try:
+    from app.auth.totp import router as totp_router
+    app.include_router(totp_router, prefix="/api", tags=["Auth — 2FA"])
+except Exception as _te:
+    logging.warning("totp router not mounted: %s", _te)
 
 from app.api.routes.observability import router as obs_router
 app.include_router(obs_router, prefix="/api/obs", tags=["Observability"])
@@ -401,7 +414,8 @@ from app.modules.wallet.routes import router as wallet_router
 app.include_router(wallet_router)
 
 from app.modules.wallet.p2p_routes import router as p2p_router
-app.include_router(p2p_router)
+# p2p_router has prefix="/wallet/p2p"; mount with /api to produce /api/wallet/p2p/...
+app.include_router(p2p_router, prefix="/api")
 
 from app.modules.wallet.admin_routes import router as wallet_admin_router
 app.include_router(wallet_admin_router)
