@@ -54,9 +54,8 @@ async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, 
             return allowed, reason, user_id, plan
     except Exception as exc:
         logger.error("Developer API key auth error: %s", exc)
-        # Fail-closed in production, allow in dev for robustness
-        is_prod = ENVIRONMENT == "production"
-        return not is_prod, "auth_error", None, "free"
+        # Always fail-closed on auth errors — never grant access on exception
+        return False, "auth_error", None, "free"
 
 
 def auth_enabled() -> bool:

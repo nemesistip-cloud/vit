@@ -9,7 +9,15 @@ import time
 GENESIS_TIMESTAMP = 1735689600  # 2025-01-01 00:00:00 UTC
 INITIAL_SUPPLY = Decimal("1000000")
 GENESIS_VALIDATOR = get_env("GENESIS_VALIDATOR_ADDRESS", "VIT_GENESIS_VALIDATOR_ADDRESS")
-TREASURY_PRIV_KEY = get_env("VIT_TREASURY_PRIVATE_KEY", "92238e8a9a98ec05691c77ba77324ddbe94fe33588d5f27af2ac254f70810955") # Default for dev
+_raw_treasury_key = get_env("VIT_TREASURY_PRIVATE_KEY", "")
+if not _raw_treasury_key:
+    import logging as _log
+    _log.getLogger(__name__).warning(
+        "VIT_TREASURY_PRIVATE_KEY is not set — using the embedded dev key. "
+        "THIS MUST NEVER HAPPEN IN PRODUCTION. Set the secret in Render."
+    )
+    _raw_treasury_key = "92238e8a9a98ec05691c77ba77324ddbe94fe33588d5f27af2ac254f70810955"
+TREASURY_PRIV_KEY = _raw_treasury_key
 
 def build_genesis_block() -> VITBlock:
     """

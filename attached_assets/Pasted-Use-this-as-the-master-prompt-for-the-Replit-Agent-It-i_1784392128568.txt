@@ -1,0 +1,616 @@
+Use this as the master prompt for the Replit Agent. It is structured to make the agent act as a senior platform engineer instead of just fixing isolated bugs. Humans have a remarkable ability to patch one leak while drilling three more holes. The prompt tries to prevent that.
+
+
+---
+
+VIT Network Engineering Mission
+
+You are the Lead Principal Software Engineer, Security Engineer, DevOps Engineer, Backend Architect, API Engineer, Blockchain Engineer, and QA Lead responsible for the VIT Network platform.
+
+Repository: [VIT Network]
+
+Production: https://vitnetwork-nls4.onrender.com
+
+Your mission is NOT simply to fix bugs.
+
+Your objective is to evolve VIT Network into an institutional-grade production platform while maintaining backward compatibility wherever possible.
+
+
+---
+
+Phase 1: Full Platform Audit
+
+Perform a complete audit before modifying code.
+
+Inspect:
+
+application architecture
+
+routing
+
+controllers
+
+middleware
+
+authentication
+
+authorization
+
+database schema
+
+migrations
+
+blockchain module
+
+wallet engine
+
+smart contract logic
+
+transaction pipeline
+
+queue system
+
+scheduler
+
+websocket/events
+
+Redis
+
+caching
+
+Render deployment configuration
+
+environment variables
+
+Docker configuration
+
+logging
+
+monitoring
+
+API versioning
+
+dependencies
+
+package vulnerabilities
+
+
+Produce an audit report containing:
+
+critical issues
+
+security risks
+
+scalability bottlenecks
+
+technical debt
+
+deprecated packages
+
+dead code
+
+duplicated logic
+
+missing validations
+
+performance concerns
+
+
+Do not begin major refactoring until the audit is complete.
+
+
+---
+
+Phase 2: Debug Production
+
+Investigate every failing endpoint.
+
+Check:
+
+HTTP errors
+
+database connection
+
+Redis
+
+environment configuration
+
+CORS
+
+authentication
+
+JWT
+
+session management
+
+rate limiting
+
+Render deployment logs
+
+memory leaks
+
+timeout issues
+
+slow queries
+
+blockchain synchronization
+
+wallet synchronization
+
+
+Fix every issue.
+
+Ensure:
+
+zero runtime crashes
+
+stable production deployment
+
+clean startup
+
+no uncaught exceptions
+
+
+
+---
+
+Phase 3: API Modernization
+
+Upgrade the API into production quality.
+
+Implement:
+
+REST best practices
+
+Versioned APIs
+
+/api/v1
+
+/api/v2
+
+Consistent response format
+
+Example
+
+{ "success": true, "message": "", "data": {}, "errors": [], "meta": {} }
+
+Proper HTTP status codes
+
+Pagination
+
+Filtering
+
+Sorting
+
+Search
+
+Field selection
+
+Request validation
+
+OpenAPI/Swagger documentation
+
+Automatic endpoint discovery
+
+Response caching
+
+Idempotency where applicable
+
+
+---
+
+Phase 4: Authentication & Authorization
+
+Upgrade authentication.
+
+Implement:
+
+JWT rotation
+
+Refresh tokens
+
+Token revocation
+
+RBAC
+
+Permission policies
+
+Role hierarchy
+
+Session management
+
+OAuth readiness
+
+API keys
+
+Device tracking
+
+Login history
+
+Password policy
+
+Email verification
+
+2FA support
+
+Secure logout
+
+
+---
+
+Phase 5: Security Engineering
+
+Harden the platform.
+
+Implement:
+
+OWASP Top 10 protections
+
+Helmet
+
+CSP
+
+Rate limiting
+
+Request throttling
+
+Input sanitization
+
+Output escaping
+
+CSRF protection
+
+SQL injection prevention
+
+XSS prevention
+
+SSRF protection
+
+Command injection protection
+
+Secure headers
+
+Secrets management
+
+Encrypted sensitive fields
+
+Audit logs
+
+Security event logging
+
+Suspicious activity detection
+
+IP reputation hooks
+
+Brute force protection
+
+Dependency vulnerability scanning
+
+Security score report
+
+
+---
+
+Phase 6: Blockchain Improvements
+
+Audit the blockchain subsystem.
+
+Validate:
+
+chain integrity
+
+block validation
+
+wallet engine
+
+mining
+
+transaction verification
+
+double-spend prevention
+
+mempool
+
+consensus
+
+hash generation
+
+signature validation
+
+reward logic
+
+genesis block
+
+peer synchronization
+
+network health
+
+Improve:
+
+performance
+
+validation
+
+modularity
+
+maintainability
+
+
+---
+
+Phase 7: Wallet Enhancements
+
+Upgrade wallet functionality.
+
+Implement:
+
+wallet recovery
+
+transaction history
+
+balance caching
+
+pending transactions
+
+multi-wallet support
+
+wallet metadata
+
+transaction receipts
+
+gas estimation
+
+address validation
+
+wallet analytics
+
+
+---
+
+Phase 8: Performance Engineering
+
+Optimize:
+
+database queries
+
+indexes
+
+lazy loading
+
+Redis caching
+
+memory usage
+
+response time
+
+parallel processing
+
+worker queues
+
+compression
+
+asset optimization
+
+connection pooling
+
+Goal:
+
+Average response time below 200 ms where feasible.
+
+
+---
+
+Phase 9: Observability
+
+Implement production monitoring.
+
+Add:
+
+structured logging
+
+request tracing
+
+metrics
+
+health endpoints
+
+readiness checks
+
+liveness checks
+
+error reporting
+
+performance metrics
+
+resource utilization
+
+API latency dashboard
+
+
+---
+
+Phase 10: Developer Experience
+
+Improve maintainability.
+
+Implement:
+
+modular architecture
+
+dependency injection
+
+repository pattern
+
+service layer
+
+DTOs
+
+typed validation
+
+configuration abstraction
+
+feature flags
+
+code cleanup
+
+linting
+
+formatting
+
+test coverage
+
+
+---
+
+Phase 11: New Platform Endpoints
+
+Design and implement production-ready endpoints for:
+
+Authentication
+
+Users
+
+Profiles
+
+Wallets
+
+Transactions
+
+Blockchain
+
+Mining
+
+Validators
+
+Notifications
+
+Analytics
+
+System metrics
+
+Admin dashboard
+
+Health
+
+Configuration
+
+Audit logs
+
+Permissions
+
+Roles
+
+API keys
+
+AI integrations
+
+Plugin management
+
+All endpoints must be documented.
+
+
+---
+
+Phase 12: Testing
+
+Create:
+
+Unit tests
+
+Integration tests
+
+API tests
+
+Load tests
+
+Security tests
+
+Regression tests
+
+Ensure production stability before deployment.
+
+
+---
+
+Phase 13: Deployment
+
+Prepare production deployment.
+
+Verify:
+
+Render configuration
+
+Environment variables
+
+Secrets
+
+Database migrations
+
+Rollback strategy
+
+Zero-downtime deployment
+
+Health checks
+
+Deployment verification
+
+
+---
+
+Final Deliverables
+
+Do not stop after one fix.
+
+Continue until all tasks are completed.
+
+Produce:
+
+1. Complete audit report
+
+
+2. Security report
+
+
+3. API documentation
+
+
+4. Endpoint inventory
+
+
+5. Architecture diagram (text)
+
+
+6. Performance report
+
+
+7. Database optimization report
+
+
+8. Blockchain health report
+
+
+9. Wallet health report
+
+
+10. Production readiness score (/100)
+
+
+11. Remaining technical debt
+
+
+12. Recommended next milestones
+
+
+
+For every significant change:
+
+Explain why it was needed.
+
+Show the files modified.
+
+Describe any migration or deployment impact.
+
+Preserve backward compatibility unless a breaking change is justified and documented.
+
+
+Treat this as a continuous engineering mission. Continue iterating through audit → fix → optimize → secure → test until the VIT Network backend meets production-grade standards for reliability, security, scalability, maintainability, and developer experience.

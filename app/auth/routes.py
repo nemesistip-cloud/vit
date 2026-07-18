@@ -1,7 +1,10 @@
 # app/auth/routes.py
 import uuid
+import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
+from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -19,6 +22,52 @@ from app.auth.jwt_utils import (
     create_refresh_token,
     decode_token,
 )
+
+# ---------------------------------------------------------------------------
+# Brute-force / account-lockout state
+# In-memory with Redis promotion on next iteration. Protects /auth/login.
+# ---------------------------------------------------------------------------
+_LOGIN_ATTEMPTS: dict[str, list[float]] = defaultdict(list)
+_LOGIN_LOCK = Lock()
+_MAX_ATTEMPTS   = 10          # per key per window
+_WINDOW_SECONDS = 900         # 15-minute sliding window
+_LOCKOUT_SECONDS = 1800       # 30-minute hard lockout after max exceeded
+
+
+def _get_login_key(request: Request, email: str) -> str:
+    """Derive a per-(IP, email) bucket key."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else (
+        request.client.host if request.client else "unknown"
+    )
+    return f"{ip}:{email.lower()}"
+
+
+def _check_and_record_attempt(key: str, success: bool) -> None:
+    """
+    Raise 429 if the key is in lockout or has exceeded the attempt limit.
+    Record a new attempt timestamp on failure; clear on success.
+    """
+    now = time.monotonic()
+    with _LOGIN_LOCK:
+        attempts = _LOGIN_ATTEMPTS[key]
+        # Evict timestamps outside the window
+        cutoff = now - _WINDOW_SECONDS
+        attempts[:] = [t for t in attempts if t > cutoff]
+
+        if success:
+            _LOGIN_ATTEMPTS.pop(key, None)
+            return
+
+        if attempts and (now - attempts[0]) < _LOCKOUT_SECONDS and len(attempts) >= _MAX_ATTEMPTS:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Too many failed login attempts. "
+                    f"Account temporarily locked. Try again later."
+                ),
+            )
+        attempts.append(now)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -48,8 +97,17 @@ class RegisterRequest(BaseModel):
 
     @field_validator("password")
     def password_strength(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
+        import re
+        if len(v) < 10:
+            raise ValueError("Password must be at least 10 characters")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?`~]", v):
+            raise ValueError("Password must contain at least one special character")
         return v
 
 class LoginRequest(BaseModel):
@@ -118,15 +176,24 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    login_key = _get_login_key(request, body.email)
+
+    # Check lockout BEFORE touching the DB (fail fast, no timing oracle)
+    _check_and_record_attempt(login_key, success=False)
+
     stmt = select(User).where(User.email == body.email.lower())
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(body.password, user.hashed_password):
+        # Attempt already recorded above
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.is_active:
         raise HTTPException(status_code=401, detail="User account is deactivated")
+
+    # Successful auth — clear lockout state
+    _check_and_record_attempt(login_key, success=True)
 
     now = datetime.now(timezone.utc)
     user.last_login = now

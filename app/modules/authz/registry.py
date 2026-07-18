@@ -30,7 +30,9 @@ class PermissionRegistry:
 
     def register(self, slug: str, description: str, category: str):
         if slug in self._permissions:
-            logger.warning(f"[authz] Permission already registered: {slug}")
+            # Idempotent: skip silent re-registration (modules may import this
+            # multiple times during startup). No warning needed.
+            return
         self._permissions[slug] = PermissionDefinition(slug, description, category)
         logger.debug(f"[authz] Registered permission: {slug}")
 
