@@ -36,31 +36,28 @@ jobs:
           DEPLOY_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
           echo "Deploy triggered: $DEPLOY_ID"
 
-      # Health gate: poll /ping for up to 60 s after triggering the deploy.
-      # Render deploys can take 30-90 s; the poll gives the new instance a
-      # chance to come up.  We wait 30 s first so we don't hammer a still-
-      # building instance, then poll every 10 s for up to 30 more seconds.
-      - name: Health gate — wait for /ping to return 200
-        run: |
-          echo "Waiting 30s for Render build to complete..."
-          sleep 30
+      # Health gate: poll /ping until healthy or 5 minutes have elapsed.
+        # Docker builds on Render (free tier) take 3-6 min end-to-end.
+        # We poll every 15 s for up to 20 attempts (= 5 min max) without
+        # an upfront sleep so fast deploys pass immediately.
+        - name: Health gate — wait for /ping to return 200
+          run: |
+            echo "Polling ${{ env.SERVICE_URL }}/ping (up to 5 min, every 15s)..."
+            for i in $(seq 1 20); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 15 \
+                "${{ env.SERVICE_URL }}/ping" || echo "000")
+              echo "Attempt $i/20: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ Service is healthy: ${{ env.SERVICE_URL }}"
+                exit 0
+              fi
+              sleep 15
+            done
 
-          echo "Polling ${{ env.SERVICE_URL }}/ping ..."
-          for i in 1 2 3; do
-            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
-              --max-time 10 \
-              "${{ env.SERVICE_URL }}/ping" || echo "000")
-            echo "Attempt $i: HTTP $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Service is healthy: ${{ env.SERVICE_URL }}"
-              exit 0
-            fi
-            sleep 10
-          done
-
-          echo "❌ Health gate failed — /ping did not return 200 within 60s."
-          echo "The deploy may still be in progress. Check the Render dashboard."
-          exit 1
+            echo "❌ Health gate failed — /ping did not return 200 within 5 min."
+            echo "Check the Render dashboard: https://dashboard.render.com/web/srv-d8sipgjeo5us73eis7hg"
+            exit 1
 
       - name: Summary
         if: always()
