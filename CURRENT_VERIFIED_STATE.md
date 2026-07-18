@@ -107,3 +107,25 @@
 4. **TRACK-008**: Tachyon swarm periodic challenge implementation
 5. **Archive cleanup**: Delete `archive/` after final audit
 6. **Frontend ENV**: Ensure frontend build points to correct API base URL
+
+
+    ## TRACK-014: Sports Intelligence Terminal — Completed 2026-07-18
+
+    ### Changes Deployed
+    | File | Change |
+    | :--- | :--- |
+    | `frontend/src/pages/Explorer.tsx` | Full rewrite — fix blank white screen. Block/Txn tabs, robust null guards, GenesisState empty state, working search, always renders regardless of chain status |
+    | `frontend/src/pages/Matches.tsx` | Added `useSyncFixtures` mutation, "Sync Fixtures" header button, empty-state "Pull latest fixtures" CTA, toast feedback |
+    | `frontend/src/pages/Leaderboard.tsx` | Full rewrite — PredictorRow/ValidatorRow with rank medals, accuracy/ROI/reward columns, global stats panel, 3-step how-it-works empty state |
+    | `app/api/routes/sports.py` | New `GET /api/sports/sync/status` endpoint (provider config + match count), improved fixture sync with upsert logic, `/providers` meta endpoint, Football-Data.org branch |
+
+    ### API Keys Configured (Render)
+    - `ISPORTS_API_KEY` ✅ set
+    - `FOOTBALL_DATA_API_KEY` ✅ set
+    - `ODDS_API_KEY` ✅ set
+
+    ### Track Status Update
+    | Track | Status | Completion |
+    | :--- | :--- | :--- |
+    | TRACK-014 Sports Intelligence Terminal | **Completed** | 100% |
+    
