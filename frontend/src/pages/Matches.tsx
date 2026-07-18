@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Link, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Trophy, TrendingUp, Calendar, Filter, RefreshCw,
   ChevronRight, Activity, Zap, Target, AlertCircle,
-  Search, Clock, CheckCircle, Radio, Flame,
+  Search, Clock, CheckCircle, Radio, RotateCcw, Database,
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { toast } from 'sonner'
 
 interface Match {
   id: number
@@ -31,13 +32,15 @@ interface Match {
   away_score?: number
 }
 
-type Tab = 'upcoming' | 'live' | 'recent' | 'all'
+type Tab   = 'upcoming' | 'live' | 'recent' | 'all'
 type Sport = 'all' | 'football' | 'basketball' | 'tennis' | 'cricket'
+
+// ── Hooks ─────────────────────────────────────────────────────────────────────
 
 function useMatches(tab: Tab, sport: Sport) {
   const endpoint = tab === 'upcoming' ? '/api/matches/upcoming'
-    : tab === 'live' ? '/api/matches/live'
-    : tab === 'recent' ? '/api/matches/recent'
+    : tab === 'live'    ? '/api/matches/live'
+    : tab === 'recent'  ? '/api/matches/recent'
     : '/api/matches'
 
   return useQuery<Match[]>({
@@ -57,6 +60,32 @@ function useMatches(tab: Tab, sport: Sport) {
     refetchInterval: tab === 'live' ? 20_000 : false,
   })
 }
+
+function useSyncFixtures() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (provider: string = 'isports') => {
+      const res = await fetch(`${ENDPOINTS.gateway}/api/sports/sync/fixtures?provider=${provider}`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.detail || `Sync failed (HTTP ${res.status})`)
+      }
+      return res.json()
+    },
+    onSuccess: (data) => {
+      const synced = data?.total_synced ?? data?.synced ?? 0
+      toast.success(`Synced ${synced} fixture${synced !== 1 ? 's' : ''} from iSports`)
+      qc.invalidateQueries({ queryKey: ['matches'] })
+    },
+    onError: (err: Error) => {
+      toast.error(`Fixture sync failed: ${err.message}`)
+    },
+  })
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function ProbBar({ label, prob, color }: { label: string; prob?: number; color: string }) {
   const pct = prob != null ? Math.round(prob * 100) : null
@@ -78,7 +107,7 @@ function ProbBar({ label, prob, color }: { label: string; prob?: number; color: 
 
 function MatchCard({ match, i }: { match: Match; i: number }) {
   const navigate = useNavigate()
-  const conf = match.confidence != null ? Math.round(match.confidence * 100) : null
+  const conf   = match.confidence != null ? Math.round(match.confidence * 100) : null
   const isLive = match.status?.toLowerCase() === 'live' || match.status?.toLowerCase() === 'in_play'
 
   return (
@@ -92,6 +121,7 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
       {isLive && (
         <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-emerald-400" />
       )}
+
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
@@ -124,10 +154,10 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
           {isLive ? (
             <span className="text-emerald-400 text-xs font-bold">LIVE</span>
           ) : (
-            <span className="text-white/30 text-xs font-medium">vs</span>
+            <span className="text-white/30 text-xs">vs</span>
           )}
         </div>
-        <div className="flex-1 text-left">
+        <div className="flex-1">
           <p className="font-semibold text-white text-sm leading-tight">{match.away_team}</p>
           {match.away_score != null && <p className="text-2xl font-bold text-white mt-1">{match.away_score}</p>}
         </div>
@@ -135,15 +165,15 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
 
       {/* Probability bars */}
       {(match.home_prob != null || match.draw_prob != null || match.away_prob != null) && (
-        <div className="flex gap-3 mb-4 py-3 border-t border-b border-white/6">
+        <div className="flex gap-3 mb-4">
           <ProbBar label="Home" prob={match.home_prob} color="text-vit-400" />
-          <ProbBar label="Draw" prob={match.draw_prob} color="text-white/60" />
+          {match.draw_prob != null && <ProbBar label="Draw" prob={match.draw_prob} color="text-white/50" />}
           <ProbBar label="Away" prob={match.away_prob} color="text-amber-400" />
         </div>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-xs text-white/40 mt-3">
+      <div className="flex items-center justify-between text-xs text-white/30">
         <div className="flex items-center gap-3">
           {conf != null && (
             <span className="flex items-center gap-1">
@@ -187,44 +217,74 @@ const SPORTS: { key: Sport; label: string }[] = [
   { key: 'cricket',    label: 'Cricket' },
 ]
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function Matches() {
   const [tab, setTab]     = useState<Tab>('upcoming')
   const [sport, setSport] = useState<Sport>('all')
   const [search, setSearch] = useState('')
   const { data, isLoading, isError, error, refetch } = useMatches(tab, sport)
+  const syncMutation = useSyncFixtures()
 
   const filtered = (data ?? []).filter(m => {
     if (!search) return true
     const q = search.toLowerCase()
-    return m.home_team.toLowerCase().includes(q) ||
-      m.away_team.toLowerCase().includes(q) ||
-      m.league.toLowerCase().includes(q)
+    return (
+      m.home_team?.toLowerCase().includes(q) ||
+      m.away_team?.toLowerCase().includes(q) ||
+      m.league?.toLowerCase().includes(q)
+    )
   })
 
   return (
     <div className="pt-16 min-h-screen">
-      {/* Header */}
+      {/* Header ────────────────────────────────────────────────────────────── */}
       <div className="relative border-b border-white/8">
         <div className="absolute inset-0 section-grid opacity-20" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-vit-500/10 border border-vit-500/20 flex items-center justify-center">
-                <Trophy className="w-5 h-5 text-vit-400" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Matches & Predictions</h1>
-                <p className="text-white/50 text-sm">AI-powered sports intelligence and probability forecasts</p>
-              </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-4"
+          >
+            <div className="w-10 h-10 rounded-xl bg-vit-500/10 border border-vit-500/20 flex items-center justify-center">
+              <Activity className="w-5 h-5 text-vit-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Matches &amp; Predictions</h1>
+              <p className="text-white/50 text-sm">AI-powered sports intelligence and probability forecasts</p>
+            </div>
+
+            <div className="ml-auto flex items-center gap-2">
+              {/* Sync fixtures */}
+              <button
+                onClick={() => syncMutation.mutate('isports')}
+                disabled={syncMutation.isPending}
+                title="Sync latest fixtures from iSports"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs hover:bg-white/8 hover:text-white/70 transition-all disabled:opacity-50"
+              >
+                {syncMutation.isPending
+                  ? <><Spinner className="w-3.5 h-3.5" /> Syncing…</>
+                  : <><Database className="w-3.5 h-3.5" /> Sync Fixtures</>
+                }
+              </button>
+              {/* Refresh */}
+              <button
+                onClick={() => refetch()}
+                className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/8 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4 text-white/40" />
+              </button>
             </div>
           </motion.div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* Tab bar */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* Filters ─────────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          {/* Tab pills */}
+          <div className="flex items-center gap-1 p-1 bg-white/5 border border-white/8 rounded-xl">
             {TABS.map(t => (
               <button
                 key={t.key}
@@ -232,62 +292,55 @@ export default function Matches() {
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all',
                   tab === t.key
-                    ? 'bg-vit-500 text-white shadow-lg shadow-vit-500/20'
-                    : 'text-white/50 hover:text-white hover:bg-white/5',
+                    ? 'bg-vit-500 text-white shadow-sm'
+                    : 'text-white/40 hover:text-white/60'
                 )}
               >
-                <t.icon className={cn('w-4 h-4', t.key === 'live' && tab === t.key && 'animate-pulse')} />
+                <t.icon className="w-3.5 h-3.5" />
                 {t.label}
-                {t.key === 'live' && tab === 'live' && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </button>
+            ))}
+          </div>
+
+          {/* Sport filters */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {SPORTS.map(s => (
+              <button
+                key={s.key}
+                onClick={() => setSport(s.key)}
+                className={cn(
+                  'px-3 py-2 rounded-lg text-sm font-medium transition-all border',
+                  sport === s.key
+                    ? 'bg-white/10 border-white/20 text-white'
+                    : 'border-white/8 text-white/40 hover:text-white/60 hover:border-white/15'
                 )}
+              >
+                {s.label}
               </button>
             ))}
           </div>
 
           {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <div className="relative ml-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
             <input
               type="text"
-              placeholder="Search teams or leagues..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-vit-500/50 focus:bg-white/8 transition-colors"
+              placeholder="Search teams or leagues..."
+              className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-vit-500/50 transition-colors w-56"
             />
           </div>
-
-          <button
-            onClick={() => refetch()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
         </div>
 
-        {/* Sport filters */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {SPORTS.map(s => (
-            <button
-              key={s.key}
-              onClick={() => setSport(s.key)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
-                sport === s.key
-                  ? 'bg-vit-500/20 border-vit-500/40 text-vit-300'
-                  : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:border-white/20',
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
-          <span className="ml-auto text-xs text-white/30 flex items-center">
+        {/* Count row */}
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-xs text-white/30">
             {isLoading ? 'Loading…' : `${filtered.length} match${filtered.length !== 1 ? 'es' : ''}`}
           </span>
         </div>
 
-        {/* Content */}
+        {/* Content ─────────────────────────────────────────────────────────── */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <Spinner className="w-8 h-8 text-vit-400" />
@@ -303,15 +356,27 @@ export default function Matches() {
             </button>
           </motion.div>
         ) : filtered.length === 0 ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-24">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
             <Trophy className="w-14 h-14 text-white/10 mx-auto mb-4" />
-            <p className="text-white/60 font-medium">No {tab} matches</p>
-            <p className="text-white/30 text-sm mt-1">
-              {tab === 'live' ? 'No matches in play right now.' :
+            <p className="text-white/60 font-medium mb-1">No {tab} matches</p>
+            <p className="text-white/30 text-sm mb-6">
+              {tab === 'live'     ? 'No matches in play right now.' :
                tab === 'upcoming' ? 'No fixtures scheduled in the next 48 hours.' :
-               tab === 'recent' ? 'No results from the last 24 hours.' :
-               search ? 'No matches match your search.' : 'No matches found.'}
+               tab === 'recent'   ? 'No results from the last 24 hours.' :
+               search             ? 'No matches match your search.' : 'No matches found.'}
             </p>
+            {(tab === 'upcoming' || tab === 'all') && !search && (
+              <button
+                onClick={() => syncMutation.mutate('isports')}
+                disabled={syncMutation.isPending}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-500/15 border border-vit-500/30 text-vit-300 text-sm font-medium hover:bg-vit-500/20 transition-all disabled:opacity-50"
+              >
+                {syncMutation.isPending
+                  ? <><Spinner className="w-4 h-4" /> Syncing fixtures…</>
+                  : <><RotateCcw className="w-4 h-4" /> Pull latest fixtures</>
+                }
+              </button>
+            )}
           </motion.div>
         ) : (
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -319,8 +384,8 @@ export default function Matches() {
           </div>
         )}
 
-        {/* AI Engine CTA */}
-        {!isLoading && filtered.length === 0 && tab === 'upcoming' && (
+        {/* AI Engine CTA — only when matches are empty and no sync in progress */}
+        {!isLoading && filtered.length === 0 && tab === 'upcoming' && !syncMutation.isPending && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -332,7 +397,10 @@ export default function Matches() {
             <p className="text-white/50 text-sm mb-4 max-w-md mx-auto">
               Submit a match for real-time analysis across 13+ ML models with market-calibrated probabilities.
             </p>
-            <a href="/developers" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white text-sm font-medium transition-colors">
+            <a
+              href="/developers"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white text-sm font-medium transition-colors"
+            >
               Open API Reference <ChevronRight className="w-4 h-4" />
             </a>
           </motion.div>

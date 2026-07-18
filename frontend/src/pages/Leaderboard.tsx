@@ -1,17 +1,52 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Trophy, Medal, TrendingUp, Users, Star, ChevronRight, RefreshCw } from 'lucide-react'
+import {
+  Trophy, Medal, TrendingUp, Users, Star, ChevronRight,
+  RefreshCw, Target, Zap, Activity, Shield,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
 import { authHeaders } from '@/hooks/useAuth'
 
-type Tab = 'predictors' | 'validators'
+type Tab    = 'predictors' | 'validators'
 type Period = 'weekly' | 'monthly' | 'all-time'
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Predictor {
+  rank?: number
+  user_id?: string
+  username?: string
+  display_name?: string
+  total_predictions?: number
+  correct_predictions?: number
+  accuracy?: number
+  roi?: number
+  total_stake?: number
+  vitcoin_earned?: number
+  streak?: number
+  tier?: string
+}
+
+interface Validator {
+  rank?: number
+  node_id?: string
+  address?: string
+  display_name?: string
+  blocks_validated?: number
+  uptime_pct?: number
+  stake_amount?: number
+  rewards_earned?: number
+  reputation_score?: number
+  status?: string
+}
+
+// ── Hooks ─────────────────────────────────────────────────────────────────────
+
 function useLeaderboard(tab: Tab, period: Period) {
-  return useQuery({
+  return useQuery<(Predictor | Validator)[]>({
     queryKey: ['leaderboard', tab, period],
     queryFn: async ({ signal }) => {
       const endpoint = tab === 'validators'
@@ -20,27 +55,234 @@ function useLeaderboard(tab: Tab, period: Period) {
       const r = await fetch(`${endpoint}?period=${period}`, { signal, headers: authHeaders() })
       if (!r.ok) return []
       const d = await r.json()
-      return Array.isArray(d) ? d : d.leaderboard ?? d.items ?? d.data ?? []
+      return Array.isArray(d) ? d : d.items ?? d.users ?? d.validators ?? []
     },
-    staleTime: 120_000,
+    staleTime: 60_000,
+    retry: false,
   })
 }
 
-const RANK_COLORS = ['text-amber-400', 'text-white/70', 'text-amber-700/80']
-const RANK_BG    = ['bg-amber-400/10', 'bg-white/5', 'bg-amber-700/10']
-const RANK_ICONS = [Trophy, Medal, Star]
+function useGlobalStats() {
+  return useQuery({
+    queryKey: ['leaderboard-stats'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/analytics/stats`, { signal })
+      return r.ok ? r.json() : null
+    },
+    staleTime: 120_000,
+    retry: false,
+  })
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+const MEDAL_COLORS = ['text-amber-400', 'text-slate-300', 'text-amber-600']
+const MEDAL_BG     = ['bg-amber-500/10 border-amber-500/25', 'bg-slate-400/10 border-slate-400/25', 'bg-amber-600/10 border-amber-600/25']
+
+function RankBadge({ rank }: { rank: number }) {
+  if (rank <= 3) {
+    return (
+      <div className={cn('w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0', MEDAL_BG[rank - 1])}>
+        <Medal className={cn('w-4 h-4', MEDAL_COLORS[rank - 1])} />
+      </div>
+    )
+  }
+  return (
+    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+      <span className="text-xs font-bold text-white/40">#{rank}</span>
+    </div>
+  )
+}
+
+function PredictorRow({ entry, rank, i }: { entry: Predictor; rank: number; i: number }) {
+  const name     = entry.display_name ?? entry.username ?? `User #${entry.user_id ?? rank}`
+  const accuracy = entry.accuracy != null ? Math.round(entry.accuracy * 100) : null
+  const roi      = entry.roi != null ? entry.roi.toFixed(1) : null
+  const earned   = entry.vitcoin_earned != null ? Number(entry.vitcoin_earned).toLocaleString() : null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: i * 0.05 }}
+      className="flex items-center gap-4 px-5 py-4 rounded-xl bg-white/3 border border-white/6 hover:border-vit-500/20 hover:bg-white/5 transition-all group"
+    >
+      <RankBadge rank={rank} />
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-white truncate">{name}</p>
+          {entry.tier && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-vit-500/15 text-vit-300 font-medium uppercase">{entry.tier}</span>
+          )}
+          {(entry.streak ?? 0) >= 3 && (
+            <span className="flex items-center gap-0.5 text-[10px] text-amber-400">
+              <Zap className="w-3 h-3" />{entry.streak}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-white/35 mt-0.5">
+          {entry.total_predictions ?? 0} predictions
+          {entry.correct_predictions != null ? ` · ${entry.correct_predictions} correct` : ''}
+        </p>
+      </div>
+
+      <div className="hidden sm:flex items-center gap-6 text-right">
+        {accuracy != null && (
+          <div>
+            <p className={cn('text-sm font-bold', accuracy >= 60 ? 'text-emerald-400' : accuracy >= 50 ? 'text-vit-400' : 'text-white/50')}>
+              {accuracy}%
+            </p>
+            <p className="text-[10px] text-white/30">accuracy</p>
+          </div>
+        )}
+        {roi != null && (
+          <div>
+            <p className={cn('text-sm font-bold', Number(roi) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+              {Number(roi) >= 0 ? '+' : ''}{roi}%
+            </p>
+            <p className="text-[10px] text-white/30">ROI</p>
+          </div>
+        )}
+        {earned != null && (
+          <div>
+            <p className="text-sm font-bold text-amber-400">{earned}</p>
+            <p className="text-[10px] text-white/30">VIT earned</p>
+          </div>
+        )}
+      </div>
+
+      <ChevronRight className="w-4 h-4 text-white/15 group-hover:text-vit-400 transition-colors flex-shrink-0" />
+    </motion.div>
+  )
+}
+
+function ValidatorRow({ entry, rank, i }: { entry: Validator; rank: number; i: number }) {
+  const name    = entry.display_name ?? entry.address?.slice(0, 12) ?? `Node #${rank}`
+  const uptime  = entry.uptime_pct != null ? Math.round(entry.uptime_pct) : null
+  const rewards = entry.rewards_earned != null ? Number(entry.rewards_earned).toLocaleString() : null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: i * 0.05 }}
+      className="flex items-center gap-4 px-5 py-4 rounded-xl bg-white/3 border border-white/6 hover:border-cyan-500/20 hover:bg-white/5 transition-all group"
+    >
+      <RankBadge rank={rank} />
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-white font-mono truncate">{name}</p>
+          {entry.status && (
+            <span className={cn(
+              'px-1.5 py-0.5 rounded text-[10px] font-medium uppercase',
+              entry.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-white/40'
+            )}>{entry.status}</span>
+          )}
+        </div>
+        <p className="text-xs text-white/35 mt-0.5">
+          {entry.blocks_validated ?? 0} blocks validated
+          {entry.stake_amount != null ? ` · ${Number(entry.stake_amount).toLocaleString()} VIT staked` : ''}
+        </p>
+      </div>
+
+      <div className="hidden sm:flex items-center gap-6 text-right">
+        {uptime != null && (
+          <div>
+            <p className={cn('text-sm font-bold', uptime >= 99 ? 'text-emerald-400' : uptime >= 95 ? 'text-vit-400' : 'text-amber-400')}>
+              {uptime}%
+            </p>
+            <p className="text-[10px] text-white/30">uptime</p>
+          </div>
+        )}
+        {rewards != null && (
+          <div>
+            <p className="text-sm font-bold text-amber-400">{rewards}</p>
+            <p className="text-[10px] text-white/30">VIT rewards</p>
+          </div>
+        )}
+        {entry.reputation_score != null && (
+          <div>
+            <p className="text-sm font-bold text-purple-400">{entry.reputation_score}</p>
+            <p className="text-[10px] text-white/30">reputation</p>
+          </div>
+        )}
+      </div>
+
+      <ChevronRight className="w-4 h-4 text-white/15 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
+    </motion.div>
+  )
+}
+
+function EmptyState({ tab }: { tab: Tab }) {
+  const steps = tab === 'predictors'
+    ? [
+        { icon: Target,   label: 'Make predictions',  desc: 'Submit AI-backed match forecasts on any live fixture.' },
+        { icon: TrendingUp, label: 'Build accuracy',  desc: 'Your win rate, ROI, and streak are tracked automatically.' },
+        { icon: Trophy,   label: 'Earn VIT rewards',  desc: 'Top weekly predictors receive VIT coin distributions.' },
+      ]
+    : [
+        { icon: Shield,   label: 'Run a validator node',  desc: 'Stake VIT and join the consensus network.' },
+        { icon: Activity, label: 'Validate blocks',       desc: 'Earn rewards for each block you sign and attest.' },
+        { icon: Star,     label: 'Build reputation',      desc: 'High-uptime validators unlock elite node tiers.' },
+      ]
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-12">
+      <div className="text-center mb-10">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4">
+          <Trophy className="w-8 h-8 text-amber-400/50" />
+        </div>
+        <p className="text-white/60 font-medium mb-1">No rankings yet</p>
+        <p className="text-white/30 text-sm">
+          {tab === 'predictors'
+            ? 'Rankings populate as predictions are made and validated.'
+            : 'Validator rankings appear once nodes are active on the network.'}
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+        {steps.map(({ icon: Icon, label, desc }, i) => (
+          <div key={label} className="p-5 rounded-xl bg-white/3 border border-white/6 text-center">
+            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mx-auto mb-3">
+              <Icon className="w-5 h-5 text-white/40" />
+            </div>
+            <p className="text-sm font-medium text-white/70 mb-1">{i + 1}. {label}</p>
+            <p className="text-xs text-white/30">{desc}</p>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+const TAB_DEFS: { key: Tab; label: string; icon: React.ElementType }[] = [
+  { key: 'predictors', label: 'Predictors', icon: TrendingUp },
+  { key: 'validators', label: 'Validators', icon: Shield },
+]
+
+const PERIOD_DEFS: { key: Period; label: string }[] = [
+  { key: 'weekly',   label: 'This Week' },
+  { key: 'monthly',  label: 'Month' },
+  { key: 'all-time', label: 'All Time' },
+]
 
 export default function Leaderboard() {
   const [tab, setTab]       = useState<Tab>('predictors')
   const [period, setPeriod] = useState<Period>('weekly')
-  const { data, isLoading, refetch } = useLeaderboard(tab, period)
+  const { data = [], isLoading, refetch, isFetching } = useLeaderboard(tab, period)
+  const { data: stats } = useGlobalStats()
 
   return (
     <div className="pt-16 min-h-screen">
+      {/* Header ────────────────────────────────────────────────────────────── */}
       <div className="relative border-b border-white/8">
         <div className="absolute inset-0 section-grid opacity-20" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-8">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
               <Trophy className="w-5 h-5 text-amber-400" />
             </div>
@@ -48,119 +290,87 @@ export default function Leaderboard() {
               <h1 className="text-2xl font-bold text-white">Leaderboard</h1>
               <p className="text-white/50 text-sm">Top predictors and validators on VIT Network</p>
             </div>
+            <button
+              onClick={() => refetch()}
+              className="ml-auto p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/8 transition-colors"
+            >
+              <RefreshCw className={cn('w-4 h-4 text-white/40', isFetching && 'animate-spin')} />
+            </button>
           </motion.div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
-            {(['predictors', 'validators'] as Tab[]).map(t => (
-              <button key={t} onClick={() => setTab(t)}
-                className={cn('px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all',
-                  tab === t ? 'bg-vit-500 text-white' : 'text-white/50 hover:text-white hover:bg-white/5')}>
-                {t}
-              </button>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        {/* Global stats ────────────────────────────────────────────────────── */}
+        {stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+            {[
+              { icon: Users,      label: 'Total Users',       value: stats.total_users ?? stats.users ?? '—',         color: 'bg-vit-500/10 text-vit-400' },
+              { icon: Target,     label: 'Predictions Made',  value: stats.total_predictions ?? stats.predictions ?? '—', color: 'bg-emerald-500/10 text-emerald-400' },
+              { icon: TrendingUp, label: 'Avg Accuracy',      value: stats.avg_accuracy ? `${Math.round(stats.avg_accuracy * 100)}%` : '—', color: 'bg-amber-500/10 text-amber-400' },
+              { icon: Zap,        label: 'VIT Distributed',   value: stats.vit_distributed ? `${Number(stats.vit_distributed).toLocaleString()}` : '—', color: 'bg-purple-500/10 text-purple-400' },
+            ].map(({ icon: Icon, label, value, color }) => (
+              <div key={label} className="bg-surface-800/60 border border-white/8 rounded-xl p-4">
+                <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center mb-2', color.split(' ')[0])}>
+                  <Icon className={cn('w-3.5 h-3.5', color.split(' ')[1])} />
+                </div>
+                <p className="text-lg font-bold text-white">{value}</p>
+                <p className="text-xs text-white/35">{label}</p>
+              </div>
             ))}
-          </div>
-          <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
-            {([['weekly', 'This Week'], ['monthly', 'Month'], ['all-time', 'All Time']] as [Period, string][]).map(([p, label]) => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className={cn('px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                  period === p ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white hover:bg-white/5')}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => refetch()} className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white/50 hover:text-white transition-colors">
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
-        </div>
-
-        {/* Podium for top 3 */}
-        {!isLoading && data && data.length >= 3 && (
-          <div className="flex items-end justify-center gap-4 mb-8">
-            {[data[1], data[0], data[2]].map((u: any, podiumIdx: number) => {
-              const rank = podiumIdx === 0 ? 2 : podiumIdx === 1 ? 1 : 3
-              const heights = ['h-24', 'h-32', 'h-20']
-              const RankIcon = RANK_ICONS[rank - 1]
-              return (
-                <motion.div key={rank} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: podiumIdx * 0.1 }}
-                  className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 rounded-full bg-vit-500/20 flex items-center justify-center text-lg font-bold text-vit-400 border-2 border-vit-500/30">
-                    {(u?.username || u?.email || 'U')[0].toUpperCase()}
-                  </div>
-                  <p className="text-sm font-medium text-white text-center max-w-[80px] truncate">{u?.username || u?.email || 'Unknown'}</p>
-                  <div className={cn('w-20 rounded-t-lg flex flex-col items-center justify-start pt-3', heights[podiumIdx], RANK_BG[rank - 1])}>
-                    <RankIcon className={`w-5 h-5 ${RANK_COLORS[rank - 1]}`} />
-                    <span className={`text-lg font-bold ${RANK_COLORS[rank - 1]}`}>#{rank}</span>
-                  </div>
-                </motion.div>
-              )
-            })}
           </div>
         )}
 
-        {/* Full table */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-24"><Spinner className="w-8 h-8 text-vit-400" /></div>
-        ) : !data || data.length === 0 ? (
-          <div className="text-center py-24">
-            <Users className="w-14 h-14 text-white/10 mx-auto mb-4" />
-            <p className="text-white/50">No rankings available yet</p>
-            <p className="text-white/30 text-sm mt-1">Rankings populate as predictions are made and validated.</p>
+        {/* Tabs & period ───────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <div className="flex items-center gap-1 p-1 bg-white/5 border border-white/8 rounded-xl">
+            {TAB_DEFS.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                  tab === t.key ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/60'
+                )}
+              >
+                <t.icon className="w-3.5 h-3.5" />
+                {t.label}
+              </button>
+            ))}
           </div>
+
+          <div className="flex items-center gap-1 p-1 bg-white/5 border border-white/8 rounded-xl">
+            {PERIOD_DEFS.map(p => (
+              <button
+                key={p.key}
+                onClick={() => setPeriod(p.key)}
+                className={cn(
+                  'px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                  period === p.key ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/60'
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <span className="ml-auto text-xs text-white/30">
+            {isLoading ? 'Loading…' : `${data.length} ranked`}
+          </span>
+        </div>
+
+        {/* List ────────────────────────────────────────────────────────────── */}
+        {isLoading ? (
+          <div className="flex justify-center py-16"><Spinner className="w-6 h-6 text-vit-400" /></div>
+        ) : data.length === 0 ? (
+          <EmptyState tab={tab} />
         ) : (
-          <div className="bg-surface-800/60 border border-white/8 rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/8">
-                  <th className="text-left text-xs text-white/40 font-medium px-6 py-4 uppercase tracking-wide">Rank</th>
-                  <th className="text-left text-xs text-white/40 font-medium px-6 py-4 uppercase tracking-wide">User</th>
-                  <th className="text-right text-xs text-white/40 font-medium px-6 py-4 uppercase tracking-wide">Win Rate</th>
-                  <th className="text-right text-xs text-white/40 font-medium px-6 py-4 uppercase tracking-wide hidden sm:table-cell">Predictions</th>
-                  <th className="text-right text-xs text-white/40 font-medium px-6 py-4 uppercase tracking-wide hidden md:table-cell">Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((u: any, i: number) => {
-                  const RankIcon = i < 3 ? RANK_ICONS[i] : null
-                  return (
-                    <motion.tr key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
-                      className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className={cn('text-sm font-bold', i < 3 ? RANK_COLORS[i] : 'text-white/30')}>
-                          {RankIcon ? <RankIcon className="w-4 h-4 inline mr-1" /> : null}#{i + 1}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-vit-500/20 flex items-center justify-center text-xs font-bold text-vit-400">
-                            {(u.username || u.email || 'U')[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-white">{u.username || u.email || 'Unknown'}</p>
-                            {u.clv_tier && <p className="text-xs text-white/30">{u.clv_tier}</p>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-sm font-bold text-emerald-400">
-                          {u.win_rate ? `${(u.win_rate * 100).toFixed(1)}%` : '—'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right hidden sm:table-cell">
-                        <span className="text-sm text-white/50">{u.prediction_count ?? u.total_predictions ?? '—'}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right hidden md:table-cell">
-                        <span className="text-sm text-vit-400 font-medium">{u.score ?? u.reputation_score ?? '—'}</span>
-                      </td>
-                    </motion.tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            {data.map((entry, i) =>
+              tab === 'predictors'
+                ? <PredictorRow key={i} entry={entry as Predictor} rank={i + 1} i={i} />
+                : <ValidatorRow key={i} entry={entry as Validator}  rank={i + 1} i={i} />
+            )}
           </div>
         )}
       </div>
