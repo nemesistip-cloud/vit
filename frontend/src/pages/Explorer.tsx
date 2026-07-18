@@ -113,7 +113,7 @@ function BlockRow({ block, i }: { block: Record<string, unknown>; i: number }) {
         </div>
         <div className="text-xs text-white/35 mt-0.5">
           {typeof txns === 'number' ? `${txns} transaction${txns !== 1 ? 's' : ''}` : '— txns'} 
-          {ts && <span className="ml-2">&middot; {timeAgo(ts)}</span>}
+          {ts && <span className="ml-2">&middot; {timeAgo(ts as string)}</span>}
         </div>
       </div>
       <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
@@ -152,7 +152,7 @@ function TxnRow({ txn, i }: { txn: Record<string, unknown>; i: number }) {
         </div>
         <div className="text-xs text-white/35 mt-0.5">
           {value != null ? `${value} VIT` : ''}
-          {ts && <span className="ml-2">&middot; {timeAgo(ts)}</span>}
+          {ts && <span className="ml-2">&middot; {timeAgo(ts as string)}</span>}
         </div>
       </div>
       <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-vit-400 transition-colors flex-shrink-0" />
