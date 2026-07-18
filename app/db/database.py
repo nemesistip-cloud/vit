@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from app.config import DATABASE_URL
+from app.config import DATABASE_URL, get_int_env
 
 _raw_url = DATABASE_URL
 
@@ -72,15 +72,21 @@ else:
     else:
         _connect_args = {}
 
-    # Reduced pool sizes for Render Free Tier (25 connection limit)
+    # Pool sizes are config-driven via env vars (defaults tuned for Render Free Tier
+    # which allows 25 connections; keep pool_size + max_overflow ≤ 20 to leave
+    # headroom for alembic, scripts, and admin tools).
+    _pool_size    = get_int_env("DB_POOL_SIZE",    5)
+    _max_overflow = get_int_env("DB_MAX_OVERFLOW", 10)
+    _pool_recycle = get_int_env("DB_POOL_RECYCLE", 300)
+    _pool_timeout = get_int_env("DB_POOL_TIMEOUT", 30)
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
         future=True,
-        pool_size=10,
-        max_overflow=5,
-        pool_recycle=60,
-        pool_timeout=30,
+        pool_size=_pool_size,
+        max_overflow=_max_overflow,
+        pool_recycle=_pool_recycle,
+        pool_timeout=_pool_timeout,
         pool_pre_ping=True,
         pool_use_lifo=True,
         connect_args=_connect_args,

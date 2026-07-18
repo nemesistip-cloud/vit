@@ -180,17 +180,26 @@ async def system_status(db: AsyncSession = Depends(get_db)):
 
 @app.get("/readiness", include_in_schema=False)
 @app.get("/api/readiness", include_in_schema=False)
-async def readiness(db: AsyncSession = Depends(get_db)):
+async def readiness(request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    db_ok = False
+    redis_ok = False
     try:
         await db.execute(text("SELECT 1"))
         db_ok = True
     except Exception:
-        db_ok = False
-    status_code = 200 if db_ok else 503
-    from fastapi.responses import JSONResponse
+        pass
+    try:
+        redis_client = getattr(request.app.state, "redis", None)
+        if redis_client:
+            await redis_client.ping()
+            redis_ok = True
+    except Exception:
+        pass
+    ready = db_ok  # DB is the hard requirement; Redis degraded is non-fatal
     return JSONResponse(
-        status_code=status_code,
-        content={"status": "ready" if db_ok else "not_ready", "db": db_ok},
+        status_code=200 if ready else 503,
+        content={"status": "ready" if ready else "not_ready", "db": db_ok, "redis": redis_ok},
     )
 
 @app.get("/health", response_model=HealthResponse)

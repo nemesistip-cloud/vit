@@ -21,6 +21,7 @@ from app.auth.jwt_utils import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    revoke_token,
 )
 
 # ---------------------------------------------------------------------------
@@ -233,8 +234,17 @@ async def get_me(credentials: HTTPAuthorizationCredentials = Depends(bearer_sche
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     payload = decode_token(body.refresh_token)
-    if not payload:
+    if not payload or payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    # Phase 3: Revoke the old refresh token's JTI (refresh token rotation)
+    old_jti = payload.get("jti")
+    if old_jti:
+        from datetime import timedelta
+        try:
+            await revoke_token(old_jti, int(payload.get("sub", 0)), "refresh_rotation", db)
+        except Exception:
+            pass  # blocklist failure is non-fatal for rotation
 
     user_id = int(payload.get("sub"))
     result = await db.execute(select(User).where(User.id == user_id))
@@ -253,3 +263,44 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
         username=user.username,
         role=user.role,
     )
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str = ""  # Optional — include to revoke refresh token too
+
+
+@router.post("/logout", status_code=204)
+async def logout(
+    request: Request,
+    body: LogoutRequest = LogoutRequest(),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke the current access token (and optionally the refresh token).
+
+    Returns 204 No Content on success. Idempotent — revoking an already-revoked
+    token is not an error.
+    """
+    # Revoke access token
+    if credentials and credentials.credentials:
+        payload = decode_token(credentials.credentials)
+        if payload:
+            jti = payload.get("jti")
+            user_id = int(payload.get("sub", 0))
+            if jti and user_id:
+                try:
+                    await revoke_token(jti, user_id, "logout", db)
+                except Exception:
+                    pass
+
+    # Optionally revoke refresh token
+    if body.refresh_token:
+        rpayload = decode_token(body.refresh_token)
+        if rpayload:
+            rjti = rpayload.get("jti")
+            ruid = int(rpayload.get("sub", 0))
+            if rjti and ruid:
+                try:
+                    await revoke_token(rjti, ruid, "logout", db)
+                except Exception:
+                    pass
