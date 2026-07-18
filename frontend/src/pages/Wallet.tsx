@@ -505,9 +505,84 @@ function KYCModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ── Deposit Modal ─────────────────────────────────────────────────────────────
+
+function DepositModal({ onClose }: { onClose: () => void }) {
+  const [method, setMethod] = useState<'paystack' | 'mobilemoney' | 'crypto' | null>(null)
+  const [amount, setAmount] = useState('')
+  const [phone,  setPhone]  = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const methods = [
+    { id: 'paystack'    as const, label: 'Card / Bank (Paystack)', icon: '💳', desc: 'Instant NGN deposits via debit card or bank transfer' },
+    { id: 'mobilemoney' as const, label: 'Mobile Money',           icon: '📱', desc: 'MTN, Airtel, and other mobile wallets' },
+    { id: 'crypto'      as const, label: 'Crypto (Direct)',        icon: '🔗', desc: 'Send ETH, USDT, or BNB to your VIT wallet address' },
+  ]
+
+  async function submit() {
+    if (!method || !amount) return
+    setLoading(true)
+    await new Promise(r => setTimeout(r, 1200))
+    setLoading(false)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+        className="w-full max-w-md bg-surface-900 border border-white/12 rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-white/8">
+          <h2 className="font-bold text-white text-lg">Deposit Funds</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/8 text-white/40 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-sm text-white/50 mb-3">Choose deposit method</p>
+            <div className="space-y-2">
+              {methods.map(m => (
+                <button key={m.id} onClick={() => setMethod(m.id)}
+                  className={cn('w-full flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all',
+                    method === m.id ? 'border-vit-500/50 bg-vit-500/10' : 'border-white/8 bg-white/3 hover:border-white/15 hover:bg-white/5')}>
+                  <span className="text-2xl">{m.icon}</span>
+                  <div>
+                    <p className="text-sm font-medium text-white">{m.label}</p>
+                    <p className="text-xs text-white/40">{m.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {method && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-white/50 mb-1.5 block">Amount (NGN)</label>
+                <input value={amount} onChange={e => setAmount(e.target.value)} type="number" placeholder="e.g. 5000"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-vit-500/50 focus:bg-white/8" />
+              </div>
+              {method === 'mobilemoney' && (
+                <div>
+                  <label className="text-xs text-white/50 mb-1.5 block">Phone Number</label>
+                  <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" placeholder="+234..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-vit-500/50 focus:bg-white/8" />
+                </div>
+              )}
+            </div>
+          )}
+
+          <button onClick={submit} disabled={!method || !amount || loading}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors">
+            {loading ? <Spinner className="w-4 h-4" /> : 'Proceed to Deposit'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type ModalType = 'send' | 'receive' | 'stake' | 'withdraw' | 'kyc' | null
+type ModalType = 'send' | 'receive' | 'stake' | 'withdraw' | 'kyc' | 'deposit' | null
 
 export default function Wallet() {
   const navigate = useNavigate()
@@ -553,6 +628,7 @@ export default function Wallet() {
   return (
     <div className="pt-16 min-h-screen">
       {/* Modals */}
+      {activeModal === 'deposit'  && <DepositModal  onClose={() => setActiveModal(null)} />}
       {activeModal === 'send'     && <SendModal     onClose={() => setActiveModal(null)} balance={balance} />}
       {activeModal === 'receive'  && <ReceiveModal  onClose={() => setActiveModal(null)} address={wallet?.address} />}
       {activeModal === 'stake'    && <StakeModal    onClose={() => setActiveModal(null)} balance={balance} staked={stakedAmt} />}
@@ -614,8 +690,9 @@ export default function Wallet() {
             )}
 
             {/* Quick actions */}
-            <div className="grid grid-cols-4 gap-3 mt-6">
+            <div className="grid grid-cols-5 gap-3 mt-6">
               {[
+                { icon: TrendingUp,      label: 'Deposit',  action: 'deposit',  color: 'text-cyan-400',    bg: 'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20' },
                 { icon: Send,            label: 'Send',     action: 'send',     color: 'text-vit-400',     bg: 'bg-vit-500/10 border-vit-500/20 hover:bg-vit-500/20' },
                 { icon: Download,        label: 'Receive',  action: 'receive',  color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20' },
                 { icon: Zap,             label: 'Stake',    action: 'stake',    color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/20' },

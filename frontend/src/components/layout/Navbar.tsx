@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Activity, LogIn, LogOut, LayoutDashboard, Shield, Trophy, Wallet, Brain, ChevronDown, Vote, Landmark, Store, Share2, Smartphone, Users, Coins, Radio, BarChart3, Building2 } from 'lucide-react'
+import { Menu, X, Activity, LogIn, LogOut, LayoutDashboard, Shield, Wallet, Brain, ChevronDown, Vote, Landmark, Store, Share2, Smartphone, Users, Coins, Radio, BarChart3, Building2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGatewayHealth } from '@/hooks/useHealth'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { getAuthToken, getStoredUser, clearAuth } from '@/hooks/useAuth'
+import { NotificationBell } from '@/components/ui/NotificationBell'
 
 // Public nav links (shown for all users; duplicates hidden when logged in via filter below)
 const PUBLIC_LINKS = [
@@ -36,7 +37,7 @@ const AUTH_LINKS = [
   { label: 'Enterprise',  path: '/enterprise',  icon: Building2  },
 ]
 
-export function Navbar() {
+export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
   const [open, setOpen]         = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -142,11 +143,25 @@ export function Navbar() {
         </div>
 
         {/* Right side */}
-        <div className="hidden md:flex items-center gap-3 shrink-0">
+        <div className="hidden md:flex items-center gap-2 shrink-0">
+          {/* ⌘K search trigger */}
+          <button
+            onClick={onOpenSearch}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/40 hover:text-white/70 hover:bg-white/8 transition-all text-xs"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Search</span>
+            <kbd className="hidden xl:flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/8 text-white/25 font-mono text-[10px] leading-none">
+              ⌘K
+            </kbd>
+          </button>
+
           <Link to="/status" className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white/80 transition-colors">
             <Activity className="w-3.5 h-3.5" />
             <StatusBadge status={health?.status} size="sm" pulse />
           </Link>
+
+          {isLoggedIn && <NotificationBell />}
 
           {isLoggedIn ? (
             <div className="relative">

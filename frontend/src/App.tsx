@@ -1,8 +1,10 @@
+import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
-import { Navbar }        from '@/components/layout/Navbar'
-import { Footer }        from '@/components/layout/Footer'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { Navbar }           from '@/components/layout/Navbar'
+import { Footer }           from '@/components/layout/Footer'
+import { ErrorBoundary }    from '@/components/ErrorBoundary'
+import { CommandPalette }   from '@/components/ui/CommandPalette'
 
 // ── Public / marketing ────────────────────────────────────────────────────────
 import Home              from '@/pages/Home'
@@ -59,15 +61,36 @@ import Rollover          from '@/pages/Rollover'
 import Backtest          from '@/pages/Backtest'
 import Bankroll          from '@/pages/Bankroll'
 
+// ── Financial flows ────────────────────────────────────────────────────────────
+import VITCoin           from '@/pages/VITCoin'
+import Exchange          from '@/pages/Exchange'
+import Vaults            from '@/pages/Vaults'
+import Bridge            from '@/pages/Bridge'
+
 // ── Admin & 404 ───────────────────────────────────────────────────────────────
 import Admin             from '@/pages/Admin'
 import NotFound          from '@/pages/NotFound'
 
 export default function App() {
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const openPalette = useCallback(() => setPaletteOpen(true), [])
+
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setPaletteOpen(v => !v)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen flex flex-col">
-        <Navbar />
+        <Navbar onOpenSearch={openPalette} />
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         <main className="flex-1">
           <Routes>
             {/* ── Public / marketing ─────────────────────────────────── */}
@@ -127,6 +150,12 @@ export default function App() {
             <Route path="/rollover"     element={<Rollover />} />
             <Route path="/backtest"     element={<Backtest />} />
             <Route path="/bankroll"     element={<Bankroll />} />
+
+            {/* ── Financial flows ────────────────────────────────────── */}
+            <Route path="/vitcoin"      element={<VITCoin />} />
+            <Route path="/exchange"     element={<Exchange />} />
+            <Route path="/vaults"       element={<Vaults />} />
+            <Route path="/bridge"       element={<Bridge />} />
 
             {/* ── Admin ──────────────────────────────────────────────── */}
             <Route path="/admin"        element={<Admin />} />

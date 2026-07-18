@@ -11,9 +11,12 @@ const LINKS = {
   ],
   'Earn & Trade': [
     { label: 'Wallet',       path: '/wallet' },
+    { label: 'VITCoin',      path: '/vitcoin' },
+    { label: 'P2P Exchange', path: '/exchange' },
+    { label: 'Vaults',       path: '/vaults' },
+    { label: 'Bridge',       path: '/bridge' },
     { label: 'DeFi Pools',   path: '/defi' },
     { label: 'Marketplace',  path: '/marketplace' },
-    { label: 'In-Play',      path: '/inplay' },
     { label: 'Referral',     path: '/referral' },
   ],
   Community: [
