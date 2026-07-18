@@ -2,7 +2,7 @@ services:
   - type: web
     name: vitnetwork
     runtime: python
-    region: ohio
+    region: oregon
     plan: free
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_production.sh
@@ -43,7 +43,7 @@ services:
   - type: worker
     name: vitnetwork-worker
     runtime: python
-    region: ohio
+    region: oregon
     plan: free
     buildCommand: bash scripts/build.sh
     startCommand: bash scripts/start_worker.sh
@@ -70,11 +70,11 @@ services:
 
 databases:
   - name: vit-postgres
-    region: ohio
+    region: oregon
     plan: free
 
   - type: redis
     name: vitnetwork-redis
-    region: ohio
+    region: oregon
     plan: free
     ipAllowList: []

@@ -66,44 +66,7 @@ async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depen
         "top_users": top_users
     }
 
-@router.get("/users")
-async def list_users(
-    search: Optional[str] = None,
-    limit: int = 100,
-    offset: int = 0,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin)
-):
-    """Lists all registered users with search and pagination."""
-    query = select(User)
-    if search:
-        query = query.where(or_(User.email.ilike(f"%{search}%"), User.username.ilike(f"%{search}%")))
-
-    total_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = total_result.scalar() or 0
-
-    result = await db.execute(query.order_by(User.id.desc()).limit(limit).offset(offset))
-    users = result.scalars().all()
-
-    return {
-        "users": [
-            {
-                "id": u.id,
-                "email": u.email,
-                "username": u.username,
-                "role": u.role,
-                "admin_role": u.admin_role,
-                "subscription_tier": u.subscription_tier,
-                "is_active": u.is_active,
-                "is_verified": u.is_verified,
-                "is_banned": u.is_banned,
-                "created_at": u.created_at.isoformat() if u.created_at else None,
-                "last_login": u.last_login.isoformat() if u.last_login else None,
-                "vitcoin_balance": 0
-            } for u in users
-        ],
-        "total": total
-    }
+# GET /users is handled by the main admin router (admin.py) — removed here to avoid conflict.
 
 @router.put("/users/{user_id}")
 async def update_user(
@@ -153,7 +116,7 @@ async def ban_user(
 
     return {"status": "success"}
 
-@router.get("/audit")
+@router.get("/audit-entries")
 async def list_audit_logs(
     limit: int = 50,
     offset: int = 0,
