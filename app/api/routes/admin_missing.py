@@ -1,4 +1,24 @@
-from sqlalchemy import func, or_, desc
+"""app/api/routes/admin_missing.py — Admin supplementary routes (v5.5.0).
+
+Endpoints: stats overview, user management, audit logs, system ops,
+fixture sync, leagues, markets, marketplace pending listings.
+
+Prefix: /admin  (registered as /api/admin/* via main.py include_router).
+Auth:   Depends(get_current_admin) on every route.
+"""
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, or_, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.dependencies import get_current_admin
+from app.db.database import get_db
+from app.db.models import User, Match, TrainingJob, AuditLog, SubscriptionPlan
+
+router = APIRouter(prefix="/admin", tags=["Admin — Supplementary"])
+
 
 @router.get("/stats")
 async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):

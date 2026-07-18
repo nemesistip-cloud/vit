@@ -230,8 +230,8 @@ async def health(db: AsyncSession = Depends(get_db)):
 # --- Router Registrations ---
 from app.auth.routes import router as auth_router
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+# Compat: expose auth routes at /auth/* for legacy clients
 app.include_router(auth_router, tags=["Auth-Compat"], include_in_schema=False)
-app.include_router(auth_router, tags=["Auth-Legacy"], include_in_schema=False)
 
 from app.api.routes.observability import router as obs_router
 app.include_router(obs_router, prefix="/api/obs", tags=["Observability"])
@@ -263,7 +263,6 @@ app.include_router(matches_router, prefix="/api")
 
 from app.api.routes.predict import router as predict_router
 app.include_router(predict_router, prefix="/api")
-app.include_router(predict_router, tags=["Predict-Compat"], include_in_schema=False)
 
 from app.api.routes.attestation import router as attestation_router
 app.include_router(attestation_router)
@@ -279,7 +278,6 @@ app.include_router(dashboard_router)
 
 from app.api.routes.sports import router as sports_router
 app.include_router(sports_router, prefix="/api")
-app.include_router(sports_router, tags=["Sports-Compat"], include_in_schema=False)
 
 from app.api.routes.analytics import router as analytics_router
 app.include_router(analytics_router)
@@ -314,6 +312,12 @@ app.include_router(ai_assistant_router, prefix="/api")
 from app.api.routes.admin import router as admin_router
 app.include_router(admin_router, prefix="/api")
 
+try:
+    from app.api.routes.admin_missing import router as admin_missing_router
+    app.include_router(admin_missing_router, prefix="/api", tags=["Admin — Supplementary"])
+except Exception as _e:
+    logging.warning("admin_missing router not mounted: %s", _e)
+
 # --- Phase 0: Service Registry & Cross-Service Status ---
 from app.api.routes.registry import router as registry_router
 app.include_router(registry_router, prefix="/api", tags=["Registry"])
@@ -329,16 +333,16 @@ from app.modules.remittance.routes import router as remittance_router
 app.include_router(remittance_router, prefix="/api", tags=["Remittance"])
 
 from app.modules.merit.routes import router as merit_router
-app.include_router(merit_router, prefix="/api", tags=["Merit"])
+app.include_router(merit_router, tags=["Merit"])  # router self-prefixes /api/merit
 
 from app.modules.governance.routes import router as governance_router
-app.include_router(governance_router, prefix="/api", tags=["Governance"])
+app.include_router(governance_router, tags=["Governance"])  # router self-prefixes /api/governance
 
 from app.modules.academy.routes import router as academy_router
-app.include_router(academy_router, prefix="/api", tags=["Academy"])
+app.include_router(academy_router, tags=["Academy"])  # router self-prefixes /api/academy
 
 from app.modules.marketplace.routes import router as marketplace_router
-app.include_router(marketplace_router, prefix="/api", tags=["Marketplace"])
+app.include_router(marketplace_router, tags=["Marketplace"])  # router self-prefixes /api/marketplace
 
 from app.modules.referral.routes import router as referral_router
 app.include_router(referral_router)
@@ -353,13 +357,13 @@ from app.modules.developer.routes import router as developer_router
 app.include_router(developer_router)
 
 from app.modules.rewards.routes import router as rewards_router
-app.include_router(rewards_router, prefix="/api", tags=["Rewards"])
+app.include_router(rewards_router, tags=["Rewards"])  # router self-prefixes /api/rewards
 
 from app.modules.did.routes import router as did_router
-app.include_router(did_router, prefix="/api", tags=["DID"])
+app.include_router(did_router, tags=["DID"])  # router self-prefixes /api/did
 
 from app.modules.quant.routes import router as quant_router
-app.include_router(quant_router, prefix="/api", tags=["Quant"])
+app.include_router(quant_router, tags=["Quant"])  # router self-prefixes /api/quant
 
 # --- Phase VIII: DeFi, Social & Enterprise ---
 from app.modules.social.routes import router as social_router
@@ -378,7 +382,7 @@ from app.modules.enterprise.routes import router as enterprise_router
 app.include_router(enterprise_router, tags=["Enterprise"])
 
 from app.modules.bridge.routes import router as bridge_router
-app.include_router(bridge_router, prefix="/api", tags=["Bridge"])
+app.include_router(bridge_router, tags=["Bridge"])  # router self-prefixes /api/bridge
 
 from app.modules.treasury.routes import router as treasury_router
 app.include_router(treasury_router, tags=["Treasury"])
