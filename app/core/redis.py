@@ -28,9 +28,9 @@ def _build_redis_client(redis_url: str):
     raises ssl.SSLCertVerificationError and require_redis() fails hard in
     production.
 
-    NOTE: the parameter is ssl_cert_reqs (with underscore between cert and reqs),
-    NOT ssl_certreqs.  The latter is silently ignored by redis-py, leaving the
-    default "required" in place and breaking TLS on Render.
+    NOTE: the parameter is ssl_cert_reqs (with underscore between cert and
+    reqs), NOT ssl_certreqs.  The latter is silently ignored by redis-py,
+    leaving the default "required" in place and breaking TLS on Render.
     """
     common_kwargs: dict = {
         "decode_responses": True,
