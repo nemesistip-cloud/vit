@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, type ElementType, type FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Layers, Hash, Clock, ArrowRight, Search, RefreshCw,
-  TrendingUp, Cpu, Activity, AlertCircle, ChevronRight,
-  Box, Zap, Network, Database,
+  Layers, Search, RefreshCw,
+  Activity, ChevronRight,
+  Box, Zap, Network, Database, Clock,
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
@@ -72,7 +72,7 @@ function useRecentTxns() {
 function MetricCard({
   icon: Icon, label, value, sub, color,
 }: {
-  icon: React.ElementType; label: string; value?: string | number | null; sub?: string; color: string
+  icon: ElementType; label: string; value?: string | number | null; sub?: string; color: string
 }) {
   return (
     <div className="bg-surface-800/60 border border-white/8 rounded-xl p-5">
@@ -193,7 +193,7 @@ export default function Explorer() {
   const validators = metrics?.active_validators ?? metrics?.validator_count ?? null
   const avgBlock  = metrics?.avg_block_time ?? null
 
-  function handleSearch(e: React.FormEvent) {
+  function handleSearch(e: FormEvent) {
     e.preventDefault()
     if (!search.trim()) return
     // Block height lookup

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ElementType } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -259,7 +259,7 @@ function EmptyState({ tab }: { tab: Tab }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const TAB_DEFS: { key: Tab; label: string; icon: React.ElementType }[] = [
+const TAB_DEFS: { key: Tab; label: string; icon: ElementType }[] = [
   { key: 'predictors', label: 'Predictors', icon: TrendingUp },
   { key: 'validators', label: 'Validators', icon: Shield },
 ]

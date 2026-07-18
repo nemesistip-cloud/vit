@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ElementType } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -202,7 +202,7 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
   )
 }
 
-const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+const TABS: { key: Tab; label: string; icon: ElementType }[] = [
   { key: 'upcoming', label: 'Upcoming', icon: Clock },
   { key: 'live',     label: 'Live',     icon: Radio },
   { key: 'recent',   label: 'Recent',   icon: CheckCircle },
