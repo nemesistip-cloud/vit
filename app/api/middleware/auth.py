@@ -68,14 +68,28 @@ def auth_enabled() -> bool:
     return API_KEY not in ("", "your_api_key_here")
 
 
-# JWT auth routes and public endpoints — always open
+# JWT auth routes and public endpoints — always open (no auth required)
 _ALWAYS_OPEN = (
     "/health", "/docs", "/openapi.json", "/redoc", "/favicon.ico",
     "/auth/register", "/auth/login", "/auth/refresh",
-    "/api/auth/",          # covers /api/auth/auth/login, /register, /refresh, /me
+    "/api/auth/",          # /api/auth/login, /register, /refresh, /me
     "/system/status", "/api/system/status",
     "/api/config/public",
     "/ping",
+    # Service-discovery / platform-status endpoints used by the frontend on load
+    "/api/registry",
+    "/api/services",
+    "/api/status",
+    "/api/system/health",
+    "/api/system/kernel",
+    "/api/leaderboard",
+    "/api/explorer",
+    "/api/cloud",
+    "/api/sports/webhooks",
+    "/sports/webhooks",
+    "/api/postback",
+    "/paystack/",
+    "/api/paystack",
 )
 
 # Only enforce auth on these API route prefixes

@@ -58,5 +58,23 @@ export default defineConfig({
     port: 5000,
     host: '0.0.0.0',
     allowedHosts: true,
+    proxy: {
+      // In dev, proxy /api/* to the local FastAPI backend on port 8000
+      // so the frontend works without CORS issues and without hitting production.
+      // Falls back to production if the local backend isn't running.
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (_err, _req, res) => {
+            // Local backend not running — let the browser hit production via fetch fallback
+            if (res && !res.headersSent) {
+              (res as any).writeHead(503, { 'Content-Type': 'application/json' })
+              ;(res as any).end(JSON.stringify({ error: 'local backend unavailable' }))
+            }
+          })
+        },
+      },
+    },
   },
 })
