@@ -1,6 +1,6 @@
 # ── Stage 1: Python dependency builder ───────────────────────────────────────
     # gcc/g++ compile C extensions (psycopg2, cryptography, etc.).
-    # Build tools are NOT carried into the runtime image.
+    # Build tools are NOT in the runtime image.
     FROM python:3.11-slim AS python-builder
 
     RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,9 +8,14 @@
       && rm -rf /var/lib/apt/lists/*
 
     WORKDIR /build
+
+    # Create a virtual environment — the reliable way to carry packages across
+    # multi-stage builds (avoids site-packages path resolution issues).
+    RUN python -m venv /opt/venv
+    ENV PATH="/opt/venv/bin:$PATH"
+
     COPY requirements.txt .
-    # --user installs into /root/.local, copied verbatim into runtime stage
-    RUN pip install --no-cache-dir --user -r requirements.txt
+    RUN pip install --no-cache-dir -r requirements.txt
 
     # ── Stage 2: Frontend builder (React + pnpm workspace) ────────────────────────
     FROM node:20-slim AS frontend-builder
@@ -54,8 +59,8 @@
 
     WORKDIR /app
 
-    # Python packages from builder — no pip or gcc at runtime
-    COPY --from=python-builder /root/.local /root/.local
+    # Copy the entire venv from the builder — all packages and executables included
+    COPY --from=python-builder /opt/venv /opt/venv
 
     # Application source (node_modules excluded by .dockerignore)
     COPY . .
@@ -64,7 +69,9 @@
     COPY --from=frontend-builder /build/frontend/dist frontend/dist
     COPY --from=explorer-builder /build/explorer/dist explorer/dist
 
-    ENV PATH="/root/.local/bin:$PATH"
+    # Activate the venv for all subsequent commands and the runtime process
+    ENV PATH="/opt/venv/bin:$PATH"
+    ENV VIRTUAL_ENV="/opt/venv"
     ENV PORT=8000
     ENV ENVIRONMENT=production
     ENV PYTHONUNBUFFERED=1
