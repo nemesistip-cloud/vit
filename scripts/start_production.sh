@@ -38,19 +38,39 @@ if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; th
         echo "[production] WARNING: ensure_columns failed — continuing, schema may be incomplete." >&2
     fi
 
-    # Step 2 — Apply any pending Alembic migrations. Safe to run on every deploy;
-    # Alembic no-ops if the DB is already at the latest revision(s).
-    # This repo has divergent migration heads, so we use `heads` (plural).
-    echo "[production] Running database migrations (alembic upgrade heads)..."
-      # Hard failure: a broken migration means the schema is in an unknown state.
-      # The container must not start with a partially-applied schema.
-      # Migration 22c85e91a8d9 is now idempotent so this will succeed on every deploy.
-      if ! alembic upgrade heads; then
-          echo "[production] FATAL: alembic upgrade heads failed — aborting startup." >&2
-          echo "[production] Fix the failing migration before redeploying." >&2
-          exit 1
-      fi
-      echo "[production] Migrations applied successfully."
+    # Step 2 — Apply any pending Alembic migrations.
+    #
+    # Strategy: init_db.py runs create_all(checkfirst=True) first, so all tables
+    # already exist on a fresh DB.  If we then run `alembic upgrade heads` directly,
+    # every migration fails with "relation already exists" because the DDL was already
+    # applied by create_all — Alembic just doesn't know it yet.
+    #
+    # Fix: detect whether alembic_version is empty/absent (fresh DB).
+    #   Fresh DB   → `alembic stamp heads` tells Alembic "schema is current"
+    #                 without re-running any DDL.  Future new migrations will
+    #                 see the stamped heads as their down_revision and apply normally.
+    #   Existing DB → `alembic upgrade heads` applies only pending revisions.
+    echo "[production] Checking Alembic migration state..."
+    _ALEMBIC_CURRENT=$(alembic current 2>&1 || true)
+    if echo "$_ALEMBIC_CURRENT" | grep -qiE "does not exist|relation.*alembic_version|no such table|OperationalError|UndefinedTable"; then
+        # alembic_version table absent — fresh DB whose schema was built by create_all.
+        # Stamp all current heads so Alembic knows the schema is up to date.
+        echo "[production] Fresh DB detected (alembic_version absent) — stamping all heads..."
+        if ! alembic stamp heads; then
+            echo "[production] FATAL: alembic stamp heads failed — aborting startup." >&2
+            exit 1
+        fi
+        echo "[production] All migration heads stamped successfully."
+    else
+        # alembic_version exists — apply any pending migrations (no-op if already at head).
+        echo "[production] Running pending migrations (alembic upgrade heads)..."
+        if ! alembic upgrade heads; then
+            echo "[production] FATAL: alembic upgrade heads failed — aborting startup." >&2
+            echo "[production] Check the migration files and re-deploy." >&2
+            exit 1
+        fi
+        echo "[production] Migrations up to date."
+    fi
 
     # Step 3 — Ensure admin user exists (idempotent).
     echo "[production] Ensuring admin user exists..."
