@@ -32,7 +32,15 @@ register_core_subsystems()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_signal_handlers()
-    await kernel.boot()
+    try:
+        await kernel.boot()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        raise
+    except BaseException as _boot_exc:  # catches SystemExit(1) from config_manager + any Exception
+        logging.getLogger(__name__).critical(
+            "[lifespan] kernel.boot() failed — service starting in DEGRADED state: %s",
+            _boot_exc, exc_info=True,
+        )
     # Phase 0: connect event bus Redis layer so events persist across restarts
     from app.core.event_bus import event_bus
     await event_bus.connect_redis()
@@ -338,8 +346,11 @@ app.include_router(multichain_router, tags=["Multichain"])
 from app.api.routes.dashboard import router as dashboard_router
 app.include_router(dashboard_router)
 
-from app.api.routes.sports import router as sports_router
-app.include_router(sports_router, prefix="/api")
+try:
+    from app.api.routes.sports import router as sports_router
+    app.include_router(sports_router, prefix="/api")
+except Exception as _sports_e:
+    logging.error("sports router not mounted — sports endpoints unavailable: %s", _sports_e, exc_info=True)
 
 from app.api.routes.analytics import router as analytics_router
 app.include_router(analytics_router)
