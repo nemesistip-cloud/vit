@@ -1,49 +1,7 @@
-# ── Stage 1: Python dependency builder ───────────────────────────────────────
-    # gcc/g++ compile C extensions (psycopg2, cryptography, etc.).
-    # Build tools are NOT in the runtime image.
-    FROM python:3.11-slim AS python-builder
+FROM python:3.11-slim
 
-    RUN apt-get update && apt-get install -y --no-install-recommends \
-      gcc g++ libpq-dev \
-      && rm -rf /var/lib/apt/lists/*
-
-    WORKDIR /build
-
-    # Create a virtual environment — the reliable way to carry packages across
-    # multi-stage builds (avoids site-packages path resolution issues).
-    RUN python -m venv /opt/venv
-    ENV PATH="/opt/venv/bin:$PATH"
-
-    COPY requirements.txt .
-    RUN pip install --no-cache-dir -r requirements.txt
-
-    # ── Stage 2: Frontend builder (React + pnpm workspace) ────────────────────────
-    FROM node:20-slim AS frontend-builder
-
-    WORKDIR /build
-    RUN npm install -g pnpm@9
-
-    COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-    COPY frontend/package.json frontend/
-    RUN pnpm install --frozen-lockfile
-
-    COPY frontend/ frontend/
-    RUN cd frontend && pnpm run build
-
-    # ── Stage 3: Explorer builder ─────────────────────────────────────────────────
-    FROM node:20-slim AS explorer-builder
-
-    WORKDIR /build
-    COPY explorer/package.json explorer/package-lock.json* explorer/
-    RUN cd explorer && npm install --no-audit --no-fund
-    COPY explorer/ explorer/
-    RUN cd explorer && npm run build
-
-    # ── Stage 4: Production runtime ───────────────────────────────────────────────
-    # Slim Python only — no build tools, no Node.js.
-    # Render free plan: 512 MB RAM. Multi-stage keeps the runtime image lean.
-    FROM python:3.11-slim AS runtime
-
+    # Version label aligned with APP_VERSION in app/config.py.
+    # Keep these in sync: bump here when APP_VERSION changes.
     LABEL org.opencontainers.image.title="VIT Network"
     LABEL org.opencontainers.image.description="AI-powered sports intelligence platform — Python/FastAPI backend"
     LABEL org.opencontainers.image.version="1.1.0"
@@ -52,33 +10,42 @@
     LABEL org.opencontainers.image.url="https://vitnetwork-nls4.onrender.com"
     LABEL org.opencontainers.image.vendor="VIT Network"
 
-    # libpq5 is the only native runtime dep (asyncpg / psycopg2-binary)
-    RUN apt-get update && apt-get install -y --no-install-recommends \
-      libpq5 curl \
-      && rm -rf /var/lib/apt/lists/*
-
     WORKDIR /app
 
-    # Copy the entire venv from the builder — all packages and executables included
-    COPY --from=python-builder /opt/venv /opt/venv
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+      gcc \
+      g++ \
+      libpq-dev \
+      curl \
+      && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+      && apt-get install -y --no-install-recommends nodejs \
+      && rm -rf /var/lib/apt/lists/* \
+      && npm install -g pnpm@9
 
-    # Application source (node_modules excluded by .dockerignore)
+    COPY requirements.txt .
+    RUN pip install --no-cache-dir -r requirements.txt
+
+    # frontend is a pnpm workspace member: the lockfile and workspace manifest
+    # live at the repo root (pnpm-workspace.yaml), not inside frontend/.
+    COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+    COPY frontend/package.json frontend/
+    RUN pnpm install --frozen-lockfile
+
+    COPY frontend/ frontend/
+    RUN cd frontend && pnpm run build
+
+    COPY explorer/package.json explorer/package-lock.json* explorer/
+    RUN cd explorer && npm install
+
+    COPY explorer/ explorer/
+    RUN cd explorer && npm run build
+
     COPY . .
 
-    # Overwrite with freshly-built production artifacts
-    COPY --from=frontend-builder /build/frontend/dist frontend/dist
-    COPY --from=explorer-builder /build/explorer/dist explorer/dist
-
-    # Activate the venv for all subsequent commands and the runtime process
-    ENV PATH="/opt/venv/bin:$PATH"
-    ENV VIRTUAL_ENV="/opt/venv"
     ENV PORT=8000
     ENV ENVIRONMENT=production
     ENV PYTHONUNBUFFERED=1
     ENV PYTHONPATH=".:$PYTHONPATH"
-    # Render free plan (512 MB RAM): 1 worker prevents OOM.
-    # Raise WEB_CONCURRENCY on a paid plan.
-    ENV WEB_CONCURRENCY=1
 
     EXPOSE 8000
 
