@@ -18,20 +18,25 @@
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-surface-800;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-vit-700 rounded-full;
+    @apply bg-vit-700/50 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-vit-600/60;
   }
 }
 
 @layer components {
+  /* ── Glass surfaces ───────────────────────────────────────────────── */
   .glass {
     @apply bg-white/5 backdrop-blur-md border border-white/10;
   }
@@ -41,13 +46,19 @@
   }
   .glass-hover:hover {
     background-color: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.20);
+    border-color: rgba(255, 255, 255, 0.16);
   }
 
+  /* ── Text gradients ───────────────────────────────────────────────── */
   .gradient-text {
-    @apply bg-gradient-to-r from-vit-300 to-vit-500 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-vit-300 via-vit-400 to-vit-500 bg-clip-text text-transparent;
   }
 
+  .gradient-text-warm {
+    @apply bg-gradient-to-r from-amber-300 to-orange-400 bg-clip-text text-transparent;
+  }
+
+  /* ── Status dots ──────────────────────────────────────────────────── */
   .status-dot-green {
     @apply w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_theme(colors.emerald.400)];
   }
@@ -60,15 +71,76 @@
     @apply w-2 h-2 rounded-full bg-red-400 shadow-[0_0_8px_theme(colors.red.400)];
   }
 
+  /* ── Grid overlay ─────────────────────────────────────────────────── */
   .section-grid {
-    background-image: linear-gradient(rgba(59,101,255,0.06) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(59,101,255,0.06) 1px, transparent 1px);
+    background-image:
+      linear-gradient(rgba(59, 101, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 101, 255, 0.05) 1px, transparent 1px);
     background-size: 40px 40px;
+  }
+
+  /* ── Glow card ────────────────────────────────────────────────────── */
+  .card-glow {
+    @apply relative rounded-2xl border border-white/8 bg-surface-800/50 transition-all duration-300;
+  }
+  .card-glow::before {
+    content: '';
+    @apply absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300;
+    background: radial-gradient(circle at 50% 0%, rgba(59, 101, 255, 0.08) 0%, transparent 60%);
+  }
+  .card-glow:hover::before {
+    @apply opacity-100;
+  }
+  .card-glow:hover {
+    @apply border-vit-500/20 bg-surface-700/60;
+  }
+
+  /* ── Pill badge ───────────────────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider;
+  }
+
+  .badge-vit {
+    @apply badge bg-vit-500/15 border border-vit-500/25 text-vit-300;
+  }
+
+  .badge-live {
+    @apply badge bg-emerald-500/15 border border-emerald-500/25 text-emerald-300;
+  }
+
+  .badge-warning {
+    @apply badge bg-amber-500/15 border border-amber-500/25 text-amber-300;
   }
 }
 
 @layer utilities {
-  .bg-white\/8 {
-    background-color: rgba(255, 255, 255, 0.08);
+  /* Custom opacity backgrounds that Tailwind doesn't auto-generate */
+  .bg-white\/2  { background-color: rgba(255, 255, 255, 0.02); }
+  .bg-white\/3  { background-color: rgba(255, 255, 255, 0.03); }
+  .bg-white\/6  { background-color: rgba(255, 255, 255, 0.06); }
+  .bg-white\/8  { background-color: rgba(255, 255, 255, 0.08); }
+  .bg-white\/12 { background-color: rgba(255, 255, 255, 0.12); }
+
+  .border-white\/6  { border-color: rgba(255, 255, 255, 0.06); }
+  .border-white\/8  { border-color: rgba(255, 255, 255, 0.08); }
+  .border-white\/12 { border-color: rgba(255, 255, 255, 0.12); }
+
+  /* Hide scrollbar but keep scroll functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Glow utilities */
+  .glow-vit    { box-shadow: 0 0 20px rgba(59, 101, 255, 0.25); }
+  .glow-vit-sm { box-shadow: 0 0 10px rgba(59, 101, 255, 0.15); }
+  .glow-emerald { box-shadow: 0 0 20px rgba(52, 211, 153, 0.25); }
+
+  /* Text shadow */
+  .text-shadow-vit {
+    text-shadow: 0 0 24px rgba(59, 101, 255, 0.5);
   }
 }
