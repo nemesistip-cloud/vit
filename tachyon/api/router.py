@@ -427,7 +427,7 @@ async def get_status(db: AsyncSession = Depends(get_db)):
     total_capacity_bytes = 0
     for p in _providers:
         try:
-            q = await p.get_quota()
+            q = await p.get_quota() or {}
             total_capacity_bytes += q.get("total", 0)
         except Exception:
             kind = type(p).__name__.lower()
