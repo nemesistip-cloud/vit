@@ -1,139 +1,185 @@
 import logging
-import os
-import json
-from typing import Dict, Any, List, Optional, Type
-from pydantic import ValidationError
+    import os
+    from typing import Any, Dict, List, Optional, Type
 
-from app.core.config.models import VITConfig, AppConfig, DatabaseConfig, RedisConfig, AIConfig, BlockchainConfig, ExternalServicesConfig, TachyonConfig
-from app.core.config.providers.base import ConfigProvider
-from app.core.config.providers.env import EnvProvider
-from app.core.config.providers.default import DefaultProvider
-from app.core.config.secrets import secrets_manager
-from app.core.config.feature_flags import feature_flag_manager
+    from pydantic import ValidationError
 
-logger = logging.getLogger(__name__)
+    from app.core.config.models import (
+      AIConfig, AppConfig, BlockchainConfig, DatabaseConfig,
+      ExternalServicesConfig, RedisConfig, TachyonConfig, VITConfig,
+    )
+    from app.core.config.providers.base import ConfigProvider
+    from app.core.config.providers.default import DefaultProvider
+    from app.core.config.providers.env import EnvProvider
+    from app.core.config.feature_flags import feature_flag_manager
+    from app.core.config.secrets import secrets_manager
 
-class ConfigurationManager:
-    """
-    The central authority for all VIT Ecosystem configuration.
-    Orchestrates resolution, validation, and access.
-    """
+    logger = logging.getLogger(__name__)
 
-    _instance = None
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(ConfigurationManager, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
+    class ConfigurationManager:
+      """
+      Central authority for all VIT Ecosystem configuration.
 
-    def __init__(self):
-        if self._initialized:
-            return
-        self._config: Optional[VITConfig] = None
-        self._providers: List[ConfigProvider] = [
-            DefaultProvider(),
-            EnvProvider()
-        ]
-        self._initialized = True
+      Key contract: load() NEVER raises.  On any error it logs CRITICAL,
+      sets boot_error, and continues with safe defaults so Render health-check
+      (GET /ping) still returns 200 and the service starts cleanly.
 
-    async def load(self):
-        """Perform the full configuration loading and validation sequence."""
-        logger.info("[config] Loading VIT Configuration...")
+      Supports both Pydantic v1 (model.__fields__) and v2 (model.model_fields).
+      """
 
-        # 1. Collect data from all providers
-        raw_data: Dict[str, Any] = {}
-        # Sort providers by priority
-        sorted_providers = sorted(self._providers, key=lambda p: p.priority)
-        for provider in sorted_providers:
-            raw_data.update(provider.load())
+      _instance: Optional["ConfigurationManager"] = None
 
-        # 2. Resolve secrets
-        raw_data = await secrets_manager.resolve_secrets(raw_data)
+      def __new__(cls) -> "ConfigurationManager":
+          if cls._instance is None:
+              cls._instance = super().__new__(cls)
+              cls._instance._initialized = False
+          return cls._instance
 
-        # 3. Initialize feature flags
-        feature_flag_manager.initialize(raw_data)
+      def __init__(self) -> None:
+          if self._initialized:
+              return
+          self._config: Optional[VITConfig] = None
+          self._boot_error: Optional[str] = None
+          self._providers: List[ConfigProvider] = [DefaultProvider(), EnvProvider()]
+          self._initialized = True
 
-        # 4. Map raw data to section models
-        try:
-            # We use the alias (original env var name) for mapping
-            app_data = self._filter_data_by_alias(AppConfig, raw_data)
-            db_data = self._filter_data_by_alias(DatabaseConfig, raw_data)
-            redis_data = self._filter_data_by_alias(RedisConfig, raw_data)
-            ai_data = self._filter_data_by_alias(AIConfig, raw_data)
-            bc_data = self._filter_data_by_alias(BlockchainConfig, raw_data)
-            ext_data = self._filter_data_by_alias(ExternalServicesConfig, raw_data)
-            tachyon_data = self._filter_data_by_alias(TachyonConfig, raw_data)
+      @property
+      def boot_error(self) -> Optional[str]:
+          """Human-readable error if load() failed; None when healthy."""
+          return self._boot_error
 
-            self._config = VITConfig(
-                app=AppConfig(**app_data),
-                db=DatabaseConfig(**db_data),
-                redis=RedisConfig(**redis_data),
-                ai=AIConfig(**ai_data),
-                blockchain=BlockchainConfig(**bc_data),
-                external=ExternalServicesConfig(**ext_data),
-                tachyon=TachyonConfig(**tachyon_data),
-                feature_flags=feature_flag_manager.get_all_flags()
-            )
-            logger.info(f"[config] Configuration validated successfully for {self._config.app.environment.value}")
-        except ValidationError as e:
-            logger.critical(f"[config] Configuration validation failed: \n{e}")
-            raise SystemExit(1)
-        except Exception as e:
-            logger.critical(f"[config] Unexpected error during configuration load: {e}")
-            raise SystemExit(1)
+      @property
+      def is_healthy(self) -> bool:
+          return self._boot_error is None and self._config is not None
 
-    def _filter_data_by_alias(self, model: Type[Any], raw_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Filters raw data to match the aliases defined in the model."""
-        filtered = {}
-        for field_name, field in model.__fields__.items():
-            alias = field.alias
-            if alias in raw_data:
-                filtered[alias] = raw_data[alias]
-        return filtered
+      @property
+      def config(self) -> VITConfig:
+          """Always returns a VITConfig — falls back to all-defaults if load() failed."""
+          if self._config is None:
+              self._config = self._make_default_config()
+          return self._config
 
-    @property
-    def config(self) -> VITConfig:
-        if self._config is None:
-            raise RuntimeError("Configuration not loaded. Call load() first.")
-        return self._config
+      async def load(self) -> None:
+          """
+          Full configuration loading and validation sequence.
+          Guaranteed not to raise — on error logs CRITICAL and uses safe defaults.
+          """
+          logger.info("[config] Loading VIT Configuration...")
+          try:
+              raw = self._collect_raw_data()
+              raw = await self._resolve_secrets_safe(raw)
+              feature_flag_manager.initialize(raw)
+              self._config = self._build_config(raw)
+              env_val = getattr(
+                  self._config.app.environment, "value", str(self._config.app.environment)
+              )
+              logger.info("[config] Configuration loaded — environment=%s", env_val)
 
-    def get_diagnostics(self) -> Dict[str, Any]:
-        """Return non-sensitive configuration diagnostics."""
-        if not self._config:
-            return {"status": "not_loaded"}
+          except ValidationError as exc:
+              self._boot_error = f"Pydantic ValidationError: {exc}"
+              logger.critical(
+                  "[config] Validation failed — starting with safe defaults.\n%s",
+                  exc, exc_info=True,
+              )
+              self._config = self._make_default_config()
 
-        return {
-            "status": "loaded",
-            "environment": self._config.app.environment.value,
-            "version": self._config.app.version,
-            "effective_config": secrets_manager.redact(self._config),
-            "feature_flags": feature_flag_manager.get_all_flags(),
-            "providers": [p.__class__.__name__ for p in self._providers],
-            "missing_required_keys": self._get_missing_required_keys()
-        }
+          except Exception as exc:  # noqa: BLE001
+              self._boot_error = f"Unexpected config error: {exc}"
+              logger.critical(
+                  "[config] Unexpected error — starting with safe defaults.\n%s",
+                  exc, exc_info=True,
+              )
+              self._config = self._make_default_config()
 
-    def _get_missing_required_keys(self) -> List[str]:
-        """Check for potentially missing optional keys that are commonly used."""
-        missing = []
-        if not self._config: return missing
+      def get(self, key: str, default: Any = None) -> Any:
+          for section in (
+              self.config.app, self.config.db, self.config.redis, self.config.ai,
+              self.config.blockchain, self.config.external, self.config.tachyon,
+          ):
+              if hasattr(section, key):
+                  return getattr(section, key)
+          return default
 
-        # Check some key fields
-        if not self._config.ai.isports_api_key: missing.append("ISPORTS_API_KEY")
-        if not self._config.external.paystack_secret_key: missing.append("PAYSTACK_SECRET_KEY")
-        if not self._config.external.resend_api_key: missing.append("RESEND_API_KEY")
+      def get_database_url(self) -> str:
+          url = self.config.db.url
+          return url or os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./vit.db")
 
-        return missing
+      def get_diagnostics(self) -> Dict[str, Any]:
+          missing = [k for k in ("ISPORTS_API_KEY", "PAYSTACK_SECRET_KEY", "RESEND_API_KEY") if not os.getenv(k)]
+          return {
+              "healthy": self.is_healthy,
+              "boot_error": self._boot_error,
+              "missing_optional_keys": missing,
+              "environment": (
+                  getattr(self._config.app.environment, "value", str(self._config.app.environment))
+                  if self._config else "unknown"
+              ),
+          }
 
-    def export_effective_config(self, path: str):
-        """Export redacted effective configuration to a JSON file."""
-        if not self._config:
-            return
+      def _collect_raw_data(self) -> Dict[str, Any]:
+          raw: Dict[str, Any] = {}
+          for provider in sorted(self._providers, key=lambda p: p.priority):
+              raw.update(provider.load())
+          return raw
 
-        redacted = secrets_manager.redact(self._config)
-        with open(path, 'w') as f:
-            json.dump(redacted, f, indent=2)
-        logger.info(f"[config] Exported effective config to {path}")
+      async def _resolve_secrets_safe(self, raw: Dict[str, Any]) -> Dict[str, Any]:
+          try:
+              return await secrets_manager.resolve_secrets(raw)
+          except Exception as exc:  # noqa: BLE001
+              logger.warning("[config] Secret resolution failed (env-only fallback): %s", exc)
+              return raw
 
-# Global Configuration Manager Singleton
-config_manager = ConfigurationManager()
+      def _build_config(self, raw: Dict[str, Any]) -> VITConfig:
+          _v = self._build_section
+          return VITConfig(
+              app=_v(AppConfig, raw), db=_v(DatabaseConfig, raw), redis=_v(RedisConfig, raw),
+              ai=_v(AIConfig, raw), blockchain=_v(BlockchainConfig, raw),
+              external=_v(ExternalServicesConfig, raw), tachyon=_v(TachyonConfig, raw),
+              feature_flags=feature_flag_manager.get_all_flags(),
+          )
+
+      @staticmethod
+      def _build_section(model: Type[Any], raw: Dict[str, Any]) -> Any:
+          """
+          Instantiate one config section from alias-keyed raw data.
+          Pydantic v2: model.model_validate(data)  — aliases resolved natively.
+          Pydantic v1: model(**data)               — aliases accepted in __init__.
+          On error:    model()                     — all-defaults fallback.
+          """
+          section_data: Dict[str, Any] = {}
+          if hasattr(model, "model_fields"):
+              for fname, finfo in model.model_fields.items():
+                  alias = finfo.alias or fname
+                  if alias in raw:
+                      section_data[alias] = raw[alias]
+              try:
+                  return model.model_validate(section_data)
+              except Exception as exc:  # noqa: BLE001
+                  logger.warning("[config] %s failed (%s) — using defaults", model.__name__, exc)
+                  try:
+                      return model()
+                  except Exception:
+                      return model.model_construct()
+          else:
+              for fname, field in model.__fields__.items():
+                  alias = getattr(field, "alias", None) or fname
+                  if alias in raw:
+                      section_data[alias] = raw[alias]
+              try:
+                  return model(**section_data)
+              except Exception as exc:  # noqa: BLE001
+                  logger.warning("[config] %s failed (%s) — using defaults", model.__name__, exc)
+                  return model()
+
+      @staticmethod
+      def _make_default_config() -> VITConfig:
+          return VITConfig(
+              app=AppConfig(), db=DatabaseConfig(), redis=RedisConfig(), ai=AIConfig(),
+              blockchain=BlockchainConfig(), external=ExternalServicesConfig(),
+              tachyon=TachyonConfig(), feature_flags={},
+          )
+
+
+    config_manager = ConfigurationManager()
+    
