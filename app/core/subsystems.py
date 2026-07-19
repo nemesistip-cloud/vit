@@ -85,21 +85,6 @@ class DatabaseSubsystem(Subsystem):
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
 
-        # ── Alembic auto-migration (runs on every boot, idempotent) ────────────────
-        try:
-            import subprocess, sys
-            proc = await asyncio.to_thread(
-                subprocess.run,
-                [sys.executable, "-m", "alembic", "upgrade", "head"],
-                capture_output=True, text=True,
-            )
-            if proc.returncode == 0:
-                logger.info("[kernel] Alembic migrations applied.\n%s", proc.stdout.strip())
-            else:
-                logger.error("[kernel] Alembic migration failed (non-fatal):\n%s", proc.stderr.strip())
-        except Exception as _mig_exc:
-            logger.error("[kernel] Alembic runner raised (non-fatal): %s", _mig_exc)
-
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
