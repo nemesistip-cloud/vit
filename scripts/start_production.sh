@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Production startup — FastAPI + Integrated Background Agents.
+# DB setup runs in background so uvicorn binds immediately and passes Render health checks.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # PORT: read from env (Render dashboard sets PORT=8000).
-# Default to 8000 to match the Render dashboard value — do NOT hardcode 10000
-# here since that would cause a mismatch and the service would bind on a port
-# Render doesn't proxy.
 PORT="${PORT:-8000}"
 APP_VERSION="1.1.0"
 
@@ -22,42 +20,30 @@ fi
 echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
 echo "[production] Hybrid Mode: ML + SCIE Active"
 
+# ── DB setup runs in background ────────────────────────────────────────────────
+# Running synchronously before uvicorn caused Render health-check timeouts
+# (~80s of DB scripts before uvicorn even binds).  Moving to background lets
+# uvicorn respond to /ping immediately while schema work completes in parallel.
+# Every step is idempotent so concurrent access with kernel startup is safe.
 if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; then
-    # Step 0 — Ensure all tables exist via SQLAlchemy create_all (safety net).
-    # This is idempotent and handles fresh DBs where alembic hasn't run yet.
-    echo "[production] Running DB table bootstrap (init_db.py)..."
-    if ! python3 scripts/init_db.py; then
-        echo "[production] WARNING: init_db failed — continuing." >&2
-    fi
+    (
+      set +e   # individual step failures must not kill this subshell
 
-    # Step 1 — Pre-flight column guard (idempotent ALTER TABLE IF NOT EXISTS).
-    # Runs BEFORE Alembic so that even if the migration chain is partially broken
-    # the columns the ORM depends on are guaranteed to exist.
-    echo "[production] Running pre-flight schema guard (ensure_columns.py)..."
-    if ! python3 scripts/ensure_columns.py; then
-        echo "[production] WARNING: ensure_columns failed — continuing, schema may be incomplete." >&2
-    fi
+      echo "[production] [bg] Running DB table bootstrap (init_db.py)..."
+      python3 scripts/init_db.py \
+        || echo "[production] [bg] WARNING: init_db failed — continuing." >&2
 
-    # Step 2 — Apply any pending Alembic migrations.
-    #
-    # Strategy: init_db.py runs create_all(checkfirst=True) first, so all tables
-    # already exist on a fresh DB.  If we then run `alembic upgrade heads` directly,
-    # every migration fails with "relation already exists" because the DDL was already
-    # applied by create_all — Alembic just doesn't know it yet.
-    #
-    # Fix: use Python + SQLAlchemy to check the alembic_version table directly.
-    #   Fresh DB   → alembic_version absent or empty → `alembic stamp heads`
-    #                 (marks schema as current without re-running DDL)
-    #                 Future migrations will have these heads as their down_revision.
-    #   Existing DB → alembic_version has rows → `alembic upgrade heads`
-    #                 (applies only pending revisions — no-op if already current)
-    echo "[production] Checking Alembic migration state..."
-    _ALEMBIC_ACTION=$(python3 - <<'PYEOF'
+      echo "[production] [bg] Running pre-flight schema guard (ensure_columns.py)..."
+      python3 scripts/ensure_columns.py \
+        || echo "[production] [bg] WARNING: ensure_columns failed — schema may be incomplete." >&2
+
+      # Alembic: stamp fresh DBs, upgrade existing ones.
+      echo "[production] [bg] Checking Alembic migration state..."
+      _ALEMBIC_ACTION=$(python3 - <<'PYEOF'
 import os, sys
 from sqlalchemy import create_engine, text, inspect as sa_inspect
 
 raw_url = os.environ.get("DATABASE_URL", "")
-# Normalise to psycopg2 sync URL (env var may be asyncpg or raw postgres)
 sync_url = raw_url
 for old, new in [
     ("postgresql+asyncpg://", "postgresql://"),
@@ -79,52 +65,39 @@ try:
             print("STAMP" if count == 0 else "UPGRADE")
     engine.dispose()
 except Exception as exc:
-    # On connection failure, fall back to stamp (safer than failing to start)
-    print(f"[production] alembic-check warning: {exc}", file=sys.stderr)
+    print(f"[production] [bg] alembic-check warning: {exc}", file=sys.stderr)
     print("STAMP")
 PYEOF
-    )
+      )
 
-    if [ "$_ALEMBIC_ACTION" = "STAMP" ]; then
-        echo "[production] Fresh DB (alembic_version absent or empty) — stamping all heads..."
-        # Soft-fail: init_db.py already created all tables, so the app can start
-        # even if Alembic's tracking table fails.  Failures here are logged and
-        # monitored but must not prevent the app from serving traffic.
-        if ! alembic stamp heads 2>&1; then
-            echo "[production] WARNING: alembic stamp heads failed — app will start without migration tracking." >&2
-        else
-            echo "[production] All migration heads stamped successfully."
-        fi
-    else
-        # alembic_version has rows — apply only pending migrations.
-        echo "[production] Running pending migrations (alembic upgrade heads)..."
-        if ! alembic upgrade heads 2>&1; then
-            echo "[production] WARNING: alembic upgrade heads failed — schema may be missing new columns." >&2
-            echo "[production] Check migration files. App will attempt to start anyway." >&2
-        else
-            echo "[production] Migrations up to date."
-        fi
-    fi
+      if [ "${_ALEMBIC_ACTION:-STAMP}" = "STAMP" ]; then
+          echo "[production] [bg] Fresh DB (alembic_version absent or empty) — stamping all heads..."
+          alembic stamp heads 2>&1 \
+            || echo "[production] [bg] WARNING: alembic stamp heads failed — app started without migration tracking." >&2
+      else
+          echo "[production] [bg] Running pending migrations (alembic upgrade heads)..."
+          alembic upgrade heads 2>&1 \
+            || echo "[production] [bg] WARNING: alembic upgrade heads failed — schema may be incomplete." >&2
+      fi
 
-    # Step 3 — Ensure admin user exists (idempotent).
-    echo "[production] Ensuring admin user exists..."
-    if ! python3 scripts/ensure_admin.py; then
-        echo "[production] WARNING: ensure_admin failed — admin user may be missing." >&2
-    fi
+      echo "[production] [bg] Ensuring admin user exists..."
+      python3 scripts/ensure_admin.py \
+        || echo "[production] [bg] WARNING: ensure_admin failed — admin user may be missing." >&2
 
-    # Step 4 — Seed blockchain genesis block if not already present.
-    # The genesis block is stored as an IoTEvent row; if it never made it to
-    # the DB (e.g. first-deploy race where tables were not ready yet), every
-    # subsequent health-check returns False and the kernel stays DEGRADED.
-    echo "[production] Seeding blockchain genesis block (idempotent)..."
-    if ! python3 scripts/seed_genesis.py; then
-        echo "[production] WARNING: seed_genesis failed -- blockchain may stay UNHEALTHY." >&2
-    fi
+      echo "[production] [bg] Seeding blockchain genesis block (idempotent)..."
+      python3 scripts/seed_genesis.py \
+        || echo "[production] [bg] WARNING: seed_genesis failed — blockchain may stay UNHEALTHY." >&2
+
+      echo "[production] [bg] DB setup complete."
+    ) &
+    echo "[production] DB setup started in background (PID: $!) — uvicorn binding now."
 else
     echo "[production] Skipping DB setup (no Postgres DATABASE_URL detected)."
 fi
 
-# Start FastAPI (Background Supervisor handles the agents)
+# ── Start FastAPI immediately ──────────────────────────────────────────────────
+# uvicorn binds to PORT right away so Render health checks pass within timeout.
+# The kernel's DatabaseSubsystem handles schema verification at runtime.
 echo "[production] Starting VIT Network on port ${PORT}..."
 exec python3 -m uvicorn main:app \
     --host 0.0.0.0 \
