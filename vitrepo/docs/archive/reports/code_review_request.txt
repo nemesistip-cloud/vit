@@ -1,6 +1,0 @@
-I have fixed the following issues that were preventing the 'vit' service from deploying and running correctly:
-1. Fixed a Vite build error in frontend/src/App.tsx caused by duplicate AuthPage and DashboardPage declarations.
-2. Fixed a runtime error in services/ml_service/models/model_orchestrator.py by removing the deprecated 'multi_class' argument from LogisticRegression.
-3. Fixed several 'AttributeError: function object has no attribute replace' errors in SQLAlchemy model defaults where _utcnow_naive (a function) was being treated as a datetime object in the declaration phase.
-
-The frontend build now passes and backend smoke tests are successful.
