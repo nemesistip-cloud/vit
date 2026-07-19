@@ -756,3 +756,83 @@ class BackgroundTaskStatus(Base):
     last_crashed_at = Column(DateTime(timezone=True), nullable=True)
     last_error = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+# ── VIT Chain Models ──────────────────────────────────────────────────────────
+# Phase 1 gate: tables required by vit_chain/core/genesis.py and
+# vit_chain/consensus/slashing.py. Added 2026-07-19.
+
+class Block(Base):
+    """VIT Chain canonical block record (Chain ID 7764)."""
+    __tablename__ = "vit_blocks"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    height      = Column(Integer, nullable=False, unique=True, index=True)
+    chain_id    = Column(Integer, nullable=False, default=7764)
+    hash        = Column(String(66), nullable=False, unique=True, index=True)
+    parent_hash = Column(String(66), nullable=False)
+    proposer    = Column(String(255), nullable=True, index=True)
+    tx_count    = Column(Integer, default=0)
+    extra_data  = Column(Text, nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ValidatorStake(Base):
+    """On-chain validator stake registry. Updated in-place by SlashingManager."""
+    __tablename__ = "validator_stakes"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    address      = Column(String(255), nullable=False, unique=True, index=True)
+    label        = Column(String(100), nullable=True)
+    stake_amount = Column(Integer, nullable=False, default=0)
+    active       = Column(Boolean, default=True, nullable=False, index=True)
+    joined_at    = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
+
+    slash_events = relationship(
+        "SlashEvent", back_populates="validator",
+        foreign_keys="SlashEvent.validator_address",
+        primaryjoin="ValidatorStake.address == foreign(SlashEvent.validator_address)",
+    )
+
+
+class SlashEvent(Base):
+    """Immutable record of every slashing action applied to a validator."""
+    __tablename__ = "slash_events"
+
+    id                   = Column(Integer, primary_key=True, index=True)
+    validator_address    = Column(String(255), ForeignKey("validator_stakes.address"), nullable=False, index=True)
+    reason               = Column(String(32),  nullable=False, index=True)   # DOUBLE_SIGN|DOWNTIME|INVALID_BLOCK
+    slash_amount         = Column(Integer, nullable=False)
+    stake_before         = Column(Integer, nullable=False)
+    stake_after          = Column(Integer, nullable=False)
+    evidence             = Column(Text,    nullable=True)
+    appeal_deadline_slot = Column(Integer, nullable=True)
+    created_at           = Column(DateTime(timezone=True), server_default=func.now())
+
+    validator = relationship(
+        "ValidatorStake",
+        foreign_keys=[validator_address],
+        back_populates="slash_events",
+    )
+    appeals = relationship("SlashAppeal", back_populates="event")
+
+
+class SlashAppeal(Base):
+    """Validator appeal against a slash event — reviewed by governance."""
+    __tablename__ = "slash_appeals"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    slash_event_id    = Column(Integer, ForeignKey("slash_events.id"), nullable=False, index=True)
+    validator_address = Column(String(255), nullable=False, index=True)
+    justification     = Column(Text, nullable=False)
+    status            = Column(String(16), nullable=False, default="PENDING", index=True)
+    reviewed_at       = Column(DateTime(timezone=True), nullable=True)
+    reviewer_notes    = Column(Text, nullable=True)
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+
+    event = relationship("SlashEvent", back_populates="appeals")
+
+
+Index("ix_slash_events_validator_reason", SlashEvent.validator_address, SlashEvent.reason)
+Index("ix_validator_stakes_active",       ValidatorStake.active)
