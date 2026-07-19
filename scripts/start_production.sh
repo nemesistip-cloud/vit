@@ -45,24 +45,55 @@ if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; th
     # every migration fails with "relation already exists" because the DDL was already
     # applied by create_all — Alembic just doesn't know it yet.
     #
-    # Fix: detect whether alembic_version is empty/absent (fresh DB).
-    #   Fresh DB   → `alembic stamp heads` tells Alembic "schema is current"
-    #                 without re-running any DDL.  Future new migrations will
-    #                 see the stamped heads as their down_revision and apply normally.
-    #   Existing DB → `alembic upgrade heads` applies only pending revisions.
+    # Fix: use Python + SQLAlchemy to check the alembic_version table directly.
+    #   Fresh DB   → alembic_version absent or empty → `alembic stamp heads`
+    #                 (marks schema as current without re-running DDL)
+    #                 Future migrations will have these heads as their down_revision.
+    #   Existing DB → alembic_version has rows → `alembic upgrade heads`
+    #                 (applies only pending revisions — no-op if already current)
     echo "[production] Checking Alembic migration state..."
-    _ALEMBIC_CURRENT=$(alembic current 2>&1 || true)
-    if echo "$_ALEMBIC_CURRENT" | grep -qiE "does not exist|relation.*alembic_version|no such table|OperationalError|UndefinedTable"; then
-        # alembic_version table absent — fresh DB whose schema was built by create_all.
-        # Stamp all current heads so Alembic knows the schema is up to date.
-        echo "[production] Fresh DB detected (alembic_version absent) — stamping all heads..."
+    _ALEMBIC_ACTION=$(python3 - <<'PYEOF'
+import os, sys
+from sqlalchemy import create_engine, text, inspect as sa_inspect
+
+raw_url = os.environ.get("DATABASE_URL", "")
+# Normalise to psycopg2 sync URL (env var may be asyncpg or raw postgres)
+sync_url = raw_url
+for old, new in [
+    ("postgresql+asyncpg://", "postgresql://"),
+    ("postgres+asyncpg://",   "postgresql://"),
+    ("postgres://",           "postgresql://"),
+]:
+    if sync_url.startswith(old):
+        sync_url = new + sync_url[len(old):]
+        break
+
+try:
+    engine = create_engine(sync_url, connect_args={"connect_timeout": 10})
+    with engine.connect() as conn:
+        ins = sa_inspect(engine)
+        if not ins.has_table("alembic_version"):
+            print("STAMP")
+        else:
+            count = conn.execute(text("SELECT COUNT(*) FROM alembic_version")).scalar()
+            print("STAMP" if count == 0 else "UPGRADE")
+    engine.dispose()
+except Exception as exc:
+    # On connection failure, fall back to stamp (safer than failing to start)
+    print(f"[production] alembic-check warning: {exc}", file=sys.stderr)
+    print("STAMP")
+PYEOF
+    )
+
+    if [ "$_ALEMBIC_ACTION" = "STAMP" ]; then
+        echo "[production] Fresh DB (alembic_version absent or empty) — stamping all heads..."
         if ! alembic stamp heads; then
             echo "[production] FATAL: alembic stamp heads failed — aborting startup." >&2
             exit 1
         fi
         echo "[production] All migration heads stamped successfully."
     else
-        # alembic_version exists — apply any pending migrations (no-op if already at head).
+        # alembic_version has rows — apply only pending migrations.
         echo "[production] Running pending migrations (alembic upgrade heads)..."
         if ! alembic upgrade heads; then
             echo "[production] FATAL: alembic upgrade heads failed — aborting startup." >&2
