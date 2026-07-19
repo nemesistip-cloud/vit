@@ -290,6 +290,34 @@ class PluginSubsystem(Subsystem):
                 return False
         return True
 
+
+class GenesisSubsystem(Subsystem):
+    """
+    Phase 1 gate: seeds the VIT Chain genesis block on first boot.
+    Idempotent — safe to run on every restart; skips if genesis already present.
+    Depends on DatabaseSubsystem to ensure tables exist before seeding.
+    """
+    name         = "genesis"
+    dependencies = ["database"]
+
+    async def _on_start(self):
+        from app.db.database import AsyncSessionLocal
+        from vit_chain.core.genesis import seed_genesis
+        from app.core.observability.manager import obs_manager
+        from app.core.observability.models import HealthStatus
+        try:
+            async with AsyncSessionLocal() as db:
+                seeded = await seed_genesis(db)
+            msg = "Genesis block seeded (first boot)" if seeded else "Genesis block already present"
+            logger.info("[kernel] %s", msg)
+            obs_manager.health.update_status(self.name, HealthStatus.HEALTHY, msg)
+        except Exception as exc:
+            logger.error("[kernel] Genesis seeding failed (non-fatal): %s", exc)
+            obs_manager.health.update_status(self.name, HealthStatus.UNHEALTHY, str(exc))
+
+    async def health_check(self) -> bool:
+        return True
+
 def register_core_subsystems():
     from app.core.persistence.manager import PersistenceManager
     kernel.register_subsystem(PersistenceManager)
@@ -297,6 +325,7 @@ def register_core_subsystems():
     kernel.register_subsystem(ObservabilitySubsystem)
     kernel.register_subsystem(ConfigSubsystem)
     kernel.register_subsystem(DatabaseSubsystem)
+    kernel.register_subsystem(GenesisSubsystem)
     kernel.register_subsystem(AuthorizationSubsystem)
     kernel.register_subsystem(RedisSubsystem)
     kernel.register_subsystem(AISubsystem)
