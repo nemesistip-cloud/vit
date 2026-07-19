@@ -1,16 +1,15 @@
 import { useState, type ElementType } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Trophy, TrendingUp, Calendar, Filter, RefreshCw,
-  ChevronRight, Activity, Zap, Target, AlertCircle,
-  Search, Clock, CheckCircle, Radio, RotateCcw, Database,
+  Trophy, TrendingUp, Calendar, ChevronRight, Activity,
+  Zap, Target, Search, Clock, CheckCircle, Radio,
+  RotateCcw, RefreshCw, Dumbbell, Circle,
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
-import { StatusBadge } from '@/components/ui/StatusBadge'
 import { toast } from 'sonner'
 
 interface Match {
@@ -35,12 +34,13 @@ interface Match {
 type Tab   = 'upcoming' | 'live' | 'recent' | 'all'
 type Sport = 'all' | 'football' | 'basketball' | 'tennis' | 'cricket'
 
-// ── Hooks ─────────────────────────────────────────────────────────────────────
+// ── Hooks ──────────────────────────────────────────────────────────────────────
 
 function useMatches(tab: Tab, sport: Sport) {
-  const endpoint = tab === 'upcoming' ? '/api/matches/upcoming'
-    : tab === 'live'    ? '/api/matches/live'
-    : tab === 'recent'  ? '/api/matches/recent'
+  const endpoint =
+    tab === 'upcoming' ? '/api/matches/upcoming'
+    : tab === 'live'   ? '/api/matches/live'
+    : tab === 'recent' ? '/api/matches/recent'
     : '/api/matches'
 
   return useQuery<Match[]>({
@@ -85,15 +85,15 @@ function useSyncFixtures() {
   })
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function ProbBar({ label, prob, color }: { label: string; prob?: number; color: string }) {
   const pct = prob != null ? Math.round(prob * 100) : null
   return (
     <div className="flex-1 text-center">
-      <div className="text-[10px] text-white/40 mb-1 uppercase tracking-wide">{label}</div>
-      <div className={cn('text-base font-bold', color)}>{pct != null ? `${pct}%` : '—'}</div>
-      <div className="mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
+      <div className="text-[10px] text-white/35 mb-1 uppercase tracking-widest">{label}</div>
+      <div className={cn('text-sm font-bold', color)}>{pct != null ? `${pct}%` : '—'}</div>
+      <div className="mt-1.5 h-1 rounded-full bg-white/8 overflow-hidden">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct ?? 0}%` }}
@@ -108,268 +108,295 @@ function ProbBar({ label, prob, color }: { label: string; prob?: number; color: 
 function MatchCard({ match, i }: { match: Match; i: number }) {
   const navigate = useNavigate()
   const conf   = match.confidence != null ? Math.round(match.confidence * 100) : null
-  const isLive = match.status?.toLowerCase() === 'live' || match.status?.toLowerCase() === 'in_play'
+  const isLive = match.status === 'live' || match.status === 'in_play'
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: i * 0.04 }}
+      transition={{ delay: i * 0.04, duration: 0.3 }}
       onClick={() => navigate(`/matches/${match.id}`)}
-      className="bg-surface-800/60 border border-white/8 rounded-xl p-5 hover:border-vit-500/30 hover:bg-surface-800/80 transition-all group cursor-pointer relative overflow-hidden"
+      className={cn(
+        'group relative rounded-2xl border p-5 cursor-pointer transition-all duration-200',
+        'bg-surface-800/50 hover:bg-surface-700/60',
+        isLive
+          ? 'border-emerald-500/30 shadow-md shadow-emerald-500/5'
+          : 'border-white/6 hover:border-white/12',
+      )}
     >
+      {/* Live indicator */}
       {isLive && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+        <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-wide">Live</span>
+        </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-white/40 font-medium">{match.league}</span>
-            {match.sport && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 text-white/40 capitalize">{match.sport}</span>
-            )}
-            {isLive && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-medium">
-                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />LIVE
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="w-3 h-3 text-white/25" />
-            <span className="text-xs text-white/35">{timeAgo(match.kickoff_time)}</span>
-          </div>
-        </div>
-        {match.status && !isLive && <StatusBadge status={match.status} size="sm" />}
+      {/* League + time */}
+      <div className="flex items-center gap-2 mb-3.5">
+        <span className="text-[10px] font-medium text-white/35 uppercase tracking-wider truncate">{match.league}</span>
+        <span className="text-white/15">·</span>
+        <span className="text-[10px] text-white/30 shrink-0 flex items-center gap-1">
+          <Clock className="w-2.5 h-2.5" />
+          {timeAgo(match.kickoff_time)}
+        </span>
       </div>
 
-      {/* Teams & Score */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="flex-1 text-right">
-          <p className="font-semibold text-white text-sm leading-tight">{match.home_team}</p>
-          {match.home_score != null && <p className="text-2xl font-bold text-white mt-1">{match.home_score}</p>}
+      {/* Teams */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-white text-sm leading-tight truncate">{match.home_team}</p>
+          {match.home_score != null && <p className="text-xl font-bold text-white mt-0.5">{match.home_score}</p>}
         </div>
-        <div className="flex flex-col items-center gap-1">
-          {isLive ? (
-            <span className="text-emerald-400 text-xs font-bold">LIVE</span>
-          ) : (
-            <span className="text-white/30 text-xs">vs</span>
-          )}
+        <div className="shrink-0 w-8 text-center">
+          <span className={cn('text-xs font-semibold', isLive ? 'text-emerald-400' : 'text-white/25')}>vs</span>
         </div>
-        <div className="flex-1">
-          <p className="font-semibold text-white text-sm leading-tight">{match.away_team}</p>
-          {match.away_score != null && <p className="text-2xl font-bold text-white mt-1">{match.away_score}</p>}
+        <div className="flex-1 min-w-0 text-right">
+          <p className="font-semibold text-white text-sm leading-tight truncate">{match.away_team}</p>
+          {match.away_score != null && <p className="text-xl font-bold text-white mt-0.5">{match.away_score}</p>}
         </div>
       </div>
 
       {/* Probability bars */}
       {(match.home_prob != null || match.draw_prob != null || match.away_prob != null) && (
-        <div className="flex gap-3 mb-4">
-          <ProbBar label="Home" prob={match.home_prob} color="text-vit-400" />
-          {match.draw_prob != null && <ProbBar label="Draw" prob={match.draw_prob} color="text-white/50" />}
-          <ProbBar label="Away" prob={match.away_prob} color="text-amber-400" />
+        <div className="flex gap-2 mb-4 pb-4 border-b border-white/5">
+          <ProbBar label="H" prob={match.home_prob} color="text-vit-400" />
+          {match.draw_prob != null && <ProbBar label="D" prob={match.draw_prob} color="text-white/40" />}
+          <ProbBar label="A" prob={match.away_prob} color="text-amber-400" />
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer meta */}
       <div className="flex items-center justify-between text-xs text-white/30">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {conf != null && (
             <span className="flex items-center gap-1">
               <Target className="w-3 h-3 text-vit-400" />
               <span className="text-vit-400 font-medium">{conf}%</span>
-              <span>confidence</span>
             </span>
           )}
           {match.final_ev != null && (
             <span className="flex items-center gap-1">
               <TrendingUp className="w-3 h-3 text-emerald-400" />
-              <span className="text-emerald-400 font-medium">EV {match.final_ev > 0 ? '+' : ''}{match.final_ev?.toFixed(2)}</span>
+              <span className="text-emerald-400 font-medium">
+                EV {match.final_ev > 0 ? '+' : ''}{match.final_ev?.toFixed(2)}
+              </span>
             </span>
           )}
           {match.bet_side && (
-            <span className="px-2 py-0.5 rounded-full bg-vit-500/15 text-vit-300 text-[10px] font-medium uppercase">
+            <span className="px-2 py-0.5 rounded-full bg-vit-500/12 text-vit-300 text-[10px] font-medium uppercase tracking-wide">
               {match.bet_side}
             </span>
           )}
+          {match.entry_odds != null && (
+            <span className="text-white/30">@ {match.entry_odds.toFixed(2)}</span>
+          )}
         </div>
-        <span className="flex items-center gap-1 text-white/20 group-hover:text-vit-400 transition-colors">
-          Details <ChevronRight className="w-3 h-3" />
-        </span>
+        <ChevronRight className="w-3.5 h-3.5 text-white/15 group-hover:text-vit-400 group-hover:translate-x-0.5 transition-all" />
       </div>
     </motion.div>
   )
 }
 
-const TABS: { key: Tab; label: string; icon: ElementType }[] = [
-  { key: 'upcoming', label: 'Upcoming', icon: Clock },
-  { key: 'live',     label: 'Live',     icon: Radio },
-  { key: 'recent',   label: 'Recent',   icon: CheckCircle },
-  { key: 'all',      label: 'All',      icon: Filter },
+// ── Tab config ─────────────────────────────────────────────────────────────────
+
+const TABS: { value: Tab; label: string; icon: ElementType }[] = [
+  { value: 'upcoming', label: 'Upcoming', icon: Clock },
+  { value: 'live',     label: 'Live',     icon: Radio },
+  { value: 'recent',   label: 'Recent',   icon: CheckCircle },
+  { value: 'all',      label: 'All',      icon: Activity },
 ]
 
-const SPORTS: { key: Sport; label: string }[] = [
-  { key: 'all',        label: 'All Sports' },
-  { key: 'football',   label: 'Football' },
-  { key: 'basketball', label: 'Basketball' },
-  { key: 'tennis',     label: 'Tennis' },
-  { key: 'cricket',    label: 'Cricket' },
+const SPORTS: { value: Sport; label: string }[] = [
+  { value: 'all',        label: 'All Sports' },
+  { value: 'football',   label: '⚽ Football' },
+  { value: 'basketball', label: '🏀 Basketball' },
+  { value: 'tennis',     label: '🎾 Tennis' },
+  { value: 'cricket',    label: '🏏 Cricket' },
 ]
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function Matches() {
   const [tab, setTab]     = useState<Tab>('upcoming')
   const [sport, setSport] = useState<Sport>('all')
   const [search, setSearch] = useState('')
-  const { data, isLoading, isError, error, refetch } = useMatches(tab, sport)
+
+  const qc = useQueryClient()
+  const { data = [], isLoading, isError, error, refetch } = useMatches(tab, sport)
   const syncMutation = useSyncFixtures()
 
-  const filtered = (data ?? []).filter(m => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      m.home_team?.toLowerCase().includes(q) ||
-      m.away_team?.toLowerCase().includes(q) ||
-      m.league?.toLowerCase().includes(q)
-    )
-  })
+  const filtered = search.trim()
+    ? data.filter(m =>
+        m.home_team.toLowerCase().includes(search.toLowerCase()) ||
+        m.away_team.toLowerCase().includes(search.toLowerCase()) ||
+        m.league.toLowerCase().includes(search.toLowerCase()),
+      )
+    : data
 
   return (
-    <div className="pt-16 min-h-screen">
-      {/* Header ────────────────────────────────────────────────────────────── */}
-      <div className="relative border-b border-white/8">
-        <div className="absolute inset-0 section-grid opacity-20" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-4"
-          >
-            <div className="w-10 h-10 rounded-xl bg-vit-500/10 border border-vit-500/20 flex items-center justify-center">
-              <Activity className="w-5 h-5 text-vit-400" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Matches &amp; Predictions</h1>
-              <p className="text-white/50 text-sm">AI-powered sports intelligence and probability forecasts</p>
+    <div className="pt-16 min-h-screen bg-surface-900">
+      {/* ── Page header ───────────────────────────────────────────────────── */}
+      <div className="border-b border-white/6 bg-surface-800/30 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex items-start justify-between gap-4">
+            {/* Title */}
+            <div className="flex items-start gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-vit-600/15 border border-vit-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <Trophy className="w-5 h-5 text-vit-400" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white leading-tight">Matches &amp; Predictions</h1>
+                <p className="text-white/40 text-sm mt-0.5">AI-powered sports intelligence and probability forecasts</p>
+              </div>
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
-              {/* Sync fixtures */}
+            {/* Controls */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => refetch()}
+                disabled={isLoading}
+                title="Refresh"
+                className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white/50 hover:text-white flex items-center justify-center transition-all"
+              >
+                <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
+              </button>
               <button
                 onClick={() => syncMutation.mutate('isports')}
                 disabled={syncMutation.isPending}
-                title="Sync latest fixtures from iSports"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs hover:bg-white/8 hover:text-white/70 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-vit-600/15 border border-vit-500/25 text-vit-300 text-sm font-medium hover:bg-vit-600/25 transition-all disabled:opacity-50"
               >
                 {syncMutation.isPending
-                  ? <><Spinner className="w-3.5 h-3.5" /> Syncing…</>
-                  : <><Database className="w-3.5 h-3.5" /> Sync Fixtures</>
+                  ? <><Spinner className="w-3.5 h-3.5" />Syncing…</>
+                  : <><RotateCcw className="w-3.5 h-3.5" />Sync Fixtures</>
                 }
               </button>
-              {/* Refresh */}
-              <button
-                onClick={() => refetch()}
-                className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/8 transition-colors"
-              >
-                <RefreshCw className="w-4 h-4 text-white/40" />
-              </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Filters ─────────────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          {/* Tab pills */}
-          <div className="flex items-center gap-1 p-1 bg-white/5 border border-white/8 rounded-xl">
-            {TABS.map(t => (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+
+        {/* ── Tabs (horizontal scroll on mobile) ────────────────────────── */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+          {TABS.map(({ value, label, icon: Icon }) => {
+            const isLive = value === 'live'
+            return (
               <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
+                key={value}
+                onClick={() => setTab(value)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all',
-                  tab === t.key
-                    ? 'bg-vit-500 text-white shadow-sm'
-                    : 'text-white/40 hover:text-white/60'
+                  'flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all shrink-0',
+                  tab === value
+                    ? isLive
+                      ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+                      : 'bg-vit-600/20 border border-vit-500/30 text-vit-200'
+                    : 'text-white/45 border border-transparent hover:text-white hover:bg-white/5',
                 )}
               >
-                <t.icon className="w-3.5 h-3.5" />
-                {t.label}
+                {isLive && tab === value
+                  ? <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  : <Icon className="w-3.5 h-3.5" />
+                }
+                {label}
+                {isLive && (
+                  <span className="text-[10px] text-emerald-400/60 font-normal hidden sm:inline">● Live</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ── Sport filters + search ─────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Sport chips — horizontal scroll, never wrap */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide shrink-0">
+            {SPORTS.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setSport(value)}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all shrink-0',
+                  sport === value
+                    ? 'bg-white text-surface-900 shadow-sm'
+                    : 'bg-white/5 border border-white/8 text-white/50 hover:text-white hover:bg-white/10',
+                )}
+              >
+                {label}
               </button>
             ))}
           </div>
 
-          {/* Sport filters */}
-          <div className="flex items-center gap-1 flex-wrap">
-            {SPORTS.map(s => (
-              <button
-                key={s.key}
-                onClick={() => setSport(s.key)}
-                className={cn(
-                  'px-3 py-2 rounded-lg text-sm font-medium transition-all border',
-                  sport === s.key
-                    ? 'bg-white/10 border-white/20 text-white'
-                    : 'border-white/8 text-white/40 hover:text-white/60 hover:border-white/15'
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Search */}
-          <div className="relative ml-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+          {/* Search — grows to fill remaining space */}
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
             <input
               type="text"
+              placeholder="Search teams or leagues…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search teams or leagues..."
-              className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-vit-500/50 transition-colors w-56"
+              className="w-full bg-surface-800/60 border border-white/8 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-vit-500/50 focus:ring-1 focus:ring-vit-500/15 transition-all"
             />
           </div>
         </div>
 
-        {/* Count row */}
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-xs text-white/30">
-            {isLoading ? 'Loading…' : `${filtered.length} match${filtered.length !== 1 ? 'es' : ''}`}
-          </span>
-        </div>
+        {/* ── Results count ──────────────────────────────────────────────── */}
+        {!isLoading && (
+          <p className="text-xs text-white/25 px-1">
+            {filtered.length === 0 ? 'No matches' : `${filtered.length} match${filtered.length !== 1 ? 'es' : ''}`}
+            {search && <span className="text-white/20"> · searching "{search}"</span>}
+          </p>
+        )}
 
-        {/* Content ─────────────────────────────────────────────────────────── */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <Spinner className="w-8 h-8 text-vit-400" />
-            <p className="text-white/40 text-sm">Loading {tab} matches…</p>
+        {/* ── Loading ────────────────────────────────────────────────────── */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-3">
+              <Spinner className="w-7 h-7 text-vit-400" />
+              <p className="text-white/30 text-sm">Loading matches…</p>
+            </div>
           </div>
-        ) : isError ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-24">
-            <AlertCircle className="w-12 h-12 text-red-400/60 mx-auto mb-4" />
-            <p className="text-white/60 font-medium">Failed to load matches</p>
-            <p className="text-white/30 text-sm mt-1">{(error as Error)?.message}</p>
-            <button onClick={() => refetch()} className="mt-4 px-4 py-2 rounded-lg bg-vit-500/20 text-vit-400 text-sm hover:bg-vit-500/30 transition-colors">
+        )}
+
+        {/* ── Error ─────────────────────────────────────────────────────── */}
+        {isError && (
+          <div className="rounded-2xl border border-red-500/15 bg-red-500/5 p-6 text-center">
+            <p className="text-red-400 text-sm font-medium mb-1">Failed to load matches</p>
+            <p className="text-white/30 text-xs mb-4">{(error as Error)?.message}</p>
+            <button
+              onClick={() => refetch()}
+              className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm hover:bg-red-500/15 transition-colors"
+            >
               Try again
             </button>
-          </motion.div>
-        ) : filtered.length === 0 ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-            <Trophy className="w-14 h-14 text-white/10 mx-auto mb-4" />
-            <p className="text-white/60 font-medium mb-1">No {tab} matches</p>
-            <p className="text-white/30 text-sm mb-6">
-              {tab === 'live'     ? 'No matches in play right now.' :
+          </div>
+        )}
+
+        {/* ── Empty state ────────────────────────────────────────────────── */}
+        {!isLoading && !isError && filtered.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-20 text-center"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-white/3 border border-white/6 flex items-center justify-center mb-5">
+              <Trophy className="w-7 h-7 text-white/15" />
+            </div>
+            <h3 className="text-white font-semibold text-base mb-2">
+              {search ? 'No matches found' : tab === 'live' ? 'No live matches' : 'No upcoming matches'}
+            </h3>
+            <p className="text-white/30 text-sm mb-6 max-w-xs">
+              {tab === 'live'     ? 'No matches in play right now. Check back soon.' :
                tab === 'upcoming' ? 'No fixtures scheduled in the next 48 hours.' :
                tab === 'recent'   ? 'No results from the last 24 hours.' :
-               search             ? 'No matches match your search.' : 'No matches found.'}
+               search             ? `No matches matching "${search}".` : 'No matches found.'}
             </p>
             {(tab === 'upcoming' || tab === 'all') && !search && (
               <button
                 onClick={() => syncMutation.mutate('isports')}
                 disabled={syncMutation.isPending}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-500/15 border border-vit-500/30 text-vit-300 text-sm font-medium hover:bg-vit-500/20 transition-all disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-600/15 border border-vit-500/25 text-vit-300 text-sm font-medium hover:bg-vit-600/25 transition-all disabled:opacity-50"
               >
                 {syncMutation.isPending
                   ? <><Spinner className="w-4 h-4" /> Syncing fixtures…</>
@@ -378,28 +405,33 @@ export default function Matches() {
               </button>
             )}
           </motion.div>
-        ) : (
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        )}
+
+        {/* ── Match grid ────────────────────────────────────────────────── */}
+        {!isLoading && filtered.length > 0 && (
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((m, i) => <MatchCard key={m.id} match={m} i={i} />)}
           </div>
         )}
 
-        {/* AI Engine CTA — only when matches are empty and no sync in progress */}
+        {/* ── AI Engine CTA (empty upcoming + no sync pending) ───────────── */}
         {!isLoading && filtered.length === 0 && tab === 'upcoming' && !syncMutation.isPending && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="mt-8 rounded-2xl border border-vit-500/20 bg-gradient-to-br from-vit-500/5 to-transparent p-8 text-center"
+            transition={{ delay: 0.2 }}
+            className="rounded-2xl border border-vit-500/15 bg-gradient-to-br from-vit-600/5 to-transparent p-8 text-center"
           >
-            <Zap className="w-8 h-8 text-vit-400 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-white mb-2">AI Prediction Engine Ready</h3>
-            <p className="text-white/50 text-sm mb-4 max-w-md mx-auto">
+            <div className="w-12 h-12 rounded-xl bg-vit-600/15 border border-vit-500/20 flex items-center justify-center mx-auto mb-4">
+              <Zap className="w-6 h-6 text-vit-400" />
+            </div>
+            <h3 className="text-base font-semibold text-white mb-2">AI Prediction Engine Ready</h3>
+            <p className="text-white/40 text-sm mb-5 max-w-md mx-auto">
               Submit a match for real-time analysis across 13+ ML models with market-calibrated probabilities.
             </p>
             <a
               href="/developers"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-600 hover:bg-vit-500 text-white text-sm font-medium transition-colors"
             >
               Open API Reference <ChevronRight className="w-4 h-4" />
             </a>
