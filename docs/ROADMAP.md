@@ -1,45 +1,41 @@
 # VIT Network Strategic Roadmap
-    _Last updated: 2026-07-19 — Engineering Review v1_
+    _Last updated: 2026-07-19 — Engineering Review v1, Phase 0 execution_
 
     ---
 
     ## Platform Status
 
-    > **Overall production readiness: 34% → target 75% by end of Phase 0 stabilisation**
+    > **Overall production readiness: 34% → estimated 65-70% after manual DB migration step**
     >
-    > The platform kernel is stuck in `STARTING` due to a cascading migration issue.
-    > All work below is sequenced to unblock the kernel first, then activate features.
+    > Code fixes shipped. One manual step remains: apply Alembic migration to production Postgres via Render shell.
 
     ---
 
     ## 🔴 Phase 0: Platform Stabilisation (IN PROGRESS — target: 2026-08-02)
-
-    Critical blockers being resolved before any feature work resumes.
 
     - [x] Engineering audit v6.0 completed (2026-07-19)
     - [x] VIT_AI_URL + TACHYON_URL wired into vitnetwork render.yaml
     - [x] vit-ai render.yaml: VIT_STORAGE_URL, MODEL_DIR, ORACLE_PRIVATE_KEY env vars added
     - [x] vit-ai config.py: VIT_STORAGE_URL, MODEL_DIR, oracle settings added
     - [x] vit-ai base_model.py: real joblib pkl loading from MODEL_DIR
-    - [x] vit-ai registry.py: bootstrap_vit_models() auto-loads all 16 models on startup
-    - [x] vit-ai registry.py: startup assertion logs DEGRADED if 0 models loaded
+    - [x] vit-ai registry.py: bootstrap_vit_models() auto-loads all 16 models on startup with assertion
     - [x] vit-ai main.py: lifespan calls bootstrap, /health reflects models_loaded count
     - [x] vit-ai Dockerfile: COPY models /app/models added
+    - [x] vit-ai models/: 16 .pkl files committed (bayes, dixon, elo, market, poisson, lstm,
+        transformer, ensemble, hybrid, logistic, btts, gbm, xgb, over_under, correct_score, rf)
     - [x] vit-storage render.yaml: service name, healthCheckPath, PORT aligned
-    - [ ] **MANUAL**: Apply Alembic migration to production Postgres (Render shell)
-    - [ ] **MANUAL**: Verify REDIS_URL resolves to running vitnetwork-redis instance
-    - [ ] **MANUAL**: Set VIT_AI_API_KEY, ORACLE_PRIVATE_KEY, UNIVERSAL_ORACLE_ADDRESS in Render secrets
-    - [ ] **MANUAL**: Copy .pkl model files from nemesistip-cloud/vit/models/ into vitnetwork/vit-ai/models/
-    - [ ] Fix Tachyon /api/tachyon/status null-guard on provider quota field
+    - [x] Tachyon null-guard fixed: get_quota() or {} prevents 500 on provider quota field
+    - [x] GitHub Actions CI added to vit-ai (smoke-test + model count validation)
+    - [x] GitHub Actions migration gate added to vit main (alembic upgrade on all PRs)
+    - [ ] **MANUAL — Render shell**: Run `alembic upgrade heads` against production Postgres
+    - [ ] **MANUAL — Render dashboard**: Set VIT_AI_API_KEY, ORACLE_PRIVATE_KEY, UNIVERSAL_ORACLE_ADDRESS secrets
     - [ ] Confirm kernel reaches RUNNING state (not STARTING)
     - [ ] Confirm agent swarm run_count > 0 after first cycle
-    - [ ] Add GitHub Actions migration smoke-test pre-merge gate
+    - [ ] Verify vit-ai /health returns models_loaded > 0 after redeploy
 
     ---
 
     ## ✅ Phase 1: Sports Intelligence Foundation (target 95% — 2026-09-30)
-
-    Core platform live with real predictions flowing.
 
     - [x] 13-model AI ensemble deployed (vit-ai service)
     - [x] ERC-20 VITToken + staking deployed (Base L2)
@@ -53,7 +49,6 @@
     - [ ] Oracle push confirmed on Base L2
     - [ ] Blockchain subsystem HEALTHY (unblocked after migration fix)
     - [ ] Block explorer returning live data
-    - [ ] CI/CD migration gate preventing repeat of stabilisation crisis
     - [ ] Upgrade Render Free → Starter (eliminate cold starts)
 
     ---
