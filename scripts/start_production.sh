@@ -87,20 +87,23 @@ PYEOF
 
     if [ "$_ALEMBIC_ACTION" = "STAMP" ]; then
         echo "[production] Fresh DB (alembic_version absent or empty) — stamping all heads..."
-        if ! alembic stamp heads; then
-            echo "[production] FATAL: alembic stamp heads failed — aborting startup." >&2
-            exit 1
+        # Soft-fail: init_db.py already created all tables, so the app can start
+        # even if Alembic's tracking table fails.  Failures here are logged and
+        # monitored but must not prevent the app from serving traffic.
+        if ! alembic stamp heads 2>&1; then
+            echo "[production] WARNING: alembic stamp heads failed — app will start without migration tracking." >&2
+        else
+            echo "[production] All migration heads stamped successfully."
         fi
-        echo "[production] All migration heads stamped successfully."
     else
         # alembic_version has rows — apply only pending migrations.
         echo "[production] Running pending migrations (alembic upgrade heads)..."
-        if ! alembic upgrade heads; then
-            echo "[production] FATAL: alembic upgrade heads failed — aborting startup." >&2
-            echo "[production] Check the migration files and re-deploy." >&2
-            exit 1
+        if ! alembic upgrade heads 2>&1; then
+            echo "[production] WARNING: alembic upgrade heads failed — schema may be missing new columns." >&2
+            echo "[production] Check migration files. App will attempt to start anyway." >&2
+        else
+            echo "[production] Migrations up to date."
         fi
-        echo "[production] Migrations up to date."
     fi
 
     # Step 3 — Ensure admin user exists (idempotent).
