@@ -42,9 +42,15 @@ if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; th
     # Alembic no-ops if the DB is already at the latest revision(s).
     # This repo has divergent migration heads, so we use `heads` (plural).
     echo "[production] Running database migrations (alembic upgrade heads)..."
-    if ! alembic upgrade heads; then
-        echo "[production] WARNING: alembic upgrade failed — continuing startup." >&2
-    fi
+      # Hard failure: a broken migration means the schema is in an unknown state.
+      # The container must not start with a partially-applied schema.
+      # Migration 22c85e91a8d9 is now idempotent so this will succeed on every deploy.
+      if ! alembic upgrade heads; then
+          echo "[production] FATAL: alembic upgrade heads failed — aborting startup." >&2
+          echo "[production] Fix the failing migration before redeploying." >&2
+          exit 1
+      fi
+      echo "[production] Migrations applied successfully."
 
     # Step 3 — Ensure admin user exists (idempotent).
     echo "[production] Ensuring admin user exists..."
