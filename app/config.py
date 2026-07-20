@@ -60,9 +60,7 @@ _ENV_ALIASES = {
     ("ai", "embedding_dim"): "EMBEDDING_DIM",
     ("ai", "embedding_cache_ttl"): "EMBEDDING_CACHE_TTL",
     ("ai", "max_predictions_per_day"): "MAX_PREDICTIONS_PER_DAY",
-    ("blockchain", "base_chain_id"): "BASE_CHAIN_ID",
-    ("blockchain", "base_rpc_url"): "BASE_RPC_URL",
-    ("blockchain", "vitcoin_contract_address"): "VITCOIN_CONTRACT_ADDRESS",
+    # Base L2 removed — VIT Chain is now a standalone service (Chain ID 7764)
     ("external", "resend_api_key"): "RESEND_API_KEY",
     ("external", "paystack_secret_key"): "PAYSTACK_SECRET_KEY",
     ("external", "flw_secret_key"): "FLW_SECRET_KEY",
@@ -134,9 +132,8 @@ MAX_PREDICTIONS_PER_DAY: int = int(get_val("ai", "max_predictions_per_day", 20))
 PYTORCH_DEVICE: str = get_val("app", "pytorch_device", "cpu")
 BOOTSTRAP_MATCH_MONTHS: int = int(get_val("app", "bootstrap_match_months", 6))
 
-BASE_CHAIN_ID: int = int(get_val("blockchain", "base_chain_id", 8453))
-BASE_RPC_URL: str = get_val("blockchain", "base_rpc_url", "https://mainnet.base.org")
-VITCOIN_CONTRACT_ADDRESS: str = get_val("blockchain", "vitcoin_contract_address", "")
+# Base L2 removed. VIT Chain standalone: VIT_CHAIN_URL points to vitnetwork/vit-chain.
+VIT_CHAIN_URL: str = get_val("chain", "vit_chain_url", "")
 
 ENABLE_SCRAPING: bool = os.getenv("ENABLE_SCRAPING", "false").lower() == "true"
 AUTH_ENABLED: bool = os.getenv("AUTH_ENABLED", "true").lower() == "true"
