@@ -326,11 +326,14 @@ async def health(db: AsyncSession = Depends(get_db)):
     )
 
 # --- Router Registrations ---
-from app.auth.routes import router as auth_router
-# auth_router already has prefix="/auth"; mount at /api to produce /api/auth/...
-app.include_router(auth_router, prefix="/api", tags=["Auth"])
-# Compat: expose auth routes at /auth/* for legacy clients (router self-prefixes /auth)
-app.include_router(auth_router, tags=["Auth-Compat"], include_in_schema=False)
+try:
+    from app.auth.routes import router as auth_router
+    # auth_router already has prefix="/auth"; mount at /api to produce /api/auth/...
+    app.include_router(auth_router, prefix="/api", tags=["Auth"])
+    # Compat: expose auth routes at /auth/* for legacy clients (router self-prefixes /auth)
+    app.include_router(auth_router, tags=["Auth-Compat"], include_in_schema=False)
+except Exception as _e:
+    logging.warning("auth_router not mounted — routes unavailable: %s", _e)
 
 # Phase 3: Mount email verification and TOTP/2FA routers
 try:
@@ -344,48 +347,90 @@ try:
 except Exception as _te:
     logging.error("totp router not mounted — routes unavailable: %s", _te, exc_info=True)
 
-from app.api.routes.observability import router as obs_router
-app.include_router(obs_router, prefix="/api/obs", tags=["Observability"])
+try:
+    from app.api.routes.observability import router as obs_router
+    app.include_router(obs_router, prefix="/api/obs", tags=["Observability"])
+except Exception as _e:
+    logging.warning("obs_router not mounted — routes unavailable: %s", _e)
 
-from app.plugins.identity.routes import router as identity_router
-app.include_router(identity_router, prefix="/api/identity", tags=["Identity"])
+try:
+    from app.plugins.identity.routes import router as identity_router
+    app.include_router(identity_router, prefix="/api/identity", tags=["Identity"])
+except Exception as _e:
+    logging.warning("identity_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.blockchain import router as blockchain_router
-app.include_router(blockchain_router)
+try:
+    from app.api.routes.blockchain import router as blockchain_router
+    app.include_router(blockchain_router)
+except Exception as _e:
+    logging.warning("blockchain_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.blockchain.routes import router as blockchain_module_router
-app.include_router(blockchain_module_router)
+try:
+    from app.modules.blockchain.routes import router as blockchain_module_router
+    app.include_router(blockchain_module_router)
+except Exception as _e:
+    logging.warning("blockchain_module_router not mounted — routes unavailable: %s", _e)
 
-from vit_chain.rpc.router import router as chain_rpc_router
-app.include_router(chain_rpc_router)
+try:
+    from vit_chain.rpc.router import router as chain_rpc_router
+    app.include_router(chain_rpc_router)
+except Exception as _e:
+    logging.warning("chain_rpc_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.explorer import router as explorer_router
-app.include_router(explorer_router, prefix="/api")
+try:
+    from app.api.routes.explorer import router as explorer_router
+    app.include_router(explorer_router, prefix="/api")
+except Exception as _e:
+    logging.warning("explorer_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.blockchain_ws import router as blockchain_ws_router
-app.include_router(blockchain_ws_router)
+try:
+    from app.api.routes.blockchain_ws import router as blockchain_ws_router
+    app.include_router(blockchain_ws_router)
+except Exception as _e:
+    logging.warning("blockchain_ws_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
-app.include_router(blockchain_analytics_router)
+try:
+    from app.api.routes.blockchain_analytics import router as blockchain_analytics_router
+    app.include_router(blockchain_analytics_router)
+except Exception as _e:
+    logging.warning("blockchain_analytics_router not mounted — routes unavailable: %s", _e)
 
 # --- Business & AI Routers ---
-from app.api.routes.matches import router as matches_router
-app.include_router(matches_router, prefix="/api")
+try:
+    from app.api.routes.matches import router as matches_router
+    app.include_router(matches_router, prefix="/api")
+except Exception as _e:
+    logging.warning("matches_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.predict import router as predict_router
-app.include_router(predict_router, prefix="/api")
+try:
+    from app.api.routes.predict import router as predict_router
+    app.include_router(predict_router, prefix="/api")
+except Exception as _e:
+    logging.warning("predict_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.attestation import router as attestation_router
-app.include_router(attestation_router)
+try:
+    from app.api.routes.attestation import router as attestation_router
+    app.include_router(attestation_router)
+except Exception as _e:
+    logging.warning("attestation_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.payout_verify import router as payout_verify_router
-app.include_router(payout_verify_router)
+try:
+    from app.api.routes.payout_verify import router as payout_verify_router
+    app.include_router(payout_verify_router)
+except Exception as _e:
+    logging.warning("payout_verify_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.multichain import router as multichain_router
-app.include_router(multichain_router, tags=["Multichain"])
+try:
+    from app.api.routes.multichain import router as multichain_router
+    app.include_router(multichain_router, tags=["Multichain"])
+except Exception as _e:
+    logging.warning("multichain_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.dashboard import router as dashboard_router
-app.include_router(dashboard_router)
+try:
+    from app.api.routes.dashboard import router as dashboard_router
+    app.include_router(dashboard_router)
+except Exception as _e:
+    logging.warning("dashboard_router not mounted — routes unavailable: %s", _e)
 
 try:
     from app.api.routes.sports import router as sports_router
@@ -393,38 +438,71 @@ try:
 except Exception as _sports_e:
     logging.error("sports router not mounted — sports endpoints unavailable: %s", _sports_e, exc_info=True)
 
-from app.api.routes.analytics import router as analytics_router
-app.include_router(analytics_router)
+try:
+    from app.api.routes.analytics import router as analytics_router
+    app.include_router(analytics_router)
+except Exception as _e:
+    logging.warning("analytics_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.ai_feed import router as ai_feed_router
-app.include_router(ai_feed_router, prefix="/api")
+try:
+    from app.api.routes.ai_feed import router as ai_feed_router
+    app.include_router(ai_feed_router, prefix="/api")
+except Exception as _e:
+    logging.warning("ai_feed_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.ai_intelligence import router as ai_intel_router
-app.include_router(ai_intel_router)
+try:
+    from app.api.routes.ai_intelligence import router as ai_intel_router
+    app.include_router(ai_intel_router)
+except Exception as _e:
+    logging.warning("ai_intel_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.ai_support import router as ai_support_router
-app.include_router(ai_support_router)
+try:
+    from app.api.routes.ai_support import router as ai_support_router
+    app.include_router(ai_support_router)
+except Exception as _e:
+    logging.warning("ai_support_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.basketball import router as basketball_router
-app.include_router(basketball_router, prefix="/api")
+try:
+    from app.api.routes.basketball import router as basketball_router
+    app.include_router(basketball_router, prefix="/api")
+except Exception as _e:
+    logging.warning("basketball_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.tennis import router as tennis_router
-app.include_router(tennis_router, prefix="/api")
+try:
+    from app.api.routes.tennis import router as tennis_router
+    app.include_router(tennis_router, prefix="/api")
+except Exception as _e:
+    logging.warning("tennis_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.watchlist import router as watchlist_router
-app.include_router(watchlist_router, prefix="/api")
+try:
+    from app.api.routes.watchlist import router as watchlist_router
+    app.include_router(watchlist_router, prefix="/api")
+except Exception as _e:
+    logging.warning("watchlist_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.config import router as config_router
-app.include_router(config_router, prefix="/api")
+try:
+    from app.api.routes.config import router as config_router
+    app.include_router(config_router, prefix="/api")
+except Exception as _e:
+    logging.warning("config_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.training import router as training_router
-app.include_router(training_router, prefix="/api")
+try:
+    from app.api.routes.training import router as training_router
+    app.include_router(training_router, prefix="/api")
+except Exception as _e:
+    logging.warning("training_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.ai_assistant import router as ai_assistant_router
-app.include_router(ai_assistant_router, prefix="/api")
+try:
+    from app.api.routes.ai_assistant import router as ai_assistant_router
+    app.include_router(ai_assistant_router, prefix="/api")
+except Exception as _e:
+    logging.warning("ai_assistant_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.admin import router as admin_router
-app.include_router(admin_router, prefix="/api")
+try:
+    from app.api.routes.admin import router as admin_router
+    app.include_router(admin_router, prefix="/api")
+except Exception as _e:
+    logging.warning("admin_router not mounted — routes unavailable: %s", _e)
 
 try:
     from app.api.routes.admin_missing import router as admin_missing_router
@@ -433,84 +511,159 @@ except Exception as _e:
     logging.error("admin_missing router not mounted — routes unavailable: %s", _e, exc_info=True)
 
 # --- Phase 0: Service Registry & Cross-Service Status ---
-from app.api.routes.registry import router as registry_router
-app.include_router(registry_router, prefix="/api", tags=["Registry"])
+try:
+    from app.api.routes.registry import router as registry_router
+    app.include_router(registry_router, prefix="/api", tags=["Registry"])
+except Exception as _e:
+    logging.warning("registry_router not mounted — routes unavailable: %s", _e)
 
 # --- Niche & Expansion Routers (from app/modules) ---
-from app.modules.elections.routes import router as elections_router
-app.include_router(elections_router, prefix="/api", tags=["Elections"])
+try:
+    from app.modules.elections.routes import router as elections_router
+    app.include_router(elections_router, prefix="/api", tags=["Elections"])
+except Exception as _e:
+    logging.warning("elections_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.policy.routes import router as policy_router
-app.include_router(policy_router, prefix="/api", tags=["Policy"])
+try:
+    from app.modules.policy.routes import router as policy_router
+    app.include_router(policy_router, prefix="/api", tags=["Policy"])
+except Exception as _e:
+    logging.warning("policy_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.remittance.routes import router as remittance_router
-app.include_router(remittance_router, prefix="/api", tags=["Remittance"])
+try:
+    from app.modules.remittance.routes import router as remittance_router
+    app.include_router(remittance_router, prefix="/api", tags=["Remittance"])
+except Exception as _e:
+    logging.warning("remittance_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.merit.routes import router as merit_router
-app.include_router(merit_router, tags=["Merit"])  # router self-prefixes /api/merit
+try:
+    from app.modules.merit.routes import router as merit_router
+    app.include_router(merit_router, tags=["Merit"])  # router self-prefixes /api/merit
+except Exception as _e:
+    logging.warning("merit_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.governance.routes import router as governance_router
-app.include_router(governance_router, tags=["Governance"])  # router self-prefixes /api/governance
+try:
+    from app.modules.governance.routes import router as governance_router
+    app.include_router(governance_router, tags=["Governance"])  # router self-prefixes /api/governance
+except Exception as _e:
+    logging.warning("governance_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.academy.routes import router as academy_router
-app.include_router(academy_router, tags=["Academy"])  # router self-prefixes /api/academy
+try:
+    from app.modules.academy.routes import router as academy_router
+    app.include_router(academy_router, tags=["Academy"])  # router self-prefixes /api/academy
+except Exception as _e:
+    logging.warning("academy_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.marketplace.routes import router as marketplace_router
-app.include_router(marketplace_router, tags=["Marketplace"])  # router self-prefixes /api/marketplace
+try:
+    from app.modules.marketplace.routes import router as marketplace_router
+    app.include_router(marketplace_router, tags=["Marketplace"])  # router self-prefixes /api/marketplace
+except Exception as _e:
+    logging.warning("marketplace_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.referral.routes import router as referral_router
-app.include_router(referral_router)
+try:
+    from app.modules.referral.routes import router as referral_router
+    app.include_router(referral_router)
+except Exception as _e:
+    logging.warning("referral_router not mounted — routes unavailable: %s", _e)
 
-from app.api.routes.affiliate import router as affiliate_router
-app.include_router(affiliate_router, prefix="/api")
+try:
+    from app.api.routes.affiliate import router as affiliate_router
+    app.include_router(affiliate_router, prefix="/api")
+except Exception as _e:
+    logging.warning("affiliate_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.notifications.routes import router as notifications_router
-app.include_router(notifications_router)
+try:
+    from app.modules.notifications.routes import router as notifications_router
+    app.include_router(notifications_router)
+except Exception as _e:
+    logging.warning("notifications_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.developer.routes import router as developer_router
-app.include_router(developer_router)
+try:
+    from app.modules.developer.routes import router as developer_router
+    app.include_router(developer_router)
+except Exception as _e:
+    logging.warning("developer_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.rewards.routes import router as rewards_router
-app.include_router(rewards_router, tags=["Rewards"])  # router self-prefixes /api/rewards
+try:
+    from app.modules.rewards.routes import router as rewards_router
+    app.include_router(rewards_router, tags=["Rewards"])  # router self-prefixes /api/rewards
+except Exception as _e:
+    logging.warning("rewards_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.did.routes import router as did_router
-app.include_router(did_router, tags=["DID"])  # router self-prefixes /api/did
+try:
+    from app.modules.did.routes import router as did_router
+    app.include_router(did_router, tags=["DID"])  # router self-prefixes /api/did
+except Exception as _e:
+    logging.warning("did_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.quant.routes import router as quant_router
-app.include_router(quant_router, tags=["Quant"])  # router self-prefixes /api/quant
+try:
+    from app.modules.quant.routes import router as quant_router
+    app.include_router(quant_router, tags=["Quant"])  # router self-prefixes /api/quant
+except Exception as _e:
+    logging.warning("quant_router not mounted — routes unavailable: %s", _e)
 
 # --- Phase VIII: DeFi, Social & Enterprise ---
-from app.modules.social.routes import router as social_router
-app.include_router(social_router, tags=["Social"])
+try:
+    from app.modules.social.routes import router as social_router
+    app.include_router(social_router, tags=["Social"])
+except Exception as _e:
+    logging.warning("social_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.defi.routes import router as defi_router
-app.include_router(defi_router, tags=["DeFi"])
+try:
+    from app.modules.defi.routes import router as defi_router
+    app.include_router(defi_router, tags=["DeFi"])
+except Exception as _e:
+    logging.warning("defi_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.inplay.routes import router as inplay_router
-app.include_router(inplay_router, tags=["In-Play"])
+try:
+    from app.modules.inplay.routes import router as inplay_router
+    app.include_router(inplay_router, tags=["In-Play"])
+except Exception as _e:
+    logging.warning("inplay_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.analytics_studio.routes import router as analytics_studio_router
-app.include_router(analytics_studio_router, tags=["Analytics Studio"])
+try:
+    from app.modules.analytics_studio.routes import router as analytics_studio_router
+    app.include_router(analytics_studio_router, tags=["Analytics Studio"])
+except Exception as _e:
+    logging.warning("analytics_studio_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.enterprise.routes import router as enterprise_router
-app.include_router(enterprise_router, tags=["Enterprise"])
+try:
+    from app.modules.enterprise.routes import router as enterprise_router
+    app.include_router(enterprise_router, tags=["Enterprise"])
+except Exception as _e:
+    logging.warning("enterprise_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.bridge.routes import router as bridge_router
-app.include_router(bridge_router, tags=["Bridge"])  # router self-prefixes /api/bridge
+try:
+    from app.modules.bridge.routes import router as bridge_router
+    app.include_router(bridge_router, tags=["Bridge"])  # router self-prefixes /api/bridge
+except Exception as _e:
+    logging.warning("bridge_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.treasury.routes import router as treasury_router
-app.include_router(treasury_router, tags=["Treasury"])
+try:
+    from app.modules.treasury.routes import router as treasury_router
+    app.include_router(treasury_router, tags=["Treasury"])
+except Exception as _e:
+    logging.warning("treasury_router not mounted — routes unavailable: %s", _e)
 
 # --- Wallet Routers ---
-from app.modules.wallet.routes import router as wallet_router
-app.include_router(wallet_router)
+try:
+    from app.modules.wallet.routes import router as wallet_router
+    app.include_router(wallet_router)
+except Exception as _e:
+    logging.warning("wallet_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.wallet.p2p_routes import router as p2p_router
-# p2p_router has prefix="/wallet/p2p"; mount with /api to produce /api/wallet/p2p/...
-app.include_router(p2p_router, prefix="/api")
+try:
+    from app.modules.wallet.p2p_routes import router as p2p_router
+    # p2p_router has prefix="/wallet/p2p"; mount with /api to produce /api/wallet/p2p/...
+    app.include_router(p2p_router, prefix="/api")
+except Exception as _e:
+    logging.warning("p2p_router not mounted — routes unavailable: %s", _e)
 
-from app.modules.wallet.admin_routes import router as wallet_admin_router
-app.include_router(wallet_admin_router)
+try:
+    from app.modules.wallet.admin_routes import router as wallet_admin_router
+    app.include_router(wallet_admin_router)
+except Exception as _e:
+    logging.warning("wallet_admin_router not mounted — routes unavailable: %s", _e)
 
 # --- Previously unmounted API route routers (Phase-2 mount) ---
 try:
