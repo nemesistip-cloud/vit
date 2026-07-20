@@ -27,7 +27,15 @@ from app.api.middleware.security import SecurityHeadersMiddleware
 from app.api.middleware.rate_limit import RateLimitMiddleware
 
 # --- VIT Runtime Kernel ---
-register_core_subsystems()
+# Wrapped in try/except: even a total import-chain failure must not cause
+# nonZeroExit(1) before uvicorn binds, which would make /ping unreachable.
+try:
+    register_core_subsystems()
+except Exception as _reg_exc:
+    logging.getLogger(__name__).critical(
+        "[main] register_core_subsystems() raised — kernel has NO subsystems: %s",
+        _reg_exc, exc_info=True,
+    )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
