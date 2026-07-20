@@ -139,12 +139,14 @@ class TaskSubsystem(Subsystem):
             from app.tasks.ticker_sync import start_ticker_sync
             from app.tasks.settlement_task import start_settlement_worker
             from app.tasks.telegram_digest import start_telegram_digest
+            from app.tasks.chain_snapshot import start_chain_snapshot
             from app.core.observability.manager import obs_manager
             from app.core.observability.models import HealthStatus
 
             start_ticker_sync()
             start_settlement_worker()
             start_telegram_digest()
+            start_chain_snapshot()
             obs_manager.health.update_status("tasks", HealthStatus.HEALTHY, "Workers started")
             logger.info("[kernel] Background task workers started.")
         except ImportError as e:
