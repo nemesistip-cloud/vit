@@ -3,10 +3,6 @@ import os
 import asyncio
 from typing import Dict, Any
 from app.core.kernel import Subsystem, kernel
-from app.core.authorization.subsystem import AuthorizationSubsystem
-from app.core.resource_platform.subsystem import ResourcePlatformSubsystem
-from vit_chain.core.subsystem import BlockchainSubsystem
-from app.core.wallet.subsystem import WalletSubsystem
 from app.db.database import AsyncSessionLocal, engine, Base
 from sqlalchemy import text
 from app.core.config.manager import config_manager
@@ -321,18 +317,43 @@ class GenesisSubsystem(Subsystem):
         return True
 
 def register_core_subsystems():
+    _log = logging.getLogger(__name__)
+
+    # Core subsystems — always available, import failures are fatal
     from app.core.persistence.manager import PersistenceManager
     kernel.register_subsystem(PersistenceManager)
-    kernel.register_subsystem(ResourcePlatformSubsystem)
     kernel.register_subsystem(ObservabilitySubsystem)
     kernel.register_subsystem(ConfigSubsystem)
     kernel.register_subsystem(DatabaseSubsystem)
     kernel.register_subsystem(GenesisSubsystem)
-    kernel.register_subsystem(AuthorizationSubsystem)
     kernel.register_subsystem(RedisSubsystem)
     kernel.register_subsystem(AISubsystem)
     kernel.register_subsystem(TaskSubsystem)
     kernel.register_subsystem(PlatformSubsystem)
     kernel.register_subsystem(PluginSubsystem)
-    kernel.register_subsystem(BlockchainSubsystem)
-    kernel.register_subsystem(WalletSubsystem)
+
+    # Optional subsystems — import failures are isolated so a broken dep
+    # in one subsystem cannot prevent uvicorn from binding and /ping from responding.
+    try:
+        from app.core.resource_platform.subsystem import ResourcePlatformSubsystem
+        kernel.register_subsystem(ResourcePlatformSubsystem)
+    except Exception as _e:
+        _log.warning("[kernel] ResourcePlatformSubsystem unavailable (skipped): %s", _e)
+
+    try:
+        from app.core.authorization.subsystem import AuthorizationSubsystem
+        kernel.register_subsystem(AuthorizationSubsystem)
+    except Exception as _e:
+        _log.warning("[kernel] AuthorizationSubsystem unavailable (skipped): %s", _e)
+
+    try:
+        from vit_chain.core.subsystem import BlockchainSubsystem
+        kernel.register_subsystem(BlockchainSubsystem)
+    except Exception as _e:
+        _log.warning("[kernel] BlockchainSubsystem unavailable (skipped): %s", _e)
+
+    try:
+        from app.core.wallet.subsystem import WalletSubsystem
+        kernel.register_subsystem(WalletSubsystem)
+    except Exception as _e:
+        _log.warning("[kernel] WalletSubsystem unavailable (skipped): %s", _e)
