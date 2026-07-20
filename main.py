@@ -1112,3 +1112,39 @@ from fastapi.staticfiles import StaticFiles
 explorer_path = "explorer/dist"
 if os.path.exists(explorer_path):
     app.mount("/explorer", StaticFiles(directory=explorer_path, html=True), name="explorer")
+
+# --- React SPA (main frontend) ---
+# Serve frontend/dist as a SPA. Assets (JS/CSS) are served directly;
+# all other non-API paths fall through to index.html so React Router handles them.
+from fastapi.responses import FileResponse
+
+_frontend_dist = "frontend/dist"
+
+if os.path.exists(_frontend_dist):
+    # Serve static assets (JS, CSS, images, etc.) at their exact paths
+    app.mount("/assets", StaticFiles(directory=f"{_frontend_dist}/assets"), name="frontend-assets")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        _f = f"{_frontend_dist}/favicon.ico"
+        if os.path.exists(_f):
+            return FileResponse(_f)
+        raise HTTPException(status_code=404)
+
+    @app.get("/logo.png", include_in_schema=False)
+    async def logo():
+        _f = f"{_frontend_dist}/logo.png"
+        if os.path.exists(_f):
+            return FileResponse(_f)
+        raise HTTPException(status_code=404)
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        """Catch-all: serve index.html so React Router handles client-side navigation.
+        Skips paths that already matched API routes above this mount point.
+        """
+        # Don't serve SPA for API / websocket routes (they already have handlers above)
+        if full_path.startswith(("api/", "ws/", "ping", "health", "system/")):
+            raise HTTPException(status_code=404)
+        index = f"{_frontend_dist}/index.html"
+        return FileResponse(index)
