@@ -32,49 +32,78 @@ register_core_subsystems()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_signal_handlers()
-    try:
-        await kernel.boot()
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        raise
-    except BaseException as _boot_exc:  # catches SystemExit(1) from config_manager + any Exception
-        logging.getLogger(__name__).critical(
-            "[lifespan] kernel.boot() failed — service starting in DEGRADED state: %s",
-            _boot_exc, exc_info=True,
+
+    async def _boot_and_setup() -> None:
+        """
+        Runs kernel.boot() and all post-boot setup in a background task.
+
+        By doing this asynchronously, uvicorn can start serving /ping immediately
+        so Render's health check passes before the DB/Redis subsystems are ready.
+        Previously this ran synchronously before `yield`, blocking /ping for up to
+        60+ seconds (asyncpg default timeout) and causing consistent update_failed.
+        """
+        try:
+            await kernel.boot()
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            return
+        except BaseException as _boot_exc:
+            logging.getLogger(__name__).critical(
+                "[lifespan] kernel.boot() failed — service starting in DEGRADED state: %s",
+                _boot_exc, exc_info=True,
+            )
+
+        # Phase 0: connect event bus Redis layer so events persist across restarts
+        try:
+            from app.core.event_bus import event_bus
+            await event_bus.connect_redis()
+        except Exception as _e:
+            logging.getLogger(__name__).warning("[lifespan] event_bus.connect_redis failed: %s", _e)
+
+        # TRACK-007: Start Agent Workflow Dispatcher
+        try:
+            from app.modules.agents.workflow import workflow_dispatcher
+            await workflow_dispatcher.start()
+            logging.getLogger(__name__).info("[lifespan] Agent Workflow Dispatcher started")
+        except Exception as _we:
+            logging.getLogger(__name__).warning("[lifespan] workflow dispatcher start failed: %s", _we)
+
+        # TRACK-008: Start Tachyon Storage Challenge Scheduler
+        try:
+            from tachyon.core.challenge import challenge_scheduler
+            await challenge_scheduler.start()
+            logging.getLogger(__name__).info("[lifespan] Tachyon Challenge Scheduler started")
+        except Exception as _ce:
+            logging.getLogger(__name__).warning("[lifespan] challenge scheduler start failed: %s", _ce)
+
+        # TRACK-008: Start Tachyon Verification Worker
+        try:
+            from tachyon.core.worker import TachyonVerificationWorker
+            _tachyon_worker = TachyonVerificationWorker(interval_seconds=3600)
+            asyncio.create_task(_tachyon_worker.start(), name="tachyon-verification-worker")
+            logging.getLogger(__name__).info("[lifespan] Tachyon Verification Worker started")
+        except Exception as _te:
+            logging.getLogger(__name__).warning("[lifespan] tachyon verification worker failed: %s", _te)
+
+        logging.getLogger(__name__).info(
+            "[lifespan] Background boot complete — VIT Network v%s fully operational.", APP_VERSION
         )
-    # Phase 0: connect event bus Redis layer so events persist across restarts
-    from app.core.event_bus import event_bus
-    await event_bus.connect_redis()
 
-    # TRACK-007: Start Agent Workflow Dispatcher
-    try:
-        from app.modules.agents.workflow import workflow_dispatcher
-        await workflow_dispatcher.start()
-        _log = logging.getLogger(__name__)
-        _log.info("[lifespan] Agent Workflow Dispatcher started")
-    except Exception as _we:
-        logging.getLogger(__name__).warning("[lifespan] workflow dispatcher start failed: %s", _we)
-
-    # TRACK-008: Start Tachyon Storage Challenge Scheduler
-    try:
-        from tachyon.core.challenge import challenge_scheduler
-        await challenge_scheduler.start()
-        logging.getLogger(__name__).info("[lifespan] Tachyon Challenge Scheduler started")
-    except Exception as _ce:
-        logging.getLogger(__name__).warning("[lifespan] challenge scheduler start failed: %s", _ce)
-
-    # TRACK-008: Start Tachyon Verification Worker
-    try:
-        from tachyon.core.worker import TachyonVerificationWorker
-        _tachyon_worker = TachyonVerificationWorker(interval_seconds=3600)
-        asyncio.create_task(_tachyon_worker.start(), name="tachyon-verification-worker")
-        logging.getLogger(__name__).info("[lifespan] Tachyon Verification Worker started")
-    except Exception as _te:
-        logging.getLogger(__name__).warning("[lifespan] tachyon verification worker failed: %s", _te)
+    # ── Background boot — /ping responds immediately ──────────────────────────
+    # asyncio.create_task schedules the boot coroutine to run concurrently with
+    # the server. The yield below happens right away, so Render's health check
+    # gets a 200 from /ping even while subsystems are still initialising.
+    _boot_task = asyncio.create_task(_boot_and_setup(), name="kernel-boot")
 
     print(f'🚀 VIT Network v{APP_VERSION} starting (RUNTIME KERNEL MODE)...')
     yield
 
-    # Graceful shutdown of background workers
+    # ── Graceful shutdown ─────────────────────────────────────────────────────
+    _boot_task.cancel()
+    try:
+        await _boot_task
+    except asyncio.CancelledError:
+        pass
+
     try:
         from app.modules.agents.workflow import workflow_dispatcher as _wd
         await _wd.stop()
@@ -85,8 +114,12 @@ async def lifespan(app: FastAPI):
         await _cs.stop()
     except Exception:
         pass
+    try:
+        from app.core.event_bus import event_bus as _eb
+        await _eb.disconnect_redis()
+    except Exception:
+        pass
 
-    await event_bus.disconnect_redis()
     await kernel.shutdown()
     print('🛑 Shutdown complete')
 
