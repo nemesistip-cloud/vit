@@ -360,6 +360,18 @@ except Exception as _e:
     logging.warning("identity_router not mounted — routes unavailable: %s", _e)
 
 try:
+    from app.api.routes.identity_management import router as identity_mgmt_router
+    app.include_router(identity_mgmt_router, tags=["Identity Management"])
+except Exception as _e:
+    logging.warning("identity_mgmt_router not mounted: %s", _e)
+
+try:
+    from app.api.routes.auth_extended import router as auth_extended_router
+    app.include_router(auth_extended_router, prefix="/api", tags=["Auth — Extended"])
+except Exception as _e:
+    logging.warning("auth_extended_router not mounted: %s", _e)
+
+try:
     from app.api.routes.blockchain import router as blockchain_router
     app.include_router(blockchain_router)
 except Exception as _e:
