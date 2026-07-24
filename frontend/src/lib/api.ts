@@ -5,49 +5,83 @@
  * bootstrapRegistry() (in registry.ts) on app startup. ENDPOINTS exposes
  * them as getter properties so every subsequent read gets the live value.
  *
- * registry.ts calls updateServiceUrls() after the /api/registry fetch.
- * Nothing in this file imports from registry.ts — dependency is one-way.
+ * Phase 1: Added vit-chain endpoint, request timeout (10 s), and 1-retry
+ * logic for transient network errors.
  */
 
 // ── Internal mutable service URLs ─────────────────────────────────────────────
-// Defaults come from Vite env vars (set at build time) or hardcoded fallbacks.
-
-// In dev (no VITE_GATEWAY_URL set) use an empty string so API calls are
-// relative — the Vite dev proxy will forward them to localhost:8000.
-// In production the build injects the real absolute URL.
 let _gatewayUrl = (import.meta.env.VITE_GATEWAY_URL ?? '').replace(/\/$/, '')
 let _aiUrl      = (import.meta.env.VITE_AI_URL      ?? '').replace(/\/$/, '')
 let _storageUrl = (import.meta.env.VITE_STORAGE_URL ?? '').replace(/\/$/, '')
+let _chainUrl   = (import.meta.env.VITE_CHAIN_URL   ?? 'https://vit-chain.onrender.com').replace(/\/$/, '')
 
 /**
  * Live URL accessors. Getter properties ensure that code reading
- * ENDPOINTS.gateway always gets the most-recently bootstrapped value.
+ * ENDPOINTS.* always gets the most-recently bootstrapped value.
  */
 export const ENDPOINTS = {
   get gateway() { return _gatewayUrl },
   get ai()      { return _aiUrl },
   get storage() { return _storageUrl },
+  get chain()   { return _chainUrl },
 }
 
 /**
  * Called by registry.ts after a successful /api/registry fetch.
  * Updates the internal URL state so all subsequent ENDPOINTS reads are live.
  */
-export function updateServiceUrls(urls: { gateway?: string; ai?: string; storage?: string }): void {
+export function updateServiceUrls(urls: {
+  gateway?: string
+  ai?: string
+  storage?: string
+  chain?: string
+}): void {
   if (urls.gateway) _gatewayUrl = urls.gateway
   if (urls.ai)      _aiUrl      = urls.ai
   if (urls.storage) _storageUrl = urls.storage
+  if (urls.chain)   _chainUrl   = urls.chain
 }
 
 // ── HTTP helper ───────────────────────────────────────────────────────────────
 
-async function get<T>(url: string, signal?: AbortSignal): Promise<T> {
+const TIMEOUT_MS = 10_000
+
+/**
+ * GET with latency tracking, 10-second timeout, and one automatic retry on
+ * network failure (not on 4xx/5xx — those are real errors).
+ */
+async function get<T>(url: string, signal?: AbortSignal, attempt = 0): Promise<T> {
+  const controller = new AbortController()
+  const timer      = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
+  // Merge caller's signal with our timeout signal
+  const combined = signal
+    ? (() => {
+        const ac = new AbortController()
+        signal.addEventListener('abort', () => ac.abort())
+        controller.signal.addEventListener('abort', () => ac.abort())
+        return ac.signal
+      })()
+    : controller.signal
+
   const start = performance.now()
-  const res   = await fetch(url, { signal })
-  const latency = Math.round(performance.now() - start)
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
-  const data = await res.json()
-  return { ...data, _latency: latency } as T
+  try {
+    const res = await fetch(url, { signal: combined })
+    clearTimeout(timer)
+    const latency = Math.round(performance.now() - start)
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
+    const data = await res.json()
+    return { ...data, _latency: latency } as T
+  } catch (err: unknown) {
+    clearTimeout(timer)
+    // Retry once on network/timeout error (not on abort from caller)
+    const isAbortedByCaller = signal?.aborted
+    const isNetworkError    = err instanceof TypeError || (err instanceof DOMException && err.name === 'AbortError')
+    if (!isAbortedByCaller && isNetworkError && attempt === 0) {
+      return get<T>(url, signal, 1)
+    }
+    throw err
+  }
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -114,6 +148,7 @@ export interface Provider {
 export interface AIHealth {
   status: string
   version?: string
+  models_loaded?: number
   models?: Model[]
   providers?: Provider[]
   inference?: { status: string; latency?: number }
@@ -128,9 +163,13 @@ export interface AIModels {
 export interface StorageHealth {
   status: string
   version?: string
+  plane?: string
   capacity?: number
   used?: number
   objectCount?: number
+  providers?: { active: number; available: number; disabled: number }
+  database?: string
+  redis?: string
   _latency?: number
 }
 
@@ -144,6 +183,32 @@ export interface StorageObject {
 
 export interface StorageList {
   objects?: StorageObject[]
+  total?: number
+  [key: string]: unknown
+}
+
+export interface ChainHealth {
+  status: string
+  version?: string
+  chain_id?: number
+  network?: string
+  block_height?: number
+  peer_count?: number
+  is_syncing?: boolean
+  _latency?: number
+}
+
+export interface ChainBlock {
+  index: number
+  hash: string
+  timestamp: string
+  validator?: string
+  tx_count?: number
+  size?: number
+}
+
+export interface ChainBlocks {
+  blocks?: ChainBlock[]
   total?: number
   [key: string]: unknown
 }
@@ -168,4 +233,11 @@ export const storageApi = {
   health:  (signal?: AbortSignal) => get<StorageHealth>(`${ENDPOINTS.storage}/health`, signal),
   list:    (signal?: AbortSignal) => get<StorageList>(`${ENDPOINTS.storage}/api/v1/files`, signal),
   metrics: (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.storage}/metrics`, signal),
+}
+
+export const chainApi = {
+  ping:   (signal?: AbortSignal) => get<ChainHealth>(`${ENDPOINTS.chain}/ping`, signal),
+  health: (signal?: AbortSignal) => get<ChainHealth>(`${ENDPOINTS.chain}/ping`, signal),
+  blocks: (signal?: AbortSignal) => get<ChainBlocks>(`${ENDPOINTS.chain}/api/blocks?limit=5`, signal),
+  status: (signal?: AbortSignal) => get<ChainHealth>(`${ENDPOINTS.chain}/ping`, signal),
 }

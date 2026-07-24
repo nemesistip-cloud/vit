@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { Navbar }           from '@/components/layout/Navbar'
+import { Sidebar }          from '@/components/shell/Sidebar'
 import { Footer }           from '@/components/layout/Footer'
 import { ErrorBoundary }    from '@/components/ErrorBoundary'
 import { CommandPalette }   from '@/components/ui/CommandPalette'
@@ -90,8 +91,9 @@ export default function App() {
     <ErrorBoundary>
       <div className="min-h-screen flex flex-col">
         <Navbar onOpenSearch={openPalette} />
+        <Sidebar />
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-        <main className="flex-1">
+        <main className="flex-1 lg:pl-[220px] transition-[padding] duration-200">
           <Routes>
             {/* ── Public / marketing ─────────────────────────────────── */}
             <Route path="/"             element={<Home />} />

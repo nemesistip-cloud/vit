@@ -7,6 +7,8 @@ import {
   Lock, Mail, Save, Smartphone, LogOut, Monitor,
   Trash2, Globe, Clock, Key, ShieldCheck, AlertTriangle,
   Laptop, RefreshCw, CheckCheck, Wallet, Activity,
+  Code2, Link2, Settings2, FileText, Copy, Plus, Zap,
+  ChevronRight, ExternalLink, Sliders,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo } from '@/lib/utils'
@@ -110,18 +112,78 @@ function usePermissions() {
   })
 }
 
+// ── Hooks (extended) ──────────────────────────────────────────────────────────
+
+function useApiKeys() {
+  return useQuery({
+    queryKey: ['api-keys'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/developer/api-keys`, { signal, headers: authHeaders() })
+      return r.ok ? r.json() : []
+    },
+    retry: false, staleTime: 60_000,
+  })
+}
+
+function useConnectedAccounts() {
+  return useQuery({
+    queryKey: ['connected-accounts'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/identity/me/connected-accounts`, { signal, headers: authHeaders() })
+      return r.ok ? r.json() : []
+    },
+    retry: false, staleTime: 60_000,
+  })
+}
+
+function useWalletSettings() {
+  return useQuery({
+    queryKey: ['wallet-settings'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/wallet/me`, { signal, headers: authHeaders() })
+      return r.ok ? r.json() : null
+    },
+    retry: false, staleTime: 60_000,
+  })
+}
+
+function useAuditLogs() {
+  return useQuery({
+    queryKey: ['audit-logs'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/audit/me?limit=50`, { signal, headers: authHeaders() })
+      if (!r.ok) return []
+      const d = await r.json()
+      return Array.isArray(d) ? d : d.logs ?? d.items ?? []
+    },
+    retry: false, staleTime: 30_000,
+  })
+}
+
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-type Tab = 'profile' | 'security' | 'sessions' | 'devices' | 'history' | 'permissions' | 'notifications'
+type Tab =
+  | 'profile' | 'security' | 'sessions' | 'devices' | 'history'
+  | 'permissions' | 'notifications'
+  | 'api_keys' | 'connected' | 'wallet' | 'developer' | 'preferences' | 'audit_logs'
 
-const TABS: { key: Tab; label: string; icon: React.ElementType; authOnly?: boolean }[] = [
-  { key: 'profile',       label: 'Profile',        icon: User        },
-  { key: 'security',      label: 'Security',        icon: Shield      },
-  { key: 'sessions',      label: 'Sessions',        icon: Monitor,    authOnly: true },
-  { key: 'devices',       label: 'Devices',         icon: Laptop,     authOnly: true },
-  { key: 'history',       label: 'Login History',   icon: Clock,      authOnly: true },
-  { key: 'permissions',   label: 'Permissions',     icon: Key,        authOnly: true },
-  { key: 'notifications', label: 'Notifications',   icon: Bell        },
+const TABS: { key: Tab; label: string; icon: React.ElementType; authOnly?: boolean; group?: string }[] = [
+  // Identity
+  { key: 'profile',       label: 'Profile',            icon: User,       group: 'Identity'    },
+  { key: 'security',      label: 'Security',            icon: Shield,     group: 'Identity'    },
+  { key: 'sessions',      label: 'Sessions',            icon: Monitor,    group: 'Identity',   authOnly: true },
+  { key: 'devices',       label: 'Devices',             icon: Laptop,     group: 'Identity',   authOnly: true },
+  { key: 'history',       label: 'Login History',       icon: Clock,      group: 'Identity',   authOnly: true },
+  { key: 'permissions',   label: 'Permissions',         icon: Key,        group: 'Identity',   authOnly: true },
+  // Platform
+  { key: 'notifications', label: 'Notifications',       icon: Bell,       group: 'Platform'    },
+  { key: 'wallet',        label: 'Wallet',              icon: Wallet,     group: 'Platform'    },
+  { key: 'connected',     label: 'Connected Accounts',  icon: Link2,      group: 'Platform'    },
+  { key: 'preferences',   label: 'Preferences',         icon: Sliders,    group: 'Platform'    },
+  // Developer
+  { key: 'api_keys',      label: 'API Keys',            icon: Code2,      group: 'Developer',  authOnly: true },
+  { key: 'developer',     label: 'Developer',           icon: Settings2,  group: 'Developer',  authOnly: true },
+  { key: 'audit_logs',    label: 'Audit Logs',          icon: FileText,   group: 'Developer',  authOnly: true },
 ]
 
 // ── Profile Tab ────────────────────────────────────────────────────────────────
@@ -708,23 +770,31 @@ export default function Settings() {
 
         <div className="flex flex-col sm:flex-row gap-6">
           {/* Sidebar tabs */}
-          <motion.nav initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }} className="sm:w-48 shrink-0">
-            <ul className="space-y-0.5">
-              {TABS.map(t => (
-                <li key={t.key}>
-                  <button
-                    onClick={() => setTab(t.key)}
-                    className={cn(
-                      'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left',
-                      tab === t.key ? 'bg-vit-500/15 text-vit-400' : 'text-white/50 hover:text-white hover:bg-white/5',
-                    )}
-                  >
-                    <t.icon className="w-4 h-4 shrink-0" />
-                    {t.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <motion.nav initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }} className="sm:w-56 shrink-0">
+            {(['Identity', 'Platform', 'Developer'] as const).map(groupName => {
+              const groupTabs = TABS.filter(t => t.group === groupName)
+              return (
+                <div key={groupName} className="mb-4">
+                  <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/25">{groupName}</p>
+                  <ul className="space-y-0.5">
+                    {groupTabs.map(t => (
+                      <li key={t.key}>
+                        <button
+                          onClick={() => setTab(t.key)}
+                          className={cn(
+                            'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left',
+                            tab === t.key ? 'bg-vit-500/15 text-vit-400' : 'text-white/50 hover:text-white hover:bg-white/5',
+                          )}
+                        >
+                          <t.icon className="w-4 h-4 shrink-0" />
+                          {t.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })}
           </motion.nav>
 
           {/* Content panel */}
@@ -744,10 +814,407 @@ export default function Settings() {
               {tab === 'history'       && <HistoryTab />}
               {tab === 'permissions'   && <PermissionsTab />}
               {tab === 'notifications' && <NotificationsTab />}
+              {tab === 'api_keys'      && <ApiKeysTab />}
+              {tab === 'connected'     && <ConnectedAccountsTab />}
+              {tab === 'wallet'        && <WalletSettingsTab />}
+              {tab === 'developer'     && <DeveloperTab />}
+              {tab === 'preferences'   && <PreferencesTab />}
+              {tab === 'audit_logs'    && <AuditLogsTab />}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── API Keys Tab ──────────────────────────────────────────────────────────────
+
+function ApiKeysTab() {
+  const qc = useQueryClient()
+  const { data: keys = [], isLoading } = useApiKeys()
+  const keyList = Array.isArray(keys) ? keys : keys?.keys ?? []
+
+  const createKey = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/developer/api-keys`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `Key ${Date.now()}` }),
+      })
+      if (!r.ok) throw new Error('Failed to create key')
+      return r.json()
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['api-keys'] }); toast.success('API key created') },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const revokeKey = useMutation({
+    mutationFn: async (id: string | number) => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/developer/api-keys/${id}`, {
+        method: 'DELETE', headers: authHeaders(),
+      })
+      if (!r.ok) throw new Error('Failed to revoke key')
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['api-keys'] }); toast.success('Key revoked') },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  return (
+    <div className="space-y-6">
+      <SectionHead title="API Keys" subtitle="Programmatic access to the VIT platform. Keep these secret." />
+      <button
+        onClick={() => createKey.mutate()}
+        disabled={createKey.isPending}
+        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-vit-600 text-white text-sm font-semibold hover:bg-vit-500 disabled:opacity-50 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        {createKey.isPending ? 'Creating…' : 'Create API Key'}
+      </button>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8"><Spinner className="w-6 h-6 text-vit-400" /></div>
+      ) : keyList.length === 0 ? (
+        <div className="text-center py-10 text-white/40">
+          <Code2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No API keys yet. Create one to get started.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {keyList.map((k: any) => (
+            <div key={k.id ?? k.key_id} className="flex items-center gap-3 p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{k.name ?? `Key ${k.id}`}</p>
+                <p className="text-xs text-white/30 font-mono mt-0.5 truncate">
+                  {k.key_preview ?? k.key ?? k.prefix ?? '****'}…
+                </p>
+                {k.created_at && (
+                  <p className="text-xs text-white/25 mt-0.5">Created {new Date(k.created_at).toLocaleDateString()}</p>
+                )}
+              </div>
+              <button
+                onClick={() => { if (k.key) { navigator.clipboard.writeText(k.key); toast.success('Copied') } }}
+                className="p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors"
+                title="Copy"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => revokeKey.mutate(k.id ?? k.key_id)}
+                disabled={revokeKey.isPending}
+                className="p-1.5 rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                title="Revoke"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="p-4 bg-amber-500/8 border border-amber-500/20 rounded-xl text-xs text-amber-300/70">
+        <AlertTriangle className="w-4 h-4 inline mr-1.5 mb-0.5" />
+        API keys grant full account access. Never share or commit them to source control.
+      </div>
+    </div>
+  )
+}
+
+// ── Connected Accounts Tab ────────────────────────────────────────────────────
+
+function ConnectedAccountsTab() {
+  const { data, isLoading } = useConnectedAccounts()
+  const accounts = Array.isArray(data) ? data : data?.accounts ?? []
+
+  const PROVIDERS = [
+    { id: 'google',   label: 'Google',   icon: '🔵', description: 'Sign in with Google' },
+    { id: 'telegram', label: 'Telegram', icon: '✈️',  description: 'Telegram notifications' },
+    { id: 'discord',  label: 'Discord',  icon: '🟣', description: 'Discord integration' },
+    { id: 'github',   label: 'GitHub',   icon: '⚫',  description: 'Developer account' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <SectionHead title="Connected Accounts" subtitle="Link external accounts for single sign-on and integrations." />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8"><Spinner className="w-6 h-6 text-vit-400" /></div>
+      ) : (
+        <div className="space-y-3">
+          {PROVIDERS.map(p => {
+            const connected = accounts.find((a: any) => a.provider?.toLowerCase() === p.id)
+            return (
+              <div key={p.id} className="flex items-center justify-between p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{p.icon}</span>
+                  <div>
+                    <p className="text-sm font-medium text-white">{p.label}</p>
+                    <p className="text-xs text-white/40">{connected ? `Connected as ${connected.username ?? connected.email ?? connected.provider_id}` : p.description}</p>
+                  </div>
+                </div>
+                {connected ? (
+                  <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Connected
+                  </span>
+                ) : (
+                  <span className="text-xs text-white/30 italic">Not connected</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Wallet Settings Tab ───────────────────────────────────────────────────────
+
+function WalletSettingsTab() {
+  const { data: wallet, isLoading } = useWalletSettings()
+
+  return (
+    <div className="space-y-6">
+      <SectionHead title="Wallet" subtitle="Your VIT wallet address and on-chain settings." />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8"><Spinner className="w-6 h-6 text-vit-400" /></div>
+      ) : !wallet ? (
+        <div className="text-center py-10 text-white/40">
+          <Wallet className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Wallet not found. Visit the Wallet page to create one.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-white/40 uppercase tracking-wide">Address</span>
+              <button
+                onClick={() => { navigator.clipboard.writeText(wallet.address ?? ''); toast.success('Copied') }}
+                className="flex items-center gap-1 text-xs text-white/40 hover:text-vit-400 transition-colors"
+              >
+                <Copy className="w-3 h-3" /> Copy
+              </button>
+            </div>
+            <p className="text-sm font-mono text-white/70 break-all">{wallet.address ?? wallet.wallet_address ?? '—'}</p>
+          </div>
+
+          {wallet.balance != null && (
+            <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl flex items-center justify-between">
+              <span className="text-sm text-white/60">VIT Balance</span>
+              <span className="text-lg font-bold text-vit-400">{wallet.balance}</span>
+            </div>
+          )}
+
+          {wallet.staking_amount != null && (
+            <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl flex items-center justify-between">
+              <span className="text-sm text-white/60">Staked Amount</span>
+              <span className="text-sm font-semibold text-purple-400">{wallet.staking_amount} VIT</span>
+            </div>
+          )}
+
+          <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl flex items-center justify-between">
+            <span className="text-sm text-white/60">Network</span>
+            <span className="text-sm text-cyan-400">VIT Chain (7764)</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Developer Settings Tab ────────────────────────────────────────────────────
+
+function DeveloperTab() {
+  return (
+    <div className="space-y-6">
+      <SectionHead title="Developer Settings" subtitle="Advanced options for developers building on VIT." />
+      <div className="space-y-4">
+        <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+          <p className="text-sm font-medium text-white mb-1">API Documentation</p>
+          <p className="text-xs text-white/40 mb-3">Full REST API reference with examples.</p>
+          <a
+            href="/docs"
+            className="inline-flex items-center gap-1.5 text-xs text-vit-400 hover:text-vit-300 transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" /> Open Docs
+          </a>
+        </div>
+
+        <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+          <p className="text-sm font-medium text-white mb-1">SDK</p>
+          <p className="text-xs text-white/40 mb-3">TypeScript/JavaScript SDK for VIT Network.</p>
+          <code className="block text-xs font-mono text-emerald-400 bg-black/30 rounded-lg p-3">
+            npm install @vitnetwork/sdk
+          </code>
+        </div>
+
+        <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+          <p className="text-sm font-medium text-white mb-1">Service Endpoints</p>
+          <div className="space-y-1.5 mt-2">
+            {[
+              { label: 'Gateway',  url: 'https://vitnetwork-nls4.onrender.com' },
+              { label: 'AI',       url: 'https://vit-ai.onrender.com'          },
+              { label: 'Storage',  url: 'https://vit-storage-4trt.onrender.com'},
+              { label: 'Chain',    url: 'https://vit-chain.onrender.com'       },
+            ].map(ep => (
+              <div key={ep.label} className="flex items-center justify-between text-xs">
+                <span className="text-white/40 w-16">{ep.label}</span>
+                <code className="text-white/60 font-mono text-[11px] truncate max-w-[220px]">{ep.url}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+          <p className="text-sm font-medium text-white mb-1">Webhooks</p>
+          <p className="text-xs text-white/40 mb-2">Configure event webhooks for your integrations.</p>
+          <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-400/10 rounded-full px-2 py-0.5">
+            <Zap className="w-3 h-3" /> Coming soon
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Preferences Tab ───────────────────────────────────────────────────────────
+
+function PreferencesTab() {
+  const [prefs, setPrefs] = useState({
+    theme: 'dark',
+    language: 'en',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    compact_mode: false,
+    show_balances: true,
+    prediction_currency: 'VIT',
+  })
+  const [saved, setSaved] = useState(false)
+
+  function save() {
+    // Persist to localStorage for now; backend endpoint when available
+    localStorage.setItem('vit_prefs', JSON.stringify(prefs))
+    toast.success('Preferences saved')
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const SELECT = 'w-full bg-surface-900/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-vit-500/60 transition-colors'
+  const TOGGLE = (on: boolean) => cn(
+    'relative inline-flex items-center h-5 w-9 rounded-full transition-colors',
+    on ? 'bg-vit-600' : 'bg-white/10',
+  )
+
+  return (
+    <div className="space-y-6">
+      <SectionHead title="Preferences" subtitle="Personalise how VIT looks and behaves for you." />
+      <div className="space-y-4">
+        <Field label="Language">
+          <select value={prefs.language} onChange={e => setPrefs(p => ({ ...p, language: e.target.value }))} className={SELECT}>
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="es">Español</option>
+            <option value="de">Deutsch</option>
+            <option value="pt">Português</option>
+          </select>
+        </Field>
+
+        <Field label="Timezone">
+          <input value={prefs.timezone} onChange={e => setPrefs(p => ({ ...p, timezone: e.target.value }))} className={INPUT} />
+        </Field>
+
+        <Field label="Prediction Currency">
+          <select value={prefs.prediction_currency} onChange={e => setPrefs(p => ({ ...p, prediction_currency: e.target.value }))} className={SELECT}>
+            <option value="VIT">VIT</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+          </select>
+        </Field>
+
+        <div className="flex items-center justify-between p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+          <div>
+            <p className="text-sm font-medium text-white">Compact Mode</p>
+            <p className="text-xs text-white/40">Reduce padding and card sizes</p>
+          </div>
+          <button
+            onClick={() => setPrefs(p => ({ ...p, compact_mode: !p.compact_mode }))}
+            className={TOGGLE(prefs.compact_mode)}
+          >
+            <span className={cn('absolute w-3.5 h-3.5 bg-white rounded-full shadow transition-transform', prefs.compact_mode ? 'translate-x-4' : 'translate-x-0.5')} />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+          <div>
+            <p className="text-sm font-medium text-white">Show Balances</p>
+            <p className="text-xs text-white/40">Display wallet balance in the header</p>
+          </div>
+          <button
+            onClick={() => setPrefs(p => ({ ...p, show_balances: !p.show_balances }))}
+            className={TOGGLE(prefs.show_balances)}
+          >
+            <span className={cn('absolute w-3.5 h-3.5 bg-white rounded-full shadow transition-transform', prefs.show_balances ? 'translate-x-4' : 'translate-x-0.5')} />
+          </button>
+        </div>
+
+        <button
+          onClick={save}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-vit-600 text-white font-semibold text-sm hover:bg-vit-500 transition-colors"
+        >
+          {saved ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Save className="w-4 h-4" />}
+          {saved ? 'Saved' : 'Save Preferences'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Audit Logs Tab ────────────────────────────────────────────────────────────
+
+function AuditLogsTab() {
+  const { data: logs = [], isLoading } = useAuditLogs()
+
+  const ACTION_COLOR: Record<string, string> = {
+    login: 'text-emerald-400',
+    logout: 'text-white/40',
+    password_change: 'text-amber-400',
+    api_key_create: 'text-vit-400',
+    api_key_revoke: 'text-red-400',
+    profile_update: 'text-blue-400',
+    session_revoke: 'text-orange-400',
+  }
+
+  return (
+    <div className="space-y-6">
+      <SectionHead title="Audit Logs" subtitle="A record of all security-relevant actions on your account." />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8"><Spinner className="w-6 h-6 text-vit-400" /></div>
+      ) : logs.length === 0 ? (
+        <div className="text-center py-10 text-white/40">
+          <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No audit events recorded yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {logs.slice(0, 50).map((log: any, i: number) => (
+            <div key={i} className="flex items-start gap-3 p-3 bg-surface-900/60 border border-white/6 rounded-xl">
+              <div className="w-2 h-2 rounded-full bg-vit-400/60 shrink-0 mt-1.5" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={cn('text-xs font-mono font-medium', ACTION_COLOR[log.action] ?? 'text-white/60')}>
+                    {log.action ?? log.event ?? log.type}
+                  </span>
+                  {log.ip_address && (
+                    <span className="text-xs text-white/25 font-mono">{log.ip_address}</span>
+                  )}
+                </div>
+                {log.description && <p className="text-xs text-white/40 mt-0.5">{log.description}</p>}
+              </div>
+              <span className="text-xs text-white/25 shrink-0">
+                {log.created_at ? new Date(log.created_at).toLocaleString() : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
