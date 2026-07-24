@@ -415,7 +415,7 @@ export default function Dashboard() {
                 }
               />
               <ServiceHealthCard
-                name="AI Oracle"
+                name="AI"
                 icon={Cpu}
                 color="bg-purple-500/20"
                 status={aiHealth?.status}
@@ -594,7 +594,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <Cpu className="w-4 h-4 text-purple-400" />
-                <h2 className="font-semibold text-white">AI Oracle</h2>
+                <h2 className="font-semibold text-white">AI</h2>
               </div>
               <Link to="/ai" className="text-xs text-vit-400 hover:text-vit-300 flex items-center gap-1">
                 Details <ChevronRight className="w-3 h-3" />

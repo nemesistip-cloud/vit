@@ -172,10 +172,10 @@ export default function Analytics() {
 
         {/* KPI row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <KPI delay={0}    label="Total Predictions"  value={(analytics?.total_predictions ?? 5730).toLocaleString()} icon={Brain}     color="text-vit-400"    />
-          <KPI delay={0.05} label="7-day Accuracy"     value={`${(analytics?.accuracy_7d ?? 68.4).toFixed(1)}%`}        icon={TrendingUp} color="text-emerald-400" />
-          <KPI delay={0.1}  label="Active Users"       value={(analytics?.active_users ?? 1240).toLocaleString()}       icon={Users}      color="text-sky-400"    />
-          <KPI delay={0.15} label="Models Deployed"    value={modelsData.filter(m => m.active).length.toString()}       icon={Activity}   color="text-purple-400" />
+          <KPI delay={0}    label="Total Predictions"  value={analytics?.total_predictions != null ? analytics.total_predictions.toLocaleString() : (isLoading ? '…' : '—')} icon={Brain}     color="text-vit-400"    />
+          <KPI delay={0.05} label="7-day Accuracy"     value={analytics?.accuracy_7d != null ? `${analytics.accuracy_7d.toFixed(1)}%` : (isLoading ? '…' : '—')}             icon={TrendingUp} color="text-emerald-400" />
+          <KPI delay={0.1}  label="Active Users"       value={analytics?.active_users != null ? analytics.active_users.toLocaleString() : (isLoading ? '…' : '—')}           icon={Users}      color="text-sky-400"    />
+          <KPI delay={0.15} label="Models Deployed"    value={!isPlaceholder ? modelsData.filter(m => m.active).length.toString() : (isLoading ? '…' : '—')}                  icon={Activity}   color="text-purple-400" />
         </div>
 
         {isPlaceholder && (

@@ -162,7 +162,7 @@ export default function Home() {
               <span className="text-xs text-white/60">Platform</span>
               <StatusBadge status={overallStatus === 'loading' ? undefined : isHealthy ? 'healthy' : overallStatus} size="sm" pulse />
               <span className="text-xs text-white/30">·</span>
-              <span className="text-xs text-vit-400 font-medium">v1.1.0</span>
+              <span className="text-xs text-vit-400 font-medium">{stats?.version ? `v${String(stats.version).replace(/^v/, '')}` : 'v1.1'}</span>
             </Link>
           </motion.div>
 
@@ -191,12 +191,35 @@ export default function Home() {
             </Link>
           </motion.div>
 
-          {/* Live service pills */}
+          {/* Live service pills — driven by /api/system/health/summary */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-            className="flex flex-wrap items-center justify-center gap-3 mt-10 text-xs text-white/30">
-            {['Gateway ✓', 'AI Engine ✓', 'Storage ✓', 'VIT Chain ~'].map(s => (
-              <span key={s} className="px-3 py-1 rounded-full border border-white/8 bg-white/3">{s}</span>
-            ))}
+            className="flex flex-wrap items-center justify-center gap-3 mt-10 text-xs">
+            {([
+              { key: 'gateway', label: 'Gateway',    field: (d: any) => d?.details?.kernel ?? d?.details?.platform ?? d?.overall_status },
+              { key: 'ai',      label: 'AI Engine',  field: (d: any) => d?.details?.ai },
+              { key: 'storage', label: 'Storage',    field: (d: any) => d?.details?.storage },
+              { key: 'db',      label: 'Database',   field: (d: any) => d?.details?.database },
+            ] as const).map(({ key, label, field }) => {
+              const raw = field(sysStatus)
+              const ok  = raw === 'healthy' || raw === 'ok' || raw === 'HEALTHY'
+              const deg = raw === 'degraded' || raw === 'warning'
+              return (
+                <span key={key} className={cn(
+                  'inline-flex items-center gap-1.5 px-3 py-1 rounded-full border',
+                  ok  ? 'border-emerald-500/25 bg-emerald-500/8 text-emerald-400/80' :
+                  deg ? 'border-amber-500/25 bg-amber-500/8 text-amber-400/80' :
+                  raw ? 'border-red-500/20 bg-red-500/5 text-red-400/60' :
+                        'border-white/8 bg-white/3 text-white/30'
+                )}>
+                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0',
+                    ok  ? 'bg-emerald-400 animate-pulse' :
+                    deg ? 'bg-amber-400' :
+                    raw ? 'bg-red-400' : 'bg-white/20'
+                  )} />
+                  {label}
+                </span>
+              )
+            })}
           </motion.div>
         </div>
       </section>
@@ -213,7 +236,7 @@ export default function Home() {
                     <StatusBadge status={isHealthy ? 'healthy' : overallStatus} />
                   ) : value}
                 </div>
-                <div className="text-xs text-white/40 uppercase tracking-wide">{label !== 'Platform Status' ? label : ''}</div>
+                <div className="text-xs text-white/40 uppercase tracking-wide">{label}</div>
               </motion.div>
             ))}
           </div>

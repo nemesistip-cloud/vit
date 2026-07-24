@@ -31,7 +31,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Overview',
     items: [
       { label: 'Dashboard',        path: '/dashboard',        icon: LayoutDashboard },
-      { label: 'AI Oracle',        path: '/ai',               icon: Brain           },
+      { label: 'AI',               path: '/ai',               icon: Brain           },
       { label: 'Wallet',           path: '/wallet',           icon: Wallet          },
     ],
   },
@@ -56,6 +56,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Analytics',
     items: [
+      { label: 'Analytics',        path: '/analytics',        icon: BarChart3       },
       { label: 'Analytics Studio', path: '/analytics-studio', icon: BarChart3       },
       { label: 'AI Assistant',     path: '/assistant',        icon: Cpu             },
     ],

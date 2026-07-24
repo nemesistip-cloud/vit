@@ -200,12 +200,19 @@ function ReceiveModal({ onClose, address }: { onClose: () => void; address?: str
   return (
     <Modal title="Receive VIT" onClose={onClose}>
       <div className="flex flex-col items-center gap-5 py-2">
-        <div className="w-32 h-32 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-          <div className="grid grid-cols-8 gap-0.5">
-            {Array.from({ length: 64 }).map((_, i) => (
-              <div key={i} className={`w-1.5 h-1.5 rounded-sm ${Math.random() > 0.5 ? 'bg-vit-400' : 'bg-transparent'}`} />
-            ))}
-          </div>
+        {/* Deterministic address-derived pattern (no random re-renders) */}
+        <div className="w-32 h-32 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+          {address ? (
+            <div className="grid grid-cols-9 gap-0.5 p-2">
+              {Array.from({ length: 81 }).map((_, i) => {
+                const charCode = address.charCodeAt(i % address.length) + i
+                const filled = (charCode * 31 + i * 7) % 5 !== 0
+                return <div key={i} className={`w-1.5 h-1.5 rounded-[1px] ${filled ? 'bg-vit-400' : 'bg-transparent'}`} />
+              })}
+            </div>
+          ) : (
+            <WalletIcon className="w-10 h-10 text-white/20" />
+          )}
         </div>
         <div className="w-full">
           <p className="text-xs text-white/40 mb-2 text-center">Your VIT Wallet Address</p>
@@ -224,7 +231,7 @@ function ReceiveModal({ onClose, address }: { onClose: () => void; address?: str
 
 // ── Stake modal ───────────────────────────────────────────────────────────────
 
-function StakeModal({ onClose, balance, staked }: { onClose: () => void; balance: number; staked: number }) {
+function StakeModal({ onClose, balance, staked, apy }: { onClose: () => void; balance: number; staked: number; apy?: number | null }) {
   const [mode, setMode] = useState<'stake' | 'unstake'>('stake')
   const [amount, setAmount] = useState('')
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
@@ -280,7 +287,7 @@ function StakeModal({ onClose, balance, staked }: { onClose: () => void; balance
             </div>
             <div className="bg-surface-900/60 rounded-lg p-3">
               <p className="text-xs text-white/40">APY</p>
-              <p className="font-bold text-emerald-400 text-sm mt-0.5">12%</p>
+              <p className="font-bold text-emerald-400 text-sm mt-0.5">{apy != null ? `${apy}%` : '—'}</p>
             </div>
           </div>
           <div>
@@ -631,7 +638,7 @@ export default function Wallet() {
       {activeModal === 'deposit'  && <DepositModal  onClose={() => setActiveModal(null)} />}
       {activeModal === 'send'     && <SendModal     onClose={() => setActiveModal(null)} balance={balance} />}
       {activeModal === 'receive'  && <ReceiveModal  onClose={() => setActiveModal(null)} address={wallet?.address} />}
-      {activeModal === 'stake'    && <StakeModal    onClose={() => setActiveModal(null)} balance={balance} staked={stakedAmt} />}
+      {activeModal === 'stake'    && <StakeModal    onClose={() => setActiveModal(null)} balance={balance} staked={stakedAmt} apy={staking?.apy ?? staking?.annual_rate} />}
       {activeModal === 'withdraw' && <WithdrawModal onClose={() => setActiveModal(null)} tier={tier} />}
       {activeModal === 'kyc'      && <KYCModal      onClose={() => setActiveModal(null)} />}
 

@@ -127,6 +127,7 @@ export default function Status() {
   const { data: obs,     isLoading: obsLoading }     = useGatewayObs()
   const { data: summary, isLoading: summaryLoading } = useSystemSummary()
   const { data: ai,      isLoading: aiLoading }      = useAiHealth()
+  const { data: storage, isLoading: storageLoading } = useStorageHealth()
   const { data: ping,    isLoading: pingLoading, refetch }   = useGatewayPing()
 
   const overallStatus = summary?.overall_status ?? obs?.status ?? (obsLoading ? 'loading' : 'unknown')
@@ -139,7 +140,7 @@ export default function Status() {
       status: overallStatus === 'loading' ? undefined : details.kernel ?? details.platform ?? overallStatus,
       isLoading: summaryLoading,
       details: [
-        { label: 'Version',  value: '1.1.0' },
+        { label: 'Version',  value: summary?.version ?? obs?.version },
         { label: 'Latency',  value: ping?.latency != null ? `${ping.latency}ms` : null },
         { label: 'Database', value: details.database },
         { label: 'Redis',    value: details.redis },
@@ -159,11 +160,12 @@ export default function Status() {
     {
       icon: HardDrive,
       label: 'vit-storage',
-      status: details.storage ?? (pingLoading ? undefined : 'unknown'),
-      isLoading: pingLoading,
+      status: storage?.status ?? details.storage ?? (storageLoading ? undefined : 'unknown'),
+      isLoading: storageLoading,
       details: [
-        { label: 'Providers', value: null },
-        { label: 'Tachyon',   value: 'enabled' },
+        { label: 'Objects',   value: storage?.objectCount != null ? storage.objectCount.toLocaleString() : null },
+        { label: 'Providers', value: storage?.providers?.active != null ? `${storage.providers.active} active` : null },
+        { label: 'Plane',     value: storage?.plane },
       ],
     },
     {
@@ -172,7 +174,8 @@ export default function Status() {
       status: details.database ?? (obsLoading ? undefined : 'unknown'),
       isLoading: obsLoading,
       details: [
-        { label: 'Engine', value: 'PostgreSQL 16' },
+        { label: 'Engine',  value: (obs as any)?.postgres_version ?? (obs as any)?.db_engine ?? 'PostgreSQL' },
+        { label: 'Latency', value: (obs as any)?.postgres_latency_ms != null ? `${(obs as any).postgres_latency_ms}ms` : null },
       ],
     },
     {
@@ -181,7 +184,8 @@ export default function Status() {
       status: details.redis ?? (obsLoading ? undefined : 'unknown'),
       isLoading: obsLoading,
       details: [
-        { label: 'Cache', value: 'Valkey' },
+        { label: 'Engine',  value: (obs as any)?.redis_engine ?? (obs as any)?.cache_engine ?? 'Redis' },
+        { label: 'Latency', value: (obs as any)?.redis_latency_ms != null ? `${(obs as any).redis_latency_ms}ms` : null },
       ],
     },
     {
