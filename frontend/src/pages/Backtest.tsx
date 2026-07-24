@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
-} from 'recharts'
+} from '@/lib/recharts'
 import {
   FlaskConical, TrendingUp, TrendingDown, BarChart3,
   RefreshCw, Calendar, Target, Activity, AlertCircle,
@@ -283,7 +283,7 @@ export default function Backtest() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                       <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                      <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
+                      <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `$${v}`} />
                       <Tooltip content={<EquityTooltip />} />
                       <ReferenceLine y={metrics.starting_bank} stroke="rgba(255,255,255,0.15)" strokeDasharray="4 2" />
                       <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#balGrad)" dot={false} />
@@ -301,7 +301,7 @@ export default function Backtest() {
                     <LineChart data={equity} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                       <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                      <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
+                      <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
                       <Tooltip content={<EquityTooltip />} />
                       <Line type="monotone" dataKey="drawdown" stroke="#f87171" strokeWidth={1.5} dot={false} />
                     </LineChart>

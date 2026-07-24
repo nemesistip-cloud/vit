@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
-} from 'recharts'
+} from '@/lib/recharts'
 import { ENDPOINTS } from '@/lib/api'
 import { authHeaders } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui/Spinner'
@@ -158,7 +158,7 @@ export default function VITCoin() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                     <XAxis dataKey="day" tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10 }} axisLine={false} tickLine={false} width={60} tickFormatter={v => `₦${(v * 1000).toFixed(2)}`} />
+                    <YAxis tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10 }} axisLine={false} tickLine={false} width={60} tickFormatter={(v: number) => `₦${(v * 1000).toFixed(2)}`} />
                     <Tooltip
                       contentStyle={{ background: '#1a1625', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }}
                       labelStyle={{ color: 'rgba(255,255,255,0.5)' }}

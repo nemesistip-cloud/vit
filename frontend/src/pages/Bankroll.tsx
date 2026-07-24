@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import {
   AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts'
+} from '@/lib/recharts'
 import {
   Wallet, Calculator, TrendingDown, Shield,
   Info, AlertTriangle, CheckCircle2, BarChart3,
@@ -253,7 +253,7 @@ export default function Bankroll() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="bet" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} label={{ value: 'Bets', fill: 'rgba(255,255,255,0.3)', fontSize: 10, position: 'insideBottom', offset: -5 }} />
-                  <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
+                  <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `$${v}`} />
                   <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#bankrollGrad)" dot={false} />
                 </AreaChart>
@@ -276,7 +276,7 @@ export default function Bankroll() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="bet" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
+                  <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
                   <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="drawdown" stroke="#f87171" strokeWidth={1.5} fill="url(#ddGrad)" dot={false} />
                 </AreaChart>

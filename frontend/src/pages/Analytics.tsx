@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-} from 'recharts'
+} from '@/lib/recharts'
 import {
   BarChart3, TrendingUp, Activity, Users, Brain,
   RefreshCw, AlertCircle, CheckCircle2, Clock,
@@ -213,7 +213,7 @@ export default function Analytics() {
                 tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={v => `${v}%`}
+                tickFormatter={(v: number) => `${v}%`}
               />
               <Tooltip content={<ChartTooltip />} />
               <Area
@@ -262,7 +262,7 @@ export default function Analytics() {
               <BarChart data={sportsData} barSize={24}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="sport" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis domain={[50, 80]} tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+                <YAxis domain={[50, 80]} tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
                 <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="accuracy" name="Accuracy" fill="#10b981" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
               </BarChart>

@@ -7,7 +7,7 @@ import {
   Activity, ChevronRight, LogOut, Shield, Star, Zap, Target,
   BarChart3, Clock, Vote, Coins, Store, Share2,
   Server, Cpu, Layers, AlertCircle,
-  RefreshCw, HardDrive,
+  RefreshCw, HardDrive, Users,
 } from 'lucide-react'
 import { getAuthToken, getStoredUser, clearAuth, authHeaders } from '@/hooks/useAuth'
 import { ENDPOINTS, chainApi, aiApi, storageApi, gatewayApi } from '@/lib/api'
