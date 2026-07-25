@@ -31,7 +31,18 @@
     "vite": "^5.4.21"
   },
   "devDependencies": {
+    "@types/d3-array": "^3.0.1",
+    "@types/d3-color": "^3.0.0",
+    "@types/d3-ease": "^3.0.0",
+    "@types/d3-interpolate": "^3.0.0",
+    "@types/d3-path": "^3.0.0",
+    "@types/d3-scale": "^3.0.0",
+    "@types/d3-shape": "^3.0.0",
+    "@types/d3-time": "^3.0.0",
+    "@types/d3-timer": "^3.0.0",
     "@types/prop-types": "^15.7.15",
+    "@types/resolve": "^1.0.0",
+    "@types/trusted-types": "^2.0.0",
     "vite-plugin-pwa": "^1.3.0"
   }
 }
