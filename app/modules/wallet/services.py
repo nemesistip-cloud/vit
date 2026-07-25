@@ -2,6 +2,9 @@ import logging
 from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Tuple, Dict, Any
+
+from app.core.event_bus import event_bus
+from app.modules.platform.integration import platform_integration
 from sqlalchemy import select, func, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -85,6 +88,20 @@ class WalletService:
                 wallet = result.scalar_one()
             except Exception as e:
                 logger.error(f"Error creating wallet profile: {e}")
+
+        if wallet.id:
+            await platform_integration.index_entity(
+                "wallets",
+                str(wallet.id),
+                f"Wallet {wallet.id}",
+                f"Wallet for user {user_id}",
+                {"user_id": str(user_id)},
+            )
+            await event_bus.publish(
+                "wallet.created",
+                {"wallet_id": str(wallet.id), "user_id": str(user_id)},
+                sender="wallet.service",
+            )
 
         return wallet
 

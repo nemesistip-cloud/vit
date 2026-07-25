@@ -18,6 +18,8 @@ from app.api.deps import get_current_user, get_current_admin
 from app.modules.marketplace.models import AIModelListing
 from app.modules.marketplace import service as svc
 from app.services.tachyon_client import tachyon_client
+from app.modules.platform.integration import platform_integration
+from app.core.event_bus import event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,19 @@ async def upload_model_file(
         category=category, tags=tags, price_per_call=Decimal(str(price_per_call)),
         model_key=model_key, pkl_path=tachyon_id, pkl_sha256=package_sha.hexdigest(),
         gcs_uri=tachyon_uri, webhook_url=webhook_url
+    )
+
+    await event_bus.publish(
+        "storage.initialized",
+        {"user_id": str(current_user.id), "storage_id": tachyon_id},
+        sender="marketplace.routes",
+    )
+    await platform_integration.index_entity(
+        "files",
+        f"listing-{listing.id}",
+        listing.name,
+        listing.description or listing.name,
+        {"category": listing.category},
     )
 
     return {**_fmt_listing(listing), "message": "Model uploaded and synced to Tachyon."}

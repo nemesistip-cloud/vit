@@ -17,6 +17,8 @@ from app.modules.notifications.models import (
     Notification, NotificationChannel, NotificationPreference, NotificationType
 )
 from app.modules.notifications.websocket import notification_ws_manager
+from app.core.event_bus import event_bus
+from app.modules.platform.integration import platform_integration
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +118,19 @@ class NotificationService:
             "is_read":    False,
             "created_at": notification.created_at.isoformat(),
         })
+
+        await event_bus.publish(
+            "notification.created",
+            {"user_id": str(user_id), "title": final_title, "body": final_body},
+            sender="notifications.service",
+        )
+        await platform_integration.index_entity(
+            "notifications",
+            str(notification.id),
+            final_title,
+            final_body,
+            {"user_id": str(user_id)},
+        )
 
         # ── Multi-channel dispatch (fire-and-forget, never blocks create) ──
         asyncio.create_task(

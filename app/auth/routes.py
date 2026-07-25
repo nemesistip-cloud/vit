@@ -23,6 +23,8 @@ from app.auth.jwt_utils import (
     decode_token,
     revoke_token,
 )
+from app.modules.platform.integration import platform_integration
+from app.core.event_bus import event_bus
 
 # ---------------------------------------------------------------------------
 # Brute-force / account-lockout state
@@ -155,24 +157,46 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
 
+    user_id = user.id
+    user_email = user.email
+    user_username = user.username
+    user_role = user.role
+
     # Create default wallet
-    wallet = Wallet(user_id=user.id, vitcoin_balance=Decimal("0"))
+    wallet = Wallet(user_id=user_id, vitcoin_balance=Decimal("0"))
     db.add(wallet)
 
     await db.commit()
-    await db.refresh(user)
 
-    access_token = create_access_token({"sub": str(user.id), "role": user.role})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    access_token = create_access_token({"sub": str(user_id), "role": user_role})
+    refresh_token = create_refresh_token({"sub": str(user_id)})
 
-    await _write_audit(db, "user.register", user.email, "auth", str(user.id))
+    await _write_audit(db, "user.register", user_email, "auth", str(user_id))
+
+    await event_bus.publish(
+        "user.registered",
+        {"user_id": str(user_id), "email": user_email},
+        sender="auth.routes",
+    )
+    await platform_integration.index_entity(
+        "users",
+        str(user_id),
+        user_username,
+        f"{user_username} {user_email}",
+        {"role": user_role},
+    )
+    await platform_integration.publish_notification(
+        str(user_id),
+        "Welcome to VIT",
+        "Your account is ready. Start exploring the platform.",
+    )
 
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user_id=user.id,
-        username=user.username,
-        role=user.role,
+        user_id=user_id,
+        username=user_username,
+        role=user_role,
     )
 
 @router.post("/login", response_model=TokenResponse)
@@ -204,6 +228,19 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     await _write_audit(db, "user.login", user.email, "auth", str(user.id))
+
+    await event_bus.publish(
+        "user.logged_in",
+        {"user_id": str(user.id), "email": user.email},
+        sender="auth.routes",
+    )
+    await platform_integration.index_entity(
+        "users",
+        str(user.id),
+        user.username,
+        f"{user.username} {user.email}",
+        {"role": user.role},
+    )
 
     return TokenResponse(
         access_token=access_token,

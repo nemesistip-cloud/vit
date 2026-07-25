@@ -53,6 +53,9 @@ from app.services.accuracy_enhancer import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai-engine", tags=["ai-engine"])
 
+from app.modules.platform.integration import platform_integration
+from app.core.event_bus import event_bus
+
 MODELS_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..", "..", "..", "models",
@@ -245,6 +248,19 @@ async def upload_pkl(
     if auto_promote:
         promoted = await _promote_version_inplace(row, version, history)
     await db.commit()
+
+    await event_bus.publish(
+        "ai.profile.created",
+        {"user_id": str(getattr(current_user, "id", 0)), "profile_id": key},
+        sender="ai.routes",
+    )
+    await platform_integration.index_entity(
+        "ai_conversations",
+        key,
+        key,
+        f"AI model profile {key}",
+        {"kind": "model"},
+    )
 
     # Hot-reload only if we promoted
     reloaded = False

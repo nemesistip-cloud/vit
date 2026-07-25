@@ -1,11 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'sonner'
-import { Navbar }           from '@/components/layout/Navbar'
-import { Sidebar }          from '@/components/shell/Sidebar'
-import { Footer }           from '@/components/layout/Footer'
-import { ErrorBoundary }    from '@/components/ErrorBoundary'
-import { CommandPalette }   from '@/components/ui/CommandPalette'
+import { AppShell, PublicShell } from '@/components/shell/AppShell'
 
 // ── Public / marketing ────────────────────────────────────────────────────────
 import Home              from '@/pages/Home'
@@ -73,112 +67,62 @@ import Admin             from '@/pages/Admin'
 import NotFound          from '@/pages/NotFound'
 
 export default function App() {
-  const [paletteOpen, setPaletteOpen] = useState(false)
-  const openPalette = useCallback(() => setPaletteOpen(true), [])
-
-  useEffect(() => {
-    function handler(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setPaletteOpen(v => !v)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
-
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen flex flex-col">
-        <Navbar onOpenSearch={openPalette} />
-        <Sidebar />
-        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-        <main className="flex-1 lg:pl-[220px] transition-[padding] duration-200">
-          <Routes>
-            {/* ── Public / marketing ─────────────────────────────────── */}
-            <Route path="/"             element={<Home />} />
-            <Route path="/platform"     element={<Platform />} />
-            <Route path="/ai"           element={<AI />} />
-            <Route path="/storage"      element={<Storage />} />
-            <Route path="/status"       element={<Status />} />
-            <Route path="/developers"   element={<Developers />} />
-            <Route path="/docs"         element={<Documentation />} />
-            <Route path="/roadmap"      element={<Roadmap />} />
-            <Route path="/about"        element={<About />} />
+    <Routes>
+      <Route element={<PublicShell />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/platform" element={<Platform />} />
+        <Route path="/ai" element={<AI />} />
+        <Route path="/storage" element={<Storage />} />
+        <Route path="/status" element={<Status />} />
+        <Route path="/developers" element={<Developers />} />
+        <Route path="/docs" element={<Documentation />} />
+        <Route path="/roadmap" element={<Roadmap />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+      </Route>
 
-            {/* ── Auth ───────────────────────────────────────────────── */}
-            <Route path="/login"           element={<Login />} />
-            <Route path="/register"        element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password"  element={<ResetPassword />} />
-            <Route path="/verify-email"    element={<VerifyEmail />} />
-
-            {/* ── Core app ───────────────────────────────────────────── */}
-            <Route path="/dashboard"        element={<Dashboard />} />
-            <Route path="/settings"         element={<Settings />} />
-            <Route path="/subscription"     element={<Subscription />} />
-            <Route path="/matches"          element={<Matches />} />
-            <Route path="/matches/:id"      element={<MatchDetail />} />
-            <Route path="/predictions"      element={<Predictions />} />
-            <Route path="/odds"             element={<Odds />} />
-            <Route path="/leaderboard"      element={<Leaderboard />} />
-            <Route path="/analytics"        element={<Analytics />} />
-            <Route path="/analytics-studio" element={<AnalyticsStudio />} />
-            <Route path="/assistant"        element={<Assistant />} />
-            <Route path="/tasks"            element={<Tasks />} />
-
-            {/* ── Finance ────────────────────────────────────────────── */}
-            <Route path="/wallet"       element={<Wallet />} />
-            <Route path="/defi"         element={<DeFi />} />
-            <Route path="/inplay"       element={<InPlay />} />
-            <Route path="/marketplace"  element={<Marketplace />} />
-            <Route path="/referral"     element={<Referral />} />
-
-            {/* ── Governance & network ───────────────────────────────── */}
-            <Route path="/governance"   element={<Governance />} />
-            <Route path="/treasury"     element={<Treasury />} />
-            <Route path="/validators"   element={<Validators />} />
-            <Route path="/chain"        element={<Explorer />} />
-            {/* Legacy redirect */}
-            <Route path="/explorer"     element={<Navigate to="/chain" replace />} />
-
-            {/* ── Social & ecosystem ─────────────────────────────────── */}
-            <Route path="/social"       element={<Social />} />
-            <Route path="/ecosystem"    element={<Ecosystem />} />
-            <Route path="/enterprise"   element={<Enterprise />} />
-
-            {/* ── Betting tools ──────────────────────────────────────── */}
-            <Route path="/accumulator"  element={<Accumulator />} />
-            <Route path="/rollover"     element={<Rollover />} />
-            <Route path="/backtest"     element={<Backtest />} />
-            <Route path="/bankroll"     element={<Bankroll />} />
-
-            {/* ── Financial flows ────────────────────────────────────── */}
-            <Route path="/vitcoin"      element={<VITCoin />} />
-            <Route path="/exchange"     element={<Exchange />} />
-            <Route path="/vaults"       element={<Vaults />} />
-            <Route path="/bridge"       element={<Bridge />} />
-
-            {/* ── Admin ──────────────────────────────────────────────── */}
-            <Route path="/admin"        element={<Admin />} />
-
-            {/* ── 404 — must be last ─────────────────────────────────── */}
-            <Route path="*"             element={<NotFound />} />
-          </Routes>
-        </main>
-        <Footer />
-        <Toaster
-          theme="dark"
-          position="bottom-right"
-          toastOptions={{
-            style: {
-              background: 'hsl(var(--surface-800, 220 20% 14%))',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#fff',
-            },
-          }}
-        />
-      </div>
-    </ErrorBoundary>
+      <Route element={<AppShell />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/subscription" element={<Subscription />} />
+        <Route path="/matches" element={<Matches />} />
+        <Route path="/matches/:id" element={<MatchDetail />} />
+        <Route path="/predictions" element={<Predictions />} />
+        <Route path="/odds" element={<Odds />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/analytics-studio" element={<AnalyticsStudio />} />
+        <Route path="/assistant" element={<Assistant />} />
+        <Route path="/tasks" element={<Tasks />} />
+        <Route path="/wallet" element={<Wallet />} />
+        <Route path="/defi" element={<DeFi />} />
+        <Route path="/inplay" element={<InPlay />} />
+        <Route path="/marketplace" element={<Marketplace />} />
+        <Route path="/referral" element={<Referral />} />
+        <Route path="/governance" element={<Governance />} />
+        <Route path="/treasury" element={<Treasury />} />
+        <Route path="/validators" element={<Validators />} />
+        <Route path="/chain" element={<Explorer />} />
+        <Route path="/explorer" element={<Navigate to="/chain" replace />} />
+        <Route path="/social" element={<Social />} />
+        <Route path="/ecosystem" element={<Ecosystem />} />
+        <Route path="/enterprise" element={<Enterprise />} />
+        <Route path="/accumulator" element={<Accumulator />} />
+        <Route path="/rollover" element={<Rollover />} />
+        <Route path="/backtest" element={<Backtest />} />
+        <Route path="/bankroll" element={<Bankroll />} />
+        <Route path="/vitcoin" element={<VITCoin />} />
+        <Route path="/exchange" element={<Exchange />} />
+        <Route path="/vaults" element={<Vaults />} />
+        <Route path="/bridge" element={<Bridge />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
   )
 }

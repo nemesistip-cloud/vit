@@ -354,10 +354,16 @@ except Exception as _e:
     logging.warning("obs_router not mounted — routes unavailable: %s", _e)
 
 try:
-    from app.plugins.identity.routes import router as identity_router
-    app.include_router(identity_router, prefix="/api/identity", tags=["Identity"])
+    from app.modules.identity.routes import router as identity_router
+    app.include_router(identity_router, tags=["Identity"])
 except Exception as _e:
     logging.warning("identity_router not mounted — routes unavailable: %s", _e)
+
+try:
+    from app.plugins.identity.routes import router as legacy_identity_router
+    app.include_router(legacy_identity_router, prefix="/api/identity", tags=["Identity-Legacy"])
+except Exception as _e:
+    logging.warning("legacy_identity_router not mounted — routes unavailable: %s", _e)
 
 try:
     from app.api.routes.identity_management import router as identity_mgmt_router

@@ -20,6 +20,34 @@ from sqlalchemy.sql import func
 from app.db.database import Base
 
 
+class Organization(Base):
+    """Top-level organization that can own teams, workspaces, and RBAC assignments."""
+    __tablename__ = "identity_organizations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    slug: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    owner_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class WorkspaceSetting(Base):
+    """Persisted per-user workspace preferences and dashboard layout state."""
+    __tablename__ = "identity_workspace_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    value: Mapped[dict | list | str | int | float | bool | None] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "key", name="uq_identity_workspace_setting_user_key"),
+    )
+
+
 class IDTier(str, enum.Enum):
     BASIC   = "basic"    # email verified only
     STANDARD= "standard" # KYC submitted
