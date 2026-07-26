@@ -38,20 +38,37 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json().catch(() => ({}))
+
+      let data: any = {}
+      try {
+        data = await res.clone().json()
+      } catch (_) {
+        // ignore JSON parse errors; we'll fallback to text below
+        data = {}
+      }
+
       if (!res.ok) {
-        throw new Error(
-          data?.detail ||
-          data?.error?.message ||
-          data?.message ||
-          `Request failed (${res.status})`
-        )
+        const serverMsg = data?.detail || data?.error?.message || data?.message
+        let fallback = serverMsg
+        if (!fallback) {
+          try {
+            fallback = await res.text()
+          } catch (_e) {
+            fallback = res.statusText || `Request failed (${res.status})`
+          }
+        }
+        throw new Error(fallback || `Request failed (${res.status})`)
       }
       setAuthToken(data.access_token)
       storeUser({ id: data.user_id, username: data.username, role: data.role })
-      navigate('/dashboard')
+      navigate('/workspace')
     } catch (e: any) {
-      setError(e.message || 'Something went wrong. Please try again.')
+      // Surface network errors separately for clarity
+      if (e instanceof TypeError) {
+        setError(`Network error: ${e.message}`)
+      } else {
+        setError(e.message || 'Something went wrong. Please try again.')
+      }
     } finally {
       setLoading(false)
     }

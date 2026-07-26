@@ -11,5 +11,23 @@
     "dev": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "test": "cd frontend && npm test"
-  }
+  },
+  "description": "VIT Network is an institutional-grade intelligence layer providing verifiable, high-confidence insights across multiple verticals including sports, electoral sentiment, and macroeconomic policy. The ecosystem leverages a 13-model AI ensemble, autonomous agent coordination, and Base L2 blockchain settlement to deliver a transparent and decentralised intelligence marketplace.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemesistip-cloud/vit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nemesistip-cloud/vit/issues"
+  },
+  "homepage": "https://github.com/nemesistip-cloud/vit#readme"
 }

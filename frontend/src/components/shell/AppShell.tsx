@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, Outlet } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { Navbar } from '@/components/layout/Navbar'
@@ -8,10 +8,17 @@ import { Footer } from '@/components/layout/Footer'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { CommandPalette } from '@/components/ui/CommandPalette'
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs'
+import { WorkspaceDock } from '@/components/shell/WorkspaceDock'
+import { workspaceStoreInstance } from '@/lib/workspacePersistence'
 
 export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const openPalette = useCallback(() => setPaletteOpen(true), [])
+  const location = useLocation()
+
+  useEffect(() => {
+    workspaceStoreInstance.setCurrentRoute(location.pathname)
+  }, [location.pathname])
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -31,7 +38,7 @@ export function AppShell() {
         <Sidebar />
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
-        <main className="flex-1 pt-16 lg:pl-[220px] transition-[padding] duration-200">
+        <main className="flex-1 pt-16 pb-24 lg:pl-[220px] transition-[padding] duration-200">
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-surface-900/70 px-4 py-3 backdrop-blur-xl">
               <Breadcrumbs className="text-sm" />
@@ -48,6 +55,7 @@ export function AppShell() {
         </main>
 
         <Footer />
+        <WorkspaceDock />
         <Toaster
           theme="dark"
           position="bottom-right"

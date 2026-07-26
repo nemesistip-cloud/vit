@@ -5,6 +5,7 @@ from typing import Dict, Any
 from app.core.kernel import Subsystem, kernel
 from app.db.database import AsyncSessionLocal, engine, Base
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from app.core.config.manager import config_manager
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ class DatabaseSubsystem(Subsystem):
             import app.modules.tasks.models           # noqa: F401
             import app.modules.notifications.models   # noqa: F401
             import app.modules.trust.models           # noqa: F401
+            import app.modules.wallet.models          # noqa: F401
             from sqlalchemy.orm import configure_mappers
             configure_mappers()
         except Exception as _e:
@@ -81,8 +83,15 @@ class DatabaseSubsystem(Subsystem):
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
 
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        except OperationalError as exc:
+            msg = str(exc).lower()
+            if "already exists" in msg or "duplicate" in msg or "ix_" in msg:
+                logger.warning("[kernel] Database schema bootstrap hit existing objects; continuing: %s", exc)
+            else:
+                raise
 
         duration = asyncio.get_event_loop().time() - start
         obs_manager.record_metric("database_init_time_ms", duration * 1000)
