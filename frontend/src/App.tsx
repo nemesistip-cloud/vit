@@ -20,6 +20,7 @@ import VerifyEmail       from '@/pages/VerifyEmail'
 
 // ── Core app ──────────────────────────────────────────────────────────────────
 import Dashboard         from '@/pages/Dashboard'
+import Workspace         from '@/pages/Workspace'
 import Settings          from '@/pages/Settings'
 import Subscription      from '@/pages/Subscription'
 import Matches           from '@/pages/Matches'
@@ -88,6 +89,7 @@ export default function App() {
 
       <Route element={<AppShell />}>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/workspace" element={<Workspace />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/subscription" element={<Subscription />} />
         <Route path="/matches" element={<Matches />} />

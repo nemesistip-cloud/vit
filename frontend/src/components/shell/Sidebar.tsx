@@ -2,17 +2,18 @@
  * Sidebar — persistent left-rail navigation for the authenticated app shell.
  * Complements the Navbar top bar and collapses to a rail on mobile.
  */
-import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, Brain, Wallet, Vote, Landmark, Store,
+  Vote, Landmark, Store,
   Share2, Coins, Radio, BarChart3, Shield, Settings,
   ChevronLeft, ChevronRight, Activity, Cpu, HardDrive,
-  Layers, Trophy, Star,
+  Layers, Trophy, Star, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getAuthToken, getStoredUser } from '@/hooks/useAuth'
+import { useWorkspaceStore, workspaceStoreInstance } from '@/lib/workspacePersistence'
+import { getAppRegistry } from '@/lib/appRegistry'
 
 interface NavItem {
   label: string
@@ -29,52 +30,50 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Overview',
-    items: [
-      { label: 'Dashboard',        path: '/dashboard',        icon: LayoutDashboard },
-      { label: 'AI',               path: '/ai',               icon: Brain           },
-      { label: 'Wallet',           path: '/wallet',           icon: Wallet          },
-    ],
+    items: getAppRegistry()
+      .filter((app) => ['dashboard', 'ai', 'wallet'].includes(app.id))
+      .map((app) => ({ label: app.name, path: app.route, icon: app.icon })),
   },
   {
     label: 'Sports & Predictions',
     items: [
-      { label: 'Matches',          path: '/matches',          icon: Trophy          },
-      { label: 'Predictions',      path: '/predictions',      icon: Brain           },
-      { label: 'In-Play',          path: '/inplay',           icon: Radio,  badge: 'LIVE' },
-      { label: 'Leaderboard',      path: '/leaderboard',      icon: Star            },
+      { label: 'Matches', path: '/matches', icon: Trophy },
+      { label: 'Predictions', path: '/predictions', icon: getAppRegistry().find((app) => app.id === 'predictions')?.icon ?? Sparkles },
+      { label: 'In-Play', path: '/inplay', icon: Radio, badge: 'LIVE' },
+      { label: 'Leaderboard', path: '/leaderboard', icon: Star },
     ],
   },
   {
     label: 'Finance',
     items: [
-      { label: 'DeFi',             path: '/defi',             icon: Coins           },
-      { label: 'Treasury',         path: '/treasury',         icon: Landmark        },
-      { label: 'Marketplace',      path: '/marketplace',      icon: Store           },
-      { label: 'Referral',         path: '/referral',         icon: Share2          },
+      { label: 'DeFi', path: '/defi', icon: Coins },
+      { label: 'Treasury', path: '/treasury', icon: Landmark },
+      { label: 'Marketplace', path: '/marketplace', icon: getAppRegistry().find((app) => app.id === 'marketplace')?.icon ?? Store },
+      { label: 'Referral', path: '/referral', icon: Share2 },
     ],
   },
   {
     label: 'Analytics',
     items: [
-      { label: 'Analytics',        path: '/analytics',        icon: BarChart3       },
-      { label: 'Analytics Studio', path: '/analytics-studio', icon: BarChart3       },
-      { label: 'AI Assistant',     path: '/assistant',        icon: Cpu             },
+      { label: 'Analytics', path: '/analytics', icon: getAppRegistry().find((app) => app.id === 'analytics')?.icon ?? BarChart3 },
+      { label: 'Analytics Studio', path: '/analytics-studio', icon: BarChart3 },
+      { label: 'AI Assistant', path: '/assistant', icon: Cpu },
     ],
   },
   {
     label: 'Network',
     items: [
-      { label: 'Storage',          path: '/storage',          icon: HardDrive       },
-      { label: 'Chain Explorer',   path: '/chain',            icon: Layers          },
-      { label: 'Validators',       path: '/validators',       icon: Shield          },
-      { label: 'Governance',       path: '/governance',       icon: Vote            },
-      { label: 'System Status',    path: '/status',           icon: Activity        },
+      { label: 'Storage', path: '/storage', icon: getAppRegistry().find((app) => app.id === 'storage')?.icon ?? HardDrive },
+      { label: 'Chain Explorer', path: '/chain', icon: Layers },
+      { label: 'Validators', path: '/validators', icon: Shield },
+      { label: 'Governance', path: '/governance', icon: getAppRegistry().find((app) => app.id === 'governance')?.icon ?? Vote },
+      { label: 'System Status', path: '/status', icon: Activity },
     ],
   },
   {
     label: 'Account',
     items: [
-      { label: 'Settings',         path: '/settings',         icon: Settings        },
+      { label: 'Settings', path: '/settings', icon: Settings },
     ],
   },
 ]
@@ -84,10 +83,11 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className }: SidebarProps) {
-  const [collapsed, setCollapsed]   = useState(false)
-  const { pathname }                = useLocation()
-  const isLoggedIn                  = !!getAuthToken()
-  const user                        = getStoredUser()
+  const workspaceState = useWorkspaceStore()
+  const { pathname } = useLocation()
+  const isLoggedIn = !!getAuthToken()
+  const user = getStoredUser()
+  const collapsed = workspaceState.sidebar.collapsed
 
   if (!isLoggedIn) return null
 
@@ -103,7 +103,7 @@ export function Sidebar({ className }: SidebarProps) {
     >
       {/* Collapse toggle */}
       <button
-        onClick={() => setCollapsed(c => !c)}
+        onClick={() => workspaceStoreInstance.setSidebarState({ collapsed: !workspaceState.sidebar.collapsed })}
         className="absolute top-3 right-0 translate-x-1/2 z-10 w-5 h-5 rounded-full bg-surface-800 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:border-white/20 transition-colors"
       >
         {collapsed
@@ -127,6 +127,7 @@ export function Sidebar({ className }: SidebarProps) {
                   <li key={item.path}>
                     <Link
                       to={item.path}
+                      onClick={() => workspaceStoreInstance.setSidebarState({ selectedPath: item.path })}
                       title={collapsed ? item.label : undefined}
                       className={cn(
                         'flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm font-medium transition-colors group relative',

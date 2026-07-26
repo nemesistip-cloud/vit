@@ -61,7 +61,7 @@ export default function Login() {
       }
       setAuthToken(data.access_token)
       storeUser({ id: data.user_id, username: data.username, role: data.role })
-      navigate('/dashboard')
+      navigate('/workspace')
     } catch (e: any) {
       // Surface network errors separately for clarity
       if (e instanceof TypeError) {
