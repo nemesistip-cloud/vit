@@ -6,21 +6,62 @@ channels (in-app/WS, email, Telegram) based on per-user preferences.
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.notifications.models import (
-    Notification, NotificationChannel, NotificationPreference, NotificationType
+    Notification,
+    NotificationCategory,
+    NotificationChannel,
+    NotificationPreference,
+    NotificationPriority,
+    NotificationType,
 )
 from app.modules.notifications.websocket import notification_ws_manager
 from app.core.event_bus import event_bus
 from app.modules.platform.integration import platform_integration
+from app.modules.notifications.framework import NotificationEnvelope
 
 logger = logging.getLogger(__name__)
+
+
+def _register_default_subscriptions() -> None:
+    async def _on_event(event) -> None:
+        try:
+            from app.db.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                payload = event.payload or {}
+                if event.name == "user.registered":
+                    await NotificationService.publish(
+                        db,
+                        int(payload.get("user_id", 0) or 0),
+                        "Welcome to VIT",
+                        "Your account is ready for the platform.",
+                        category=NotificationCategory.ACCOUNT.value,
+                        priority=NotificationPriority.HIGH.value,
+                    )
+                elif event.name == "wallet.created":
+                    await NotificationService.publish(
+                        db,
+                        int(payload.get("account_id", 0) or 0),
+                        "Wallet ready",
+                        "Your wallet has been created successfully.",
+                        category=NotificationCategory.WALLET.value,
+                        priority=NotificationPriority.NORMAL.value,
+                    )
+        except Exception as exc:
+            logger.warning("default notification subscription failed: %s", exc)
+
+    event_bus.subscribe("user.registered", _on_event)
+    event_bus.subscribe("wallet.created", _on_event)
+
+
+_register_default_subscriptions()
 
 # Notification types that trigger a per-type preference gate
 _TYPE_TO_PREF: dict[str, str] = {
@@ -93,6 +134,10 @@ class NotificationService:
         title: Optional[str] = None,
         body: Optional[str] = None,
         channel: NotificationChannel = NotificationChannel.IN_APP,
+        category: Optional[str] = None,
+        priority: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        delivery_channels: Optional[list[str]] = None,
     ) -> Notification:
         rendered_title, rendered_body = render_template(ntype.value, context)
         final_title = title or rendered_title
@@ -104,24 +149,35 @@ class NotificationService:
             title=final_title,
             body=final_body,
             channel=channel,
+            category=category or NotificationCategory.SYSTEM.value,
+            priority=priority or NotificationPriority.NORMAL.value,
+            payload_metadata=json.dumps(metadata or {}) if metadata else None,
         )
         db.add(notification)
         await db.commit()
         await db.refresh(notification)
 
         # ── In-app / WebSocket push ────────────────────────────────────────
+        created_at = notification.created_at.isoformat() if notification.created_at else None
         await notification_ws_manager.push(user_id, {
             "id":         notification.id,
             "type":       ntype.value,
             "title":      notification.title,
             "body":       notification.body,
             "is_read":    False,
-            "created_at": notification.created_at.isoformat(),
+            "created_at": created_at,
         })
 
         await event_bus.publish(
             "notification.created",
-            {"user_id": str(user_id), "title": final_title, "body": final_body},
+            {
+                "user_id": str(user_id),
+                "title": final_title,
+                "body": final_body,
+                "category": notification.category,
+                "priority": notification.priority,
+                "channel": notification.channel.value if hasattr(notification.channel, "value") else str(notification.channel),
+            },
             sender="notifications.service",
         )
         await platform_integration.index_entity(
@@ -131,6 +187,21 @@ class NotificationService:
             final_body,
             {"user_id": str(user_id)},
         )
+
+        if delivery_channels:
+            for channel_name in delivery_channels:
+                try:
+                    await platform_integration.notifications.send(
+                        NotificationEnvelope(
+                            channel=channel_name,
+                            recipient=str(user_id),
+                            title=final_title,
+                            body=final_body,
+                            metadata={"notification_id": str(notification.id)},
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning("platform delivery failed for %s: %s", channel_name, exc)
 
         # ── Multi-channel dispatch (fire-and-forget, never blocks create) ──
         asyncio.create_task(
@@ -301,11 +372,24 @@ class NotificationService:
 
     @staticmethod
     async def get_for_user(
-        db: AsyncSession, user_id: int, *, limit: int = 50, unread_only: bool = False
+        db: AsyncSession,
+        user_id: int,
+        *,
+        limit: int = 50,
+        unread_only: bool = False,
+        category: Optional[str] = None,
+        priority: Optional[str] = None,
+        channel: Optional[str] = None,
     ) -> list[Notification]:
         q = select(Notification).where(Notification.user_id == user_id)
         if unread_only:
             q = q.where(Notification.is_read == False)
+        if category:
+            q = q.where(Notification.category == category)
+        if priority:
+            q = q.where(Notification.priority == priority)
+        if channel:
+            q = q.where(Notification.channel == channel)
         q = q.order_by(Notification.created_at.desc()).limit(limit)
         result = await db.execute(q)
         return list(result.scalars().all())
@@ -383,16 +467,45 @@ class NotificationService:
             "validator_rewards", "subscription_expiry", "validator_status",
             "email_enabled", "telegram_enabled", "in_app_enabled",
         }
+        dict_fields = {"categories_enabled", "priorities_enabled"}
         str_nullable_fields = {"telegram_chat_id"}
         for k, v in updates.items():
             if k in bool_fields and isinstance(v, bool):
                 setattr(prefs, k, v)
+            elif k in dict_fields and isinstance(v, dict):
+                setattr(prefs, k, json.dumps(v))
             elif k in str_nullable_fields and (v is None or isinstance(v, str)):
                 setattr(prefs, k, v)
 
         await db.commit()
         await db.refresh(prefs)
         return prefs
+
+    @staticmethod
+    async def publish(
+        db: AsyncSession,
+        user_id: int,
+        title: str,
+        body: str,
+        *,
+        ntype: Optional[NotificationType] = None,
+        category: Optional[str] = None,
+        priority: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        delivery_channels: Optional[list[str]] = None,
+    ) -> Notification:
+        return await NotificationService.create(
+            db,
+            user_id,
+            ntype or NotificationType.SYSTEM,
+            {},
+            title=title,
+            body=body,
+            category=category,
+            priority=priority,
+            metadata=metadata,
+            delivery_channels=delivery_channels,
+        )
 
     # ── Background: subscription expiry checker ────────────────────────────
 

@@ -25,6 +25,8 @@ from app.api.middleware.logging import LoggingMiddleware
 from app.api.middleware.auth import APIKeyMiddleware
 from app.api.middleware.security import SecurityHeadersMiddleware
 from app.api.middleware.rate_limit import RateLimitMiddleware
+from app.modules.platform.routes import router as platform_events_router
+from app.modules.platform.search_routes import router as platform_search_router
 
 # --- VIT Runtime Kernel ---
 # Wrapped in try/except: even a total import-chain failure must not cause
@@ -519,6 +521,8 @@ except Exception as _e:
 try:
     from app.api.routes.admin import router as admin_router
     app.include_router(admin_router, prefix="/api")
+    app.include_router(platform_events_router)
+    app.include_router(platform_search_router)
 except Exception as _e:
     logging.warning("admin_router not mounted — routes unavailable: %s", _e)
 

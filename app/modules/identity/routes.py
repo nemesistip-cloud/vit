@@ -8,7 +8,8 @@ GET  /api/identity/admin/list  — admin: list all system IDs
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -54,6 +55,68 @@ class WorkspaceSettingOut(BaseModel):
     value: dict | list | str | int | float | bool | None = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+
+class TeamCreate(BaseModel):
+    organization_id: int
+    name: str
+    slug: str
+
+
+class TeamOut(BaseModel):
+    id: int
+    organization_id: int
+    name: str
+    slug: str
+    created_at: Optional[str] = None
+
+
+class RoleCreate(BaseModel):
+    name: str
+    slug: str
+    description: Optional[str] = None
+    permissions: list[str] = Field(default_factory=list)
+
+
+class RoleOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    description: Optional[str] = None
+    permissions: list[str] = Field(default_factory=list)
+
+
+class SessionOut(BaseModel):
+    id: int
+    user_id: int
+    created_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    active: bool
+
+
+class DeviceOut(BaseModel):
+    id: int
+    device_id: str
+    platform: Optional[str] = None
+    browser: Optional[str] = None
+    trusted: bool
+    last_active: Optional[str] = None
+
+
+class APIKeyCreate(BaseModel):
+    name: str
+    expires_at: Optional[datetime] = None
+
+
+class APIKeyOut(BaseModel):
+    id: int
+    name: str
+    prefix: str
+    active: bool
+    created_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    last_used_at: Optional[str] = None
+    raw_value: Optional[str] = None
 
 
 @router.get("/me")
@@ -209,6 +272,285 @@ async def create_organization(
         owner_id=org.owner_id,
         created_at=org.created_at.isoformat() if org.created_at else None,
     )
+
+
+@router.put("/organizations/{organization_id}", response_model=OrganizationOut)
+async def update_organization(
+    organization_id: int,
+    payload: OrganizationCreate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import Organization
+
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    if org.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Only owners or admins may update organizations")
+    org.name = payload.name
+    org.slug = payload.slug
+    await db.commit()
+    await db.refresh(org)
+    return OrganizationOut(
+        id=org.id,
+        name=org.name,
+        slug=org.slug,
+        owner_id=org.owner_id,
+        created_at=org.created_at.isoformat() if org.created_at else None,
+    )
+
+
+@router.delete("/organizations/{organization_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_organization(
+    organization_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import Organization
+
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    if org.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Only owners or admins may delete organizations")
+    await db.delete(org)
+    await db.commit()
+
+
+@router.post("/teams", response_model=TeamOut, status_code=status.HTTP_201_CREATED)
+async def create_team(
+    payload: TeamCreate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import Organization, IdentityTeam
+
+    org = await db.get(Organization, payload.organization_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    if org.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Only owners or admins may create teams")
+
+    existing = await db.execute(select(IdentityTeam).where(IdentityTeam.slug == payload.slug))
+    if existing.scalar_one_or_none():
+        raise HTTPException(409, "Team slug already exists")
+
+    team = IdentityTeam(name=payload.name, slug=payload.slug, organization_id=payload.organization_id)
+    db.add(team)
+    await db.commit()
+    await db.refresh(team)
+    return TeamOut(id=team.id, organization_id=team.organization_id, name=team.name, slug=team.slug, created_at=team.created_at.isoformat() if team.created_at else None)
+
+
+@router.get("/teams", response_model=list[TeamOut])
+async def list_teams(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import IdentityTeam
+
+    result = await db.execute(select(IdentityTeam).order_by(IdentityTeam.created_at.desc()))
+    rows = result.scalars().all()
+    return [TeamOut(id=row.id, organization_id=row.organization_id, name=row.name, slug=row.slug, created_at=row.created_at.isoformat() if row.created_at else None) for row in rows]
+
+
+@router.post("/roles", response_model=RoleOut, status_code=status.HTTP_201_CREATED)
+async def create_role(
+    payload: RoleCreate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.authz.models import Permission, Role, role_permissions
+
+    if current_user.role != "admin":
+        raise HTTPException(403, "Only admins may create roles")
+
+    role = Role(name=payload.name, slug=payload.slug, description=payload.description, is_builtin=False)
+    db.add(role)
+    await db.flush()
+
+    for perm_slug in payload.permissions:
+        perm = await db.execute(select(Permission).where(Permission.slug == perm_slug))
+        perm_row = perm.scalar_one_or_none()
+        if perm_row is None:
+            perm_row = Permission(slug=perm_slug, description=f"Permission {perm_slug}")
+            db.add(perm_row)
+            await db.flush()
+        role.permissions.append(perm_row)
+
+    await db.commit()
+    await db.refresh(role)
+    return RoleOut(id=role.id, name=role.name, slug=role.slug, description=role.description, permissions=[perm.slug for perm in role.permissions])
+
+
+@router.get("/roles", response_model=list[RoleOut])
+async def list_roles(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.authz.models import Role
+
+    result = await db.execute(select(Role).order_by(Role.created_at.desc()))
+    rows = result.scalars().all()
+    return [RoleOut(id=row.id, name=row.name, slug=row.slug, description=row.description, permissions=[perm.slug for perm in row.permissions]) for row in rows]
+
+
+@router.get("/sessions", response_model=list[SessionOut])
+async def list_sessions(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.plugins.identity.models import IdentitySession
+
+    result = await db.execute(select(IdentitySession).where(IdentitySession.identity_id == current_user.id).order_by(IdentitySession.created_at.desc()))
+    rows = result.scalars().all()
+    return [SessionOut(id=row.id, user_id=current_user.id, created_at=row.created_at.isoformat() if row.created_at else None, expires_at=row.expires_at.isoformat() if row.expires_at else None, active=row.is_active and row.expires_at > datetime.now(timezone.utc)) for row in rows]
+
+
+@router.post("/sessions/{session_id}/revoke", response_model=dict[str, bool])
+async def revoke_session(
+    session_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.plugins.identity.models import IdentitySession
+
+    session = await db.get(IdentitySession, session_id)
+    if not session or session.identity_id != current_user.id:
+        raise HTTPException(404, "Session not found")
+    session.is_active = False
+    await db.commit()
+    return {"revoked": True}
+
+
+@router.get("/devices", response_model=list[DeviceOut])
+async def list_devices(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.plugins.identity.models import TrustedDevice
+
+    result = await db.execute(select(TrustedDevice).where(TrustedDevice.identity_id == current_user.id).order_by(TrustedDevice.last_active.desc()))
+    rows = result.scalars().all()
+    return [DeviceOut(id=row.id, device_id=row.device_id, platform=row.platform, browser=row.browser, trusted=row.is_trusted, last_active=row.last_active.isoformat() if row.last_active else None) for row in rows]
+
+
+@router.post("/devices", response_model=DeviceOut, status_code=status.HTTP_201_CREATED)
+async def register_device(
+    device_id: str,
+    platform: Optional[str] = None,
+    browser: Optional[str] = None,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.plugins.identity.models import TrustedDevice
+
+    existing = await db.execute(select(TrustedDevice).where(TrustedDevice.identity_id == current_user.id, TrustedDevice.device_id == device_id))
+    device = existing.scalar_one_or_none()
+    if not device:
+        device = TrustedDevice(identity_id=current_user.id, device_id=device_id, platform=platform, browser=browser, is_trusted=False)
+        db.add(device)
+    else:
+        device.platform = platform
+        device.browser = browser
+        device.last_active = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(device)
+    return DeviceOut(id=device.id, device_id=device.device_id, platform=device.platform, browser=device.browser, trusted=device.is_trusted, last_active=device.last_active.isoformat() if device.last_active else None)
+
+
+@router.post("/devices/{device_id}/trust", response_model=DeviceOut)
+async def trust_device(
+    device_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.plugins.identity.models import TrustedDevice
+
+    device = await db.execute(select(TrustedDevice).where(TrustedDevice.identity_id == current_user.id, TrustedDevice.device_id == device_id))
+    row = device.scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, "Device not found")
+    row.is_trusted = True
+    row.last_active = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(row)
+    return DeviceOut(id=row.id, device_id=row.device_id, platform=row.platform, browser=row.browser, trusted=row.is_trusted, last_active=row.last_active.isoformat() if row.last_active else None)
+
+
+@router.post("/api-keys", response_model=APIKeyOut, status_code=status.HTTP_201_CREATED)
+async def create_api_key(
+    payload: APIKeyCreate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.developer.models import APIKey
+    from app.modules.developer.service import _hash_key
+    import secrets
+
+    raw = "vit_" + secrets.token_urlsafe(36)
+    prefix = raw[:12]
+    key = APIKey(
+        user_id=current_user.id,
+        name=payload.name,
+        key_prefix=prefix,
+        key_hash=_hash_key(raw),
+        key_plain=raw,
+        plan="free",
+        rate_limit_rpm=60,
+        rate_limit_rpd=1000,
+        is_active=True,
+        expires_at=payload.expires_at,
+    )
+    db.add(key)
+    await db.commit()
+    await db.refresh(key)
+    return APIKeyOut(id=key.id, name=key.name, prefix=key.key_prefix, active=bool(key.is_active), created_at=key.created_at.isoformat() if key.created_at else None, expires_at=key.expires_at.isoformat() if key.expires_at else None, last_used_at=key.last_used_at.isoformat() if key.last_used_at else None, raw_value=raw)
+
+
+@router.get("/api-keys", response_model=list[APIKeyOut])
+async def list_api_keys(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.developer.models import APIKey
+
+    result = await db.execute(select(APIKey).where(APIKey.user_id == current_user.id).order_by(APIKey.created_at.desc()))
+    rows = result.scalars().all()
+    return [APIKeyOut(id=row.id, name=row.name, prefix=row.key_prefix, active=bool(row.is_active), created_at=row.created_at.isoformat() if row.created_at else None, expires_at=row.expires_at.isoformat() if row.expires_at else None, last_used_at=row.last_used_at.isoformat() if row.last_used_at else None) for row in rows]
+
+
+@router.post("/api-keys/{api_key_id}/disable", response_model=APIKeyOut)
+async def disable_api_key(
+    api_key_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.developer.models import APIKey
+
+    key = await db.get(APIKey, api_key_id)
+    if not key or key.user_id != current_user.id:
+        raise HTTPException(404, "API key not found")
+    key.is_active = False
+    await db.commit()
+    await db.refresh(key)
+    return APIKeyOut(id=key.id, name=key.name, prefix=key.key_prefix, active=bool(key.is_active), created_at=key.created_at.isoformat() if key.created_at else None, expires_at=key.expires_at.isoformat() if key.expires_at else None, last_used_at=key.last_used_at.isoformat() if key.last_used_at else None)
+
+
+@router.delete("/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_api_key(
+    api_key_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.developer.models import APIKey
+
+    key = await db.get(APIKey, api_key_id)
+    if not key or key.user_id != current_user.id:
+        raise HTTPException(404, "API key not found")
+    await db.delete(key)
+    await db.commit()
 
 
 @router.post("/me/workspace", response_model=WorkspaceSettingOut)

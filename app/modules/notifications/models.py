@@ -21,6 +21,21 @@ class NotificationType(PyEnum):
     SYSTEM              = "system"
 
 
+class NotificationCategory(PyEnum):
+    ACCOUNT = "account"
+    WALLET = "wallet"
+    SYSTEM = "system"
+    PREDICTION = "prediction"
+    MARKETING = "marketing"
+
+
+class NotificationPriority(PyEnum):
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    URGENT = "urgent"
+
+
 class NotificationChannel(PyEnum):
     IN_APP   = "in_app"
     WEBSOCKET = "websocket"
@@ -38,6 +53,9 @@ class Notification(Base):
     body        : Mapped[str]      = mapped_column(Text, nullable=False)
     is_read     : Mapped[bool]     = mapped_column(Boolean, default=False, nullable=False)
     channel     : Mapped[str]      = mapped_column(Enum(NotificationChannel), default=NotificationChannel.IN_APP, nullable=False)
+    category    : Mapped[str]      = mapped_column(String(32), default=NotificationCategory.SYSTEM.value, nullable=False)
+    priority    : Mapped[str]      = mapped_column(String(16), default=NotificationPriority.NORMAL.value, nullable=False)
+    payload_metadata : Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at  : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="notifications")
@@ -57,6 +75,8 @@ class NotificationPreference(Base):
     email_enabled       : Mapped[bool]         = mapped_column(Boolean, default=False)
     telegram_enabled    : Mapped[bool]         = mapped_column(Boolean, default=False)
     in_app_enabled      : Mapped[bool]         = mapped_column(Boolean, default=True)
+    categories_enabled   : Mapped[dict | None] = mapped_column(Text, nullable=True)
+    priorities_enabled  : Mapped[dict | None] = mapped_column(Text, nullable=True)
     # Telegram per-user linking (v4.8.0)
     telegram_chat_id    : Mapped[str | None]   = mapped_column(String(64), nullable=True, default=None)
 

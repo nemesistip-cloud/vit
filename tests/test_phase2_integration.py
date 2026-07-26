@@ -17,6 +17,44 @@ async def test_platform_integration_indexes_and_notifies():
 
 
 @pytest.mark.asyncio
+async def test_event_bus_supports_metadata_replay_and_dead_letters():
+    event_bus.reset_state()
+    received = []
+
+    async def flaky_handler(event):
+        if len(received) == 0:
+            received.append("fail")
+            raise RuntimeError("boom")
+        received.append(event.payload["value"])
+
+    event_bus.subscribe("demo.event", flaky_handler)
+
+    published = await event_bus.publish(
+        "demo.event",
+        {"value": 1},
+        sender="tests",
+        correlation_id="corr-123",
+        request_id="req-123",
+        metadata={"source": "unit-test"},
+        version=2,
+        max_retries=1,
+        retry_delay=0.0,
+    )
+
+    assert published.event_id is not None
+    assert published.correlation_id == "corr-123"
+    assert published.request_id == "req-123"
+    assert published.metadata["source"] == "unit-test"
+    assert published.version == 2
+    assert received == ["fail", 1]
+
+    replay = await event_bus.replay("demo.event")
+    assert len(replay) == 1
+    assert replay[0].payload["value"] == 1
+    assert event_bus.get_diagnostics()["dead_letters"] == 0
+
+
+@pytest.mark.asyncio
 async def test_notification_service_publishes_platform_events(monkeypatch):
     class DummyDB:
         async def commit(self):

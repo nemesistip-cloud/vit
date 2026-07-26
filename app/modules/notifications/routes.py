@@ -9,7 +9,7 @@ v4.8.0 additions:
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -36,6 +36,8 @@ class PreferencesUpdate(BaseModel):
     email_enabled:       Optional[bool] = None
     telegram_enabled:    Optional[bool] = None
     in_app_enabled:      Optional[bool] = None
+    categories_enabled:  Optional[dict] = None
+    priorities_enabled: Optional[dict] = None
 
 
 
@@ -58,6 +60,8 @@ def _prefs_dict(prefs) -> dict:
         "email_enabled":       prefs.email_enabled,
         "telegram_enabled":    prefs.telegram_enabled,
         "in_app_enabled":      prefs.in_app_enabled,
+        "categories_enabled":  getattr(prefs, "categories_enabled", None),
+        "priorities_enabled":  getattr(prefs, "priorities_enabled", None),
         "telegram_chat_id":    getattr(prefs, "telegram_chat_id", None),
         "telegram_linked":     bool(getattr(prefs, "telegram_chat_id", None)),
     }
@@ -113,11 +117,20 @@ async def unsubscribe_push(
 async def list_notifications(
     unread_only: bool = False,
     limit: int = 50,
+    category: Optional[str] = None,
+    priority: Optional[str] = None,
+    channel: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     notifs = await NotificationService.get_for_user(
-        db, current_user.id, limit=limit, unread_only=unread_only
+        db,
+        current_user.id,
+        limit=limit,
+        unread_only=unread_only,
+        category=category,
+        priority=priority,
+        channel=channel,
     )
     return [
         {
@@ -127,6 +140,8 @@ async def list_notifications(
             "body":       n.body,
             "is_read":    n.is_read,
             "channel":    n.channel.value if hasattr(n.channel, "value") else n.channel,
+            "category": getattr(n, "category", None),
+            "priority": getattr(n, "priority", None),
             "created_at": n.created_at.isoformat() if n.created_at else None,
         }
         for n in notifs
@@ -181,6 +196,34 @@ async def update_preferences(
     payload = {k: v for k, v in updates.model_dump().items() if v is not None}
     prefs = await NotificationService.update_prefs(db, current_user.id, payload)
     return _prefs_dict(prefs)
+
+
+@router.post("/publish", summary="Publish a platform notification")
+async def publish_notification(
+    title: str,
+    body: str,
+    category: Optional[str] = None,
+    priority: Optional[str] = None,
+    metadata: Optional[dict] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    notification = await NotificationService.publish(
+        db,
+        current_user.id,
+        title,
+        body,
+        category=category,
+        priority=priority,
+        metadata=metadata,
+    )
+    return {
+        "id": notification.id,
+        "title": notification.title,
+        "body": notification.body,
+        "category": notification.category,
+        "priority": notification.priority,
+    }
 
 
 # ── Test notification ──────────────────────────────────────────────────────────
