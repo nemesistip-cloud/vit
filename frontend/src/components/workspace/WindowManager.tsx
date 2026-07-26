@@ -5,6 +5,7 @@ import { X, Minus, Maximize2, Move, GripHorizontal } from 'lucide-react'
 import { workspaceStoreInstance, useWorkspaceStore } from '@/lib/workspacePersistence'
 import { cn } from '@/lib/utils'
 import { getAppById } from '@/lib/appRegistry'
+import { workspaceProcessManager } from '@/lib/processManager'
 
 interface WindowManagerProps {
   className?: string
@@ -96,7 +97,15 @@ function WindowFrame({ window }: { window: any }) {
         <div className="flex items-center gap-1">
           <button
             className="rounded-md p-1 text-white/50 transition-colors hover:bg-white/5 hover:text-white"
-            onClick={() => workspaceStoreInstance.minimizeWindow(window.id)}
+            onClick={() => {
+              const processId = Object.keys(workspaceStoreInstance.getState().processes ?? {}).find((candidate) => {
+                const process = (workspaceStoreInstance.getState().processes ?? {})[candidate]
+                return process.windowId === window.id
+              })
+              if (processId) {
+                workspaceProcessManager.minimizeProcess(processId)
+              }
+            }}
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
@@ -108,7 +117,15 @@ function WindowFrame({ window }: { window: any }) {
           </button>
           <button
             className="rounded-md p-1 text-white/50 transition-colors hover:bg-white/5 hover:text-white"
-            onClick={() => workspaceStoreInstance.closeWindow(window.id)}
+            onClick={() => {
+              const processId = Object.keys(workspaceStoreInstance.getState().processes ?? {}).find((candidate) => {
+                const process = (workspaceStoreInstance.getState().processes ?? {})[candidate]
+                return process.windowId === window.id
+              })
+              if (processId) {
+                workspaceProcessManager.closeProcess(processId)
+              }
+            }}
           >
             <X className="h-3.5 w-3.5" />
           </button>

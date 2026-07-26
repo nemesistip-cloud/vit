@@ -17,7 +17,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getAppRegistry } from '@/lib/appRegistry'
-import { useWorkspaceStore, workspaceStoreInstance } from '@/lib/workspacePersistence'
+import { useWorkspaceStore } from '@/lib/workspacePersistence'
+import { workspaceProcessManager } from '@/lib/processManager'
 
 type PaletteItemType = 'app' | 'navigation' | 'action'
 
@@ -114,9 +115,15 @@ export function CommandPalette({ open, onClose }: Props) {
   function handleSelection(item: PaletteItem) {
     if (item.type === 'app') {
       if (item.windowId) {
-        workspaceStoreInstance.focusWindow(item.windowId)
+        const processId = Object.keys(workspace.processes ?? {}).find((candidate) => {
+          const process = (workspace.processes ?? {})[candidate]
+          return process.windowId === item.windowId
+        })
+        if (processId) {
+          workspaceProcessManager.focusProcess(processId)
+        }
       } else {
-        workspaceStoreInstance.openWindow(item.appId!, { title: item.label.replace(' (open)', ''), path: item.path })
+        workspaceProcessManager.launchProcess(item.appId!)
       }
       onClose()
       return
@@ -129,11 +136,23 @@ export function CommandPalette({ open, onClose }: Props) {
     }
 
     if (item.id === 'action-focus' && workspace.activeWindowId) {
-      workspaceStoreInstance.focusWindow(workspace.activeWindowId)
+      const processId = Object.keys(workspace.processes ?? {}).find((candidate) => {
+        const process = (workspace.processes ?? {})[candidate]
+        return process.windowId === workspace.activeWindowId
+      })
+      if (processId) {
+        workspaceProcessManager.focusProcess(processId)
+      }
     }
 
     if (item.id === 'action-close' && workspace.activeWindowId) {
-      workspaceStoreInstance.closeWindow(workspace.activeWindowId)
+      const processId = Object.keys(workspace.processes ?? {}).find((candidate) => {
+        const process = (workspace.processes ?? {})[candidate]
+        return process.windowId === workspace.activeWindowId
+      })
+      if (processId) {
+        workspaceProcessManager.closeProcess(processId)
+      }
     }
 
     onClose()

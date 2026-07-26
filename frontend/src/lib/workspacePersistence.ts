@@ -74,6 +74,8 @@ export interface WorkspaceState {
   windows: Record<string, WorkspaceWindowState>
   windowOrder: string[]
   activeWindowId: string | null
+  processes?: Record<string, any>
+  activeProcessId?: string | null
 }
 
 const STORAGE_KEY = 'vit_workspace_state_v1'
