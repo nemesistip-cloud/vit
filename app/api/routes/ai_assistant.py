@@ -20,6 +20,8 @@ from app.db.repositories import AIPerformanceRepository, MatchRepository
 from app.services.assistant_tools import TOOL_MAP, NATIVE_AI_TOOLS
 from app.modules.ai.svi import SyntheticValueIndex
 from app.services.ai_client import call_ai
+from app.modules.assistant.service import AssistantConversationContext
+from app.modules.platform.integration import platform_integration
 
 router = APIRouter(prefix="/ai/assistant", tags=["ai-assistant"])
 logger = logging.getLogger(__name__)
@@ -28,6 +30,24 @@ class ChatRequest(BaseModel):
     message: str
     history: Optional[List[dict]] = None
     context: Optional[str] = None
+
+
+class PlatformAssistantRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="Natural-language request or command for the shared AI platform")
+    session_id: Optional[str] = Field(None, description="Conversation/session identifier used for assistant memory")
+    workspace_id: Optional[str] = Field(None, description="Workspace scope for context and memory isolation")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional caller-supplied context")
+    execute: bool = Field(False, description="When true, return structured orchestration output instead of a JSON string reply")
+
+
+class PlatformAssistantResponse(BaseModel):
+    available: bool
+    provider: str
+    services: List[str]
+    session_id: Optional[str]
+    workspace_id: Optional[str]
+    response: Any
+    history: List[Dict[str, Any]]
 
 async def _get_system_health_internal(db: AsyncSession) -> Dict[str, Any]:
     from sqlalchemy import select, func
@@ -286,6 +306,87 @@ async def _handle_agentic_query(
     }
     reply = await call_ai(message, context=ctx)
     return {"available": True, "reply": reply, "thoughts": thoughts}
+
+def _platform_context(body: PlatformAssistantRequest, user: Any) -> AssistantConversationContext:
+    role = getattr(user, "role", None)
+    roles = [role] if role else []
+    return AssistantConversationContext(
+        user_id=str(user.id),
+        session_id=body.session_id,
+        workspace_id=body.workspace_id,
+        roles=roles,
+        metadata=body.metadata,
+    )
+
+
+@router.post(
+    "/platform/chat",
+    response_model=PlatformAssistantResponse,
+    summary="Chat with the shared AI platform assistant",
+    description=(
+        "Runs the global assistant as a platform orchestration layer over the "
+        "existing command palette, event bus, search platform, notification "
+        "platform, identity service, and gateway-mounted AI route."
+    ),
+)
+async def platform_assistant_chat(body: PlatformAssistantRequest, current_user=Depends(get_current_user)):
+    context = _platform_context(body, current_user)
+    if body.execute:
+        response: Any = await platform_integration.assistant.execute(body.message, context)
+    else:
+        response = await platform_integration.assistant.ask(body.message, context)
+    return PlatformAssistantResponse(
+        available=True,
+        provider="platform",
+        services=platform_integration.assistant.registered_services(),
+        session_id=context.session_id,
+        workspace_id=context.workspace_id,
+        response=response,
+        history=platform_integration.assistant.get_history(context),
+    )
+
+
+@router.get(
+    "/platform/history",
+    summary="Get shared AI platform assistant conversation history",
+    description="Returns the in-process memory for the authenticated user/session/workspace scope.",
+)
+async def platform_assistant_history(
+    session_id: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    current_user=Depends(get_current_user),
+):
+    context = AssistantConversationContext(
+        user_id=str(current_user.id),
+        session_id=session_id,
+        workspace_id=workspace_id,
+        roles=[getattr(current_user, "role", "user")],
+    )
+    return {
+        "available": True,
+        "provider": "platform",
+        "session_id": session_id,
+        "workspace_id": workspace_id,
+        "history": platform_integration.assistant.get_history(context),
+    }
+
+
+@router.get(
+    "/platform/status",
+    summary="Get shared AI platform assistant integration status",
+    description="Reports which platform services are wired into the global assistant.",
+)
+async def platform_assistant_status(_current_user=Depends(get_current_user)):
+    services = platform_integration.assistant.registered_services()
+    required = {"identity", "events", "search", "notifications", "commands"}
+    return {
+        "available": required.issubset(set(services)),
+        "provider": "platform",
+        "services": services,
+        "required_services": sorted(required),
+        "gateway_route": "/api/ai/assistant/platform/chat",
+    }
+
 
 @router.post("/chat")
 async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), _user=Depends(get_current_user)):

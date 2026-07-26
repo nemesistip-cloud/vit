@@ -40,6 +40,15 @@ class PlatformIntegrationService:
         self.notifications.register_channel("in_app", self._NoopChannel())
         self.notifications.register_channel("email", self._NoopChannel())
         self.notifications.register_channel("push", self._NoopChannel())
+
+        # Sprint 6: wire the global assistant to existing platform services.
+        # This keeps AI as an orchestration layer over Identity, Events, Search,
+        # Notifications, and Commands instead of creating duplicate services.
+        self.assistant.register_service("identity", self.identity)
+        self.assistant.register_service("events", self.events)
+        self.assistant.register_service("search", self.search)
+        self.assistant.register_service("notifications", self.notifications)
+        self.assistant.register_service("commands", self.commands)
         self._registered = True
 
     async def index_entity(self, collection: str, entity_id: str, title: str, content: str, metadata: Optional[Dict[str, Any]] = None) -> None:
