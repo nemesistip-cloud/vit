@@ -1,6 +1,7 @@
 # app/auth/routes.py
 import uuid
 import time
+import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -94,6 +95,69 @@ async def _write_audit(db: AsyncSession, action: str, email: str, target_type: s
     except Exception:
         await db.rollback()
 
+
+async def _run_auth_side_effects(
+    db: AsyncSession,
+    *,
+    action: str,
+    event_name: str,
+    user_id: int,
+    email: str,
+    username: str,
+    role: str,
+    welcome: bool = False,
+) -> None:
+    """Run non-critical auth integrations without breaking login/register.
+
+    Auth routes must return tokens once credentials and core persistence succeed.
+    Search indexing, notifications, audit logs, and event publication can depend on
+    Redis or optional platform tables; those dependencies are allowed to be
+    degraded without turning a successful login into a 500.
+    """
+    try:
+        await _write_audit(db, action, email, "auth", str(user_id))
+    except Exception as exc:
+        logging.getLogger(__name__).warning("auth audit side effect failed: %s", exc)
+
+    side_effects = [
+        (
+            "event_publish",
+            lambda: event_bus.publish(
+                event_name,
+                {"user_id": str(user_id), "email": email},
+                sender="auth.routes",
+            ),
+        ),
+        (
+            "platform_index",
+            lambda: platform_integration.index_entity(
+                "users",
+                str(user_id),
+                username,
+                f"{username} {email}",
+                {"role": role},
+            ),
+        ),
+    ]
+    if welcome:
+        side_effects.append(
+            (
+                "welcome_notification",
+                lambda: platform_integration.publish_notification(
+                    str(user_id),
+                    "Welcome to VIT",
+                    "Your account is ready. Start exploring the platform.",
+                ),
+            )
+        )
+
+    logger = logging.getLogger(__name__)
+    for label, side_effect_factory in side_effects:
+        try:
+            await side_effect_factory()
+        except Exception as exc:
+            logger.warning("auth %s side effect failed: %s", label, exc)
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     username: str
@@ -172,24 +236,15 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     access_token = create_access_token({"sub": str(user_id), "role": user_role})
     refresh_token = create_refresh_token({"sub": str(user_id)})
 
-    await _write_audit(db, "user.register", user_email, "auth", str(user_id))
-
-    await event_bus.publish(
-        "user.registered",
-        {"user_id": str(user_id), "email": user_email},
-        sender="auth.routes",
-    )
-    await platform_integration.index_entity(
-        "users",
-        str(user_id),
-        user_username,
-        f"{user_username} {user_email}",
-        {"role": user_role},
-    )
-    await platform_integration.publish_notification(
-        str(user_id),
-        "Welcome to VIT",
-        "Your account is ready. Start exploring the platform.",
+    await _run_auth_side_effects(
+        db,
+        action="user.register",
+        event_name="user.registered",
+        user_id=user_id,
+        email=user_email,
+        username=user_username,
+        role=user_role,
+        welcome=True,
     )
 
     return TokenResponse(
@@ -232,19 +287,14 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     access_token = create_access_token({"sub": str(user_id), "role": user_role})
     refresh_token = create_refresh_token({"sub": str(user_id)})
 
-    await _write_audit(db, "user.login", user_email, "auth", str(user_id))
-
-    await event_bus.publish(
-        "user.logged_in",
-        {"user_id": str(user_id), "email": user_email},
-        sender="auth.routes",
-    )
-    await platform_integration.index_entity(
-        "users",
-        str(user_id),
-        user_username,
-        f"{user_username} {user_email}",
-        {"role": user_role},
+    await _run_auth_side_effects(
+        db,
+        action="user.login",
+        event_name="user.logged_in",
+        user_id=user_id,
+        email=user_email,
+        username=user_username,
+        role=user_role,
     )
 
     return TokenResponse(
