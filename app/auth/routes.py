@@ -122,7 +122,7 @@ async def _run_auth_side_effects(
     side_effects = [
         (
             "event_publish",
-            lambda: event_bus.publish(
+            event_bus.publish(
                 event_name,
                 {"user_id": str(user_id), "email": email},
                 sender="auth.routes",
@@ -130,7 +130,7 @@ async def _run_auth_side_effects(
         ),
         (
             "platform_index",
-            lambda: platform_integration.index_entity(
+            platform_integration.index_entity(
                 "users",
                 str(user_id),
                 username,
@@ -143,7 +143,7 @@ async def _run_auth_side_effects(
         side_effects.append(
             (
                 "welcome_notification",
-                lambda: platform_integration.publish_notification(
+                platform_integration.publish_notification(
                     str(user_id),
                     "Welcome to VIT",
                     "Your account is ready. Start exploring the platform.",
@@ -152,9 +152,9 @@ async def _run_auth_side_effects(
         )
 
     logger = logging.getLogger(__name__)
-    for label, side_effect_factory in side_effects:
+    for label, side_effect in side_effects:
         try:
-            await side_effect_factory()
+            await side_effect
         except Exception as exc:
             logger.warning("auth %s side effect failed: %s", label, exc)
 
