@@ -32,6 +32,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -48,6 +49,10 @@ class Event:
     sender: str
     correlation_id: Optional[str] = None
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    request_id: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    version: int = 1
 
     def to_wire(self) -> str:
         """Serialize to JSON for Redis transport."""
@@ -56,17 +61,33 @@ class Event:
             "source":         self.sender,
             "payload":        self.payload,
             "correlation_id": self.correlation_id,
+            "request_id":     self.request_id,
+            "event_id":       self.event_id,
+            "metadata":       self.metadata,
+            "version":        self.version,
             "timestamp":      self.timestamp.isoformat(),
         })
 
     @classmethod
     def from_wire(cls, raw: str) -> "Event":
         d = json.loads(raw)
+        timestamp = d.get("timestamp")
+        ts = None
+        if timestamp:
+            try:
+                ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            except ValueError:
+                ts = datetime.now(timezone.utc)
         return cls(
             name=d.get("event_type", "unknown"),
             payload=d.get("payload", {}),
             sender=d.get("source", "unknown"),
             correlation_id=d.get("correlation_id"),
+            event_id=d.get("event_id", uuid.uuid4().hex),
+            request_id=d.get("request_id"),
+            metadata=d.get("metadata", {}),
+            version=d.get("version", 1),
+            timestamp=ts or datetime.now(timezone.utc),
         )
 
 
@@ -85,6 +106,8 @@ class EventBus:
             inst = super().__new__(cls)
             inst._subscribers: Dict[str, List[Handler]] = {}
             inst._global_subscribers: List[Handler] = []
+            inst._history: Dict[str, List[Event]] = {}
+            inst._dead_letters: List[Dict[str, Any]] = []
             inst._redis: Any = None
             inst._redis_channel: str = "vit:events"
             inst._redis_enabled: bool = False
@@ -111,17 +134,27 @@ class EventBus:
         payload: Dict[str, Any],
         sender: str = "system",
         correlation_id: Optional[str] = None,
-    ) -> None:
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        version: int = 1,
+        max_retries: int = 0,
+        retry_delay: float = 0.0,
+    ) -> Event:
         """Publish an event — dispatched in-process and pushed to Redis."""
         event = Event(
             name=event_name,
             payload=payload,
             sender=sender,
             correlation_id=correlation_id,
+            request_id=request_id,
+            metadata=metadata or {},
+            version=version,
         )
 
-        await self._dispatch_local(event)
+        self._history.setdefault(event_name, []).append(event)
+        await self._dispatch_local(event, max_retries=max_retries, retry_delay=retry_delay)
         await self._publish_redis(event)
+        return event
 
     # ── Redis layer ───────────────────────────────────────────────────────────
 
@@ -161,24 +194,73 @@ class EventBus:
 
     # ── In-process dispatch ───────────────────────────────────────────────────
 
-    async def _dispatch_local(self, event: Event) -> None:
+    async def _dispatch_local(
+        self,
+        event: Event,
+        max_retries: int = 0,
+        retry_delay: float = 0.0,
+    ) -> None:
         handlers: List[Handler] = (
             self._subscribers.get(event.name, []) + self._global_subscribers
         )
         if handlers:
-            await asyncio.gather(*[self._safe_call(h, event) for h in handlers])
+            await asyncio.gather(*[
+                self._safe_call(h, event, max_retries=max_retries, retry_delay=retry_delay)
+                for h in handlers
+            ])
         else:
             logger.debug("[event_bus] no local subscribers for '%s'", event.name)
 
-    async def _safe_call(self, handler: Handler, event: Event) -> None:
-        try:
-            await handler(event)
-        except Exception as exc:
-            logger.error(
-                "[event_bus] handler error for '%s': %s", event.name, exc, exc_info=True
-            )
+    async def _safe_call(
+        self,
+        handler: Handler,
+        event: Event,
+        max_retries: int = 0,
+        retry_delay: float = 0.0,
+    ) -> None:
+        attempt = 0
+        while True:
+            try:
+                await handler(event)
+                return
+            except Exception as exc:
+                attempt += 1
+                if attempt > max_retries:
+                    self._dead_letters.append({
+                        "event_name": event.name,
+                        "event_id": event.event_id,
+                        "error": str(exc),
+                        "attempts": attempt,
+                    })
+                    logger.error(
+                        "[event_bus] handler error for '%s': %s", event.name, exc, exc_info=True
+                    )
+                    return
+                logger.warning(
+                    "[event_bus] handler error for '%s' (retry %s/%s): %s",
+                    event.name,
+                    attempt,
+                    max_retries,
+                    exc,
+                )
+                if retry_delay > 0:
+                    await asyncio.sleep(retry_delay)
 
     # ── Diagnostics ───────────────────────────────────────────────────────────
+
+    async def replay(self, event_name: Optional[str] = None) -> List[Event]:
+        if event_name:
+            return list(self._history.get(event_name, []))
+        events: List[Event] = []
+        for bucket in self._history.values():
+            events.extend(bucket)
+        return events
+
+    def reset_state(self) -> None:
+        self._subscribers.clear()
+        self._global_subscribers.clear()
+        self._history.clear()
+        self._dead_letters.clear()
 
     def get_diagnostics(self) -> Dict[str, Any]:
         return {
@@ -186,6 +268,8 @@ class EventBus:
             "redis_channel":    self._redis_channel,
             "event_types":      list(self._subscribers.keys()),
             "global_handlers":  len(self._global_subscribers),
+            "history_size":     sum(len(items) for items in self._history.values()),
+            "dead_letters":     len(self._dead_letters),
         }
 
 
