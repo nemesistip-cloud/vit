@@ -211,34 +211,6 @@ async def create_organization(
     )
 
 
-@router.get("/organizations")
-async def list_organizations(
-    current_user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-):
-    from app.modules.identity.models import Organization
-
-    result = await db.execute(
-        select(Organization).order_by(Organization.created_at.desc()).limit(limit).offset(offset)
-    )
-    rows = result.scalars().all()
-    return {
-        "items": [
-            OrganizationOut(
-                id=row.id,
-                name=row.name,
-                slug=row.slug,
-                owner_id=row.owner_id,
-                created_at=row.created_at.isoformat() if row.created_at else None,
-            ).model_dump()
-            for row in rows
-        ],
-        "count": len(rows),
-    }
-
-
 @router.post("/me/workspace", response_model=WorkspaceSettingOut)
 async def upsert_workspace_setting(
     payload: WorkspaceSettingUpsert,
