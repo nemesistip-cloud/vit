@@ -68,6 +68,7 @@ async function _doBootstrap(): Promise<void> {
     clearTimeout(timeout)
 
     if (!res.ok) {
+      console.warn("bootstrapRegistry: /api/registry returned non-OK status", res.status, res.statusText)
       _bootstrapped = true
       return
     }
@@ -88,8 +89,12 @@ async function _doBootstrap(): Promise<void> {
     }
 
     _bootstrapped = true
-  } catch (_err) {
-    // Network unavailable — build-time defaults in api.ts are used as-is
+  } catch (err) {
+    // Network unavailable — build-time defaults in api.ts are used-as-is
+    // Log a visible warning so developers see why service discovery failed.
+    // This helps diagnose auth/register issues when the gateway URL isn't reachable.
+    // eslint-disable-next-line no-console
+    console.warn("bootstrapRegistry: failed to fetch /api/registry — using build-time defaults", err)
     _bootstrapped = true
   }
 }

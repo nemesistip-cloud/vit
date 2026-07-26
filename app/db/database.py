@@ -104,6 +104,25 @@ class Base(DeclarativeBase):
     pass
 
 
+async def initialize_schema() -> None:
+    """Create missing tables and indexes idempotently at startup or on first use."""
+    import app.modules.wallet.models  # noqa: F401
+    import app.modules.identity.models  # noqa: F401
+    import app.modules.tasks.models  # noqa: F401
+    import app.modules.notifications.models  # noqa: F401
+    import app.modules.trust.models  # noqa: F401
+    from sqlalchemy.exc import OperationalError
+
+    async with engine.begin() as conn:
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+        except OperationalError as exc:
+            msg = str(exc).lower()
+            if "already exists" in msg or "duplicate" in msg or "ix_" in msg:
+                return
+            raise
+
+
 # Dependency for FastAPI
 async def get_db():
     async with AsyncSessionLocal() as session:

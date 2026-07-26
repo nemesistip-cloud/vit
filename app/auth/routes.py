@@ -80,6 +80,7 @@ def is_transient_db_error(exception):
     return any(x in msg for x in ["connection was closed", "not connected", "pool", "broken pipe", "protocol error", "timeout", "reset by peer", "io error", "unexpected eof", "connection reset"])
 
 async def _write_audit(db: AsyncSession, action: str, email: str, target_type: str, target_id: str):
+    """Best-effort audit logging; auth should not fail if audit persistence is unavailable."""
     try:
         audit = AuditLog(
             action=action,
@@ -89,7 +90,7 @@ async def _write_audit(db: AsyncSession, action: str, email: str, target_type: s
             details={"email": email},
         )
         db.add(audit)
-        await db.commit()
+        await db.flush()
     except Exception:
         await db.rollback()
 
@@ -222,32 +223,36 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
 
     now = datetime.now(timezone.utc)
     user.last_login = now
+    user_id = user.id
+    user_email = user.email
+    user_username = user.username
+    user_role = user.role
     await db.commit()
 
-    access_token = create_access_token({"sub": str(user.id), "role": user.role})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    access_token = create_access_token({"sub": str(user_id), "role": user_role})
+    refresh_token = create_refresh_token({"sub": str(user_id)})
 
-    await _write_audit(db, "user.login", user.email, "auth", str(user.id))
+    await _write_audit(db, "user.login", user_email, "auth", str(user_id))
 
     await event_bus.publish(
         "user.logged_in",
-        {"user_id": str(user.id), "email": user.email},
+        {"user_id": str(user_id), "email": user_email},
         sender="auth.routes",
     )
     await platform_integration.index_entity(
         "users",
-        str(user.id),
-        user.username,
-        f"{user.username} {user.email}",
-        {"role": user.role},
+        str(user_id),
+        user_username,
+        f"{user_username} {user_email}",
+        {"role": user_role},
     )
 
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user_id=user.id,
-        username=user.username,
-        role=user.role,
+        user_id=user_id,
+        username=user_username,
+        role=user_role,
     )
 
 @router.get("/me", response_model=UserResponse)
