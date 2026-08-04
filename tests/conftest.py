@@ -108,6 +108,7 @@ async def db_session():
     """
     db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="vit_test_")
     os.close(db_fd)
+    print(f"[conftest] using temp db: {db_path}")
 
     engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_path}",
@@ -141,12 +142,13 @@ async def db_session():
                     # Create only the tables required by the failing history endpoint
                     def _create_subset(sync_conn):
                         for tname in ("markets", "matches", "predictions", "clv_entries", "users"):
-                            tbl = meta.tables.get(tname)
-                            if tbl is not None:
-                                try:
-                                    tbl.create(bind=sync_conn, checkfirst=True)
-                                except Exception:
-                                    pass
+                                tbl = meta.tables.get(tname)
+                                if tbl is not None:
+                                    try:
+                                        tbl.create(bind=sync_conn, checkfirst=True)
+                                        print(f"[conftest] created table: {tname}")
+                                    except Exception as e:
+                                        print(f"[conftest] create error {tname}: {e}")
 
                     await conn.run_sync(_create_subset)
                 else:
