@@ -1,16 +1,64 @@
 {
-  "system_snapshot": "Phase 4-5 Gap Resolution Complete",
-  "last_updated": "2026-07-18",
+  "system_snapshot": "Phase 4-5 Active — Verified Live Aug-2026",
+  "last_updated": "2026-08-04",
+  "verified_by": "Live API probe + GitHub audit",
+  "live_services": {
+    "vitnetwork": {
+      "url": "https://vitnetwork-nls4.onrender.com",
+      "health": "/ping → {status: ok}",
+      "verified": "2026-08-04",
+      "version": "5.5.0"
+    },
+    "vit_ai": {
+      "url": "https://vit-ai.onrender.com",
+      "health": "/health → {status: ok, models_loaded: 13}",
+      "verified": "2026-08-04",
+      "version": "1.1.0",
+      "models_loaded": 13,
+      "redis": "connected",
+      "hmac_service_tokens": true
+    },
+    "vit_chain": {
+      "url": "https://vit-chain.onrender.com",
+      "health": "/health → {status: healthy, chain_id: 7764, block_height: 1845+}",
+      "verified": "2026-08-04",
+      "version": "1.0.0",
+      "chain_id": 7764,
+      "network": "testnet",
+      "active_validators": 1,
+      "note": "Single genesis validator. Multi-validator expansion is TRACK-021a priority."
+    },
+    "vit_storage": {
+      "url": "https://vit-storage-4trt.onrender.com",
+      "health": "/health → {status: quantum_stable, providers: {active: 4}}",
+      "verified": "2026-08-04",
+      "version": "2.0.1",
+      "active_providers": 4,
+      "redis": "not_configured",
+      "note": "Redis not yet connected to vit-storage. TRACK-008 item."
+    }
+  },
+  "known_gaps": [
+    "vit-chain: storage_proofs and consensus_votes are empty in all blocks — real PoS challenge/response not yet generating on-chain proofs",
+    "vit-chain: single genesis validator only, not yet a decentralized network",
+    "vit-storage: Redis not configured (no cross-restart session continuity)",
+    "agent swarm: APScheduler wired 2026-08-04, not yet verified stable",
+    "vit-explorer: repo exists but no implementation (no language detected)",
+    "vit-sdk: repo exists but no implementation",
+    "vit-contracts: Solidity repo exists, contracts not yet deployed to any network",
+    "vit-governance, vit-prophecy, vit-agents, vit-docs: repos scaffolded only",
+    "frontend: 1.4MB JS bundle — no code splitting yet"
+  ],
   "subsystems": [
     {"name": "Identity System", "status": "active"},
-    {"name": "AI System", "status": "active"},
+    {"name": "AI System", "status": "active", "note": "13 models live, HMAC auth, Redis persistence"},
     {"name": "Core System", "status": "active"},
     {"name": "Database System", "status": "active"},
-    {"name": "Task System", "status": "active"},
-    {"name": "Blockchain System", "status": "active"},
-    {"name": "Tachyon System", "status": "active"},
-    {"name": "Frontend System", "status": "active"},
-    {"name": "Infrastructure System", "status": "active"},
+    {"name": "Task System", "status": "active", "note": "APScheduler replacing Celery Beat (Render free plan incompatible)"},
+    {"name": "Blockchain System", "status": "active", "note": "VIT Chain testnet live, Chain ID 7764"},
+    {"name": "Tachyon System", "status": "active", "note": "4 providers active, Redis pending"},
+    {"name": "Frontend System", "status": "active", "note": "React 19 + Vite, 1.4MB bundle (splitting pending)"},
+    {"name": "Infrastructure System", "status": "active", "note": "Render free tier — all 4 services deployed"},
     {"name": "Docs System", "status": "active"}
   ],
   "integration_status": "ACTIVE",
@@ -22,7 +70,7 @@
   },
   "phase_completion": {
     "Phase1_Core_Infrastructure": "COMPLETE",
-    "Phase2_Intelligence_Storage": "COMPLETE",
+    "Phase2_Intelligence_Storage": "ACTIVE",
     "Phase3_Financial_Legal": "COMPLETE",
     "Phase4_Vertical_Expansion": "ACTIVE",
     "Phase5_Distribution_Scale": "IN_PROGRESS"
