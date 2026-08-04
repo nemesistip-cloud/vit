@@ -1197,3 +1197,24 @@ if os.path.exists(_frontend_dist):
                 "Expires": "0",
             },
         )
+
+    @app.api_route(
+        "/{full_path:path}",
+        methods=["POST", "PUT", "PATCH", "DELETE"],
+        include_in_schema=False,
+    )
+    async def catch_unregistered_api_methods(full_path: str):
+        """Guard against FastAPI's automatic 405 escalation.
+
+        The SPA GET catch-all above registers GET /{full_path:path}.  When any other
+        HTTP method (POST, PUT, PATCH, DELETE) arrives for a path with no dedicated
+        handler, FastAPI would normally return 405 Method Not Allowed because it sees
+        the matching GET route.  That was the root cause of the login 405 bug — a
+        frontend typo sent POST /api/auth/auth/login, which only the SPA GET handler
+        matched, producing 405 instead of a clear 404.
+
+        This explicit catch-all returns a consistent 404 for all unregistered write-method
+        requests so callers see a meaningful "not found" rather than the misleading
+        "method not allowed".
+        """
+        raise HTTPException(status_code=404, detail="Not Found")

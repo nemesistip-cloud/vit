@@ -31,6 +31,19 @@ FROM python:3.11-slim
     COPY frontend/package.json frontend/
     RUN pnpm install --frozen-lockfile
 
+    # Inject build-time Vite env vars so the frontend bundle bakes in the correct
+    # production service URLs.  Defaults match the live Render deployment.
+    # Override at docker build time with --build-arg VITE_GATEWAY_URL=...
+    ARG VITE_GATEWAY_URL=https://vitnetwork-nls4.onrender.com
+    ARG VITE_AI_URL=https://vit-ai.onrender.com
+    ARG VITE_STORAGE_URL=https://vit-storage-4trt.onrender.com
+    ARG VITE_CHAIN_URL=https://vit-chain.onrender.com
+    # Promote ARGs to ENV so Vite reads them from the Node.js process environment.
+    ENV VITE_GATEWAY_URL=$VITE_GATEWAY_URL \
+        VITE_AI_URL=$VITE_AI_URL \
+        VITE_STORAGE_URL=$VITE_STORAGE_URL \
+        VITE_CHAIN_URL=$VITE_CHAIN_URL
+
     COPY frontend/ frontend/
     RUN cd frontend && pnpm run build
 
