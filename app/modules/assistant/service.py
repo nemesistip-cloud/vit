@@ -65,12 +65,99 @@ class InMemoryAssistantMemory:
         self._messages.clear()
 
 
+class RedisAssistantMemory(InMemoryAssistantMemory):
+    """
+    Redis-backed assistant memory that survives container restarts.
+
+    Falls back to in-memory storage transparently when Redis is unavailable
+    (development, REDIS_URL not set, or Redis unreachable).
+
+    Keys:  vit:assistant:history:{user_id}:{workspace_id}:{session_id}
+    TTL:   7 days (rolling — extended on every append).
+    """
+
+    _TTL_SECONDS = 7 * 24 * 3600  # 7 days
+
+    def __init__(self, max_messages_per_session: int = 20) -> None:
+        super().__init__(max_messages_per_session)
+        self._client = None
+        self._init_attempted = False
+
+    def _redis_key(self, key: str) -> str:
+        return f"vit:assistant:history:{key}"
+
+    def _get_client(self):
+        """Lazily resolve the shared async Redis client. Returns None if unavailable."""
+        if self._init_attempted:
+            return self._client
+        self._init_attempted = True
+        try:
+            from app.core.redis import redis_client  # type: ignore
+            if redis_client is not None:
+                self._client = redis_client
+        except Exception:
+            pass
+        return self._client
+
+    async def append_async(
+        self, context: AssistantConversationContext, role: str, content: str
+    ) -> None:
+        """Append in-memory and persist the full session to Redis."""
+        super().append(context, role, content)
+        client = self._get_client()
+        if not client:
+            return
+        key = self.session_key(context)
+        serialised = json.dumps(
+            [
+                {"role": m.role, "content": m.content, "timestamp": m.timestamp}
+                for m in self._messages.get(key, [])
+            ],
+            default=str,
+        )
+        try:
+            await client.setex(self._redis_key(key), self._TTL_SECONDS, serialised)
+        except Exception:
+            pass  # Never let a Redis error break the assistant response
+
+    async def history_async(
+        self, context: AssistantConversationContext
+    ) -> List[Dict[str, Any]]:
+        """
+        Return conversation history.
+
+        Checks in-memory cache first. When the cache is empty (e.g. after a
+        container restart), tries to reload from Redis before returning [].
+        """
+        key = self.session_key(context)
+        if self._messages.get(key):
+            return self.history(context)
+        client = self._get_client()
+        if not client:
+            return []
+        try:
+            raw = await client.get(self._redis_key(key))
+            if raw:
+                stored = json.loads(raw)
+                self._messages[key] = [
+                    AssistantMessage(
+                        role=m["role"],
+                        content=m["content"],
+                        timestamp=m.get("timestamp", ""),
+                    )
+                    for m in stored[-self.max_messages_per_session:]
+                ]
+        except Exception:
+            pass
+        return self.history(context)
+
+
 class GlobalAssistantService:
     """Shared assistant service that orchestrates platform capabilities through services."""
 
     def __init__(self, provider: Optional[AssistantProvider] = None, memory: Optional[InMemoryAssistantMemory] = None) -> None:
         self.provider = provider
-        self.memory = memory or InMemoryAssistantMemory()
+        self.memory = memory or RedisAssistantMemory()
         self.commands: Dict[str, AssistantCommand] = {}
         self._service_registry: Dict[str, Any] = {}
 
@@ -86,14 +173,28 @@ class GlobalAssistantService:
     def get_history(self, context: AssistantConversationContext) -> List[Dict[str, Any]]:
         return self.memory.history(context)
 
+    async def get_history_async(self, context: AssistantConversationContext) -> List[Dict[str, Any]]:
+        """Return history, loading from Redis when in-memory cache is empty."""
+        if hasattr(self.memory, "history_async"):
+            return await self.memory.history_async(context)
+        return self.memory.history(context)
+
     async def ask(self, prompt: str, context: AssistantConversationContext) -> str:
-        self.memory.append(context, "user", prompt)
+        # Persist user message — async when Redis-backed, sync otherwise
+        if hasattr(self.memory, "append_async"):
+            await self.memory.append_async(context, "user", prompt)
+        else:
+            self.memory.append(context, "user", prompt)
         if self.provider is None:
             result = await self._orchestrate(prompt, context)
             response = json.dumps(result, default=str)
         else:
             response = await self.provider.complete(prompt, context)
-        self.memory.append(context, "assistant", response)
+        # Persist assistant response
+        if hasattr(self.memory, "append_async"):
+            await self.memory.append_async(context, "assistant", response)
+        else:
+            self.memory.append(context, "assistant", response)
         await self._publish_event(
             "assistant.message.completed",
             {"user_id": context.user_id, "workspace_id": context.workspace_id, "session_id": context.session_id},
