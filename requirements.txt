@@ -61,3 +61,4 @@ tenacity>=8.2.0
 uvicorn[standard]>=0.29.0
 web3>=6.0.0
 xgboost>=2.0.0
+apscheduler>=3.10.0,<4.0.0
