@@ -191,7 +191,7 @@ async def upload_pkl(
         raise HTTPException(status_code=404, detail=f"Model '{key}' not in registry")
 
     # Stage the upload to a temp path first so we can validate before naming it
-        data = await file.read()
+    data = await file.read()
     try:
         import joblib
         import io
