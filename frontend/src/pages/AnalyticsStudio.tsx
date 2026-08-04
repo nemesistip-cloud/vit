@@ -122,7 +122,7 @@ function useCalibration() {
 
 function MiniROIChart({ data }: { data: ROIPoint[] }) {
   if (!data?.length) return null
-  const values = data.map(d => d.roi_pct)
+  const values = data.map(d => d.roi_pct ?? 0)
   const min    = Math.min(...values)
   const max    = Math.max(...values)
   const range  = max - min || 1
@@ -136,7 +136,7 @@ function MiniROIChart({ data }: { data: ROIPoint[] }) {
         return (
           <div
             key={i}
-            title={`${pt.day}: ${pt.roi_pct.toFixed(1)}%`}
+            title={`${pt.day}: ${(pt.roi_pct ?? 0).toFixed(1)}%`}
             className={cn(
               'flex-1 rounded-sm min-h-[2px] transition-all',
               pos ? 'bg-emerald-500/60 hover:bg-emerald-500' : 'bg-red-500/40 hover:bg-red-500',
@@ -328,7 +328,7 @@ export default function AnalyticsStudio() {
               {roiCurve.length > 0 && (
                 <div className="flex justify-between text-xs text-white/30 mt-2">
                   <span>{roiCurve[0]?.day}</span>
-                  <span>Latest: {roiCurve[roiCurve.length - 1]?.roi_pct.toFixed(1)}%</span>
+                  <span>Latest: {(roiCurve[roiCurve.length - 1]?.roi_pct ?? 0).toFixed(1)}%</span>
                 </div>
               )}
             </div>
@@ -342,22 +342,22 @@ export default function AnalyticsStudio() {
               {pnlLoading ? <Spinner className="w-4 h-4" /> : (
                 <div className="space-y-2">
                   {pnlMarkets.map(row => {
-                    const maxPnl = Math.max(...pnlMarkets.map(r => Math.abs(r.pnl_vit)))
-                    const pct    = Math.abs(row.pnl_vit) / maxPnl * 100
+                    const maxPnl = Math.max(...pnlMarkets.map(r => Math.abs(r.pnl_vit ?? 0))) || 1
+                    const pct    = Math.abs(row.pnl_vit ?? 0) / maxPnl * 100
                     return (
                       <div key={row.market} className="flex items-center gap-3">
                         <span className="text-xs text-white/60 w-32 shrink-0">{row.market}</span>
                         <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                           <div
-                            className={cn('h-full rounded-full', row.pnl_vit >= 0 ? 'bg-emerald-500/70' : 'bg-red-500/70')}
+                            className={cn('h-full rounded-full', (row.pnl_vit ?? 0) >= 0 ? 'bg-emerald-500/70' : 'bg-red-500/70')}
                             style={{ width: `${pct}%` }}
                           />
                         </div>
                         <div className="text-right w-28 shrink-0">
-                          <span className={cn('text-xs font-semibold', row.pnl_vit >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                            {row.pnl_vit >= 0 ? '+' : ''}{row.pnl_vit} VIT
+                          <span className={cn('text-xs font-semibold', (row.pnl_vit ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                            {(row.pnl_vit ?? 0) >= 0 ? '+' : ''}{row.pnl_vit ?? 0} VIT
                           </span>
-                          <span className="text-xs text-white/30 ml-2">{row.roi_pct}% ROI</span>
+                          <span className="text-xs text-white/30 ml-2">{row.roi_pct ?? 0}% ROI</span>
                         </div>
                       </div>
                     )
@@ -429,21 +429,21 @@ export default function AnalyticsStudio() {
 
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{m.model}</p>
-                    <p className="text-xs text-white/40">{m.predictions.toLocaleString()} predictions · {m.correct.toLocaleString()} correct</p>
+                    <p className="text-xs text-white/40">{(m.predictions ?? 0).toLocaleString()} predictions · {(m.correct ?? 0).toLocaleString()} correct</p>
                   </div>
 
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-center">
-                      <p className="text-sm font-bold text-white">{(m.accuracy * 100).toFixed(1)}%</p>
+                      <p className="text-sm font-bold text-white">{((m.accuracy ?? 0) * 100).toFixed(1)}%</p>
                       <p className="text-xs text-white/30">Acc</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-bold text-sky-400">{m.roc_auc.toFixed(3)}</p>
+                      <p className="text-sm font-bold text-sky-400">{(m.roc_auc ?? 0).toFixed(3)}</p>
                       <p className="text-xs text-white/30">AUC</p>
                     </div>
                     <div className="text-center">
-                      <p className={cn('text-sm font-bold', m.roi_pct >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                        {m.roi_pct >= 0 ? '+' : ''}{m.roi_pct.toFixed(1)}%
+                      <p className={cn('text-sm font-bold', (m.roi_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                        {(m.roi_pct ?? 0) >= 0 ? '+' : ''}{(m.roi_pct ?? 0).toFixed(1)}%
                       </p>
                       <p className="text-xs text-white/30">ROI</p>
                     </div>
