@@ -21,6 +21,7 @@ For a deep-dive into the architectural vision, see the [Technical Portfolio](./p
 | **vit-ai** (AI Oracle) | https://vit-ai.onrender.com | ✅ Live |
 | **vit-chain** (Blockchain Node) | https://vit-chain.onrender.com | ✅ Live |
 | **vit-storage** (Tachyon Fabric) | https://vit-storage-4trt.onrender.com | ✅ Live |
+| **vit-explorer** (Block Explorer) | https://vit-explorer.onrender.com | 🚀 Deploying |
 
 ---
 

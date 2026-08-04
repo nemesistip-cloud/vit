@@ -68,8 +68,10 @@ These GitHub repos exist with descriptions but contain no real code (no language
 
 ### 🟡 High Priority — Next 30 Days
 
-#### TRACK-021a: Multi-Validator Expansion (NEW)
-- **Why**: VIT Chain is a single-node testnet. `active_validators: 1`. No real decentralization.
+#### TRACK-021a: Multi-Validator Expansion ✅ SHIPPED 2026-08-04
+- **Built**: `POST /api/validators/register` — open registration on testnet; signature-enforced on mainnet. Returns node_id, stake, bootstrap peer hint.
+- **To add a second validator**: generate a new key pair → derive 0x address → POST to `/api/validators/register` → deploy a second vit-chain instance with `VIT_VALIDATOR_KEY=<new key>` and `VIT_BOOTSTRAP_HTTP_URL=https://vit-chain.onrender.com`.
+- **Was**: VIT Chain is a single-node testnet. `active_validators: 1`. No real decentralization.
 - **Actions**:
   1. Document validator onboarding process
   2. Create a second validator node (can be another Render service initially)
@@ -77,8 +79,10 @@ These GitHub repos exist with descriptions but contain no real code (no language
   4. Update MetaMask setup guide with bootstrap peer URL
 - **Owner**: Blockchain System
 
-#### TRACK-021b: Block Explorer (vit-explorer) (NEW)
-- **Why**: Zero-code repo. Without a block explorer, the chain has no credibility or usability.
+#### TRACK-021b: Block Explorer (vit-explorer) ✅ SHIPPED 2026-08-04
+- **URL**: https://vit-explorer.onrender.com (first deploy in progress)
+- **Built**: React 18 + Vite + TypeScript — Overview, Blocks, Validators, Search tabs; 15s auto-refresh; block detail modal; MetaMask setup card.
+- **Was**: Zero-code repo. Without a block explorer, the chain has no credibility or usability.
 - **Actions**: Build a React/Next.js frontend in `vitnetwork/vit-explorer` that:
   - Shows live block feed (polls `/api/blocks`)
   - Shows validator stats (`/api/validators`)
@@ -104,8 +108,11 @@ These GitHub repos exist with descriptions but contain no real code (no language
 - **Actions**: Build `app/modules/academy` reasoning interface. Integrate with AI ensemble for simulation queries.
 - **Owner**: Core System
 
-#### TRACK-022: On-Chain Storage Proofs (NEW)
-- **Why**: Proof-of-Storage consensus currently produces blocks with `storage_proofs: []`. The PoS mechanism exists in code but isn't generating real proofs.
+#### TRACK-022: On-Chain Storage Proofs ✅ SHIPPED 2026-08-04
+- **Built**: `vit-chain/api/challenges.py` — `GET /api/challenges/pending` + `POST /api/challenges/{id}/respond`; responding to a challenge patches the latest block's `storage_proofs[]` array so proofs are on-chain immediately.
+- `vit-storage/tachyon/proof_reporter.py` — ProofReporter background task polls vit-chain each epoch and submits proofs. Auto-enabled when `VIT_STORAGE_VALIDATOR_ADDRESS` env var is set.
+- **To activate**: set `VIT_STORAGE_VALIDATOR_ADDRESS=<0x addr>` on the vit-storage Render service, register via `POST https://vit-chain.onrender.com/api/validators/register`.
+- **Was**: Proof-of-Storage consensus currently produces blocks with `storage_proofs: []`. The PoS mechanism exists in code but isn't generating real proofs.
 - **Actions**:
   1. Connect `vit-storage` proof generation → vit-chain challenge/response cycle
   2. Validator should submit a real `StorageProof` struct per epoch
