@@ -103,8 +103,20 @@ class VitAIClient:
 
     # Retries with exponential backoff on HTTP/Timeout exceptions
     def _auth_headers(self) -> dict:
-        """Return X-API-KEY header when a key is configured."""
-        return {"X-API-KEY": self._api_key} if self._api_key else {}
+        """
+        Return auth headers for outgoing vit-ai requests.
+        Prefers HMAC service token (rotates every 2 min); falls back to static
+        API key if SERVICE_TOKEN_SECRET is not set.
+        """
+        from app.core.service_auth import make_service_headers, _get_secret
+        headers = {}
+        if _get_secret():
+            # HMAC tokens are active — use them as the primary credential
+            headers.update(make_service_headers("vitnetwork"))
+        if self._api_key:
+            # Always include static key as backward-compat fallback
+            headers["X-API-KEY"] = self._api_key
+        return headers
 
     @retry(
         reraise=True,
