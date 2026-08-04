@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 import logging
 from collections import defaultdict, deque
@@ -44,10 +45,16 @@ def _get_client_ip(request: Request) -> str:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
+# ── Redis state ───────────────────────────────────────────────────────────────
+
 _redis_client = None
 _redis_checked = False
+_redis_disabled = False        # Circuit breaker: set True after first async failure
+_redis_fail_count = 0
+_REDIS_FAIL_THRESHOLD = 3      # Disable Redis after this many consecutive failures
 
 def _get_redis():
+    """Return a cached async Redis client, or None if unavailable / circuit-broken."""
     global _redis_client, _redis_checked
     if _redis_checked: return _redis_client
     _redis_checked = True
@@ -58,14 +65,49 @@ def _get_redis():
     if not redis_url: return None
     try:
         import redis.asyncio as aioredis
-        _redis_client = aioredis.from_url(redis_url, decode_responses=True, socket_timeout=0.5)
+        # socket_connect_timeout caps the initial TCP connect; socket_timeout caps
+        # individual operations. Both must be short so a broken Redis URL does not
+        # add per-request latency.
+        _redis_client = aioredis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_connect_timeout=0.5,
+            socket_timeout=0.5,
+        )
         log.info("Rate limiter: Redis backend enabled")
     except Exception as exc:
         log.warning("Rate limiter: Redis unavailable (%s) — using in-memory fallback", exc)
         _redis_client = None
     return _redis_client
 
+
+def _mark_redis_failure():
+    """Increment failure counter; disable Redis circuit if threshold exceeded."""
+    global _redis_disabled, _redis_fail_count, _redis_client
+    _redis_fail_count += 1
+    if _redis_fail_count >= _REDIS_FAIL_THRESHOLD:
+        if not _redis_disabled:
+            log.warning(
+                "Rate limiter: Redis failed %d times consecutively — "
+                "switching to in-memory fallback for this process lifetime. "
+                "Fix REDIS_URL and redeploy to re-enable.",
+                _REDIS_FAIL_THRESHOLD,
+            )
+            _redis_disabled = True
+            _redis_client = None   # Force _get_redis() to return None hereafter
+
+
+def _reset_redis_failure():
+    global _redis_fail_count
+    _redis_fail_count = 0
+
+
 async def _redis_sliding_window(redis, key: str, limit: int, window: int) -> tuple[bool, int, int]:
+    """Lua-atomic sliding-window rate check. Falls back gracefully on any error."""
+    global _redis_disabled
+    if _redis_disabled:
+        return True, limit, 0
+
     now_ms       = int(time.time() * 1000)
     window_ms    = window * 1000
     clear_before = now_ms - window_ms
@@ -88,10 +130,15 @@ else
 end
 """
     try:
-        result = await redis.eval(lua_script, 1, key, now_ms, window_ms, clear_before, limit)
+        result = await asyncio.wait_for(
+            redis.eval(lua_script, 1, key, now_ms, window_ms, clear_before, limit),
+            timeout=0.5,
+        )
+        _reset_redis_failure()
         return bool(result[0]), int(result[1]), int(result[2])
     except Exception as exc:
         log.warning("Redis sliding window error: %s — allowing request", exc)
+        _mark_redis_failure()
         return True, limit, 0
 
 class RateLimitMiddleware:
@@ -104,7 +151,7 @@ class RateLimitMiddleware:
     WINDOW_SECONDS = 60
     EVICT_INTERVAL = 300
     _BYPASS_PREFIXES = (
-        "/health", "/docs", "/openapi.json", "/redoc", "/static", "/favicon",
+        "/ping", "/health", "/docs", "/openapi.json", "/redoc", "/static", "/favicon",
         "/ws", "/webhook", "/api/public", "/notifications/ws", "/assets", "/scripts",
     )
     _BYPASS_EXTENSIONS = (
