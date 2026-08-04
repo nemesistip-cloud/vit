@@ -526,6 +526,15 @@ try:
 except Exception as _e:
     logging.warning("admin_router not mounted — routes unavailable: %s", _e)
 
+# Command Palette — Phase 1 feature; was missing from main.py despite the
+# module and frontend component being fully implemented.
+try:
+    from app.modules.command_palette.routes import router as command_palette_router
+    app.include_router(command_palette_router)
+    logging.getLogger(__name__).info("[main] command_palette_router mounted at /api/platform/commands")
+except Exception as _e:
+    logging.warning("command_palette_router not mounted — routes unavailable: %s", _e)
+
 try:
     from app.api.routes.admin_missing import router as admin_missing_router
     app.include_router(admin_missing_router, prefix="/api", tags=["Admin — Supplementary"])
