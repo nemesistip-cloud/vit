@@ -69,6 +69,16 @@ async function get<T>(url: string, signal?: AbortSignal, attempt = 0): Promise<T
     const res = await fetch(url, { signal: combined })
     clearTimeout(timer)
     const latency = Math.round(performance.now() - start)
+    // H4 fix: 401 auto-logout — expired/invalid token detected server-side
+    if (res.status === 401) {
+      try {
+        const { clearAuth } = await import('@/hooks/useAuth')
+        clearAuth()
+      } catch { /* no-op if module not available */ }
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login?reason=session_expired'
+      }
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
     const data = await res.json()
     return { ...data, _latency: latency } as T

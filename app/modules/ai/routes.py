@@ -151,12 +151,15 @@ async def toggle_model(key: str, db: AsyncSession = Depends(get_db)):
     return {"key": key, "is_active": row.is_active}
 
 
+MAX_PKL_BYTES = 10 * 1024 * 1024  # 10 MB hard cap
+
 @router.post("/upload/{key}")
 async def upload_pkl(
     key: str,
     file: UploadFile = File(...),
     auto_promote: bool = Query(False, description="If true, immediately promote this version to active. Default false — uploads are staged."),
     db: AsyncSession = Depends(get_db),
+    _admin=Depends(get_current_admin),  # C10/C11 fix: admin-only upload
 ):
     """
     Upload a externally-trained .pkl file for a specific model key.
@@ -191,7 +194,12 @@ async def upload_pkl(
         raise HTTPException(status_code=404, detail=f"Model '{key}' not in registry")
 
     # Stage the upload to a temp path first so we can validate before naming it
-    data = await file.read()
+    data = await file.read(MAX_PKL_BYTES + 1)
+    if len(data) > MAX_PKL_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Upload exceeds the 10 MB limit ({len(data)} bytes received). Compress or split the model."
+        )
     try:
         import joblib
         import io
@@ -729,6 +737,7 @@ class HotRegisterRequest(BaseModel):
 async def hot_register_model(
     body: HotRegisterRequest,
     db: AsyncSession = Depends(get_db),
+    _admin=Depends(get_current_admin),  # C11 fix: admin-only model registration
 ):
     """Dynamically register a new custom model into the ensemble registry on-the-fly."""
     existing = await get_model_by_key(db, body.key)
