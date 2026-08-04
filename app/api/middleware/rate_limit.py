@@ -22,6 +22,14 @@ def _rate_limiting_enabled() -> bool:
     return RATE_LIMIT_ENABLED
 
 def _extract_user_id(request: Request) -> str | None:
+    """Extract a rate-limit bucket key from a Bearer token.
+
+    The payload is decoded WITHOUT signature verification (signature check lives
+    in app/api/middleware/auth.py).  To prevent an attacker from forging an
+    arbitrary 'sub' to escape IP-based rate limits, we only accept a payload
+    whose 'sub' is a plain positive integer string.  Anything else falls back
+    to the IP-based bucket.
+    """
     auth = request.headers.get("authorization", "")
     if not auth.startswith("Bearer "):
         return None
@@ -29,12 +37,17 @@ def _extract_user_id(request: Request) -> str | None:
     try:
         import base64, json as _json
         parts = token.split(".")
-        if len(parts) != 3: return None
+        if len(parts) != 3:
+            return None
         payload_b64 = parts[1] + "=="
         payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
         uid = payload.get("sub") or payload.get("user_id") or payload.get("id")
-        if uid: return f"user:{uid}"
-    except Exception: pass
+        # Reject non-numeric or non-positive values so a forged token cannot
+        # choose an arbitrary bucket and bypass the IP rate limit.
+        if uid is not None and str(uid).isdigit() and int(str(uid)) > 0:
+            return f"user:{uid}"
+    except Exception:
+        pass
     return None
 
 def _get_client_ip(request: Request) -> str:

@@ -8,16 +8,19 @@ PORT="${PORT:-8000}"
 
 echo "[production] VIT Network startup — port ${PORT}"
 
-# ── Background DB setup ────────────────────────────────────────────────────────
+# ── DB setup ──────────────────────────────────────────────────────────────────
 DATABASE_URL="${DATABASE_URL:-}"
 if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
+    # init_db.py creates the core tables (users, audit_logs, wallets, etc.) that
+    # auth routes depend on.  Run it synchronously BEFORE uvicorn starts so that
+    # the very first login/register request never hits a missing table.
+    # All subsequent, non-critical steps run in the background to keep startup fast.
+    echo "[production] Running DB table bootstrap (init_db.py) — blocking until complete..."
+    python3 scripts/init_db.py \
+      || echo "[production] WARNING: init_db failed — schema may be incomplete." >&2
+
+    # Non-critical steps: run in background so uvicorn binds immediately after.
     (
-      echo "[production] [bg] Starting DB setup..."
-
-      echo "[production] [bg] Running DB table bootstrap (init_db.py)..."
-      python3 scripts/init_db.py \
-        || echo "[production] [bg] WARNING: init_db failed — continuing." >&2
-
       echo "[production] [bg] Running pre-flight schema guard (ensure_columns.py)..."
       python3 scripts/ensure_columns.py \
         || echo "[production] [bg] WARNING: ensure_columns failed — schema may be incomplete." >&2
@@ -39,7 +42,7 @@ if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
 
       echo "[production] [bg] DB setup complete."
     ) &
-    echo "[production] DB setup started in background (PID: $!) — uvicorn binding now."
+    echo "[production] Background DB tasks started (PID: $!) — uvicorn binding now."
 else
     echo "[production] Skipping DB setup (no Postgres DATABASE_URL detected)."
 fi

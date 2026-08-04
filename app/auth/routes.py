@@ -314,7 +314,12 @@ async def get_me(credentials: HTTPAuthorizationCredentials = Depends(bearer_sche
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    user_id = int(payload.get("sub"))
+    try:
+        user_id = int(payload.get("sub", 0) or 0)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
@@ -332,13 +337,17 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
     # Phase 3: Revoke the old refresh token's JTI (refresh token rotation)
     old_jti = payload.get("jti")
     if old_jti:
-        from datetime import timedelta
         try:
-            await revoke_token(old_jti, int(payload.get("sub", 0)), "refresh_rotation", db)
+            await revoke_token(old_jti, int(payload.get("sub", 0) or 0), "refresh_rotation", db)
         except Exception:
             pass  # blocklist failure is non-fatal for rotation
 
-    user_id = int(payload.get("sub"))
+    try:
+        user_id = int(payload.get("sub", 0) or 0)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
@@ -378,7 +387,10 @@ async def logout(
         payload = decode_token(credentials.credentials)
         if payload:
             jti = payload.get("jti")
-            user_id = int(payload.get("sub", 0))
+            try:
+                user_id = int(payload.get("sub", 0) or 0)
+            except (ValueError, TypeError):
+                user_id = 0
             if jti and user_id:
                 try:
                     await revoke_token(jti, user_id, "logout", db)
@@ -390,7 +402,10 @@ async def logout(
         rpayload = decode_token(body.refresh_token)
         if rpayload:
             rjti = rpayload.get("jti")
-            ruid = int(rpayload.get("sub", 0))
+            try:
+                ruid = int(rpayload.get("sub", 0) or 0)
+            except (ValueError, TypeError):
+                ruid = 0
             if rjti and ruid:
                 try:
                     await revoke_token(rjti, ruid, "logout", db)

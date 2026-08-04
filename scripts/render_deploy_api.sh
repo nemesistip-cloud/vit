@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Usage: RENDER_API_KEY=... ./scripts/render_deploy_api.sh [service-name]
-# If service-name is not provided, defaults to the name in render.yaml (vit-sports-analytics)
+# If service-name is not provided, defaults to the production service name in render.yaml.
 
-SERVICE_NAME="${1:-vit-sports-analytics}"
+SERVICE_NAME="${1:-vitnetwork}"
 API_KEY="${RENDER_API_KEY:-}"
 
 if [ -z "$API_KEY" ]; then
