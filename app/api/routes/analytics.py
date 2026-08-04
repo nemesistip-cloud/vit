@@ -301,8 +301,9 @@ async def get_validator_leaderboard(
 
         return {"leaderboard": leaderboard, "total": len(leaderboard), "sort_by": sort_by}
     except Exception as e:
-        logger.warning(f"validator leaderboard error: {e}")
-        return {"leaderboard": [], "total": 0, "sort_by": sort_by}
+        logger.error(f"validator leaderboard error: {e}", exc_info=True)
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(status_code=503, detail=f"Leaderboard temporarily unavailable: {e}")
 
 
 # ── 10. Leaderboard — Users ───────────────────────────────────────────
@@ -407,8 +408,9 @@ async def get_user_leaderboard(
 
         return {"leaderboard": leaderboard, "total": len(leaderboard), "sort_by": sort_key}
     except Exception as e:
-        logger.warning(f"user leaderboard error: {e}")
-        return {"leaderboard": [], "total": 0, "sort_by": sort_key}
+        logger.error(f"user leaderboard error: {e}", exc_info=True)
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(status_code=503, detail=f"Leaderboard temporarily unavailable: {e}")
 
 
 # ── Compatibility aliases ──────────────────────────────────────────────────────
