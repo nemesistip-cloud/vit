@@ -64,13 +64,13 @@ interface DevUsage {
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
-const GW = ENDPOINTS.gateway
+const GW = () => ENDPOINTS.gateway
 
 function useNotifPrefs(enabled: boolean) {
   return useQuery<NotifPrefs>({
     queryKey: ['notif-prefs'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${GW}/api/notifications/preferences`, { signal, headers: authHeaders() })
+      const r = await fetch(`${GW()}/api/notifications/preferences`, { signal, headers: authHeaders() })
       if (!r.ok) throw new Error('Failed to load preferences')
       return r.json()
     },
@@ -82,7 +82,7 @@ function useTelegramInfo(enabled: boolean) {
   return useQuery<TelegramLinkInfo>({
     queryKey: ['tg-link'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${GW}/api/notifications/telegram/link-info`, { signal, headers: authHeaders() })
+      const r = await fetch(`${GW()}/api/notifications/telegram/link-info`, { signal, headers: authHeaders() })
       if (!r.ok) return { linked: false }
       return r.json()
     },
@@ -94,7 +94,7 @@ function useDevKeys(enabled: boolean) {
   return useQuery<DevKey[]>({
     queryKey: ['dev-keys'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${GW}/api/developer/keys`, { signal, headers: authHeaders() })
+      const r = await fetch(`${GW()}/api/developer/keys`, { signal, headers: authHeaders() })
       if (!r.ok) throw new Error('Failed to load API keys')
       return r.json()
     },
@@ -106,7 +106,7 @@ function useDevPlans() {
   return useQuery<DevPlan[]>({
     queryKey: ['dev-plans'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${GW}/api/developer/plans`, { signal })
+      const r = await fetch(`${GW()}/api/developer/plans`, { signal })
       if (!r.ok) return []
       return r.json()
     },
@@ -118,7 +118,7 @@ function useDevUsage(enabled: boolean) {
   return useQuery<DevUsage>({
     queryKey: ['dev-usage'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${GW}/api/developer/usage/summary`, { signal, headers: authHeaders() })
+      const r = await fetch(`${GW()}/api/developer/usage/summary`, { signal, headers: authHeaders() })
       if (!r.ok) throw new Error('Failed to load usage')
       return r.json()
     },
@@ -300,7 +300,7 @@ function NotifSection({ isAuth }: { isAuth: boolean }) {
     if (!prefs) return
     const updated = { ...prefs, [key]: !prefs[key] }
     setSaving(true)
-    await fetch(`${GW}/api/notifications/preferences`, {
+    await fetch(`${GW()}/api/notifications/preferences`, {
       method: 'PATCH',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ [key]: updated[key] }),
@@ -315,7 +315,7 @@ function NotifSection({ isAuth }: { isAuth: boolean }) {
     const perm = await Notification.requestPermission()
     if (perm === 'granted') {
       // Subscribe and send to backend
-      await fetch(`${GW}/api/notifications/push/subscribe`, {
+      await fetch(`${GW()}/api/notifications/push/subscribe`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform: 'web', token: 'browser' }),
@@ -430,7 +430,7 @@ function TelegramSection({ isAuth }: { isAuth: boolean }) {
   const handleLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setLinking(true); setLinkError('')
-    const r = await fetch(`${GW}/api/notifications/telegram/link-manual`, {
+    const r = await fetch(`${GW()}/api/notifications/telegram/link-manual`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId }),
@@ -446,7 +446,7 @@ function TelegramSection({ isAuth }: { isAuth: boolean }) {
 
   const handleUnlink = useMutation({
     mutationFn: async () => {
-      await fetch(`${GW}/api/notifications/telegram/unlink`, { method: 'POST', headers: authHeaders() })
+      await fetch(`${GW()}/api/notifications/telegram/unlink`, { method: 'POST', headers: authHeaders() })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tg-link'] }),
   })
@@ -545,7 +545,7 @@ function DevApiSection({ isAuth }: { isAuth: boolean }) {
   const createKey = async (e: React.FormEvent) => {
     e.preventDefault()
     setCreating(true)
-    const r = await fetch(`${GW}/api/developer/keys`, {
+    const r = await fetch(`${GW()}/api/developer/keys`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: newKeyName }),
@@ -560,7 +560,7 @@ function DevApiSection({ isAuth }: { isAuth: boolean }) {
   }
 
   const revokeKey = async (id: number) => {
-    await fetch(`${GW}/api/developer/keys/${id}/revoke`, { method: 'PATCH', headers: authHeaders() })
+    await fetch(`${GW()}/api/developer/keys/${id}/revoke`, { method: 'PATCH', headers: authHeaders() })
     qc.invalidateQueries({ queryKey: ['dev-keys'] })
   }
 
@@ -568,7 +568,7 @@ function DevApiSection({ isAuth }: { isAuth: boolean }) {
     {
       lang: 'cURL',
       icon: <Terminal className="w-3.5 h-3.5" />,
-      code: `curl -X GET "${GW}/api/predictions/today" \\
+      code: `curl -X GET "${GW()}/api/predictions/today" \\
   -H "X-API-Key: vit_live_sk_..." \\
   -H "Content-Type: application/json"`,
     },
@@ -577,7 +577,7 @@ function DevApiSection({ isAuth }: { isAuth: boolean }) {
       icon: <Code2 className="w-3.5 h-3.5" />,
       code: `import httpx
 KEY = "vit_live_sk_..."
-BASE = "${GW}"
+BASE = "${GW()}"
 tips = httpx.get(f"{BASE}/api/predictions/today",
     headers={"X-API-Key": KEY}).json()`,
     },
@@ -585,7 +585,7 @@ tips = httpx.get(f"{BASE}/api/predictions/today",
       lang: 'JavaScript',
       icon: <Globe className="w-3.5 h-3.5" />,
       code: `const res = await fetch(
-  '${GW}/api/predictions/today',
+  '${GW()}/api/predictions/today',
   { headers: { 'X-API-Key': 'vit_live_sk_...' } }
 );
 const tips = await res.json();`,
@@ -731,7 +731,7 @@ const tips = await res.json();`,
                   <div key={plan.name} className="flex items-center gap-4 px-5 py-3.5">
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-white capitalize">{plan.name}</p>
-                      <p className="text-xs text-white/40">{plan.requests_per_day.toLocaleString()}/day · {plan.requests_per_month.toLocaleString()}/mo</p>
+                      <p className="text-xs text-white/40">{(plan.requests_per_day ?? 0).toLocaleString()}/day · {(plan.requests_per_month ?? 0).toLocaleString()}/mo</p>
                     </div>
                     <span className="font-mono text-sm text-vit-300">{plan.price_vit === 0 ? 'Free' : `${plan.price_vit} VIT/mo`}</span>
                   </div>
@@ -815,14 +815,14 @@ function StorageCDNSection() {
           <p className="text-xs font-mono text-white/40">S3-compatible upload example</p>
           <CopyBtn text={`import boto3
 s3 = boto3.client('s3',
-    endpoint_url='${GW}/s3',
+    endpoint_url='${GW()}/s3',
     aws_access_key_id='vit_access_key',
     aws_secret_access_key='your_secret')
 s3.upload_file('photo.jpg', 'my-bucket', 'photo.jpg')`} />
         </div>
         <pre className="px-5 py-4 text-xs font-mono text-green-300 overflow-x-auto bg-black/20 leading-relaxed">{`import boto3
 s3 = boto3.client('s3',
-    endpoint_url='${GW}/s3',
+    endpoint_url='${GW()}/s3',
     aws_access_key_id='vit_access_key',
     aws_secret_access_key='your_secret')
 s3.upload_file('photo.jpg', 'my-bucket', 'photo.jpg')`}</pre>
