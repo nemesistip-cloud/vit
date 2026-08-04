@@ -33,6 +33,61 @@ def setup_env():
     os.environ["AUTH_ENABLED"] = "false"
     os.environ["RATE_LIMIT_ENABLED"] = "false"
     os.environ["USE_REAL_ML_MODELS"] = "false"
+    # Ensure a session-level SQLite file DB has the required tables so modules
+    # that import `main` at test startup find a working schema. This mirrors
+    # the per-test `db_session` create_all behavior but runs once for the
+    # session DB (./test.db) used by some tests that don't use the
+    # per-test temp DB fixture.
+    try:
+        from importlib import import_module
+        raw = os.environ.get("DATABASE_URL", "")
+        if raw and "sqlite" in raw:
+            # Convert async sqlite URL to sync URL for SQLAlchemy create_engine
+            sync_url = raw
+            if sync_url.startswith("sqlite+aiosqlite:///"):
+                sync_url = "sqlite:///" + sync_url.split("sqlite+aiosqlite:///", 1)[1]
+            try:
+                import sqlalchemy as sa
+                engine = sa.create_engine(sync_url, connect_args={"check_same_thread": False})
+                # Import Base and model modules to populate metadata (predictions, matches, etc.)
+                from app.db.database import Base as AppBase
+                # Import the central models module and other commonly used modules
+                for _mod in [
+                    "app.db.models",
+                    "app.modules.wallet.models",
+                    "app.modules.sports.models",
+                    "app.modules.blockchain.models",
+                    "app.modules.ai.models",
+                    "app.modules.predictions.models",
+                    "app.modules.training.models",
+                ]:
+                    try:
+                        import_module(_mod)
+                    except Exception:
+                        pass
+
+                # Only create the small set of tables needed by tests that import main
+                needed = [
+                    "markets",
+                    "matches",
+                    "predictions",
+                    "clv_entries",
+                    "users",
+                ]
+                try:
+                    for t in needed:
+                        tbl = AppBase.metadata.tables.get(t)
+                        if tbl is not None:
+                            tbl.create(bind=engine, checkfirst=True)
+                except Exception:
+                    # Best-effort — don't fail session setup on index quirks
+                    pass
+                engine.dispose()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     yield
 
 
@@ -66,10 +121,12 @@ async def db_session():
     from app.db.database import Base as AppBase
     bases = [AppBase.metadata]
     for import_path, attr in [
+        ("app.db.models", "Base"),
         ("app.core.wallet.models", "Base"),
         ("app.modules.sports.models", "Base"),
         ("app.modules.blockchain.models", "Base"),
         ("app.modules.ai.models", "Base"),
+        ("app.modules.predictions.models", "Base"),
     ]:
         try:
             mod = __import__(import_path, fromlist=[attr])
@@ -80,7 +137,29 @@ async def db_session():
     async with engine.begin() as conn:
         for meta in bases:
             try:
-                await conn.run_sync(meta.create_all)
+                if meta is AppBase.metadata:
+                    # Create only the tables required by the failing history endpoint
+                    def _create_subset(sync_conn):
+                        for tname in ("markets", "matches", "predictions", "clv_entries", "users"):
+                            tbl = meta.tables.get(tname)
+                            if tbl is not None:
+                                try:
+                                    tbl.create(bind=sync_conn, checkfirst=True)
+                                except Exception:
+                                    pass
+
+                    await conn.run_sync(_create_subset)
+                else:
+                    def _create_all(sync_conn, metadata=meta):
+                        try:
+                            metadata.create_all(bind=sync_conn)
+                        except Exception as exc:
+                            msg = str(exc).lower()
+                            if "already exists" in msg or "ix_" in msg or "index" in msg:
+                                return
+                            raise
+
+                    await conn.run_sync(_create_all)
             except Exception:
                 pass
 
