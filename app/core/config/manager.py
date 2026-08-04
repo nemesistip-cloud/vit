@@ -123,17 +123,38 @@ class ConfigurationManager:
             k for k in ("ISPORTS_API_KEY", "PAYSTACK_SECRET_KEY", "RESEND_API_KEY")
             if not os.getenv(k)
         ]
+        env_val = (
+            getattr(
+                self._config.app.environment, "value",
+                str(self._config.app.environment),
+            )
+            if self._config else "unknown"
+        )
+        # Build a redacted snapshot of the effective config for diagnostics
+        effective: Dict[str, Any] = {}
+        if self._config is not None:
+            for section_name in ("app", "db", "redis", "ai", "blockchain", "external", "tachyon"):
+                section = getattr(self._config, section_name, None)
+                if section is None:
+                    continue
+                section_dict: Dict[str, Any] = {}
+                fields = (
+                    section.model_fields if hasattr(section, "model_fields")
+                    else getattr(section, "__fields__", {})
+                )
+                for fname in fields:
+                    raw_val = getattr(section, fname, None)
+                    section_dict[fname] = secrets_manager.redact(raw_val)
+                effective[section_name] = section_dict
+
         return {
+            # "status" is the canonical key tests and dashboards read
+            "status": "loaded" if self.is_healthy else "degraded",
             "healthy": self.is_healthy,
             "boot_error": self._boot_error,
             "missing_optional_keys": missing,
-            "environment": (
-                getattr(
-                    self._config.app.environment, "value",
-                    str(self._config.app.environment),
-                )
-                if self._config else "unknown"
-            ),
+            "environment": env_val,
+            "effective_config": effective,
         }
 
     def _get_missing_required_keys(self) -> list:

@@ -381,10 +381,13 @@ export default function Governance() {
   const [votingProposal, setVotingProposal] = useState<Proposal | null>(null)
 
   const isLoggedIn = !!getAuthToken()
-  useEffect(() => { if (!isLoggedIn) navigate('/login') }, [isLoggedIn, navigate])
+  useEffect(() => { if (!isLoggedIn) navigate('/login', { replace: true }) }, [isLoggedIn, navigate])
 
   const { data, isLoading } = useProposals(statusFilter || undefined)
   const { data: config } = useConfig()
+
+  // M2 fix: prevent render with undefined data before redirect fires
+  if (!isLoggedIn) return null
 
   const proposals: Proposal[] = data?.items ?? []
   const total = data?.total ?? 0

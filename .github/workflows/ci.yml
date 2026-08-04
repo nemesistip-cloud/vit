@@ -103,24 +103,23 @@ jobs:
           PAYSTACK_SECRET_KEY: 'sk_test_placeholder'
           PAYSTACK_WEBHOOK_SECRET: 'whsec_test_placeholder'
 
-    typecheck-frontend:
-      name: Type-check frontend (tsc)
-      runs-on: ubuntu-latest
-      # Blocking job — prevents broken TypeScript reaching Render.
-      # (4 failed deploys 2026-07-18 were all undetected TS errors.)
-      steps:
-        - uses: actions/checkout@v4
+  typecheck-frontend:
+    name: Type-check frontend (tsc)
+    runs-on: ubuntu-latest
+    # Blocking job — prevents broken TypeScript reaching Render.
+    # (4 failed deploys 2026-07-18 were all undetected TS errors.)
+    steps:
+      - uses: actions/checkout@v4
 
-        - uses: actions/setup-node@v4
-          with:
-            node-version: '20'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-        - name: Install pnpm
-          run: npm install -g pnpm@9
+      - name: Install pnpm
+        run: npm install -g pnpm@9
 
-        - name: Install frontend dependencies
-          run: pnpm install --frozen-lockfile
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
 
-        - name: TypeScript compiler check (noEmit)
-          run: cd frontend && pnpm exec tsc --noEmit
-    
+      - name: TypeScript compiler check (noEmit)
+        run: cd frontend && pnpm exec tsc --noEmit

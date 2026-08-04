@@ -45,7 +45,7 @@ async def get_overview(
 
     total = len(preds)
     settled = [p for p in preds if p.settled_profit is not None]
-    correct = [p for p in settled if (p.settled_profit or 0) > 0]
+    correct = [p for p in settled if p.was_correct is True]
     staked = sum(float(p.submitted_stake or 0) for p in settled)
     returned = staked + sum(float(p.settled_profit or 0) for p in settled)
     net_pnl = returned - staked
@@ -56,7 +56,7 @@ async def get_overview(
     # Best/worst market
     market_stats: dict[str, dict] = {}
     for p in settled:
-        mkt = p.submitted_market_side or p.market_prediction or "Unknown"
+        mkt = p.submitted_market_side or p.bet_side or "Unknown"
         ms = market_stats.setdefault(mkt, {"correct": 0, "total": 0})
         ms["total"] += 1
         if (p.settled_profit or 0) > 0:
@@ -75,7 +75,7 @@ async def get_overview(
     streak = 0
     best_streak = 0
     cur = 0
-    for p in sorted(settled, key=lambda x: x.created_at or datetime.min):
+    for p in sorted(settled, key=lambda x: x.timestamp or datetime.min):
         if (p.settled_profit or 0) > 0:
             cur += 1
             best_streak = max(best_streak, cur)
@@ -115,15 +115,15 @@ async def roi_curve(
         select(Prediction).where(
             Prediction.user_id == me.id,
             Prediction.settled_profit.isnot(None),
-            Prediction.created_at >= since,
-        ).order_by(Prediction.created_at)
+            Prediction.timestamp >= since,
+        ).order_by(Prediction.timestamp)
     )
     preds = list(preds_q.scalars().all())
 
     # Aggregate by day
     day_map: dict[str, float] = {}
     for p in preds:
-        key = (p.created_at or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
+        key = (p.timestamp or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
         day_map[key] = day_map.get(key, 0.0) + float(p.settled_profit or 0)
 
     cumulative = 0.0
@@ -150,12 +150,12 @@ async def pnl_breakdown(
 
     market_map: dict[str, dict] = {}
     for p in settled_p := preds:
-        mkt = p.submitted_market_side or p.market_prediction or "Unknown"
+        mkt = p.submitted_market_side or p.bet_side or "Unknown"
         m = market_map.setdefault(mkt, {"bets": 0, "correct": 0, "pnl_vit": 0.0})
         m["bets"] += 1
         profit = float(p.settled_profit or 0)
         m["pnl_vit"] += profit
-        if profit > 0:
+        if p.was_correct is True:
             m["correct"] += 1
 
     total_staked = sum(float(p.submitted_stake or 0) for p in settled_p)
@@ -191,12 +191,12 @@ async def accuracy_heatmap(
     heatmap_data: dict[str, dict[str, dict]] = {}
     for pred, match in rows:
         league = (match.league if match else None) or "Unknown"
-        created = pred.created_at or datetime.now(timezone.utc)
+        created = pred.timestamp or datetime.now(timezone.utc)
         day = created.strftime("%a")
         l_map = heatmap_data.setdefault(league, {})
         d_map = l_map.setdefault(day, {"correct": 0, "total": 0})
         d_map["total"] += 1
-        if (pred.settled_profit or 0) > 0:
+        if pred.was_correct is True:
             d_map["correct"] += 1
 
     days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -289,7 +289,7 @@ async def leaderboard_insights(
         select(
             Prediction.user_id,
             func.count(Prediction.id).label("bets"),
-            func.sum(case((Prediction.settled_profit > 0, 1), else_=0)).label("correct"),
+            func.sum(case((Prediction.was_correct == True, 1), else_=0)).label("correct"),
             func.sum(Prediction.settled_profit).label("total_profit"),
             func.max(Prediction.settled_profit).label("best_profit"),
         ).where(
@@ -350,7 +350,7 @@ async def calibration_data(
         select(Prediction).where(
             Prediction.user_id == me.id,
             Prediction.settled_profit.isnot(None),
-            Prediction.model_probability.isnot(None),
+            Prediction.consensus_prob.isnot(None),
         )
     )
     preds = list(preds_q.scalars().all())
@@ -358,11 +358,11 @@ async def calibration_data(
     # Build 10 buckets [0.1, 0.2, ..., 1.0]
     buckets: dict[float, dict] = {round(i * 0.1, 1): {"total": 0, "correct": 0} for i in range(1, 11)}
     for p in preds:
-        prob = float(p.model_probability or 0)
+        prob = float(p.consensus_prob or 0)
         bucket = round(min(round(prob * 10) / 10, 1.0), 1)
         if bucket in buckets:
             buckets[bucket]["total"] += 1
-            if (p.settled_profit or 0) > 0:
+            if p.was_correct is True:
                 buckets[bucket]["correct"] += 1
 
     data = []

@@ -37,3 +37,32 @@ export function authHeaders(): Record<string, string> {
   const t = getAuthToken()
   return t ? { Authorization: `Bearer ${t}` } : {}
 }
+
+/**
+ * H4 fix: Drop-in fetch replacement that automatically:
+ *  - Injects the Bearer token from localStorage.
+ *  - On a 401 response, clears stored auth and redirects to /login so the
+ *    user is never stuck in a loop of authenticated-looking calls that fail.
+ *
+ * Use instead of bare `fetch()` for any authenticated API call.
+ */
+export async function fetchWithAuth(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers)
+  const token = getAuthToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const res = await fetch(input, { ...init, headers })
+
+  if (res.status === 401) {
+    clearAuth()
+    // Use replaceState so the browser back-button does not loop back here.
+    if (typeof window !== 'undefined') {
+      window.location.replace('/login')
+    }
+  }
+
+  return res
+}
