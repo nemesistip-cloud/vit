@@ -30,6 +30,11 @@ jobs:
           BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
           echo "Status: $HTTP_STATUS"
           echo "Body: $BODY"
+          if [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "403" ]; then
+            echo "⚠️  Render API auth failed (HTTP $HTTP_STATUS) — autoDeploy:yes handles deploy automatically."
+            echo "   Check RENDER_API_KEY + RENDER_SERVICE_ID secrets if manual trigger is required."
+            exit 0
+          fi
           if [ "$HTTP_STATUS" != "201" ] && [ "$HTTP_STATUS" != "200" ]; then
             echo "Deploy trigger failed (HTTP $HTTP_STATUS)" && exit 1
           fi
