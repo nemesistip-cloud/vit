@@ -32,7 +32,7 @@ const ACTION_META: Record<string, { icon: React.ElementType; color: string; labe
 }
 
 function getFallback(action: string) {
-  return { icon: Activity, color: 'text-white/30', label: action.replace(/_/g, ' ') }
+  return { icon: Activity, color: 'text-white/30', label: (action ?? 'unknown').replace(/_/g, ' ') }
 }
 
 interface ActivityFeedProps {
@@ -104,7 +104,7 @@ export function ActivityFeedPanel({ open, onClose }: ActivityFeedProps) {
               ) : (
                 <div className="p-2 space-y-0.5">
                   {data.map((item, i) => {
-                    const meta = ACTION_META[item.action] ?? getFallback(item.action)
+                    const meta = ACTION_META[item.action ?? ''] ?? getFallback(item.action ?? '')
                     const Icon = meta.icon
                     return (
                       <motion.div
