@@ -94,8 +94,6 @@ async def lifespan(app: FastAPI):
         except Exception as _te:
             logging.getLogger(__name__).warning("[lifespan] tachyon verification worker failed: %s", _te)
 
-        logging.getLogger(__name__).info(
-
         # TRACK-009: Start in-process APScheduler for autonomous agents (replaces Celery Beat)
         try:
             from app.core.swarm_orchestrator import get_swarm as _get_swarm
@@ -104,6 +102,8 @@ async def lifespan(app: FastAPI):
             logging.getLogger(__name__).info("[lifespan] SwarmOrchestrator APScheduler started (%d agents)", len(_swarm._agents))
         except Exception as _sch_e:
             logging.getLogger(__name__).warning("[lifespan] swarm scheduler start failed (agents will not auto-run): %s", _sch_e)
+
+        logging.getLogger(__name__).info(
             "[lifespan] Background boot complete — VIT Network v%s fully operational.", APP_VERSION
         )
 

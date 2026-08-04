@@ -49,7 +49,7 @@ jobs:
             --ignore=tests/test_env_example.py \
             -p no:warnings
         env:
-          VIT_DATABASE_URL: sqlite+aiosqlite:///./test.db
+          DATABASE_URL: sqlite+aiosqlite:///./test.db
           ENVIRONMENT: test
           AUTH_ENABLED: 'false'
           USE_REAL_ML_MODELS: 'false'

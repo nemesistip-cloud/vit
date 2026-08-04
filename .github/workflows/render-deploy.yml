@@ -37,27 +37,27 @@ jobs:
           echo "Deploy triggered: $DEPLOY_ID"
 
       # Health gate: poll /ping until healthy or 5 minutes have elapsed.
-        # Docker builds on Render (free tier) take 3-6 min end-to-end.
-        # We poll every 15 s for up to 20 attempts (= 5 min max) without
-        # an upfront sleep so fast deploys pass immediately.
-        - name: Health gate — wait for /ping to return 200
-          run: |
-            echo "Polling ${{ env.SERVICE_URL }}/ping (up to 5 min, every 15s)..."
-            for i in $(seq 1 20); do
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-                --max-time 15 \
-                "${{ env.SERVICE_URL }}/ping" || echo "000")
-              echo "Attempt $i/20: HTTP $STATUS"
-              if [ "$STATUS" = "200" ]; then
-                echo "✅ Service is healthy: ${{ env.SERVICE_URL }}"
-                exit 0
-              fi
-              sleep 15
-            done
+      # Docker builds on Render (free tier) take 3-6 min end-to-end.
+      # We poll every 15 s for up to 20 attempts (= 5 min max) without
+      # an upfront sleep so fast deploys pass immediately.
+      - name: Health gate — wait for /ping to return 200
+        run: |
+          echo "Polling ${{ env.SERVICE_URL }}/ping (up to 5 min, every 15s)..."
+          for i in $(seq 1 20); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 15 \
+              "${{ env.SERVICE_URL }}/ping" || echo "000")
+            echo "Attempt $i/20: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Service is healthy: ${{ env.SERVICE_URL }}"
+              exit 0
+            fi
+            sleep 15
+          done
 
-            echo "❌ Health gate failed — /ping did not return 200 within 5 min."
-            echo "Check the Render dashboard: https://dashboard.render.com/web/srv-d8sipgjeo5us73eis7hg"
-            exit 1
+          echo "❌ Health gate failed — /ping did not return 200 within 5 min."
+          echo "Check the Render dashboard: https://dashboard.render.com/web/srv-d8sipgjeo5us73eis7hg"
+          exit 1
 
       - name: Summary
         if: always()
