@@ -50,6 +50,15 @@ services:
           value: https://vit-storage-4trt.onrender.com
         - key: VIT_AI_API_KEY
           sync: false
+        # ── Frontend build-time service URLs (baked into Vite bundle) ────────
+        - key: VITE_GATEWAY_URL
+          value: https://vitnetwork-nls4.onrender.com
+        - key: VITE_AI_URL
+          value: https://vit-ai.onrender.com
+        - key: VITE_STORAGE_URL
+          value: https://vit-storage-4trt.onrender.com
+        - key: VITE_CHAIN_URL
+          value: https://vit-chain.onrender.com
 
     - type: worker
       name: vitnetwork-worker
@@ -84,6 +93,15 @@ services:
           value: https://vit-storage-4trt.onrender.com
         - key: VIT_AI_API_KEY
           sync: false
+        # ── Frontend build-time service URLs (baked into Vite bundle) ────────
+        - key: VITE_GATEWAY_URL
+          value: https://vitnetwork-nls4.onrender.com
+        - key: VITE_AI_URL
+          value: https://vit-ai.onrender.com
+        - key: VITE_STORAGE_URL
+          value: https://vit-storage-4trt.onrender.com
+        - key: VITE_CHAIN_URL
+          value: https://vit-chain.onrender.com
 
 databases:
     - name: vit-postgres-v2
