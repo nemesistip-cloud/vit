@@ -1056,3 +1056,157 @@ async def upload_users_csv(
     except Exception as e:
         logger.error(f"CSV upload error: {e}")
         raise AppError(f"Failed to process CSV: {str(e)}", status_code=400, code="invalid_input")
+
+
+# ── API Key Administration ─────────────────────────────────────────────────────
+
+@router.get("/api-keys")
+async def list_all_api_keys(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    user_id: Optional[int] = None,
+    is_active: Optional[bool] = None,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """List all developer API keys across all users."""
+    from app.modules.developer.models import APIKey
+    q = select(APIKey)
+    if user_id:
+        q = q.where(APIKey.user_id == user_id)
+    if is_active is not None:
+        q = q.where(APIKey.is_active == is_active)
+
+    total_res = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_res.scalar_one()
+
+    q = q.order_by(desc(APIKey.created_at)).offset((page - 1) * limit).limit(limit)
+    rows = (await db.execute(q)).scalars().all()
+
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "keys": [
+            {
+                "id":              k.id,
+                "user_id":         k.user_id,
+                "name":            k.name,
+                "key_prefix":      k.key_prefix,
+                "plan":            k.plan,
+                "rate_limit_rpm":  k.rate_limit_rpm,
+                "rate_limit_rpd":  k.rate_limit_rpd,
+                "is_active":       k.is_active,
+                "total_requests":  k.total_requests,
+                "last_used_at":    k.last_used_at.isoformat() if k.last_used_at else None,
+                "created_at":      k.created_at.isoformat() if k.created_at else None,
+                "expires_at":      k.expires_at.isoformat() if k.expires_at else None,
+            }
+            for k in rows
+        ],
+    }
+
+
+@router.patch("/api-keys/{key_id}")
+async def admin_update_api_key(
+    key_id: int,
+    body: dict,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    """Update plan, rate limits, or active status of any API key."""
+    from app.modules.developer.models import APIKey
+    result = await db.execute(select(APIKey).where(APIKey.id == key_id))
+    key = result.scalar_one_or_none()
+    if not key:
+        raise AppError("API key not found", status_code=404, code="not_found")
+
+    ALLOWED_PLANS = {"free", "starter", "pro", "enterprise"}
+    before = {"plan": key.plan, "is_active": key.is_active, "rate_limit_rpm": key.rate_limit_rpm}
+
+    if "plan" in body:
+        if body["plan"] not in ALLOWED_PLANS:
+            raise AppError(f"Invalid plan. Must be one of: {', '.join(sorted(ALLOWED_PLANS))}", status_code=400, code="invalid_plan")
+        key.plan = body["plan"]
+    if "is_active" in body:
+        key.is_active = bool(body["is_active"])
+    if "rate_limit_rpm" in body:
+        key.rate_limit_rpm = int(body["rate_limit_rpm"])
+    if "rate_limit_rpd" in body:
+        key.rate_limit_rpd = int(body["rate_limit_rpd"])
+    if "expires_at" in body:
+        from datetime import datetime
+        key.expires_at = datetime.fromisoformat(body["expires_at"]) if body["expires_at"] else None
+
+    await db.commit()
+    after = {"plan": key.plan, "is_active": key.is_active, "rate_limit_rpm": key.rate_limit_rpm}
+    await write_audit(db, admin.id, "api_key.update", "api_key", key_id, before, after, request)
+    return {"ok": True, "key_id": key_id, "changes": after}
+
+
+@router.delete("/api-keys/{key_id}")
+async def admin_revoke_api_key(
+    key_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    """Permanently revoke (disable) any API key."""
+    from app.modules.developer.models import APIKey
+    result = await db.execute(select(APIKey).where(APIKey.id == key_id))
+    key = result.scalar_one_or_none()
+    if not key:
+        raise AppError("API key not found", status_code=404, code="not_found")
+
+    key.is_active = False
+    await db.commit()
+    await write_audit(db, admin.id, "api_key.revoke", "api_key", key_id, {"is_active": True}, {"is_active": False}, request)
+    return {"ok": True, "revoked": key_id}
+
+
+@router.get("/api-keys/usage-stats")
+async def api_key_usage_stats(
+    days: int = Query(7, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Aggregate API key usage: top consumers, total calls, error rates."""
+    from app.modules.developer.models import APIKey, APIUsageLog
+    from datetime import datetime, timezone, timedelta
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    rows = (await db.execute(
+        select(
+            APIKey.id,
+            APIKey.user_id,
+            APIKey.name,
+            APIKey.plan,
+            func.count(APIUsageLog.id).label("total_calls"),
+            func.sum(
+                func.cast(func.case((APIUsageLog.status_code >= 500, 1), else_=0), Integer)
+            ).label("errors_5xx"),
+            func.avg(APIUsageLog.latency_ms).label("avg_latency_ms"),
+        ).join(APIUsageLog, APIKey.id == APIUsageLog.api_key_id, isouter=True)
+        .where(APIUsageLog.called_at >= since)
+        .group_by(APIKey.id, APIKey.user_id, APIKey.name, APIKey.plan)
+        .order_by(desc("total_calls"))
+        .limit(50)
+    )).all()
+
+    return {
+        "days": days,
+        "top_consumers": [
+            {
+                "key_id":        r.id,
+                "user_id":       r.user_id,
+                "name":          r.name,
+                "plan":          r.plan,
+                "total_calls":   r.total_calls or 0,
+                "errors_5xx":    int(r.errors_5xx or 0),
+                "avg_latency_ms": round(float(r.avg_latency_ms or 0), 1),
+            }
+            for r in rows
+        ],
+    }

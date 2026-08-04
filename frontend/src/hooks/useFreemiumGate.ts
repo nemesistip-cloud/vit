@@ -20,10 +20,11 @@ function usePublicConfig() {
     queryKey: ['public-config'],
     queryFn: async ({ signal }) => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/config/public`, { signal })
-      return r.ok ? r.json() : {}
+      if (!r.ok) throw new Error(`Config API returned ${r.status}`)
+      return r.json()
     },
     staleTime: 5 * 60_000,
-    retry: false,
+    retry: 1,
   })
 }
 
@@ -36,13 +37,17 @@ function usePublicConfig() {
  * if (!enabled) return <UpgradePrompt />
  */
 export function useFeatureGate(feature: keyof PublicConfig): { enabled: boolean; loading: boolean } {
-  const { data, isLoading } = usePublicConfig()
+  // H5 fix: fail-closed — when config is loading or errored, gate features OFF.
+  const { data, isLoading, isError } = usePublicConfig()
 
-  if (isLoading) return { enabled: true, loading: true }
+  if (isLoading) return { enabled: false, loading: true }
 
-  const val = data?.[feature]
-  // If undefined (key not returned by API) treat as enabled
-  const enabled = val === undefined ? true : Boolean(val)
+  // Config API failure → deny access (fail-closed)
+  if (isError || !data) return { enabled: false, loading: false }
+
+  const val = data[feature]
+  // If key is absent from the config payload, default to disabled (fail-closed)
+  const enabled = val === undefined ? false : Boolean(val)
 
   return { enabled, loading: false }
 }

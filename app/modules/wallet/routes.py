@@ -395,6 +395,22 @@ async def initiate_deposit(
             except Exception as _e:
                 gateway_error = str(_e)
 
+    # H1 fix: server-side currency validation
+    ALLOWED_DEPOSIT_CURRENCIES = {"NGN", "USD", "USDT", "PI", "VITCOIN"}
+    if request.currency.upper() not in ALLOWED_DEPOSIT_CURRENCIES:
+        from app.core.errors import AppError
+        raise AppError(
+            f"Unsupported deposit currency '{request.currency}'. Allowed: {', '.join(sorted(ALLOWED_DEPOSIT_CURRENCIES))}",
+            status_code=400,
+            code="invalid_currency",
+        )
+
+    # H1 fix: minimum amount guard
+    if float(request.amount) < 0.01:
+        from app.core.errors import AppError
+        raise AppError("Deposit amount must be at least 0.01", status_code=400, code="invalid_amount")
+
+    # C12 fix: record DB row FIRST — only return payment link if DB write succeeds
     try:
         pending_tx = WalletTransaction(
             id=str(_uuid_mod.uuid4()),
@@ -415,23 +431,30 @@ async def initiate_deposit(
         )
         db.add(pending_tx)
         await db.commit()
-        try:
-            from app.modules.notifications.service import NotificationService
-            from app.modules.notifications.models import NotificationType, NotificationChannel
-            await NotificationService.create(
-                db, current_user.id,
-                NotificationType.WALLET_ACTIVITY,
-                {"action": "Deposit initiated", "amount": request.amount, "currency": request.currency.upper()},
-                title="Deposit Initiated",
-                body=f"Your deposit of {request.amount} {request.currency.upper()} has been initiated. Ref: {ref}",
-                channel=NotificationChannel.IN_APP,
-            )
-            await db.commit()
-        except Exception as _ne:
-            logger.warning(f"Deposit notification failed: {_ne}")
     except Exception as _tx_err:
-        logger.error(f"Failed to record pending deposit: {_tx_err}")
+        logger.error(f"Failed to record pending deposit for user {current_user.id}: {_tx_err}")
         await db.rollback()
+        from app.core.errors import AppError
+        raise AppError(
+            "Deposit could not be recorded. Please try again or contact support.",
+            status_code=500,
+            code="deposit_record_failed",
+        )
+
+    try:
+        from app.modules.notifications.service import NotificationService
+        from app.modules.notifications.models import NotificationType, NotificationChannel
+        await NotificationService.create(
+            db, current_user.id,
+            NotificationType.WALLET_ACTIVITY,
+            {"action": "Deposit initiated", "amount": request.amount, "currency": request.currency.upper()},
+            title="Deposit Initiated",
+            body=f"Your deposit of {request.amount} {request.currency.upper()} has been initiated. Ref: {ref}",
+            channel=NotificationChannel.IN_APP,
+        )
+        await db.commit()
+    except Exception as _ne:
+        logger.warning(f"Deposit notification failed (non-fatal): {_ne}")
 
     fallback_link = payment_link or f"https://paystack.com/pay/vit-sports?ref={ref}"
 
