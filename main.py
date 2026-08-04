@@ -1152,8 +1152,17 @@ from fastapi.responses import FileResponse
 _frontend_dist = "frontend/dist"
 
 if os.path.exists(_frontend_dist):
-    # Serve static assets (JS, CSS, images, etc.) at their exact paths
-    app.mount("/assets", StaticFiles(directory=f"{_frontend_dist}/assets"), name="frontend-assets")
+    # Serve static assets (JS, CSS, images, etc.) with long immutable cache headers.
+    # Vite generates content-hashed filenames so these can be cached indefinitely.
+    @app.get("/assets/{asset_path:path}", include_in_schema=False)
+    async def serve_asset(asset_path: str):
+        full = os.path.join(_frontend_dist, "assets", asset_path)
+        if not os.path.exists(full) or not os.path.isfile(full):
+            raise HTTPException(status_code=404)
+        return FileResponse(
+            full,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon():
@@ -1178,4 +1187,13 @@ if os.path.exists(_frontend_dist):
         if full_path.startswith(("api/", "ws/", "ping", "health", "system/")):
             raise HTTPException(status_code=404)
         index = f"{_frontend_dist}/index.html"
-        return FileResponse(index)
+        # index.html must never be cached: browsers would serve a stale bundle
+        # after deployment, causing 405 / stale-asset errors until hard refresh.
+        return FileResponse(
+            index,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )

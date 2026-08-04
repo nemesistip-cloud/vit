@@ -1,33 +1,18 @@
 #!/usr/bin/env bash
-# Production startup — FastAPI + Integrated Background Agents.
-# DB setup runs in background so uvicorn binds immediately and passes Render health checks.
+# scripts/start_production.sh — production startup for Render (Python runtime, free plan)
+# Starts uvicorn immediately so health checks pass, then runs DB setup in background.
 set -euo pipefail
-cd "$(dirname "$0")/.."
 
-# PORT: read from env (Render dashboard sets PORT=8000).
-PORT="${PORT:-8000}"
-APP_VERSION="1.1.0"
-
-export ENVIRONMENT="${ENVIRONMENT:-production}"
 export PYTHONPATH="${PYTHONPATH:-}:."
+PORT="${PORT:-8000}"
 
-# Auto-generate ADMIN_PASSWORD
-if [ -z "${ADMIN_PASSWORD:-}" ]; then
-    _AUTO_PASS="$(python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(24)))")"
-    export ADMIN_PASSWORD="${_AUTO_PASS}"
-fi
+echo "[production] VIT Network startup — port ${PORT}"
 
-echo "[production] VIT Sports Analytics Network v${APP_VERSION}"
-echo "[production] Hybrid Mode: ML + SCIE Active"
-
-# ── DB setup runs in background ────────────────────────────────────────────────
-# Running synchronously before uvicorn caused Render health-check timeouts
-# (~80s of DB scripts before uvicorn even binds).  Moving to background lets
-# uvicorn respond to /ping immediately while schema work completes in parallel.
-# Every step is idempotent so concurrent access with kernel startup is safe.
-if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; then
+# ── Background DB setup ────────────────────────────────────────────────────────
+DATABASE_URL="${DATABASE_URL:-}"
+if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
     (
-      set +e   # individual step failures must not kill this subshell
+      echo "[production] [bg] Starting DB setup..."
 
       echo "[production] [bg] Running DB table bootstrap (init_db.py)..."
       python3 scripts/init_db.py \
@@ -37,47 +22,11 @@ if [ -n "${DATABASE_URL:-}" ] && echo "${DATABASE_URL}" | grep -q "postgres"; th
       python3 scripts/ensure_columns.py \
         || echo "[production] [bg] WARNING: ensure_columns failed — schema may be incomplete." >&2
 
-      # Alembic: stamp fresh DBs, upgrade existing ones.
-      echo "[production] [bg] Checking Alembic migration state..."
-      _ALEMBIC_ACTION=$(python3 - <<'PYEOF'
-import os, sys
-from sqlalchemy import create_engine, text, inspect as sa_inspect
-
-raw_url = os.environ.get("DATABASE_URL", "")
-sync_url = raw_url
-for old, new in [
-    ("postgresql+asyncpg://", "postgresql://"),
-    ("postgres+asyncpg://",   "postgresql://"),
-    ("postgres://",           "postgresql://"),
-]:
-    if sync_url.startswith(old):
-        sync_url = new + sync_url[len(old):]
-        break
-
-try:
-    engine = create_engine(sync_url, connect_args={"connect_timeout": 10})
-    with engine.connect() as conn:
-        ins = sa_inspect(engine)
-        if not ins.has_table("alembic_version"):
-            print("STAMP")
-        else:
-            count = conn.execute(text("SELECT COUNT(*) FROM alembic_version")).scalar()
-            print("STAMP" if count == 0 else "UPGRADE")
-    engine.dispose()
-except Exception as exc:
-    print(f"[production] [bg] alembic-check warning: {exc}", file=sys.stderr)
-    print("STAMP")
-PYEOF
-      )
-
-      if [ "${_ALEMBIC_ACTION:-STAMP}" = "STAMP" ]; then
-          echo "[production] [bg] Fresh DB (alembic_version absent or empty) — stamping all heads..."
-          alembic stamp heads 2>&1 \
-            || echo "[production] [bg] WARNING: alembic stamp heads failed — app started without migration tracking." >&2
+      echo "[production] [bg] Running production-safe migrations (run_migrations.py)..."
+      if python3 scripts/run_migrations.py; then
+          echo "[production] [bg] Migrations completed successfully."
       else
-          echo "[production] [bg] Running pending migrations (alembic upgrade heads)..."
-          alembic upgrade heads 2>&1 \
-            || echo "[production] [bg] WARNING: alembic upgrade heads failed — schema may be incomplete." >&2
+          echo "[production] [bg] ERROR: run_migrations.py failed — schema may be incomplete. Check logs above." >&2
       fi
 
       echo "[production] [bg] Ensuring admin user exists..."

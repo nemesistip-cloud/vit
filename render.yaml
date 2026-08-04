@@ -85,14 +85,13 @@ services:
         - key: VIT_AI_API_KEY
           sync: false
 
-    databases:
+databases:
     - name: vit-postgres-v2
       region: oregon
       plan: free
 
-    - type: redis
-      name: vitnetwork-redis
+redis:
+    - name: vitnetwork-redis
       region: oregon
       plan: free
       ipAllowList: []
-    
