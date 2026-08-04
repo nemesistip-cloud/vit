@@ -42,7 +42,7 @@ function useNotifications() {
         signal,
         headers: authHeaders(),
       })
-      return r.ok ? r.json() : []
+      return r.ok ? r.json().then((d: unknown) => Array.isArray(d) ? d as Notification[] : []) : []
     },
     retry: false,
     staleTime: 30_000,
