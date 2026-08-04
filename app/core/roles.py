@@ -187,3 +187,52 @@ def has_permission(admin_role: str, permission: Permission) -> bool:
     """Check if an admin role has a specific permission."""
     perms = get_permissions_for_admin_role(admin_role)
     return permission.value in perms
+
+
+# ── FastAPI dependency helpers (Phase 1 completion) ───────────────────────────
+
+def has_role(user, *roles: str) -> bool:
+    """Return True if user.role matches any of the supplied role strings.
+
+    Uses the simple string column (``user.role``), not the authz RBAC table.
+    For full ABAC evaluation use ``app.modules.authz.manager.authz_manager``.
+    """
+    return getattr(user, "role", None) in roles
+
+
+def require_role(*roles: str):
+    """FastAPI dependency factory — raises 403 if the caller does not hold one of *roles*.
+
+    Uses the simple ``user.role`` column (fast, no extra DB query).
+
+    Usage::
+
+        @router.get("/admin/data")
+        async def admin_data(user=Depends(require_role("admin", "moderator"))):
+            ...
+    """
+    from fastapi import Depends, HTTPException, status
+    from app.auth.dependencies import get_current_user
+
+    role_set = set(roles)
+
+    async def _dep(current_user=Depends(get_current_user)):
+        if not has_role(current_user, *role_set):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires one of the following roles: {sorted(role_set)}",
+            )
+        return current_user
+
+    return _dep
+
+
+# Canonical built-in role display names (for seeding / UI)
+BUILT_IN_ROLE_NAMES: dict[str, str] = {
+    "admin":      "Platform Administrator",
+    "moderator":  "Community Moderator",
+    "analyst":    "Data Analyst",
+    "developer":  "Developer",
+    "user":       "Standard User",
+    "guest":      "Guest",
+}

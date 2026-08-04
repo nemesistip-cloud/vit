@@ -136,3 +136,57 @@ class StudentProfile(Base):
     )
 
     user = relationship("User", back_populates="student_profile")
+
+
+class OrganizationMember(Base):
+    """Junction: user membership in an organization.
+
+    role_in_org: member | owner | admin (org-scoped, separate from platform role)
+    """
+    __tablename__ = "identity_organization_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("identity_organizations.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    role_in_org: Mapped[str] = mapped_column(String(50), nullable=False, default="member")
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user_id",
+                         name="uq_org_member_org_user"),
+        Index("idx_org_member_org_id", "organization_id"),
+        Index("idx_org_member_user_id", "user_id"),
+    )
+
+
+class TeamMember(Base):
+    """Junction: user membership in a team."""
+    __tablename__ = "identity_team_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("identity_teams.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    role_in_team: Mapped[str] = mapped_column(String(50), nullable=False, default="member")
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("team_id", "user_id", name="uq_team_member_team_user"),
+        Index("idx_team_member_team_id", "team_id"),
+        Index("idx_team_member_user_id", "user_id"),
+    )

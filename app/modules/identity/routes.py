@@ -611,3 +611,530 @@ async def list_workspace_settings(
         ],
         "count": len(rows),
     }
+
+
+# ============================================================================
+# Phase 1 Completion: Missing endpoints added below
+# ============================================================================
+
+# ── Organizations: GET by id + member management ─────────────────────────────
+
+class OrgMemberAdd(BaseModel):
+    user_id: int
+    role_in_org: str = "member"
+
+
+class OrgMemberOut(BaseModel):
+    id: int
+    organization_id: int
+    user_id: int
+    role_in_org: str
+    joined_at: Optional[str] = None
+
+
+@router.get("/organizations/{organization_id}", response_model=OrganizationOut)
+async def get_organization(
+    organization_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch a single organization by primary-key id."""
+    from app.modules.identity.models import Organization
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    return OrganizationOut(
+        id=org.id, name=org.name, slug=org.slug, owner_id=org.owner_id,
+        created_at=org.created_at.isoformat() if org.created_at else None,
+    )
+
+
+@router.post("/organizations/{organization_id}/members", response_model=OrgMemberOut,
+             status_code=status.HTTP_201_CREATED)
+async def add_organization_member(
+    organization_id: int,
+    payload: OrgMemberAdd,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a user to an organization.  Requires owner or admin."""
+    from app.modules.identity.models import Organization, OrganizationMember
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    if org.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Only owners or admins may add members")
+
+    existing = await db.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == payload.user_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(409, "User is already a member of this organization")
+
+    member = OrganizationMember(
+        organization_id=organization_id,
+        user_id=payload.user_id,
+        role_in_org=payload.role_in_org,
+    )
+    db.add(member)
+    await db.commit()
+    await db.refresh(member)
+    return OrgMemberOut(
+        id=member.id, organization_id=member.organization_id, user_id=member.user_id,
+        role_in_org=member.role_in_org,
+        joined_at=member.joined_at.isoformat() if member.joined_at else None,
+    )
+
+
+@router.get("/organizations/{organization_id}/members", response_model=list[OrgMemberOut])
+async def list_organization_members(
+    organization_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import Organization, OrganizationMember
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+
+    result = await db.execute(
+        select(OrganizationMember)
+        .where(OrganizationMember.organization_id == organization_id)
+        .order_by(OrganizationMember.joined_at.asc())
+    )
+    rows = result.scalars().all()
+    return [
+        OrgMemberOut(
+            id=row.id, organization_id=row.organization_id, user_id=row.user_id,
+            role_in_org=row.role_in_org,
+            joined_at=row.joined_at.isoformat() if row.joined_at else None,
+        )
+        for row in rows
+    ]
+
+
+@router.delete("/organizations/{organization_id}/members/{user_id}",
+               status_code=status.HTTP_204_NO_CONTENT)
+async def remove_organization_member(
+    organization_id: int,
+    user_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import Organization, OrganizationMember
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    if org.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Only owners or admins may remove members")
+
+    result = await db.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(404, "Member not found in this organization")
+    await db.delete(member)
+    await db.commit()
+
+
+# ── Teams: GET/PUT/DELETE by id + member management ──────────────────────────
+
+class TeamUpdate(BaseModel):
+    name: str
+    slug: str
+
+
+class TeamMemberAdd(BaseModel):
+    user_id: int
+    role_in_team: str = "member"
+
+
+class TeamMemberOut(BaseModel):
+    id: int
+    team_id: int
+    user_id: int
+    role_in_team: str
+    joined_at: Optional[str] = None
+
+
+@router.get("/teams/{team_id}", response_model=TeamOut)
+async def get_team(
+    team_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import IdentityTeam
+    team = await db.get(IdentityTeam, team_id)
+    if not team:
+        raise HTTPException(404, "Team not found")
+    return TeamOut(
+        id=team.id, organization_id=team.organization_id, name=team.name, slug=team.slug,
+        created_at=team.created_at.isoformat() if team.created_at else None,
+    )
+
+
+@router.put("/teams/{team_id}", response_model=TeamOut)
+async def update_team(
+    team_id: int,
+    payload: TeamUpdate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import IdentityTeam, Organization
+    team = await db.get(IdentityTeam, team_id)
+    if not team:
+        raise HTTPException(404, "Team not found")
+
+    org = await db.get(Organization, team.organization_id)
+    if not org:
+        raise HTTPException(404, "Parent organization not found")
+    if org.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Only org owners or admins may update teams")
+
+    team.name = payload.name
+    team.slug = payload.slug
+    await db.commit()
+    await db.refresh(team)
+    return TeamOut(
+        id=team.id, organization_id=team.organization_id, name=team.name, slug=team.slug,
+        created_at=team.created_at.isoformat() if team.created_at else None,
+    )
+
+
+@router.delete("/teams/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_team(
+    team_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import IdentityTeam, Organization
+    team = await db.get(IdentityTeam, team_id)
+    if not team:
+        raise HTTPException(404, "Team not found")
+
+    org = await db.get(Organization, team.organization_id)
+    if org and org.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Only org owners or admins may delete teams")
+
+    await db.delete(team)
+    await db.commit()
+
+
+@router.post("/teams/{team_id}/members", response_model=TeamMemberOut,
+             status_code=status.HTTP_201_CREATED)
+async def add_team_member(
+    team_id: int,
+    payload: TeamMemberAdd,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import IdentityTeam, Organization, TeamMember
+    team = await db.get(IdentityTeam, team_id)
+    if not team:
+        raise HTTPException(404, "Team not found")
+
+    org = await db.get(Organization, team.organization_id)
+    if org and org.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Only org owners or admins may add team members")
+
+    existing = await db.execute(
+        select(TeamMember).where(TeamMember.team_id == team_id, TeamMember.user_id == payload.user_id)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(409, "User is already a member of this team")
+
+    member = TeamMember(team_id=team_id, user_id=payload.user_id, role_in_team=payload.role_in_team)
+    db.add(member)
+    await db.commit()
+    await db.refresh(member)
+    return TeamMemberOut(
+        id=member.id, team_id=member.team_id, user_id=member.user_id,
+        role_in_team=member.role_in_team,
+        joined_at=member.joined_at.isoformat() if member.joined_at else None,
+    )
+
+
+@router.get("/teams/{team_id}/members", response_model=list[TeamMemberOut])
+async def list_team_members(
+    team_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import IdentityTeam, TeamMember
+    team = await db.get(IdentityTeam, team_id)
+    if not team:
+        raise HTTPException(404, "Team not found")
+
+    result = await db.execute(
+        select(TeamMember).where(TeamMember.team_id == team_id).order_by(TeamMember.joined_at.asc())
+    )
+    rows = result.scalars().all()
+    return [
+        TeamMemberOut(
+            id=row.id, team_id=row.team_id, user_id=row.user_id,
+            role_in_team=row.role_in_team,
+            joined_at=row.joined_at.isoformat() if row.joined_at else None,
+        )
+        for row in rows
+    ]
+
+
+@router.delete("/teams/{team_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_team_member(
+    team_id: int,
+    user_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.identity.models import IdentityTeam, Organization, TeamMember
+    team = await db.get(IdentityTeam, team_id)
+    if not team:
+        raise HTTPException(404, "Team not found")
+
+    org = await db.get(Organization, team.organization_id)
+    if org and org.owner_id != current_user.id and current_user.role != "admin":
+        if current_user.id != user_id:   # users may remove themselves
+            raise HTTPException(403, "Only org owners or admins may remove team members")
+
+    result = await db.execute(
+        select(TeamMember).where(TeamMember.team_id == team_id, TeamMember.user_id == user_id)
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(404, "Member not found in this team")
+    await db.delete(member)
+    await db.commit()
+
+
+# ── Roles: GET/PUT/DELETE by id + user assignment ────────────────────────────
+
+class RoleAssign(BaseModel):
+    user_id: int
+
+
+class UserRoleOut(BaseModel):
+    user_id: int
+    role_id: int
+    role_slug: str
+    role_name: str
+
+
+@router.get("/roles/{role_id}", response_model=RoleOut)
+async def get_role(
+    role_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.authz.models import Role
+    role = await db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "Role not found")
+    return RoleOut(
+        id=role.id, name=role.name, slug=role.slug, description=role.description,
+        permissions=[p.slug for p in role.permissions],
+    )
+
+
+@router.put("/roles/{role_id}", response_model=RoleOut)
+async def update_role(
+    role_id: int,
+    payload: RoleCreate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.authz.models import Role, Permission
+    if current_user.role != "admin":
+        raise HTTPException(403, "Only admins may update roles")
+
+    role = await db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "Role not found")
+    if role.is_builtin:
+        raise HTTPException(403, "Built-in roles cannot be modified")
+
+    role.name = payload.name
+    role.slug = payload.slug
+    role.description = payload.description
+
+    # Replace permission set
+    role.permissions.clear()
+    for perm_slug in payload.permissions:
+        perm_res = await db.execute(select(Permission).where(Permission.slug == perm_slug))
+        perm_row = perm_res.scalar_one_or_none()
+        if perm_row is None:
+            perm_row = Permission(slug=perm_slug, description=f"Permission {perm_slug}")
+            db.add(perm_row)
+            await db.flush()
+        role.permissions.append(perm_row)
+
+    await db.commit()
+    await db.refresh(role)
+    return RoleOut(
+        id=role.id, name=role.name, slug=role.slug, description=role.description,
+        permissions=[p.slug for p in role.permissions],
+    )
+
+
+@router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_role(
+    role_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.modules.authz.models import Role
+    if current_user.role != "admin":
+        raise HTTPException(403, "Only admins may delete roles")
+
+    role = await db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "Role not found")
+    if role.is_builtin:
+        raise HTTPException(403, "Built-in roles cannot be deleted")
+
+    await db.delete(role)
+    await db.commit()
+
+
+@router.post("/roles/{role_id}/assign", status_code=status.HTTP_201_CREATED)
+async def assign_role_to_user(
+    role_id: int,
+    payload: RoleAssign,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Assign an authz Role to a user (admin only)."""
+    from app.modules.authz.models import Role, user_roles as user_roles_table
+    from app.db.models import User
+    from sqlalchemy import insert as sa_insert
+
+    if current_user.role != "admin":
+        raise HTTPException(403, "Only admins may assign roles")
+
+    role = await db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "Role not found")
+
+    target_user = await db.get(User, payload.user_id)
+    if not target_user:
+        raise HTTPException(404, "Target user not found")
+
+    # Check if already assigned (idempotent)
+    existing = await db.execute(
+        select(user_roles_table).where(
+            user_roles_table.c.user_id == payload.user_id,
+            user_roles_table.c.role_id == role_id,
+        )
+    )
+    if existing.fetchone() is None:
+        await db.execute(
+            sa_insert(user_roles_table).values(user_id=payload.user_id, role_id=role_id)
+        )
+        await db.commit()
+
+    return {"user_id": payload.user_id, "role_id": role_id, "role_slug": role.slug, "role_name": role.name}
+
+
+@router.delete("/roles/{role_id}/assign/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_role_from_user(
+    role_id: int,
+    user_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke a role from a user (admin only)."""
+    from app.modules.authz.models import Role, user_roles as user_roles_table
+    from sqlalchemy import delete as sa_delete
+
+    if current_user.role != "admin":
+        raise HTTPException(403, "Only admins may revoke roles")
+
+    role = await db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "Role not found")
+
+    await db.execute(
+        sa_delete(user_roles_table).where(
+            user_roles_table.c.user_id == user_id,
+            user_roles_table.c.role_id == role_id,
+        )
+    )
+    await db.commit()
+
+
+@router.get("/users/{user_id}/roles", response_model=list[UserRoleOut])
+async def list_user_roles(
+    user_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all authz roles assigned to a user."""
+    from app.modules.authz.models import Role, user_roles as user_roles_table
+    from app.db.models import User
+
+    if current_user.id != user_id and current_user.role != "admin":
+        raise HTTPException(403, "Cannot view another user's roles")
+
+    target = await db.get(User, user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    result = await db.execute(
+        select(Role)
+        .join(user_roles_table, user_roles_table.c.role_id == Role.id)
+        .where(user_roles_table.c.user_id == user_id)
+    )
+    roles = result.scalars().all()
+    return [UserRoleOut(user_id=user_id, role_id=r.id, role_slug=r.slug, role_name=r.name) for r in roles]
+
+
+# ── Device Management: DELETE ────────────────────────────────────────────────
+
+@router.delete("/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_device(
+    device_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove (un-register) a device.  Users can only remove their own devices."""
+    from app.plugins.identity.models import TrustedDevice
+
+    result = await db.execute(
+        select(TrustedDevice).where(
+            TrustedDevice.identity_id == current_user.id,
+            TrustedDevice.device_id == device_id,
+        )
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(404, "Device not found")
+    await db.delete(device)
+    await db.commit()
+
+
+# ── API Key: GET single ───────────────────────────────────────────────────────
+
+@router.get("/api-keys/{api_key_id}", response_model=APIKeyOut)
+async def get_api_key(
+    api_key_id: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch metadata for a single API key owned by the current user."""
+    from app.modules.developer.models import APIKey
+
+    key = await db.get(APIKey, api_key_id)
+    if not key or key.user_id != current_user.id:
+        raise HTTPException(404, "API key not found")
+    return APIKeyOut(
+        id=key.id, name=key.name, prefix=key.key_prefix, active=bool(key.is_active),
+        created_at=key.created_at.isoformat() if key.created_at else None,
+        expires_at=key.expires_at.isoformat() if key.expires_at else None,
+        last_used_at=key.last_used_at.isoformat() if key.last_used_at else None,
+    )
