@@ -186,7 +186,9 @@ def _row_to_dict(row: ModelMetadata) -> dict:
         "output_1k_tokens": 0.0020 if is_llm else 0.0
     }
     fallback_priority = 1 if is_llm else 2
-    endpoint = f"https://vit-ai.onrender.com/api/v1/models/{row.key}"
+    from app.config import VIT_AI_URL
+    _ai_base = (VIT_AI_URL or "https://vit-ai.onrender.com").rstrip("/")
+    endpoint = f"{_ai_base}/api/v1/models/{row.key}"
 
     return {
         "id":                 row.id,

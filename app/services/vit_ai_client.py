@@ -34,6 +34,8 @@ class VitAIClient:
             return
         # Fetch base url from config
         self.base_url = get_env("VIT_AI_URL", "https://vit-ai.onrender.com").rstrip("/")
+        # Outgoing API key for vit-ai inter-service auth (X-API-KEY header)
+        self._api_key = get_env("VIT_AI_API_KEY", "")
         self.client = httpx.AsyncClient(timeout=10.0, limits=httpx.Limits(max_keepalive_connections=50, max_connections=100))
 
         # Circuit Breaker state
@@ -100,6 +102,10 @@ class VitAIClient:
             logger.warning(f"[VitAIClient] Redis cache write error: {e}")
 
     # Retries with exponential backoff on HTTP/Timeout exceptions
+    def _auth_headers(self) -> dict:
+        """Return X-API-KEY header when a key is configured."""
+        return {"X-API-KEY": self._api_key} if self._api_key else {}
+
     @retry(
         reraise=True,
         stop=stop_after_attempt(3),
@@ -109,10 +115,11 @@ class VitAIClient:
     async def _execute_with_retry(self, method: str, path: str, payload: Optional[dict] = None) -> httpx.Response:
         url = f"{self.base_url}/{path.lstrip('/')}"
         logger.debug(f"[VitAIClient] Executing {method} request to {url}")
+        headers = self._auth_headers()
 
         if method.upper() == "POST":
-            return await self.client.post(url, json=payload)
-        return await self.client.get(url)
+            return await self.client.post(url, json=payload, headers=headers)
+        return await self.client.get(url, headers=headers)
 
     async def call_ai(self, prompt: str, **kwargs) -> str:
         """Centralized call endpoint for the external AI microservice with full circuit breaker and retry logic."""
@@ -125,13 +132,19 @@ class VitAIClient:
             return cached
 
         # 2. Execute Request with Retries
+        # vit-ai /chat expects InferenceRequest: {model_id, payload}
         try:
-            response = await self._execute_with_retry("POST", "/api/v1/chat", {"prompt": prompt, "config": kwargs})
+            body = {
+                "model_id": kwargs.pop("model", "ensemble_v1"),
+                "payload": {"prompt": prompt, **kwargs},
+            }
+            response = await self._execute_with_retry("POST", "/api/v1/chat", body)
             if response.status_code >= 400:
                 raise httpx.HTTPStatusError(f"HTTP Error {response.status_code}", request=response.request, response=response)
 
             data = response.json()
-            completion = data.get("completion", "") or data.get("reply", "") or str(data)
+            # InferenceResponse shape: {result, metadata, ...}
+            completion = data.get("result") or data.get("completion", "") or data.get("reply", "") or str(data)
 
             # Record success and cache response
             self._record_success()
