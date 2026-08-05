@@ -118,7 +118,7 @@ class TestIdentityRoutesSchema:
     def _route_map():
         from app.modules.identity.routes import router
         return {
-            (r.path, list(r.methods or [])): r
+            (r.path, tuple(sorted(r.methods or []))): r
             for r in router.routes
             if hasattr(r, "methods")
         }

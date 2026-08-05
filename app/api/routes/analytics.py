@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.models import User, Match, Prediction, CLVEntry
+from app.modules.merit.models import MeritScore
 from app.core.cache import cache
 from app.config import APP_VERSION as VERSION
 
@@ -70,14 +71,20 @@ async def get_summary(db: AsyncSession = Depends(get_db)):
     user_stats_q = await db.execute(
         select(
             func.count(User.id),
-            func.sum(func.coalesce(User.merit_score, 0)),
             func.sum(func.coalesce(User.total_xp, 0))
         ).where(User.is_active == True)
     )
     user_stats = user_stats_q.one()
     total_users = user_stats[0] or 0
-    total_merit = float(user_stats[1] or 0)
-    total_xp = float(user_stats[2] or 0)
+    total_merit = 0.0
+    total_xp = float(user_stats[1] or 0)
+
+    # Merit score summary
+    merit_q = await db.execute(
+        select(func.sum(func.coalesce(MeritScore.score, 0)))
+        .select_from(MeritScore)
+    )
+    total_merit = float(merit_q.scalar() or 0)
 
     # Niche market count
     niche_q = await db.execute(

@@ -197,6 +197,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         details=exc.errors()
     )
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return error_response(
+        request=request,
+        status_code=exc.status_code,
+        code="http_error",
+        message=str(exc.detail) if exc.detail else "HTTP error",
+        details=None,
+    )
+
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     logging.error(f"Unhandled error: {exc}", exc_info=True)
@@ -344,10 +354,8 @@ async def health(db: AsyncSession = Depends(get_db)):
 # --- Router Registrations ---
 try:
     from app.auth.routes import router as auth_router
-    # auth_router already has prefix="/auth"; mount at /api to produce /api/auth/...
-    app.include_router(auth_router, prefix="/api", tags=["Auth"])
-    # Compat: expose auth routes at /auth/* for legacy clients (router self-prefixes /auth)
-    app.include_router(auth_router, tags=["Auth-Compat"], include_in_schema=False)
+    app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+    app.include_router(auth_router, prefix="/auth", tags=["Auth-Compat"], include_in_schema=False)
 except Exception as _e:
     logging.warning("auth_router not mounted — routes unavailable: %s", _e)
 

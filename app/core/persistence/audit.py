@@ -1,35 +1,9 @@
 import logging
-import time
 from typing import Any, Dict, Optional
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, JSON, DateTime, Text, Index
-from app.db.database import Base
+from app.db.models import AuditLog
 
 logger = logging.getLogger(__name__)
-
-class AuditLog(Base):
-    """Authoritative audit log for all data modifications."""
-    __tablename__ = "audit_logs"
-    __table_args__ = (
-        Index("idx_audit_entity_action", "entity", "action"),
-        Index("idx_audit_timestamp", "timestamp"),
-        {"extend_existing": True}
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    module = Column(String(50), nullable=False, index=True)
-    entity = Column(String(50), nullable=False, index=True)
-    entity_id = Column(String(100), nullable=False, index=True)
-    action = Column(String(20), nullable=False) # CREATE, UPDATE, DELETE, RESTORE
-
-    previous_state = Column(JSON, nullable=True)
-    new_state = Column(JSON, nullable=True)
-
-    user_id = Column(Integer, nullable=True, index=True)
-    correlation_id = Column(String(100), nullable=True, index=True)
-    request_id = Column(String(100), nullable=True)
-
-    timestamp = Column(DateTime(timezone=True), server_default=datetime.now(timezone.utc).isoformat())
 
 class AuditRepository:
     """Data access layer for audit logs."""

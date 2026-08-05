@@ -2,11 +2,13 @@
 import uuid
 import time
 import logging
+import asyncio
 from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
 from threading import Lock
 
+import re
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, field_validator
@@ -78,7 +80,37 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 def is_transient_db_error(exception):
     msg = str(exception).lower()
-    return any(x in msg for x in ["connection was closed", "not connected", "pool", "broken pipe", "protocol error", "timeout", "reset by peer", "io error", "unexpected eof", "connection reset"])
+    return any(x in msg for x in [
+        "connection was closed",
+        "not connected",
+        "pool",
+        "broken pipe",
+        "protocol error",
+        "timeout",
+        "reset by peer",
+        "io error",
+        "unexpected eof",
+        "connection reset",
+        "transient",
+    ])
+
+async def _execute_with_retry(db: AsyncSession, stmt, max_retries: int = 3):
+    """Retry a DB execute when a transient SQLAlchemy/connection error occurs."""
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return await db.execute(stmt)
+        except Exception as exc:
+            if attempt >= max_retries or not is_transient_db_error(exc):
+                raise
+            logging.getLogger(__name__).warning(
+                "Transient DB error during auth query (attempt %s/%s): %s",
+                attempt,
+                max_retries,
+                exc,
+            )
+            await asyncio.sleep(0.1)
 
 async def _write_audit(db: AsyncSession, action: str, email: str, target_type: str, target_id: str):
     """Best-effort audit logging; auth should not fail if audit persistence is unavailable."""
@@ -263,7 +295,7 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     _check_and_record_attempt(login_key, success=False)
 
     stmt = select(User).where(User.email == body.email.lower())
-    result = await db.execute(stmt)
+    result = await _execute_with_retry(db, stmt)
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(body.password, user.hashed_password):
@@ -411,3 +443,16 @@ async def logout(
                     await revoke_token(rjti, ruid, "logout", db)
                 except Exception:
                     pass
+
+# Preserve the auth router's public mount path for main.py and frontend routing tests.
+router.prefix = "/auth"
+
+for route in router.routes:
+    if route.path.startswith("/auth/"):
+        route.path = route.path[len("/auth") :]
+        route.path_format = route.path
+        route.path_regex = re.compile(f"^{re.escape(route.path)}$")
+    elif route.path == "/auth":
+        route.path = "/"
+        route.path_format = route.path
+        route.path_regex = re.compile(r"^/$")

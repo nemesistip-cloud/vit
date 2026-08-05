@@ -107,12 +107,32 @@ SUPPORT_PERMISSIONS: List[Permission] = [
     Permission.CANCEL_SUBSCRIPTIONS,
 ]
 
-ROLE_PERMISSIONS: dict[AdminRole, List[Permission]] = {
-    AdminRole.SUPER_ADMIN: SUPER_ADMIN_PERMISSIONS,
-    AdminRole.ADMIN: ADMIN_PERMISSIONS,
-    AdminRole.AUDITOR: AUDITOR_PERMISSIONS,
-    AdminRole.SUPPORT: SUPPORT_PERMISSIONS,
+ROLE_PERMISSIONS: dict[str, List[str]] = {
+    AdminRole.SUPER_ADMIN.value: [p.value for p in SUPER_ADMIN_PERMISSIONS],
+    AdminRole.ADMIN.value: [p.value for p in ADMIN_PERMISSIONS] + ["platform.admin"],
+    AdminRole.AUDITOR.value: [p.value for p in AUDITOR_PERMISSIONS],
+    AdminRole.SUPPORT.value: [p.value for p in SUPPORT_PERMISSIONS],
+    "user": [
+        "wallet.read",
+        "wallet.write",
+        "profile.view",
+    ],
+    "guest": [
+        "wallet.read",
+        "profile.view",
+    ],
+    "developer": [
+        "api.access",
+        "config.view",
+    ],
 }
+
+BUILT_IN_ROLES: list[str] = [
+    "admin",
+    "user",
+    "developer",
+    "guest",
+]
 
 
 # ── Subscription tier limits ──────────────────────────────────────────
@@ -178,9 +198,9 @@ def get_permissions_for_admin_role(admin_role: str) -> List[str]:
     """Return permission strings for the given admin role name."""
     try:
         role = AdminRole(admin_role)
-        return [p.value for p in ROLE_PERMISSIONS.get(role, [])]
+        return ROLE_PERMISSIONS.get(role.value, [])
     except ValueError:
-        return []
+        return ROLE_PERMISSIONS.get(admin_role, [])
 
 
 def has_permission(admin_role: str, permission: Permission) -> bool:

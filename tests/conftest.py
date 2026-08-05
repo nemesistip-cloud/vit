@@ -140,17 +140,8 @@ def setup_env():
 # Per-test isolated SQLite database
 # ---------------------------------------------------------------------------
 @pytest.fixture
-async def db_session():
-    """
-    Provides a patched DB session backed by a temp-file SQLite database.
-
-    File-based SQLite (not :memory:) is used because aiosqlite's in-memory
-    databases lose their greenlet context across async boundaries when
-    multiple ASGI requests share the same StaticPool connection — a known
-    limitation of pytest-asyncio + SQLAlchemy 2.0 with aiosqlite.
-
-    Each test gets a unique db file so tests are fully isolated.
-    """
+async def db_engine():
+    """Patch the app DB engine to a fresh temp-file SQLite database."""
     db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="vit_test_")
     os.close(db_fd)
     print(f"[conftest] using temp db: {db_path}")
@@ -184,10 +175,7 @@ async def db_session():
     except Exception:
         pass
 
-    # Yield a session for tests that need direct DB access
-    async with db_mod.AsyncSessionLocal() as session:
-        yield session
-        await session.close()
+    yield engine
 
     # --- Restore ---
     await engine.dispose()
@@ -199,11 +187,19 @@ async def db_session():
         pass
 
 
+@pytest.fixture
+async def db_session(db_engine):
+    """Provides a fresh session from the patched test DB engine."""
+    import app.db.database as db_mod
+    async with db_mod.AsyncSessionLocal() as session:
+        yield session
+
+
 # ---------------------------------------------------------------------------
 # ASGI test client
 # ---------------------------------------------------------------------------
 @pytest.fixture
-async def client(db_session):
+async def client(db_engine):
     """HTTP test client backed by the real FastAPI app and an isolated DB."""
     from main import app
     from httpx import AsyncClient, ASGITransport

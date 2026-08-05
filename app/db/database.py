@@ -1,7 +1,7 @@
 # app/db/database.py
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -43,7 +43,7 @@ if _is_sqlite:
         DATABASE_URL,
         echo=False,
         future=True,
-        poolclass=StaticPool,
+        poolclass=NullPool if _is_sqlite and ":memory:" not in DATABASE_URL else StaticPool,
         connect_args=connect_args,
     )
 
