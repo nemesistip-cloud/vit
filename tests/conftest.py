@@ -13,11 +13,99 @@ import os
 import sys
 import uuid
 import tempfile
+from pathlib import Path
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.pool import NullPool
 
 # Add project root to path before any app import
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Test environment defaults needed before importing app modules at collection time.
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-not-for-production")
+os.environ.setdefault("SESSION_SECRET", "test-session-secret")
+os.environ.setdefault("PAYSTACK_SECRET_KEY", "sk_test_placeholder")
+os.environ.setdefault("PAYSTACK_WEBHOOK_SECRET", "whsec_test_placeholder")
+os.environ.setdefault("ENVIRONMENT", "testing")
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+os.environ.setdefault("AUTH_ENABLED", "false")
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+os.environ.setdefault("USE_REAL_ML_MODELS", "false")
+
+# Alembic config helpers
+
+def _alembic_config() -> str:
+    config_path = Path(__file__).resolve().parents[1] / "alembic.ini"
+    return str(config_path)
+
+
+def _bootstrap_sqlite_schema(database_url: str) -> None:
+    """Populate a fresh SQLite test DB with the current ORM schema."""
+    from sqlalchemy import create_engine
+    from app.db.database import Base
+
+    # Import all models that contribute to the canonical metadata.
+    import app.db.models  # noqa: F401
+    import app.modules.wallet.models  # noqa: F401
+    import app.modules.blockchain.models  # noqa: F401
+    import app.modules.notifications.models  # noqa: F401
+    import app.modules.marketplace.models  # noqa: F401
+    import app.modules.tasks.models  # noqa: F401
+    import app.modules.trust.models  # noqa: F401
+    import app.modules.bridge.models  # noqa: F401
+    import app.modules.developer.models  # noqa: F401
+    import app.modules.governance.models  # noqa: F401
+    import app.modules.rewards.models  # noqa: F401
+
+    _OPTIONAL_MODELS = [
+        "app.modules.training.models",
+        "app.modules.ai.models",
+        "app.data.models",
+        "app.modules.freemium.models",
+    ]
+    for _mod in _OPTIONAL_MODELS:
+        try:
+            __import__(_mod)
+        except Exception:
+            pass
+
+    sync_url = database_url.replace("sqlite+aiosqlite://", "sqlite://", 1)
+    engine = create_engine(sync_url, connect_args={"check_same_thread": False})
+    with engine.begin() as conn:
+        Base.metadata.create_all(conn, checkfirst=True)
+    engine.dispose()
+
+
+def run_alembic_migrations(database_url: str) -> None:
+    import subprocess
+    import shutil
+    from pathlib import Path
+
+    alembic_path = shutil.which("alembic")
+    if not alembic_path:
+        raise RuntimeError("Alembic CLI not found in PATH")
+
+    alembic_config = _alembic_config()
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+
+    repo_root = Path(__file__).resolve().parents[1]
+    if database_url.startswith("sqlite+aiosqlite://"):
+        _bootstrap_sqlite_schema(database_url)
+        cmd = [alembic_path, "-c", alembic_config, "stamp", "heads"]
+    else:
+        cmd = [alembic_path, "-c", alembic_config, "upgrade", "heads"]
+
+    subprocess.run(
+        cmd,
+        cwd=str(repo_root),
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 # ---------------------------------------------------------------------------
 # Environment bootstrap — session-scoped, autouse so it runs first.
@@ -33,58 +121,15 @@ def setup_env():
     os.environ["AUTH_ENABLED"] = "false"
     os.environ["RATE_LIMIT_ENABLED"] = "false"
     os.environ["USE_REAL_ML_MODELS"] = "false"
-    # Ensure a session-level SQLite file DB has the required tables so modules
-    # that import `main` at test startup find a working schema. This mirrors
-    # the per-test `db_session` create_all behavior but runs once for the
-    # session DB (./test.db) used by some tests that don't use the
-    # per-test temp DB fixture.
+    # Ensure a session-level SQLite file DB has a schema before importing main.
+    # This uses Alembic so the test DB matches the production migration path.
     try:
         from importlib import import_module
+
         raw = os.environ.get("DATABASE_URL", "")
         if raw and "sqlite" in raw:
-            # Convert async sqlite URL to sync URL for SQLAlchemy create_engine
-            sync_url = raw
-            if sync_url.startswith("sqlite+aiosqlite:///"):
-                sync_url = "sqlite:///" + sync_url.split("sqlite+aiosqlite:///", 1)[1]
-            try:
-                import sqlalchemy as sa
-                engine = sa.create_engine(sync_url, connect_args={"check_same_thread": False})
-                # Import Base and model modules to populate metadata (predictions, matches, etc.)
-                from app.db.database import Base as AppBase
-                # Import the central models module and other commonly used modules
-                for _mod in [
-                    "app.db.models",
-                    "app.modules.wallet.models",
-                    "app.modules.sports.models",
-                    "app.modules.blockchain.models",
-                    "app.modules.ai.models",
-                    "app.modules.predictions.models",
-                    "app.modules.training.models",
-                ]:
-                    try:
-                        import_module(_mod)
-                    except Exception:
-                        pass
-
-                # Only create the small set of tables needed by tests that import main
-                needed = [
-                    "markets",
-                    "matches",
-                    "predictions",
-                    "clv_entries",
-                    "users",
-                ]
-                try:
-                    for t in needed:
-                        tbl = AppBase.metadata.tables.get(t)
-                        if tbl is not None:
-                            tbl.create(bind=engine, checkfirst=True)
-                except Exception:
-                    # Best-effort — don't fail session setup on index quirks
-                    pass
-                engine.dispose()
-            except Exception:
-                pass
+            # Alembic requires DATABASE_URL to be set for env.py.
+            run_alembic_migrations(raw)
     except Exception:
         pass
 
@@ -113,57 +158,13 @@ async def db_session():
     engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_path}",
         echo=False,
-        # Allow the same connection to be reused across threads (needed for
-        # aiosqlite's thread-based async shim).
+        future=True,
+        poolclass=NullPool,
         connect_args={"check_same_thread": False},
     )
 
-    # --- Create tables ---
-    from app.db.database import Base as AppBase
-    bases = [AppBase.metadata]
-    for import_path, attr in [
-        ("app.db.models", "Base"),
-        ("app.core.wallet.models", "Base"),
-        ("app.modules.sports.models", "Base"),
-        ("app.modules.blockchain.models", "Base"),
-        ("app.modules.ai.models", "Base"),
-        ("app.modules.predictions.models", "Base"),
-    ]:
-        try:
-            mod = __import__(import_path, fromlist=[attr])
-            bases.append(getattr(mod, attr).metadata)
-        except Exception:
-            pass
-
-    async with engine.begin() as conn:
-        for meta in bases:
-            try:
-                if meta is AppBase.metadata:
-                    # Create only the tables required by the failing history endpoint
-                    def _create_subset(sync_conn):
-                        for tname in ("markets", "matches", "predictions", "clv_entries", "users"):
-                                tbl = meta.tables.get(tname)
-                                if tbl is not None:
-                                    try:
-                                        tbl.create(bind=sync_conn, checkfirst=True)
-                                        print(f"[conftest] created table: {tname}")
-                                    except Exception as e:
-                                        print(f"[conftest] create error {tname}: {e}")
-
-                    await conn.run_sync(_create_subset)
-                else:
-                    def _create_all(sync_conn, metadata=meta):
-                        try:
-                            metadata.create_all(bind=sync_conn)
-                        except Exception as exc:
-                            msg = str(exc).lower()
-                            if "already exists" in msg or "ix_" in msg or "index" in msg:
-                                return
-                            raise
-
-                    await conn.run_sync(_create_all)
-            except Exception:
-                pass
+    # --- Create tables by applying Alembic migrations to the temp DB.
+    run_alembic_migrations(f"sqlite+aiosqlite:///{db_path}")
 
     # --- Patch app.db.database ---
     import app.db.database as db_mod

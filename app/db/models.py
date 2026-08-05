@@ -785,7 +785,7 @@ class ValidatorStake(Base):
     address      = Column(String(255), nullable=False, unique=True, index=True)
     label        = Column(String(100), nullable=True)
     stake_amount = Column(Integer, nullable=False, default=0)
-    active       = Column(Boolean, default=True, nullable=False, index=True)
+    active       = Column(Boolean, default=True, nullable=False)
     joined_at    = Column(DateTime(timezone=True), server_default=func.now())
     updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
 
