@@ -405,6 +405,13 @@ class AuditLog(Base):
     """Admin audit trail — every significant action"""
     __tablename__ = "audit_logs"
 
+    # SQLAlchemy 2 DeclarativeBase does not auto-generate __init__ for
+    # legacy Column() attributes.  Explicit __init__ restores kw-arg
+    # construction so AuditLog(action=..., resource=...) works everywhere.
+    def __init__(self, **kwargs):  # type: ignore[override]
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
     id = Column(Integer, primary_key=True, index=True)
     action = Column(String(100), nullable=False)
     actor = Column(String(100), default="system")  # api_key hash or 'system'

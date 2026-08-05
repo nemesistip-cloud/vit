@@ -149,7 +149,8 @@ async def pnl_breakdown(
     preds = list(preds_q.scalars().all())
 
     market_map: dict[str, dict] = {}
-    for p in settled_p := preds:
+    settled_p = preds
+    for p in settled_p:
         mkt = p.submitted_market_side or p.bet_side or "Unknown"
         m = market_map.setdefault(mkt, {"bets": 0, "correct": 0, "pnl_vit": 0.0})
         m["bets"] += 1

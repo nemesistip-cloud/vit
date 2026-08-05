@@ -74,7 +74,7 @@ class VitAIClient:
                 self.last_state_change = time.time()
                 logger.info("[VitAIClient] Circuit enters HALF-OPEN. Attempting trial request.")
             else:
-                raise CircuitBreakerOpenException(f"Circuit Breaker is OPEN. Target is temporarily isolated.")
+                raise CircuitBreakerOpenException("Circuit Breaker is OPEN. Target is temporarily isolated.")
 
     def _get_cache_key(self, prompt: str, kwargs: dict) -> str:
         serialized = json.dumps({"prompt": prompt, "kwargs": sorted(kwargs.items())}, sort_keys=True)

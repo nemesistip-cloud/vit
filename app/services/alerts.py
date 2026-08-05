@@ -340,7 +340,7 @@ class TelegramAlert:
         if alert.btts_prob and alert.btts_prob > 0:
             goals_bits.append(f"BTTS {self._fmt_pct(alert.btts_prob)}")
         goals_row = (
-            f"\n<b>⚽ Goals:</b>  " + "  |  ".join(goals_bits) if goals_bits else ""
+            "\n<b>⚽ Goals:</b>  " + "  |  ".join(goals_bits) if goals_bits else ""
         )
 
         # Optional secondary lines built conditionally so the message stays tight.

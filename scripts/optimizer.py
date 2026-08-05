@@ -237,7 +237,7 @@ def optimize(
 
 # ── CLI ──────────────────────────────────────────────────────────────
 def _print_table(report: dict, top: int) -> None:
-    print(f"\n=== Strategy Optimizer ===")
+    print("\n=== Strategy Optimizer ===")
     print(f"  Dataset      : {report['n_dataset']} bets "
           f"(train={report['n_train']}, test={report['n_test']})")
     print(f"  Combinations : {report['tested']} tested, {report['kept']} met min-bets")
@@ -408,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps(wf_report, indent=2))
         else:
-            print(f"\n=== Walk-Forward Optimization ===")
+            print("\n=== Walk-Forward Optimization ===")
             print(f"  Dataset : {wf_report['n_dataset']} bets  "
                   f"window={wf_report['window']}  step={wf_report['step']}")
             print(f"  Folds   : {wf_report['folds']}")
@@ -418,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  Mean OOS growth : {agg.get('mean_oos_growth_pct')}%")
                 print(f"  OOS ROI range   : "
                       f"{agg.get('min_oos_roi_pct')}% .. {agg.get('max_oos_roi_pct')}%")
-                print(f"  Top strategies (by fold wins):")
+                print("  Top strategies (by fold wins):")
                 for w in agg.get("winning_strategies", []):
                     print(f"    {w['wins']:>2}× {w['label']}")
         return 0

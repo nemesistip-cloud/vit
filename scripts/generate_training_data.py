@@ -261,7 +261,7 @@ def main():
     logger.info(f"Saved training data to {output_path}")
     logger.info(f"Columns: {list(df.columns)}")
     logger.info(f"Shape: {df.shape}")
-    logger.info(f"\nNext step: python scripts/train_models.py")
+    logger.info("\nNext step: python scripts/train_models.py")
 
 
 if __name__ == "__main__":

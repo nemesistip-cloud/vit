@@ -69,8 +69,8 @@ def _check_and_record_attempt(key: str, success: bool) -> None:
             raise HTTPException(
                 status_code=429,
                 detail=(
-                    f"Too many failed login attempts. "
-                    f"Account temporarily locked. Try again later."
+                    "Too many failed login attempts. "
+                    "Account temporarily locked. Try again later."
                 ),
             )
         attempts.append(now)

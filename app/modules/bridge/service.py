@@ -305,7 +305,7 @@ async def auto_relay_pending(db: AsyncSession, max_age_minutes: int = 30) -> dic
                 transaction_id=tx.id,
                 event="flagged_for_review",
                 actor="auto-relayer",
-                detail=f"No source_address provided — manual confirmation needed",
+                detail="No source_address provided — manual confirmation needed",
             )
             db.add(audit)
             flagged.append(tx.id)

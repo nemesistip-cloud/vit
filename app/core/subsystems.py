@@ -253,7 +253,7 @@ class PlatformSubsystem(Subsystem):
                         # Default main portal fallback
                         return FileResponse(os.path.join(frontend_base, "index.html"))
 
-                    logger.info(f"[kernel] Production frontend and explorer SPAs successfully integrated")
+                    logger.info("[kernel] Production frontend and explorer SPAs successfully integrated")
                 else:
                     logger.warning(f"[kernel] Production frontend build {frontend_path} not found. Serve disabled.")
         except Exception as e:

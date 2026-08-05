@@ -98,10 +98,10 @@ class VITNodeDaemon:
         finally:
             # 7. Print earnings summary on exit
             balance = await self.earnings_tracker.get_balance(node_id, self.config.api_url)
-            print(f"\n--- Final Session Summary ---")
+            print("\n--- Final Session Summary ---")
             print(f"Node ID: {node_id}")
             print(f"Final Balance: {balance} VIT")
-            print(f"----------------------------")
+            print("----------------------------")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

@@ -47,11 +47,11 @@ class RecoveryManager:
 
         # Verify first
         if not await self.backup_manager.verify_backup(filename):
-            logger.error(f"[persistence] Restore aborted: Backup verification failed.")
+            logger.error("[persistence] Restore aborted: Backup verification failed.")
             return False
 
         # Simulate restore process
         await asyncio.sleep(2)
 
-        logger.info(f"[persistence] Database restoration completed successfully.")
+        logger.info("[persistence] Database restoration completed successfully.")
         return True

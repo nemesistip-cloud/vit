@@ -34,7 +34,7 @@ async def predict_tennis(
         "market_odds": match.market_odds
     }
 
-    raw_res = m_orch.predict(features, sport="tennis")
+    raw_res = await m_orch.predict(features, sport="tennis")
     pred = raw_res["predictions"]
 
     # Create individual results as ModelInsight objects

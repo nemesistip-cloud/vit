@@ -1134,8 +1134,8 @@ async def review_validator_appeal(
         await NotificationService.notify_validator_status(
             db, appeal.user_id, status="appeal_approved",
             detail=(
-                f"Your appeal has been approved. Your validator status has been restored to 'suspended'. "
-                f"An admin can reactivate you to resume predictions."
+                "Your appeal has been approved. Your validator status has been restored to 'suspended'. "
+                "An admin can reactivate you to resume predictions."
                 + (f" {restake} VIT has been credited to your wallet." if body.restake_amount > 0 else "")
             ),
         )

@@ -92,7 +92,7 @@ async def buy_vitcoin_direct(
             direction="debit",
             status="confirmed",
             reference=f"{ref_base}-DEBIT",
-            description=f"Direct purchase of VITCoin",
+            description="Direct purchase of VITCoin",
             fee_amount=fee_usd,
             fee_currency="USD",
             tx_metadata={"rate": str(price_usd), "idempotency_hash": idempotency_hash}
@@ -109,7 +109,7 @@ async def buy_vitcoin_direct(
             direction="credit",
             status="confirmed",
             reference=f"{ref_base}-CREDIT",
-            description=f"VITCoin received from direct purchase",
+            description="VITCoin received from direct purchase",
             tx_metadata={"rate": str(price_usd)}
         ))
 

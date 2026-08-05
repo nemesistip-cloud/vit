@@ -168,7 +168,7 @@ def print_config_status() -> None:
     print(f"  {cfg.app.name} v{cfg.app.version}")
     print(f"{'='*55}")
     print(f"  ✅ Environment:       {cfg.app.environment.value}")
-    print(f"  ✅ Database:           Configured")
+    print("  ✅ Database:           Configured")
     print(f"  {'✅' if cfg.ai.isports_api_key else '❌'} iSports API:        {'Configured' if cfg.ai.isports_api_key else 'Missing'}")
     print(f"  {'✅' if cfg.ai.football_data_api_key else '❌'} Football API:       {'Configured' if cfg.ai.football_data_api_key else 'Missing'}")
     print(f"  {'✅' if cfg.ai.the_odds_api_key else '❌'} Odds API:           {'Configured' if cfg.ai.the_odds_api_key else 'Missing (odds disabled)'}")

@@ -397,7 +397,7 @@ def build_dataset():
     for r in all_records:
         l = r.get("league", "unknown")
         leagues[l] = leagues.get(l, 0) + 1
-    print(f"\nLeague breakdown:")
+    print("\nLeague breakdown:")
     for league, count in sorted(leagues.items(), key=lambda x: -x[1]):
         print(f"  {league:30s}: {count:5d}")
     print("=" * 60)
