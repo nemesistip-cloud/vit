@@ -42,7 +42,7 @@ export function updateServiceUrls(urls: {
   if (urls.chain)   _chainUrl   = urls.chain
 }
 
-// ── HTTP helper ───────────────────────────────────────────────────────────────
+// ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 const TIMEOUT_MS = 10_000
 
@@ -90,6 +90,56 @@ async function get<T>(url: string, signal?: AbortSignal, attempt = 0): Promise<T
     if (!isAbortedByCaller && isNetworkError && attempt === 0) {
       return get<T>(url, signal, 1)
     }
+    throw err
+  }
+}
+
+/**
+ * POST multipart/form-data — used for file uploads.
+ * Returns parsed JSON response.
+ */
+async function postForm<T>(url: string, body: FormData, signal?: AbortSignal): Promise<T> {
+  const controller = new AbortController()
+  const timer      = setTimeout(() => controller.abort(), 60_000) // 60 s for uploads
+  const combined   = signal
+    ? (() => {
+        const ac = new AbortController()
+        signal.addEventListener('abort', () => ac.abort())
+        controller.signal.addEventListener('abort', () => ac.abort())
+        return ac.signal
+      })()
+    : controller.signal
+  try {
+    const res = await fetch(url, { method: 'POST', body, signal: combined })
+    clearTimeout(timer)
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
+    return res.json() as Promise<T>
+  } catch (err) {
+    clearTimeout(timer)
+    throw err
+  }
+}
+
+/**
+ * DELETE request — used for removing objects.
+ */
+async function del(url: string, signal?: AbortSignal): Promise<void> {
+  const controller = new AbortController()
+  const timer      = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  const combined   = signal
+    ? (() => {
+        const ac = new AbortController()
+        signal.addEventListener('abort', () => ac.abort())
+        controller.signal.addEventListener('abort', () => ac.abort())
+        return ac.signal
+      })()
+    : controller.signal
+  try {
+    const res = await fetch(url, { method: 'DELETE', signal: combined })
+    clearTimeout(timer)
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
+  } catch (err) {
+    clearTimeout(timer)
     throw err
   }
 }
@@ -243,6 +293,15 @@ export const storageApi = {
   health:  (signal?: AbortSignal) => get<StorageHealth>(`${ENDPOINTS.storage}/health`, signal),
   list:    (signal?: AbortSignal) => get<StorageList>(`${ENDPOINTS.storage}/api/v1/files`, signal),
   metrics: (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.storage}/metrics`, signal),
+  /** Upload a file — POST multipart/form-data to /api/v1/files */
+  upload:  (file: File, signal?: AbortSignal) => {
+    const form = new FormData()
+    form.append('file', file)
+    return postForm<StorageObject>(`${ENDPOINTS.storage}/api/v1/files`, form, signal)
+  },
+  /** Delete an object by key — DELETE /api/v1/files/{key} */
+  delete:  (key: string, signal?: AbortSignal) =>
+    del(`${ENDPOINTS.storage}/api/v1/files/${encodeURIComponent(key)}`, signal),
 }
 
 export const chainApi = {

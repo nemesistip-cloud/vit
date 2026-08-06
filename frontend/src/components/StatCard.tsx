@@ -31,7 +31,7 @@ export function StatCard({ label, value, sub, icon: Icon, index = 0, className }
           </div>
         )}
       </div>
-      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className="text-2xl font-bold text-white truncate" title={String(value)}>{value}</p>
       {sub && <p className="text-xs text-white/40 mt-1">{sub}</p>}
     </motion.div>
   )

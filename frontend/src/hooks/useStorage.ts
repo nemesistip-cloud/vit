@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { storageApi } from '@/lib/api'
 
 export function useStorageList() {
@@ -14,5 +14,27 @@ export function useStorageMetrics() {
     queryKey: ['storage', 'metrics'],
     queryFn: ({ signal }) => storageApi.metrics(signal),
     refetchInterval: 60_000,
+  })
+}
+
+export function useStorageUpload() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => storageApi.upload(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['storage', 'list'] })
+      qc.invalidateQueries({ queryKey: ['health', 'storage'] })
+    },
+  })
+}
+
+export function useStorageDelete() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (key: string) => storageApi.delete(key),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['storage', 'list'] })
+      qc.invalidateQueries({ queryKey: ['health', 'storage'] })
+    },
   })
 }
