@@ -30,24 +30,31 @@ function usePublicConfig() {
 
 /**
  * Returns whether a feature is enabled by the platform config.
- * Defaults to `true` if the config hasn't loaded yet (optimistic unlock).
+ *
+ * Phase 6 rule: "Missing configuration must never disable the application."
+ * - While loading → enabled: true  (optimistic unlock — don't block UI)
+ * - Config API error → enabled: true  (fail-open — don't disable on network failure)
+ * - Key absent from config → enabled: true  (missing ≠ explicitly disabled)
+ * - Key explicitly set to false → enabled: false  (only hard-coded denial takes effect)
  *
  * @example
  * const { enabled, loading } = useFeatureGate('predictions_enabled')
  * if (!enabled) return <UpgradePrompt />
  */
 export function useFeatureGate(feature: keyof PublicConfig): { enabled: boolean; loading: boolean } {
-  // H5 fix: fail-closed — when config is loading or errored, gate features OFF.
   const { data, isLoading, isError } = usePublicConfig()
 
-  if (isLoading) return { enabled: false, loading: true }
+  // Optimistic unlock while the config is in flight.
+  if (isLoading) return { enabled: true, loading: true }
 
-  // Config API failure → deny access (fail-closed)
-  if (isError || !data) return { enabled: false, loading: false }
+  // Config unavailable → fail-open (never disable the app due to an API outage).
+  if (isError || !data) return { enabled: true, loading: false }
 
   const val = data[feature]
-  // If key is absent from the config payload, default to disabled (fail-closed)
-  const enabled = val === undefined ? false : Boolean(val)
 
-  return { enabled, loading: false }
+  // Key absent → treat as enabled (missing flag ≠ disabled feature).
+  if (val === undefined) return { enabled: true, loading: false }
+
+  // Only a hard false disables the feature.
+  return { enabled: Boolean(val), loading: false }
 }

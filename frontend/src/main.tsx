@@ -9,6 +9,7 @@ const routerFuture: BrowserRouterProps['future'] = {
   v7_relativeSplatPath: true,
 }
 import App from './App'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { queryClient } from './lib/queryClient'
 import { bootstrapRegistry } from './lib/registry'
 import './index.css'
@@ -19,10 +20,12 @@ void bootstrapRegistry()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter future={routerFuture}>
-        <App />
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter future={routerFuture}>
+          <App />
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

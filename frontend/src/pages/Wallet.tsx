@@ -616,7 +616,10 @@ export default function Wallet() {
     }
   }
 
-  const balance    = parseFloat(wallet?.vit_balance ?? wallet?.balance ?? '0') || 0
+  // Phase 4: support all known backend balance field names; pick the first non-falsy one.
+  const balance    = parseFloat(
+    wallet?.vitcoin_balance ?? wallet?.vit_balance ?? wallet?.balance ?? '0'
+  ) || 0
   const stakedAmt  = parseFloat(staking?.staked_amount ?? wallet?.staked ?? '0') || 0
   const usdValue   = price?.price_usd ? (balance * price.price_usd).toFixed(2) : null
   const tier       = wallet?.subscription_tier ?? 'viewer'
