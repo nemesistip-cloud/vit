@@ -9,7 +9,7 @@ import {
   Server, Cpu, Layers, AlertCircle,
   RefreshCw, HardDrive, Users,
 } from 'lucide-react'
-import { getAuthToken, getStoredUser, clearAuth, authHeaders } from '@/hooks/useAuth'
+import { getAuthToken, getStoredUser, clearAuth, authHeaders, fetchWithAuth } from '@/hooks/useAuth'
 import { ENDPOINTS, chainApi, aiApi, storageApi, gatewayApi } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -35,7 +35,9 @@ function useMe() {
   return useQuery({
     queryKey: ['me'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/auth/me`, { signal, headers: authHeaders() })
+      // fetchWithAuth automatically clears auth and redirects to /login on 401,
+      // ensuring an expired token is detected immediately on the dashboard.
+      const r = await fetchWithAuth(`${ENDPOINTS.gateway}/api/auth/me`, { signal })
       return r.ok ? r.json() : null
     },
     retry: false,

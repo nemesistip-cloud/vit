@@ -58,6 +58,20 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
     setIsAdmin(user?.role === 'admin')
   }, [location.pathname])
 
+  // Sync auth state when localStorage changes in another tab (logout/login).
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key === 'vit_token' || e.key === 'vit_user' || e.key === null) {
+        const token = getAuthToken()
+        const user  = getStoredUser()
+        setIsLoggedIn(!!token)
+        setIsAdmin(user?.role === 'admin')
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', handler, { passive: true })

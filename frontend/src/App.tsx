@@ -1,5 +1,22 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AppShell, PublicShell } from '@/components/shell/AppShell'
+import { getAuthToken } from '@/hooks/useAuth'
+
+/**
+ * RequireAuth — wraps every protected route.
+ * Redirects unauthenticated users to /login while preserving the
+ * intended destination so we can return them after login.
+ * This is the single authoritative auth gate for all AppShell routes;
+ * individual pages do not need to implement their own token checks.
+ */
+function RequireAuth() {
+  const token    = getAuthToken()
+  const location = useLocation()
+  if (!token) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  }
+  return <Outlet />
+}
 
 // ── Public / marketing ────────────────────────────────────────────────────────
 import Home              from '@/pages/Home'
@@ -87,6 +104,7 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
       </Route>
 
+      <Route element={<RequireAuth />}>
       <Route element={<AppShell />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/workspace" element={<Workspace />} />
@@ -124,6 +142,7 @@ export default function App() {
         <Route path="/bridge" element={<Bridge />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<NotFound />} />
+      </Route>
       </Route>
     </Routes>
   )
