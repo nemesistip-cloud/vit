@@ -64,16 +64,18 @@ async def get_current_admin(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    # When AUTH_ENABLED=false (CI / local dev) skip JWT validation entirely
-    # and return a synthetic admin so tests that call admin-only endpoints work.
     if not _auth_enabled():
-        stub = User.__new__(User)
-        stub.id = 0
-        stub.role = "admin"
-        stub.is_active = True
-        stub.is_banned = False
-        return stub
-    # Production path: resolve real user then check role
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        real_user = await get_current_user(credentials, db)
+        if real_user.role != "admin":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        return real_user
+
     real_user = await get_current_user(credentials, db)
     if real_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")

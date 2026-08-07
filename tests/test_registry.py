@@ -1,5 +1,8 @@
 import pytest
 import asyncio
+from httpx import ASGITransport, AsyncClient
+
+from main import app
 from app.core.registry.manager import ModuleRegistry
 from app.core.registry.models import ModuleMetadata, ModuleStatus, HealthStatus
 from app.core.registry.contract import ModuleContract
@@ -77,3 +80,51 @@ async def test_circular_dependency():
     await reg.register(m2)
     with pytest.raises(ValueError, match="Circular dependency detected"):
         reg.validate_dependencies()
+
+
+@pytest.mark.asyncio
+async def test_registry_api_returns_expected_shape(monkeypatch):
+    async def fake_probe(client, name, base_url):
+        return {
+            "status": "ok",
+            "version": "test",
+            "latency_ms": 12,
+            "reachable": True,
+        }
+
+    monkeypatch.setattr("app.api.routes.registry._probe", fake_probe)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get("/registry")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"healthy", "degraded"}
+    assert payload["services"]
+    assert "gateway" in payload["services"]
+    assert payload["services"]["gateway"]["url"].startswith("http")
+
+
+@pytest.mark.asyncio
+async def test_platform_status_api_returns_infrastructure_section(monkeypatch):
+    async def fake_probe(client, name, base_url):
+        return {
+            "status": "ok",
+            "version": "test",
+            "latency_ms": 5,
+            "reachable": True,
+        }
+
+    monkeypatch.setattr("app.api.routes.registry._probe", fake_probe)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get("/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"healthy", "degraded", "unhealthy"}
+    assert payload["services"]["gateway"]["status"] == "ok"
+    assert "infrastructure" in payload
+    assert payload["infrastructure"]["database"]["status"] in {"connected", "disconnected"}

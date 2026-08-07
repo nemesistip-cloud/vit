@@ -11,7 +11,7 @@ import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from datetime import datetime, timezone
 
 from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL
@@ -873,7 +873,83 @@ async def predict(
         raise HTTPException(status_code=500, detail="Prediction failed. Please verify the match data and try again.")
 
 
-@router.get("/{match_id}/insights")
+@router.get("/history")
+async def prediction_history(
+    outcome: Optional[str] = Query("all", description="Filter: all|won|lost|pending"),
+    limit: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_optional_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    q = select(Prediction, Match).outerjoin(Match, Prediction.match_id == Match.id).where(Prediction.user_id == current_user.id).order_by(Prediction.timestamp.desc()).limit(limit)
+
+    # Apply outcome filter
+    if outcome and outcome != "all":
+        if outcome == "won":
+            q = q.where(Prediction.was_correct.is_(True))
+        elif outcome == "lost":
+            q = q.where(Prediction.was_correct.is_(False))
+        elif outcome == "pending":
+            q = q.where(Prediction.was_correct.is_(None))
+
+    res = await db.execute(q)
+    rows = res.all()
+
+    out = []
+    for pred, match in rows:
+        out.append({
+            "prediction_id": pred.id,
+            "match_id": pred.match_id,
+            "home_team": getattr(match, 'home_team', None),
+            "away_team": getattr(match, 'away_team', None),
+            "league": getattr(match, 'league', None),
+            "created_at": pred.timestamp.isoformat() if pred.timestamp else None,
+            "bet_side": pred.bet_side,
+            "confidence": float(pred.confidence or 0.0),
+            "final_ev": float(pred.final_ev or 0.0) if getattr(pred, 'final_ev', None) is not None else None,
+            "entry_odds": float(pred.entry_odds) if getattr(pred, 'entry_odds', None) is not None else None,
+            "was_correct": pred.was_correct,
+        })
+
+    return out
+
+
+@router.get("/accuracy")
+async def prediction_accuracy(
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_optional_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    total_q = await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == current_user.id))
+    total = total_q.scalar() or 0
+    wins_q = await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == current_user.id, Prediction.was_correct.is_(True)))
+    wins = wins_q.scalar() or 0
+
+    win_rate = (wins / total) if total > 0 else 0.0
+
+    # Current streak (consecutive wins from latest)
+    streak = 0
+    if total > 0:
+        recent_q = select(Prediction).where(Prediction.user_id == current_user.id).order_by(Prediction.timestamp.desc()).limit(100)
+        recent_res = await db.execute(recent_q)
+        recent_preds = recent_res.scalars().all()
+        for p in recent_preds:
+            if p.was_correct is True:
+                streak += 1
+            else:
+                break
+
+    return {
+        "total": total,
+        "win_rate": round(win_rate, 3),
+        "current_streak": streak,
+        "best_league": None,
+    }
+
 
 @router.get("/{match_id}/insights")
 async def get_match_insights(match_id: int, db: AsyncSession = Depends(get_db)):

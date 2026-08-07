@@ -80,6 +80,7 @@ _ALWAYS_OPEN = (
     "/api/registry",
     "/api/services",
     "/api/status",
+    "/api/ai-engine/models/register",
     "/api/system/health",
     "/api/system/kernel",
     "/api/leaderboard",

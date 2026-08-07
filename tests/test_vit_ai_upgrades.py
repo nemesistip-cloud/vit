@@ -51,7 +51,10 @@ async def test_hot_register_duplicate_fails(client: AsyncClient, db_session):
 
     response = await client.post("/api/ai-engine/models/register", json=payload)
     assert response.status_code == 400
-    assert "already registered" in response.json()["detail"]
+    body = response.json()
+    # Support either legacy FastAPI HTTPException detail or the app's wrapped error
+    detail_msg = body.get("detail") or body.get("error", {}).get("message", "")
+    assert "already registered" in detail_msg
 
 async def test_ai_gateway_routing_manual():
     """Verify AI Gateway manual routing fallback."""

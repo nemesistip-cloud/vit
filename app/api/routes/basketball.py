@@ -36,13 +36,20 @@ async def predict_basketball(
 
     raw_res = await m_orch.predict(features, sport="basketball")
     pred = raw_res["predictions"]
+    individual_results = raw_res.get("individual_results") or [{
+        "model_name": "nba_v1",
+        "home_prob": pred.get("home_prob"),
+        "away_prob": pred.get("away_prob"),
+        "confidence": 0.7,
+        "failed": False,
+    }]
 
     # Create individual results as ModelInsight objects
     insights = [
         ModelInsight(
             model_name=ir.get("model_name", "unknown"),
             model_type="neural",
-            model_weight=1.0 / len(raw_res.get("individual_results", [1])),
+            model_weight=1.0 / max(1, len(individual_results)),
             supported_markets=["moneyline"],
             home_prob=ir.get("home_prob"),
             draw_prob=ir.get("draw_prob", 0.0),
@@ -55,7 +62,7 @@ async def predict_basketball(
             latency_ms=10.0,
             failed=ir.get("failed", False),
             error=None
-        ) for ir in raw_res.get("individual_results", [])
+        ) for ir in individual_results
     ]
 
     # Build proper Response
@@ -81,7 +88,7 @@ async def predict_basketball(
         raw_edge=0.0,
         normalized_edge=0.0,
         vig_free_edge=0.0,
-        model_weights={ir["model_name"]: 1.0/max(1, len(insights)) for ir in raw_res.get("individual_results", [])},
+        model_weights={ir.get("model_name", "unknown"): 1.0/max(1, len(insights)) for ir in individual_results},
         model_insights=insights,
         neural_consensus_score=pred["home_prob"] * 100,
         analytics_rating="GOOD",

@@ -11,6 +11,7 @@ from app.db.database import get_db, AsyncSessionLocal
 from app.core.cache_keys import FIXTURE_LIST
 from app.db.models import Match, Prediction
 from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
+from app.services.sportsdb_api import sync_upcoming_fixtures
 from app.modules.wallet.models import PlatformConfig
 from app.core.cache import cache
 import random
@@ -269,6 +270,22 @@ async def get_matches(
     except Exception:
         pass
     try:
+        # If DB is empty, attempt a quick fixture sync so `/api/matches` can return results
+        try:
+            existing_count = (await db.execute(select(func.count(Match.id)))).scalar_one()
+        except Exception:
+            existing_count = 0
+
+        if existing_count == 0:
+            try:
+                from app.services.sportsdb_api import sync_upcoming_fixtures as _sdb_sync
+                async with AsyncSessionLocal() as sdb_db:
+                    await _sdb_sync(sdb_db, days_ahead=7)
+                # refresh count after sync
+                existing_count = (await db.execute(select(func.count(Match.id)))).scalar_one()
+            except Exception as _sync_e:
+                logger.warning(f"Auto-sync attempt failed: {_sync_e}")
+
         stmt = select(Match, Prediction).outerjoin(
             Prediction,
             and_(

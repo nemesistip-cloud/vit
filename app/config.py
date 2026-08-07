@@ -226,3 +226,10 @@ PI_WEBHOOK_SECRET: str = get_val("external", "pi_webhook_secret", "")
 REPLIT_DEV_DOMAIN: str = os.getenv("REPL_SLUG", "") # Simplified
 PAYSTACK_WEBHOOK_SECRET: str = get_val("external", "paystack_webhook_secret", "")
 USDT_MIN_CONFIRMATIONS: int = int(os.getenv("USDT_MIN_CONFIRMATIONS", "3"))
+
+# Compatibility aliases (legacy imports expect these names)
+# `FRONTEND_URL` previously exported directly; keep a lightweight alias.
+FRONTEND_URL: str = os.getenv("FRONTEND_URL", PUBLIC_APP_URL)
+
+# Oracle key alias for modules importing it directly from app.config
+ORACLE_API_KEY: str = os.getenv("ORACLE_API_KEY", get_val("external", "oracle_api_key", ""))

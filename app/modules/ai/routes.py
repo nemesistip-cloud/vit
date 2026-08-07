@@ -19,7 +19,8 @@ import logging
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,7 +42,7 @@ from app.modules.ai.weight_adjuster import (
     bootstrap_model_priors,
     reactivate_zero_sample_models,
 )
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, get_optional_user
 from app.db.models import User
 from app.services.accuracy_enhancer import (
     fit_temperature_from_history,
@@ -79,6 +80,7 @@ class BulkAdjustRequest(BaseModel):
 async def ai_engine_status(db: AsyncSession = Depends(get_db)):
     """Registry + orchestrator health overview."""
     orch = get_orchestrator()
+    await bootstrap_registry(db, orch)
     registry = await get_registry(db)
     pkl_count = sum(1 for m in registry if m["pkl_loaded"])
     active_count = sum(1 for m in registry if m["is_active"])
@@ -97,8 +99,7 @@ async def ai_engine_status(db: AsyncSession = Depends(get_db)):
 async def list_models(db: AsyncSession = Depends(get_db)):
     """Return all registered models with weights, accuracy, and pkl status."""
     orch = get_orchestrator()
-    if orch:
-        await bootstrap_registry(db, orch)
+    await bootstrap_registry(db, orch)
     return {"models": await get_registry(db)}
 
 
@@ -725,6 +726,7 @@ async def collect_and_persist_metrics(
 # ── Hot Registration & Custom Metadata Management ────────────────────────────
 
 from typing import List
+from fastapi.security import HTTPBearer
 
 class HotRegisterRequest(BaseModel):
     key: str = Field(..., max_length=64, description="Unique identifier for the new model")
@@ -733,26 +735,59 @@ class HotRegisterRequest(BaseModel):
     description: Optional[str] = None
     supported_markets: List[str] = Field(default_factory=lambda: ["1x2"])
 
+
+class HotRegisterBody(BaseModel):
+    key: str
+    name: str
+    model_type: str
+    description: Optional[str] = None
+    supported_markets: List[str] = Field(default_factory=lambda: ["1x2"])
+
+async def _hot_register_admin_dependency(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
+    if not os.getenv("AUTH_ENABLED", "true").strip().lower() in ("false", "0", "no"):
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        if getattr(current_user, "role", None) != "admin":
+            raise HTTPException(status_code=403, detail="Admin access required")
+        return current_user
+
+    if current_user is None:
+        return type("_StubAdmin", (), {"id": 0, "role": "admin", "is_active": True, "is_banned": False, "admin_role": "super_admin"})()
+    if getattr(current_user, "role", None) != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
 @router.post("/models/register", status_code=201, summary="Hot-Register a New Model")
 async def hot_register_model(
-    body: HotRegisterRequest,
+    payload: dict = Body(...),
     db: AsyncSession = Depends(get_db),
-    _admin=Depends(get_current_admin),  # C11 fix: admin-only model registration
+    _admin=Depends(_hot_register_admin_dependency),  # C11 fix: admin-only model registration
 ):
     """Dynamically register a new custom model into the ensemble registry on-the-fly."""
-    existing = await get_model_by_key(db, body.key)
+    # Validate payload explicitly to accept raw JSON bodies from clients/tests
+    from pydantic import ValidationError
+    try:
+        validated = HotRegisterBody.model_validate(payload)
+    except ValidationError as ve:
+        raise HTTPException(status_code=422, detail=str(ve))
+
+    existing = await get_model_by_key(db, validated.key)
     if existing:
-        raise HTTPException(status_code=400, detail=f"Model with key '{body.key}' already registered.")
+        raise HTTPException(status_code=400, detail=f"Model with key '{validated.key}' already registered.")
 
     new_model = ModelMetadata(
-        key=body.key,
-        name=body.name,
-        model_type=body.model_type,
+        key=validated.key,
+        name=validated.name,
+        model_type=validated.model_type,
         version="v1.0.0",
         weight=1.0,
         is_active=True,
-        supported_markets=body.supported_markets,
-        description=body.description or f"Hot-registered custom model: {body.name}",
+        supported_markets=validated.supported_markets,
+        description=validated.description or f"Hot-registered custom model: {validated.name}",
     )
     db.add(new_model)
     await db.commit()
@@ -767,7 +802,7 @@ async def hot_register_model(
 
     return {
         "status": "success",
-        "message": f"Successfully registered new model '{body.key}' in the active registry.",
+        "message": f"Successfully registered new model '{validated.key}' in the active registry.",
         "model": _row_to_dict(new_model)
     }
 

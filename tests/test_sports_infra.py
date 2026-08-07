@@ -25,19 +25,21 @@ async def test_sports_endpoints():
 @pytest.mark.asyncio
 async def test_generate_slip_with_match():
     async with AsyncSessionLocal() as db:
-        # Create a dummy match
+        # Create a dummy match with a unique external_id to avoid UNIQUE constraint collisions
         from datetime import datetime
+        import uuid
         match = Match(
             home_team="Team A",
             away_team="Team B",
             league="Test League",
             kickoff_time=datetime.utcnow(),
-            external_id="ext_123"
+            external_id=f"ext_{uuid.uuid4().hex}"
         )
         db.add(match)
         await db.commit()
         await db.refresh(match)
         match_id = match.id
+        ext_id = match.external_id
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get(f"/api/predictions/generate-slip?match_id={match_id}&provider=betway")
@@ -45,7 +47,7 @@ async def test_generate_slip_with_match():
         data = response.json()
         assert "redirect_url" in data
         assert "betway" in data["redirect_url"]
-        assert "ext_123" in data["redirect_url"]
+        assert ext_id in data["redirect_url"]
 
         # Verify analytics click was recorded
         async with AsyncSessionLocal() as db_check:

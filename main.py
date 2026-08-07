@@ -541,6 +541,12 @@ except Exception as _e:
     logging.warning("ai_assistant_router not mounted — routes unavailable: %s", _e)
 
 try:
+    from app.modules.ai.routes import router as ai_module_router
+    app.include_router(ai_module_router)
+except Exception as _e:
+    logging.warning("ai_module_router not mounted — routes unavailable: %s", _e)
+
+try:
     from app.api.routes.admin import router as admin_router
     app.include_router(admin_router, prefix="/api")
     app.include_router(platform_events_router)
@@ -569,6 +575,16 @@ try:
     app.include_router(registry_router, prefix="/api", tags=["Registry"])
 except Exception as _e:
     logging.warning("registry_router not mounted — routes unavailable: %s", _e)
+else:
+    # Backwards-compatibility: some clients expect /registry and /status at root.
+    # Expose lightweight proxy endpoints that call the same handlers but are
+    # excluded from OpenAPI to avoid duplicate operation IDs.
+    try:
+        from app.api.routes.registry import get_registry as _get_registry, get_platform_status as _get_platform_status
+        app.add_api_route("/registry", _get_registry, methods=["GET"], include_in_schema=False)
+        app.add_api_route("/status", _get_platform_status, methods=["GET"], include_in_schema=False)
+    except Exception as _e:
+        logging.warning("Failed to add registry compatibility routes: %s", _e)
 
 # --- Niche & Expansion Routers (from app/modules) ---
 try:
@@ -624,6 +640,12 @@ try:
     app.include_router(affiliate_router, prefix="/api")
 except Exception as _e:
     logging.warning("affiliate_router not mounted — routes unavailable: %s", _e)
+
+try:
+    from app.api.routes.predictions_compat import router as predictions_compat_router
+    app.include_router(predictions_compat_router, prefix="/api")
+except Exception as _e:
+    logging.warning("predictions_compat_router not mounted — routes unavailable: %s", _e)
 
 try:
     from app.modules.notifications.routes import router as notifications_router
