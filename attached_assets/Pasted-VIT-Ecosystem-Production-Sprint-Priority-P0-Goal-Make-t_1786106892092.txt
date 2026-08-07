@@ -1,0 +1,364 @@
+VIT Ecosystem Production Sprint
+Priority: P0
+Goal: Make the Sports AI ecosystem production-ready using real live match data. Do not use placeholders, mock data, or fake predictions.
+
+OBJECTIVES
+
+1. Restore the entire Sports AI pipeline.
+2. Ensure real football matches are always available.
+3. Ensure predictions are generated from real data.
+4. Ensure every frontend page functions correctly.
+5. Remove all remaining mock implementations.
+
+==================================================
+PHASE 1 - FULL SPORTS DATA AUDIT
+==================================================
+
+Audit the entire prediction pipeline.
+
+Trace:
+
+Frontend
+↓
+Gateway
+↓
+Prediction Service
+↓
+Sports Data Provider
+↓
+Database
+↓
+Prediction Engine
+
+Identify every place where:
+
+- mock matches exist
+- placeholder fixtures exist
+- dummy odds exist
+- fake predictions exist
+- hardcoded teams exist
+- empty arrays are returned
+
+Replace every placeholder with real data.
+
+==================================================
+PHASE 2 - REAL MATCH INGESTION
+==================================================
+
+Ensure the platform always contains upcoming fixtures.
+
+Support:
+
+• Football
+• Basketball (architecture ready)
+• Tennis (architecture ready)
+
+If a paid API is unavailable:
+
+Build a provider abstraction supporting multiple sources.
+
+Priority:
+
+Provider 1
+Provider 2
+Provider 3
+Cached database
+Graceful unavailable state
+
+Never leave the frontend without fixtures.
+
+Store normalized:
+
+fixture_id
+competition
+country
+season
+kickoff
+home team
+away team
+venue
+status
+score
+odds
+statistics
+
+==================================================
+PHASE 3 - PREDICTION ENGINE
+==================================================
+
+Verify prediction generation.
+
+Every prediction must contain:
+
+winner probabilities
+
+home %
+
+draw %
+
+away %
+
+confidence
+
+expected goals
+
+BTTS
+
+Over/Under
+
+risk score
+
+prediction explanation
+
+confidence explanation
+
+model version
+
+prediction timestamp
+
+prediction source
+
+If prediction cannot be generated:
+
+Return
+
+status:
+waiting
+
+instead of fake values.
+
+==================================================
+PHASE 4 - MATCH DETAILS
+==================================================
+
+Every match details page should display:
+
+Competition
+
+Venue
+
+Kickoff
+
+Team form
+
+Last five matches
+
+Head-to-head
+
+League table
+
+Injuries
+
+Suspensions
+
+Live statistics
+
+Expected goals
+
+Prediction breakdown
+
+Probability chart
+
+Historical accuracy
+
+Related matches
+
+Similar predictions
+
+No empty cards.
+
+No placeholder text.
+
+==================================================
+PHASE 5 - LIVE DATA
+==================================================
+
+Verify live updates.
+
+Scores
+
+Events
+
+Possession
+
+Cards
+
+Corners
+
+Lineups
+
+Substitutions
+
+Statistics
+
+Update automatically.
+
+If unavailable:
+
+Display
+
+Live data temporarily unavailable
+
+instead of crashing.
+
+==================================================
+PHASE 6 - DATABASE
+==================================================
+
+Verify persistence.
+
+Upcoming matches
+
+Finished matches
+
+Predictions
+
+Odds
+
+Statistics
+
+Historical results
+
+No duplicate fixtures.
+
+No orphan predictions.
+
+No stale cache.
+
+==================================================
+PHASE 7 - FRONTEND
+==================================================
+
+Audit every Sports page.
+
+Dashboard
+
+Matches
+
+Prediction
+
+Sports AI
+
+In-play
+
+Analytics
+
+Leaderboard
+
+History
+
+Wallet integration
+
+Verify:
+
+No runtime errors
+
+No blank pages
+
+No loading forever
+
+No missing API calls
+
+Responsive on mobile
+
+==================================================
+PHASE 8 - API CONTRACTS
+==================================================
+
+Verify every endpoint.
+
+Matches
+
+Predictions
+
+History
+
+Analytics
+
+Standings
+
+Teams
+
+Competitions
+
+Health
+
+Schemas must match frontend expectations.
+
+==================================================
+PHASE 9 - OBSERVABILITY
+==================================================
+
+Add diagnostics.
+
+Log:
+
+Provider used
+
+Prediction duration
+
+Data freshness
+
+Cache age
+
+Prediction failures
+
+Missing fixtures
+
+API latency
+
+Database latency
+
+==================================================
+PHASE 10 - VALIDATION
+==================================================
+
+Run:
+
+ruff
+
+pytest
+
+npm test
+
+npm run build
+
+Run the application.
+
+Verify:
+
+✓ Upcoming matches visible
+✓ Match details complete
+✓ Predictions generated
+✓ Analytics populated
+✓ Live updates functioning
+✓ Wallet unaffected
+✓ No mock data
+✓ No runtime exceptions
+✓ Mobile rendering verified
+✓ All services healthy
+
+==================================================
+DELIVERABLES
+==================================================
+
+Provide:
+
+1. Root causes discovered.
+2. Files modified.
+3. APIs repaired.
+4. Database fixes.
+5. Prediction improvements.
+6. Match ingestion improvements.
+7. Remaining technical debt.
+8. Production readiness score for:
+
+- Gateway
+- Sports AI
+- Prediction Engine
+- Match Service
+- Analytics
+- Frontend
+- Entire VIT Ecosystem
+
+Do not stop until the Sports AI ecosystem is fully functional with real match data and production-grade reliability.
