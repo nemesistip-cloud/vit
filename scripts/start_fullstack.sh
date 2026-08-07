@@ -15,7 +15,11 @@ fi
 echo "[startup] Checking frontend dependencies..."
 if [ ! -d "${ROOT_DIR}/frontend/node_modules" ]; then
     echo "[startup] Installing frontend dependencies..."
-    (cd "${ROOT_DIR}/frontend" && npm install --legacy-peer-deps --silent 2>/dev/null) || true
+    if command -v pnpm >/dev/null 2>&1 && [ -f "${ROOT_DIR}/pnpm-lock.yaml" ]; then
+        (cd "${ROOT_DIR}" && pnpm install --frozen-lockfile)
+    else
+        (cd "${ROOT_DIR}/frontend" && npm install --legacy-peer-deps --no-audit --no-fund)
+    fi
 fi
 
 # Fix pnpm-workspace hoisting conflict:
@@ -28,10 +32,24 @@ if [ -d "${ROOT_DIR}/frontend/node_modules/vite" ] && \
     ln -sfn "${ROOT_DIR}/frontend/node_modules/vite" "${ROOT_DIR}/node_modules/vite" 2>/dev/null || true
 fi
 
+# pnpm may keep workspace binaries at the repository root. Resolve Vite from
+# either location so a partial dependency install cannot produce a misleading
+# "vite: No such file" startup failure.
+if [ ! -x "${ROOT_DIR}/frontend/node_modules/.bin/vite" ] && \
+   [ -x "${ROOT_DIR}/node_modules/.bin/vite" ]; then
+    mkdir -p "${ROOT_DIR}/frontend/node_modules/.bin"
+    ln -sfn "${ROOT_DIR}/node_modules/.bin/vite" \
+      "${ROOT_DIR}/frontend/node_modules/.bin/vite"
+fi
+
 # In Replit dev environment: run Vite dev server only (no Python backend needed)
 if [ -n "${REPLIT_DEV_DOMAIN:-}" ] || [ -n "${REPL_ID:-}" ]; then
     echo "[startup] Replit environment detected — starting frontend dev server..."
     cd "${ROOT_DIR}/frontend"
+    if [ ! -x node_modules/.bin/vite ]; then
+        echo "[startup] ERROR: Vite is not installed. Dependency installation did not complete." >&2
+        exit 1
+    fi
     exec node_modules/.bin/vite --port 5000 --host 0.0.0.0
 fi
 

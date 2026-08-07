@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 
 interface Match {
   id: number
+  match_id?: number
   home_team: string
   away_team: string
   league: string
@@ -29,6 +30,8 @@ interface Match {
   entry_odds?: number
   home_score?: number
   away_score?: number
+  home_goals?: number
+  away_goals?: number
 }
 
 type Tab   = 'upcoming' | 'live' | 'recent' | 'all'
@@ -52,8 +55,29 @@ function useMatches(tab: Tab, sport: Sport) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err?.error?.message || err?.detail || `HTTP ${res.status}`)
       }
-      const data = await res.json()
-      return Array.isArray(data) ? data : data.matches ?? data.items ?? []
+      const payload = await res.json()
+      const rawRows: unknown[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.matches)
+          ? payload.matches
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : []
+
+      // The gateway uses match_id/home_goals/away_goals while older clients
+      // use id/home_score/away_score. Normalize at the API boundary so every
+      // tab and card renders the same contract.
+      return rawRows
+        .filter((row): row is Record<string, unknown> => !!row && typeof row === 'object')
+        .map((row) => ({
+          ...row,
+          id: Number(row.id ?? row.match_id),
+          home_score: row.home_score ?? row.home_goals,
+          away_score: row.away_score ?? row.away_goals,
+        }))
+        .filter((row) => Number.isFinite(row.id) && row.id > 0) as Match[]
     },
     retry: 1,
     staleTime: tab === 'live' ? 15_000 : 60_000,
@@ -115,7 +139,7 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: i * 0.04, duration: 0.3 }}
-      onClick={() => navigate(`/matches/${match.id}`)}
+      onClick={() => navigate(`/matches/${match.id ?? match.match_id}`)}
       className={cn(
         'group relative rounded-2xl border p-5 cursor-pointer transition-all duration-200',
         'bg-surface-800/50 hover:bg-surface-700/60',
@@ -410,7 +434,7 @@ export default function Matches() {
         {/* ── Match grid ────────────────────────────────────────────────── */}
         {!isLoading && filtered.length > 0 && (
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((m, i) => <MatchCard key={m.id} match={m} i={i} />)}
+            {filtered.map((m, i) => <MatchCard key={m.id ?? m.match_id} match={m} i={i} />)}
           </div>
         )}
 
