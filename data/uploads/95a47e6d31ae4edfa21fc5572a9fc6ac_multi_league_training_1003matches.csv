@@ -1,0 +1,1004 @@
+home_team,away_team,home_goals,away_goals,actual_outcome,league,date,season,B365H,B365D,B365A
+Real Madrid,Barcelona,2,1,H,La Liga,2023-10-28,2023/24,2.20,3.50,3.40
+Barcelona,Atletico Madrid,1,0,H,La Liga,2023-10-21,2023/24,1.65,3.90,5.50
+Atletico Madrid,Sevilla,3,1,H,La Liga,2023-10-08,2023/24,1.57,3.90,6.50
+Real Madrid,Sevilla,5,1,H,La Liga,2023-10-22,2023/24,1.33,5.50,10.00
+Valencia,Barcelona,1,2,A,La Liga,2023-10-21,2023/24,5.00,4.00,1.72
+Real Sociedad,Athletic Bilbao,1,1,D,La Liga,2023-10-07,2023/24,2.20,3.40,3.50
+Villarreal,Real Madrid,4,4,D,La Liga,2023-10-22,2023/24,4.50,3.75,1.83
+Girona,Real Madrid,3,2,H,La Liga,2023-12-10,2023/24,5.50,4.20,1.65
+Barcelona,Real Madrid,1,2,A,La Liga,2024-04-21,2023/24,2.10,3.50,3.75
+Atletico Madrid,Real Madrid,3,1,H,La Liga,2024-02-04,2023/24,2.75,3.25,2.87
+Real Madrid,Atletico Madrid,2,1,H,La Liga,2023-09-24,2023/24,2.00,3.50,4.00
+Sevilla,Valencia,1,0,H,La Liga,2023-10-01,2023/24,1.95,3.50,4.25
+Osasuna,Barcelona,1,2,A,La Liga,2023-10-28,2023/24,5.75,4.25,1.57
+Real Betis,Sevilla,1,1,D,La Liga,2023-11-05,2023/24,2.37,3.40,3.20
+Celta Vigo,Atletico Madrid,0,2,A,La Liga,2023-11-11,2023/24,5.00,4.00,1.75
+Getafe,Real Madrid,0,2,A,La Liga,2023-11-11,2023/24,8.00,5.00,1.44
+Las Palmas,Barcelona,1,1,D,La Liga,2023-11-12,2023/24,7.00,4.75,1.50
+Rayo Vallecano,Real Madrid,0,2,A,La Liga,2023-11-25,2023/24,7.00,5.00,1.44
+Barcelona,Valencia,1,0,H,La Liga,2023-12-16,2023/24,1.40,5.00,8.00
+Alaves,Real Madrid,0,3,A,La Liga,2023-12-02,2023/24,10.00,6.00,1.33
+Real Madrid,Girona,4,0,H,La Liga,2023-08-13,2023/24,1.40,4.75,8.00
+Barcelona,Cadiz,2,0,H,La Liga,2023-09-23,2023/24,1.22,7.00,14.00
+Mallorca,Atletico Madrid,1,2,A,La Liga,2023-09-16,2023/24,4.75,3.75,1.83
+Real Sociedad,Real Madrid,1,2,A,La Liga,2023-09-03,2023/24,4.33,3.75,1.91
+Athletic Bilbao,Barcelona,1,1,D,La Liga,2023-08-20,2023/24,4.50,3.75,1.87
+Villarreal,Atletico Madrid,1,4,A,La Liga,2023-08-20,2023/24,3.30,3.40,2.37
+Granada,Real Madrid,0,2,A,La Liga,2023-09-02,2023/24,9.00,5.50,1.36
+Deportivo Alaves,Barcelona,0,2,A,La Liga,2023-08-27,2023/24,8.50,5.25,1.40
+Real Betis,Real Madrid,0,1,A,La Liga,2023-08-20,2023/24,4.50,3.75,1.87
+Cadiz,Barcelona,0,1,A,La Liga,2023-08-13,2023/24,9.50,5.75,1.36
+Bayern Munich,Borussia Dortmund,4,0,H,Bundesliga,2023-11-04,2023/24,1.57,4.00,6.50
+Borussia Dortmund,RB Leipzig,2,1,H,Bundesliga,2023-10-28,2023/24,2.10,3.50,3.75
+Bayer Leverkusen,Bayern Munich,2,2,D,Bundesliga,2023-10-21,2023/24,3.75,3.50,2.10
+RB Leipzig,Eintracht Frankfurt,3,1,H,Bundesliga,2023-10-28,2023/24,1.72,3.80,5.25
+Bayern Munich,Bayer Leverkusen,2,0,H,Bundesliga,2024-02-10,2023/24,1.65,4.00,5.50
+Union Berlin,Bayern Munich,1,5,A,Bundesliga,2023-09-23,2023/24,7.00,5.00,1.44
+Borussia Dortmund,Bayern Munich,1,0,H,Bundesliga,2024-03-30,2023/24,2.87,3.40,2.62
+Wolfsburg,Borussia Dortmund,0,1,A,Bundesliga,2023-10-07,2023/24,4.00,3.60,2.00
+Bayer Leverkusen,Borussia Dortmund,4,0,H,Bundesliga,2024-02-03,2023/24,1.80,3.75,4.75
+Freiburg,Bayern Munich,2,4,A,Bundesliga,2023-10-07,2023/24,5.50,4.25,1.65
+Eintracht Frankfurt,Borussia Dortmund,2,2,D,Bundesliga,2023-09-30,2023/24,3.20,3.40,2.40
+Hoffenheim,Bayern Munich,1,4,A,Bundesliga,2023-09-30,2023/24,6.50,4.75,1.53
+Stuttgart,Borussia Dortmund,2,1,H,Bundesliga,2023-10-21,2023/24,3.10,3.40,2.40
+Bayern Munich,RB Leipzig,2,1,H,Bundesliga,2023-09-23,2023/24,1.72,3.80,5.25
+Mainz,Bayer Leverkusen,0,3,A,Bundesliga,2023-11-11,2023/24,5.25,4.00,1.72
+Koln,Bayern Munich,0,4,A,Bundesliga,2023-11-04,2023/24,9.50,5.75,1.36
+Augsburg,Borussia Dortmund,0,2,A,Bundesliga,2023-11-04,2023/24,4.75,3.75,1.87
+Hertha Berlin,RB Leipzig,0,3,A,Bundesliga,2022-11-05,2022/23,4.75,3.90,1.83
+Bochum,Bayern Munich,0,5,A,Bundesliga,2023-11-25,2023/24,12.00,7.00,1.25
+Darmstadt,Bayer Leverkusen,0,3,A,Bundesliga,2023-11-25,2023/24,10.00,6.00,1.33
+Bayern Munich,Augsburg,3,2,H,Bundesliga,2023-12-02,2023/24,1.30,5.75,11.00
+Borussia Dortmund,Stuttgart,2,1,H,Bundesliga,2023-12-02,2023/24,1.80,3.70,4.75
+RB Leipzig,Bayer Leverkusen,1,2,A,Bundesliga,2023-12-09,2023/24,2.50,3.40,3.00
+Freiburg,Bayer Leverkusen,0,3,A,Bundesliga,2023-12-16,2023/24,4.00,3.60,2.00
+Bayern Munich,Wolfsburg,6,0,H,Bundesliga,2023-12-16,2023/24,1.22,6.50,16.00
+Eintracht Frankfurt,RB Leipzig,0,0,D,Bundesliga,2023-12-16,2023/24,2.87,3.30,2.75
+Juventus,Inter Milan,1,0,H,Serie A,2023-11-26,2023/24,2.37,3.30,3.20
+Inter Milan,AC Milan,1,0,H,Serie A,2023-09-16,2023/24,2.20,3.40,3.50
+AC Milan,Napoli,1,0,H,Serie A,2023-10-29,2023/24,2.10,3.40,3.75
+Napoli,Real Madrid,2,3,A,Champions League,2023-11-29,2023/24,2.62,3.30,2.87
+Inter Milan,Juventus,1,1,D,Serie A,2024-02-04,2023/24,2.25,3.30,3.40
+Lazio,Inter Milan,1,2,A,Serie A,2023-10-28,2023/24,3.50,3.40,2.25
+Roma,Juventus,1,1,D,Serie A,2023-11-05,2023/24,3.00,3.30,2.50
+Napoli,Inter Milan,2,3,A,Serie A,2023-12-03,2023/24,2.87,3.25,2.75
+AC Milan,Inter Milan,1,2,A,Serie A,2024-04-22,2023/24,2.75,3.30,2.87
+Juventus,Napoli,3,1,H,Serie A,2023-09-21,2023/24,2.00,3.50,4.00
+Fiorentina,AC Milan,1,0,H,Serie A,2023-10-21,2023/24,3.40,3.40,2.20
+Atalanta,Juventus,1,2,A,Serie A,2023-11-11,2023/24,2.75,3.25,2.87
+Bologna,Inter Milan,0,1,A,Serie A,2023-10-07,2023/24,4.25,3.60,1.95
+Torino,Lazio,0,2,A,Serie A,2023-10-28,2023/24,3.20,3.30,2.50
+Sassuolo,Napoli,2,2,D,Serie A,2023-10-08,2023/24,4.75,3.75,1.83
+Udinese,AC Milan,2,3,A,Serie A,2023-10-22,2023/24,5.25,4.00,1.72
+Monza,Juventus,0,1,A,Serie A,2023-10-28,2023/24,5.50,4.00,1.65
+Cagliari,Inter Milan,1,2,A,Serie A,2023-11-06,2023/24,8.00,5.25,1.44
+Empoli,AC Milan,1,3,A,Serie A,2023-11-11,2023/24,6.00,4.50,1.57
+Lecce,Napoli,0,1,A,Serie A,2023-11-12,2023/24,7.00,5.00,1.44
+Verona,Juventus,2,1,H,Serie A,2023-11-25,2023/24,5.50,4.25,1.65
+Frosinone,Inter Milan,0,2,A,Serie A,2023-11-25,2023/24,9.00,5.75,1.36
+Genoa,AC Milan,1,1,D,Serie A,2023-11-11,2023/24,5.75,4.25,1.62
+Salernitana,Lazio,1,2,A,Serie A,2023-10-28,2023/24,5.75,4.25,1.62
+Hellas Verona,Inter Milan,0,2,A,Serie A,2023-12-16,2023/24,9.50,5.75,1.36
+Napoli,Juventus,1,1,D,Serie A,2024-03-03,2023/24,2.75,3.25,2.87
+PSG,Marseille,4,0,H,Ligue 1,2023-10-29,2023/24,1.44,4.75,8.00
+Marseille,Lyon,1,0,H,Ligue 1,2023-10-22,2023/24,2.00,3.40,4.00
+Monaco,PSG,2,4,A,Ligue 1,2023-11-11,2023/24,3.75,3.50,2.10
+Lens,PSG,1,2,A,Ligue 1,2023-11-18,2023/24,3.60,3.40,2.20
+Lille,Marseille,1,0,H,Ligue 1,2023-11-05,2023/24,2.50,3.30,3.10
+Nice,Monaco,0,0,D,Ligue 1,2023-10-08,2023/24,2.62,3.25,3.00
+PSG,Lyon,4,1,H,Ligue 1,2023-10-01,2023/24,1.40,5.00,8.50
+Rennes,PSG,1,3,A,Ligue 1,2023-09-24,2023/24,5.25,4.00,1.72
+Brest,Marseille,2,1,H,Ligue 1,2023-10-21,2023/24,3.40,3.30,2.25
+Strasbourg,PSG,0,3,A,Ligue 1,2023-11-25,2023/24,9.00,5.75,1.36
+Toulouse,Monaco,0,2,A,Ligue 1,2023-11-04,2023/24,3.75,3.50,2.10
+Nantes,Marseille,0,1,A,Ligue 1,2023-11-04,2023/24,3.40,3.30,2.25
+Reims,PSG,0,3,A,Ligue 1,2023-12-06,2023/24,11.00,7.00,1.30
+Le Havre,Lyon,1,1,D,Ligue 1,2023-11-26,2023/24,2.87,3.25,2.75
+Montpellier,Nice,0,1,A,Ligue 1,2023-11-25,2023/24,3.00,3.30,2.50
+Clermont,Monaco,0,3,A,Ligue 1,2023-11-11,2023/24,5.75,4.25,1.62
+Lorient,PSG,1,4,A,Ligue 1,2023-12-13,2023/24,9.50,5.75,1.36
+Metz,Marseille,0,2,A,Ligue 1,2023-12-09,2023/24,5.50,4.25,1.65
+Lyon,Monaco,1,2,A,Ligue 1,2023-12-03,2023/24,2.62,3.25,2.87
+Lens,Lille,1,0,H,Ligue 1,2023-10-28,2023/24,2.37,3.30,3.20
+PSG,Nice,2,1,H,Ligue 1,2023-12-16,2023/24,1.36,5.25,10.00
+Manchester City,Real Madrid,1,1,D,Champions League,2023-04-26,2022/23,1.80,3.75,4.75
+Real Madrid,Manchester City,1,1,D,Champions League,2023-05-17,2022/23,2.00,3.60,4.00
+Bayern Munich,Manchester City,0,3,A,Champions League,2023-04-19,2022/23,2.25,3.40,3.40
+Manchester City,Bayern Munich,3,0,H,Champions League,2023-04-26,2022/23,1.72,3.80,5.25
+Inter Milan,AC Milan,2,0,H,Champions League,2023-05-10,2022/23,2.37,3.30,3.20
+AC Milan,Inter Milan,1,3,A,Champions League,2023-05-16,2022/23,2.50,3.30,3.00
+Real Madrid,Chelsea,2,0,H,Champions League,2023-04-12,2022/23,1.87,3.60,4.50
+Chelsea,Real Madrid,0,2,A,Champions League,2023-04-18,2022/23,2.10,3.40,3.75
+Napoli,AC Milan,1,1,D,Champions League,2023-03-07,2022/23,2.25,3.40,3.40
+AC Milan,Napoli,1,0,H,Champions League,2023-03-15,2022/23,2.37,3.30,3.25
+Arsenal,Bayern Munich,2,2,D,Champions League,2024-04-09,2023/24,3.25,3.40,2.40
+Bayern Munich,Arsenal,1,0,H,Champions League,2024-04-17,2023/24,1.87,3.60,4.50
+PSG,Barcelona,3,2,H,Champions League,2024-04-10,2023/24,2.20,3.40,3.50
+Barcelona,PSG,1,4,A,Champions League,2024-04-16,2023/24,2.10,3.40,3.75
+Borussia Dortmund,PSG,1,0,H,Champions League,2024-05-01,2023/24,2.75,3.25,2.87
+PSG,Borussia Dortmund,0,1,A,Champions League,2024-05-07,2023/24,1.83,3.60,4.75
+Real Madrid,Borussia Dortmund,2,0,H,Champions League,2024-06-01,2023/24,1.87,3.60,4.50
+Real Madrid,Manchester City,3,3,D,Champions League,2024-04-09,2023/24,2.25,3.40,3.40
+Manchester City,Real Madrid,1,1,D,Champions League,2024-04-17,2023/24,1.95,3.50,4.25
+Chelsea,Real Madrid,0,2,A,Champions League,2024-04-16,2023/24,3.25,3.30,2.40
+Real Madrid,Chelsea,2,0,H,Champions League,2024-04-09,2023/24,1.72,3.80,5.25
+Atletico Madrid,Borussia Dortmund,2,1,H,Champions League,2024-04-10,2023/24,1.87,3.60,4.50
+Borussia Dortmund,Atletico Madrid,4,2,H,Champions League,2024-04-16,2023/24,1.95,3.50,4.25
+Liverpool,Villarreal,2,0,H,Champions League,2022-04-27,2021/22,1.44,4.75,8.00
+Villarreal,Liverpool,2,3,A,Champions League,2022-05-03,2021/22,3.40,3.40,2.25
+Real Madrid,Liverpool,1,0,H,Champions League,2022-05-28,2021/22,2.37,3.30,3.25
+Manchester City,Atletico Madrid,1,0,H,Champions League,2022-04-05,2021/22,1.75,3.75,5.25
+Atletico Madrid,Manchester City,0,0,D,Champions League,2022-04-13,2021/22,2.62,3.30,2.87
+Ajax,Benfica,1,0,H,Champions League,2021-09-29,2021/22,1.80,3.75,4.75
+Liverpool,FC Porto,2,0,H,Champions League,2021-09-15,2021/22,1.40,5.00,8.50
+Real Madrid,PSG,3,1,H,Champions League,2022-03-09,2021/22,2.37,3.30,3.25
+PSG,Real Madrid,1,0,H,Champions League,2022-02-15,2021/22,2.50,3.30,3.00
+Chelsea,Atletico Madrid,2,0,H,Champions League,2022-03-08,2021/22,1.65,4.00,5.50
+Manchester City,Liverpool,0,3,A,Champions League,2021-10-03,2021/22,1.80,3.75,4.75
+Benfica,Ajax,1,2,A,Champions League,2021-10-20,2021/22,3.10,3.40,2.40
+Inter Milan,Real Madrid,0,2,A,Champions League,2021-09-15,2021/22,3.25,3.30,2.40
+Manchester City,Club Brugge,5,1,H,Champions League,2021-10-19,2021/22,1.25,6.50,14.00
+Barcelona,Bayern Munich,0,3,A,Champions League,2021-09-14,2021/22,2.87,3.30,2.75
+Liverpool,AC Milan,3,2,H,Champions League,2021-09-15,2021/22,1.60,4.00,6.50
+Atletico Madrid,Liverpool,2,3,A,Champions League,2022-02-19,2021/22,3.00,3.30,2.62
+Liverpool,Atletico Madrid,2,0,H,Champions League,2022-03-08,2021/22,1.57,4.25,6.50
+Manchester City,PSG,2,1,H,Champions League,2021-11-24,2021/22,1.62,4.00,6.00
+PSG,Manchester City,1,2,A,Champions League,2021-09-28,2021/22,2.00,3.50,4.00
+Club Brugge,Manchester City,1,5,A,Champions League,2021-10-19,2021/22,9.50,5.75,1.36
+Ajax,Borussia Dortmund,4,0,H,Champions League,2021-10-19,2021/22,1.87,3.60,4.50
+Borussia Dortmund,Ajax,1,3,A,Champions League,2021-11-03,2021/22,2.10,3.50,3.75
+Sporting CP,Borussia Dortmund,3,1,H,Champions League,2021-11-24,2021/22,3.40,3.40,2.20
+Bayern Munich,Barcelona,3,0,H,Champions League,2021-09-14,2021/22,1.36,5.25,10.00
+Real Madrid,Shakhtar,5,0,H,Champions League,2021-10-19,2021/22,1.22,7.00,16.00
+Liverpool,Porto,2,0,H,Champions League,2021-09-15,2021/22,1.36,5.25,10.00
+Salzburg,Lille,2,1,H,Champions League,2021-10-19,2021/22,2.25,3.40,3.40
+Benfica,Bayern Munich,0,4,A,Champions League,2021-10-20,2021/22,8.00,5.25,1.44
+Real Madrid,Sheriff,1,2,A,Champions League,2021-09-28,2021/22,1.22,7.00,16.00
+Sporting CP,Ajax,1,5,A,Champions League,2021-10-20,2021/22,4.75,3.75,1.83
+Real Madrid,Inter Milan,2,0,H,Champions League,2021-12-07,2021/22,1.65,3.90,5.50
+Inter Milan,Real Madrid,0,2,A,Champions League,2022-03-08,2021/22,3.25,3.30,2.37
+Benfica,Ajax,0,1,A,Champions League,2021-12-08,2021/22,3.20,3.30,2.40
+Ajax,Benfica,2,2,D,Champions League,2021-11-23,2021/22,1.72,3.80,5.25
+Atletico Madrid,AC Milan,0,1,A,Champions League,2021-09-28,2021/22,1.80,3.60,4.75
+AC Milan,Atletico Madrid,1,2,A,Champions League,2021-11-23,2021/22,2.37,3.30,3.25
+Club Brugge,RB Leipzig,4,1,H,Champions League,2021-10-19,2021/22,2.62,3.30,2.87
+Wolfsburg,Lille,1,0,H,Champions League,2021-10-19,2021/22,2.25,3.40,3.40
+Sevilla,Salzburg,1,1,D,Champions League,2021-10-20,2021/22,1.87,3.60,4.50
+Dynamo Kyiv,Barcelona,0,1,A,Champions League,2021-11-02,2021/22,5.00,4.00,1.75
+Manchester United,Atalanta,3,2,H,Champions League,2021-10-20,2021/22,1.72,3.80,5.25
+Atalanta,Manchester United,2,2,D,Champions League,2021-11-02,2021/22,2.37,3.30,3.25
+Young Boys,Manchester United,2,1,H,Champions League,2021-09-14,2021/22,6.50,4.75,1.53
+Manchester United,Villarreal,2,0,H,Champions League,2021-09-29,2021/22,1.62,3.90,6.00
+Villarreal,Manchester United,0,2,A,Champions League,2021-11-23,2021/22,2.37,3.30,3.25
+Galatasaray,Barcelona,1,0,H,Champions League,2023-10-24,2023/24,7.50,5.00,1.44
+Barcelona,Galatasaray,1,0,H,Champions League,2023-11-08,2023/24,1.50,4.50,7.50
+Porto,Barcelona,1,0,H,Champions League,2023-10-04,2023/24,3.75,3.40,2.10
+Barcelona,Porto,2,1,H,Champions League,2023-10-24,2023/24,1.65,4.00,5.50
+Antwerp,Barcelona,3,2,H,Champions League,2023-09-26,2023/24,7.00,5.00,1.44
+Barcelona,Antwerp,5,0,H,Champions League,2023-11-08,2023/24,1.22,7.00,16.00
+Shakhtar,Barcelona,1,0,H,Champions League,2023-10-03,2023/24,5.75,4.25,1.62
+Salzburg,Real Madrid,0,7,A,Champions League,2022-03-08,2021/22,9.00,5.75,1.33
+Real Madrid,Salzburg,2,1,H,Champions League,2022-03-02,2021/22,1.44,4.75,8.00
+PSV,Arsenal,1,1,D,Champions League,2023-10-25,2023/24,3.60,3.30,2.25
+Arsenal,PSV,4,0,H,Champions League,2023-11-08,2023/24,1.40,5.00,8.50
+Lens,Arsenal,1,2,A,Champions League,2023-10-03,2023/24,3.40,3.30,2.25
+Arsenal,Lens,6,0,H,Champions League,2023-11-08,2023/24,1.30,5.75,11.00
+Sevilla,Arsenal,0,2,A,Champions League,2023-09-19,2023/24,2.87,3.25,2.75
+Arsenal,Sevilla,2,0,H,Champions League,2023-10-24,2023/24,1.44,4.75,8.00
+Shakhtar,Porto,1,3,A,Champions League,2023-10-24,2023/24,3.10,3.40,2.40
+Porto,Shakhtar,5,1,H,Champions League,2023-11-07,2023/24,1.57,4.00,6.50
+Napoli,Braga,2,1,H,Champions League,2023-10-03,2023/24,1.44,4.75,8.00
+Braga,Napoli,2,0,H,Champions League,2023-10-24,2023/24,4.25,3.60,1.95
+Napoli,Union Berlin,2,0,H,Champions League,2023-11-08,2023/24,1.30,5.75,11.00
+Union Berlin,Napoli,1,0,H,Champions League,2023-09-19,2023/24,4.25,3.60,1.95
+Real Madrid,Union Berlin,1,0,H,Champions League,2023-09-20,2023/24,1.36,5.00,10.00
+Union Berlin,Real Madrid,1,3,A,Champions League,2023-11-07,2023/24,8.50,5.25,1.40
+Newcastle,PSG,4,1,H,Champions League,2023-10-04,2023/24,3.75,3.40,2.10
+PSG,Newcastle,2,1,H,Champions League,2023-11-28,2023/24,1.57,4.00,6.50
+Borussia Dortmund,AC Milan,3,1,H,Champions League,2023-10-04,2023/24,1.87,3.60,4.50
+AC Milan,Borussia Dortmund,1,3,A,Champions League,2023-11-28,2023/24,2.37,3.30,3.25
+Lazio,Atletico Madrid,0,2,A,Champions League,2023-10-04,2023/24,3.25,3.30,2.40
+Atletico Madrid,Lazio,2,0,H,Champions League,2023-11-08,2023/24,1.75,3.75,5.25
+Celtic,Atletico Madrid,1,2,A,Champions League,2023-09-19,2023/24,5.50,4.25,1.65
+Atletico Madrid,Celtic,6,0,H,Champions League,2023-10-25,2023/24,1.22,7.00,16.00
+Feyenoord,Atletico Madrid,1,3,A,Champions League,2023-11-28,2023/24,3.60,3.30,2.25
+Atletico Madrid,Feyenoord,3,2,H,Champions League,2023-12-12,2023/24,1.50,4.50,7.50
+Manchester City,Leipzig,3,2,H,Champions League,2023-09-19,2023/24,1.44,4.75,8.00
+Leipzig,Manchester City,1,3,A,Champions League,2023-10-04,2023/24,3.40,3.30,2.25
+Young Boys,Manchester City,1,3,A,Champions League,2023-10-25,2023/24,9.50,5.75,1.36
+Manchester City,Young Boys,3,0,H,Champions League,2023-11-07,2023/24,1.18,7.50,19.00
+Copenhagen,Manchester City,1,3,A,Champions League,2023-10-11,2023/24,9.00,5.75,1.36
+Manchester City,Copenhagen,3,1,H,Champions League,2023-10-24,2023/24,1.18,7.50,19.00
+Inter Milan,Benfica,1,0,H,Champions League,2023-09-19,2023/24,1.62,4.00,6.00
+Benfica,Inter Milan,3,3,D,Champions League,2023-10-03,2023/24,2.87,3.25,2.75
+Salzburg,Inter Milan,0,2,A,Champions League,2023-10-25,2023/24,4.75,3.75,1.83
+Inter Milan,Salzburg,2,1,H,Champions League,2023-11-08,2023/24,1.36,5.25,10.00
+Real Sociedad,Inter Milan,1,1,D,Champions League,2023-09-20,2023/24,3.25,3.30,2.40
+Inter Milan,Real Sociedad,2,0,H,Champions League,2023-10-03,2023/24,1.57,4.00,6.50
+Liverpool,Union SG,2,0,H,Champions League,2023-09-26,2023/24,1.30,5.75,11.00
+Union SG,Liverpool,2,0,H,Champions League,2023-10-12,2023/24,7.50,5.00,1.44
+Toulouse,Liverpool,3,2,H,Champions League,2023-09-19,2023/24,7.00,5.00,1.44
+Liverpool,Toulouse,5,1,H,Champions League,2023-10-04,2023/24,1.25,6.50,14.00
+Liverpool,Bayer Leverkusen,4,0,H,Champions League,2024-04-11,2023/24,1.53,4.25,7.00
+Bayer Leverkusen,Liverpool,0,4,A,Champions League,2024-04-18,2023/24,2.87,3.25,2.75
+Real Madrid,Liverpool,5,2,H,Champions League,2023-11-29,2023/24,1.87,3.60,4.50
+Liverpool,Real Madrid,2,5,A,Champions League,2023-11-05,2023/24,2.10,3.50,3.75
+Benfica,Real Sociedad,0,1,A,Champions League,2023-10-25,2023/24,2.75,3.25,2.87
+Real Sociedad,Benfica,0,0,D,Champions League,2023-11-08,2023/24,2.37,3.30,3.25
+Salzburg,Benfica,0,2,A,Champions League,2023-11-08,2023/24,3.25,3.30,2.40
+Benfica,Salzburg,3,0,H,Champions League,2023-10-04,2023/24,1.57,4.00,6.50
+Feyenoord,Celtic,2,0,H,Champions League,2023-09-19,2023/24,1.80,3.75,4.75
+Celtic,Feyenoord,2,2,D,Champions League,2023-10-04,2023/24,2.62,3.25,2.87
+Lazio,Celtic,2,0,H,Champions League,2023-09-19,2023/24,1.57,4.00,6.50
+Celtic,Lazio,2,2,D,Champions League,2023-10-04,2023/24,3.10,3.30,2.50
+Feyenoord,Lazio,3,1,H,Champions League,2023-10-25,2023/24,2.00,3.50,4.00
+Lazio,Feyenoord,1,0,H,Champions League,2023-12-12,2023/24,1.87,3.60,4.50
+Bayern Munich,Copenhagen,2,1,H,Champions League,2023-10-25,2023/24,1.22,7.00,16.00
+Copenhagen,Bayern Munich,1,2,A,Champions League,2023-11-08,2023/24,9.50,5.75,1.36
+Galatasaray,Copenhagen,2,2,D,Champions League,2023-10-04,2023/24,2.25,3.40,3.40
+Copenhagen,Galatasaray,1,0,H,Champions League,2023-11-08,2023/24,2.75,3.25,2.87
+Bayern Munich,Galatasaray,3,1,H,Champions League,2023-10-03,2023/24,1.22,7.00,16.00
+Galatasaray,Bayern Munich,1,3,A,Champions League,2023-11-08,2023/24,7.00,5.00,1.44
+Leipzig,Young Boys,3,1,H,Champions League,2023-10-04,2023/24,1.50,4.50,7.50
+Young Boys,Leipzig,1,3,A,Champions League,2023-11-07,2023/24,5.75,4.25,1.62
+Leipzig,Real Madrid,0,2,A,Champions League,2023-09-13,2023/24,3.60,3.30,2.25
+Real Madrid,Leipzig,2,0,H,Champions League,2023-11-07,2023/24,1.36,5.25,10.00
+Sporting CP,Tottenham,2,0,H,Champions League,2023-10-24,2023/24,2.87,3.25,2.75
+Tottenham,Sporting CP,1,1,D,Champions League,2023-11-07,2023/24,1.87,3.60,4.50
+Marseille,Sporting CP,4,1,H,Champions League,2023-10-04,2023/24,1.80,3.75,4.75
+Sporting CP,Marseille,2,1,H,Champions League,2023-11-08,2023/24,2.25,3.40,3.40
+Eintracht Frankfurt,Marseille,2,1,H,Champions League,2023-09-19,2023/24,2.25,3.40,3.40
+Marseille,Eintracht Frankfurt,4,2,H,Champions League,2023-10-25,2023/24,1.83,3.70,4.75
+Eintracht Frankfurt,Sporting CP,3,3,D,Champions League,2023-09-20,2023/24,2.10,3.50,3.75
+Sporting CP,Eintracht Frankfurt,2,3,A,Champions League,2023-10-04,2023/24,2.00,3.50,4.00
+Tottenham,Eintracht Frankfurt,2,0,H,Champions League,2023-09-19,2023/24,1.83,3.70,4.75
+Eintracht Frankfurt,Tottenham,0,2,A,Champions League,2023-11-28,2023/24,2.62,3.25,2.87
+Tottenham,Marseille,2,0,H,Champions League,2023-10-04,2023/24,1.65,4.00,5.50
+Marseille,Tottenham,1,2,A,Champions League,2023-11-28,2023/24,2.25,3.40,3.40
+Braga,Porto,0,1,A,Champions League,2023-10-03,2023/24,3.10,3.30,2.50
+Porto,Braga,2,0,H,Champions League,2023-11-07,2023/24,1.72,3.80,5.25
+Royal Antwerp,Shakhtar,3,1,H,Champions League,2023-10-03,2023/24,2.62,3.25,2.87
+Shakhtar,Royal Antwerp,1,2,A,Champions League,2023-11-07,2023/24,2.00,3.50,4.00
+Braga,Royal Antwerp,1,0,H,Champions League,2023-09-20,2023/24,2.10,3.50,3.75
+Royal Antwerp,Braga,3,1,H,Champions League,2023-10-25,2023/24,2.37,3.30,3.25
+Shakhtar,Porto,1,1,D,Champions League,2023-09-19,2023/24,3.60,3.30,2.25
+Napoli,Real Madrid,2,3,A,Champions League,2023-11-29,2023/24,2.50,3.30,3.00
+Real Madrid,Napoli,4,2,H,Champions League,2024-03-06,2023/24,1.53,4.25,7.00
+Barcelona,Napoli,3,1,H,Champions League,2024-03-12,2023/24,1.72,3.80,5.25
+Napoli,Barcelona,1,3,A,Champions League,2024-02-21,2023/24,2.62,3.25,2.87
+Inter Milan,Atletico Madrid,1,0,H,Champions League,2024-04-16,2023/24,1.87,3.60,4.50
+Atletico Madrid,Inter Milan,2,1,H,Champions League,2024-04-09,2023/24,2.62,3.25,2.87
+Bayern Munich,Lazio,3,0,H,Champions League,2024-03-05,2023/24,1.36,5.00,10.00
+Lazio,Bayern Munich,1,0,H,Champions League,2024-02-14,2023/24,4.75,3.75,1.83
+Porto,Arsenal,1,0,H,Champions League,2024-02-21,2023/24,3.25,3.30,2.40
+Arsenal,Porto,1,0,H,Champions League,2024-03-12,2023/24,1.53,4.25,7.00
+Copenhagen,Manchester City,1,3,A,Champions League,2024-02-13,2023/24,8.50,5.25,1.40
+Manchester City,Copenhagen,3,1,H,Champions League,2024-03-06,2023/24,1.22,7.00,16.00
+PSV,Borussia Dortmund,1,1,D,Champions League,2024-02-20,2023/24,3.25,3.30,2.40
+Borussia Dortmund,PSV,2,0,H,Champions League,2024-03-13,2023/24,1.65,4.00,5.50
+Real Sociedad,PSG,1,2,A,Champions League,2024-02-14,2023/24,3.75,3.40,2.10
+PSG,Real Sociedad,2,0,H,Champions League,2024-03-05,2023/24,1.40,5.00,8.50
+Leipzig,Real Madrid,0,1,A,Champions League,2024-02-13,2023/24,3.50,3.30,2.25
+Real Madrid,Leipzig,1,0,H,Champions League,2024-03-05,2023/24,1.44,4.75,8.00
+Feyenoord,Roma,1,0,H,Champions League,2023-10-25,2023/24,2.00,3.50,4.00
+Roma,Feyenoord,2,3,A,Champions League,2023-11-28,2023/24,2.37,3.30,3.25
+Celtic,Atletico Madrid,0,2,A,Champions League,2023-09-19,2023/24,5.50,4.25,1.65
+Manchester City,Young Boys,6,0,H,Champions League,2023-12-13,2023/24,1.14,8.00,21.00
+Inter Milan,Real Sociedad,2,0,H,Champions League,2023-12-12,2023/24,1.53,4.25,7.00
+Real Sociedad,Inter Milan,1,1,D,Champions League,2023-12-05,2023/24,3.10,3.30,2.50
+Bayern Munich,FC Copenhagen,2,1,H,Champions League,2023-12-12,2023/24,1.22,7.00,16.00
+Borussia Dortmund,Newcastle,2,0,H,Champions League,2023-11-07,2023/24,1.75,3.75,5.25
+Newcastle,Borussia Dortmund,1,1,D,Champions League,2023-11-28,2023/24,2.37,3.30,3.25
+Newcastle,PSG,4,1,H,Champions League,2023-10-04,2023/24,3.75,3.40,2.10
+PSG,Newcastle,2,1,H,Champions League,2023-11-28,2023/24,1.57,4.00,6.50
+AC Milan,Newcastle,2,1,H,Champions League,2023-09-19,2023/24,1.75,3.75,5.25
+Newcastle,AC Milan,1,2,A,Champions League,2023-10-25,2023/24,2.87,3.25,2.75
+Dortmund,Newcastle,2,0,H,Champions League,2023-10-25,2023/24,1.75,3.75,5.25
+Liverpool,Toulouse,5,1,H,Champions League,2023-10-04,2023/24,1.25,6.50,14.00
+Union SG,Liverpool,2,0,H,Champions League,2023-10-12,2023/24,7.50,5.00,1.44
+Liverpool,Union SG,2,0,H,Champions League,2023-09-26,2023/24,1.30,5.75,11.00
+Toulouse,Liverpool,3,2,H,Champions League,2023-09-19,2023/24,7.00,5.00,1.44
+Liverpool,Bayer Leverkusen,4,0,H,Champions League,2024-04-11,2023/24,1.53,4.25,7.00
+Bayer Leverkusen,Liverpool,0,4,A,Champions League,2024-04-18,2023/24,2.87,3.25,2.75
+PSG,Borussia Dortmund,0,1,A,Champions League,2024-05-07,2023/24,1.83,3.60,4.75
+Borussia Dortmund,PSG,1,0,H,Champions League,2024-05-01,2023/24,2.75,3.25,2.87
+Real Madrid,Borussia Dortmund,2,0,H,Champions League,2024-06-01,2023/24,1.87,3.60,4.50
+Manchester City,Real Madrid,3,3,D,Champions League,2024-04-17,2023/24,1.95,3.50,4.25
+Real Madrid,Manchester City,3,3,D,Champions League,2024-04-09,2023/24,2.25,3.40,3.40
+Bayern Munich,Arsenal,1,0,H,Champions League,2024-04-17,2023/24,1.87,3.60,4.50
+Arsenal,Bayern Munich,2,2,D,Champions League,2024-04-09,2023/24,3.25,3.40,2.40
+PSG,Barcelona,3,2,H,Champions League,2024-04-10,2023/24,2.20,3.40,3.50
+Barcelona,PSG,1,4,A,Champions League,2024-04-16,2023/24,2.10,3.40,3.75
+Atletico Madrid,Borussia Dortmund,2,1,H,Champions League,2024-04-10,2023/24,1.87,3.60,4.50
+Borussia Dortmund,Atletico Madrid,4,2,H,Champions League,2024-04-16,2023/24,1.95,3.50,4.25
+Real Madrid,Chelsea,2,0,H,Champions League,2024-04-09,2023/24,1.72,3.80,5.25
+Chelsea,Real Madrid,0,2,A,Champions League,2024-04-16,2023/24,3.25,3.30,2.40
+Inter Milan,Atletico Madrid,1,0,H,Champions League,2024-04-16,2023/24,1.87,3.60,4.50
+Atletico Madrid,Inter Milan,2,1,H,Champions League,2024-04-09,2023/24,2.62,3.25,2.87
+Girona,Manchester City,3,3,D,Champions League,2023-10-25,2023/24,4.50,3.75,1.83
+Manchester City,Girona,3,1,H,Champions League,2023-11-07,2023/24,1.30,5.75,11.00
+MLS Portland Timbers,LA Galaxy,2,1,H,MLS,2023-10-01,2023,2.10,3.30,3.75
+LA Galaxy,Seattle Sounders,0,2,A,MLS,2023-10-07,2023,2.25,3.30,3.40
+Atlanta United,Inter Miami,2,0,H,MLS,2023-09-30,2023,1.95,3.40,4.25
+Inter Miami,Orlando City,1,0,H,MLS,2023-10-01,2023,1.83,3.50,4.75
+New York City FC,New York Red Bulls,3,1,H,MLS,2023-10-07,2023,1.95,3.40,4.25
+Seattle Sounders,Portland Timbers,2,1,H,MLS,2023-10-14,2023,1.87,3.50,4.50
+Philadelphia Union,New England,2,0,H,MLS,2023-10-07,2023,1.80,3.50,5.00
+Columbus Crew,CF Montreal,3,0,H,MLS,2023-10-01,2023,1.72,3.75,5.25
+Colorado Rapids,Real Salt Lake,1,2,A,MLS,2023-09-30,2023,2.37,3.25,3.20
+FC Dallas,Houston Dynamo,1,1,D,MLS,2023-10-07,2023,2.10,3.30,3.75
+San Jose Earthquakes,LA Galaxy,0,2,A,MLS,2023-10-14,2023,3.10,3.30,2.40
+LAFC,Portland Timbers,2,1,H,MLS,2023-09-30,2023,1.65,3.75,5.50
+Nashville SC,CF Montreal,1,0,H,MLS,2023-10-01,2023,1.83,3.50,4.75
+Austin FC,Houston Dynamo,1,1,D,MLS,2023-10-07,2023,1.87,3.50,4.50
+Toronto FC,Columbus Crew,0,2,A,MLS,2023-10-01,2023,3.75,3.40,2.10
+Real Madrid,Barcelona,2,1,H,La Liga,2022-10-16,2022/23,2.10,3.50,3.75
+Barcelona,Real Madrid,0,1,A,La Liga,2023-03-19,2022/23,2.00,3.50,4.00
+Atletico Madrid,Real Madrid,1,2,A,La Liga,2023-02-25,2022/23,2.75,3.25,2.87
+Real Madrid,Atletico Madrid,2,1,H,La Liga,2022-09-18,2022/23,2.00,3.50,4.00
+Barcelona,Atletico Madrid,4,2,H,La Liga,2023-04-23,2022/23,1.65,4.00,5.50
+Atletico Madrid,Barcelona,1,0,H,La Liga,2023-01-08,2022/23,2.87,3.25,2.75
+Sevilla,Real Madrid,2,3,A,La Liga,2022-10-22,2022/23,4.50,3.75,1.87
+Real Madrid,Sevilla,6,0,H,La Liga,2023-05-06,2022/23,1.25,6.50,14.00
+Barcelona,Sevilla,3,0,H,La Liga,2023-04-05,2022/23,1.40,5.00,8.50
+Valencia,Real Madrid,1,2,A,La Liga,2022-11-26,2022/23,5.50,4.25,1.65
+Athletic Bilbao,Barcelona,0,1,A,La Liga,2023-01-21,2022/23,3.50,3.40,2.25
+Real Sociedad,Barcelona,2,1,H,La Liga,2023-03-05,2022/23,3.75,3.40,2.10
+Barcelona,Real Sociedad,2,2,D,La Liga,2022-08-21,2022/23,1.65,4.00,5.50
+Villarreal,Barcelona,3,1,H,La Liga,2022-12-18,2022/23,4.00,3.60,2.00
+Barcelona,Valencia,1,0,H,La Liga,2023-05-05,2022/23,1.36,5.00,10.00
+Osasuna,Real Madrid,1,3,A,La Liga,2022-10-29,2022/23,7.50,5.00,1.44
+Real Betis,Real Madrid,2,1,H,La Liga,2022-09-03,2022/23,4.33,3.75,1.91
+Real Madrid,Real Betis,2,0,H,La Liga,2023-04-29,2022/23,1.40,5.00,8.50
+Getafe,Barcelona,0,1,A,La Liga,2022-12-31,2022/23,5.75,4.25,1.62
+Rayo Vallecano,Barcelona,0,1,A,La Liga,2022-08-13,2022/23,6.50,4.75,1.53
+Bayern Munich,Borussia Dortmund,2,2,D,Bundesliga,2022-10-08,2022/23,1.65,4.00,5.50
+Borussia Dortmund,Bayern Munich,2,1,H,Bundesliga,2023-04-01,2022/23,2.87,3.30,2.75
+Bayer Leverkusen,Bayern Munich,1,0,H,Bundesliga,2022-10-22,2022/23,3.75,3.50,2.10
+Bayern Munich,Bayer Leverkusen,1,0,H,Bundesliga,2023-02-11,2022/23,1.62,4.00,6.00
+RB Leipzig,Bayern Munich,3,2,H,Bundesliga,2023-01-20,2022/23,3.10,3.40,2.40
+Bayern Munich,RB Leipzig,3,0,H,Bundesliga,2022-09-17,2022/23,1.57,4.00,6.50
+Freiburg,Bayern Munich,2,1,H,Bundesliga,2022-11-12,2022/23,5.00,4.00,1.75
+Bayern Munich,Freiburg,4,0,H,Bundesliga,2023-03-04,2022/23,1.25,6.50,14.00
+Eintracht Frankfurt,Bayern Munich,1,1,D,Bundesliga,2022-11-05,2022/23,3.75,3.50,2.10
+Borussia Dortmund,RB Leipzig,1,1,D,Bundesliga,2022-09-03,2022/23,2.10,3.50,3.75
+RB Leipzig,Borussia Dortmund,3,4,A,Bundesliga,2023-04-15,2022/23,2.50,3.40,3.00
+Stuttgart,Bayern Munich,2,2,D,Bundesliga,2022-10-01,2022/23,5.50,4.25,1.65
+Bayern Munich,Stuttgart,5,2,H,Bundesliga,2023-01-28,2022/23,1.30,5.75,11.00
+Hoffenheim,Borussia Dortmund,1,3,A,Bundesliga,2022-09-10,2022/23,3.60,3.40,2.20
+Borussia Dortmund,Wolfsburg,6,0,H,Bundesliga,2022-09-17,2022/23,1.53,4.25,7.00
+Union Berlin,Borussia Dortmund,2,0,H,Bundesliga,2022-10-29,2022/23,3.25,3.40,2.37
+Borussia Dortmund,Eintracht Frankfurt,2,3,A,Bundesliga,2022-10-22,2022/23,1.95,3.50,4.25
+Werder Bremen,Bayern Munich,1,3,A,Bundesliga,2022-08-05,2022/23,5.75,4.25,1.62
+Bayern Munich,Hertha Berlin,3,2,H,Bundesliga,2022-08-05,2022/23,1.25,6.50,14.00
+Borussia Dortmund,Hertha Berlin,4,1,H,Bundesliga,2022-08-06,2022/23,1.50,4.50,7.50
+RB Leipzig,Hertha Berlin,4,1,H,Bundesliga,2022-09-17,2022/23,1.36,5.00,10.00
+Juventus,AC Milan,3,1,H,Serie A,2022-11-05,2022/23,2.10,3.40,3.75
+AC Milan,Juventus,2,0,H,Serie A,2023-04-08,2022/23,2.20,3.40,3.50
+Inter Milan,Juventus,3,2,H,Serie A,2023-04-19,2022/23,2.00,3.40,4.00
+Juventus,Inter Milan,0,2,A,Serie A,2022-11-26,2022/23,2.25,3.30,3.40
+Napoli,AC Milan,4,0,H,Serie A,2023-04-02,2022/23,1.80,3.75,4.75
+AC Milan,Napoli,1,1,D,Serie A,2022-11-13,2022/23,2.37,3.25,3.25
+Napoli,Juventus,5,1,H,Serie A,2023-01-13,2022/23,1.80,3.75,4.75
+Juventus,Napoli,1,0,H,Serie A,2022-08-31,2022/23,2.10,3.40,3.75
+Inter Milan,Napoli,1,0,H,Serie A,2022-11-09,2022/23,2.10,3.40,3.75
+Napoli,Inter Milan,3,0,H,Serie A,2023-04-15,2022/23,1.80,3.60,4.75
+Roma,Napoli,0,0,D,Serie A,2023-03-05,2022/23,3.60,3.30,2.25
+Napoli,Roma,2,1,H,Serie A,2022-10-23,2022/23,1.65,3.90,5.50
+Lazio,Inter Milan,3,1,H,Serie A,2023-02-10,2022/23,3.20,3.30,2.50
+Inter Milan,Lazio,2,2,D,Serie A,2022-09-10,2022/23,1.72,3.80,5.25
+Atalanta,AC Milan,3,3,D,Serie A,2022-10-02,2022/23,2.62,3.25,2.87
+AC Milan,Atalanta,2,0,H,Serie A,2023-01-14,2022/23,1.95,3.50,4.25
+Roma,Inter Milan,1,2,A,Serie A,2022-10-01,2022/23,3.25,3.30,2.40
+Fiorentina,Juventus,1,0,H,Serie A,2022-10-21,2022/23,3.25,3.30,2.40
+Juventus,Fiorentina,1,0,H,Serie A,2023-04-24,2022/23,1.87,3.60,4.50
+Torino,Inter Milan,0,1,A,Serie A,2022-10-15,2022/23,3.75,3.40,2.10
+Udinese,Napoli,0,1,A,Serie A,2022-11-12,2022/23,5.25,4.00,1.72
+Sassuolo,AC Milan,0,3,A,Serie A,2022-09-30,2022/23,4.00,3.50,2.00
+Salernitana,Napoli,0,2,A,Serie A,2022-10-08,2022/23,6.50,4.75,1.53
+Lecce,Inter Milan,0,2,A,Serie A,2022-10-01,2022/23,7.50,5.00,1.44
+Empoli,Juventus,0,1,A,Serie A,2022-11-06,2022/23,4.25,3.60,1.95
+Spezia,Napoli,1,3,A,Serie A,2022-11-09,2022/23,7.50,5.00,1.44
+Verona,AC Milan,0,2,A,Serie A,2022-11-13,2022/23,4.75,3.75,1.87
+Monza,Juventus,2,0,H,Serie A,2023-03-04,2022/23,5.50,4.25,1.65
+Cremonese,Lazio,2,2,D,Serie A,2022-10-29,2022/23,5.00,4.00,1.75
+PSG,Lens,3,1,H,Ligue 1,2022-09-15,2022/23,1.36,5.00,10.00
+Lens,PSG,1,1,D,Ligue 1,2023-01-01,2022/23,3.60,3.30,2.25
+Marseille,PSG,2,1,H,Ligue 1,2022-10-23,2022/23,3.40,3.40,2.25
+PSG,Marseille,3,0,H,Ligue 1,2023-04-05,2022/23,1.44,4.75,8.00
+Monaco,PSG,3,3,D,Ligue 1,2022-08-28,2022/23,4.00,3.60,2.00
+PSG,Monaco,2,1,H,Ligue 1,2022-12-29,2022/23,1.44,4.75,8.00
+Lyon,PSG,1,4,A,Ligue 1,2022-10-02,2022/23,4.75,3.75,1.83
+PSG,Lyon,4,3,H,Ligue 1,2023-04-02,2022/23,1.36,5.00,10.00
+Lorient,PSG,1,5,A,Ligue 1,2023-01-29,2022/23,8.50,5.25,1.40
+Rennes,PSG,0,2,A,Ligue 1,2022-10-08,2022/23,4.50,3.75,1.87
+Brest,PSG,0,3,A,Ligue 1,2022-09-10,2022/23,9.00,5.75,1.36
+Nice,Monaco,2,3,A,Ligue 1,2022-10-29,2022/23,2.62,3.25,2.87
+Monaco,Marseille,2,3,A,Ligue 1,2023-02-12,2022/23,2.37,3.30,3.25
+Marseille,Monaco,2,2,D,Ligue 1,2022-10-09,2022/23,1.87,3.60,4.50
+Lille,Monaco,4,3,H,Ligue 1,2022-09-18,2022/23,2.62,3.25,2.87
+Monaco,Lens,1,1,D,Ligue 1,2023-02-05,2022/23,2.10,3.40,3.75
+Toulouse,Marseille,1,2,A,Ligue 1,2022-10-22,2022/23,3.50,3.40,2.25
+Reims,Monaco,1,2,A,Ligue 1,2022-11-12,2022/23,3.75,3.50,2.10
+Strasbourg,PSG,1,4,A,Ligue 1,2022-11-05,2022/23,9.00,5.75,1.36
+Auxerre,Lens,0,3,A,Ligue 1,2022-11-06,2022/23,3.40,3.30,2.30
+Ajaccio,Marseille,0,4,A,Ligue 1,2022-11-12,2022/23,6.50,4.75,1.53
+Nantes,PSG,2,3,A,Ligue 1,2022-08-20,2022/23,7.00,5.00,1.44
+Montpellier,Monaco,1,3,A,Ligue 1,2023-01-28,2022/23,3.75,3.50,2.10
+Troyes,PSG,0,1,A,Ligue 1,2022-08-07,2022/23,11.00,7.00,1.30
+Angers,Marseille,0,2,A,Ligue 1,2022-08-06,2022/23,4.75,3.75,1.87
+Clermont,Lyon,1,3,A,Ligue 1,2022-10-08,2022/23,3.60,3.30,2.25
+RC Strasbourg,Monaco,0,4,A,Ligue 1,2022-12-04,2022/23,5.50,4.25,1.65
+Paris FC,PSG,0,5,A,Ligue 1,2023-01-08,2022/23,12.00,7.00,1.25
+Real Madrid,Barcelona,3,1,H,La Liga,2021-03-20,2020/21,2.25,3.40,3.40
+Barcelona,Real Madrid,1,3,A,La Liga,2020-10-24,2020/21,2.25,3.40,3.40
+Atletico Madrid,Real Madrid,1,1,D,La Liga,2021-03-07,2020/21,2.87,3.25,2.75
+Real Madrid,Atletico Madrid,1,1,D,La Liga,2020-12-12,2020/21,2.10,3.40,3.75
+Barcelona,Atletico Madrid,0,1,A,La Liga,2021-05-08,2020/21,1.72,3.80,5.25
+Atletico Madrid,Barcelona,1,0,H,La Liga,2021-01-09,2020/21,2.75,3.25,2.87
+Sevilla,Barcelona,2,0,H,La Liga,2021-02-27,2020/21,3.10,3.30,2.50
+Barcelona,Sevilla,2,0,H,La Liga,2020-10-04,2020/21,1.57,4.00,6.50
+Real Madrid,Sevilla,0,1,A,La Liga,2021-05-09,2020/21,1.44,4.75,8.00
+Villarreal,Real Madrid,1,1,D,La Liga,2020-11-21,2020/21,3.75,3.50,2.10
+Bayern Munich,Borussia Dortmund,4,2,H,Bundesliga,2021-03-06,2020/21,1.65,3.90,5.50
+Borussia Dortmund,Bayern Munich,2,3,A,Bundesliga,2020-11-07,2020/21,2.87,3.30,2.75
+RB Leipzig,Bayern Munich,0,1,A,Bundesliga,2021-04-03,2020/21,3.00,3.30,2.50
+Bayern Munich,RB Leipzig,5,1,H,Bundesliga,2020-09-26,2020/21,1.57,4.00,6.50
+Bayer Leverkusen,Bayern Munich,1,2,A,Bundesliga,2021-01-30,2020/21,3.75,3.50,2.10
+Bayern Munich,Bayer Leverkusen,2,0,H,Bundesliga,2020-11-21,2020/21,1.57,4.00,6.50
+Borussia Dortmund,RB Leipzig,1,3,A,Bundesliga,2020-11-08,2020/21,2.10,3.40,3.75
+RB Leipzig,Borussia Dortmund,0,2,A,Bundesliga,2021-04-10,2020/21,2.25,3.40,3.40
+Eintracht Frankfurt,Bayern Munich,2,1,H,Bundesliga,2021-02-20,2020/21,4.25,3.60,1.95
+Wolfsburg,Bayern Munich,2,3,A,Bundesliga,2021-04-17,2020/21,4.75,3.75,1.87
+Juventus,Napoli,1,0,H,Serie A,2020-10-04,2020/21,1.95,3.50,4.25
+Napoli,Juventus,1,1,D,Serie A,2021-04-07,2020/21,2.75,3.25,2.87
+AC Milan,Inter Milan,0,3,A,Serie A,2021-02-21,2020/21,2.50,3.30,3.00
+Inter Milan,AC Milan,1,2,A,Serie A,2021-05-02,2020/21,2.25,3.30,3.40
+Inter Milan,Juventus,2,0,H,Serie A,2021-01-17,2020/21,2.25,3.30,3.40
+Juventus,Inter Milan,3,2,H,Serie A,2020-10-24,2020/21,2.00,3.40,4.00
+Roma,Juventus,2,0,H,Serie A,2021-01-09,2020/21,3.40,3.30,2.25
+Juventus,Roma,2,0,H,Serie A,2020-12-22,2020/21,1.87,3.60,4.50
+Napoli,Inter Milan,1,3,A,Serie A,2021-01-13,2020/21,2.75,3.25,2.87
+Inter Milan,Napoli,2,0,H,Serie A,2020-12-16,2020/21,1.87,3.60,4.50
+PSG,Marseille,0,1,A,Ligue 1,2020-09-13,2020/21,1.44,4.75,8.00
+Marseille,PSG,0,2,A,Ligue 1,2021-02-07,2020/21,3.25,3.30,2.40
+Monaco,PSG,2,0,H,Ligue 1,2021-02-21,2020/21,4.25,3.60,1.95
+PSG,Monaco,0,2,A,Ligue 1,2020-11-20,2020/21,1.44,4.75,8.00
+Lyon,PSG,1,2,A,Ligue 1,2021-04-18,2020/21,4.50,3.75,1.87
+PSG,Lyon,4,2,H,Ligue 1,2020-09-17,2020/21,1.36,5.00,10.00
+Lens,Marseille,2,1,H,Ligue 1,2020-09-12,2020/21,2.87,3.25,2.75
+Marseille,Lyon,1,0,H,Ligue 1,2020-10-25,2020/21,1.87,3.60,4.50
+Nice,Monaco,0,0,D,Ligue 1,2020-11-08,2020/21,2.75,3.25,2.87
+Rennes,PSG,1,3,A,Ligue 1,2020-09-16,2020/21,5.25,4.00,1.72
+Manchester City,Liverpool,4,1,H,EPL,2021-02-07,2020/21,2.00,3.50,4.00
+Liverpool,Manchester City,1,4,A,EPL,2020-11-08,2020/21,2.50,3.40,3.00
+Manchester City,Manchester United,2,0,H,EPL,2020-12-12,2020/21,1.72,3.80,5.25
+Manchester United,Manchester City,2,0,H,EPL,2021-03-07,2020/21,2.50,3.40,3.00
+Arsenal,Liverpool,3,0,H,EPL,2020-09-28,2020/21,4.33,3.75,1.91
+Liverpool,Arsenal,0,0,D,EPL,2021-09-28,2021/22,1.57,4.25,6.50
+Manchester City,Arsenal,3,0,H,EPL,2021-02-21,2020/21,1.57,4.00,6.50
+Arsenal,Manchester City,1,0,H,EPL,2020-10-17,2020/21,4.50,3.75,1.87
+Chelsea,Liverpool,0,0,D,EPL,2020-09-20,2020/21,2.62,3.30,2.87
+Liverpool,Chelsea,2,0,H,EPL,2022-01-02,2021/22,1.75,3.80,5.00
+Tottenham,Manchester City,2,0,H,EPL,2021-02-13,2020/21,4.00,3.60,2.00
+Manchester United,Tottenham,1,6,A,EPL,2020-10-04,2020/21,1.80,3.75,4.75
+Leicester,Manchester City,5,2,H,EPL,2021-09-11,2021/22,5.50,4.25,1.65
+Leeds,Manchester United,0,0,D,EPL,2020-10-19,2020/21,3.75,3.50,2.10
+Manchester United,Leeds,6,2,H,EPL,2021-08-14,2021/22,1.50,4.50,7.00
+Sheffield United,Arsenal,0,2,A,EPL,2020-10-04,2020/21,4.75,3.75,1.83
+Arsenal,Sheffield United,2,1,H,EPL,2021-03-27,2020/21,1.36,5.00,10.00
+West Brom,Chelsea,3,3,D,EPL,2020-09-26,2020/21,7.00,5.00,1.44
+Fulham,Arsenal,0,3,A,EPL,2020-09-12,2020/21,6.50,4.75,1.53
+Crystal Palace,Manchester United,0,3,A,EPL,2020-09-19,2020/21,4.33,3.75,1.91
+Burnley,Chelsea,2,3,A,EPL,2020-10-31,2020/21,5.50,4.25,1.65
+Brighton,Liverpool,1,1,D,EPL,2020-11-28,2020/21,5.50,4.25,1.65
+Southampton,Manchester City,1,0,H,EPL,2020-11-22,2020/21,5.50,4.25,1.65
+West Ham,Sheffield United,1,0,H,EPL,2020-09-27,2020/21,1.87,3.50,4.50
+Wolves,Leeds,0,0,D,EPL,2020-10-19,2020/21,2.37,3.25,3.25
+Aston Villa,Liverpool,7,2,H,EPL,2020-10-04,2020/21,7.00,5.00,1.44
+Everton,Liverpool,2,2,D,EPL,2020-10-17,2020/21,4.00,3.60,2.00
+Arsenal,Everton,2,1,H,EPL,2020-09-19,2020/21,1.72,3.80,5.25
+Leicester,Aston Villa,1,1,D,EPL,2020-10-18,2020/21,1.75,3.80,5.00
+Newcastle,Manchester United,2,3,A,EPL,2020-10-17,2020/21,4.50,3.75,1.87
+Manchester City,West Ham,2,1,H,EPL,2020-10-18,2020/21,1.36,5.25,10.00
+Chelsea,Tottenham,3,3,D,EPL,2021-09-19,2021/22,1.87,3.60,4.50
+Tottenham,Chelsea,0,1,A,EPL,2021-01-13,2020/21,2.50,3.30,3.00
+Everton,West Ham,1,4,A,EPL,2020-10-31,2020/21,2.25,3.30,3.40
+Crystal Palace,Brighton,1,1,D,EPL,2020-11-08,2020/21,2.62,3.25,2.87
+Manchester City,Chelsea,2,0,H,EPL,2020-11-08,2020/21,1.65,4.00,5.50
+Arsenal,Chelsea,0,0,D,EPL,2022-04-20,2021/22,2.75,3.25,2.87
+Chelsea,Arsenal,4,2,H,EPL,2022-05-22,2021/22,1.80,3.75,4.75
+Liverpool,Newcastle,3,1,H,EPL,2020-11-25,2020/21,1.30,6.00,12.00
+Newcastle,Liverpool,0,3,A,EPL,2021-04-24,2020/21,9.00,5.75,1.33
+Manchester United,Liverpool,0,5,A,EPL,2021-05-13,2020/21,2.75,3.25,2.87
+Liverpool,Manchester United,2,4,A,EPL,2022-08-22,2022/23,2.10,3.40,3.75
+Leicester,Arsenal,0,3,A,EPL,2021-10-30,2021/22,3.40,3.30,2.30
+Arsenal,Leicester,2,0,H,EPL,2020-10-25,2020/21,1.53,4.25,7.00
+Southampton,Liverpool,0,4,A,EPL,2020-11-22,2020/21,5.50,4.25,1.65
+Liverpool,Southampton,3,2,H,EPL,2021-05-08,2020/21,1.44,4.75,8.00
+Tottenham,Arsenal,2,1,H,EPL,2021-03-14,2020/21,2.37,3.30,3.25
+Arsenal,Tottenham,3,1,H,EPL,2020-12-06,2020/21,2.37,3.30,3.25
+West Ham,Liverpool,1,1,D,EPL,2021-01-31,2020/21,4.50,3.75,1.87
+Liverpool,West Ham,1,1,D,EPL,2020-10-31,2020/21,1.44,4.75,8.00
+Chelsea,Manchester United,0,0,D,EPL,2020-10-24,2020/21,2.10,3.40,3.75
+Manchester United,Chelsea,1,1,D,EPL,2021-02-28,2020/21,2.37,3.30,3.25
+Manchester City,Tottenham,4,0,H,EPL,2021-02-13,2020/21,1.50,4.50,7.50
+Tottenham,Manchester United,3,0,H,EPL,2020-10-04,2020/21,2.25,3.30,3.40
+Aston Villa,Arsenal,0,3,A,EPL,2021-04-21,2020/21,3.25,3.30,2.40
+Arsenal,Aston Villa,3,1,H,EPL,2021-02-06,2020/21,1.53,4.25,7.00
+Leicester,Liverpool,1,3,A,EPL,2020-11-21,2020/21,3.75,3.50,2.10
+Liverpool,Leicester,0,1,A,EPL,2020-09-20,2020/21,1.57,4.25,6.50
+Everton,Arsenal,2,1,H,EPL,2021-04-23,2020/21,3.00,3.30,2.50
+Arsenal,Everton,3,1,H,EPL,2021-02-12,2020/21,1.72,3.80,5.25
+Brighton,Manchester City,0,3,A,EPL,2021-05-18,2020/21,6.50,4.75,1.53
+Manchester City,Brighton,1,0,H,EPL,2020-11-07,2020/21,1.36,5.00,10.00
+Wolves,Liverpool,0,4,A,EPL,2021-03-15,2020/21,4.75,3.75,1.87
+Liverpool,Wolves,4,0,H,EPL,2020-12-06,2020/21,1.30,5.75,11.00
+Sheffield United,Manchester United,2,3,A,EPL,2020-12-17,2020/21,4.50,3.75,1.87
+Manchester United,Sheffield United,3,2,H,EPL,2021-04-22,2020/21,1.50,4.50,7.50
+Burnley,Liverpool,0,3,A,EPL,2020-09-12,2020/21,8.50,5.25,1.40
+Liverpool,Burnley,1,0,H,EPL,2021-05-10,2020/21,1.30,5.75,11.00
+Fulham,Liverpool,1,3,A,EPL,2020-10-18,2020/21,7.50,5.00,1.44
+Liverpool,Fulham,0,1,A,EPL,2021-03-07,2020/21,1.30,5.75,11.00
+Aston Villa,Manchester City,0,2,A,EPL,2021-01-20,2020/21,5.75,4.25,1.62
+Manchester City,Aston Villa,2,0,H,EPL,2020-10-21,2020/21,1.30,5.75,11.00
+West Brom,Arsenal,0,4,A,EPL,2020-12-14,2020/21,6.50,4.75,1.53
+Arsenal,West Brom,3,1,H,EPL,2021-01-02,2020/21,1.30,5.75,11.00
+Newcastle,Arsenal,0,3,A,EPL,2020-11-01,2020/21,4.50,3.75,1.87
+Arsenal,Newcastle,2,0,H,EPL,2020-12-16,2020/21,1.36,5.00,10.00
+Crystal Palace,Arsenal,2,3,A,EPL,2020-10-18,2020/21,4.33,3.75,1.91
+Arsenal,Crystal Palace,3,0,H,EPL,2021-04-18,2020/21,1.44,4.75,8.00
+Chelsea,Everton,2,0,H,EPL,2020-11-07,2020/21,1.72,3.80,5.25
+Everton,Chelsea,1,0,H,EPL,2021-03-08,2020/21,3.00,3.30,2.50
+Chelsea,Leeds,3,1,H,EPL,2020-12-05,2020/21,1.44,4.75,8.00
+Leeds,Chelsea,0,0,D,EPL,2021-03-13,2020/21,3.75,3.50,2.10
+Real Madrid,Barcelona,2,0,H,La Liga,2019-03-02,2018/19,2.10,3.50,3.75
+Barcelona,Real Madrid,5,1,H,La Liga,2018-10-28,2018/19,1.95,3.50,4.25
+Atletico Madrid,Real Madrid,1,0,H,La Liga,2019-02-09,2018/19,2.87,3.25,2.75
+Real Madrid,Atletico Madrid,3,1,H,La Liga,2018-09-29,2018/19,1.95,3.50,4.25
+Barcelona,Atletico Madrid,2,0,H,La Liga,2019-04-06,2018/19,1.65,4.00,5.50
+Atletico Madrid,Barcelona,0,0,D,La Liga,2018-11-24,2018/19,3.10,3.30,2.50
+Sevilla,Barcelona,2,1,H,La Liga,2018-09-23,2018/19,4.25,3.60,1.95
+Barcelona,Sevilla,2,0,H,La Liga,2019-03-30,2018/19,1.44,4.75,8.00
+Real Madrid,Sevilla,0,3,A,La Liga,2018-12-09,2018/19,1.44,4.75,8.00
+Valencia,Barcelona,1,1,D,La Liga,2019-02-17,2018/19,4.75,3.75,1.83
+Real Sociedad,Barcelona,2,4,A,La Liga,2018-12-20,2018/19,4.25,3.60,1.95
+Barcelona,Real Sociedad,1,0,H,La Liga,2019-04-20,2018/19,1.40,5.00,8.50
+Athletic Bilbao,Real Madrid,1,2,A,La Liga,2018-12-15,2018/19,4.50,3.75,1.87
+Real Madrid,Athletic Bilbao,3,0,H,La Liga,2019-04-21,2018/19,1.36,5.00,10.00
+Villarreal,Atletico Madrid,0,2,A,La Liga,2018-11-18,2018/19,3.40,3.30,2.30
+Atletico Madrid,Valencia,1,0,H,La Liga,2019-04-13,2018/19,1.80,3.70,4.75
+Celta Vigo,Barcelona,2,0,H,La Liga,2018-09-01,2018/19,5.75,4.25,1.62
+Real Betis,Barcelona,3,4,A,La Liga,2019-02-17,2018/19,4.75,3.75,1.83
+Barcelona,Levante,5,0,H,La Liga,2018-08-26,2018/19,1.22,7.00,16.00
+Girona,Barcelona,0,2,A,La Liga,2018-09-23,2018/19,5.50,4.25,1.65
+Bayern Munich,Borussia Dortmund,5,0,H,Bundesliga,2018-11-10,2018/19,1.57,4.00,6.50
+Borussia Dortmund,Bayern Munich,3,2,H,Bundesliga,2019-04-06,2018/19,2.62,3.30,2.87
+RB Leipzig,Bayern Munich,0,0,D,Bundesliga,2018-12-08,2018/19,3.25,3.30,2.40
+Bayern Munich,RB Leipzig,0,0,D,Bundesliga,2019-03-09,2018/19,1.57,4.00,6.50
+Borussia Dortmund,RB Leipzig,2,1,H,Bundesliga,2018-10-07,2018/19,1.83,3.70,4.75
+RB Leipzig,Borussia Dortmund,0,0,D,Bundesliga,2019-02-09,2018/19,2.62,3.30,2.87
+Eintracht Frankfurt,Borussia Dortmund,3,3,D,Bundesliga,2018-12-22,2018/19,2.87,3.25,2.75
+Borussia Dortmund,Eintracht Frankfurt,2,2,D,Bundesliga,2019-03-02,2018/19,1.80,3.75,4.75
+Bayer Leverkusen,Borussia Dortmund,2,4,A,Bundesliga,2018-09-15,2018/19,2.75,3.25,2.87
+Borussia Dortmund,Bayer Leverkusen,4,2,H,Bundesliga,2019-01-26,2018/19,1.72,3.80,5.25
+Bayern Munich,Eintracht Frankfurt,3,0,H,Bundesliga,2019-02-02,2018/19,1.44,4.75,8.00
+Eintracht Frankfurt,Bayern Munich,5,1,H,Bundesliga,2019-11-02,2019/20,5.00,4.00,1.75
+Wolfsburg,Bayern Munich,2,2,D,Bundesliga,2018-09-22,2018/19,5.50,4.25,1.65
+Schalke,Borussia Dortmund,2,4,A,Bundesliga,2019-04-27,2018/19,3.40,3.30,2.30
+Borussia Dortmund,Schalke,2,2,D,Bundesliga,2018-10-27,2018/19,1.62,4.00,6.00
+Juventus,Inter Milan,3,2,H,Serie A,2018-12-07,2018/19,2.00,3.40,4.00
+Inter Milan,Juventus,1,1,D,Serie A,2019-04-27,2018/19,2.62,3.25,2.87
+Napoli,Juventus,1,2,A,Serie A,2018-10-20,2018/19,2.62,3.25,2.87
+Juventus,Napoli,2,1,H,Serie A,2019-03-03,2018/19,1.87,3.60,4.50
+AC Milan,Juventus,0,2,A,Serie A,2019-04-06,2018/19,3.00,3.30,2.50
+Juventus,AC Milan,2,0,H,Serie A,2019-01-11,2018/19,1.75,3.80,5.00
+Roma,Juventus,0,0,D,Serie A,2019-01-13,2018/19,3.25,3.30,2.40
+Juventus,Roma,1,0,H,Serie A,2018-12-22,2018/19,1.72,3.80,5.25
+Fiorentina,Juventus,1,3,A,Serie A,2019-01-01,2018/19,4.00,3.50,2.00
+Juventus,Atalanta,2,2,D,Serie A,2019-03-30,2018/19,1.72,3.80,5.25
+Atalanta,Napoli,0,1,A,Serie A,2019-03-23,2018/19,2.87,3.25,2.75
+PSG,Lyon,5,0,H,Ligue 1,2019-02-03,2018/19,1.30,5.75,11.00
+Lyon,PSG,2,0,H,Ligue 1,2019-04-21,2018/19,4.33,3.75,1.91
+PSG,Marseille,2,2,D,Ligue 1,2018-10-28,2018/19,1.40,5.00,8.50
+Marseille,PSG,2,2,D,Ligue 1,2019-02-26,2018/19,3.40,3.30,2.30
+Monaco,PSG,3,1,H,Ligue 1,2019-01-27,2018/19,4.25,3.60,1.95
+PSG,Monaco,3,1,H,Ligue 1,2019-04-21,2018/19,1.36,5.00,10.00
+Lille,PSG,5,1,H,Ligue 1,2018-11-22,2018/19,4.33,3.75,1.91
+PSG,Lille,2,1,H,Ligue 1,2019-02-03,2018/19,1.25,6.50,14.00
+Nantes,PSG,0,3,A,Ligue 1,2019-01-05,2018/19,7.00,5.00,1.44
+PSG,Nantes,4,0,H,Ligue 1,2018-09-01,2018/19,1.22,7.00,16.00
+Nice,Monaco,1,4,A,Ligue 1,2019-01-19,2018/19,2.50,3.30,3.10
+Rennes,PSG,2,1,H,Ligue 1,2019-04-07,2018/19,5.50,4.25,1.65
+St Etienne,Monaco,0,1,A,Ligue 1,2018-11-04,2018/19,2.75,3.25,2.87
+Lyon,Marseille,4,2,H,Ligue 1,2019-03-10,2018/19,1.87,3.60,4.50
+Bordeaux,Lyon,1,2,A,Ligue 1,2018-11-11,2018/19,3.00,3.30,2.50
+Manchester City,Liverpool,0,0,D,EPL,2019-01-03,2018/19,2.25,3.40,3.40
+Liverpool,Manchester City,3,1,H,EPL,2018-10-07,2018/19,2.75,3.25,2.87
+Manchester City,Manchester United,3,1,H,EPL,2018-11-11,2018/19,1.65,4.00,5.50
+Manchester United,Manchester City,3,2,H,EPL,2019-04-24,2018/19,3.00,3.30,2.50
+Arsenal,Manchester United,2,0,H,EPL,2019-03-10,2018/19,2.10,3.40,3.75
+Manchester United,Arsenal,2,2,D,EPL,2018-12-05,2018/19,2.50,3.30,3.00
+Chelsea,Arsenal,2,1,H,EPL,2019-01-19,2018/19,2.10,3.40,3.75
+Arsenal,Chelsea,2,0,H,EPL,2019-01-19,2018/19,2.62,3.25,2.87
+Liverpool,Tottenham,2,1,H,EPL,2019-03-31,2018/19,1.53,4.25,7.00
+Tottenham,Liverpool,0,2,A,EPL,2019-03-12,2018/19,2.75,3.25,2.87
+Chelsea,Manchester City,0,6,A,EPL,2019-02-10,2018/19,3.50,3.40,2.25
+Manchester City,Chelsea,6,0,H,EPL,2019-02-10,2018/19,1.44,4.75,8.00
+Arsenal,Tottenham,4,2,H,EPL,2018-12-02,2018/19,2.50,3.30,3.00
+Tottenham,Arsenal,1,0,H,EPL,2019-02-10,2018/19,2.37,3.25,3.25
+Liverpool,Arsenal,5,1,H,EPL,2018-11-03,2018/19,1.65,4.00,5.50
+Arsenal,Liverpool,1,1,D,EPL,2019-04-01,2018/19,3.40,3.30,2.30
+Chelsea,Manchester United,2,2,D,EPL,2018-10-20,2018/19,2.00,3.40,4.00
+Manchester United,Chelsea,1,1,D,EPL,2019-04-28,2018/19,2.37,3.25,3.25
+Everton,Liverpool,0,0,D,EPL,2018-12-02,2018/19,4.00,3.60,2.00
+Liverpool,Everton,5,2,H,EPL,2019-03-03,2018/19,1.40,5.00,8.50
+Leicester,Manchester City,2,1,H,EPL,2019-03-09,2018/19,5.50,4.25,1.65
+Manchester City,Leicester,1,0,H,EPL,2018-12-26,2018/19,1.30,6.00,12.00
+Newcastle,Manchester City,2,1,H,EPL,2019-01-29,2018/19,7.50,5.00,1.44
+Manchester City,Newcastle,2,1,H,EPL,2019-03-30,2018/19,1.22,6.50,16.00
+Southampton,Manchester City,1,6,A,EPL,2018-11-04,2018/19,7.50,5.00,1.44
+Manchester City,Southampton,3,1,H,EPL,2019-05-12,2018/19,1.22,6.50,16.00
+Wolves,Chelsea,2,1,H,EPL,2018-12-05,2018/19,4.00,3.50,2.00
+Chelsea,Wolves,1,1,D,EPL,2019-03-10,2018/19,1.53,4.25,7.00
+Crystal Palace,Arsenal,3,2,H,EPL,2018-10-28,2018/19,4.00,3.60,2.00
+Arsenal,Crystal Palace,2,3,A,EPL,2019-04-21,2018/19,1.36,5.00,10.00
+Brighton,Liverpool,0,1,A,EPL,2019-01-12,2018/19,6.50,4.75,1.53
+Liverpool,Brighton,3,1,H,EPL,2019-05-04,2018/19,1.22,6.50,16.00
+Burnley,Arsenal,0,3,A,EPL,2019-02-02,2018/19,5.50,4.25,1.65
+Arsenal,Burnley,3,1,H,EPL,2018-12-13,2018/19,1.36,5.00,10.00
+Cardiff,Manchester City,0,5,A,EPL,2019-01-03,2018/19,10.00,6.00,1.33
+Manchester City,Cardiff,5,0,H,EPL,2019-04-03,2018/19,1.14,8.00,21.00
+Huddersfield,Liverpool,0,1,A,EPL,2019-01-30,2018/19,10.00,6.50,1.30
+Liverpool,Huddersfield,5,0,H,EPL,2019-04-26,2018/19,1.14,8.50,22.00
+Bournemouth,Chelsea,0,1,A,EPL,2019-01-30,2018/19,4.50,3.75,1.87
+Chelsea,Bournemouth,1,0,H,EPL,2018-11-03,2018/19,1.53,4.25,7.00
+Fulham,Arsenal,1,4,A,EPL,2018-10-07,2018/19,6.50,4.75,1.53
+Arsenal,Fulham,4,1,H,EPL,2019-01-01,2018/19,1.30,5.75,11.00
+West Ham,Manchester United,3,1,H,EPL,2018-12-29,2018/19,3.75,3.50,2.10
+Manchester United,West Ham,0,0,D,EPL,2018-09-29,2018/19,1.65,4.00,5.50
+Watford,Liverpool,0,0,D,EPL,2018-11-24,2018/19,6.50,4.75,1.53
+Liverpool,Watford,5,0,H,EPL,2019-03-17,2018/19,1.20,7.50,19.00
+Watford,Manchester City,1,2,A,EPL,2019-04-22,2018/19,6.50,4.75,1.53
+Manchester City,Watford,3,1,H,EPL,2018-09-18,2018/19,1.22,6.50,16.00
+Leicester,Tottenham,2,0,H,EPL,2019-01-19,2018/19,4.50,3.75,1.87
+Tottenham,Leicester,3,1,H,EPL,2019-05-05,2018/19,1.53,4.25,7.00
+Everton,Chelsea,0,2,A,EPL,2018-11-11,2018/19,3.25,3.30,2.40
+Chelsea,Everton,2,0,H,EPL,2019-03-08,2018/19,1.53,4.25,7.00
+Aston Villa,Chelsea,2,2,D,EPL,2019-08-17,2019/20,3.50,3.40,2.25
+Chelsea,Aston Villa,1,2,A,EPL,2019-09-28,2019/20,1.53,4.25,7.00
+Liverpool,Chelsea,2,0,H,EPL,2019-09-22,2019/20,1.53,4.25,7.00
+Chelsea,Liverpool,0,2,A,EPL,2020-03-03,2019/20,3.50,3.40,2.25
+Manchester City,Chelsea,2,1,H,EPL,2019-11-23,2019/20,1.57,4.00,6.50
+Chelsea,Manchester City,2,0,H,EPL,2020-06-25,2019/20,3.60,3.40,2.20
+Arsenal,Liverpool,1,3,A,EPL,2019-11-02,2019/20,3.50,3.40,2.25
+Liverpool,Arsenal,3,1,H,EPL,2019-08-24,2019/20,1.44,4.75,8.00
+Manchester City,Liverpool,3,1,H,EPL,2019-11-10,2019/20,2.10,3.40,3.75
+Liverpool,Manchester City,3,0,H,EPL,2019-11-10,2019/20,2.37,3.25,3.25
+Manchester United,Liverpool,1,1,D,EPL,2019-10-20,2019/20,3.25,3.30,2.40
+Liverpool,Manchester United,2,0,H,EPL,2020-01-19,2019/20,1.40,5.00,8.50
+Arsenal,Manchester United,1,1,D,EPL,2019-09-30,2019/20,2.25,3.30,3.40
+Manchester United,Arsenal,2,2,D,EPL,2020-01-01,2019/20,2.50,3.25,3.00
+Chelsea,Arsenal,1,2,A,EPL,2019-08-18,2019/20,2.10,3.40,3.75
+Arsenal,Chelsea,2,1,H,EPL,2020-12-26,2020/21,3.25,3.30,2.40
+Tottenham,Manchester City,2,2,D,EPL,2019-08-17,2019/20,3.00,3.30,2.50
+Manchester City,Tottenham,2,0,H,EPL,2019-08-17,2019/20,1.44,4.75,8.00
+Liverpool,Tottenham,2,1,H,EPL,2019-10-27,2019/20,1.65,4.00,5.50
+Tottenham,Liverpool,1,1,D,EPL,2020-01-11,2019/20,3.25,3.30,2.40
+Manchester City,Arsenal,3,0,H,EPL,2019-12-15,2019/20,1.44,4.75,8.00
+Arsenal,Manchester City,0,3,A,EPL,2019-08-12,2019/20,4.25,3.60,1.95
+Leicester,Manchester City,0,2,A,EPL,2019-09-21,2019/20,3.75,3.50,2.10
+Manchester City,Leicester,1,0,H,EPL,2020-02-22,2019/20,1.40,5.00,8.50
+Chelsea,Everton,1,0,H,EPL,2019-08-11,2019/20,1.72,3.80,5.25
+Everton,Chelsea,0,2,A,EPL,2019-12-07,2019/20,3.25,3.30,2.40
+Wolves,Manchester City,2,0,H,EPL,2019-09-06,2019/20,6.50,4.75,1.53
+Manchester City,Wolves,3,0,H,EPL,2020-02-02,2019/20,1.25,6.50,14.00
+Newcastle,Manchester United,1,0,H,EPL,2019-10-06,2019/20,4.75,3.75,1.83
+Manchester United,Newcastle,4,1,H,EPL,2019-10-06,2019/20,1.57,4.00,6.50
+Burnley,Manchester United,0,0,D,EPL,2019-08-10,2019/20,3.75,3.50,2.10
+Manchester United,Burnley,1,0,H,EPL,2020-01-22,2019/20,1.40,5.00,8.50
+Brighton,Manchester United,3,3,D,EPL,2019-08-18,2019/20,3.60,3.30,2.30
+Manchester United,Brighton,3,0,H,EPL,2019-11-10,2019/20,1.40,5.00,8.50
+Sheffield United,Liverpool,0,1,A,EPL,2019-09-28,2019/20,8.50,5.25,1.40
+Liverpool,Sheffield United,2,0,H,EPL,2019-09-28,2019/20,1.22,6.50,16.00
+Aston Villa,Manchester City,0,3,A,EPL,2019-08-17,2019/20,7.50,5.00,1.44
+Manchester City,Aston Villa,3,0,H,EPL,2019-12-11,2019/20,1.22,6.50,16.00
+Crystal Palace,Manchester United,1,2,A,EPL,2019-08-24,2019/20,4.00,3.60,2.00
+Manchester United,Crystal Palace,1,0,H,EPL,2020-03-08,2019/20,1.53,4.25,7.00
+Southampton,Liverpool,0,4,A,EPL,2019-08-17,2019/20,6.50,4.75,1.53
+Liverpool,Southampton,4,0,H,EPL,2020-02-01,2019/20,1.22,6.50,16.00
+Bournemouth,Arsenal,1,1,D,EPL,2019-08-24,2019/20,3.75,3.50,2.10
+Arsenal,Bournemouth,1,0,H,EPL,2019-10-06,2019/20,1.36,5.00,10.00
+Watford,Arsenal,2,2,D,EPL,2019-09-15,2019/20,4.25,3.60,1.95
+Arsenal,Watford,1,1,D,EPL,2019-09-15,2019/20,1.53,4.25,7.00
+West Ham,Arsenal,0,1,A,EPL,2019-12-09,2019/20,2.87,3.25,2.75
+Arsenal,West Ham,1,3,A,EPL,2020-03-07,2019/20,1.53,4.25,7.00
+Everton,Tottenham,1,1,D,EPL,2019-11-03,2019/20,2.75,3.25,2.87
+Tottenham,Everton,1,0,H,EPL,2020-07-06,2019/20,1.57,4.00,6.50
+Leicester,Arsenal,2,0,H,EPL,2019-10-22,2019/20,2.75,3.25,2.87
+Arsenal,Leicester,1,0,H,EPL,2020-07-07,2019/20,2.10,3.40,3.75
+Barcelona,Atletico Madrid,2,0,H,La Liga,2019-12-01,2019/20,1.65,4.00,5.50
+Atletico Madrid,Barcelona,1,0,H,La Liga,2020-07-01,2019/20,3.10,3.30,2.50
+Real Madrid,Barcelona,2,0,H,La Liga,2020-03-01,2019/20,2.25,3.40,3.40
+Barcelona,Real Madrid,0,0,D,La Liga,2020-12-19,2020/21,2.00,3.50,4.00
+Atletico Madrid,Real Madrid,1,0,H,La Liga,2020-03-07,2019/20,2.75,3.25,2.87
+Real Madrid,Atletico Madrid,0,0,D,La Liga,2019-09-28,2019/20,2.10,3.40,3.75
+Sevilla,Real Madrid,0,1,A,La Liga,2020-07-05,2019/20,3.75,3.40,2.10
+Real Madrid,Sevilla,2,1,H,La Liga,2019-09-22,2019/20,1.44,4.75,8.00
+Valencia,Barcelona,2,2,D,La Liga,2019-09-29,2019/20,4.25,3.60,1.95
+Barcelona,Valencia,5,2,H,La Liga,2020-05-02,2019/20,1.40,5.00,8.50
+Getafe,Barcelona,1,2,A,La Liga,2019-09-28,2019/20,5.50,4.25,1.65
+Barcelona,Getafe,2,1,H,La Liga,2020-02-15,2019/20,1.36,5.00,10.00
+Real Sociedad,Real Madrid,1,4,A,La Liga,2019-09-14,2019/20,4.25,3.60,1.95
+Real Madrid,Real Sociedad,1,0,H,La Liga,2020-06-24,2019/20,1.44,4.75,8.00
+Villarreal,Barcelona,1,2,A,La Liga,2019-09-24,2019/20,3.75,3.50,2.10
+Barcelona,Villarreal,4,1,H,La Liga,2020-02-02,2019/20,1.36,5.00,10.00
+Athletic Bilbao,Atletico Madrid,1,2,A,La Liga,2019-10-27,2019/20,3.25,3.30,2.40
+Atletico Madrid,Athletic Bilbao,2,0,H,La Liga,2020-03-14,2019/20,1.65,4.00,5.50
+Bayern Munich,Borussia Dortmund,4,0,H,Bundesliga,2019-11-09,2019/20,1.62,4.00,6.00
+Borussia Dortmund,Bayern Munich,3,2,H,Bundesliga,2019-11-09,2019/20,2.75,3.25,2.87
+RB Leipzig,Bayern Munich,3,0,H,Bundesliga,2020-02-01,2019/20,3.10,3.30,2.50
+Bayern Munich,RB Leipzig,2,1,H,Bundesliga,2019-09-14,2019/20,1.44,4.75,8.00
+Borussia Dortmund,RB Leipzig,3,3,D,Bundesliga,2019-09-19,2019/20,1.87,3.60,4.50
+RB Leipzig,Borussia Dortmund,3,2,H,Bundesliga,2020-06-20,2019/20,2.37,3.25,3.25
+Eintracht Frankfurt,Bayern Munich,2,1,H,Bundesliga,2019-10-26,2019/20,4.25,3.60,1.95
+Bayern Munich,Eintracht Frankfurt,2,0,H,Bundesliga,2020-05-02,2019/20,1.36,5.00,10.00
+Bayer Leverkusen,Bayern Munich,2,4,A,Bundesliga,2019-11-02,2019/20,3.25,3.30,2.40
+Bayern Munich,Bayer Leverkusen,4,3,H,Bundesliga,2020-06-06,2019/20,1.44,4.75,8.00
+Schalke,Borussia Dortmund,0,2,A,Bundesliga,2019-10-26,2019/20,3.60,3.30,2.25
+Borussia Dortmund,Schalke,2,4,A,Bundesliga,2020-05-16,2019/20,1.53,4.25,7.00
+Wolfsburg,Borussia Dortmund,0,2,A,Bundesliga,2019-08-17,2019/20,3.40,3.30,2.30
+Borussia Dortmund,Wolfsburg,3,0,H,Bundesliga,2019-12-14,2019/20,1.53,4.25,7.00
+Juventus,Inter Milan,1,2,A,Serie A,2019-10-06,2019/20,2.10,3.40,3.75
+Inter Milan,Juventus,2,0,H,Serie A,2020-02-09,2019/20,2.50,3.25,3.00
+Napoli,Juventus,2,1,H,Serie A,2019-09-07,2019/20,3.00,3.30,2.50
+Juventus,Napoli,2,1,H,Serie A,2020-01-26,2019/20,1.87,3.60,4.50
+AC Milan,Juventus,1,1,D,Serie A,2019-11-10,2019/20,3.25,3.30,2.40
+Juventus,AC Milan,1,0,H,Serie A,2020-07-12,2019/20,1.72,3.80,5.25
+Roma,Inter Milan,2,1,H,Serie A,2019-10-26,2019/20,3.25,3.30,2.40
+Inter Milan,Roma,0,2,A,Serie A,2020-07-10,2019/20,1.83,3.70,4.75
+Lazio,Juventus,1,3,A,Serie A,2019-12-07,2019/20,3.25,3.30,2.40
+Juventus,Lazio,2,1,H,Serie A,2019-12-07,2019/20,1.75,3.80,5.00
+Atalanta,Inter Milan,0,2,A,Serie A,2019-08-25,2019/20,2.87,3.25,2.75
+Inter Milan,Atalanta,1,1,D,Serie A,2020-08-01,2019/20,1.72,3.80,5.25
+PSG,Marseille,4,0,H,Ligue 1,2019-10-27,2019/20,1.36,5.00,10.00
+Marseille,PSG,1,2,A,Ligue 1,2020-02-07,2019/20,3.50,3.40,2.25
+Monaco,PSG,3,3,D,Ligue 1,2019-11-02,2019/20,4.25,3.60,1.95
+PSG,Monaco,4,1,H,Ligue 1,2020-01-12,2019/20,1.36,5.00,10.00
+Lyon,PSG,0,4,A,Ligue 1,2019-09-22,2019/20,4.75,3.75,1.83
+PSG,Lyon,1,0,H,Ligue 1,2019-10-19,2019/20,1.36,5.00,10.00
+Rennes,PSG,2,1,H,Ligue 1,2020-03-04,2019/20,5.25,4.00,1.72
+PSG,Rennes,4,0,H,Ligue 1,2019-09-01,2019/20,1.25,6.50,14.00
+Lille,PSG,0,2,A,Ligue 1,2020-01-26,2019/20,4.25,3.60,1.95
+PSG,Lille,2,0,H,Ligue 1,2019-11-22,2019/20,1.30,5.75,11.00
+Nice,Monaco,1,1,D,Ligue 1,2019-10-05,2019/20,2.62,3.25,2.87
+Monaco,Nice,2,1,H,Ligue 1,2019-12-21,2019/20,1.87,3.60,4.50
+Angers,Marseille,0,2,A,Ligue 1,2019-10-05,2019/20,3.50,3.40,2.25
+Marseille,Angers,5,0,H,Ligue 1,2019-11-23,2019/20,1.36,5.00,10.00
+Metz,PSG,1,2,A,Ligue 1,2019-09-14,2019/20,8.50,5.25,1.40
+PSG,Metz,6,0,H,Ligue 1,2019-11-08,2019/20,1.14,8.00,21.00
+Brest,Lyon,2,2,D,Ligue 1,2019-10-20,2019/20,3.50,3.40,2.25
+Lyon,Brest,3,2,H,Ligue 1,2019-12-14,2019/20,1.57,4.00,6.50
+Manchester City,Arsenal,3,1,H,EPL,2017-08-12,2017/18,1.44,4.75,8.00
+Arsenal,Manchester City,1,2,A,EPL,2018-03-01,2017/18,3.60,3.40,2.20
+Manchester City,Manchester United,2,3,A,EPL,2018-04-07,2017/18,1.72,3.80,5.25
+Manchester United,Manchester City,1,2,A,EPL,2017-12-10,2017/18,3.25,3.30,2.40
+Chelsea,Arsenal,3,0,H,EPL,2017-09-17,2017/18,1.72,3.80,5.25
+Arsenal,Chelsea,2,2,D,EPL,2018-01-03,2017/18,2.37,3.25,3.25
+Liverpool,Manchester United,0,0,D,EPL,2017-10-14,2017/18,2.10,3.40,3.75
+Manchester United,Liverpool,2,1,H,EPL,2018-03-10,2017/18,2.62,3.25,2.87
+Tottenham,Liverpool,4,1,H,EPL,2017-10-22,2017/18,2.25,3.30,3.40
+Liverpool,Tottenham,2,2,D,EPL,2018-02-04,2017/18,1.83,3.70,4.75
+Chelsea,Liverpool,1,1,D,EPL,2017-09-16,2017/18,2.20,3.40,3.50
+Liverpool,Chelsea,1,1,D,EPL,2018-04-22,2017/18,1.65,4.00,5.50
+Arsenal,Liverpool,3,3,D,EPL,2016-08-14,2016/17,3.25,3.30,2.40
+Liverpool,Arsenal,3,1,H,EPL,2016-08-14,2016/17,1.53,4.25,7.00
+Manchester City,Tottenham,2,2,D,EPL,2017-09-16,2017/18,1.53,4.25,7.00
+Tottenham,Manchester City,1,3,A,EPL,2018-04-14,2017/18,2.62,3.25,2.87
+Chelsea,Manchester United,4,0,H,EPL,2016-10-23,2016/17,1.80,3.75,4.75
+Manchester United,Chelsea,0,0,D,EPL,2017-04-16,2016/17,2.50,3.25,3.00
+Arsenal,Manchester United,1,3,A,EPL,2016-11-19,2016/17,2.10,3.40,3.75
+Manchester United,Arsenal,1,2,A,EPL,2017-11-04,2017/18,2.62,3.25,2.87
+Liverpool,Manchester City,1,3,A,EPL,2016-12-31,2016/17,2.37,3.25,3.25
+Manchester City,Liverpool,5,0,H,EPL,2017-09-09,2017/18,1.80,3.75,4.75
+Chelsea,Tottenham,2,0,H,EPL,2016-11-26,2016/17,1.80,3.75,4.75
+Tottenham,Chelsea,1,2,A,EPL,2017-01-04,2016/17,2.62,3.25,2.87
+Leicester,Arsenal,0,0,D,EPL,2016-08-20,2016/17,3.10,3.30,2.50
+Arsenal,Leicester,2,1,H,EPL,2017-08-11,2017/18,1.36,5.00,10.00
+Real Madrid,Barcelona,2,3,A,La Liga,2017-12-23,2017/18,2.20,3.40,3.50
+Barcelona,Real Madrid,3,2,H,La Liga,2018-05-06,2017/18,2.00,3.50,4.00
+Atletico Madrid,Real Madrid,1,2,A,La Liga,2017-11-18,2017/18,2.87,3.25,2.75
+Real Madrid,Atletico Madrid,1,1,D,La Liga,2018-04-08,2017/18,2.00,3.50,4.00
+Barcelona,Atletico Madrid,1,0,H,La Liga,2018-03-04,2017/18,1.65,4.00,5.50
+Atletico Madrid,Barcelona,1,1,D,La Liga,2018-03-04,2017/18,3.10,3.30,2.50
+Sevilla,Barcelona,2,2,D,La Liga,2017-09-23,2017/18,3.75,3.50,2.10
+Barcelona,Sevilla,2,1,H,La Liga,2017-11-04,2017/18,1.36,5.00,10.00
+Valencia,Real Madrid,0,2,A,La Liga,2017-11-26,2017/18,4.75,3.75,1.83
+Real Madrid,Valencia,2,1,H,La Liga,2018-04-29,2017/18,1.44,4.75,8.00
+Villarreal,Real Madrid,3,1,H,La Liga,2017-10-01,2017/18,3.75,3.50,2.10
+Real Madrid,Villarreal,1,0,H,La Liga,2018-05-19,2017/18,1.36,5.00,10.00
+Bayern Munich,Borussia Dortmund,6,0,H,Bundesliga,2016-10-29,2016/17,1.44,4.75,8.00
+Borussia Dortmund,Bayern Munich,1,3,A,Bundesliga,2017-04-08,2016/17,2.75,3.25,2.87
+Bayern Munich,Borussia Dortmund,3,1,H,Bundesliga,2017-11-04,2017/18,1.44,4.75,8.00
+Borussia Dortmund,Bayern Munich,2,2,D,Bundesliga,2018-04-14,2017/18,2.62,3.25,2.87
+RB Leipzig,Bayern Munich,2,1,H,Bundesliga,2016-11-26,2016/17,3.25,3.30,2.40
+Bayern Munich,RB Leipzig,3,1,H,Bundesliga,2017-03-25,2016/17,1.36,5.00,10.00
+Borussia Dortmund,RB Leipzig,4,3,H,Bundesliga,2017-02-04,2016/17,1.87,3.60,4.50
+RB Leipzig,Borussia Dortmund,2,1,H,Bundesliga,2017-12-09,2017/18,2.62,3.25,2.87
+Juventus,Napoli,4,1,H,Serie A,2017-04-22,2016/17,1.83,3.70,4.75
+Napoli,Juventus,1,0,H,Serie A,2017-12-01,2017/18,2.87,3.25,2.75
+Juventus,Inter Milan,2,0,H,Serie A,2017-10-28,2017/18,1.83,3.70,4.75
+Inter Milan,Juventus,2,2,D,Serie A,2018-04-28,2017/18,2.75,3.25,2.87
+AC Milan,Juventus,0,2,A,Serie A,2016-10-22,2016/17,3.00,3.30,2.50
+Juventus,AC Milan,2,0,H,Serie A,2017-03-10,2016/17,1.65,4.00,5.50
+Roma,Juventus,1,3,A,Serie A,2017-05-14,2016/17,3.00,3.30,2.50
+Juventus,Roma,3,1,H,Serie A,2018-01-13,2017/18,1.72,3.80,5.25
+PSG,Marseille,5,1,H,Ligue 1,2016-10-23,2016/17,1.30,5.75,11.00
+Marseille,PSG,1,3,A,Ligue 1,2017-02-26,2016/17,3.25,3.30,2.40
+Monaco,PSG,2,1,H,Ligue 1,2016-11-20,2016/17,3.75,3.50,2.10
+PSG,Monaco,1,1,D,Ligue 1,2017-03-19,2016/17,1.36,5.00,10.00
+Lyon,Monaco,1,1,D,Ligue 1,2016-12-11,2016/17,2.50,3.25,3.10
+Monaco,Lyon,6,1,H,Ligue 1,2017-02-19,2016/17,1.57,4.00,6.50
+Nice,PSG,3,1,H,Ligue 1,2016-09-29,2016/17,5.00,4.00,1.75
+PSG,Nice,2,0,H,Ligue 1,2016-11-06,2016/17,1.22,6.50,16.00
+Barcelona,Atletico Madrid,3,1,H,La Liga,2016-09-21,2016/17,1.65,4.00,5.50
+Atletico Madrid,Barcelona,1,2,A,La Liga,2017-02-26,2016/17,2.87,3.25,2.75
+Real Madrid,Barcelona,2,1,H,La Liga,2016-12-03,2016/17,2.10,3.40,3.75
+Barcelona,Real Madrid,3,2,H,La Liga,2017-04-23,2016/17,2.00,3.50,4.00
+Atletico Madrid,Real Madrid,1,0,H,La Liga,2016-11-19,2016/17,2.87,3.25,2.75
+Real Madrid,Atletico Madrid,3,0,H,La Liga,2017-04-08,2016/17,2.00,3.50,4.00
+Sevilla,Real Madrid,1,3,A,La Liga,2016-11-26,2016/17,4.00,3.60,2.00
+Real Madrid,Sevilla,4,1,H,La Liga,2017-05-14,2016/17,1.36,5.00,10.00
+Valencia,Barcelona,3,2,H,La Liga,2016-10-22,2016/17,5.25,4.00,1.72
+Barcelona,Valencia,3,2,H,La Liga,2017-04-05,2016/17,1.36,5.00,10.00
+Bayern Munich,Borussia Dortmund,2,1,H,Bundesliga,2015-11-28,2015/16,1.44,4.75,8.00
+Borussia Dortmund,Bayern Munich,0,0,D,Bundesliga,2016-03-05,2015/16,2.75,3.25,2.87
+Bayern Munich,Schalke,3,0,H,Bundesliga,2015-09-26,2015/16,1.25,6.50,14.00
+Schalke,Bayern Munich,2,3,A,Bundesliga,2016-02-06,2015/16,5.00,4.00,1.75
+Borussia Dortmund,Schalke,3,2,H,Bundesliga,2015-10-31,2015/16,1.62,4.00,6.00
+Schalke,Borussia Dortmund,2,2,D,Bundesliga,2016-04-23,2015/16,3.25,3.30,2.40
+Juventus,Napoli,1,0,H,Serie A,2015-10-17,2015/16,1.87,3.60,4.50
+Napoli,Juventus,2,3,A,Serie A,2016-03-26,2015/16,2.75,3.25,2.87
+Inter Milan,Juventus,0,2,A,Serie A,2015-09-18,2015/16,2.87,3.25,2.75
+Juventus,Inter Milan,2,0,H,Serie A,2016-03-06,2015/16,1.72,3.80,5.25
+Real Madrid,Barcelona,0,4,A,La Liga,2015-11-21,2015/16,2.10,3.40,3.75
+Barcelona,Real Madrid,1,2,A,La Liga,2016-04-02,2015/16,2.00,3.50,4.00
+Atletico Madrid,Real Madrid,1,0,H,La Liga,2015-10-04,2015/16,2.75,3.25,2.87
+Real Madrid,Atletico Madrid,3,0,H,La Liga,2016-02-27,2015/16,1.95,3.50,4.25
+PSG,Marseille,1,2,A,Ligue 1,2015-10-25,2015/16,1.36,5.00,10.00
+Marseille,PSG,2,1,H,Ligue 1,2016-02-07,2015/16,3.25,3.30,2.40
+Chelsea,Arsenal,2,0,H,EPL,2016-01-24,2015/16,2.00,3.50,4.00
+Arsenal,Chelsea,0,0,D,EPL,2015-09-19,2015/16,2.20,3.40,3.50
+Manchester City,Arsenal,2,1,H,EPL,2015-08-08,2015/16,1.53,4.25,7.00
+Arsenal,Manchester City,0,2,A,EPL,2016-04-25,2015/16,3.50,3.40,2.25
+Liverpool,Arsenal,0,0,D,EPL,2015-08-24,2015/16,1.87,3.60,4.50
+Arsenal,Liverpool,3,1,H,EPL,2015-08-24,2015/16,2.25,3.30,3.40
+Chelsea,Liverpool,1,3,A,EPL,2015-10-31,2015/16,2.50,3.25,3.00
+Liverpool,Chelsea,2,1,H,EPL,2016-05-11,2015/16,1.80,3.75,4.75
+Manchester United,Liverpool,1,0,H,EPL,2015-09-12,2015/16,2.62,3.25,2.87
+Liverpool,Manchester United,2,0,H,EPL,2016-01-17,2015/16,1.95,3.50,4.25
+Chelsea,Tottenham,2,0,H,EPL,2015-12-03,2015/16,2.10,3.40,3.75
+Tottenham,Chelsea,5,3,H,EPL,2016-05-02,2015/16,2.25,3.30,3.40
+Manchester City,Manchester United,1,0,H,EPL,2015-11-07,2015/16,1.65,4.00,5.50
+Manchester United,Manchester City,0,1,A,EPL,2016-03-20,2015/16,2.62,3.25,2.87
+Real Madrid,Barcelona,2,1,H,La Liga,2014-10-25,2014/15,2.10,3.40,3.75
+Barcelona,Real Madrid,2,1,H,La Liga,2015-03-22,2014/15,2.00,3.50,4.00
+Atletico Madrid,Real Madrid,2,0,H,La Liga,2014-09-13,2014/15,2.87,3.25,2.75
+Real Madrid,Atletico Madrid,4,0,H,La Liga,2015-02-07,2014/15,1.87,3.60,4.50
+Bayern Munich,Borussia Dortmund,5,1,H,Bundesliga,2014-11-01,2014/15,1.36,5.00,10.00
+Borussia Dortmund,Bayern Munich,0,2,A,Bundesliga,2015-04-04,2014/15,2.75,3.25,2.87
+Juventus,Napoli,3,1,H,Serie A,2014-10-18,2014/15,1.87,3.60,4.50
+Napoli,Juventus,2,1,H,Serie A,2015-04-25,2014/15,2.75,3.25,2.87
+PSG,Marseille,2,2,D,Ligue 1,2014-10-05,2014/15,1.36,5.00,10.00
+Marseille,PSG,2,3,A,Ligue 1,2015-03-22,2014/15,3.25,3.30,2.40
+Manchester City,Chelsea,1,1,D,EPL,2014-09-21,2014/15,1.65,4.00,5.50
+Chelsea,Manchester City,5,0,H,EPL,2015-01-31,2014/15,1.80,3.75,4.75
+Liverpool,Arsenal,2,2,D,EPL,2014-08-16,2014/15,1.87,3.60,4.50
+Arsenal,Liverpool,4,1,H,EPL,2015-04-04,2014/15,2.10,3.40,3.75
+Manchester United,Arsenal,1,1,D,EPL,2014-11-22,2014/15,2.37,3.25,3.25
+Arsenal,Manchester United,2,2,D,EPL,2015-04-28,2014/15,2.10,3.40,3.75
+Tottenham,Manchester City,1,4,A,EPL,2014-09-14,2014/15,3.75,3.50,2.10
+Manchester City,Tottenham,4,1,H,EPL,2015-02-14,2014/15,1.30,5.75,11.00
+Chelsea,Tottenham,3,0,H,EPL,2014-12-03,2014/15,1.80,3.75,4.75
+Tottenham,Chelsea,0,3,A,EPL,2015-05-02,2014/15,3.25,3.30,2.40
+Liverpool,Manchester City,2,2,D,EPL,2014-08-25,2014/15,2.37,3.25,3.25
+Manchester City,Liverpool,3,2,H,EPL,2014-11-25,2014/15,1.44,4.75,8.00
+Real Madrid,Barcelona,3,1,H,La Liga,2013-10-26,2013/14,2.10,3.40,3.75
+Barcelona,Real Madrid,4,3,H,La Liga,2014-03-23,2013/14,1.95,3.50,4.25
+Atletico Madrid,Real Madrid,1,1,D,La Liga,2013-09-28,2013/14,3.25,3.30,2.40
+Real Madrid,Atletico Madrid,2,2,D,La Liga,2014-02-08,2013/14,1.83,3.70,4.75
+Bayern Munich,Borussia Dortmund,3,0,H,Bundesliga,2013-11-23,2013/14,1.44,4.75,8.00
+Borussia Dortmund,Bayern Munich,2,3,A,Bundesliga,2014-04-05,2013/14,2.62,3.25,2.87
+Juventus,Inter Milan,3,1,H,Serie A,2013-11-03,2013/14,1.80,3.75,4.75
+Inter Milan,Juventus,2,1,H,Serie A,2014-04-05,2013/14,3.00,3.30,2.50
+PSG,Marseille,3,0,H,Ligue 1,2013-10-06,2013/14,1.36,5.00,10.00
+Marseille,PSG,2,2,D,Ligue 1,2014-02-09,2013/14,3.40,3.30,2.30
+Manchester City,Arsenal,6,3,H,EPL,2013-12-14,2013/14,1.57,4.00,6.50
+Arsenal,Manchester City,1,0,H,EPL,2014-04-29,2013/14,2.75,3.25,2.87
+Chelsea,Arsenal,2,1,H,EPL,2013-09-22,2013/14,1.83,3.70,4.75
+Arsenal,Chelsea,0,0,D,EPL,2014-03-22,2013/14,2.37,3.25,3.25
+Liverpool,Manchester City,3,2,H,EPL,2014-04-13,2013/14,2.25,3.30,3.40
+Manchester City,Liverpool,2,1,H,EPL,2013-12-26,2013/14,1.65,4.00,5.50
+Manchester United,Arsenal,1,0,H,EPL,2013-11-10,2013/14,1.87,3.60,4.50
+Arsenal,Manchester United,0,0,D,EPL,2014-02-12,2013/14,2.10,3.40,3.75
+Chelsea,Liverpool,1,2,A,EPL,2013-11-03,2013/14,2.00,3.50,4.00
+Liverpool,Chelsea,2,2,D,EPL,2014-04-27,2013/14,1.87,3.60,4.50
+Real Madrid,Barcelona,2,1,H,La Liga,2012-10-07,2012/13,2.00,3.50,4.00
+Barcelona,Real Madrid,2,2,D,La Liga,2013-03-02,2012/13,1.95,3.50,4.25
+Atletico Madrid,Real Madrid,1,2,A,La Liga,2012-10-06,2012/13,3.10,3.30,2.50
+Real Madrid,Atletico Madrid,4,1,H,La Liga,2013-02-17,2012/13,1.87,3.60,4.50
+Bayern Munich,Borussia Dortmund,3,1,H,Bundesliga,2012-10-20,2012/13,1.36,5.00,10.00
+Borussia Dortmund,Bayern Munich,1,1,D,Bundesliga,2013-04-27,2012/13,2.62,3.25,2.87
+Juventus,Napoli,2,0,H,Serie A,2012-11-25,2012/13,1.87,3.60,4.50
+Napoli,Juventus,3,0,H,Serie A,2013-04-21,2012/13,2.75,3.25,2.87
+PSG,Marseille,2,0,H,Ligue 1,2012-10-21,2012/13,1.44,4.75,8.00
+Marseille,PSG,1,2,A,Ligue 1,2013-02-10,2012/13,3.50,3.40,2.25
+Manchester City,Arsenal,1,1,D,EPL,2012-09-23,2012/13,1.57,4.00,6.50
+Arsenal,Manchester City,1,2,A,EPL,2013-04-16,2012/13,3.10,3.30,2.50
+Chelsea,Arsenal,2,1,H,EPL,2012-10-29,2012/13,1.83,3.70,4.75
+Arsenal,Chelsea,2,1,H,EPL,2013-01-20,2012/13,2.37,3.25,3.25
+Manchester United,Liverpool,2,1,H,EPL,2012-09-23,2012/13,1.87,3.60,4.50
+Liverpool,Manchester United,1,2,A,EPL,2013-01-13,2012/13,2.62,3.25,2.87
+Manchester City,Manchester United,3,2,H,EPL,2012-12-09,2012/13,1.72,3.80,5.25
+Manchester United,Manchester City,3,2,H,EPL,2013-04-08,2012/13,2.25,3.30,3.40
+Chelsea,Manchester United,3,3,D,EPL,2012-10-28,2012/13,2.10,3.40,3.75
+Manchester United,Chelsea,0,1,A,EPL,2013-05-05,2012/13,1.83,3.70,4.75
+Arsenal,Tottenham,5,2,H,EPL,2012-11-17,2012/13,2.10,3.40,3.75
+Tottenham,Arsenal,2,1,H,EPL,2013-03-03,2012/13,2.37,3.25,3.25
+Manchester City,Tottenham,3,1,H,EPL,2012-10-21,2012/13,1.44,4.75,8.00
+Tottenham,Manchester City,3,1,H,EPL,2013-03-17,2012/13,3.00,3.30,2.50
+Chelsea,Liverpool,2,1,H,EPL,2012-11-11,2012/13,1.87,3.60,4.50
+Liverpool,Chelsea,0,2,A,EPL,2013-04-21,2012/13,2.00,3.50,4.00
+Manchester City,Everton,2,0,H,EPL,2012-10-21,2012/13,1.36,5.00,10.00
+Everton,Manchester City,2,1,H,EPL,2012-12-15,2012/13,4.00,3.60,2.00
+Newcastle,Manchester United,3,0,H,EPL,2012-10-07,2012/13,5.00,4.00,1.75
+Manchester United,Newcastle,4,3,H,EPL,2013-01-26,2012/13,1.44,4.75,8.00
+Arsenal,West Ham,3,1,H,EPL,2012-09-29,2012/13,1.36,5.00,10.00
+West Ham,Arsenal,3,1,H,EPL,2013-04-24,2012/13,4.25,3.60,1.95
+Swansea,Arsenal,2,2,D,EPL,2012-11-26,2012/13,4.25,3.60,1.95
+Arsenal,Swansea,1,0,H,EPL,2013-02-09,2012/13,1.44,4.75,8.00
+Fulham,Manchester City,2,2,D,EPL,2012-09-22,2012/13,5.75,4.25,1.62
+Manchester City,Fulham,2,0,H,EPL,2013-01-02,2012/13,1.22,6.50,16.00
+Southampton,Arsenal,1,1,D,EPL,2012-09-02,2012/13,4.25,3.60,1.95
+Arsenal,Southampton,2,0,H,EPL,2013-01-30,2012/13,1.30,5.75,11.00
+Reading,Manchester City,2,1,H,EPL,2012-12-01,2012/13,7.50,5.00,1.44
+Manchester City,Reading,2,0,H,EPL,2013-03-26,2012/13,1.14,8.00,21.00
+Stoke,Arsenal,1,0,H,EPL,2012-08-25,2012/13,4.00,3.60,2.00
+Arsenal,Stoke,7,3,H,EPL,2013-05-04,2012/13,1.30,5.75,11.00
+QPR,Chelsea,0,0,D,EPL,2012-10-07,2012/13,5.50,4.25,1.65
+Chelsea,QPR,0,1,A,EPL,2013-05-12,2012/13,1.25,6.50,14.00
+Sunderland,Manchester United,1,3,A,EPL,2012-10-06,2012/13,4.75,3.75,1.87
+Manchester United,Sunderland,3,0,H,EPL,2013-04-01,2012/13,1.22,6.50,16.00
+Wigan,Arsenal,2,1,H,EPL,2012-12-01,2012/13,5.00,4.00,1.75
+Arsenal,Wigan,4,1,H,EPL,2013-02-26,2012/13,1.22,6.50,16.00
+Aston Villa,Chelsea,2,1,H,EPL,2012-09-01,2012/13,4.50,3.75,1.87
+Chelsea,Aston Villa,8,0,H,EPL,2012-12-23,2012/13,1.30,5.75,11.00
+Norwich,Chelsea,0,1,A,EPL,2012-09-15,2012/13,4.50,3.75,1.87
+Chelsea,Norwich,1,0,H,EPL,2013-01-19,2012/13,1.30,5.75,11.00
+West Brom,Tottenham,1,3,A,EPL,2012-09-15,2012/13,4.50,3.75,1.87
+Tottenham,West Brom,3,1,H,EPL,2012-12-01,2012/13,1.40,5.00,8.50
+Everton,Tottenham,2,2,D,EPL,2012-12-30,2012/13,2.62,3.25,2.87
+Tottenham,Everton,2,2,D,EPL,2013-04-07,2012/13,1.65,4.00,5.50
+Liverpool,Everton,2,2,D,EPL,2012-10-28,2012/13,2.10,3.40,3.75
+Everton,Liverpool,2,0,H,EPL,2013-11-23,2013/14,3.25,3.30,2.40
+Leicester,Tottenham,1,1,D,EPL,2014-10-18,2014/15,3.50,3.40,2.25
+Tottenham,Leicester,4,3,H,EPL,2015-03-21,2014/15,1.57,4.00,6.50
+Burnley,Manchester City,0,1,A,EPL,2014-08-18,2014/15,8.50,5.25,1.40
+Manchester City,Burnley,5,0,H,EPL,2015-03-14,2014/15,1.14,8.00,21.00
+Hull,Arsenal,2,2,D,EPL,2014-09-20,2014/15,5.50,4.25,1.65
+Arsenal,Hull,3,0,H,EPL,2015-02-11,2014/15,1.22,6.50,16.00
+QPR,Liverpool,3,2,H,EPL,2014-10-19,2014/15,6.50,4.75,1.53
+Liverpool,QPR,3,2,H,EPL,2014-10-19,2014/15,1.25,6.50,14.00
+Swansea,Manchester United,2,1,H,EPL,2014-08-16,2014/15,4.25,3.60,1.95
+Manchester United,Swansea,2,1,H,EPL,2014-08-16,2014/15,1.44,4.75,8.00
+Crystal Palace,Arsenal,2,1,H,EPL,2014-10-18,2014/15,4.75,3.75,1.87
+Arsenal,Crystal Palace,2,2,D,EPL,2015-02-21,2014/15,1.36,5.00,10.00
+Southampton,Arsenal,2,0,H,EPL,2014-10-25,2014/15,3.50,3.40,2.25
+Arsenal,Southampton,0,2,A,EPL,2015-04-26,2014/15,1.40,5.00,8.50
+Stoke,Liverpool,1,0,H,EPL,2014-11-29,2014/15,4.75,3.75,1.87
+Liverpool,Stoke,1,0,H,EPL,2015-04-10,2014/15,1.25,6.50,14.00
+West Ham,Manchester City,0,3,A,EPL,2014-09-25,2014/15,4.50,3.75,1.87
+Manchester City,West Ham,2,0,H,EPL,2015-01-01,2014/15,1.22,6.50,16.00
+Sunderland,Chelsea,0,2,A,EPL,2014-08-24,2014/15,6.50,4.75,1.53
+Chelsea,Sunderland,3,1,H,EPL,2014-12-19,2014/15,1.22,6.50,16.00

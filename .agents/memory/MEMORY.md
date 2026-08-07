@@ -1,0 +1,2 @@
+- [VIT Network platform architecture](vit-architecture.md) — FastAPI monorepo with 58 route modules, 43 feature modules, 22 agents, custom L2 blockchain (vit_chain), React+Vite frontend
+- [Phase-1 audit fixes applied](vit-audit-fixes.md) — 11 issues fixed; score 70.9→74.6; see PLATFORM_AUDIT_REPORT.md for full inventory
