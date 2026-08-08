@@ -260,9 +260,10 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
 async def get_matches(
     league: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    sport: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    _cache_key = f"{FIXTURE_LIST}:{league}:{status}"
+    _cache_key = f"{FIXTURE_LIST}:{league}:{status}:{sport}"
     try:
         _cached = await cache.get(_cache_key)
         if _cached:
@@ -298,6 +299,8 @@ async def get_matches(
             stmt = stmt.where(Match.league == league)
         if status:
             stmt = stmt.where(Match.status == status)
+        if sport:
+            stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
 
         stmt = stmt.order_by(Match.kickoff_time.asc())
         result = await db.execute(stmt)
@@ -328,8 +331,11 @@ async def get_matches(
 
 
 @router.get("/upcoming")
-async def get_upcoming_matches(db: AsyncSession = Depends(get_db)):
-    _cache_key = f"{FIXTURE_LIST}:upcoming"
+async def get_upcoming_matches(
+    sport: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    _cache_key = f"{FIXTURE_LIST}:upcoming:{sport}"
     _cached = await cache.get(_cache_key)
     if _cached: return _cached
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -342,6 +348,8 @@ async def get_upcoming_matches(db: AsyncSession = Depends(get_db)):
         .where(Match.actual_outcome.is_(None))
         .order_by(Match.kickoff_time.asc())
     )
+    if sport:
+        stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
     result = await db.execute(stmt)
     rows = result.all()
 
@@ -451,8 +459,11 @@ async def explore_markets(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/live")
-async def get_live_matches(db: AsyncSession = Depends(get_db)):
-    _cache_key = f"{FIXTURE_LIST}:live"
+async def get_live_matches(
+    sport: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    _cache_key = f"{FIXTURE_LIST}:live:{sport}"
     _cached = await cache.get(_cache_key)
     if _cached: return _cached
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -465,6 +476,8 @@ async def get_live_matches(db: AsyncSession = Depends(get_db)):
         .where(Match.actual_outcome.is_(None))
         .order_by(Match.kickoff_time.desc())
     )
+    if sport:
+        stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
     result = await db.execute(stmt)
     rows = result.all()
     match_map = {}
@@ -478,8 +491,11 @@ async def get_live_matches(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/recent")
-async def get_recent_matches(db: AsyncSession = Depends(get_db)):
-    _cache_key = f"{FIXTURE_LIST}:recent"
+async def get_recent_matches(
+    sport: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    _cache_key = f"{FIXTURE_LIST}:recent:{sport}"
     _cached = await cache.get(_cache_key)
     if _cached: return _cached
     # Last 20 completed matches
@@ -490,6 +506,8 @@ async def get_recent_matches(db: AsyncSession = Depends(get_db)):
         .order_by(Match.kickoff_time.desc())
         .limit(20)
     )
+    if sport:
+        stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
     result = await db.execute(stmt)
     rows = result.all()
     match_map = {}

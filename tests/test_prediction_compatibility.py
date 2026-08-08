@@ -96,3 +96,79 @@ async def test_matches_auto_sync_fallback(client, monkeypatch):
     payload = resp.json()
     assert isinstance(payload, list)
     assert any(item.get("home_team") == "FallbackFC" and item.get("away_team") == "SyncFC" for item in payload)
+
+
+@pytest.mark.asyncio
+async def test_match_lists_honor_sport_filter(client, db_session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    db_session.add_all([
+        Match(
+            home_team="Football FC",
+            away_team="Football United",
+            league="premier_league",
+            sport="football",
+            kickoff_time=now + timedelta(days=1),
+            status="upcoming",
+            source="sportsdb",
+        ),
+        Match(
+            home_team="Hoops FC",
+            away_team="Hoops United",
+            league="nba",
+            sport="basketball",
+            kickoff_time=now + timedelta(days=1),
+            status="upcoming",
+            source="sportsdb",
+        ),
+    ])
+    await db_session.commit()
+
+    response = await client.get("/api/matches? sport=basketball".replace(" ", ""))
+
+    assert response.status_code == 200, response.text
+    matches = response.json()
+    assert matches
+    assert {match["sport"] for match in matches} == {"basketball"}
+
+
+@pytest.mark.asyncio
+async def test_sync_status_counts_upcoming_match_model_rows(client, db_session):
+    db_session.add(Match(
+        home_team="Upcoming FC",
+        away_team="Visitor FC",
+        league="premier_league",
+        sport="football",
+        kickoff_time=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=1),
+        status="upcoming",
+        source="sportsdb",
+    ))
+    await db_session.commit()
+
+    response = await client.get("/api/sports/sync/status")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["upcoming_matches"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_match_detail_exposes_canonical_prediction_payload(client, db_session):
+    match = Match(
+        home_team="Detail Home",
+        away_team="Detail Away",
+        league="premier_league",
+        sport="football",
+        kickoff_time=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=1),
+        status="upcoming",
+        source="sportsdb",
+    )
+    db_session.add(match)
+    await db_session.commit()
+    await db_session.refresh(match)
+
+    response = await client.get(f"/api/matches/{match.id}")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["match_id"] == match.id
+    assert "intelligence" in payload
+    assert "predictions_count" in payload

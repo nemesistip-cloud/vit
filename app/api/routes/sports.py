@@ -33,7 +33,9 @@ async def get_sync_status(db: AsyncSession = Depends(get_db)):
     total_matches = (await db.execute(select(func.count(Match.id)))).scalar() or 0
     upcoming = (
         await db.execute(
-            select(func.count(Match.id)).where(Match.status.in_(["scheduled", "not_started", "0"]))
+            select(func.count(Match.id))
+            .where(Match.actual_outcome.is_(None))
+            .where(Match.kickoff_time >= datetime.now(timezone.utc).replace(tzinfo=None))
         )
     ).scalar() or 0
 

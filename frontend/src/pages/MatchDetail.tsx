@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
-import { authHeaders } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 
@@ -16,6 +15,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 
 interface Match {
   id: number
+  match_id?: number
   home_team: string
   away_team: string
   league: string
@@ -30,6 +30,18 @@ interface Match {
   venue?: string
   referee?: string
   attendance?: number
+  confidence?: number
+  edge?: number
+  odds?: { home?: number; draw?: number; away?: number }
+  intelligence?: {
+    consensus?: {
+      home_prob?: number
+      draw_prob?: number
+      away_prob?: number
+      confidence?: number
+    }
+    attribution?: Prediction[]
+  }
 }
 
 interface Prediction {
@@ -42,20 +54,6 @@ interface Prediction {
   accuracy_overall?: number
 }
 
-interface MatchPredictions {
-  bet_side?: string
-  confidence?: number
-  final_ev?: number
-  entry_odds?: number
-  predictions?: Prediction[]
-  consensus?: {
-    home_pct: number
-    draw_pct: number
-    away_pct: number
-    recommended: string
-  }
-}
-
 // ── Hooks ──────────────────────────────────────────────────────────────────────
 
 function useMatch(id: string) {
@@ -63,18 +61,6 @@ function useMatch(id: string) {
     queryKey: ['match', id],
     queryFn: async ({ signal }) => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/matches/${id}`, { signal })
-      return r.ok ? r.json() : null
-    },
-    retry: false,
-    staleTime: 30_000,
-  })
-}
-
-function usePredictions(id: string) {
-  return useQuery<MatchPredictions | null>({
-    queryKey: ['match-predictions', id],
-    queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/predictions/match/${id}`, { signal, headers: authHeaders() })
       return r.ok ? r.json() : null
     },
     retry: false,
@@ -149,7 +135,9 @@ function ModelRow({ pred, i }: { pred: Prediction; i: number }) {
 
 // ── Consensus panel ───────────────────────────────────────────────────────────
 
-function ConsensusPanel({ consensus }: { consensus: NonNullable<MatchPredictions['consensus']> }) {
+type MatchConsensus = NonNullable<NonNullable<Match['intelligence']>['consensus']>
+
+function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
   return (
     <div className="bg-surface-800/50 border border-white/8 rounded-2xl p-6">
       <div className="flex items-center gap-2 mb-5">
@@ -158,14 +146,13 @@ function ConsensusPanel({ consensus }: { consensus: NonNullable<MatchPredictions
       </div>
       <div className="flex gap-3">
         {[
-          { label: 'Home',  pct: consensus.home_pct, color: 'text-vit-400',   rec: consensus.recommended === 'home' },
-          { label: 'Draw',  pct: consensus.draw_pct, color: 'text-white/50',  rec: consensus.recommended === 'draw' },
-          { label: 'Away',  pct: consensus.away_pct, color: 'text-amber-400', rec: consensus.recommended === 'away' },
+          { label: 'Home',  pct: Math.round((consensus.home_prob ?? 0) * 100), color: 'text-vit-400' },
+          { label: 'Draw',  pct: Math.round((consensus.draw_prob ?? 0) * 100), color: 'text-white/50' },
+          { label: 'Away',  pct: Math.round((consensus.away_prob ?? 0) * 100), color: 'text-amber-400' },
         ].map(c => (
-          <div key={c.label} className={cn('flex-1 p-3 rounded-xl text-center', c.rec ? 'bg-vit-500/10 border border-vit-500/25' : 'bg-white/3')}>
+          <div key={c.label} className="flex-1 p-3 rounded-xl text-center bg-white/3">
             <p className="text-xs text-white/35 mb-1">{c.label}</p>
             <p className={cn('text-xl font-bold', c.color)}>{c.pct}%</p>
-            {c.rec && <p className="text-[10px] text-vit-400 mt-1">consensus pick</p>}
           </div>
         ))}
       </div>
@@ -178,8 +165,7 @@ function ConsensusPanel({ consensus }: { consensus: NonNullable<MatchPredictions
 export default function MatchDetail() {
   const { id }  = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: match,   isLoading: matchLoading  } = useMatch(id!)
-  const { data: preds,   isLoading: predsLoading  } = usePredictions(id!)
+  const { data: match, isLoading: matchLoading } = useMatch(id!)
 
   if (matchLoading) {
     return (
@@ -202,7 +188,9 @@ export default function MatchDetail() {
   }
 
   const isLive = match.status?.toLowerCase() === 'live' || match.status?.toLowerCase() === 'in_play'
-  const aiPick = preds?.bet_side ?? preds?.consensus?.recommended
+  const aiPick = match.intelligence?.attribution?.[0]?.bet_side
+  const consensus = match.intelligence?.consensus
+  const predictions = match.intelligence?.attribution ?? []
 
   return (
     <div className="pt-20 pb-20 min-h-screen relative">
@@ -287,7 +275,7 @@ export default function MatchDetail() {
         </motion.div>
 
         {/* AI summary */}
-        {preds && (preds.confidence != null || preds.final_ev != null) && (
+        {(match.confidence != null || match.edge != null) && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -295,10 +283,10 @@ export default function MatchDetail() {
             className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"
           >
             {[
-              { label: 'AI Pick',     value: preds.bet_side?.toUpperCase() ?? '—',           icon: Brain,       color: 'text-vit-400'     },
-              { label: 'Confidence',  value: preds.confidence != null ? `${Math.round(preds.confidence * 100)}%` : '—', icon: Target, color: 'text-emerald-400' },
-              { label: 'Expected Value', value: preds.final_ev != null ? `${preds.final_ev > 0 ? '+' : ''}${preds.final_ev.toFixed(2)}` : '—', icon: TrendingUp, color: preds.final_ev != null && preds.final_ev > 0 ? 'text-emerald-400' : 'text-red-400' },
-              { label: 'Entry Odds',  value: preds.entry_odds?.toFixed(2) ?? '—',            icon: Activity,    color: 'text-amber-400'   },
+              { label: 'AI Pick',     value: aiPick?.toUpperCase() ?? '—',           icon: Brain,       color: 'text-vit-400'     },
+              { label: 'Confidence',  value: match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '—', icon: Target, color: 'text-emerald-400' },
+              { label: 'Market Edge', value: match.edge != null ? `${match.edge > 0 ? '+' : ''}${match.edge.toFixed(3)}` : '—', icon: TrendingUp, color: match.edge != null && match.edge > 0 ? 'text-emerald-400' : 'text-red-400' },
+              { label: 'Home Odds',  value: match.odds?.home?.toFixed(2) ?? '—',            icon: Activity,    color: 'text-amber-400'   },
             ].map(s => (
               <div key={s.label} className="bg-surface-800/50 border border-white/8 rounded-xl p-4 text-center">
                 <s.icon className={cn('w-4 h-4 mx-auto mb-2', s.color)} />
@@ -310,14 +298,14 @@ export default function MatchDetail() {
         )}
 
         {/* Consensus */}
-        {preds?.consensus && (
+        {consensus && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-5">
-            <ConsensusPanel consensus={preds.consensus} />
+            <ConsensusPanel consensus={consensus} />
           </motion.div>
         )}
 
         {/* Model breakdown */}
-        {preds?.predictions && preds.predictions.length > 0 && (
+        {predictions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -327,21 +315,15 @@ export default function MatchDetail() {
             <div className="flex items-center gap-2 mb-5">
               <BarChart3 className="w-4 h-4 text-vit-400" />
               <h2 className="font-semibold text-white">Model Breakdown</h2>
-              <span className="ml-auto text-xs text-white/30">{preds.predictions.length} models</span>
+              <span className="ml-auto text-xs text-white/30">{predictions.length} models</span>
             </div>
             <div className="space-y-2.5">
-              {preds.predictions.map((p, i) => <ModelRow key={p.model_name} pred={p} i={i} />)}
+              {predictions.map((p, i) => <ModelRow key={`${p.model_name}-${i}`} pred={p} i={i} />)}
             </div>
           </motion.div>
         )}
 
-        {/* Loading predictions */}
-        {predsLoading && (
-          <div className="flex justify-center py-8"><Spinner /></div>
-        )}
-
-        {/* No predictions */}
-        {!predsLoading && !preds && (
+        {!predictions.length && (
           <div className="flex items-center gap-2.5 p-4 rounded-xl bg-white/3 border border-white/8 text-sm text-white/40">
             <AlertCircle className="w-4 h-4 shrink-0" />
             AI predictions are not available for this match yet.

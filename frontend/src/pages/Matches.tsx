@@ -88,8 +88,8 @@ function useMatches(tab: Tab, sport: Sport) {
 function useSyncFixtures() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (provider: string = 'isports') => {
-      const res = await fetch(`${ENDPOINTS.gateway}/api/sports/sync/fixtures?provider=${provider}`, {
+    mutationFn: async () => {
+      const res = await fetch(`${ENDPOINTS.gateway}/api/matches/sync?days=60`, {
         method: 'POST',
       })
       if (!res.ok) {
@@ -99,8 +99,8 @@ function useSyncFixtures() {
       return res.json()
     },
     onSuccess: (data) => {
-      const synced = data?.total_synced ?? data?.synced ?? 0
-      toast.success(`Synced ${synced} fixture${synced !== 1 ? 's' : ''} from iSports`)
+      const synced = data?.stored ?? data?.sportsdb_new ?? 0
+      toast.success(`Synced ${synced} fixture${synced !== 1 ? 's' : ''} from SportsDB`)
       qc.invalidateQueries({ queryKey: ['matches'] })
     },
     onError: (err: Error) => {
@@ -286,7 +286,7 @@ export default function Matches() {
                 <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
               </button>
               <button
-                onClick={() => syncMutation.mutate('isports')}
+                onClick={() => syncMutation.mutate()}
                 disabled={syncMutation.isPending}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-vit-600/15 border border-vit-500/25 text-vit-300 text-sm font-medium hover:bg-vit-600/25 transition-all disabled:opacity-50"
               >
@@ -418,7 +418,7 @@ export default function Matches() {
             </p>
             {(tab === 'upcoming' || tab === 'all') && !search && (
               <button
-                onClick={() => syncMutation.mutate('isports')}
+                onClick={() => syncMutation.mutate()}
                 disabled={syncMutation.isPending}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-600/15 border border-vit-500/25 text-vit-300 text-sm font-medium hover:bg-vit-600/25 transition-all disabled:opacity-50"
               >
