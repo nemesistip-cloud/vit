@@ -7,6 +7,27 @@ from app.core.registry.manager import ModuleRegistry
 from app.core.registry.models import ModuleMetadata, ModuleStatus, HealthStatus
 from app.core.registry.contract import ModuleContract
 
+
+class _ProbeResponse:
+    def __init__(self, body, status_code=200):
+        self.status_code = status_code
+        self.headers = {"content-type": "application/json"}
+        self._body = body
+
+    def json(self):
+        return self._body
+
+
+class _ProbeClient:
+    def __init__(self, response):
+        self.response = _ProbeResponse(response)
+        self.requests = []
+
+    async def get(self, url, timeout):
+        self.requests.append((url, timeout))
+        return self.response
+
+
 class MockModule(ModuleContract):
     def __init__(self, mid, deps=[]):
         self._metadata = ModuleMetadata(
@@ -104,6 +125,36 @@ async def test_registry_api_returns_expected_shape(monkeypatch):
     assert payload["services"]
     assert "gateway" in payload["services"]
     assert payload["services"]["gateway"]["url"].startswith("http")
+
+
+@pytest.mark.asyncio
+async def test_ai_probe_uses_operational_status_contract():
+    from app.api.routes.registry import _probe
+
+    client = _ProbeClient({
+        "status": "operational",
+        "version": "0.1.0",
+        "loaded_models_count": 16,
+    })
+    result = await _probe(client, "ai", "https://vit-ai.example")
+
+    assert client.requests == [("https://vit-ai.example/api/v1/ai/status", 5.0)]
+    assert result["status"] == "healthy"
+    assert result["version"] == "0.1.0"
+    assert result["models_loaded"] == 16
+    assert result["reachable"] is True
+
+
+@pytest.mark.asyncio
+async def test_storage_probe_keeps_health_contract():
+    from app.api.routes.registry import _probe
+
+    client = _ProbeClient({"status": "quantum_stable", "version": "2.0.1"})
+    result = await _probe(client, "storage", "https://vit-storage.example")
+
+    assert client.requests == [("https://vit-storage.example/health", 5.0)]
+    assert result["status"] == "quantum_stable"
+    assert result["reachable"] is True
 
 
 @pytest.mark.asyncio

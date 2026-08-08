@@ -53,16 +53,23 @@ def _service_urls() -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 async def _probe(client: httpx.AsyncClient, name: str, base_url: str) -> dict[str, Any]:
-    """Probe a single service's /health endpoint and return a status dict."""
+    """Probe a service's operational endpoint and return a normalized status."""
     t0 = time.monotonic()
     try:
-        r = await client.get(f"{base_url}/health", timeout=5.0)
+        # vit-ai's authoritative readiness contract is /api/v1/ai/status.
+        # Keep the other service probes on their existing /health contracts.
+        path = "/api/v1/ai/status" if name == "ai" else "/health"
+        r = await client.get(f"{base_url}{path}", timeout=5.0)
         latency_ms = round((time.monotonic() - t0) * 1000)
         if r.status_code < 500:
             body: dict = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+            status = body.get("status", "ok")
+            if name == "ai" and status == "operational":
+                status = "healthy"
             return {
-                "status":     body.get("status", "ok"),
+                "status":     status,
                 "version":    body.get("version"),
+                "models_loaded": body.get("loaded_models_count", body.get("models_loaded")),
                 "latency_ms": latency_ms,
                 "reachable":  True,
             }
