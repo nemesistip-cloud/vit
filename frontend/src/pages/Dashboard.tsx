@@ -315,7 +315,7 @@ export default function Dashboard() {
               <p className="mb-1 text-sm text-white/40">Welcome back</p>
               <h1 className="text-2xl font-bold text-white">{user?.username || 'Predictor'}</h1>
               <div className="mt-2 flex items-center gap-2">
-                {user?.role === 'admin' && (
+                {['admin', 'super_admin'].includes(user?.role ?? '') && (
                   <span className="flex items-center gap-1 rounded-full bg-vit-500/20 px-2 py-0.5 text-xs font-medium text-vit-400">
                     <Shield className="h-3 w-3" /> Admin
                   </span>

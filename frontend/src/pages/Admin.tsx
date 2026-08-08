@@ -26,7 +26,13 @@ function useSystemStatus() {
 function useAdminHealth() {
   return useQuery({ queryKey: ['admin-health'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/system/health`, { signal, headers: authHeaders() })
-    return r.ok ? r.json() : null
+    if (!r.ok) return null
+    const data = await r.json()
+    return {
+      ...data,
+      db_connected: data.database?.status === 'connected',
+      models_loaded: data.models_ready,
+    }
   }, retry: false, staleTime: 30_000, refetchInterval: 30_000 })
 }
 function useAdminUsers() {
@@ -38,14 +44,21 @@ function useAdminUsers() {
 function useAdminMetrics() {
   return useQuery({ queryKey: ['admin-metrics'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/system/metrics`, { signal, headers: authHeaders() })
-    return r.ok ? r.json() : null
+    if (!r.ok) return null
+    const data = await r.json()
+    return {
+      ...data,
+      requests_per_minute: data.requests_24h != null ? Math.round(data.requests_24h / 1440) : null,
+      avg_latency_ms: data.avg_response_ms,
+      error_rate: data.error_rate_pct != null ? data.error_rate_pct / 100 : null,
+    }
   }, retry: false, staleTime: 30_000 })
 }
 function useAdminWalletTxs() {
   return useQuery({ queryKey: ['admin-wallet-txs'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/wallet/transactions?limit=30`, { signal, headers: authHeaders() })
     if (!r.ok) return []
-    const d = await r.json(); return Array.isArray(d) ? d : d.items ?? []
+    const d = await r.json(); return Array.isArray(d) ? d : d.transactions ?? d.items ?? []
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminMatches() {
@@ -59,27 +72,57 @@ function useAdminValidators() {
   return useQuery({ queryKey: ['admin-validators'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/validators`, { signal, headers: authHeaders() })
     if (!r.ok) return []
-    const d = await r.json(); return Array.isArray(d) ? d : d.items ?? []
+    const d = await r.json()
+    const rows = Array.isArray(d) ? d : d.items ?? d.validators ?? []
+    return rows.map((v: any) => ({
+      ...v,
+      staked_amount: v.staked_amount ?? v.stake_amount,
+      accuracy_score: v.accuracy_score ?? (
+        v.total_predictions > 0 ? v.accurate_predictions / v.total_predictions : null
+      ),
+    }))
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminModels() {
   return useQuery({ queryKey: ['admin-models'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/models`, { signal, headers: authHeaders() })
     if (!r.ok) return []
-    const d = await r.json(); return Array.isArray(d) ? d : d.items ?? []
+    const d = await r.json()
+    const rows = Array.isArray(d) ? d : d.items ?? d.models ?? []
+    return rows.map((m: any) => ({
+      ...m,
+      type: m.type ?? m.model_type,
+      status: m.status ?? (m.is_active === true ? 'active' : m.is_active === false ? 'inactive' : null),
+    }))
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminConfig() {
   return useQuery({ queryKey: ['admin-config'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/config`, { signal, headers: authHeaders() })
-    return r.ok ? r.json() : null
+    if (!r.ok) return null
+    const data = await r.json()
+    if (!Array.isArray(data)) return data
+    return data.reduce((config: Record<string, unknown>, entry: any) => {
+      if (entry?.key) config[entry.key] = entry.value
+      return config
+    }, {})
   }, retry: false, staleTime: 120_000 })
 }
 function useAdminAudit() {
   return useQuery({ queryKey: ['admin-audit'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/audit-log?limit=50`, { signal, headers: authHeaders() })
     if (!r.ok) return []
-    const d = await r.json(); return Array.isArray(d) ? d : d.items ?? []
+    const d = await r.json()
+    const rows = Array.isArray(d) ? d : d.logs ?? d.items ?? []
+    return rows.map((entry: any) => ({
+      ...entry,
+      user_id: entry.user_id ?? entry.admin_id,
+      details: entry.details ?? (
+        entry.before != null || entry.after != null
+          ? { before: entry.before, after: entry.after }
+          : undefined
+      ),
+    }))
   }, retry: false, staleTime: 30_000 })
 }
 
@@ -291,9 +334,9 @@ function MatchesTab() {
                 <tr key={m.id ?? i} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
                   <td className="px-4 py-3 text-white/30 text-xs font-mono">#{m.id ?? i}</td>
                   <td className="px-4 py-3 text-white text-sm">{m.home_team ?? m.name ?? '—'}{m.away_team ? ` vs ${m.away_team}` : ''}</td>
-                  <td className="px-4 py-3 text-white/50 text-xs">{m.league_name ?? m.competition ?? '—'}</td>
+                  <td className="px-4 py-3 text-white/50 text-xs">{m.league ?? m.league_name ?? m.competition ?? '—'}</td>
                   <td className="px-4 py-3"><span className={cn('text-xs px-2 py-0.5 rounded-full border', m.status==='live' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : m.status==='scheduled' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-white/5 text-white/30 border-white/10')}>{m.status ?? 'unknown'}</span></td>
-                  <td className="px-4 py-3 text-white/30 text-xs">{m.kickoff_time ? new Date(m.kickoff_time).toLocaleString() : '—'}</td>
+                  <td className="px-4 py-3 text-white/30 text-xs">{(m.match_date ?? m.kickoff_time) ? new Date(m.match_date ?? m.kickoff_time).toLocaleString() : '—'}</td>
                 </tr>
               ))}</tbody>
             </table>

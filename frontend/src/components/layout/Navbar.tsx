@@ -40,6 +40,10 @@ const AUTH_LINKS = [
   { label: 'Enterprise',  path: '/enterprise',       icon: Building2       },
 ]
 
+function hasAdminAccess(role?: string): boolean {
+  return role === 'admin' || role === 'super_admin'
+}
+
 export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
   const [open, setOpen]                 = useState(false)
   const [scrolled, setScrolled]         = useState(false)
@@ -55,7 +59,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
     const token = getAuthToken()
     const user  = getStoredUser()
     setIsLoggedIn(!!token)
-    setIsAdmin(user?.role === 'admin')
+    setIsAdmin(hasAdminAccess(user?.role))
   }, [location.pathname])
 
   // Sync auth state when localStorage changes in another tab (logout/login).
@@ -65,7 +69,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
         const token = getAuthToken()
         const user  = getStoredUser()
         setIsLoggedIn(!!token)
-        setIsAdmin(user?.role === 'admin')
+        setIsAdmin(hasAdminAccess(user?.role))
       }
     }
     window.addEventListener('storage', onStorage)
