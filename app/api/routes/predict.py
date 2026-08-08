@@ -899,7 +899,16 @@ async def prediction_history(
 
     out = []
     for pred, match in rows:
+        was_correct = pred.was_correct
+        if was_correct is True:
+            outcome = "won"
+        elif was_correct is False:
+            outcome = "lost"
+        else:
+            outcome = "pending"
+
         out.append({
+            "id": pred.id,
             "prediction_id": pred.id,
             "match_id": pred.match_id,
             "home_team": getattr(match, 'home_team', None),
@@ -910,7 +919,8 @@ async def prediction_history(
             "confidence": float(pred.confidence or 0.0),
             "final_ev": float(pred.final_ev or 0.0) if getattr(pred, 'final_ev', None) is not None else None,
             "entry_odds": float(pred.entry_odds) if getattr(pred, 'entry_odds', None) is not None else None,
-            "was_correct": pred.was_correct,
+            "was_correct": was_correct,
+            "outcome": outcome,
         })
 
     return out

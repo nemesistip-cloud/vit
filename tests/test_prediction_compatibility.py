@@ -37,8 +37,20 @@ async def test_prediction_history_and_accuracy_endpoints(client, auth_headers):
     history_resp = await client.get("/api/history", headers=headers)
     assert history_resp.status_code == 200, history_resp.text
     history_data = history_resp.json()
-    assert isinstance(history_data, list)
-    assert any(item.get("match_id") == predict_resp.json().get("match_id") for item in history_data)
+    assert isinstance(history_data, dict)
+    assert "predictions" in history_data
+    assert any(item.get("match_id") == predict_resp.json().get("match_id") for item in history_data["predictions"])
+
+    predict_history_resp = await client.get("/api/predict/history", headers=headers)
+    assert predict_history_resp.status_code == 200, predict_history_resp.text
+    predict_history_data = predict_history_resp.json()
+    assert isinstance(predict_history_data, list)
+    if predict_history_data:
+        first_item = predict_history_data[0]
+        assert "prediction_id" in first_item or "id" in first_item
+        assert "outcome" in first_item or "was_correct" in first_item
+        assert "id" in first_item
+        assert "outcome" in first_item
 
     accuracy_resp = await client.get("/api/accuracy", headers=headers)
     assert accuracy_resp.status_code == 200, accuracy_resp.text

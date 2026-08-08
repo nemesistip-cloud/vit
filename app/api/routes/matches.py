@@ -70,7 +70,7 @@ COMPETITIONS = {
 # DEFAULT_MARKETS list is externalised to app/config/markets.json
 try:
     import json, os
-    _markets_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'markets.json')
+    _markets_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'markets.json')
     if os.path.exists(_markets_path):
         with open(_markets_path, 'r') as _mf:
             DEFAULT_MARKETS = json.load(_mf)

@@ -203,45 +203,49 @@ export default function Predictions() {
           </div>
         ) : (
           <div className="space-y-3">
-            {data.map((pred: any, i: number) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                className="bg-surface-800/60 border border-white/8 rounded-xl p-5 hover:border-white/15 transition-colors">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <p className="font-medium text-white">{pred.home_team} vs {pred.away_team}</p>
-                    <p className="text-sm text-white/40 mt-0.5">{pred.league}</p>
-                    {pred.created_at && <p className="text-xs text-white/25 mt-1">{timeAgo(pred.created_at)}</p>}
+            {data.map((pred: any, i: number) => {
+              const predictionId = pred.id ?? pred.prediction_id ?? null
+              const outcome = pred.outcome ?? (pred.was_correct === true ? 'won' : pred.was_correct === false ? 'lost' : 'pending')
+              return (
+                <motion.div key={predictionId ?? i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                  className="bg-surface-800/60 border border-white/8 rounded-xl p-5 hover:border-white/15 transition-colors">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <p className="font-medium text-white">{pred.home_team} vs {pred.away_team}</p>
+                      <p className="text-sm text-white/40 mt-0.5">{pred.league}</p>
+                      {pred.created_at && <p className="text-xs text-white/25 mt-1">{timeAgo(pred.created_at)}</p>}
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {pred.bet_side && (
+                        <span className="px-2.5 py-1 rounded-lg bg-vit-500/15 text-vit-300 text-xs font-medium uppercase">{pred.bet_side}</span>
+                      )}
+                      {pred.confidence != null && (
+                        <span className="flex items-center gap-1 text-sm text-vit-400 font-medium">
+                          <Target className="w-3.5 h-3.5" />{Math.round(pred.confidence * 100)}%
+                        </span>
+                      )}
+                      <OutcomeChip outcome={outcome} />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {pred.bet_side && (
-                      <span className="px-2.5 py-1 rounded-lg bg-vit-500/15 text-vit-300 text-xs font-medium uppercase">{pred.bet_side}</span>
-                    )}
-                    {pred.confidence != null && (
-                      <span className="flex items-center gap-1 text-sm text-vit-400 font-medium">
-                        <Target className="w-3.5 h-3.5" />{Math.round(pred.confidence * 100)}%
-                      </span>
-                    )}
-                    <OutcomeChip outcome={pred.outcome} />
-                  </div>
-                </div>
 
-                {pred.entry_odds != null && (
-                  <div className="mt-3 pt-3 border-t border-white/6 flex gap-6 text-xs text-white/40">
-                    <span>Odds: <span className="text-white/70">{pred.entry_odds}</span></span>
-                    {pred.final_ev != null && <span>EV: <span className={pred.final_ev > 0 ? 'text-emerald-400' : 'text-red-400'}>{pred.final_ev > 0 ? '+' : ''}{pred.final_ev.toFixed(3)}</span></span>}
-                    {pred.clv_earned != null && <span>CLV: <span className="text-vit-400">+{pred.clv_earned}</span></span>}
-                  </div>
-                )}
+                  {pred.entry_odds != null && (
+                    <div className="mt-3 pt-3 border-t border-white/6 flex gap-6 text-xs text-white/40">
+                      <span>Odds: <span className="text-white/70">{pred.entry_odds}</span></span>
+                      {pred.final_ev != null && <span>EV: <span className={pred.final_ev > 0 ? 'text-emerald-400' : 'text-red-400'}>{pred.final_ev > 0 ? '+' : ''}{pred.final_ev.toFixed(3)}</span></span>}
+                      {pred.clv_earned != null && <span>CLV: <span className="text-vit-400">+{pred.clv_earned}</span></span>}
+                    </div>
+                  )}
 
-                {/* On-chain attestation */}
-                {pred.id && (
-                  <div className="mt-3 pt-3 border-t border-white/6 flex items-center justify-between">
-                    <span className="text-xs text-white/20">Chain proof</span>
-                    <AttestButton predictionId={pred.id} />
-                  </div>
-                )}
-              </motion.div>
-            ))}
+                  {/* On-chain attestation */}
+                  {predictionId && (
+                    <div className="mt-3 pt-3 border-t border-white/6 flex items-center justify-between">
+                      <span className="text-xs text-white/20">Chain proof</span>
+                      <AttestButton predictionId={predictionId} />
+                    </div>
+                  )}
+                </motion.div>
+              )
+            })}
           </div>
         )}
       </div>
