@@ -204,7 +204,7 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
         <section>
           <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Runtime Metrics</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard icon={Zap}       label="Requests/min" value={metrics.requests_per_minute}                                              color="text-vit-400"     i={0} />
+            <MetricCard icon={Zap}       label="Requests (24h)" value={metrics.requests_24h}                                                color="text-vit-400"     i={0} />
             <MetricCard icon={BarChart2} label="Avg Latency"  value={metrics.avg_latency_ms ? `${metrics.avg_latency_ms}ms` : null}            color="text-blue-400"   i={1} />
             <MetricCard icon={Activity}  label="Error Rate"   value={metrics.error_rate ? `${(metrics.error_rate*100).toFixed(2)}%` : null}    color="text-red-400"    i={2} />
             <MetricCard icon={Database}  label="DB Pool"      value={metrics.db_pool_size}                                                     color="text-emerald-400" i={3} />
@@ -369,7 +369,7 @@ function ValidatorsTab() {
               <tbody>{vals.map((v: any, i: number) => (
                 <tr key={v.id ?? i} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
                   <td className="px-4 py-3 text-white/30 text-xs font-mono">#{v.id ?? i}</td>
-                  <td className="px-4 py-3 text-white/60 text-xs font-mono">{v.wallet_address ? `${v.wallet_address.slice(0,10)}…` : v.username ?? '—'}</td>
+                  <td className="px-4 py-3 text-white/60 text-xs font-mono">{v.wallet_address ? `${v.wallet_address.slice(0,10)}…` : v.username ?? v.user_id ?? '—'}</td>
                   <td className="px-4 py-3 text-amber-400 text-sm font-medium">{v.staked_amount != null ? `${Number(v.staked_amount).toLocaleString()} VIT` : '—'}</td>
                   <td className="px-4 py-3 text-white/60 text-sm">{v.accuracy_score != null ? `${(v.accuracy_score*100).toFixed(1)}%` : '—'}</td>
                   <td className="px-4 py-3"><span className={cn('text-xs px-2 py-0.5 rounded-full border', v.status==='active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : v.status==='slashed' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-white/30 border-white/10')}>{v.status ?? 'unknown'}</span></td>
@@ -522,7 +522,7 @@ function SystemTab({ health, status, metrics, loadingHealth, loadingStatus }: an
         <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-white mb-4"><Activity className="w-4 h-4 text-blue-400" /> Runtime</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <MetricCard icon={Zap}           label="Req/min"     value={metrics.requests_per_minute}                                             color="text-vit-400"     />
+            <MetricCard icon={Zap}           label="Requests (24h)" value={metrics.requests_24h}                                               color="text-vit-400"     />
             <MetricCard icon={Clock}         label="Avg Latency" value={metrics.avg_latency_ms ? `${metrics.avg_latency_ms}ms` : null}           color="text-blue-400"   />
             <MetricCard icon={AlertTriangle} label="Error Rate"  value={metrics.error_rate ? `${(metrics.error_rate*100).toFixed(2)}%` : null}   color="text-red-400"    />
             <MetricCard icon={Database}      label="DB Pool"     value={metrics.db_pool_size}                                                    color="text-emerald-400" />
