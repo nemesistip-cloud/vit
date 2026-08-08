@@ -290,7 +290,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
                 {/* Workspace switcher in mobile */}
                 {isLoggedIn && (
                   <div className="pb-3 mb-3 border-b border-white/8">
-                    <WorkspaceSwitcher />
+                    <WorkspaceSwitcher mobile />
                   </div>
                 )}
 

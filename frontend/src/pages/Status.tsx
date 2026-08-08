@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Database, Brain, HardDrive, Server, Wifi, RefreshCw, CheckCircle, AlertTriangle, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ENDPOINTS } from '@/lib/api'
+import { ENDPOINTS, aiApi, storageApi } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 
@@ -32,10 +32,7 @@ function useSystemSummary() {
 function useAiHealth() {
   return useQuery({
     queryKey: ['ai-health-status'],
-    queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/ai-feed/health`, { signal })
-      return r.ok ? r.json() : null
-    },
+    queryFn: ({ signal }) => aiApi.health(signal),
     staleTime: 20_000, refetchInterval: 30_000,
   })
 }
@@ -43,10 +40,7 @@ function useAiHealth() {
 function useStorageHealth() {
   return useQuery({
     queryKey: ['storage-health-status'],
-    queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/storage/health`, { signal })
-      return r.ok ? r.json() : null
-    },
+    queryFn: ({ signal }) => storageApi.health(signal),
     staleTime: 20_000, refetchInterval: 30_000,
   })
 }
@@ -152,9 +146,9 @@ export default function Status() {
       status: ai?.status ?? (aiLoading ? undefined : 'unknown'),
       isLoading: aiLoading,
       details: [
-        { label: 'Models',   value: ai?.models_count ?? ai?.models },
-        { label: 'Latency',  value: ai?.latency_ms != null ? `${ai.latency_ms}ms` : null },
-        { label: 'Provider', value: ai?.provider },
+        { label: 'Models',   value: ai?.models_loaded ?? ai?.models?.length },
+        { label: 'Latency',  value: ai?._latency != null ? `${ai._latency}ms` : ai?.inference?.latency != null ? `${ai.inference.latency}ms` : null },
+        { label: 'Provider', value: ai?.providers?.[0]?.name },
       ],
     },
     {

@@ -14,18 +14,18 @@ import { queryClient } from './lib/queryClient'
 import { bootstrapRegistry } from './lib/registry'
 import './index.css'
 
-// Fetch live service URLs from the gateway registry before the first API call.
-// Falls back to hardcoded defaults (in api.ts) if the network request fails.
-void bootstrapRegistry()
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter future={routerFuture}>
-          <App />
-        </BrowserRouter>
-      </QueryClientProvider>
-    </ErrorBoundary>
-  </React.StrictMode>,
-)
+// Resolve live service URLs before mounting pages. This prevents the first
+// health queries from racing registry discovery and hitting stale fallbacks.
+void bootstrapRegistry().finally(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter future={routerFuture}>
+            <App />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </ErrorBoundary>
+    </React.StrictMode>,
+  )
+})

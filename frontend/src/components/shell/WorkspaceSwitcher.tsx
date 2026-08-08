@@ -38,7 +38,7 @@ function workspaceForPath(path: string): Workspace | undefined {
     .find(w => path.startsWith(w.path))
 }
 
-export function WorkspaceSwitcher() {
+export function WorkspaceSwitcher({ mobile = false }: { mobile?: boolean }) {
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -47,18 +47,19 @@ export function WorkspaceSwitcher() {
   const Icon = active.icon
 
   return (
-    <div className="relative">
+    <div className={cn('relative', mobile && 'w-full')}>
       <button
         onClick={() => setOpen(o => !o)}
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-sm font-medium',
+          mobile && 'w-full justify-between',
           open
             ? 'bg-white/10 border-white/20 text-white'
             : 'bg-white/5 border-white/8 text-white/70 hover:bg-white/8 hover:text-white',
         )}
       >
         <Icon className={cn('w-4 h-4', active.color)} />
-        <span className="max-w-[120px] truncate hidden sm:block">{active.label}</span>
+        <span className={cn('max-w-[120px] truncate', !mobile && 'hidden sm:block')}>{active.label}</span>
         <ChevronDown className={cn('w-3.5 h-3.5 text-white/40 transition-transform', open && 'rotate-180')} />
       </button>
 
@@ -71,7 +72,12 @@ export function WorkspaceSwitcher() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.97 }}
               transition={{ duration: 0.15 }}
-              className="absolute left-0 top-full mt-2 z-50 w-72 rounded-2xl border border-white/10 bg-surface-900/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
+              className={cn(
+                'z-50 rounded-2xl border border-white/10 bg-surface-900/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden',
+                mobile
+                  ? 'relative left-auto top-auto mt-2 w-full max-h-[min(65dvh,28rem)]'
+                  : 'absolute left-0 top-full mt-2 w-72',
+              )}
             >
               <div className="px-3 py-2 border-b border-white/8">
                 <p className="text-[10px] font-semibold text-white/30 uppercase tracking-widest">Workspaces</p>
