@@ -52,7 +52,7 @@ function useAdminMatches() {
   return useQuery({ queryKey: ['admin-matches'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/matches?limit=30`, { signal, headers: authHeaders() })
     if (!r.ok) return []
-    const d = await r.json(); return Array.isArray(d) ? d : d.items ?? []
+    const d = await r.json(); return Array.isArray(d) ? d : d.matches ?? d.items ?? []
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminValidators() {
@@ -193,7 +193,9 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
 
 function UsersTab() {
   const { data: raw, isLoading, refetch } = useAdminUsers()
-  const list: any[] = Array.isArray(raw?.items ?? raw) ? (raw?.items ?? raw) : []
+  const list: any[] = Array.isArray(raw?.users ?? raw?.items ?? raw)
+    ? (raw?.users ?? raw?.items ?? raw)
+    : []
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -525,7 +527,7 @@ export default function Admin() {
 
   if (!token) return <div className="pt-16 min-h-screen flex items-center justify-center"><Spinner className="w-8 h-8 text-vit-400" /></div>
 
-  if (user?.role && user.role !== 'admin') return (
+  if (user?.role && !['admin', 'super_admin'].includes(user.role)) return (
     <div className="pt-16 min-h-screen flex items-center justify-center">
       <div className="text-center max-w-sm mx-4">
         <div className="w-14 h-14 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mx-auto mb-4">
