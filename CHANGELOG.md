@@ -1,3 +1,5 @@
+- 2026-08-08 `d988c0c` chore(deps): bump the npm_and_yarn group across 4 directories with 8 updates
+
 # CHANGELOG
 
 Entries are prepended automatically by the `changelog.yml` GitHub Actions
