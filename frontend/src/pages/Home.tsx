@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { authHeaders, getAuthToken } from '@/hooks/useAuth'
 
 function useSystemStatus() {
   return useQuery({
@@ -46,10 +47,15 @@ function useTopMatches() {
 }
 
 function useLeaderboardPreview() {
+  const isAuthenticated = Boolean(getAuthToken())
   return useQuery({
     queryKey: ['leaderboard-home'],
+    enabled: isAuthenticated,
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/analytics/leaderboard/users?limit=5`, { signal })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/analytics/leaderboard/users?limit=5`, {
+        signal,
+        headers: authHeaders(),
+      })
       if (!r.ok) return []
       const d = await r.json()
       return Array.isArray(d) ? d.slice(0, 5) : (d.leaderboard ?? d.items ?? []).slice(0, 5)
@@ -168,23 +174,23 @@ export default function Home() {
 
           <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
-            The AI-Powered
+            The intelligence layer for
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-vit-400 to-vit-300">
-              Decentralized Gateway
+              the VIT Network
             </span>
           </motion.h1>
 
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             className="text-xl text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed">
-            VIT Network aggregates AI sports intelligence, blockchain, decentralised storage, and a VITCoin economy
-            into one unified platform — predict smarter, stake confidently, earn transparently.
+            AI sports intelligence, verifiable data, and VIT Chain infrastructure in one
+            open network — helping people predict smarter, build faster, and participate with confidence.
           </motion.p>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link to="/register" className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white font-medium transition-all shadow-xl shadow-vit-500/25 hover:shadow-vit-500/40 text-sm">
-              Get Started Free <ArrowRight className="w-4 h-4" />
+              Enter the network <ArrowRight className="w-4 h-4" />
             </Link>
             <Link to="/matches" className="flex items-center gap-2 px-8 py-3.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white font-medium transition-colors text-sm">
               Browse Matches <ChevronRight className="w-4 h-4" />
@@ -224,7 +230,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Live stats strip */}
+      {/* Live intelligence strip */}
       <section className="border-y border-white/8 bg-surface-800/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
@@ -239,6 +245,47 @@ export default function Home() {
                 <div className="text-xs text-white/40 uppercase tracking-wide">{label}</div>
               </motion.div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Live intelligence */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+        <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-6 items-stretch">
+          <div className="rounded-2xl border border-vit-500/20 bg-gradient-to-br from-vit-500/10 via-surface-800/70 to-surface-800/40 p-7">
+            <div className="flex items-center gap-2 text-vit-300 text-sm font-medium mb-4">
+              <Activity className="w-4 h-4" /> Live intelligence
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Signals you can verify.</h2>
+            <p className="text-white/55 leading-relaxed mb-6">
+              Follow live service health, upcoming fixtures, and model confidence from the same
+              network that powers VIT applications.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-white/8 bg-black/15 p-4">
+                <p className="text-xs text-white/35 uppercase tracking-wide mb-1">Upcoming fixtures</p>
+                <p className="text-xl font-semibold text-white">{matches?.length ? `${matches.length}+` : '—'}</p>
+              </div>
+              <div className="rounded-xl border border-white/8 bg-black/15 p-4">
+                <p className="text-xs text-white/35 uppercase tracking-wide mb-1">Network health</p>
+                <p className="text-xl font-semibold text-emerald-400">{isHealthy ? 'Healthy' : overallStatus}</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-surface-800/50 p-7">
+            <p className="text-xs text-vit-400 uppercase tracking-[0.2em] mb-3">Built for builders</p>
+            <h2 className="text-2xl font-bold text-white mb-3">One network. Many surfaces.</h2>
+            <p className="text-white/50 leading-relaxed mb-6">
+              Explore the platform, connect to developer APIs, or inspect the chain as the ecosystem evolves.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link to="/developers" className="inline-flex items-center gap-2 rounded-xl bg-white/8 border border-white/10 px-4 py-2.5 text-sm text-white hover:bg-white/12 transition-colors">
+                Developer access <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link to="/status" className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-white/65 hover:text-white transition-colors">
+                Check status
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -285,8 +332,9 @@ export default function Home() {
       {/* Feature tiles */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-white mb-3">Everything in One Platform</h2>
-          <p className="text-white/50 max-w-xl mx-auto">One account. Full access to AI sports intelligence, a native blockchain, decentralised storage, and a community of predictors.</p>
+          <p className="text-xs text-vit-400 uppercase tracking-[0.2em] mb-3">The ecosystem</p>
+          <h2 className="text-3xl font-bold text-white mb-3">Intelligence, settlement, and access.</h2>
+          <p className="text-white/50 max-w-xl mx-auto">Move from signal to action across AI Engine, Matches, VIT Chain, Wallet, Storage, and the developer platform.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {FEATURES.map((f, i) => (
@@ -371,15 +419,16 @@ export default function Home() {
         </section>
       )}
 
-      {/* CTA */}
+      {/* Trust + CTA */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
         <div className="relative rounded-3xl border border-vit-500/20 bg-gradient-to-br from-vit-500/10 via-surface-800/60 to-surface-800/40 p-12 text-center overflow-hidden">
           <div className="absolute inset-0 section-grid opacity-15" />
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full bg-vit-500/8 blur-3xl" />
           <div className="relative">
             <Zap className="w-10 h-10 text-vit-400 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-white mb-3">Ready to start predicting?</h2>
-            <p className="text-white/50 max-w-md mx-auto mb-8">Join VIT Network and access AI-powered sports intelligence across 50+ competitions.</p>
+             <p className="text-xs text-vit-300 uppercase tracking-[0.2em] mb-3">Open network access</p>
+             <h2 className="text-3xl font-bold text-white mb-3">Make your next move with VIT.</h2>
+             <p className="text-white/50 max-w-md mx-auto mb-8">Start with live intelligence, inspect the network, and build on the VIT platform.</p>
             <Link to="/register" className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white font-medium transition-all shadow-xl shadow-vit-500/25">
               Create Free Account <ArrowRight className="w-4 h-4" />
             </Link>
