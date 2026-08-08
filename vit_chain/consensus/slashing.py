@@ -109,3 +109,65 @@ class SlashingManager:
 
 
 slashing_manager = SlashingManager()
+
+
+class SlashEngine:
+    """Compatibility adapter for the storage consensus engine.
+
+    The slashing implementation was moved to ``SlashingManager`` when
+    validator stake and appeal records were added.  The storage consensus
+    engine still uses the older ``record_participation`` and
+    ``check_absent_nodes`` interface, so keep that interface as a thin adapter
+    instead of breaking consensus startup.
+    """
+
+    def __init__(self) -> None:
+        self.manager = slashing_manager
+
+    async def record_participation(self, validator_address: str) -> None:
+        """Reset the missed-slot counter after a validator participates."""
+        from app.services.cache import _get_redis
+
+        redis = _get_redis()
+        if redis is None:
+            return
+        try:
+            await redis.set(f"vit:node:misses:{validator_address}", 0)
+        except Exception as exc:
+            logger.warning(
+                "[slashing] could not reset participation counter for %s: %s",
+                validator_address,
+                exc,
+            )
+
+    async def check_absent_nodes(
+        self,
+        db: AsyncSession,
+        absent_nodes: list[str],
+        current_slot: int = 0,
+    ) -> None:
+        """Track missed slots and slash validators after the configured threshold."""
+        from app.services.cache import _get_redis
+
+        redis = _get_redis()
+        for validator_address in absent_nodes:
+            missed_slots = 1
+            if redis is not None:
+                try:
+                    missed_slots = int(
+                        await redis.incr(f"vit:node:misses:{validator_address}")
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "[slashing] could not track missed slot for %s: %s",
+                        validator_address,
+                        exc,
+                    )
+
+            if missed_slots >= DOWNTIME_SLOT_THRESHOLD:
+                await self.manager.check_downtime(
+                    db,
+                    validator_address,
+                    missed_slots,
+                    current_slot=current_slot,
+                )

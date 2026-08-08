@@ -18,6 +18,8 @@ import logging
 import os
 import subprocess
 import sys
+import ssl
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +31,48 @@ logger = logging.getLogger("migration")
 ADVISORY_LOCK_ID = 7764001
 
 ALEMBIC_TIMEOUT = 180  # seconds
+
+
+def _make_async_url(url: str) -> str:
+    """Return a SQLAlchemy URL that explicitly uses asyncpg.
+
+    Render exposes PostgreSQL URLs using the legacy ``postgres://`` scheme
+    (and some environments use ``postgresql+psycopg2://``).  Passing either
+    directly to ``create_async_engine`` makes SQLAlchemy select psycopg2,
+    which is a synchronous driver and raises at startup.
+    """
+    if not url or "sqlite" in url:
+        return url
+
+    parsed = urlparse(url)
+    if parsed.scheme not in {
+        "postgres",
+        "postgresql",
+        "postgresql+psycopg2",
+        "postgres+asyncpg",
+        "postgresql+asyncpg",
+    }:
+        return url
+
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    # asyncpg uses the ``ssl`` connect argument instead of libpq's sslmode.
+    query.pop("sslmode", None)
+    return urlunparse(parsed._replace(scheme="postgresql+asyncpg", query=urlencode(query)))
+
+
+def _async_connect_args(url: str) -> dict:
+    """Configure TLS for external PostgreSQL providers such as Render."""
+    host = urlparse(url).hostname or ""
+    if host in {"", "localhost", "127.0.0.1", "helium"}:
+        return {}
+
+    ssl_context = ssl.create_default_context()
+    # Managed providers commonly use a private or provider-issued CA.  The
+    # database connection remains encrypted while matching the app's existing
+    # production database configuration.
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    return {"ssl": ssl_context}
 
 
 def _check_alembic_state(conn_sync) -> str:
@@ -52,7 +96,14 @@ async def run_migrations() -> bool:
         from sqlalchemy.ext.asyncio import create_async_engine  # noqa: PLC0415
         from sqlalchemy import text  # noqa: PLC0415
 
-        engine = create_async_engine(database_url, echo=False, pool_size=2, max_overflow=0)
+        async_url = _make_async_url(database_url)
+        engine = create_async_engine(
+            async_url,
+            echo=False,
+            pool_size=2,
+            max_overflow=0,
+            connect_args=_async_connect_args(async_url),
+        )
     except Exception as exc:
         logger.error("Failed to create database engine: %s", exc)
         return False

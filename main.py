@@ -445,7 +445,7 @@ except Exception as _e:
     logging.warning("matches_router not mounted — routes unavailable: %s", _e)
 
 try:
-    from app.api.routes.predict import router as predict_router
+    from app.api.routes.predict import router as predict_router, prediction_accuracy
     app.include_router(predict_router, prefix="/api")
     app.add_api_route("/api/accuracy", prediction_accuracy, methods=["GET"], include_in_schema=False)
 except Exception as _e:
