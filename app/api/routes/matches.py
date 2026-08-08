@@ -192,18 +192,15 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
     edge = None
     if pred and pred.vig_free_edge is not None:
         edge = pred.vig_free_edge
-    elif odds_home and pred and pred.home_prob:
+    elif odds_home and pred and pred.home_prob is not None:
         market_prob = 1.0 / odds_home
         edge = round(float(pred.home_prob) - market_prob, 4)
 
-    home_prob = float(pred.home_prob) if pred and pred.home_prob is not None else (market_probs or {}).get("home")
-    draw_prob = float(pred.draw_prob) if pred and pred.draw_prob is not None else (market_probs or {}).get("draw")
-    away_prob = float(pred.away_prob) if pred and pred.away_prob is not None else (market_probs or {}).get("away")
-
-    # Ensure probabilities default to 0 if not set, instead of None, to avoid UI breakage
-    home_prob = home_prob if home_prob is not None else 0.0
-    draw_prob = draw_prob if draw_prob is not None else 0.0
-    away_prob = away_prob if away_prob is not None else 0.0
+    # Market-implied probabilities are not model predictions. Keep the
+    # prediction fields unavailable until a Prediction row supplies them.
+    home_prob = float(pred.home_prob) if pred and pred.home_prob is not None else None
+    draw_prob = float(pred.draw_prob) if pred and pred.draw_prob is not None else None
+    away_prob = float(pred.away_prob) if pred and pred.away_prob is not None else None
 
     secondary = _secondary_market_probs(home_prob, draw_prob, away_prob, odds_draw)
     over_25_prob = float(pred.over_25_prob) if pred and pred.over_25_prob is not None else secondary["over_25"]
@@ -216,7 +213,7 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
     under_35_prob = secondary.get("under_35")
     dnb_home_prob = secondary.get("dnb_home")
     dnb_away_prob = secondary.get("dnb_away")
-    confidence = float(pred.confidence) if pred and pred.confidence is not None else (0.55 if market_probs else 0.5)
+    confidence = float(pred.confidence) if pred and pred.confidence is not None else None
 
     return {
         "match_id": m.id,
@@ -600,49 +597,57 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
 
     markets = await _load_markets(db)
     latest = _fmt_match(match, latest_pred, markets)
-    h = latest.get("home_prob") or 0.0
-    d = latest.get("draw_prob") or 0.0
-    a = latest.get("away_prob") or 0.0
+    h = latest.get("home_prob")
+    d = latest.get("draw_prob")
+    a = latest.get("away_prob")
 
     # Fetch deeper features (Elo, etc)
     features = await build_predict_features(db, match.home_team, match.away_team, match.league)
     elo_diff = features.get("elo_diff", 0.0)
 
     # Tactical Insights (Native SCIE)
-    try:
-        tactical_insights = await generate_match_insights(
-            home_team=match.home_team,
-            away_team=match.away_team,
-            league=match.league or "unknown",
-            home_prob=h,
-            draw_prob=d,
-            away_prob=a,
-            over_25_prob=float(latest.get("over_25_prob") or 0.5),
-            btts_prob=float(latest.get("btts_prob") or 0.5),
-            bet_side=getattr(latest_pred, 'bet_side', None),
-            edge=float(latest.get("edge") or 0.0),
-            entry_odds=float(latest.get("odds", {}).get("home") or 2.0),
-            confidence=float(getattr(latest_pred, 'confidence', 0.5) or 0.5),
-        )
-    except Exception as e:
-        logger.error(f"Tactical insight generation failed: {e}")
+    has_primary_probabilities = h is not None and d is not None and a is not None
+    if not has_primary_probabilities:
         tactical_insights = {
-            "summary": "Intelligence gathering in progress.",
+            "summary": "Prediction unavailable until model output is generated.",
             "key_factors": [],
-            "recommendation": "Monitor market movements."
+            "recommendation": "No recommendation available.",
         }
+    else:
+        try:
+            tactical_insights = await generate_match_insights(
+                home_team=match.home_team,
+                away_team=match.away_team,
+                league=match.league or "unknown",
+                home_prob=h,
+                draw_prob=d,
+                away_prob=a,
+                over_25_prob=float(latest.get("over_25_prob") or 0.5),
+                btts_prob=float(latest.get("btts_prob") or 0.5),
+                bet_side=getattr(latest_pred, 'bet_side', None),
+                edge=float(latest.get("edge") or 0.0),
+                entry_odds=float(latest.get("odds", {}).get("home") or 2.0),
+                confidence=float(getattr(latest_pred, 'confidence', 0.5) or 0.5),
+            )
+        except Exception as e:
+            logger.error(f"Tactical insight generation failed: {e}")
+            tactical_insights = {
+                "summary": "Intelligence gathering in progress.",
+                "key_factors": [],
+                "recommendation": "Monitor market movements."
+            }
 
     return {
         **latest,
         "intelligence": {
             "consensus": {
-                "home_prob": float(h),
-                "draw_prob": float(d),
-                "away_prob": float(a),
-                "confidence": float(getattr(latest_pred, 'confidence', 0.5) or 0.5),
-                "risk_score": float(getattr(latest_audit, 'risk_score', 0.0) or 0.0),
-                "model_agreement": float(getattr(latest_audit, 'model_agreement', 0.0) or 0.0),
-                "models_active": int(getattr(latest_audit, 'pkl_models_active', 0) or 0),
+                "home_prob": float(h) if h is not None else None,
+                "draw_prob": float(d) if d is not None else None,
+                "away_prob": float(a) if a is not None else None,
+                "confidence": float(getattr(latest_pred, 'confidence', 0.0)) if latest_pred and getattr(latest_pred, 'confidence', None) is not None else None,
+                "risk_score": float(getattr(latest_audit, 'risk_score', 0.0)) if latest_audit and getattr(latest_audit, 'risk_score', None) is not None else None,
+                "model_agreement": float(getattr(latest_audit, 'model_agreement', 0.0)) if latest_audit and getattr(latest_audit, 'model_agreement', None) is not None else None,
+                "models_active": int(getattr(latest_audit, 'pkl_models_active', 0)) if latest_audit and getattr(latest_audit, 'pkl_models_active', None) is not None else None,
                 "elo_diff": float(elo_diff),
                 "squad_value_diff": round(float(elo_diff) * 1.2, 2),
                 "timestamp": latest_pred.timestamp.isoformat() if (latest_pred and getattr(latest_pred, 'timestamp', None)) else None,
@@ -658,11 +663,11 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
                 {"subject": "Set Pieces", "A": 65, "B": 70, "fullMark": 100},
             ],
             "market_edge": {
-                "ai_prob": float(max(h, d, a)),
+                "ai_prob": float(max(h, d, a)) if has_primary_probabilities else None,
                 "bookmaker_prob": 1.0 / float(latest.get("odds", {}).get(getattr(latest_pred, 'bet_side', None)) or 2.0) if (latest_pred and getattr(latest_pred, 'bet_side', None) and latest.get("odds", {}).get(latest_pred.bet_side)) else None,
-                "edge": float(latest.get("edge") or 0.0),
-                "expected_roi": float(latest.get("edge") or 0.0) * 100,
-                "kelly_stake": float(getattr(latest_pred, 'recommended_stake', 0.0) or 0.0),
+                "edge": float(latest["edge"]) if latest.get("edge") is not None else None,
+                "expected_roi": float(latest["edge"]) * 100 if latest.get("edge") is not None else None,
+                "kelly_stake": float(getattr(latest_pred, 'recommended_stake', 0.0)) if latest_pred and getattr(latest_pred, 'recommended_stake', None) is not None else None,
             }
         },
         "predictions_count": len(preds),

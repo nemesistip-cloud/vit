@@ -138,6 +138,11 @@ function ModelRow({ pred, i }: { pred: Prediction; i: number }) {
 type MatchConsensus = NonNullable<NonNullable<Match['intelligence']>['consensus']>
 
 function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
+  const cards = [
+    { label: 'Home',  prob: consensus.home_prob, color: 'text-vit-400' },
+    { label: 'Draw',  prob: consensus.draw_prob, color: 'text-white/50' },
+    { label: 'Away',  prob: consensus.away_prob, color: 'text-amber-400' },
+  ]
   return (
     <div className="bg-surface-800/50 border border-white/8 rounded-2xl p-6">
       <div className="flex items-center gap-2 mb-5">
@@ -146,13 +151,11 @@ function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
       </div>
       <div className="flex gap-3">
         {[
-          { label: 'Home',  pct: Math.round((consensus.home_prob ?? 0) * 100), color: 'text-vit-400' },
-          { label: 'Draw',  pct: Math.round((consensus.draw_prob ?? 0) * 100), color: 'text-white/50' },
-          { label: 'Away',  pct: Math.round((consensus.away_prob ?? 0) * 100), color: 'text-amber-400' },
+          ...cards,
         ].map(c => (
           <div key={c.label} className="flex-1 p-3 rounded-xl text-center bg-white/3">
             <p className="text-xs text-white/35 mb-1">{c.label}</p>
-            <p className={cn('text-xl font-bold', c.color)}>{c.pct}%</p>
+            <p className={cn('text-xl font-bold', c.color)}>{c.prob != null ? `${Math.round(c.prob * 100)}%` : '—'}</p>
           </div>
         ))}
       </div>
