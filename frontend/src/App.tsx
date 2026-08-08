@@ -128,6 +128,14 @@ export default function App() {
         <Route path="/docs"            element={wrap(<Documentation />)}  />
         <Route path="/roadmap"         element={wrap(<Roadmap />)}        />
         <Route path="/about"           element={wrap(<About />)}          />
+        {/* Read-only discovery pages linked from the public navbar. */}
+        <Route path="/matches"         element={wrap(<Matches />)}        />
+        <Route path="/matches/:id"     element={wrap(<MatchDetail />)}    />
+        <Route path="/leaderboard"     element={wrap(<Leaderboard />)}    />
+        <Route path="/governance"      element={wrap(<Governance />)}     />
+        <Route path="/marketplace"     element={wrap(<Marketplace />)}    />
+        <Route path="/chain"           element={wrap(<Explorer />)}       />
+        <Route path="/explorer"        element={<Navigate to="/chain" replace />} />
         <Route path="/login"           element={wrap(<Login />)}          />
         <Route path="/register"        element={wrap(<Login />)}          />
         <Route path="/forgot-password" element={wrap(<ForgotPassword />)} />
@@ -142,11 +150,8 @@ export default function App() {
         <Route path="/workspace"        element={wrap(<Workspace />)}       />
         <Route path="/settings"         element={wrap(<Settings />)}        />
         <Route path="/subscription"     element={wrap(<Subscription />)}    />
-        <Route path="/matches"          element={wrap(<Matches />)}         />
-        <Route path="/matches/:id"      element={wrap(<MatchDetail />)}     />
         <Route path="/predictions"      element={wrap(<Predictions />)}     />
         <Route path="/odds"             element={wrap(<Odds />)}            />
-        <Route path="/leaderboard"      element={wrap(<Leaderboard />)}     />
         <Route path="/analytics"        element={wrap(<Analytics />)}       />
         <Route path="/analytics-studio" element={wrap(<AnalyticsStudio />)} />
         <Route path="/assistant"        element={wrap(<Assistant />)}       />
@@ -154,13 +159,9 @@ export default function App() {
         <Route path="/wallet"           element={wrap(<Wallet />)}          />
         <Route path="/defi"             element={wrap(<DeFi />)}            />
         <Route path="/inplay"           element={wrap(<InPlay />)}          />
-        <Route path="/marketplace"      element={wrap(<Marketplace />)}     />
         <Route path="/referral"         element={wrap(<Referral />)}        />
-        <Route path="/governance"       element={wrap(<Governance />)}      />
         <Route path="/treasury"         element={wrap(<Treasury />)}        />
         <Route path="/validators"       element={wrap(<Validators />)}      />
-        <Route path="/chain"            element={wrap(<Explorer />)}        />
-        <Route path="/explorer"         element={<Navigate to="/chain" replace />} />
         <Route path="/social"           element={wrap(<Social />)}          />
         <Route path="/ecosystem"        element={wrap(<Ecosystem />)}       />
         <Route path="/enterprise"       element={wrap(<Enterprise />)}      />
