@@ -1,3 +1,5 @@
+- 2026-08-09 `e33217d` chore(deps): bump the npm_and_yarn group across 1 directory with 2 updates
+
 - 2026-08-08 `d988c0c` chore(deps): bump the npm_and_yarn group across 4 directories with 8 updates
 
 # CHANGELOG
