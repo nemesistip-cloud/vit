@@ -44,6 +44,9 @@ FROM python:3.11-slim
         VITE_STORAGE_URL=$VITE_STORAGE_URL \
         VITE_CHAIN_URL=$VITE_CHAIN_URL
 
+    # The frontend build runs the repository-level asset integrity check.
+    # Copy it before the isolated frontend build layer executes.
+    COPY scripts/check-frontend-assets.mjs scripts/
     COPY frontend/ frontend/
     RUN cd frontend && pnpm run build
 
