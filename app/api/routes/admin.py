@@ -257,14 +257,14 @@ async def list_matches(
     if sport:
         q = q.where(Match.sport == sport)
     if date_from:
-        q = q.where(Match.match_date >= date_from)
+        q = q.where(Match.kickoff_time >= datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None))
     if date_to:
-        q = q.where(Match.match_date <= date_to)
+        q = q.where(Match.kickoff_time <= datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None))
 
     total_res = await db.execute(select(func.count()).select_from(q.subquery()))
     total = total_res.scalar_one()
 
-    q = q.order_by(desc(Match.match_date)).offset((page - 1) * limit).limit(limit)
+    q = q.order_by(desc(Match.kickoff_time)).offset((page - 1) * limit).limit(limit)
     result = await db.execute(q)
     matches = result.scalars().all()
 
@@ -272,7 +272,7 @@ async def list_matches(
         return {
             "id": m.id, "home_team": m.home_team, "away_team": m.away_team,
             "league": getattr(m, "league", None), "sport": getattr(m, "sport", "football"),
-            "match_date": m.match_date.isoformat() if hasattr(m, "match_date") and m.match_date else None,
+            "match_date": m.kickoff_time.isoformat() if m.kickoff_time else None,
             "status": m.status,
             "actual_outcome": getattr(m, "actual_outcome", None),
             "home_goals": getattr(m, "home_goals", None),
