@@ -17,6 +17,8 @@ from httpx import AsyncClient, ASGITransport
 from main import app
 from app.db.database import AsyncSessionLocal
 from app.db.models import Match, Prediction
+from app.core.cache import cache
+from app.core.cache_keys import FIXTURE_LIST
 from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
 import uuid
@@ -57,6 +59,42 @@ async def test_api_matches_live_endpoint():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get("/api/matches/live")
         assert response.status_code in [200, 404], f"Expected 200 or 404, got {response.status_code}"
+
+
+@pytest.mark.asyncio
+async def test_live_matches_use_tracker_status_and_exclude_terminal_rows(client, db_session):
+    """Live results honor tracker status instead of only kickoff timing."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    db_session.add_all([
+        Match(
+            external_id="live-status-regression",
+            home_team="Status Home",
+            away_team="Status Away",
+            league="test_league",
+            sport="football",
+            kickoff_time=now - timedelta(hours=3),
+            status="live",
+            source="test",
+        ),
+        Match(
+            external_id="finished-window-regression",
+            home_team="Finished Home",
+            away_team="Finished Away",
+            league="test_league",
+            sport="football",
+            kickoff_time=now - timedelta(minutes=30),
+            status="finished",
+            source="test",
+        ),
+    ])
+    await db_session.commit()
+    await cache.clear_prefix(FIXTURE_LIST)
+
+    response = await client.get("/api/matches/live")
+
+    assert response.status_code == 200
+    assert any(row["external_id"] == "live-status-regression" for row in response.json())
+    assert not any(row["external_id"] == "finished-window-regression" for row in response.json())
 
 
 @pytest.mark.asyncio
