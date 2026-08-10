@@ -115,7 +115,7 @@ class VITLiveTest:
             
             if response.status_code in [200, 401]:  # 401 is OK for unauthenticated
                 self.results["passed"].append("Predictions Endpoint")
-                print(f"✓ Predictions Endpoint Accessible")
+                print("✓ Predictions Endpoint Accessible")
                 return True
             else:
                 raise Exception(f"Status {response.status_code}")
@@ -131,7 +131,7 @@ class VITLiveTest:
             
             if response.status_code in [200, 404, 401]:  # Various statuses acceptable
                 self.results["passed"].append("Matches Endpoint")
-                print(f"✓ Matches Endpoint Accessible")
+                print("✓ Matches Endpoint Accessible")
                 return True
             else:
                 raise Exception(f"Status {response.status_code}")
@@ -156,7 +156,7 @@ class VITLiveTest:
             
             if response.status_code in [200, 403]:  # 403 if permissions insufficient
                 self.results["passed"].append("Admin Panel Access")
-                print(f"✓ Admin Panel Accessible")
+                print("✓ Admin Panel Accessible")
                 return True
             else:
                 raise Exception(f"Status {response.status_code}")
@@ -202,17 +202,17 @@ class VITLiveTest:
         print(f"⊘ Skipped: {skipped}")
         
         if self.results["passed"]:
-            print(f"\n✓ Passed Tests:")
+            print("\n✓ Passed Tests:")
             for test in self.results["passed"]:
                 print(f"  • {test}")
         
         if self.results["failed"]:
-            print(f"\n✗ Failed Tests:")
+            print("\n✗ Failed Tests:")
             for test in self.results["failed"]:
                 print(f"  • {test}")
         
         if self.results["skipped"]:
-            print(f"\n⊘ Skipped Tests:")
+            print("\n⊘ Skipped Tests:")
             for test in self.results["skipped"]:
                 print(f"  • {test}")
         
@@ -225,7 +225,7 @@ class VITLiveTest:
 
 async def main():
     """Main entry point"""
-    print(f"\n⟳ Starting VIT Live Test Suite")
+    print("\n⟳ Starting VIT Live Test Suite")
     print(f"  Base URL: {BASE_URL}")
     print(f"  Admin Email: {ADMIN_EMAIL}")
     print(f"  Admin User: {ADMIN_USERNAME}")

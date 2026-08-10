@@ -47,7 +47,7 @@ class LifecycleManager:
                 _sm.transition_to(ModuleStatus.INITIALIZED)
 
                 duration = (time.time() - start_time) * 1000
-                obs_manager.record_metric(f"module_init_time_ms", duration, labels={"module": mid})
+                obs_manager.record_metric("module_init_time_ms", duration, labels={"module": mid})
 
             except Exception as e:
                 logger.error(f"[lifecycle] Failed to initialize {mid}: {e}")
@@ -105,7 +105,7 @@ class LifecycleManager:
                     _sm.transition_to(ModuleStatus.READY)
 
                     duration_ms = (time.time() - start_time) * 1000
-                    obs_manager.record_metric(f"module_start_time_ms", duration_ms, labels={"module": mid})
+                    obs_manager.record_metric("module_start_time_ms", duration_ms, labels={"module": mid})
                     status_label = "READY"
                     error_msg = None
                     break
