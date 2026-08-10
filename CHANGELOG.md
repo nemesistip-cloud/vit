@@ -1,3 +1,5 @@
+- 2026-08-10 `a6ee51c` fix: repair admin match date contract
+
 - 2026-08-10 `c487434` fix: validate autonomous prediction outputs
 
 - 2026-08-10 `f3126a3` fix: repair live matches and match details
