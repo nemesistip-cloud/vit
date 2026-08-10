@@ -1,3 +1,5 @@
+- 2026-08-10 `c487434` fix: validate autonomous prediction outputs
+
 - 2026-08-10 `f3126a3` fix: repair live matches and match details
 
 - 2026-08-09 `e33217d` chore(deps): bump the npm_and_yarn group across 1 directory with 2 updates
