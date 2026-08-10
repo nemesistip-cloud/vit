@@ -188,15 +188,25 @@ async def sync_odds_metadata(
     try:
         odds_list = await client.get_odds_for_competition(league)
         mappings_created = 0
+        odds_updated = 0
 
         for odds in odds_list:
             stmt = select(Match).where(
-                Match.home_team == odds.home_team,
-                Match.away_team == odds.away_team,
+                func.lower(Match.home_team) == odds.home_team.lower(),
+                func.lower(Match.away_team) == odds.away_team.lower(),
             )
             match = (await db.execute(stmt)).scalars().first()
             if not match:
                 continue
+
+            if not all(value > 1 for value in (odds.home_odds, odds.draw_odds, odds.away_odds)):
+                logger.warning("Skipping invalid odds for %s vs %s", odds.home_team, odds.away_team)
+                continue
+
+            match.opening_odds_home = odds.home_odds
+            match.opening_odds_draw = odds.draw_odds
+            match.opening_odds_away = odds.away_odds
+            odds_updated += 1
 
             for selection, price in [("home", odds.home_odds), ("draw", odds.draw_odds), ("away", odds.away_odds)]:
                 map_stmt = select(MarketMapping).where(
@@ -220,6 +230,7 @@ async def sync_odds_metadata(
         return {
             "status": "success",
             "mappings_created": mappings_created,
+            "odds_updated": odds_updated,
             "league": league,
             "synced_at": datetime.now(timezone.utc).isoformat(),
         }
