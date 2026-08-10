@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import math
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
@@ -69,31 +70,75 @@ class PredictionAgent(BaseAgent):
             for match in matches_to_predict:
                 try:
                     # 1. Build features
-                    features = await build_predict_features(db, match.id)
+                    features = await build_predict_features(
+                        db,
+                        match.home_team,
+                        match.away_team,
+                        match.league,
+                    )
 
                     # 2. Get prediction (awaiting because MultiSportOrchestrator.predict is now async)
                     pred_data = await multi_orch.predict(features, sport=match.sport or "football")
                     res = pred_data.get("predictions", {})
 
+                    probabilities = {
+                        key: res.get(key)
+                        for key in ("home_prob", "draw_prob", "away_prob")
+                    }
+                    if not all(isinstance(value, (int, float)) and math.isfinite(value) for value in probabilities.values()):
+                        raise ValueError("prediction probabilities are unavailable")
+                    if any(value < 0 or value > 1 for value in probabilities.values()):
+                        raise ValueError("prediction probabilities are outside [0, 1]")
+                    if not math.isclose(sum(probabilities.values()), 1.0, abs_tol=0.01):
+                        raise ValueError("prediction probabilities do not sum to 1")
+
+                    confidence_value = res.get("confidence", {}).get("1x2") if isinstance(res.get("confidence"), dict) else None
+                    if (
+                        not isinstance(confidence_value, (int, float))
+                        or not math.isfinite(confidence_value)
+                        or not 0 <= confidence_value <= 1
+                    ):
+                        raise ValueError("prediction confidence is unavailable")
+
+                    optional_probabilities = {}
+                    for key in ("over_25_prob", "btts_prob"):
+                        value = res.get(key)
+                        if value is not None and (
+                            not isinstance(value, (int, float))
+                            or not math.isfinite(value)
+                            or not 0 <= value <= 1
+                        ):
+                            raise ValueError(f"{key} is outside [0, 1]")
+                        optional_probabilities[key] = value
+
+                    market_odds = features.get("market_odds", {})
+                    entry_odds = market_odds.get("home") if isinstance(market_odds, dict) else None
+                    if not isinstance(entry_odds, (int, float)) or not math.isfinite(entry_odds):
+                        entry_odds = None
+
                     # 3. Create Prediction object
                     prediction = Prediction(
                         match_id=match.id,
                         user_id=None,
-                        home_prob=res.get("home_prob", 0.33),
-                        draw_prob=res.get("draw_prob", 0.33),
-                        away_prob=res.get("away_prob", 0.34),
-                        over_25_prob=res.get("over_25_prob", 0.5),
-                        btts_prob=res.get("btts_prob", 0.5),
-                        confidence=res.get("confidence", {}).get("1x2", 0.5) if isinstance(res.get("confidence"), dict) else 0.5,
-                        bet_side=max([("home", res.get("home_prob", 0)), ("draw", res.get("draw_prob", 0)), ("away", res.get("away_prob", 0))], key=lambda x: x[1])[0],
-                        entry_odds=features.get("market_odds", {}).get("home", 2.0),
-                        data_source=res.get("data_source", "prediction-agent"),
+                        home_prob=probabilities["home_prob"],
+                        draw_prob=probabilities["draw_prob"],
+                        away_prob=probabilities["away_prob"],
+                        over_25_prob=optional_probabilities["over_25_prob"],
+                        btts_prob=optional_probabilities["btts_prob"],
+                        confidence=confidence_value,
+                        bet_side=max(probabilities.items(), key=lambda item: item[1])[0].removesuffix("_prob"),
+                        entry_odds=entry_odds,
                         timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
                     )
 
                     db.add(prediction)
                     generated_count += 1
-                    logger.info(f"[prediction-agent] Generated prediction for {match.home_team} vs {match.away_team} via {prediction.data_source}")
+                    logger.info(
+                        "[prediction-agent] Generated prediction for %s vs %s via %s",
+                        match.home_team,
+                        match.away_team,
+                        res.get("data_source", "unspecified"),
+                    )
 
                     await asyncio.sleep(1)
 
