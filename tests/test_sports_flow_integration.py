@@ -247,8 +247,8 @@ async def test_match_api_vs_inplay_api():
         inplay_response = await ac.get("/api/inplay/matches")
         
         # Both should be accessible
-        assert matches_response.status_code in [200, 404], f"Expected 200 or 404 for /api/matches"
-        assert inplay_response.status_code == 200, f"Expected 200 for /api/inplay/matches"
+        assert matches_response.status_code in [200, 404], "Expected 200 or 404 for /api/matches"
+        assert inplay_response.status_code == 200, "Expected 200 for /api/inplay/matches"
         
         # inplay/matches should have specific structure
         inplay_data = inplay_response.json()
