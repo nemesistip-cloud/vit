@@ -54,6 +54,21 @@ interface Prediction {
   accuracy_overall?: number
 }
 
+function normalizeMatch(payload: unknown): Match | null {
+  if (!payload || typeof payload !== 'object') return null
+
+  const row = payload as Record<string, unknown>
+  const matchId = Number(row.id ?? row.match_id)
+  if (!Number.isFinite(matchId) || matchId <= 0) return null
+
+  return {
+    ...row,
+    id: matchId,
+    home_score: row.home_score ?? row.home_goals,
+    away_score: row.away_score ?? row.away_goals,
+  } as Match
+}
+
 // ── Hooks ──────────────────────────────────────────────────────────────────────
 
 function useMatch(id: string) {
@@ -61,7 +76,7 @@ function useMatch(id: string) {
     queryKey: ['match', id],
     queryFn: async ({ signal }) => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/matches/${id}`, { signal })
-      return r.ok ? r.json() : null
+      return r.ok ? normalizeMatch(await r.json()) : null
     },
     retry: false,
     staleTime: 30_000,

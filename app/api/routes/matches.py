@@ -464,13 +464,23 @@ async def get_live_matches(
     _cached = await cache.get(_cache_key)
     if _cached: return _cached
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    # A match is "live" if it started less than 2 hours ago and has no outcome yet
+    live_statuses = ["live", "in_play"]
+    terminal_statuses = ["finished", "completed", "cancelled", "postponed"]
+    # Prefer tracker status, while retaining a short kickoff window during provider lag.
     stmt = (
         select(Match, Prediction)
         .outerjoin(Prediction, Match.id == Prediction.match_id)
-        .where(Match.kickoff_time <= now)
-        .where(Match.kickoff_time >= now - timedelta(hours=2))
         .where(Match.actual_outcome.is_(None))
+        .where(Match.status.notin_(terminal_statuses))
+        .where(
+            or_(
+                Match.status.in_(live_statuses),
+                and_(
+                    Match.kickoff_time <= now,
+                    Match.kickoff_time >= now - timedelta(hours=2),
+                ),
+            )
+        )
         .order_by(Match.kickoff_time.desc())
     )
     if sport:
@@ -483,7 +493,7 @@ async def get_live_matches(
         if m.id not in match_map:
             match_map[m.id] = (m, p)
     res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-    await cache.set(_cache_key, res, ttl=300)
+    await cache.set(_cache_key, res, ttl=15)
     return res
 
 
