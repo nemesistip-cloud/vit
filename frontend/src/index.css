@@ -9,17 +9,18 @@
 
   html {
     scroll-behavior: smooth;
+    color-scheme: dark;
   }
 
   body {
-    @apply bg-surface-900 text-white font-sans;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    @apply min-h-screen bg-surface-900 text-white antialiased font-sans;
+    background-image: radial-gradient(circle at top left, rgba(59, 101, 255, 0.16), transparent 24%),
+      radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.12), transparent 28%);
   }
 
   ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
@@ -27,89 +28,65 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-vit-700/50 rounded-full;
+    @apply bg-vit-700/60 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-vit-600/60;
+    @apply bg-vit-600/80;
   }
 }
 
 @layer components {
-  /* ── Glass surfaces ───────────────────────────────────────────────── */
+  .panel {
+    @apply rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_24px_80px_-42px_rgba(0,0,0,0.75)];
+  }
+
+  .panel-strong {
+    @apply rounded-[2rem] border border-vit-500/15 bg-vit-500/10 backdrop-blur-xl;
+  }
+
+  .panel-glow {
+    @apply transition-all duration-300;
+  }
+
+  .panel-glow:hover {
+    @apply border-vit-400/30 bg-white/10 shadow-[0_24px_90px_-56px_rgba(59,101,255,0.35)];
+  }
+
+  .btn-vit {
+    @apply inline-flex items-center justify-center rounded-2xl bg-vit-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-vit-500/20 transition-colors hover:bg-vit-400;
+  }
+
+  .btn-muted {
+    @apply inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white/75 transition-all hover:bg-white/10;
+  }
+
+  .section-title {
+    @apply text-xl font-semibold text-white;
+  }
+
+  .section-copy {
+    @apply text-sm text-white/50 leading-relaxed;
+  }
+
+  .hero-title {
+    @apply text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white;
+  }
+
+  .text-accent {
+    @apply text-vit-300;
+  }
+
   .glass {
-    @apply bg-white/5 backdrop-blur-md border border-white/10;
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
   }
 
   .glass-hover {
     @apply glass transition-all duration-300;
   }
+
   .glass-hover:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.16);
-  }
-
-  /* ── Text gradients ───────────────────────────────────────────────── */
-  .gradient-text {
-    @apply bg-gradient-to-r from-vit-300 via-vit-400 to-vit-500 bg-clip-text text-transparent;
-  }
-
-  .gradient-text-warm {
-    @apply bg-gradient-to-r from-amber-300 to-orange-400 bg-clip-text text-transparent;
-  }
-
-  /* ── Status dots ──────────────────────────────────────────────────── */
-  .status-dot-green {
-    @apply w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_theme(colors.emerald.400)];
-  }
-
-  .status-dot-yellow {
-    @apply w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_8px_theme(colors.yellow.400)];
-  }
-
-  .status-dot-red {
-    @apply w-2 h-2 rounded-full bg-red-400 shadow-[0_0_8px_theme(colors.red.400)];
-  }
-
-  /* ── Grid overlay ─────────────────────────────────────────────────── */
-  .section-grid {
-    background-image:
-      linear-gradient(rgba(59, 101, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(59, 101, 255, 0.05) 1px, transparent 1px);
-    background-size: 40px 40px;
-  }
-
-  /* ── Glow card ────────────────────────────────────────────────────── */
-  .card-glow {
-    @apply relative rounded-2xl border border-white/8 bg-surface-800/50 transition-all duration-300;
-  }
-  .card-glow::before {
-    content: '';
-    @apply absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300;
-    background: radial-gradient(circle at 50% 0%, rgba(59, 101, 255, 0.08) 0%, transparent 60%);
-  }
-  .card-glow:hover::before {
-    @apply opacity-100;
-  }
-  .card-glow:hover {
-    @apply border-vit-500/20 bg-surface-700/60;
-  }
-
-  /* ── Pill badge ───────────────────────────────────────────────────── */
-  .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider;
-  }
-
-  .badge-vit {
-    @apply badge bg-vit-500/15 border border-vit-500/25 text-vit-300;
-  }
-
-  .badge-live {
-    @apply badge bg-emerald-500/15 border border-emerald-500/25 text-emerald-300;
-  }
-
-  .badge-warning {
-    @apply badge bg-amber-500/15 border border-amber-500/25 text-amber-300;
+    @apply bg-white/10 border-white/20;
   }
 }
 

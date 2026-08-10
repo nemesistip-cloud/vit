@@ -8,23 +8,10 @@ const COLUMNS = [
     heading: 'Platform',
     links: [
       { label: 'Overview',       path: '/platform' },
-      { label: 'AI Engine',      path: '/ai' },
-      { label: 'Tachyon Storage',path: '/storage' },
+      { label: 'AI Oracle',      path: '/ai' },
+      { label: 'Storage',        path: '/storage' },
       { label: 'Chain Explorer', path: '/chain' },
       { label: 'System Status',  path: '/status' },
-      { label: 'Validators',     path: '/validators' },
-    ],
-  },
-  {
-    heading: 'Earn & Trade',
-    links: [
-      { label: 'Wallet',       path: '/wallet' },
-      { label: 'VITCoin',      path: '/vitcoin' },
-      { label: 'P2P Exchange', path: '/exchange' },
-      { label: 'DeFi Pools',   path: '/defi' },
-      { label: 'Vaults',       path: '/vaults' },
-      { label: 'Bridge',       path: '/bridge' },
-      { label: 'Marketplace',  path: '/marketplace' },
     ],
   },
   {
@@ -32,33 +19,29 @@ const COLUMNS = [
     links: [
       { label: 'Matches',      path: '/matches' },
       { label: 'Predictions',  path: '/predictions' },
-      { label: 'In-Play',      path: '/inplay' },
       { label: 'Odds Compare', path: '/odds' },
       { label: 'AI Assistant', path: '/assistant' },
-      { label: 'Accumulator',  path: '/accumulator' },
-      { label: 'Bankroll',     path: '/bankroll' },
+      { label: 'Leaderboard',  path: '/leaderboard' },
     ],
   },
   {
-    heading: 'Community',
+    heading: 'Ecosystem',
     links: [
+      { label: 'Marketplace',      path: '/marketplace' },
+      { label: 'Treasury',         path: '/treasury' },
+      { label: 'DeFi Pools',       path: '/defi' },
       { label: 'Governance',       path: '/governance' },
-      { label: 'Social Feed',      path: '/social' },
-      { label: 'Leaderboard',      path: '/leaderboard' },
-      { label: 'Analytics Studio', path: '/analytics-studio' },
-      { label: 'Referral',         path: '/referral' },
-      { label: 'Ecosystem',        path: '/ecosystem' },
+      { label: 'Validators',       path: '/validators' },
     ],
   },
   {
-    heading: 'Resources',
+    heading: 'Developer',
     links: [
-      { label: 'Documentation', path: '/docs' },
-      { label: 'API Reference', path: '/developers' },
-      { label: 'Roadmap',       path: '/roadmap' },
-      { label: 'About',         path: '/about' },
-      { label: 'Enterprise',    path: '/enterprise' },
-      { label: 'Subscription',  path: '/subscription' },
+      { label: 'Analytics Studio', path: '/analytics-studio' },
+      { label: 'Enterprise',       path: '/enterprise' },
+      { label: 'Subscription',     path: '/subscription' },
+      { label: 'Docs',            path: '/docs' },
+      { label: 'Contact',         path: '/about' },
     ],
   },
 ]
@@ -71,7 +54,7 @@ const SOCIALS = [
 const CHAIN_STATS = [
   { icon: Zap,    label: 'Chain ID',   value: '7764' },
   { icon: Shield, label: 'Network',    value: 'PoS' },
-  { icon: Globe,  label: 'Status',     value: 'Mainnet Beta' },
+  { icon: Globe,  label: 'Network',     value: 'Mainnet' },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -119,12 +102,12 @@ export function Footer() {
               />
               <div>
                 <span className="font-bold text-white text-sm leading-none">VIT Network</span>
-                <p className="text-white/25 text-[10px] mt-0.5">Chain ID 7764</p>
+                <p className="text-white/25 text-[10px] mt-0.5">Value · Intelligence · Transparency</p>
               </div>
             </Link>
 
             <p className="text-sm text-white/40 leading-relaxed mb-5">
-              Africa's sovereign AI intelligence layer — predictions, storage, and a native PoS blockchain unified in one gateway.
+              The open intelligence layer for sports predictions, on-chain verifiability, and decentralised asset services.
             </p>
 
             <div className="flex items-center gap-2 mb-5">
@@ -174,16 +157,17 @@ export function Footer() {
 
         {/* ── Bottom bar ─────────────────────────────────────────────────── */}
         <div className="pt-6 border-t border-white/6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-white/20 order-2 sm:order-1">
-            © {new Date().getFullYear()} VIT Network. Built on VIT Chain (Chain ID 7764). All rights reserved.
+          <p className="text-xs text-white/30 order-2 sm:order-1">
+            © {new Date().getFullYear()} VIT Network. Built on VIT Chain (Chain ID 7764).
           </p>
-          <div className="flex items-center gap-4 order-1 sm:order-2">
+          <div className="flex items-center gap-4 order-1 sm:order-2 flex-wrap">
             {[
               { label: 'Privacy',  path: '/docs#privacy' },
               { label: 'Terms',    path: '/docs#terms' },
               { label: 'Security', path: '/docs#security' },
+              { label: 'Status',   path: '/status' },
             ].map(({ label, path }) => (
-              <Link key={label} to={path} className="text-xs text-white/20 hover:text-white/45 transition-colors">
+              <Link key={label} to={path} className="text-xs text-white/30 hover:text-white/60 transition-colors">
                 {label}
               </Link>
             ))}

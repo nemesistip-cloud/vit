@@ -5,7 +5,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Vote, Landmark, Store,
+  LayoutDashboard, Wallet, Vote, Landmark, Store,
   Share2, Coins, Radio, BarChart3, Shield, Settings,
   ChevronLeft, ChevronRight, Activity, Cpu, HardDrive,
   Layers, Trophy, Star, Sparkles,
@@ -13,7 +13,6 @@ import {
 import { cn } from '@/lib/utils'
 import { getAuthToken, getStoredUser } from '@/hooks/useAuth'
 import { useWorkspaceStore, workspaceStoreInstance } from '@/lib/workspacePersistence'
-import { getAppRegistry } from '@/lib/appRegistry'
 
 interface NavItem {
   label: string
@@ -29,45 +28,42 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Overview',
-    items: getAppRegistry()
-      .filter((app) => ['dashboard', 'ai', 'wallet'].includes(app.id))
-      .map((app) => ({ label: app.name, path: app.route, icon: app.icon })),
-  },
-  {
-    label: 'Sports & Predictions',
+    label: 'Workspace',
     items: [
+      { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+      { label: 'Predictions', path: '/predictions', icon: Sparkles },
       { label: 'Matches', path: '/matches', icon: Trophy },
-      { label: 'Predictions', path: '/predictions', icon: getAppRegistry().find((app) => app.id === 'predictions')?.icon ?? Sparkles },
       { label: 'In-Play', path: '/inplay', icon: Radio, badge: 'LIVE' },
-      { label: 'Leaderboard', path: '/leaderboard', icon: Star },
+      { label: 'Wallet', path: '/wallet', icon: Wallet },
     ],
   },
   {
-    label: 'Finance',
+    label: 'Intelligence',
     items: [
-      { label: 'DeFi', path: '/defi', icon: Coins },
-      { label: 'Treasury', path: '/treasury', icon: Landmark },
-      { label: 'Marketplace', path: '/marketplace', icon: getAppRegistry().find((app) => app.id === 'marketplace')?.icon ?? Store },
-      { label: 'Referral', path: '/referral', icon: Share2 },
-    ],
-  },
-  {
-    label: 'Analytics',
-    items: [
-      { label: 'Analytics', path: '/analytics', icon: getAppRegistry().find((app) => app.id === 'analytics')?.icon ?? BarChart3 },
-      { label: 'Analytics Studio', path: '/analytics-studio', icon: BarChart3 },
       { label: 'AI Assistant', path: '/assistant', icon: Cpu },
+      { label: 'Analytics Studio', path: '/analytics-studio', icon: BarChart3 },
+      { label: 'Odds Compare', path: '/odds', icon: Star },
+      { label: 'Backtest', path: '/backtest', icon: Layers },
+    ],
+  },
+  {
+    label: 'Ecosystem',
+    items: [
+      { label: 'Marketplace', path: '/marketplace', icon: Store },
+      { label: 'Treasury', path: '/treasury', icon: Landmark },
+      { label: 'DeFi', path: '/defi', icon: Coins },
+      { label: 'Referral', path: '/referral', icon: Share2 },
+      { label: 'Ecosystem', path: '/ecosystem', icon: Sparkles },
     ],
   },
   {
     label: 'Network',
     items: [
-      { label: 'Storage', path: '/storage', icon: getAppRegistry().find((app) => app.id === 'storage')?.icon ?? HardDrive },
       { label: 'Chain Explorer', path: '/chain', icon: Layers },
+      { label: 'Storage', path: '/storage', icon: HardDrive },
       { label: 'Validators', path: '/validators', icon: Shield },
-      { label: 'Governance', path: '/governance', icon: getAppRegistry().find((app) => app.id === 'governance')?.icon ?? Vote },
-      { label: 'System Status', path: '/status', icon: Activity },
+      { label: 'Governance', path: '/governance', icon: Vote },
+      { label: 'Status', path: '/status', icon: Activity },
     ],
   },
   {

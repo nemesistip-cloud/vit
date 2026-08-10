@@ -847,7 +847,7 @@ export default function Ecosystem() {
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">Ecosystem Expansion</h1>
           <p className="text-white/50 max-w-2xl">
-            VitNetwork beyond the browser — a native mobile app, real-time push alerts across every channel, a Telegram bot, a full developer SDK, and decentralised asset storage.
+            VIT Network delivers Value · Intelligence · Transparency beyond the browser — a native mobile app, real-time push alerts, Telegram bot, developer SDK, and decentralised asset storage.
           </p>
           <div className="flex flex-wrap gap-3 mt-5">
             {[

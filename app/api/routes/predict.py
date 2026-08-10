@@ -55,16 +55,17 @@ def validate_market_odds(market_odds: Optional[dict], sport: Optional[str] = Non
         away = MarketUtils.validate_odds(market_odds.get("away"))
         return home is not None and away is not None and home != away
 
-    home = MarketUtils.validate_odds(market_odds.get("home"))
-    draw = MarketUtils.validate_odds(market_odds.get("draw"))
-    away = MarketUtils.validate_odds(market_odds.get("away"))
-    return home is not None and draw is not None and away is not None
+    return MarketUtils.validate_odds_dict({
+        "home": market_odds.get("home"),
+        "draw": market_odds.get("draw"),
+        "away": market_odds.get("away"),
+    })
 
 
 def validate_prediction_response(payload: Optional[dict], market_odds: Optional[dict] = None, sport: Optional[str] = None) -> dict:
     """Normalize prediction payloads so downstream code always receives usable probabilities."""
     if not isinstance(payload, dict):
-        payload = {}
+        raise ValueError("Prediction response must be a dictionary.")
 
     sport_name = _normalize_sport_name(sport)
     home = float(payload.get("home_prob", 0.0) or 0.0)
@@ -79,19 +80,8 @@ def validate_prediction_response(payload: Optional[dict], market_odds: Optional[
             away = 0.0
         total = home + away
         if total <= 0:
-            # Fallback from market odds if available.
-            if market_odds and MarketUtils.validate_odds(market_odds.get("home")) and MarketUtils.validate_odds(market_odds.get("away")):
-                h_odds = float(market_odds.get("home"))
-                a_odds = float(market_odds.get("away"))
-                home = 1 / h_odds
-                away = 1 / a_odds
-                total = home + away
-                if total <= 0:
-                    home, away = 0.5, 0.5
-                else:
-                    home, away = home / total, away / total
-        else:
-            home, away = home / total, away / total
+            raise ValueError("Prediction response must include valid home and away probabilities for two-way sports.")
+        home, away = home / total, away / total
         draw = 0.0
     else:
         # For three-way football-like markets, normalize the probabilities if needed.
@@ -101,17 +91,8 @@ def validate_prediction_response(payload: Optional[dict], market_odds: Optional[
             away = max(0.0, away)
         total = home + draw + away
         if total <= 0:
-            if market_odds:
-                home_odds = MarketUtils.validate_odds(market_odds.get("home"))
-                draw_odds = MarketUtils.validate_odds(market_odds.get("draw"))
-                away_odds = MarketUtils.validate_odds(market_odds.get("away"))
-                if home_odds and draw_odds and away_odds:
-                    home, draw, away = MarketUtils.remove_vig(home_odds, draw_odds, away_odds).values()
-                    total = home + draw + away
-        if total > 0:
-            home, draw, away = home / total, draw / total, away / total
-        else:
-            home, draw, away = 0.33, 0.34, 0.33
+            raise ValueError("Prediction response must include valid home, draw, and away probabilities.")
+        home, draw, away = home / total, draw / total, away / total
 
     payload["home_prob"] = round(min(max(home, 0.0), 1.0), 6)
     payload["draw_prob"] = round(min(max(draw, 0.0), 1.0), 6)

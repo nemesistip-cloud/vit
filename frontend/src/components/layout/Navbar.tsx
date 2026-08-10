@@ -5,7 +5,7 @@ import {
   Menu, X, LogIn, LogOut, LayoutDashboard, Shield, Wallet,
   Brain, ChevronDown, Vote, Landmark, Store, Share2, Users,
   Coins, Radio, BarChart3, Building2, Search, Smartphone, Activity,
-  Settings,
+  Settings, Trophy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGatewayHealth } from '@/hooks/useHealth'
@@ -14,30 +14,53 @@ import { NotificationBell } from '@/components/ui/NotificationBell'
 import { WorkspaceSwitcher } from '@/components/shell/WorkspaceSwitcher'
 import { ActivityFeedPanel } from '@/components/shell/ActivityFeed'
 
-const PUBLIC_LINKS = [
-  { label: 'Matches',     path: '/matches'     },
-  { label: 'AI',          path: '/ai'          },
-  { label: 'Governance',  path: '/governance'  },
-  { label: 'Marketplace', path: '/marketplace' },
-  { label: 'Leaderboard', path: '/leaderboard' },
-  { label: 'Explorer',    path: '/chain'       },
-  { label: 'Docs',        path: '/docs'        },
+interface NavLink {
+  label: string
+  path: string
+  icon?: React.ElementType
+}
+
+const PUBLIC_LINKS: NavLink[] = [
+  { label: 'Platform',    path: '/platform' },
+  { label: 'AI',          path: '/ai' },
+  { label: 'Matches',     path: '/matches' },
+  { label: 'Explorer',    path: '/chain' },
+  { label: 'Status',      path: '/status' },
 ]
 
-const AUTH_LINKS = [
+const AUTH_PRIMARY: NavLink[] = [
   { label: 'Dashboard',   path: '/dashboard',        icon: LayoutDashboard },
   { label: 'Predictions', path: '/predictions',      icon: Brain           },
+  { label: 'Matches',     path: '/matches',          icon: Trophy          },
   { label: 'Wallet',      path: '/wallet',           icon: Wallet          },
-  { label: 'Governance',  path: '/governance',       icon: Vote            },
-  { label: 'Treasury',    path: '/treasury',         icon: Landmark        },
-  { label: 'Marketplace', path: '/marketplace',      icon: Store           },
-  { label: 'Referral',    path: '/referral',         icon: Share2          },
   { label: 'Ecosystem',   path: '/ecosystem',        icon: Smartphone      },
-  { label: 'Social',      path: '/social',           icon: Users           },
-  { label: 'DeFi',        path: '/defi',             icon: Coins           },
-  { label: 'In-Play',     path: '/inplay',           icon: Radio           },
-  { label: 'Analytics',   path: '/analytics-studio', icon: BarChart3       },
-  { label: 'Enterprise',  path: '/enterprise',       icon: Building2       },
+]
+
+const AUTH_SECONDARY = [
+  { label: 'Analytics',   path: '/analytics-studio', icon: BarChart3    },
+  { label: 'Governance',  path: '/governance',       icon: Vote         },
+  { label: 'Marketplace', path: '/marketplace',      icon: Store        },
+  { label: 'Settings',    path: '/settings',         icon: Settings     },
+]
+
+const MOBILE_GROUPS = [
+  {
+    heading: 'Explore',
+    items: PUBLIC_LINKS,
+  },
+  {
+    heading: 'Workspace',
+    items: AUTH_PRIMARY,
+  },
+  {
+    heading: 'Ecosystem',
+    items: [
+      { label: 'Marketplace', path: '/marketplace', icon: Store },
+      { label: 'Governance', path: '/governance', icon: Vote },
+      { label: 'Analytics', path: '/analytics-studio', icon: BarChart3 },
+      { label: 'Settings', path: '/settings', icon: Settings },
+    ],
+  },
 ]
 
 function hasAdminAccess(role?: string): boolean {
@@ -103,7 +126,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
         className={cn(
           'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
           scrolled
-            ? 'bg-surface-900/92 backdrop-blur-xl border-b border-white/8 shadow-xl shadow-black/25'
+            ? 'bg-surface-900/96 backdrop-blur-2xl border-b border-white/10 shadow-[0_25px_80px_-45px_rgba(0,0,0,0.45)]'
             : 'bg-transparent',
         )}
       >
@@ -134,23 +157,25 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
           )}
 
           {/* ── Desktop nav links ──────────────────────────────────────── */}
-          <div className="hidden lg:flex items-center gap-1 flex-1 justify-center">
-            {(isLoggedIn ? AUTH_LINKS.slice(0, 4) : PUBLIC_LINKS).map(link => {
+          <div className="hidden lg:flex items-center gap-2 flex-1 justify-center">
+            {(isLoggedIn ? AUTH_PRIMARY : PUBLIC_LINKS).map(link => {
               const active = location.pathname === link.path
               return (
                 <Link
                   key={link.path}
                   to={link.path}
                   className={cn(
-                    'relative px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                    active ? 'text-white' : 'text-white/50 hover:text-white hover:bg-white/5',
+                    'relative px-4 py-2 rounded-2xl text-sm font-semibold transition-all',
+                    active
+                      ? 'bg-white/10 text-white shadow-[0_12px_40px_-28px_rgba(255,255,255,0.6)]'
+                      : 'text-white/60 hover:text-white hover:bg-white/10',
                   )}
                 >
                   {link.label}
                   {active && (
                     <motion.span
                       layoutId="nav-active"
-                      className="absolute inset-0 rounded-lg bg-white/8 -z-10"
+                      className="absolute inset-0 rounded-2xl bg-white/10 -z-10"
                       transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                     />
                   )}
@@ -165,7 +190,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
             {/* Search */}
             <button
               onClick={onOpenSearch}
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/8 text-white/35 hover:text-white/60 hover:bg-white/8 text-xs transition-all"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 text-xs transition-all"
             >
               <Search className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Search</span>
@@ -261,11 +286,11 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
             ) : (
               <div className="flex items-center gap-2">
                 <Link to="/login"
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white/55 border border-white/10 hover:bg-white/5 transition-colors">
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-sm font-medium text-white/55 border border-white/10 hover:bg-white/10 transition-colors">
                   <LogIn className="w-3.5 h-3.5" /> Sign In
                 </Link>
                 <Link to="/login"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-vit-600 hover:bg-vit-500 text-white transition-colors">
+                  className="btn-vit inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold">
                   Get Started
                 </Link>
               </div>
@@ -298,13 +323,18 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
                   </div>
                 )}
 
-                {(isLoggedIn ? AUTH_LINKS : PUBLIC_LINKS.map(l => ({ ...l, icon: Activity }))).map(link => (
-                  <Link key={link.path} to={link.path}
-                    className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
-                      location.pathname === link.path ? 'text-white bg-white/8' : 'text-white/55 hover:text-white hover:bg-white/5')}>
-                    {'icon' in link && link.icon && <link.icon className="w-4 h-4 shrink-0" />}
-                    {link.label}
-                  </Link>
+                {MOBILE_GROUPS.map(group => (
+                  <div key={group.heading} className="space-y-2">
+                    <div className="px-3 text-[10px] uppercase tracking-[0.25em] text-white/30">{group.heading}</div>
+                    {group.items.map(link => (
+                      <Link key={link.path} to={link.path}
+                        className={cn('flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm font-medium transition-colors',
+                          location.pathname === link.path ? 'text-white bg-white/10' : 'text-white/55 hover:text-white hover:bg-white/10')}>
+                        {link.icon ? <link.icon className="w-4 h-4 shrink-0" /> : null}
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
                 ))}
 
                 {isAdmin && (

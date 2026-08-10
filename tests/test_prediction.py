@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
+from app.api.routes.predict import validate_market_odds, validate_prediction_response
 from main import app
 
 
@@ -76,6 +77,43 @@ async def test_predict_missing_required_field_returns_422():
             "kickoff_time": datetime.now(timezone.utc).isoformat(),
         })
     assert resp.status_code == 422
+
+
+def test_validate_prediction_response_rejects_invalid_two_way_probs():
+    payload = {"home_prob": 0.0, "away_prob": 0.0}
+    with pytest.raises(ValueError, match="must include valid home and away probabilities"):
+        validate_prediction_response(payload, sport="basketball")
+
+
+def test_validate_prediction_response_rejects_invalid_three_way_probs():
+    payload = {"home_prob": 0.0, "draw_prob": 0.0, "away_prob": 0.0}
+    with pytest.raises(ValueError, match="must include valid home, draw, and away probabilities"):
+        validate_prediction_response(payload, sport="football")
+
+
+def test_validate_prediction_response_rejects_invalid_three_way_probs_even_with_market_odds():
+    payload = {"home_prob": 0.0, "draw_prob": 0.0, "away_prob": 0.0}
+    market_odds = {"home": 2.10, "draw": 3.30, "away": 3.60}
+    with pytest.raises(ValueError, match="must include valid home, draw, and away probabilities"):
+        validate_prediction_response(payload, market_odds=market_odds, sport="football")
+
+
+def test_validate_market_odds_rejects_equal_football_odds():
+    assert not validate_market_odds({"home": 2.75, "draw": 2.75, "away": 2.75}, sport="football")
+
+
+def test_validate_market_odds_rejects_invalid_two_way_odds():
+    assert not validate_market_odds({"home": 2.0, "away": 2.0}, sport="tennis")
+
+
+def test_validate_prediction_response_normalizes_negative_probs():
+    payload = {"home_prob": -0.1, "draw_prob": 0.4, "away_prob": 0.7}
+    normalized = validate_prediction_response(payload, sport="football")
+    total = normalized["home_prob"] + normalized["draw_prob"] + normalized["away_prob"]
+    assert abs(total - 1.0) < 1e-6
+    assert normalized["home_prob"] == 0.0
+    assert normalized["draw_prob"] > 0
+    assert normalized["away_prob"] > 0
 
 
 @pytest.mark.asyncio
