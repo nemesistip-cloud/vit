@@ -43,6 +43,17 @@ except Exception as _reg_exc:
 async def lifespan(app: FastAPI):
     setup_signal_handlers()
 
+    try:
+        from app.db.database import initialize_schema
+        await initialize_schema()
+        logging.getLogger(__name__).info("[lifespan] database schema initialized")
+    except Exception as _schema_exc:
+        logging.getLogger(__name__).warning(
+            "[lifespan] database schema initialization failed: %s",
+            _schema_exc,
+            exc_info=True,
+        )
+
     async def _boot_and_setup() -> None:
         """
         Runs kernel.boot() and all post-boot setup in a background task.

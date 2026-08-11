@@ -106,6 +106,7 @@ class Base(DeclarativeBase):
 
 async def initialize_schema() -> None:
     """Create missing tables and indexes idempotently at startup or on first use."""
+    import app.db.models  # noqa: F401
     import app.modules.wallet.models  # noqa: F401
     import app.modules.identity.models  # noqa: F401
     import app.modules.tasks.models  # noqa: F401
@@ -125,6 +126,7 @@ async def initialize_schema() -> None:
 
 # Dependency for FastAPI
 async def get_db():
+    await initialize_schema()
     async with AsyncSessionLocal() as session:
         try:
             yield session

@@ -220,10 +220,15 @@ kernel = VITRuntimeKernel()
 
 def setup_signal_handlers():
     """Setup OS signal handlers for graceful kernel shutdown."""
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
             loop.add_signal_handler(sig, lambda: asyncio.create_task(kernel.shutdown()))
-        except NotImplementedError:
-            # Windows fallback
+        except (NotImplementedError, RuntimeError):
+            # Some runtimes (including test environments and non-main threads)
+            # do not support signal handlers.
             pass

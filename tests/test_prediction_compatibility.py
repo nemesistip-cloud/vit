@@ -8,7 +8,8 @@ import pytest
 from app.core.cache import cache
 from app.core.cache_keys import FIXTURE_LIST
 from app.db import database as db_module
-from app.db.models import Match
+from app.db.models import Match, Prediction
+from app.modules.ai.models import AIPredictionAudit
 import app.services.sportsdb_api as sportsdb_api
 
 
@@ -184,3 +185,75 @@ async def test_match_detail_exposes_canonical_prediction_payload(client, db_sess
     assert payload["match_id"] == match.id
     assert "intelligence" in payload
     assert "predictions_count" in payload
+
+
+@pytest.mark.asyncio
+async def test_match_detail_normalizes_model_attribution_for_frontend(client, db_session):
+    match = Match(
+        home_team="Attrib Home",
+        away_team="Attrib Away",
+        league="premier_league",
+        sport="football",
+        kickoff_time=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=1),
+        status="upcoming",
+        source="sportsdb",
+    )
+    db_session.add(match)
+    await db_session.commit()
+    await db_session.refresh(match)
+
+    prediction = Prediction(
+        match_id=match.id,
+        home_prob=0.58,
+        draw_prob=0.22,
+        away_prob=0.20,
+        confidence=0.72,
+        bet_side="home",
+        vig_free_edge=0.03,
+        model_insights=[{
+            "model_name": "Model One",
+            "model_type": "gradient_boost",
+            "confidence": {"1x2": 0.72},
+            "home_prob": 0.58,
+            "draw_prob": 0.22,
+            "away_prob": 0.20,
+            "reasoning": "Strong recent form",
+        }],
+    )
+    db_session.add(prediction)
+    await db_session.commit()
+
+    audit = AIPredictionAudit(
+        match_id=str(match.id),
+        home_team=match.home_team,
+        away_team=match.away_team,
+        home_prob=0.58,
+        draw_prob=0.22,
+        away_prob=0.20,
+        confidence=0.72,
+        risk_score=0.25,
+        model_agreement=0.9,
+        individual_results=[{
+            "model_name": "Model One",
+            "model_type": "gradient_boost",
+            "confidence": {"1x2": 0.72},
+            "home_prob": 0.58,
+            "draw_prob": 0.22,
+            "away_prob": 0.20,
+            "reasoning": "Strong recent form",
+        }],
+    )
+    db_session.add(audit)
+    await db_session.commit()
+
+    response = await client.get(f"/api/matches/{match.id}")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    attribution = payload["intelligence"]["attribution"]
+    assert attribution, payload
+    first = attribution[0]
+    assert first["model_name"] == "Model One"
+    assert first["bet_side"] == "home"
+    assert first["confidence"] == 0.72
+    assert first["reasoning"] == "Strong recent form"

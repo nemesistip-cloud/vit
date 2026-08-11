@@ -182,6 +182,57 @@ def _secondary_market_probs(home_prob: Optional[float], draw_prob: Optional[floa
     }
 
 
+def _normalize_attribution_items(raw_items: Optional[list]) -> list:
+    if not raw_items:
+        return []
+
+    normalized = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+
+        confidence = item.get("confidence")
+        if isinstance(confidence, dict):
+            scalar_conf = confidence.get("1x2")
+            if scalar_conf is None:
+                scalar_conf = confidence.get("home") or confidence.get("draw") or confidence.get("away")
+        else:
+            scalar_conf = confidence
+
+        try:
+            scalar_conf = float(scalar_conf) if scalar_conf is not None else None
+        except (TypeError, ValueError):
+            scalar_conf = None
+
+        bet_side = item.get("bet_side")
+        if not bet_side:
+            probs = {
+                key: item.get(f"{key}_prob")
+                for key in ("home", "draw", "away")
+                if item.get(f"{key}_prob") is not None
+            }
+            if probs:
+                bet_side = max(probs.items(), key=lambda kv: kv[1])[0]
+
+        normalized.append({
+            "model_name": item.get("model_name") or item.get("name") or "Model",
+            "model_type": item.get("model_type"),
+            "bet_side": bet_side,
+            "confidence": scalar_conf,
+            "final_ev": item.get("final_ev") or item.get("edge"),
+            "entry_odds": item.get("entry_odds"),
+            "reasoning": item.get("reasoning") or item.get("explanation") or item.get("notes"),
+            "accuracy_overall": item.get("accuracy_overall"),
+            "model_weight": item.get("model_weight"),
+            "supported_markets": item.get("supported_markets", []),
+            "home_prob": item.get("home_prob"),
+            "draw_prob": item.get("draw_prob"),
+            "away_prob": item.get("away_prob"),
+        })
+
+    return normalized
+
+
 def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[list] = None) -> dict:
     odds_home = m.opening_odds_home or m.closing_odds_home
     odds_draw = m.opening_odds_draw or m.closing_odds_draw
@@ -662,7 +713,11 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
                 "squad_value_diff": round(float(elo_diff) * 1.2, 2),
                 "timestamp": latest_pred.timestamp.isoformat() if (latest_pred and getattr(latest_pred, 'timestamp', None)) else None,
             },
-            "attribution": getattr(latest_audit, 'individual_results', None) or getattr(latest_pred, 'model_insights', []) or [],
+            "attribution": _normalize_attribution_items(
+                getattr(latest_audit, 'individual_results', None)
+                or getattr(latest_pred, 'model_insights', [])
+                or []
+            ),
             "tactical": tactical_insights,
             "radar_data": [
                 {"subject": "Attacking", "A": 80 + (elo_diff / 10 if elo_diff > 0 else 0), "B": 80 + (-elo_diff / 10 if elo_diff < 0 else 0), "fullMark": 100},
