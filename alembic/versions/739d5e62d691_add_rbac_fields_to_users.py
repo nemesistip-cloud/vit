@@ -18,22 +18,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def _column_exists(table: str, column: str) -> bool:
-    from sqlalchemy import inspect, text
+    from sqlalchemy import inspect
     conn = op.get_bind()
     try:
-        result = conn.execute(text(f"PRAGMA table_info({table})"))
-        columns = [row[1] for row in result.fetchall()]
+        insp = inspect(conn)
+        columns = [c["name"] for c in insp.get_columns(table)]
         return column in columns
     except Exception:
         return False
 
 
 def _index_exists(index_name: str) -> bool:
-    from sqlalchemy import text
+    from sqlalchemy import inspect
     conn = op.get_bind()
     try:
-        result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='index' AND name=:n"), {"n": index_name})
-        return result.fetchone() is not None
+        insp = inspect(conn)
+        indexes = [idx["name"] for idx in insp.get_indexes("users")]
+        return index_name in indexes
     except Exception:
         return False
 

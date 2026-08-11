@@ -68,9 +68,29 @@ def validate_prediction_response(payload: Optional[dict], market_odds: Optional[
         raise ValueError("Prediction response must be a dictionary.")
 
     sport_name = _normalize_sport_name(sport)
-    home = float(payload.get("home_prob", 0.0) or 0.0)
-    draw = float(payload.get("draw_prob", 0.0) or 0.0)
-    away = float(payload.get("away_prob", 0.0) or 0.0)
+
+    # Explicit NaN/null/missing checks
+    home_val = payload.get("home_prob")
+    draw_val = payload.get("draw_prob")
+    away_val = payload.get("away_prob")
+
+    if home_val is None or away_val is None or (sport_name not in TWO_WAY_SPORTS and draw_val is None):
+        raise ValueError("Prediction response must include home, draw, and away probabilities.")
+
+    try:
+        home = float(home_val)
+        draw = float(draw_val) if draw_val is not None else 0.0
+        away = float(away_val)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid non-numeric probability value: {e}")
+
+    if (math.isnan(home) or math.isnan(draw) or math.isnan(away) or
+        math.isinf(home) or math.isinf(draw) or math.isinf(away)):
+        raise ValueError("Probabilities cannot be NaN or Infinite.")
+
+    # Check for outside valid range [0, 1]
+    if not (0.0 <= home <= 1.0 and 0.0 <= draw <= 1.0 and 0.0 <= away <= 1.0):
+        raise ValueError("Probabilities must be within the range [0.0, 1.0].")
 
     if sport_name in TWO_WAY_SPORTS:
         # For two-way markets, keep the draw probability at zero and normalize home/away.
@@ -93,6 +113,10 @@ def validate_prediction_response(payload: Optional[dict], market_odds: Optional[
         if total <= 0:
             raise ValueError("Prediction response must include valid home, draw, and away probabilities.")
         home, draw, away = home / total, draw / total, away / total
+
+    # Final verification that the normalized distribution sums to exactly 1.0 (with small tolerance)
+    if not math.isclose(home + draw + away, 1.0, rel_tol=1e-5):
+        raise ValueError("Probabilities must form a valid probability distribution summing to 1.0.")
 
     payload["home_prob"] = round(min(max(home, 0.0), 1.0), 6)
     payload["draw_prob"] = round(min(max(draw, 0.0), 1.0), 6)
@@ -673,7 +697,7 @@ async def predict(
             raw_edge=best_bet.get("raw_edge", 0),
             normalized_edge=best_bet.get("edge", 0),
             vig_free_edge=best_bet.get("edge", 0),
-            # Submitted market metadata (if the caller provided it)
+            # Submitted market metadata (user selection)
             submitted_market_id=getattr(match, "market_id", None),
             submitted_market_side=getattr(match, "selected_side", None),
             submitted_stake=getattr(match, "stake", None),

@@ -110,6 +110,8 @@ class WalletResponse(BaseModel):
     vitcoin_balance: float
     is_frozen: bool
     kyc_verified: bool
+    address: Optional[str] = None
+    subscription_tier: Optional[str] = None
 
 
 class VITCoinBuyRequest(BaseModel):
@@ -258,6 +260,8 @@ async def get_my_wallet(
         vitcoin_balance=float(wallet.vitcoin_balance),
         is_frozen=wallet.is_frozen,
         kyc_verified=wallet.kyc_verified,
+        address=current_user.wallet_address,
+        subscription_tier=current_user.subscription_tier,
     )
 
 
@@ -886,7 +890,7 @@ async def get_vitcoin_price_history_v2(
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return VITCoin OHLCV price history for up to 365 days."""
+    """Return VITCoinOHLCV price history for up to 365 days."""
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     result = await db.execute(
         select(VITCoinPriceHistory)
@@ -1727,9 +1731,7 @@ async def get_p2p_order(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════
-# SAVINGS VAULTS
-# ══════════════════════════════════════════════════════════════════════
+# ── SAVINGS VAULTS ──────────────────────────────────────────────────────
 
 @router.get("/vaults")
 async def list_vaults(
@@ -1909,9 +1911,7 @@ async def withdraw_vault(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════
-# REFERRAL EARNINGS
-# ══════════════════════════════════════════════════════════════════════
+# ── REFERRAL EARNINGS ──────────────────────────────────────────────────────
 
 @router.get("/referral/earnings")
 async def get_referral_earnings(
@@ -1998,9 +1998,7 @@ async def claim_referral_earnings(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════
-# SUBSCRIPTIONS / PLANS
-# ══════════════════════════════════════════════════════════════════════
+# ── SUBSCRIPTIONS / PLANS ──────────────────────────────────────────────────────
 
 @router.post("/subscribe")
 async def subscribe(
@@ -2083,9 +2081,7 @@ async def list_plans(db: AsyncSession = Depends(get_db)):
     ]
 
 
-# ══════════════════════════════════════════════════════════════════════
-# STATEMENT EXPORT / EXCHANGE RATES
-# ══════════════════════════════════════════════════════════════════════
+# ── STATEMENT EXPORT / EXCHANGE RATES ──────────────────────────────────────────
 
 @router.get("/statement/export")
 async def export_statement_csv(
@@ -2159,9 +2155,7 @@ async def get_exchange_rates(db: AsyncSession = Depends(get_db)):
     }
 
 
-# ══════════════════════════════════════════════════════════════════════
-# ADMIN KYC
-# ══════════════════════════════════════════════════════════════════════
+# ── ADMIN KYC ──────────────────────────────────────────────────────
 
 @router.post("/admin/kyc/approve/{user_id}")
 async def admin_approve_kyc(
@@ -2262,9 +2256,7 @@ async def admin_reject_kyc_v2(user_id: int, body: Optional[KYCRejectRequest] = B
     return await admin_reject_kyc(user_id, body=body, db=db, current_user=current_user)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# TELEGRAM / PI / MOMO DEPOSITS (preserved)
-# ══════════════════════════════════════════════════════════════════════
+# ── TELEGRAM / PI / MOMO DEPOSITS ──────────────────────────────────────────
 
 class PiDepositRequest(BaseModel):
     amount: float = Field(..., gt=0)
