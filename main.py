@@ -755,6 +755,13 @@ try:
 except Exception as _e:
     logging.warning("wallet_admin_router not mounted — routes unavailable: %s", _e)
 
+# --- Notifications Router ---
+try:
+    from app.api.routes.notifications import router as notifications_router
+    app.include_router(notifications_router, tags=["Notifications"])
+except Exception as _e:
+    logging.warning("notifications_router not mounted — routes unavailable: %s", _e)
+
 # --- Previously unmounted API route routers (Phase-2 mount) ---
 try:
     from app.api.routes.audit import router as audit_router

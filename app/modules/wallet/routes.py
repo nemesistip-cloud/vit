@@ -1203,6 +1203,31 @@ async def get_stake_status(
     }
 
 
+@router.get("/staking")
+async def get_staking_info(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias for /stake/status. Return staking information for the wallet."""
+    wallet = await _require_wallet(current_user.id, db)
+
+    apy_result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "staking_apy_pct"))
+    apy_config = apy_result.scalar_one_or_none()
+    apy_pct = float(apy_config.value.get("value", 8.0)) if apy_config else 8.0
+
+    staked = float(wallet.staked_vitcoin_balance or 0)
+    daily_reward = staked * apy_pct / 365 / 100
+
+    return {
+        "staked_amount": staked,
+        "vitcoin_balance": float(wallet.vitcoin_balance or 0),
+        "validator_eligible": staked >= 100,
+        "apy_pct": apy_pct,
+        "estimated_daily_reward": round(daily_reward, 8),
+        "unlock_date": None,
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════
 # CURRENCY CONVERSION
 # ══════════════════════════════════════════════════════════════════════
