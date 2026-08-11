@@ -128,18 +128,35 @@ async def run_migrations() -> bool:
                 logger.info("Alembic action determined: %s", action)
 
                 cmd = (
-                    [sys.executable, "-m", "alembic", "stamp", "heads"]
+                    ["alembic", "stamp", "heads"]
                     if action == "STAMP"
-                    else [sys.executable, "-m", "alembic", "upgrade", "heads"]
+                    else ["alembic", "upgrade", "heads"]
                 )
                 label = "stamp heads" if action == "STAMP" else "upgrade heads"
 
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=ALEMBIC_TIMEOUT,
-                )
+                try:
+                    # Try invoking the global alembic binary directly (Render/Docker standard)
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=ALEMBIC_TIMEOUT,
+                    )
+                except FileNotFoundError:
+                    # Fallback to sys.executable -m alembic if alembic binary is not in PATH
+                    logger.info("alembic binary not in PATH — falling back to sys.executable -m alembic")
+                    cmd_fallback = (
+                        [sys.executable, "-m", "alembic", "stamp", "heads"]
+                        if action == "STAMP"
+                        else [sys.executable, "-m", "alembic", "upgrade", "heads"]
+                    )
+                    result = subprocess.run(
+                        cmd_fallback,
+                        capture_output=True,
+                        text=True,
+                        timeout=ALEMBIC_TIMEOUT,
+                    )
+
                 if result.stdout:
                     logger.info("alembic %s stdout:\n%s", label, result.stdout.strip())
                 if result.stderr:
