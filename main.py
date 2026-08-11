@@ -103,6 +103,20 @@ async def lifespan(app: FastAPI):
         except Exception as _sch_e:
             logging.getLogger(__name__).warning("[lifespan] swarm scheduler start failed (agents will not auto-run): %s", _sch_e)
 
+        # Bootstrap AI Engine model registry — ensures ModelMetadata table is populated
+        # for dashboard and admin endpoints. Must run after kernel.boot() so orchestrator
+        # and database are ready.
+        try:
+            from app.modules.ai.registry import bootstrap_registry
+            _db_session = None
+            async for _db_session in get_db():
+                _orch = get_orchestrator()
+                _inserted = await bootstrap_registry(_db_session, _orch)
+                logging.getLogger(__name__).info("[lifespan] AI Model Registry bootstrap complete — %d models registered", _inserted)
+                break
+        except Exception as _reg_err:
+            logging.getLogger(__name__).warning("[lifespan] Model registry bootstrap failed (dashboard model-confidence may return empty): %s", _reg_err, exc_info=True)
+
         logging.getLogger(__name__).info(
             "[lifespan] Background boot complete — VIT Network v%s fully operational.", APP_VERSION
         )
