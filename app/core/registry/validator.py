@@ -36,12 +36,14 @@ class DependencyValidator:
         """Detect circular dependencies using a depth-first search."""
         visited = set()
         stack = []
-        path = set()
+        path = []
 
         def visit(mid):
             if mid in path:
                 # Reconstruct circular path for better diagnostics
-                raise ValueError(f"Circular dependency detected: {' -> '.join(list(path) + [mid])}")
+                cycle_start = path.index(mid)
+                cycle_path = path[cycle_start:] + [mid]
+                raise ValueError(f"Circular dependency detected: {' -> '.join(cycle_path)}")
             if mid in visited:
                 return
 
@@ -49,10 +51,10 @@ class DependencyValidator:
                 # Should be caught by missing dep check, but handle here for safety
                 return
 
-            path.add(mid)
+            path.append(mid)
             for dep in self.modules[mid].metadata.dependencies:
                 visit(dep)
-            path.remove(mid)
+            path.pop()
 
             visited.add(mid)
             stack.append(mid)

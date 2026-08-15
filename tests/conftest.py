@@ -237,3 +237,11 @@ async def auth_headers(client):
 @pytest.fixture
 async def setup_database(db_session):
     yield
+
+
+@pytest.fixture(autouse=True)
+def reset_module_registry():
+    from app.core.registry.manager import ModuleRegistry
+    ModuleRegistry().clear()
+    yield
+    ModuleRegistry().clear()
