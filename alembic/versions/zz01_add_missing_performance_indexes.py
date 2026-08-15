@@ -6,7 +6,8 @@ Create Date: 2026-07-18 00:00:00.000000
 
 Adds composite and single-column indexes on hot query paths that were
 missing from earlier migrations. All CREATE INDEX statements use
-IF NOT EXISTS so this migration is safe to re-run and idempotent.
+IF NOT EXISTS and inspect table columns before creation so this migration
+is safe to re-run and idempotent.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -23,105 +24,74 @@ branch_labels = None
 depends_on = None
 
 
+def _create_index_if_cols_exist(conn, insp, index_name, table_name, col_names):
+    if not insp.has_table(table_name):
+        return
+    existing_cols = [c["name"] for c in insp.get_columns(table_name)]
+    if all(col in existing_cols for col in col_names):
+        cols_str = ", ".join(col_names)
+        conn.execute(sa.text(
+            f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({cols_str})"
+        ))
+
+
 def upgrade() -> None:
     conn = op.get_bind()
+    insp = sa.inspect(conn)
 
     # --- predictions table ---
-    # Composite: match_id + user_id (frequently joined together)
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_predictions_match_user "
-        "ON predictions (match_id, user_id)"
-    ))
-    # user_id alone (user prediction history lookups)
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_predictions_user_id "
-        "ON predictions (user_id)"
-    ))
-    # match_id alone (settlement, CLV lookups)
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_predictions_match_id "
-        "ON predictions (match_id)"
-    ))
-    # timestamp (time-range queries on prediction feeds)
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_predictions_timestamp "
-        "ON predictions (timestamp)"
-    ))
-    # is_settled (pending settlement scans)
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_predictions_is_settled "
-        "ON predictions (is_settled)"
-    ))
+    _create_index_if_cols_exist(conn, insp, "idx_predictions_match_user", "predictions", ["match_id", "user_id"])
+    _create_index_if_cols_exist(conn, insp, "idx_predictions_user_id", "predictions", ["user_id"])
+    _create_index_if_cols_exist(conn, insp, "idx_predictions_match_id", "predictions", ["match_id"])
+    _create_index_if_cols_exist(conn, insp, "idx_predictions_timestamp", "predictions", ["timestamp"])
+    _create_index_if_cols_exist(conn, insp, "idx_predictions_was_correct", "predictions", ["was_correct"])
 
     # --- clv_entries table ---
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_clv_entries_prediction_id "
-        "ON clv_entries (prediction_id)"
-    ))
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_clv_entries_match_id "
-        "ON clv_entries (match_id)"
-    ))
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_clv_entries_user_id "
-        "ON clv_entries (user_id)"
-    ))
+    _create_index_if_cols_exist(conn, insp, "idx_clv_entries_prediction_id", "clv_entries", ["prediction_id"])
+    _create_index_if_cols_exist(conn, insp, "idx_clv_entries_match_id", "clv_entries", ["match_id"])
+    _create_index_if_cols_exist(conn, insp, "idx_clv_entries_user_id", "clv_entries", ["user_id"])
 
     # --- ai_predictions table ---
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_ai_predictions_is_certified "
-        "ON ai_predictions (is_certified)"
-    ))
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_ai_predictions_match_source "
-        "ON ai_predictions (match_id, source)"
-    ))
+    _create_index_if_cols_exist(conn, insp, "idx_ai_predictions_is_certified", "ai_predictions", ["is_certified"])
+    _create_index_if_cols_exist(conn, insp, "idx_ai_predictions_match_source", "ai_predictions", ["match_id", "source"])
 
     # --- matches table ---
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_matches_external_id "
-        "ON matches (external_id)"
-    ))
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_matches_status "
-        "ON matches (status)"
-    ))
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_matches_kickoff_status "
-        "ON matches (kickoff_time, status)"
-    ))
+    _create_index_if_cols_exist(conn, insp, "idx_matches_external_id", "matches", ["external_id"])
+    _create_index_if_cols_exist(conn, insp, "idx_matches_status", "matches", ["status"])
+    _create_index_if_cols_exist(conn, insp, "idx_matches_kickoff_status", "matches", ["kickoff_time", "status"])
 
     # --- audit_logs table ---
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_audit_logs_resource_id "
-        "ON audit_logs (resource_id)"
-    ))
+    _create_index_if_cols_exist(conn, insp, "idx_audit_logs_resource_id", "audit_logs", ["resource_id"])
 
     # --- users table ---
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_users_is_active "
-        "ON users (is_active)"
-    ))
-    conn.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_users_last_login "
-        "ON users (last_login)"
-    ))
+    _create_index_if_cols_exist(conn, insp, "idx_users_is_active", "users", ["is_active"])
+    _create_index_if_cols_exist(conn, insp, "idx_users_last_login", "users", ["last_login"])
 
 
 def downgrade() -> None:
-    op.drop_index("idx_predictions_match_user",     table_name="predictions")
-    op.drop_index("idx_predictions_user_id",         table_name="predictions")
-    op.drop_index("idx_predictions_match_id",        table_name="predictions")
-    op.drop_index("idx_predictions_timestamp",       table_name="predictions")
-    op.drop_index("idx_predictions_is_settled",      table_name="predictions")
-    op.drop_index("idx_clv_entries_prediction_id",   table_name="clv_entries")
-    op.drop_index("idx_clv_entries_match_id",        table_name="clv_entries")
-    op.drop_index("idx_clv_entries_user_id",         table_name="clv_entries")
-    op.drop_index("idx_ai_predictions_is_certified", table_name="ai_predictions")
-    op.drop_index("idx_ai_predictions_match_source", table_name="ai_predictions")
-    op.drop_index("idx_matches_external_id",         table_name="matches")
-    op.drop_index("idx_matches_status",              table_name="matches")
-    op.drop_index("idx_matches_kickoff_status",      table_name="matches")
-    op.drop_index("idx_audit_logs_resource_id",      table_name="audit_logs")
-    op.drop_index("idx_users_is_active",             table_name="users")
-    op.drop_index("idx_users_last_login",            table_name="users")
+    conn = op.get_bind()
+    insp = sa.inspect(conn)
+    indexes = [
+        ("idx_predictions_match_user", "predictions"),
+        ("idx_predictions_user_id", "predictions"),
+        ("idx_predictions_match_id", "predictions"),
+        ("idx_predictions_timestamp", "predictions"),
+        ("idx_predictions_was_correct", "predictions"),
+        ("idx_clv_entries_prediction_id", "clv_entries"),
+        ("idx_clv_entries_match_id", "clv_entries"),
+        ("idx_clv_entries_user_id", "clv_entries"),
+        ("idx_ai_predictions_is_certified", "ai_predictions"),
+        ("idx_ai_predictions_match_source", "ai_predictions"),
+        ("idx_matches_external_id", "matches"),
+        ("idx_matches_status", "matches"),
+        ("idx_matches_kickoff_status", "matches"),
+        ("idx_audit_logs_resource_id", "audit_logs"),
+        ("idx_users_is_active", "users"),
+        ("idx_users_last_login", "users"),
+    ]
+    for idx_name, table_name in indexes:
+        if insp.has_table(table_name):
+            try:
+                op.drop_index(idx_name, table_name=table_name)
+            except Exception:
+                pass

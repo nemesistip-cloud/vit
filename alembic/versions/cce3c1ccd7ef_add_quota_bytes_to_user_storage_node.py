@@ -15,9 +15,23 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    with op.batch_alter_table('user_storage_nodes', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('quota_bytes', sa.Numeric(precision=20, scale=0), nullable=True))
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if not insp.has_table('user_storage_nodes'):
+        return
+
+    columns = [c['name'] for c in insp.get_columns('user_storage_nodes')]
+    if 'quota_bytes' not in columns:
+        with op.batch_alter_table('user_storage_nodes', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('quota_bytes', sa.Numeric(precision=20, scale=0), nullable=True))
 
 def downgrade():
-    with op.batch_alter_table('user_storage_nodes', schema=None) as batch_op:
-        batch_op.drop_column('quota_bytes')
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if not insp.has_table('user_storage_nodes'):
+        return
+
+    columns = [c['name'] for c in insp.get_columns('user_storage_nodes')]
+    if 'quota_bytes' in columns:
+        with op.batch_alter_table('user_storage_nodes', schema=None) as batch_op:
+            batch_op.drop_column('quota_bytes')
