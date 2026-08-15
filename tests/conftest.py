@@ -56,10 +56,10 @@ def _bootstrap_sqlite_schema(database_url: str) -> None:
     import app.modules.developer.models  # noqa: F401
     import app.modules.governance.models  # noqa: F401
     import app.modules.rewards.models  # noqa: F401
+    import app.modules.ai.models  # noqa: F401
 
     _OPTIONAL_MODELS = [
         "app.modules.training.models",
-        "app.modules.ai.models",
         "app.data.models",
         "app.modules.freemium.models",
     ]
@@ -124,8 +124,6 @@ def setup_env():
     # Ensure a session-level SQLite file DB has a schema before importing main.
     # This uses Alembic so the test DB matches the production migration path.
     try:
-        from importlib import import_module
-
         raw = os.environ.get("DATABASE_URL", "")
         if raw and "sqlite" in raw:
             # Alembic requires DATABASE_URL to be set for env.py.
@@ -144,7 +142,6 @@ async def db_engine():
     """Patch the app DB engine to a fresh temp-file SQLite database."""
     db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="vit_test_")
     os.close(db_fd)
-    print(f"[conftest] using temp db: {db_path}")
 
     engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_path}",
@@ -167,6 +164,16 @@ async def db_engine():
         engine, expire_on_commit=False, class_=AsyncSession
     )
 
+    # --- Override get_db dependency on FastAPI main.app ---
+    from main import app as fastapi_app
+    from app.db.database import get_db
+
+    async def _test_get_db():
+        async with db_mod.AsyncSessionLocal() as session:
+            yield session
+
+    fastapi_app.dependency_overrides[get_db] = _test_get_db
+
     # --- Patch Redis ---
     try:
         from fakeredis.aioredis import FakeRedis
@@ -178,6 +185,7 @@ async def db_engine():
     yield engine
 
     # --- Restore ---
+    fastapi_app.dependency_overrides.pop(get_db, None)
     await engine.dispose()
     db_mod.engine = orig_engine
     db_mod.AsyncSessionLocal = orig_session_factory
@@ -237,3 +245,11 @@ async def auth_headers(client):
 @pytest.fixture
 async def setup_database(db_session):
     yield
+
+
+@pytest.fixture(autouse=True)
+def reset_module_registry():
+    from app.core.registry.manager import ModuleRegistry
+    ModuleRegistry().clear()
+    yield
+    ModuleRegistry().clear()

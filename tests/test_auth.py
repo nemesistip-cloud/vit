@@ -154,3 +154,23 @@ async def test_refresh_returns_new_access_token(client):
         pytest.skip("Registration did not return refresh_token")
     resp = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
     assert resp.status_code in (200, 401)
+
+@pytest.mark.asyncio
+async def test_login_with_username(client):
+    email = _unique_email()
+    username = f"usr_{uuid.uuid4().hex[:6]}"
+    password = "Correct@12345!"
+    await client.post("/auth/register", json={
+        "email": email,
+        "username": username,
+        "password": password,
+    })
+    # Login using username instead of email
+    resp = await client.post("/auth/login", json={
+        "email": username,
+        "password": password,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access_token" in data
+    assert data["username"] == username

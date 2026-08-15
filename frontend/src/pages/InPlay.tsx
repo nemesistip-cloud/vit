@@ -458,7 +458,7 @@ export default function InPlay() {
                       <p className="text-xs text-white/40">Stake: {b.stake} VIT · @{b.odds}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-vit-300">{b.potential_win.toFixed(2)} VIT</p>
+                      <p className="text-sm font-bold text-vit-300">{(b.potential_win ?? 0).toFixed(2)} VIT</p>
                       <span className={cn(
                         'text-xs px-1.5 py-0.5 rounded',
                         b.status === 'pending'  ? 'bg-amber-500/15 text-amber-400' :
