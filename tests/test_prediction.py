@@ -108,12 +108,8 @@ def test_validate_market_odds_rejects_invalid_two_way_odds():
 
 def test_validate_prediction_response_normalizes_negative_probs():
     payload = {"home_prob": -0.1, "draw_prob": 0.4, "away_prob": 0.7}
-    normalized = validate_prediction_response(payload, sport="football")
-    total = normalized["home_prob"] + normalized["draw_prob"] + normalized["away_prob"]
-    assert abs(total - 1.0) < 1e-6
-    assert normalized["home_prob"] == 0.0
-    assert normalized["draw_prob"] > 0
-    assert normalized["away_prob"] > 0
+    with pytest.raises(ValueError, match="must be within the range"):
+        validate_prediction_response(payload, sport="football")
 
 
 @pytest.mark.asyncio
