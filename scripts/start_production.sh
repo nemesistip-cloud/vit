@@ -42,6 +42,10 @@ if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
       python3 scripts/ensure_admin.py \
         || echo "[production] [bg] WARNING: ensure_admin failed — admin user may be missing." >&2
 
+      echo "[production] [bg] Seeding match predictions..."
+      python3 scripts/seed_predictions.py \
+        || echo "[production] [bg] WARNING: seed_predictions failed." >&2
+
       echo "[production] [bg] Seeding blockchain genesis block (idempotent)..."
       python3 scripts/seed_genesis.py \
         || echo "[production] [bg] WARNING: seed_genesis failed — blockchain may stay UNHEALTHY." >&2

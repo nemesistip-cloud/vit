@@ -49,31 +49,42 @@ def _get_login_key(request: Request, email: str) -> str:
     return f"{ip}:{email.lower()}"
 
 
-def _check_and_record_attempt(key: str, success: bool) -> None:
-    """
-    Raise 429 if the key is in lockout or has exceeded the attempt limit.
-    Record a new attempt timestamp on failure; clear on success.
-    """
+def _check_lockout(key: str) -> None:
+    """Raise 429 if the key is currently locked out after exceeding max failed attempts."""
     now = time.monotonic()
     with _LOGIN_LOCK:
         attempts = _LOGIN_ATTEMPTS[key]
-        # Evict timestamps outside the window
         cutoff = now - _WINDOW_SECONDS
         attempts[:] = [t for t in attempts if t > cutoff]
-
-        if success:
-            _LOGIN_ATTEMPTS.pop(key, None)
-            return
-
         if attempts and (now - attempts[0]) < _LOCKOUT_SECONDS and len(attempts) >= _MAX_ATTEMPTS:
             raise HTTPException(
                 status_code=429,
-                detail=(
-                    "Too many failed login attempts. "
-                    "Account temporarily locked. Try again later."
-                ),
+                detail="Too many failed login attempts. Account temporarily locked. Try again later.",
             )
+
+
+def _record_failed_attempt(key: str) -> None:
+    """Record a failed login attempt timestamp."""
+    now = time.monotonic()
+    with _LOGIN_LOCK:
+        attempts = _LOGIN_ATTEMPTS[key]
+        cutoff = now - _WINDOW_SECONDS
+        attempts[:] = [t for t in attempts if t > cutoff]
         attempts.append(now)
+
+
+def _clear_attempts(key: str) -> None:
+    """Clear attempt history for key upon successful authentication."""
+    with _LOGIN_LOCK:
+        _LOGIN_ATTEMPTS.pop(key, None)
+
+
+def _check_and_record_attempt(key: str, success: bool) -> None:
+    if success:
+        _clear_attempts(key)
+    else:
+        _check_lockout(key)
+        _record_failed_attempt(key)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -211,7 +222,7 @@ class RegisterRequest(BaseModel):
         return v
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 class TokenResponse(BaseModel):
@@ -289,24 +300,31 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    login_key = _get_login_key(request, body.email)
+    login_input = body.email.strip().lower()
+    login_key = _get_login_key(request, login_input)
 
     # Check lockout BEFORE touching the DB (fail fast, no timing oracle)
-    _check_and_record_attempt(login_key, success=False)
+    _check_lockout(login_key)
 
-    stmt = select(User).where(User.email == body.email.lower())
+    stmt = select(User).where(
+        or_(
+            func.lower(User.email) == login_input,
+            func.lower(User.username) == login_input,
+        )
+    )
     result = await _execute_with_retry(db, stmt)
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(body.password, user.hashed_password):
-        # Attempt already recorded above
+        _record_failed_attempt(login_key)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.is_active:
+        _record_failed_attempt(login_key)
         raise HTTPException(status_code=401, detail="User account is deactivated")
 
     # Successful auth — clear lockout state
-    _check_and_record_attempt(login_key, success=True)
+    _clear_attempts(login_key)
 
     now = datetime.now(timezone.utc)
     user.last_login = now
