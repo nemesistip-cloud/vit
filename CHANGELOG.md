@@ -1,3 +1,5 @@
+- 2026-08-15 `7277860` docs: add Qwen AI integration & feature activation blueprint
+
 - 2026-08-11 `c8d3759` Restore wallet contracts, enhance AI validation, and harden migrations
 
 - 2026-08-10 `eaad1c6` fix: persist verified odds for predictions
