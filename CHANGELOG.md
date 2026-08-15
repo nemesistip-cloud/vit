@@ -1,3 +1,5 @@
+- 2026-08-15 `85b5fca` feat(social): architect production VIT Social Intelligence Engine MVP
+
 - 2026-08-15 `7277860` docs: add Qwen AI integration & feature activation blueprint
 
 - 2026-08-11 `c8d3759` Restore wallet contracts, enhance AI validation, and harden migrations
