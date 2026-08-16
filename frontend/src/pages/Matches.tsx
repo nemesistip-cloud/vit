@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Trophy, TrendingUp, Calendar, ChevronRight, Activity,
+  Trophy, Brain, TrendingUp, Calendar, ChevronRight, Activity,
   Zap, Target, Search, Clock, CheckCircle, Radio,
   RotateCcw, RefreshCw, Dumbbell, Circle,
 } from 'lucide-react'
@@ -134,6 +134,11 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
   const conf   = match.confidence != null ? Math.round(match.confidence * 100) : null
   const isLive = match.status === 'live' || match.status === 'in_play'
 
+  const autoSide = match.home_prob != null && match.away_prob != null
+    ? (match.home_prob >= match.away_prob && match.home_prob >= (match.draw_prob ?? 0) ? 'HOME' : match.away_prob >= (match.draw_prob ?? 0) ? 'AWAY' : 'DRAW')
+    : null
+  const pickSide = match.bet_side ? match.bet_side.toUpperCase() : autoSide
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -148,36 +153,46 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
           : 'border-white/6 hover:border-white/12',
       )}
     >
-      {/* Live indicator */}
-      {isLive && (
-        <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-wide">Live</span>
+      {/* Top Header: League + Live / AI Pick Badge */}
+      <div className="flex items-center justify-between mb-3.5 gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] font-medium text-white/35 uppercase tracking-wider truncate">{match.league}</span>
+          <span className="text-white/15">·</span>
+          <span className="text-[10px] text-white/30 shrink-0 flex items-center gap-1">
+            <Clock className="w-2.5 h-2.5" />
+            {timeAgo(match.kickoff_time)}
+          </span>
         </div>
-      )}
 
-      {/* League + time */}
-      <div className="flex items-center gap-2 mb-3.5">
-        <span className="text-[10px] font-medium text-white/35 uppercase tracking-wider truncate">{match.league}</span>
-        <span className="text-white/15">·</span>
-        <span className="text-[10px] text-white/30 shrink-0 flex items-center gap-1">
-          <Clock className="w-2.5 h-2.5" />
-          {timeAgo(match.kickoff_time)}
-        </span>
+        {isLive ? (
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-wide">Live</span>
+          </div>
+        ) : pickSide ? (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-vit-500/15 border border-vit-500/30 shrink-0 text-[10px] font-bold text-vit-300">
+            <Brain className="w-3 h-3 text-vit-400" />
+            <span>AI PICK: {pickSide}</span>
+          </div>
+        ) : null}
       </div>
 
       {/* Teams */}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-white text-sm leading-tight truncate">{match.home_team}</p>
-          {match.home_score != null && <p className="text-xl font-bold text-white mt-0.5">{match.home_score}</p>}
+          {(match.home_score ?? match.home_goals) != null && (
+            <p className="text-xl font-bold text-white mt-0.5">{match.home_score ?? match.home_goals}</p>
+          )}
         </div>
         <div className="shrink-0 w-8 text-center">
           <span className={cn('text-xs font-semibold', isLive ? 'text-emerald-400' : 'text-white/25')}>vs</span>
         </div>
         <div className="flex-1 min-w-0 text-right">
           <p className="font-semibold text-white text-sm leading-tight truncate">{match.away_team}</p>
-          {match.away_score != null && <p className="text-xl font-bold text-white mt-0.5">{match.away_score}</p>}
+          {(match.away_score ?? match.away_goals) != null && (
+            <p className="text-xl font-bold text-white mt-0.5">{match.away_score ?? match.away_goals}</p>
+          )}
         </div>
       </div>
 
@@ -205,11 +220,6 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
               <span className="text-emerald-400 font-medium">
                 EV {match.final_ev > 0 ? '+' : ''}{match.final_ev?.toFixed(2)}
               </span>
-            </span>
-          )}
-          {match.bet_side && (
-            <span className="px-2 py-0.5 rounded-full bg-vit-500/12 text-vit-300 text-[10px] font-medium uppercase tracking-wide">
-              {match.bet_side}
             </span>
           )}
           {match.entry_odds != null && (

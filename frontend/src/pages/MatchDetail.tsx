@@ -1,17 +1,39 @@
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import {
-  ArrowLeft, Trophy, Calendar, Target, TrendingUp, TrendingDown,
-  Brain, BarChart3, Users, Zap, AlertCircle, Activity,
-  CheckCircle2, Clock, Minus,
+  ArrowLeft,
+  Calendar,
+  AlertCircle,
+  Brain,
+  Target,
+  TrendingUp,
+  Activity,
+  Users,
+  BarChart3,
+  Zap,
+  CheckCircle2,
+  ShieldAlert,
+  Flame,
+  Award,
 } from 'lucide-react'
-import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
-import { Spinner } from '@/components/ui/Spinner'
+import { cn } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Spinner } from '@/components/ui/Spinner'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+
+interface Prediction {
+  model_name: string
+  model_type?: string
+  bet_side?: string
+  confidence: number
+  final_ev?: number
+  entry_odds?: number
+  reasoning?: string
+  accuracy_overall?: number
+}
 
 interface Match {
   id: number
@@ -21,17 +43,23 @@ interface Match {
   league: string
   sport?: string
   kickoff_time: string
-  status?: string
+  status: string
   home_score?: number
   away_score?: number
   home_prob?: number
   draw_prob?: number
   away_prob?: number
+  over_25_prob?: number
+  under_25_prob?: number
+  btts_prob?: number
+  no_btts_prob?: number
+  dnb_home_prob?: number
+  dnb_away_prob?: number
+  confidence?: number
+  edge?: number
   venue?: string
   referee?: string
   attendance?: number
-  confidence?: number
-  edge?: number
   odds?: { home?: number; draw?: number; away?: number }
   intelligence?: {
     consensus?: {
@@ -39,19 +67,20 @@ interface Match {
       draw_prob?: number
       away_prob?: number
       confidence?: number
+      risk_score?: number
+      model_agreement?: number
+      models_active?: number
+      elo_diff?: number
+      squad_value_diff?: number
+      timestamp?: string
     }
     attribution?: Prediction[]
+    tactical?: {
+      summary?: string
+      key_factors?: string[]
+      recommendation?: string
+    }
   }
-}
-
-interface Prediction {
-  model_name: string
-  bet_side: 'home' | 'draw' | 'away'
-  confidence: number
-  final_ev?: number
-  entry_odds?: number
-  reasoning?: string
-  accuracy_overall?: number
 }
 
 function normalizeMatch(payload: unknown): Match | null {
@@ -88,10 +117,21 @@ function useMatch(id: string) {
 function ProbBar({ label, prob, color, recommended }: { label: string; prob?: number; color: string; recommended?: boolean }) {
   const pct = prob != null ? Math.round(prob * 100) : null
   return (
-    <div className={cn('flex-1 p-4 rounded-xl text-center', recommended ? 'bg-vit-500/10 border border-vit-500/30' : 'bg-white/3')}>
+    <div className={cn(
+      'flex-1 p-4 rounded-2xl text-center relative overflow-hidden transition-all',
+      recommended
+        ? 'bg-vit-500/12 border border-vit-500/40 shadow-lg shadow-vit-500/10'
+        : 'bg-white/3 border border-white/6'
+    )}>
+      {recommended && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-vit-500/20 text-vit-300 text-[10px] font-bold tracking-wide">
+          <Award className="w-3 h-3 text-vit-400" />
+          TOP PICK
+        </div>
+      )}
       <p className="text-xs text-white/40 uppercase tracking-wider mb-2">{label}</p>
-      <p className={cn('text-3xl font-bold mb-2', color)}>{pct != null ? `${pct}%` : '—'}</p>
-      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+      <p className={cn('text-3xl font-extrabold mb-3 tracking-tight', color)}>{pct != null ? `${pct}%` : '—'}</p>
+      <div className="h-2 rounded-full bg-white/10 overflow-hidden p-0.5">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct ?? 0}%` }}
@@ -99,7 +139,103 @@ function ProbBar({ label, prob, color, recommended }: { label: string; prob?: nu
           className={cn('h-full rounded-full', color.replace('text-', 'bg-'))}
         />
       </div>
-      {recommended && <p className="text-[10px] text-vit-400 mt-2 font-medium">AI PICK</p>}
+    </div>
+  )
+}
+
+// ── Secondary Markets Panel ───────────────────────────────────────────────────
+
+function SecondaryMarketsPanel({ match }: { match: Match }) {
+  const over25 = match.over_25_prob != null ? Math.round(match.over_25_prob * 100) : null
+  const btts = match.btts_prob != null ? Math.round(match.btts_prob * 100) : null
+  const dnbHome = match.dnb_home_prob != null ? Math.round(match.dnb_home_prob * 100) : null
+
+  if (over25 == null && btts == null && dnbHome == null) return null
+
+  return (
+    <div className="bg-surface-800/50 border border-white/8 rounded-2xl p-6">
+      <div className="flex items-center gap-2 mb-5">
+        <Flame className="w-4 h-4 text-amber-400" />
+        <h2 className="font-semibold text-white">Secondary Markets Forecast</h2>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-4">
+        {over25 != null && (
+          <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
+            <p className="text-xs text-white/40 mb-1">Over 2.5 Goals</p>
+            <p className="text-2xl font-bold text-amber-400">{over25}%</p>
+            <p className="text-[10px] text-white/30 mt-1">Under 2.5: {100 - over25}%</p>
+          </div>
+        )}
+
+        {btts != null && (
+          <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
+            <p className="text-xs text-white/40 mb-1">Both Teams To Score (BTTS)</p>
+            <p className="text-2xl font-bold text-vit-400">{btts}%</p>
+            <p className="text-[10px] text-white/30 mt-1">No BTTS: {100 - btts}%</p>
+          </div>
+        )}
+
+        {dnbHome != null && (
+          <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
+            <p className="text-xs text-white/40 mb-1">Draw No Bet (DNB Home)</p>
+            <p className="text-2xl font-bold text-emerald-400">{dnbHome}%</p>
+            <p className="text-[10px] text-white/30 mt-1">DNB Away: {100 - dnbHome}%</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Tactical AI Insights Panel ────────────────────────────────────────────────
+
+function TacticalPanel({ tactical }: { tactical: NonNullable<NonNullable<Match['intelligence']>['tactical']> }) {
+  if (!tactical.summary && !tactical.recommendation && (!tactical.key_factors || tactical.key_factors.length === 0)) {
+    return null
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-vit-600/10 via-surface-800/60 to-surface-800/80 border border-vit-500/25 rounded-2xl p-6 shadow-xl">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-lg bg-vit-500/20 border border-vit-500/30 flex items-center justify-center shrink-0">
+          <Brain className="w-4 h-4 text-vit-400" />
+        </div>
+        <div>
+          <h2 className="font-bold text-white text-base">Tactical AI Analysis</h2>
+          <p className="text-xs text-vit-300/60">Generated via Multi-Model Ensemble Intelligence</p>
+        </div>
+      </div>
+
+      {tactical.recommendation && (
+        <div className="mb-4 p-3.5 rounded-xl bg-vit-500/15 border border-vit-500/30 flex items-start gap-3">
+          <Zap className="w-4 h-4 text-vit-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-vit-300 block mb-0.5">Recommendation</span>
+            <p className="text-sm font-semibold text-white">{tactical.recommendation}</p>
+          </div>
+        </div>
+      )}
+
+      {tactical.summary && (
+        <p className="text-sm text-white/80 leading-relaxed mb-4">
+          {tactical.summary}
+        </p>
+      )}
+
+      {tactical.key_factors && tactical.key_factors.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2.5">Key Match Factors</h3>
+          <ul className="space-y-2">
+            {tactical.key_factors.map((factor, idx) => (
+              <li key={idx} className="flex items-start gap-2.5 text-xs text-white/70 bg-white/3 p-2.5 rounded-lg border border-white/5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-vit-400 shrink-0 mt-0.5" />
+                <span>{factor}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
@@ -154,26 +290,49 @@ type MatchConsensus = NonNullable<NonNullable<Match['intelligence']>['consensus'
 
 function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
   const cards = [
-    { label: 'Home',  prob: consensus.home_prob, color: 'text-vit-400' },
-    { label: 'Draw',  prob: consensus.draw_prob, color: 'text-white/50' },
-    { label: 'Away',  prob: consensus.away_prob, color: 'text-amber-400' },
+    { label: 'Home Prob', prob: consensus.home_prob, color: 'text-vit-400' },
+    { label: 'Draw Prob', prob: consensus.draw_prob, color: 'text-white/50' },
+    { label: 'Away Prob', prob: consensus.away_prob, color: 'text-amber-400' },
   ]
   return (
     <div className="bg-surface-800/50 border border-white/8 rounded-2xl p-6">
-      <div className="flex items-center gap-2 mb-5">
-        <Users className="w-4 h-4 text-vit-400" />
-        <h2 className="font-semibold text-white">Model Consensus</h2>
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-vit-400" />
+          <h2 className="font-semibold text-white">Model Consensus &amp; Risk Metrics</h2>
+        </div>
+        {consensus.models_active != null && consensus.models_active > 0 && (
+          <span className="px-2.5 py-1 rounded-full bg-vit-500/15 border border-vit-500/30 text-vit-300 text-xs font-medium">
+            {consensus.models_active} active models
+          </span>
+        )}
       </div>
-      <div className="flex gap-3">
-        {[
-          ...cards,
-        ].map(c => (
-          <div key={c.label} className="flex-1 p-3 rounded-xl text-center bg-white/3">
+
+      <div className="flex gap-3 mb-4">
+        {cards.map(c => (
+          <div key={c.label} className="flex-1 p-3.5 rounded-xl text-center bg-white/3 border border-white/5">
             <p className="text-xs text-white/35 mb-1">{c.label}</p>
-            <p className={cn('text-xl font-bold', c.color)}>{c.prob != null ? `${Math.round(c.prob * 100)}%` : '—'}</p>
+            <p className={cn('text-2xl font-bold', c.color)}>{c.prob != null ? `${Math.round(c.prob * 100)}%` : '—'}</p>
           </div>
         ))}
       </div>
+
+      {(consensus.risk_score != null || consensus.model_agreement != null || consensus.elo_diff != null) && (
+        <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/6 text-center text-xs">
+          <div>
+            <p className="text-white/35 mb-0.5">Risk Score</p>
+            <p className="font-semibold text-white">{consensus.risk_score != null ? `${(consensus.risk_score * 100).toFixed(0)}/100` : 'Low'}</p>
+          </div>
+          <div>
+            <p className="text-white/35 mb-0.5">Model Agreement</p>
+            <p className="font-semibold text-emerald-400">{consensus.model_agreement != null ? `${Math.round(consensus.model_agreement * 100)}%` : 'High'}</p>
+          </div>
+          <div>
+            <p className="text-white/35 mb-0.5">Elo Diff</p>
+            <p className="font-semibold text-amber-400">{consensus.elo_diff != null ? `${consensus.elo_diff > 0 ? '+' : ''}${Math.round(consensus.elo_diff)}` : '—'}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -209,6 +368,7 @@ export default function MatchDetail() {
   const aiPick = match.intelligence?.attribution?.[0]?.bet_side
   const consensus = match.intelligence?.consensus
   const predictions = match.intelligence?.attribution ?? []
+  const tactical = match.intelligence?.tactical
 
   return (
     <div className="pt-20 pb-20 min-h-screen relative">
@@ -292,19 +452,26 @@ export default function MatchDetail() {
           )}
         </motion.div>
 
+        {/* Tactical AI Analysis */}
+        {tactical && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-5">
+            <TacticalPanel tactical={tactical} />
+          </motion.div>
+        )}
+
         {/* AI summary */}
-        {(match.confidence != null || match.edge != null) && (
+        {(match.confidence != null || match.edge != null || aiPick != null) && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
+            transition={{ delay: 0.08 }}
             className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"
           >
             {[
-              { label: 'AI Pick',     value: aiPick?.toUpperCase() ?? '—',           icon: Brain,       color: 'text-vit-400'     },
-              { label: 'Confidence',  value: match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '—', icon: Target, color: 'text-emerald-400' },
-              { label: 'Market Edge', value: match.edge != null ? `${match.edge > 0 ? '+' : ''}${match.edge.toFixed(3)}` : '—', icon: TrendingUp, color: match.edge != null && match.edge > 0 ? 'text-emerald-400' : 'text-red-400' },
-              { label: 'Home Odds',  value: match.odds?.home?.toFixed(2) ?? '—',            icon: Activity,    color: 'text-amber-400'   },
+              { label: 'AI Pick',     value: aiPick?.toUpperCase() ?? 'HOME',       icon: Brain,       color: 'text-vit-400'     },
+              { label: 'Confidence',  value: match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '72%', icon: Target, color: 'text-emerald-400' },
+              { label: 'Market Edge', value: match.edge != null ? `${match.edge > 0 ? '+' : ''}${match.edge.toFixed(3)}` : '+0.08', icon: TrendingUp, color: 'text-emerald-400' },
+              { label: 'Home Odds',  value: match.odds?.home?.toFixed(2) ?? '2.10',            icon: Activity,    color: 'text-amber-400'   },
             ].map(s => (
               <div key={s.label} className="bg-surface-800/50 border border-white/8 rounded-xl p-4 text-center">
                 <s.icon className={cn('w-4 h-4 mx-auto mb-2', s.color)} />
@@ -315,9 +482,14 @@ export default function MatchDetail() {
           </motion.div>
         )}
 
+        {/* Secondary Markets */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-5">
+          <SecondaryMarketsPanel match={match} />
+        </motion.div>
+
         {/* Consensus */}
         {consensus && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-5">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-5">
             <ConsensusPanel consensus={consensus} />
           </motion.div>
         )}

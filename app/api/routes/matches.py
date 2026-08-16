@@ -92,7 +92,10 @@ async def _load_markets(db: AsyncSession) -> list:
 
 def _active_market_ids(markets: Optional[list]) -> set:
     source = markets if markets else DEFAULT_MARKETS
-    return {str(m.get("id")) for m in source if m.get("status") == "active"}
+    active = {str(m.get("id")) for m in source if m.get("status") == "active"}
+    if not active:
+        return {"1x2", "over_under_25", "over_under", "btts", "dnb", "over_under_15", "over_under_35"}
+    return active
 
 
 def _vig_free_probs(home_odds, draw_odds, away_odds) -> Optional[dict]:
