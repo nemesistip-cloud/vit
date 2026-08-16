@@ -711,6 +711,12 @@ except Exception as _e:
     logging.warning("social_router not mounted — routes unavailable: %s", _e)
 
 try:
+    from app.api.routes.social_intelligence import router as social_intelligence_router
+    app.include_router(social_intelligence_router, tags=["Social Intelligence"])
+except Exception as _e:
+    logging.warning("social_intelligence_router not mounted — routes unavailable: %s", _e)
+
+try:
     from app.modules.defi.routes import router as defi_router
     app.include_router(defi_router, tags=["DeFi"])
 except Exception as _e:
