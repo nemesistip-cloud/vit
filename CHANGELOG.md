@@ -1,3 +1,5 @@
+- 2026-08-16 `db34e70` VIT Sports Match Details: Live Intelligence & Data Integrity Upgrade
+
 - 2026-08-16 `af2f8ae` audit: complete v1.4 social intelligence adversarial distribution audit
 
 - 2026-08-16 `f388260` fix(ui): ensure zero win rate values display as 0.0% instead of place…
