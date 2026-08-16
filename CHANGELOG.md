@@ -1,3 +1,5 @@
+- 2026-08-16 `2ba96ea` feat(social): implement durable v1.4 social intelligence distribution…
+
 - 2026-08-16 `db34e70` VIT Sports Match Details: Live Intelligence & Data Integrity Upgrade
 
 - 2026-08-16 `af2f8ae` audit: complete v1.4 social intelligence adversarial distribution audit
