@@ -1,3 +1,5 @@
+- 2026-08-16 `f7c4559` feat(matches): enhance predictions UI with tactical analysis, seconda…
+
 - 2026-08-16 `8470458` Social intelligence engine mvp 16410461701771275469
 
 - 2026-08-15 `1cd23c2` Fix login authentication, match AI predictions pipeline, and page load rendering crashes
