@@ -1,3 +1,4 @@
+from app.services.prediction_seeder import _make_prediction
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func, or_
@@ -91,7 +92,10 @@ async def _load_markets(db: AsyncSession) -> list:
 
 def _active_market_ids(markets: Optional[list]) -> set:
     source = markets if markets else DEFAULT_MARKETS
-    return {str(m.get("id")) for m in source if m.get("status") == "active"}
+    active = {str(m.get("id")) for m in source if m.get("status") == "active"}
+    if not active:
+        return {"1x2", "over_under_25", "over_under", "btts", "dnb", "over_under_15", "over_under_35"}
+    return active
 
 
 def _vig_free_probs(home_odds, draw_odds, away_odds) -> Optional[dict]:
@@ -647,6 +651,26 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     )
     preds = pred_q.scalars().all()
     latest_pred = preds[0] if preds else None
+
+    # On-demand prediction generation: if match has no predictions yet,
+    # generate and persist predictions so AI insights & analysis are always available.
+    if not latest_pred:
+        try:
+            for idx in range(3):
+                gen_p = _make_prediction(match, seed_idx=idx)
+                if gen_p:
+                    db.add(gen_p)
+            await db.commit()
+            pred_q_re = await db.execute(
+                select(Prediction)
+                .where(Prediction.match_id == match_id)
+                .order_by(Prediction.timestamp.desc())
+            )
+            preds = pred_q_re.scalars().all()
+            latest_pred = preds[0] if preds else None
+        except Exception as exc:
+            await db.rollback()
+            logger.warning("[matches] On-demand prediction generation error: %s", exc)
 
     # Fetch Audit for detailed model breakdown
     audit_q = await db.execute(

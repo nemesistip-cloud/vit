@@ -76,6 +76,11 @@ class ModuleRegistry:
         """List all registered module IDs."""
         return list(self._modules.keys())
 
+    def clear(self):
+        """Reset registry state for testing or re-initialization."""
+        self._modules.clear()
+        self._runtime_info.clear()
+
     # --- Service Discovery ---
 
     def discover_by_capability(self, capability: str) -> List[ModuleContract]:

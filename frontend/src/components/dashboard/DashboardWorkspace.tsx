@@ -322,7 +322,7 @@ export function DashboardWorkspace({
                   </div>
                   <div className="rounded-xl border border-white/8 bg-surface-900/50 p-3">
                     <p className="text-xs uppercase tracking-wide text-white/30">Win rate</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{summary?.win_rate ? `${(summary.win_rate * 100).toFixed(1)}%` : '—'}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{summary?.win_rate != null ? `${(summary.win_rate * 100).toFixed(1)}%` : '—'}</p>
                   </div>
                   <div className="rounded-xl border border-white/8 bg-surface-900/50 p-3">
                     <p className="text-xs uppercase tracking-wide text-white/30">Predictions</p>

@@ -409,7 +409,7 @@ export default function Home() {
                   {u.clv_tier && <p className="text-xs text-white/30">{u.clv_tier}</p>}
                 </div>
                 <span className="text-sm font-bold text-emerald-400">
-                  {u.win_rate ? `${(u.win_rate * 100).toFixed(1)}%` : u.score ?? ''}
+                  {u.win_rate != null ? `${(u.win_rate * 100).toFixed(1)}%` : u.score ?? ''}
                 </span>
               </div>
             ))}
