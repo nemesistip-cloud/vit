@@ -147,7 +147,7 @@ export default function Predictions() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               { label: 'Total Predictions', value: accuracy.total ?? '—',                                               icon: Brain,     color: 'bg-vit-500/20'     },
-              { label: 'Win Rate',          value: accuracy.win_rate ? `${(accuracy.win_rate * 100).toFixed(1)}%` : '—', icon: Target,    color: 'bg-emerald-500/20' },
+              { label: 'Win Rate',          value: accuracy.win_rate != null ? `${(accuracy.win_rate * 100).toFixed(1)}%` : '—', icon: Target,    color: 'bg-emerald-500/20' },
               { label: 'Current Streak',    value: accuracy.current_streak ?? '—',                                      icon: TrendingUp, color: 'bg-amber-500/20'   },
               { label: 'Best League',       value: accuracy.best_league ?? '—',                                         icon: BarChart3,  color: 'bg-purple-500/20'  },
             ].map(({ label, value, icon: Icon, color }) => (
