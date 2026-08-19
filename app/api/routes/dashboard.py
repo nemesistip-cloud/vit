@@ -23,15 +23,19 @@ _price_cache = {
 }
 
 async def _settled_predictions_for_user(db: AsyncSession, uid: int):
-    rows = await db.execute(
-        select(Prediction.bet_side, Match.actual_outcome, Match.kickoff_time)
-        .join(Match, Match.id == Prediction.match_id)
-        .where(Prediction.user_id == uid)
-        .where(Prediction.bet_side.isnot(None))
-        .where(Match.actual_outcome.isnot(None))
-        .order_by(Match.kickoff_time.desc())
-    )
-    return rows.all()
+    try:
+        rows = await db.execute(
+            select(Prediction.bet_side, Match.actual_outcome, Match.kickoff_time)
+            .join(Match, Match.id == Prediction.match_id)
+            .where(Prediction.user_id == uid)
+            .where(Prediction.bet_side.isnot(None))
+            .where(Match.actual_outcome.isnot(None))
+            .order_by(Match.kickoff_time.desc())
+        )
+        return rows.all()
+    except Exception as e:
+        logger.warning(f"Error fetching settled predictions for user {uid}: {e}")
+        return []
 
 
 def _wins_settled_streak(rows) -> tuple[int, int, int]:
@@ -39,7 +43,10 @@ def _wins_settled_streak(rows) -> tuple[int, int, int]:
     wins = 0
     streak = 0
     streak_locked = False
-    for bet_side, outcome, _ in rows:
+    for row in rows:
+        if not row or len(row) < 2:
+            continue
+        bet_side, outcome = row[0], row[1]
         if not bet_side or not outcome:
             continue
         settled += 1
@@ -59,43 +66,61 @@ async def get_dashboard_summary(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    uid = current_user.id
-    total_predictions = (await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == uid))).scalar() or 0
-    settled_rows = await _settled_predictions_for_user(db, uid)
-    wins, settled, streak = _wins_settled_streak(settled_rows)
-    accuracy = round(wins / settled, 4) if settled > 0 else 0.0
-    xp = (total_predictions * 10 + wins * 20)
     try:
-        if hasattr(current_user, "current_streak") and (current_user.current_streak or 0) != streak:
-            current_user.current_streak = streak
-            await db.commit()
-    except Exception:
-        await db.rollback()
-    u_pred_sub = select(Prediction.id).where(Prediction.user_id == uid).subquery()
-    roi_result = (await db.execute(select(func.avg(CLVEntry.profit)).where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id))))).scalar() or Decimal("0")
-    roi_result = roi_result * 100
-    user_profit = (await db.execute(select(func.sum(CLVEntry.profit)).where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id))))).scalar() or Decimal("0")
-    active = (await db.execute(select(func.count(Match.id)).where(Match.actual_outcome.is_(None)))).scalar() or 0
-    vitcoin_balance = 0.0
-    try:
-        from app.modules.wallet.models import Wallet
-        wallet = (await db.execute(select(Wallet).where(Wallet.user_id == uid))).scalar_one_or_none()
-        if wallet:
-            vitcoin_balance = float(wallet.vitcoin_balance)
-    except Exception:
-        pass
-    return {
-        "total_predictions": total_predictions,
-        "accuracy_rate": accuracy,
-        "settled_predictions": settled,
-        "wins": wins,
-        "roi": float(roi_result),
-        "active_matches": active,
-        "wallet_balance": vitcoin_balance,
-        "streak": streak,
-        "xp": xp,
-        "user_profit": float(user_profit),
-    }
+        uid = current_user.id
+        total_predictions = (await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == uid))).scalar() or 0
+        settled_rows = await _settled_predictions_for_user(db, uid)
+        wins, settled, streak = _wins_settled_streak(settled_rows)
+        accuracy = round(wins / settled, 4) if settled > 0 else 0.0
+        xp = (total_predictions * 10 + wins * 20)
+        try:
+            if hasattr(current_user, "current_streak") and (current_user.current_streak or 0) != streak:
+                current_user.current_streak = streak
+                await db.commit()
+        except Exception:
+            await db.rollback()
+
+        u_pred_sub = select(Prediction.id).where(Prediction.user_id == uid).subquery()
+        roi_result = (await db.execute(select(func.avg(CLVEntry.profit)).where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id))))).scalar() or Decimal("0")
+        roi_result = Decimal(str(roi_result)) * 100
+        user_profit = (await db.execute(select(func.sum(CLVEntry.profit)).where(CLVEntry.prediction_id.in_(select(u_pred_sub.c.id))))).scalar() or Decimal("0")
+        active = (await db.execute(select(func.count(Match.id)).where(Match.actual_outcome.is_(None)))).scalar() or 0
+
+        vitcoin_balance = 0.0
+        try:
+            from app.modules.wallet.models import Wallet
+            wallet = (await db.execute(select(Wallet).where(Wallet.user_id == uid))).scalar_one_or_none()
+            if wallet and wallet.vitcoin_balance is not None:
+                vitcoin_balance = float(wallet.vitcoin_balance)
+        except Exception:
+            pass
+
+        return {
+            "total_predictions": total_predictions,
+            "accuracy_rate": accuracy,
+            "settled_predictions": settled,
+            "wins": wins,
+            "roi": float(roi_result),
+            "active_matches": active,
+            "wallet_balance": vitcoin_balance,
+            "streak": streak,
+            "xp": xp,
+            "user_profit": float(user_profit),
+        }
+    except Exception as e:
+        logger.error(f"Error in get_dashboard_summary: {e}", exc_info=True)
+        return {
+            "total_predictions": 0,
+            "accuracy_rate": 0.0,
+            "settled_predictions": 0,
+            "wins": 0,
+            "roi": 0.0,
+            "active_matches": 0,
+            "wallet_balance": 0.0,
+            "streak": 0,
+            "xp": 0,
+            "user_profit": 0.0,
+        }
 
 
 @router.get("/vitcoin-price")
@@ -130,8 +155,6 @@ async def get_dashboard_vitcoin_price(db: AsyncSession = Depends(get_db)):
                 prev = float(history[1].price_usd)
                 if prev > 0:
                     change_24h = round((current - prev) / prev * 100, 4)
-            # Save a new price history record every 5 minutes (same cadence as cache TTL)
-            # so change_24h has data to diff against on subsequent calls.
             try:
                 from decimal import Decimal as _D
                 circ = await engine.get_circulating_supply()
@@ -159,20 +182,24 @@ async def get_dashboard_vitcoin_price(db: AsyncSession = Depends(get_db)):
 
 @router.get("/recent-activity")
 async def get_recent_activity(limit: int = 10, current_user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    uid = current_user.id
-    result = await db.execute(
-        select(Match, Prediction).join(Prediction, Match.id == Prediction.match_id)
-        .where(Prediction.user_id == uid).order_by(Prediction.timestamp.desc()).limit(limit)
-    )
-    rows = result.all()
-    activity = []
-    for match, pred in rows:
-        activity.append({
-            "id": str(pred.id), "type": "prediction", "description": f"{match.home_team} vs {match.away_team}",
-            "bet_side": pred.bet_side, "outcome": match.actual_outcome, "edge": pred.vig_free_edge,
-            "created_at": pred.timestamp.isoformat() if pred.timestamp else None,
-        })
-    return activity
+    try:
+        uid = current_user.id
+        result = await db.execute(
+            select(Match, Prediction).join(Prediction, Match.id == Prediction.match_id)
+            .where(Prediction.user_id == uid).order_by(Prediction.timestamp.desc()).limit(limit)
+        )
+        rows = result.all()
+        activity = []
+        for match, pred in rows:
+            activity.append({
+                "id": str(pred.id), "type": "prediction", "description": f"{match.home_team} vs {match.away_team}",
+                "bet_side": pred.bet_side, "outcome": match.actual_outcome, "edge": pred.vig_free_edge,
+                "created_at": pred.timestamp.isoformat() if pred.timestamp else None,
+            })
+        return activity
+    except Exception as e:
+        logger.warning(f"recent-activity error: {e}")
+        return []
 
 @router.get("/top-opportunities")
 async def get_top_opportunities(limit: int = Query(default=5, ge=1, le=20), db: AsyncSession = Depends(get_db)):
@@ -224,7 +251,6 @@ async def get_model_confidence(db: AsyncSession = Depends(get_db)):
 @router.get("/leaderboard")
 async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: AsyncSession = Depends(get_db)):
     try:
-        # 1. Fetch top users by XP first to avoid scanning the entire database
         result = await db.execute(
             select(User)
             .where(User.is_active == True, User.is_banned == False)
@@ -237,7 +263,6 @@ async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: Async
 
         user_ids = [u.id for u in users]
 
-        # 2. Bulk fetch total predictions count for these users
         pred_counts_res = await db.execute(
             select(Prediction.user_id, func.count(Prediction.id))
             .where(Prediction.user_id.in_(user_ids))
@@ -245,7 +270,6 @@ async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: Async
         )
         pred_counts = {row[0]: row[1] for row in pred_counts_res.all()}
 
-        # 3. Bulk fetch profit from CLVEntry
         profit_res = await db.execute(
             select(Prediction.user_id, func.sum(CLVEntry.profit))
             .join(CLVEntry, CLVEntry.prediction_id == Prediction.id)
@@ -254,7 +278,6 @@ async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: Async
         )
         user_profits = {row[0]: float(row[1] or 0.0) for row in profit_res.all()}
 
-        # 4. Bulk fetch settled predictions to calculate win rate and streak
         settled_res = await db.execute(
             select(Prediction.user_id, Prediction.bet_side, Match.actual_outcome)
             .join(Match, Match.id == Prediction.match_id)
@@ -294,25 +317,32 @@ async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: Async
     except Exception as e:
         logger.warning(f"leaderboard error: {e}")
         return {"leaderboard": [], "total": 0}
+
 @router.get("/achievements")
 async def get_achievements(current_user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    uid = current_user.id
-    total_all_preds = (await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == uid))).scalar() or 0
-    settled_rows = await _settled_predictions_for_user(db, uid)
-    total_wins, total_settled, _ = _wins_settled_streak(settled_rows)
-    win_rate = total_wins / total_settled if total_settled > 0 else 0.0
-    vitcoin_balance = 0.0
     try:
-        from app.modules.wallet.models import Wallet
-        wallet = (await db.execute(select(Wallet).where(Wallet.user_id == uid))).scalar_one_or_none()
-        if wallet: vitcoin_balance = float(wallet.vitcoin_balance)
-    except Exception: pass
-    streak = getattr(current_user, "current_streak", 0) or 0
-    achievements = [
-        {"id": "first", "name": "First Blood", "earned": total_all_preds >= 1},
-        {"id": "accuracy70", "name": "Sharpshooter", "earned": total_settled >= 10 and win_rate >= 0.70},
-        {"id": "streak5", "name": "On Fire", "earned": streak >= 5},
-        {"id": "prediction50", "name": "Volume Player", "earned": total_all_preds >= 50},
-        {"id": "vitcoin1k", "name": "VIT Whale", "earned": vitcoin_balance >= 1000},
-    ]
-    return {"achievements": achievements}
+        uid = current_user.id
+        total_all_preds = (await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == uid))).scalar() or 0
+        settled_rows = await _settled_predictions_for_user(db, uid)
+        total_wins, total_settled, _ = _wins_settled_streak(settled_rows)
+        win_rate = total_wins / total_settled if total_settled > 0 else 0.0
+        vitcoin_balance = 0.0
+        try:
+            from app.modules.wallet.models import Wallet
+            wallet = (await db.execute(select(Wallet).where(Wallet.user_id == uid))).scalar_one_or_none()
+            if wallet and wallet.vitcoin_balance is not None:
+                vitcoin_balance = float(wallet.vitcoin_balance)
+        except Exception:
+            pass
+        streak = getattr(current_user, "current_streak", 0) or 0
+        achievements = [
+            {"id": "first", "name": "First Blood", "earned": total_all_preds >= 1},
+            {"id": "accuracy70", "name": "Sharpshooter", "earned": total_settled >= 10 and win_rate >= 0.70},
+            {"id": "streak5", "name": "On Fire", "earned": streak >= 5},
+            {"id": "prediction50", "name": "Volume Player", "earned": total_all_preds >= 50},
+            {"id": "vitcoin1k", "name": "VIT Whale", "earned": vitcoin_balance >= 1000},
+        ]
+        return {"achievements": achievements}
+    except Exception as e:
+        logger.warning(f"achievements error: {e}")
+        return {"achievements": []}
