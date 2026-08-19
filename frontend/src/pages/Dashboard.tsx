@@ -17,14 +17,24 @@ import { SkeletonDashboard, Skeleton } from '@/components/ui/Skeleton'
 import { DashboardWorkspace } from '@/components/dashboard/DashboardWorkspace'
 import { cn } from '@/lib/utils'
 
+// Helper for building endpoint URLs safely whether ENDPOINTS.gateway is relative ("") or absolute
+function buildUrl(path: string): string {
+  const base = ENDPOINTS.gateway ? ENDPOINTS.gateway.replace(/\/$/, '') : ''
+  return `${base}${path}`
+}
+
 // ── Data hooks ────────────────────────────────────────────────────────────────
 
 function useSystemStatus() {
   return useQuery({
     queryKey: ['system-status'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/system/status`, { signal })
-      return r.ok ? r.json() : null
+      try {
+        const r = await fetch(buildUrl('/api/system/status'), { signal })
+        return r.ok ? await r.json() : null
+      } catch {
+        return null
+      }
     },
     staleTime: 60_000,
     retry: 1,
@@ -35,10 +45,12 @@ function useMe() {
   return useQuery({
     queryKey: ['me'],
     queryFn: async ({ signal }) => {
-      // fetchWithAuth automatically clears auth and redirects to /login on 401,
-      // ensuring an expired token is detected immediately on the dashboard.
-      const r = await fetchWithAuth(`${ENDPOINTS.gateway}/api/auth/me`, { signal })
-      return r.ok ? r.json() : null
+      try {
+        const r = await fetchWithAuth(buildUrl('/api/auth/me'), { signal })
+        return r.ok ? await r.json() : null
+      } catch {
+        return null
+      }
     },
     retry: false,
     staleTime: 300_000,
@@ -49,8 +61,12 @@ function useDashboardSummary() {
   return useQuery({
     queryKey: ['dashboard-summary'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/dashboard/summary`, { signal, headers: authHeaders() })
-      return r.ok ? r.json() : null
+      try {
+        const r = await fetchWithAuth(buildUrl('/api/dashboard/summary'), { signal })
+        return r.ok ? await r.json() : null
+      } catch {
+        return null
+      }
     },
     retry: false,
     staleTime: 120_000,
@@ -61,10 +77,14 @@ function useTopOpportunities() {
   return useQuery({
     queryKey: ['top-opportunities'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/dashboard/top-opportunities`, { signal, headers: authHeaders() })
-      if (!r.ok) return []
-      const d = await r.json()
-      return Array.isArray(d) ? d : d.opportunities ?? d.matches ?? []
+      try {
+        const r = await fetchWithAuth(buildUrl('/api/dashboard/top-opportunities'), { signal })
+        if (!r.ok) return []
+        const d = await r.json()
+        return Array.isArray(d) ? d : d.opportunities ?? d.matches ?? []
+      } catch {
+        return []
+      }
     },
     retry: false,
     staleTime: 120_000,
@@ -75,10 +95,14 @@ function useLeaderboardPreview() {
   return useQuery({
     queryKey: ['leaderboard-preview'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/dashboard/leaderboard?limit=5`, { signal, headers: authHeaders() })
-      if (!r.ok) return []
-      const d = await r.json()
-      return Array.isArray(d) ? d : d.leaderboard ?? d.items ?? []
+      try {
+        const r = await fetchWithAuth(buildUrl('/api/dashboard/leaderboard?limit=5'), { signal })
+        if (!r.ok) return []
+        const d = await r.json()
+        return Array.isArray(d) ? d : d.leaderboard ?? d.items ?? []
+      } catch {
+        return []
+      }
     },
     retry: false,
     staleTime: 300_000,
@@ -89,10 +113,14 @@ function useRecentActivity() {
   return useQuery({
     queryKey: ['recent-activity'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/dashboard/recent-activity`, { signal, headers: authHeaders() })
-      if (!r.ok) return []
-      const d = await r.json()
-      return Array.isArray(d) ? d : d.activities ?? d.items ?? []
+      try {
+        const r = await fetchWithAuth(buildUrl('/api/dashboard/recent-activity'), { signal })
+        if (!r.ok) return []
+        const d = await r.json()
+        return Array.isArray(d) ? d : d.activities ?? d.items ?? []
+      } catch {
+        return []
+      }
     },
     retry: false,
     staleTime: 60_000,
@@ -102,7 +130,13 @@ function useRecentActivity() {
 function useGatewayHealth() {
   return useQuery({
     queryKey: ['health', 'gateway'],
-    queryFn: ({ signal }) => gatewayApi.health(signal),
+    queryFn: async ({ signal }) => {
+      try {
+        return await gatewayApi.health(signal)
+      } catch {
+        return { status: 'unreachable', name: 'gateway' }
+      }
+    },
     refetchInterval: 30_000,
     retry: 1,
   })
@@ -111,7 +145,13 @@ function useGatewayHealth() {
 function useAIHealthDash() {
   return useQuery({
     queryKey: ['health', 'ai'],
-    queryFn: ({ signal }) => aiApi.health(signal),
+    queryFn: async ({ signal }) => {
+      try {
+        return await aiApi.health(signal)
+      } catch {
+        return { status: 'unreachable', name: 'ai' }
+      }
+    },
     refetchInterval: 30_000,
     retry: 1,
   })
@@ -120,7 +160,13 @@ function useAIHealthDash() {
 function useStorageHealthDash() {
   return useQuery({
     queryKey: ['health', 'storage'],
-    queryFn: ({ signal }) => storageApi.health(signal),
+    queryFn: async ({ signal }) => {
+      try {
+        return await storageApi.health(signal)
+      } catch {
+        return { status: 'unreachable', name: 'storage' }
+      }
+    },
     refetchInterval: 30_000,
     retry: 1,
   })
@@ -129,7 +175,13 @@ function useStorageHealthDash() {
 function useChainHealthDash() {
   return useQuery({
     queryKey: ['health', 'chain'],
-    queryFn: ({ signal }) => chainApi.ping(signal),
+    queryFn: async ({ signal }) => {
+      try {
+        return await chainApi.ping(signal)
+      } catch {
+        return { status: 'unreachable', name: 'chain' }
+      }
+    },
     refetchInterval: 30_000,
     retry: 1,
   })
@@ -138,7 +190,13 @@ function useChainHealthDash() {
 function useLatestBlocks() {
   return useQuery({
     queryKey: ['latest-blocks'],
-    queryFn: ({ signal }) => chainApi.blocks(signal),
+    queryFn: async ({ signal }) => {
+      try {
+        return await chainApi.blocks(signal)
+      } catch {
+        return { blocks: [], total: 0 }
+      }
+    },
     refetchInterval: 30_000,
     retry: 1,
   })
@@ -148,10 +206,14 @@ function useSystemNotices() {
   return useQuery({
     queryKey: ['system-notices'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/system/notices`, { signal })
-      if (!r.ok) return []
-      const d = await r.json()
-      return Array.isArray(d) ? d : d.notices ?? []
+      try {
+        const r = await fetch(buildUrl('/api/system/notices'), { signal })
+        if (!r.ok) return []
+        const d = await r.json()
+        return Array.isArray(d) ? d : d.notices ?? []
+      } catch {
+        return []
+      }
     },
     staleTime: 300_000,
     retry: 1,
@@ -208,7 +270,7 @@ function ServiceHealthCard({
 }) {
   const healthy = ['healthy', 'ok', 'quantum_stable']
   const isUp    = status && healthy.includes(status.toLowerCase())
-  const isDown  = !status || status.toLowerCase() === 'unhealthy'
+  const isDown  = !status || status.toLowerCase() === 'unhealthy' || status.toLowerCase() === 'unreachable'
 
   const dot = isDown
     ? 'bg-red-400'
