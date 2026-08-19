@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
-import { authHeaders } from '@/hooks/useAuth'
+import { authHeaders, fetchWithAuth } from '@/hooks/useAuth'
 
 const STORAGE_KEY = 'vit:dashboard-workspace:v1'
 
@@ -167,7 +167,8 @@ function useNotifications() {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${ENDPOINTS.gateway}/api/notifications?limit=4`, { headers: authHeaders() })
+        const base = ENDPOINTS.gateway ? ENDPOINTS.gateway.replace(/\/$/, '') : ''
+        const res = await fetchWithAuth(`${base}/api/notifications?limit=4`)
         if (!res.ok) return
         const payload = await res.json()
         const next = Array.isArray(payload) ? payload : payload.items ?? []
@@ -280,6 +281,15 @@ export function DashboardWorkspace({
     setLayout(current => current.map(item => (item.id === widgetId ? { ...item, size } : item)))
   }
 
+  // Extract display values with fallback chaining
+  const balanceDisplay = summary?.wallet_balance ?? summary?.vit_balance ?? summary?.balance ?? '0.00'
+  const winRateDisplay = summary?.accuracy_rate != null
+    ? `${(summary.accuracy_rate * 100).toFixed(1)}%`
+    : summary?.win_rate != null
+      ? `${(summary.win_rate * 100).toFixed(1)}%`
+      : '0.0%'
+  const predictionsDisplay = summary?.total_predictions ?? summary?.predictions_made ?? 0
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-white/8 bg-surface-900/70 p-4 backdrop-blur-xl">
@@ -318,15 +328,15 @@ export function DashboardWorkspace({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-white/8 bg-surface-900/50 p-3">
                     <p className="text-xs uppercase tracking-wide text-white/30">Balance</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{summary?.vit_balance ?? summary?.balance ?? '—'}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{balanceDisplay}</p>
                   </div>
                   <div className="rounded-xl border border-white/8 bg-surface-900/50 p-3">
                     <p className="text-xs uppercase tracking-wide text-white/30">Win rate</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{summary?.win_rate != null ? `${(summary.win_rate * 100).toFixed(1)}%` : '—'}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{winRateDisplay}</p>
                   </div>
                   <div className="rounded-xl border border-white/8 bg-surface-900/50 p-3">
                     <p className="text-xs uppercase tracking-wide text-white/30">Predictions</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{summary?.predictions_made ?? '—'}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{predictionsDisplay}</p>
                   </div>
                   <div className="rounded-xl border border-white/8 bg-surface-900/50 p-3">
                     <p className="text-xs uppercase tracking-wide text-white/30">Role</p>
