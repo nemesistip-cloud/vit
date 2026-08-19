@@ -1,3 +1,5 @@
+- 2026-08-19 `0d4d94f` Fix dashboard errors and improve error resilience
+
 - 2026-08-17 `fc9b608` chore(deps): bump esbuild from 0.27.7 to 0.28.2 in the npm_and_yarn group across 1 directory
 
 - 2026-08-16 `90b1348` feat(matches): upgrade Match Details to production-grade data integri…
