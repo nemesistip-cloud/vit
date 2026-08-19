@@ -14,6 +14,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_env, get_int_env
 from app.core.errors import AppError
+from app.services.cache import _get_redis
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +127,6 @@ class SlashEngine:
 
     async def record_participation(self, validator_address: str) -> None:
         """Reset the missed-slot counter after a validator participates."""
-        from app.services.cache import _get_redis
-
         redis = _get_redis()
         if redis is None:
             return
@@ -147,8 +146,6 @@ class SlashEngine:
         current_slot: int = 0,
     ) -> None:
         """Track missed slots and slash validators after the configured threshold."""
-        from app.services.cache import _get_redis
-
         redis = _get_redis()
         for validator_address in absent_nodes:
             missed_slots = 1

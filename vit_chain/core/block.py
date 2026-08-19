@@ -148,7 +148,7 @@ def validate_block(block: VITBlock, prev_block: Optional[VITBlock],
         return False
 
     # 4. Check validator
-    if known_validators is not None:
+    if known_validators:
         if block.validator_id not in known_validators:
             return False
 

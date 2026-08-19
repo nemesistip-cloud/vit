@@ -71,9 +71,24 @@ class MultiSportOrchestrator:
     def _generate_scie_football(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """High-fidelity statistical fallback for football — fully deterministic."""
         mkt = features.get("market_odds", {})
-        h = float(mkt.get("home", 2.3))
-        d = float(mkt.get("draw", 3.2))
-        a = float(mkt.get("away", 3.0))
+        odds = {
+            side: mkt.get(side) if isinstance(mkt, dict) else None
+            for side in ("home", "draw", "away")
+        }
+        has_valid_market = all(
+            isinstance(value, (int, float)) and math.isfinite(value) and value > 1.0
+            for value in odds.values()
+        )
+        if has_valid_market:
+            h, d, a = (float(odds[side]) for side in ("home", "draw", "away"))
+            confidence_1x2 = 0.68
+            data_source = "vit_scie_v5_fallback"
+        else:
+            # Missing odds must not silently encode a home advantage. Use a
+            # neutral prior and publish lower confidence until real inputs exist.
+            h = d = a = 3.0
+            confidence_1x2 = 0.34
+            data_source = "vit_scie_v5_neutral_fallback"
 
         total_implied = (1/h) + (1/d) + (1/a)
         hp, dp, ap = (1/h)/total_implied, (1/d)/total_implied, (1/a)/total_implied
@@ -97,10 +112,10 @@ class MultiSportOrchestrator:
                 "over_2_5_prob": over25,
                 "under_25_prob": under25,
                 "btts_prob": btts,
-                "confidence": {"1x2": 0.68, "over_under": 0.65},
+                "confidence": {"1x2": confidence_1x2, "over_under": 0.65 if has_valid_market else 0.40},
                 "models_used": 0,
                 "models_total": 13,
-                "data_source": "vit_scie_v5_fallback"
+                "data_source": data_source
             },
             "individual_results": [],
             "scie_mode": True

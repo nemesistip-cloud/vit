@@ -9,7 +9,7 @@ def event_loop():
     yield loop
     loop.close()
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 async def init_db():
     from vit_chain.p2p.models import PeerNode
     async with engine.begin() as conn:

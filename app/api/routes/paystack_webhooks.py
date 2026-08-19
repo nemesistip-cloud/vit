@@ -72,21 +72,55 @@ async def paystack_webhook(
         user_id = metadata.get("vit_user_id")
         plan_name = metadata.get("vit_plan")
         billing = metadata.get("vit_billing", "monthly")
+        payment_reference = event_data.get("reference") or data.get("id")
 
-        if not user_id or not plan_name:
+        if not user_id or not plan_name or not payment_reference:
             logger.warning("Paystack webhook missing metadata user_id or plan_name")
             return {"status": "ignored"}
 
         async with AsyncSessionLocal() as db:
             # Get user
-            user = (await db.execute(select(User).where(User.id == int(user_id)))).scalar_one_or_none()
+            user = (
+                await db.execute(
+                    select(User).where(User.id == int(user_id)).with_for_update()
+                )
+            ).scalar_one_or_none()
             if not user:
                 logger.error(f"User {user_id} not found in Paystack webhook")
                 return {"status": "error", "message": "user not found"}
 
+            # Paystack may retry a successful charge. The user-row lock makes
+            # the check and audit insert atomic for concurrent deliveries.
+            processed = (
+                await db.execute(
+                    select(AuditLog.id).where(
+                        AuditLog.action == "paystack.charge.success",
+                        AuditLog.resource_id == str(payment_reference),
+                    )
+                )
+            ).scalar_one_or_none()
+            if processed:
+                logger.info("Ignoring replayed Paystack reference %s", payment_reference)
+                return {"status": "ok", "duplicate": True}
+
             user.subscription_tier = plan_name
             if plan_name == "validator":
                 user.role = "validator"
+
+            db.add(
+                AuditLog(
+                    action="paystack.charge.success",
+                    actor="paystack",
+                    resource="subscription",
+                    resource_id=str(payment_reference),
+                    details={
+                        "user_id": int(user_id),
+                        "plan": plan_name,
+                        "billing": billing,
+                    },
+                    status="success",
+                )
+            )
 
             await db.commit()
             logger.info(f"User {user_id} upgraded to {plan_name} via Paystack")

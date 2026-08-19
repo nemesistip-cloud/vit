@@ -5,7 +5,7 @@ from collections import deque
 from sqlalchemy.ext.asyncio import AsyncSession
 from .protocol import MessageType, serialize
 from .connection import ConnectionManager
-from vit_chain.core.blockchain import VITChain, VITBlock, VITTransaction, Mempool
+from vit_chain.core.blockchain import VITChain, VITBlock, VITTransaction, Mempool, verify_transaction
 
 logger = logging.getLogger(__name__)
 
@@ -80,13 +80,31 @@ class GossipHandler:
     async def _handle_new_tx(self, tx_data: dict,
                               from_node: str, db: AsyncSession):
         """Deserialize tx, verify, add to mempool, and forward if new."""
-        tx = VITTransaction.deserialize(tx_data)
-        tx_hash = tx.get_hash()
+        try:
+            from decimal import Decimal
+            tx = VITTransaction(
+                from_address=tx_data["from_address"],
+                to_address=tx_data["to_address"],
+                amount=Decimal(str(tx_data["amount"])),
+                nonce=int(tx_data["nonce"]),
+                timestamp=int(tx_data["timestamp"]),
+                gas_fee=Decimal(str(tx_data.get("gas_fee", "0.001"))),
+                data=tx_data.get("data"),
+                metadata=tx_data.get("metadata", {}),
+                signature=tx_data.get("signature", ""),
+                status=tx_data.get("status", "pending"),
+                tx_hash=tx_data.get("tx_hash", ""),
+            )
+        except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+            logger.warning("Dropping malformed transaction gossip: %s", exc)
+            return
+
+        tx_hash = tx.tx_hash
 
         if await self._is_seen(f"tx:{tx_hash}"):
             return
 
-        if tx.verify():
+        if verify_transaction(tx):
             if self.mempool.add_transaction(tx):
                 # Forward to others
                 await self.connection_manager.broadcast(

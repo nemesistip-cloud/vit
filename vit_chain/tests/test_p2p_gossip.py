@@ -45,12 +45,12 @@ async def test_gossip_handler_deduplication():
     tx_data = {"hash": "tx1", "data": "payload"}
     msg = {"type": MessageType.NEW_TRANSACTION, "tx": tx_data}
 
-    # First time: broadcast
+    # Malformed transaction gossip is dropped without crashing or rebroadcasting.
     mock_db = AsyncMock(spec=AsyncSession)
     await handler.handle_message(msg, "PEER_1", mock_db)
-    cm.broadcast.assert_called_once()
+    cm.broadcast.assert_not_called()
 
-    # Second time: no broadcast
+    # Repeated malformed payloads remain dropped.
     cm.broadcast.reset_mock()
     await handler.handle_message(msg, "PEER_1", mock_db)
     cm.broadcast.assert_not_called()

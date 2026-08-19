@@ -15,7 +15,7 @@ from app.core.errors import AppError, error_response
 from app.config import APP_NAME, APP_VERSION, get_env, get_int_env, CORS_ALLOWED_ORIGINS, ENVIRONMENT
 from app.core.kernel import kernel, setup_signal_handlers
 from app.core.subsystems import register_core_subsystems
-from app.db.database import get_db
+from app.db.database import engine, get_db
 from app.schemas.schemas import HealthResponse
 from app.core.dependencies import get_orchestrator
 
@@ -343,7 +343,7 @@ async def readiness(request: Request, db: AsyncSession = Depends(get_db)):
     )
 
 @app.get("/health", response_model=HealthResponse)
-async def health(db: AsyncSession = Depends(get_db)):
+async def health():
     # db_connected must reflect the actual database connection only.
     # Do NOT fold in unrelated kernel/subsystem degradation here -- a
     # degraded blockchain/AI subsystem previously forced db_connected=False
@@ -351,7 +351,8 @@ async def health(db: AsyncSession = Depends(get_db)):
     # showing "PostgreSQL DEGRADED" during unrelated incidents.
     db_ok = True
     try:
-        await db.execute(text("SELECT 1"))
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
     except Exception:
         db_ok = False
 
@@ -1176,10 +1177,41 @@ try:
 except Exception as _e:
     logging.error("tachyon_challenges router not mounted: %s", _e, exc_info=True)
 
-# --- Notification & Websocket Routers (Mocked as missing) ---
+# --- Notification & Websocket Routers ---
 @app.get("/api/notifications/status")
 async def get_notification_status():
-    return {"status": "active"}
+    """Return truthful notification and Telegram readiness without exposing secrets."""
+    from app.config import TELEGRAM_BOT_TOKEN
+
+    if not TELEGRAM_BOT_TOKEN:
+        return {
+            "status": "degraded",
+            "telegram": {"configured": False, "reachable": False, "bot_username": None},
+        }
+
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe"
+            )
+        payload = response.json()
+        bot = payload.get("result") or {}
+        reachable = response.status_code == 200 and payload.get("ok") is True
+        return {
+            "status": "active" if reachable else "degraded",
+            "telegram": {
+                "configured": True,
+                "reachable": reachable,
+                "bot_username": bot.get("username"),
+            },
+        }
+    except Exception:
+        return {
+            "status": "degraded",
+            "telegram": {"configured": True, "reachable": False, "bot_username": None},
+        }
 
 @app.websocket("/api/notifications/ws")
 async def notifications_websocket_endpoint(websocket):

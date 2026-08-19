@@ -18,19 +18,16 @@ if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
     python3 scripts/init_db.py \
       || echo "[production] WARNING: init_db failed — schema may be incomplete." >&2
 
-    # Non-critical steps: run in background so uvicorn binds immediately after.
+    echo "[production] Running pre-flight schema guard (ensure_columns.py)..."
+    python3 scripts/ensure_columns.py \
+      || { echo "[production] ERROR: ensure_columns failed — refusing to start." >&2; exit 1; }
+
+    echo "[production] Running production-safe migrations (run_migrations.py)..."
+    python3 scripts/run_migrations.py \
+      || { echo "[production] ERROR: migrations failed — refusing to start." >&2; exit 1; }
+
+    # Non-critical seed and reconciliation steps may run after the schema is ready.
     (
-      echo "[production] [bg] Running pre-flight schema guard (ensure_columns.py)..."
-      python3 scripts/ensure_columns.py \
-        || echo "[production] [bg] WARNING: ensure_columns failed." >&2
-
-      echo "[production] [bg] Running production-safe migrations (run_migrations.py)..."
-      if python3 scripts/run_migrations.py; then
-          echo "[production] [bg] Migrations (alembic upgrade heads) completed successfully."
-      else
-          echo "[production] [bg] ERROR: run_migrations.py failed — check logs above." >&2
-      fi
-
       # ── Fresh-start user reset ─────────────────────────────────────────────
       # Only executes when RESET_USERS_ON_BOOT=true.
       # Clears all user accounts so a fresh admin can be created below.

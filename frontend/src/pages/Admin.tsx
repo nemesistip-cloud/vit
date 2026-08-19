@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Shield, Users, Activity, Database, Server,
   TrendingUp, AlertTriangle, RefreshCw, ChevronRight,
@@ -14,6 +14,7 @@ import { ENDPOINTS } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
@@ -57,21 +58,21 @@ function useAdminMetrics() {
 function useAdminWalletTxs() {
   return useQuery({ queryKey: ['admin-wallet-txs'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/wallet/transactions?limit=30`, { signal, headers: authHeaders() })
-    if (!r.ok) return []
+    if (!r.ok) return { total: 0, rows: [] }
     const d = await r.json(); return Array.isArray(d) ? d : d.transactions ?? d.items ?? []
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminMatches() {
   return useQuery({ queryKey: ['admin-matches'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/matches?limit=30`, { signal, headers: authHeaders() })
-    if (!r.ok) return []
+    if (!r.ok) return { total: 0, rows: [] }
     const d = await r.json(); return Array.isArray(d) ? d : d.matches ?? d.items ?? []
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminValidators() {
   return useQuery({ queryKey: ['admin-validators'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/validators`, { signal, headers: authHeaders() })
-    if (!r.ok) return []
+    if (!r.ok) return { total: 0, rows: [] }
     const d = await r.json()
     const rows = Array.isArray(d) ? d : d.items ?? d.validators ?? []
     return rows.map((v: any) => ({
@@ -108,13 +109,46 @@ function useAdminConfig() {
     }, {})
   }, retry: false, staleTime: 120_000 })
 }
-function useAdminAudit() {
-  return useQuery({ queryKey: ['admin-audit'], queryFn: async ({ signal }) => {
-    const r = await fetch(`${ENDPOINTS.gateway}/api/admin/audit-log?limit=50`, { signal, headers: authHeaders() })
+
+function useAdminApiKeys() {
+  return useQuery({ queryKey: ['admin-api-keys'], queryFn: async ({ signal }) => {
+    const r = await fetch(`${ENDPOINTS.gateway}/api/admin/api-keys?limit=100`, { signal, headers: authHeaders() })
     if (!r.ok) return []
+    const data = await r.json()
+    return Array.isArray(data) ? data : (data.keys ?? [])
+  } })
+}
+
+function useAdminListings() {
+  return useQuery({ queryKey: ['admin-marketplace-listings'], queryFn: async ({ signal }) => {
+    const r = await fetch(`${ENDPOINTS.gateway}/api/admin/marketplace/listings?status=pending`, { signal, headers: authHeaders() })
+    if (!r.ok) return []
+    const data = await r.json()
+    return Array.isArray(data) ? data : (data.listings ?? [])
+  } })
+}
+
+function useAdminTrainingJobs() {
+  return useQuery({ queryKey: ['admin-training-jobs'], queryFn: async ({ signal }) => {
+    const r = await fetch(`${ENDPOINTS.gateway}/api/admin/training-jobs?limit=100`, { signal, headers: authHeaders() })
+    if (!r.ok) return []
+    const data = await r.json()
+    return Array.isArray(data) ? data : (data.jobs ?? [])
+  }, refetchInterval: 15_000 })
+}
+function useAdminAudit(filters: { page: number; adminId: string; action: string; targetType: string; dateFrom: string; dateTo: string }) {
+  const params = new URLSearchParams({ page: String(filters.page), limit: '25' })
+  if (filters.adminId) params.set('admin_id', filters.adminId)
+  if (filters.action) params.set('action', filters.action)
+  if (filters.targetType) params.set('target_type', filters.targetType)
+  if (filters.dateFrom) params.set('date_from', filters.dateFrom)
+  if (filters.dateTo) params.set('date_to', `${filters.dateTo}T23:59:59Z`)
+  return useQuery({ queryKey: ['admin-audit', filters], queryFn: async ({ signal }) => {
+    const r = await fetch(`${ENDPOINTS.gateway}/api/admin/audit-log?${params}`, { signal, headers: authHeaders() })
+    if (!r.ok) return { total: 0, rows: [] }
     const d = await r.json()
     const rows = Array.isArray(d) ? d : d.logs ?? d.items ?? []
-    return rows.map((entry: any) => ({
+    return { total: d.total ?? rows.length, rows: rows.map((entry: any) => ({
       ...entry,
       user_id: entry.user_id ?? entry.admin_id,
       details: entry.details ?? (
@@ -122,7 +156,7 @@ function useAdminAudit() {
           ? { before: entry.before, after: entry.after }
           : undefined
       ),
-    }))
+    })) }
   }, retry: false, staleTime: 30_000 })
 }
 
@@ -226,6 +260,16 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
               <span className="text-sm text-white/60 group-hover:text-white transition-colors">{label}</span>
             </a>
           ))}
+            {[
+              { id: 'api_keys',   label: 'API Keys',   icon: Lock         },
+              { id: 'marketplace',label: 'Marketplace',icon: Layers       },
+              { id: 'training',   label: 'Training',   icon: Cpu          },
+            ].map(({ id, label, icon: Icon }) => (
+              <a key={id} href={`#${id}`} className="group flex items-center gap-3 p-4 bg-surface-800/60 border border-white/8 rounded-xl hover:border-white/20 hover:bg-surface-800/80 transition-all">
+                <Icon className="w-4 h-4 text-white/30 group-hover:text-white/60 transition-colors" />
+                <span className="text-sm text-white/60 group-hover:text-white transition-colors">{label}</span>
+              </a>
+            ))}
         </div>
       </section>
     </div>
@@ -325,22 +369,9 @@ function MatchesTab() {
       <div className="bg-surface-800/60 border border-white/8 rounded-xl overflow-hidden">
         {isLoading ? <div className="flex justify-center py-12"><Spinner className="w-5 h-5 text-vit-400" /></div>
         : matches.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead><tr className="border-b border-white/8">
-                {['ID','Match','League','Status','Date'].map(h => <th key={h} className="text-left text-xs font-medium text-white/35 uppercase tracking-wide px-4 py-3">{h}</th>)}
-              </tr></thead>
-              <tbody>{matches.map((m: any, i: number) => (
-                <tr key={m.id ?? i} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
-                  <td className="px-4 py-3 text-white/30 text-xs font-mono">#{m.id ?? i}</td>
-                  <td className="px-4 py-3 text-white text-sm">{m.home_team ?? m.name ?? '—'}{m.away_team ? ` vs ${m.away_team}` : ''}</td>
-                  <td className="px-4 py-3 text-white/50 text-xs">{m.league ?? m.league_name ?? m.competition ?? '—'}</td>
-                  <td className="px-4 py-3"><span className={cn('text-xs px-2 py-0.5 rounded-full border', m.status==='live' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : m.status==='scheduled' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-white/5 text-white/30 border-white/10')}>{m.status ?? 'unknown'}</span></td>
-                  <td className="px-4 py-3 text-white/30 text-xs">{(m.match_date ?? m.kickoff_time) ? new Date(m.match_date ?? m.kickoff_time).toLocaleString() : '—'}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
+          <div className="overflow-x-auto"><table className="w-full"><thead><tr className="border-b border-white/8">{['ID','Match','League','Status','Date'].map(h => <th key={h} className="text-left text-xs font-medium text-white/35 uppercase tracking-wide px-4 py-3">{h}</th>)}</tr></thead>
+            <tbody>{matches.map((m: any, i: number) => <tr key={m.id ?? i} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors"><td className="px-4 py-3 text-white/30 text-xs font-mono">#{m.id ?? i}</td><td className="px-4 py-3 text-white text-sm">{m.home_team ?? m.name ?? '—'}{m.away_team ? ` vs ${m.away_team}` : ''}</td><td className="px-4 py-3 text-white/50 text-xs">{m.league ?? m.league_name ?? m.competition ?? '—'}</td><td className="px-4 py-3">{m.status ?? 'unknown'}</td><td className="px-4 py-3 text-white/30 text-xs">{(m.match_date ?? m.kickoff_time) ? new Date(m.match_date ?? m.kickoff_time).toLocaleString() : '—'}</td></tr>)}</tbody>
+          </table></div>
         ) : <EmptyState icon={Activity} msg="No matches found" />}
       </div>
     </div>
@@ -414,11 +445,69 @@ function ModelsTab() {
   )
 }
 
+function ApiKeysTab() {
+  const { data: keys = [], isLoading, refetch } = useAdminApiKeys()
+  const queryClient = useQueryClient()
+  const revoke = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/api-keys/${id}`, { method: 'PATCH', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: false }) })
+      if (!response.ok) throw new Error('Failed to revoke API key')
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-api-keys'] }); toast.success('API key revoked') },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  return <div className="space-y-4"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-white">Developer API Keys</h3><button type="button" onClick={() => refetch()} aria-label="Refresh API keys"><RefreshCw className="h-4 w-4" /></button></div>{isLoading ? <Spinner className="w-5 h-5 text-vit-400" /> : keys.length === 0 ? <EmptyState icon={Lock} msg="No API keys found" /> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><tbody>{keys.map((key: any) => <tr key={key.id} className="border-b border-white/6"><td className="p-3 font-mono">{key.key_prefix}</td><td className="p-3">{key.user_id}</td><td className="p-3">{key.plan}</td><td className="p-3">{key.total_requests ?? 0}</td><td className="p-3"><StatusBadge status={key.is_active ? 'active' : 'inactive'} /></td><td className="p-3">{key.is_active && <button type="button" onClick={() => { if (window.confirm('Revoke this API key?')) revoke.mutate(key.id) }}>Revoke</button>}</td></tr>)}</tbody></table></div>}</div>
+}
+
+function MarketplaceAdminTab() {
+  const { data: listings = [], isLoading, refetch } = useAdminListings()
+  const queryClient = useQueryClient()
+  const moderate = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: 'approve' | 'reject' }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/marketplace/listings/${id}/${action}`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: action === 'reject' ? JSON.stringify({ approval_note: 'Rejected by administrator' }) : undefined,
+      })
+      if (!response.ok) throw new Error(`Failed to ${action} listing`)
+    },
+    onSuccess: (_, variables) => { queryClient.invalidateQueries({ queryKey: ['admin-marketplace-listings'] }); toast.success(`Listing ${variables.action}d`) },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  return <div className="space-y-4"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-white">Marketplace Review</h3><button type="button" onClick={() => refetch()} aria-label="Refresh listings"><RefreshCw className="h-4 w-4" /></button></div>{isLoading ? <Spinner className="w-5 h-5 text-vit-400" /> : listings.length === 0 ? <EmptyState icon={Layers} msg="No pending listings" /> : listings.map((listing: any) => <div key={listing.id} className="flex items-center justify-between gap-4 border border-white/8 rounded-xl p-4"><div><p className="text-white">{listing.name}</p><p className="text-sm text-white/50">{listing.description ?? 'No description provided.'}</p></div><div className="flex gap-2"><button type="button" onClick={() => moderate.mutate({ id: listing.id, action: 'approve' })} className="text-xs text-emerald-300">Approve</button><button type="button" onClick={() => { if (window.confirm('Reject this listing?')) moderate.mutate({ id: listing.id, action: 'reject' }) }} className="text-xs text-red-300">Reject</button></div></div>)}</div>
+}
+
+function TrainingJobsTab() {
+  const { data: jobs = [], isLoading, refetch } = useAdminTrainingJobs()
+  return <div className="space-y-4"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-white">Training Jobs</h3><button type="button" onClick={() => refetch()} aria-label="Refresh training jobs"><RefreshCw className="h-4 w-4" /></button></div>{isLoading ? <Spinner className="w-5 h-5 text-vit-400" /> : jobs.length === 0 ? <EmptyState icon={Cpu} msg="No training jobs found" /> : jobs.map((job: any) => <div key={job.id} className="border border-white/8 rounded-xl p-4"><div className="flex justify-between"><span className="font-mono text-white">{job.model_key ?? 'Ensemble'}</span><StatusBadge status={job.status ?? 'unknown'} /></div><p className="text-sm text-white/50">{job.progress_pct ?? 0}% complete</p></div>)}</div>
+}
+
 // ── Tab: Config ───────────────────────────────────────────────────────────────
 
 function ConfigTab() {
   const { data: cfg, isLoading } = useAdminConfig()
+  const queryClient = useQueryClient()
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
   const config = cfg ?? {}
+  useEffect(() => {
+    if (!cfg) return
+    setDrafts(Object.fromEntries(Object.entries(cfg).map(([key, value]) => [key, JSON.stringify(value)])))
+  }, [cfg])
+  const updateConfig = useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/config/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      })
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail ?? 'Failed to update config')
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-config'] })
+      toast.success('Configuration updated')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
   const featureFlags = [
     { key: 'predictions_enabled', label: 'Predictions' }, { key: 'wallet_enabled', label: 'Wallet' },
     { key: 'governance_enabled',  label: 'Governance'  }, { key: 'marketplace_enabled', label: 'Marketplace' },
@@ -449,8 +538,35 @@ function ConfigTab() {
           </div>
           {cfg && Object.keys(config).length > 0 && (
             <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Raw Config</h3>
-              <pre className="text-xs text-white/50 overflow-x-auto leading-relaxed">{JSON.stringify(config, null, 2)}</pre>
+              <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Platform Configuration</h3>
+              <div className="space-y-3">
+                {Object.keys(config).map(key => (
+                  <div key={key} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] items-center">
+                    <label htmlFor={`config-${key}`} className="text-sm text-white/70 break-all">{key}</label>
+                    <input
+                      id={`config-${key}`}
+                      value={drafts[key] ?? ''}
+                      onChange={event => setDrafts(current => ({ ...current, [key]: event.target.value }))}
+                      className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-vit-400"
+                      aria-label={`Value for ${key}`}
+                    />
+                    <button
+                      type="button"
+                      disabled={updateConfig.isPending}
+                      onClick={() => {
+                        try {
+                          updateConfig.mutate({ key, value: JSON.parse(drafts[key] ?? 'null') })
+                        } catch {
+                          toast.error(`Invalid JSON for ${key}`)
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-vit-500/20 px-3 py-2 text-xs font-medium text-vit-200 hover:bg-vit-500/30 disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {(!cfg || Object.keys(config).length === 0) && <EmptyState icon={Settings} msg={cfg === null ? 'Admin access required' : 'No config data'} />}
@@ -463,14 +579,23 @@ function ConfigTab() {
 // ── Tab: Audit ────────────────────────────────────────────────────────────────
 
 function AuditTab() {
-  const { data: list = [], isLoading, refetch } = useAdminAudit()
-  const entries: any[] = Array.isArray(list) ? list : []
+  const [filters, setFilters] = useState({ page: 1, adminId: '', action: '', targetType: '', dateFrom: '', dateTo: '' })
+  const [draft, setDraft] = useState(filters)
+  const { data, isLoading, refetch } = useAdminAudit(filters)
+  const entries: any[] = data?.rows ?? []
+  const total = data?.total ?? 0
+  const pageSize = 25
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-white/40">{entries.length > 0 ? `${entries.length} entries` : 'Audit Log'}</p>
+        <p className="text-sm text-white/40">{total > 0 ? `${total} entries` : 'Audit Log'}</p>
         <button onClick={() => refetch()} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors"><RefreshCw className="w-4 h-4" /></button>
       </div>
+      <form onSubmit={event => { event.preventDefault(); setFilters({ ...draft, page: 1 }) }} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+        {([['adminId', 'Admin ID'], ['action', 'Action'], ['targetType', 'Target type'], ['dateFrom', 'From'], ['dateTo', 'To']] as const).map(([key, label]) => <input key={key} value={draft[key]} onChange={event => setDraft(current => ({ ...current, [key]: event.target.value }))} placeholder={label} type={key.startsWith('date') ? 'date' : 'text'} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30" />)}
+        <button type="submit" className="rounded-lg bg-vit-500/20 px-3 py-2 text-sm text-vit-200">Filter</button>
+      </form>
       <div className="bg-surface-800/60 border border-white/8 rounded-xl overflow-hidden">
         {isLoading ? <div className="flex justify-center py-12"><Spinner className="w-5 h-5 text-vit-400" /></div>
         : entries.length > 0 ? (
@@ -487,6 +612,7 @@ function AuditTab() {
           ))}</div>
         ) : <EmptyState icon={ClipboardList} msg="No audit entries found" />}
       </div>
+      {pageCount > 1 && <div className="flex items-center justify-between text-sm text-white/50"><span>Page {filters.page} of {pageCount}</span><div className="flex gap-2"><button type="button" disabled={filters.page === 1} onClick={() => setFilters(current => ({ ...current, page: current.page - 1 }))} className="rounded-lg border border-white/10 px-3 py-1.5 disabled:opacity-30">Previous</button><button type="button" disabled={filters.page === pageCount} onClick={() => setFilters(current => ({ ...current, page: current.page + 1 }))} className="rounded-lg border border-white/10 px-3 py-1.5 disabled:opacity-30">Next</button></div></div>}
     </div>
   )
 }
@@ -548,6 +674,9 @@ const TABS = [
   { id: 'matches',     label: 'Matches',    icon: Activity     },
   { id: 'validators',  label: 'Validators', icon: Shield       },
   { id: 'models',      label: 'Models',     icon: Cpu          },
+  { id: 'api_keys',    label: 'API Keys',   icon: Lock         },
+  { id: 'marketplace', label: 'Marketplace',icon: Layers       },
+  { id: 'training',    label: 'Training',   icon: Cpu          },
   { id: 'config',      label: 'Config',     icon: Settings     },
   { id: 'audit',       label: 'Audit',      icon: ClipboardList},
   { id: 'system',      label: 'System',     icon: Server       },
@@ -625,6 +754,9 @@ export default function Admin() {
         {activeTab === 'matches'    && <MatchesTab    />}
         {activeTab === 'validators' && <ValidatorsTab />}
         {activeTab === 'models'     && <ModelsTab     />}
+        {activeTab === 'api_keys'   && <ApiKeysTab     />}
+        {activeTab === 'marketplace'&& <MarketplaceAdminTab />}
+        {activeTab === 'training'   && <TrainingJobsTab />}
         {activeTab === 'config'     && <ConfigTab     />}
         {activeTab === 'audit'      && <AuditTab      />}
         {activeTab === 'system'     && <SystemTab     status={status} health={health} metrics={metrics} loadingStatus={loadingStatus} loadingHealth={loadingHealth} />}
