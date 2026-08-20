@@ -1,3 +1,5 @@
+- 2026-08-20 `c1f598f` Fix runtime error on Validators page by handling missing validator fields
+
 - 2026-08-19 `df0cdaf` Fix dashboard errors and ensure robust API error handling
 
 - 2026-08-19 `0d4d94f` Fix dashboard errors and improve error resilience
