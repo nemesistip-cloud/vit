@@ -16,19 +16,23 @@ import { toast } from 'sonner'
 interface Validator {
   id: number | string
   node_id?: string
-  operator: string
-  stake_amount: number
+  operator?: string
+  username?: string
+  user_id?: number | string
+  stake_amount?: number
+  stake?: number
   commission_rate?: number
   uptime_pct?: number
   blocks_validated?: number
-  status: 'active' | 'inactive' | 'slashed' | 'pending' | string
+  status?: 'active' | 'inactive' | 'slashed' | 'pending' | string
   joined_at?: string
   last_seen?: string
 }
 
 interface MyValidator {
-  status: string
-  stake_amount: number
+  status?: string
+  stake_amount?: number
+  stake?: number
   pending_rewards?: number
   slashing_history?: { reason: string; amount: number; at: string }[]
 }
@@ -71,8 +75,8 @@ const STATUS: Record<string, { label: string; cls: string; icon: React.ElementTy
   slashed:  { label: 'Slashed',  cls: 'bg-red-500/15 text-red-400 border-red-500/25',            icon: AlertCircle  },
 }
 
-function StatusPill({ status }: { status: string }) {
-  const s = STATUS[status] ?? STATUS.inactive
+function StatusPill({ status }: { status?: string }) {
+  const s = STATUS[status ?? ''] ?? STATUS.inactive
   const Icon = s.icon
   return (
     <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border', s.cls)}>
@@ -85,6 +89,9 @@ function StatusPill({ status }: { status: string }) {
 // ── Validator row ─────────────────────────────────────────────────────────────
 
 function ValidatorRow({ v, i }: { v: Validator; i: number }) {
+  const operatorName = v.operator || v.username || (v.user_id ? `User #${v.user_id}` : 'Unknown Operator')
+  const stakeValue = v.stake_amount ?? v.stake ?? 0
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -97,7 +104,7 @@ function ValidatorRow({ v, i }: { v: Validator; i: number }) {
 
       {/* Operator */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate">{v.operator}</p>
+        <p className="text-sm font-medium text-white truncate">{operatorName}</p>
         {v.node_id && <p className="text-[11px] text-white/30 font-mono truncate">{v.node_id}</p>}
       </div>
 
@@ -105,7 +112,7 @@ function ValidatorRow({ v, i }: { v: Validator; i: number }) {
       <div className="hidden sm:flex items-center gap-6 text-right shrink-0">
         <div>
           <p className="text-xs text-white/35">Stake</p>
-          <p className="text-sm font-semibold text-white">{v.stake_amount.toLocaleString()} VIT</p>
+          <p className="text-sm font-semibold text-white">{stakeValue.toLocaleString()} VIT</p>
         </div>
         {v.uptime_pct != null && (
           <div>
@@ -217,8 +224,13 @@ export default function Validators() {
   const { data: validators = [], isLoading } = useValidators()
   const { data: myValidator } = useMyValidator()
 
-  const active  = validators.filter(v => v.status === 'active').length
-  const totalStake = validators.reduce((s, v) => s + (v.stake_amount || 0), 0)
+  const active  = validators.filter(v => (v.status ?? '').toLowerCase() === 'active').length
+  const totalStake = validators.reduce((s, v) => s + (v.stake_amount ?? v.stake ?? 0), 0)
+  const formatStake = (stake: number) => {
+    if (stake >= 1e6) return `${(stake / 1e6).toFixed(1)}M VIT`
+    if (stake >= 1e3) return `${(stake / 1e3).toFixed(1)}K VIT`
+    return `${stake.toLocaleString()} VIT`
+  }
 
   return (
     <div className="pt-20 pb-20 min-h-screen relative">
@@ -239,7 +251,7 @@ export default function Validators() {
           {[
             { label: 'Active Validators', value: active,                             icon: Shield,   color: 'text-emerald-400' },
             { label: 'Total Validators',  value: validators.length,                  icon: Users,    color: 'text-vit-400'     },
-            { label: 'Total Staked',      value: `${(totalStake/1e6).toFixed(1)}M VIT`, icon: Star, color: 'text-amber-400'  },
+            { label: 'Total Staked',      value: formatStake(totalStake), icon: Star, color: 'text-amber-400'  },
             { label: 'Avg Uptime',
               value: validators.length
                 ? `${(validators.reduce((s,v) => s+(v.uptime_pct??0),0)/validators.length).toFixed(1)}%`
