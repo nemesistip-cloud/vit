@@ -192,7 +192,8 @@ class WorkspaceStore {
 
   getState() {
     if (!this.initialized) this.initialize()
-    return cloneState(this.state)
+    // useSyncExternalStore requires a cached snapshot between emissions.
+    return this.state
   }
 
   subscribe(listener: () => void) {

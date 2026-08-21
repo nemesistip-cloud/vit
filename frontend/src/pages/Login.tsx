@@ -31,6 +31,18 @@ export default function Login() {
       const path = tab === 'login' ? '/api/auth/login' : '/api/auth/register'
       const trimmedEmail = email.trim()
       const trimmedUsername = username.trim()
+      if (tab === 'register') {
+        const passwordRequirements = [
+          password.length >= 10,
+          /[A-Z]/.test(password),
+          /[a-z]/.test(password),
+          /\d/.test(password),
+          /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password),
+        ]
+        if (!passwordRequirements.every(Boolean)) {
+          throw new Error('Password must be 10+ characters with uppercase, lowercase, a number, and a special character.')
+        }
+      }
       const body = tab === 'login'
         ? { email: trimmedEmail, password }
         : { email: trimmedEmail, username: trimmedUsername, password }
@@ -228,7 +240,7 @@ export default function Login() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     required
-                    placeholder={tab === 'register' ? 'Min 10 chars, uppercase + lowercase' : '••••••••••'}
+                    placeholder={tab === 'register' ? '10+ chars, upper/lowercase, number, symbol' : '••••••••••'}
                     className="w-full bg-surface-900/60 border border-white/8 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-vit-500/60 focus:ring-1 focus:ring-vit-500/20 transition-all"
                   />
                   <button

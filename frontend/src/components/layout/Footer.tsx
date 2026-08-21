@@ -69,7 +69,7 @@ export function Footer() {
           <div className="flex items-center justify-between gap-6 overflow-x-auto scrollbar-hide">
             <div className="flex items-center gap-6 shrink-0">
               {CHAIN_STATS.map(({ icon: Icon, label, value }) => (
-                <div key={label} className="flex items-center gap-2 text-xs shrink-0">
+                <div key={`${label}-${value}`} className="flex items-center gap-2 text-xs shrink-0">
                   <Icon className="w-3.5 h-3.5 text-vit-500/60" />
                   <span className="text-white/30">{label}:</span>
                   <span className="text-white/60 font-medium">{value}</span>

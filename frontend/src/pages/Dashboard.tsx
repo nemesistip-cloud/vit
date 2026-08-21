@@ -202,24 +202,6 @@ function useLatestBlocks() {
   })
 }
 
-function useSystemNotices() {
-  return useQuery({
-    queryKey: ['system-notices'],
-    queryFn: async ({ signal }) => {
-      try {
-        const r = await fetch(buildUrl('/api/system/notices'), { signal })
-        if (!r.ok) return []
-        const d = await r.json()
-        return Array.isArray(d) ? d : d.notices ?? []
-      } catch {
-        return []
-      }
-    },
-    staleTime: 300_000,
-    retry: 1,
-  })
-}
-
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
@@ -347,7 +329,6 @@ export default function Dashboard() {
   const { data: storageHealth, isLoading: stgLoading } = useStorageHealthDash()
   const { data: chainHealth,   isLoading: chnLoading } = useChainHealthDash()
   const { data: blocksData }                           = useLatestBlocks()
-  const { data: notices }                              = useSystemNotices()
 
   const healthLoading = gwLoading || aiLoading || stgLoading || chnLoading
   const user = me ?? stored
@@ -398,27 +379,6 @@ export default function Dashboard() {
       </div>
 
       <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6">
-        {notices && notices.length > 0 && (
-          <div className="space-y-2">
-            {notices.slice(0, 3).map((notice: any, i: number) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={cn(
-                  'flex items-center gap-3 rounded-xl border px-4 py-3 text-sm',
-                  notice.severity === 'critical' ? 'border-red-500/30 bg-red-500/10 text-red-300' :
-                  notice.severity === 'warning'  ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' :
-                  'border-blue-500/30 bg-blue-500/10 text-blue-300',
-                )}
-              >
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{notice.message || notice.title || notice.body}</span>
-              </motion.div>
-            ))}
-          </div>
-        )}
-
         {summaryLoading ? <SkeletonDashboard /> : (
           <DashboardWorkspace
             summary={summary}
