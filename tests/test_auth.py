@@ -174,3 +174,21 @@ async def test_login_with_username(client):
     data = resp.json()
     assert "access_token" in data
     assert data["username"] == username
+
+@pytest.mark.asyncio
+async def test_login_with_untrimmed_whitespace(client):
+    email = _unique_email()
+    password = "Correct@12345!"
+    await client.post("/auth/register", json={
+        "email": email,
+        "username": f"u_{uuid.uuid4().hex[:6]}",
+        "password": password,
+    })
+    # Login with whitespace around email
+    resp = await client.post("/auth/login", json={
+        "email": f"  {email}  ",
+        "password": password,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access_token" in data
