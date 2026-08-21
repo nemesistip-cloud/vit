@@ -1,3 +1,5 @@
+- 2026-08-21 `2219dcd` fix(frontend): update vit-storage upload and file listing endpoints
+
 - 2026-08-20 `c1f598f` Fix runtime error on Validators page by handling missing validator fields
 
 - 2026-08-19 `df0cdaf` Fix dashboard errors and ensure robust API error handling
