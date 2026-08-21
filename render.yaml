@@ -48,6 +48,10 @@ services:
           value: https://vit-ai.onrender.com
         - key: TACHYON_URL
           value: https://vit-storage-4trt.onrender.com
+        - key: TACHYON_ENDPOINT
+          value: https://vit-storage-4trt.onrender.com/api/tachyon
+        - key: SERVICE_TOKEN_SECRET
+          sync: false
         - key: VIT_AI_API_KEY
           sync: false
         # ── Frontend build-time service URLs (baked into Vite bundle) ────────
@@ -91,6 +95,10 @@ services:
           value: https://vit-ai.onrender.com
         - key: TACHYON_URL
           value: https://vit-storage-4trt.onrender.com
+        - key: TACHYON_ENDPOINT
+          value: https://vit-storage-4trt.onrender.com/api/tachyon
+        - key: SERVICE_TOKEN_SECRET
+          sync: false
         - key: VIT_AI_API_KEY
           sync: false
         # ── Frontend build-time service URLs (baked into Vite bundle) ────────

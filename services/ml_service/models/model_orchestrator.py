@@ -321,6 +321,7 @@ class ModelOrchestrator:
 
     def _sklearn_predict(self, model_obj, lam_h: float, lam_a: float,
                          base_hp: float, base_dp: float, base_ap: float,
+                         market_odds: Optional[Dict[str, Any]] = None,
                          match_features: Optional[Dict[str, Any]] = None,
                          ) -> Optional[Tuple[float, float, float]]:
         sk_model   = getattr(model_obj, "_sklearn_model",    None)
@@ -330,8 +331,11 @@ class ModelOrchestrator:
         if sk_model is None:
             return None
 
+        odds = market_odds or {}
         feature_map = {
-            "home_odds": 2.30, "draw_odds": 3.30, "away_odds": 3.10,
+            "home_odds": float(odds.get("home", 2.30) or 2.30),
+            "draw_odds": float(odds.get("draw", 3.30) or 3.30),
+            "away_odds": float(odds.get("away", 3.10) or 3.10),
             "home_implied": base_hp, "draw_implied": base_dp, "away_implied": base_ap,
             "lam_h": lam_h, "lam_a": lam_a,
             "over_25_implied": 0.50,
@@ -445,7 +449,10 @@ class ModelOrchestrator:
                     dp = (1 - strength) * dp + strength * float(learned[1])
                     ap = (1 - strength) * ap + strength * float(learned[2])
 
-                sk_result = self._sklearn_predict(model, lam_h, lam_a, base_hp, base_dp, base_ap, match_features)
+                sk_result = self._sklearn_predict(
+                    model, lam_h, lam_a, base_hp, base_dp, base_ap,
+                    market_odds=mkt, match_features=match_features,
+                )
                 if sk_result:
                     hp, dp, ap = (0.5 * hp + 0.5 * sk_result[0]), (0.5 * dp + 0.5 * sk_result[1]), (0.5 * ap + 0.5 * sk_result[2])
                 hp, dp, ap = _normalise(hp, dp, ap)

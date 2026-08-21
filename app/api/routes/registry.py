@@ -43,7 +43,8 @@ def _service_urls() -> dict[str, str]:
         "gateway":    _url("VIT_GATEWAY_URL",    "https://vitnetwork-nls4.onrender.com"),
         "ai":         _url("VIT_AI_URL",          "https://vit-ai.onrender.com"),
         "storage":    _url("VIT_STORAGE_URL",     "https://vit-storage-4trt.onrender.com"),
-        "blockchain": _url("VIT_BLOCKCHAIN_URL",  "https://vitnetwork-nls4.onrender.com"),
+        "blockchain": _url("VIT_BLOCKCHAIN_URL",  "https://vit-chain.onrender.com"),
+        "explorer":   _url("VIT_EXPLORER_URL",    "https://vit-explorer.onrender.com"),
         "wallet":     _url("VIT_WALLET_URL",      "https://vitnetwork-nls4.onrender.com"),
     }
 
@@ -58,7 +59,11 @@ async def _probe(client: httpx.AsyncClient, name: str, base_url: str) -> dict[st
     try:
         # vit-ai's authoritative readiness contract is /api/v1/ai/status.
         # Keep the other service probes on their existing /health contracts.
-        path = "/api/v1/ai/status" if name == "ai" else "/health"
+        path = {
+            "ai": "/api/v1/ai/status",
+            "blockchain": "/ping",
+            "explorer": "/health",
+        }.get(name, "/health")
         r = await client.get(f"{base_url}{path}", timeout=5.0)
         latency_ms = round((time.monotonic() - t0) * 1000)
         if r.status_code < 500:
@@ -101,11 +106,13 @@ async def get_registry() -> JSONResponse:
 
     async with httpx.AsyncClient() as client:
         probes = await asyncio.gather(
-            _probe(client, "ai",      urls["ai"]),
-            _probe(client, "storage", urls["storage"]),
+            _probe(client, "ai",         urls["ai"]),
+            _probe(client, "storage",    urls["storage"]),
+            _probe(client, "blockchain", urls["blockchain"]),
+            _probe(client, "explorer",   urls["explorer"]),
         )
 
-    ai_health, storage_health = probes
+    ai_health, storage_health, blockchain_health, explorer_health = probes
 
     services: dict[str, Any] = {}
     for name, url in urls.items():
@@ -114,13 +121,19 @@ async def get_registry() -> JSONResponse:
             entry.update(ai_health)
         elif name == "storage":
             entry.update(storage_health)
+        elif name == "blockchain":
+            entry.update(blockchain_health)
+        elif name == "explorer":
+            entry.update(explorer_health)
         else:
             entry["status"] = "ok"
         services[name] = entry
 
     overall = "healthy"
-    if ai_health["status"] not in ("ok", "healthy", "starting") or \
-       storage_health["status"] not in ("ok", "healthy", "quantum_stable", "starting"):
+    if any(
+        probe["status"] not in ("ok", "healthy", "quantum_stable", "starting")
+        for probe in (ai_health, storage_health, blockchain_health, explorer_health)
+    ):
         overall = "degraded"
 
     return JSONResponse({
@@ -147,9 +160,11 @@ async def get_platform_status() -> JSONResponse:
 
     # --- Probe external services concurrently ---
     async with httpx.AsyncClient() as client:
-        ai_probe, storage_probe = await asyncio.gather(
-            _probe(client, "ai",      urls["ai"]),
-            _probe(client, "storage", urls["storage"]),
+        ai_probe, storage_probe, blockchain_probe, explorer_probe = await asyncio.gather(
+            _probe(client, "ai",         urls["ai"]),
+            _probe(client, "storage",    urls["storage"]),
+            _probe(client, "blockchain", urls["blockchain"]),
+            _probe(client, "explorer",   urls["explorer"]),
         )
 
     # --- Local DB check ---
@@ -184,6 +199,8 @@ async def get_platform_status() -> JSONResponse:
         redis_status == "disconnected",
         not ai_probe["reachable"],
         not storage_probe["reachable"],
+        not blockchain_probe["reachable"],
+        not explorer_probe["reachable"],
         kernel_state == "DEGRADED",
     ])
     if issues == 0:
@@ -205,6 +222,8 @@ async def get_platform_status() -> JSONResponse:
             },
             "ai":      ai_probe,
             "storage": storage_probe,
+            "blockchain": blockchain_probe,
+            "explorer": explorer_probe,
         },
         "infrastructure": {
             "database": {"status": db_status},

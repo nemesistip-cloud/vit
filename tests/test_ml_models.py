@@ -31,6 +31,38 @@ def test_model_meta_has_required_fields(orchestrator):
         assert "weight" in meta
         assert "pkl_loaded" in meta
 
+
+def test_sklearn_inference_uses_submitted_market_odds(orchestrator):
+    """Inference must use the same odds feature values used during training."""
+    captured = {}
+
+    class CaptureModel:
+        def predict_proba(self, values):
+            captured["values"] = values.tolist()
+            return [[0.2, 0.3, 0.5]]
+
+    model = orchestrator.models["logistic_v2"]
+    model._sklearn_model = CaptureModel()
+    model._sklearn_scaler = None
+    model._sklearn_features = [
+        "home_odds", "draw_odds", "away_odds",
+        "home_implied", "draw_implied", "away_implied",
+    ]
+
+    result = orchestrator._sklearn_predict(
+        model,
+        lam_h=1.4,
+        lam_a=1.1,
+        base_hp=0.45,
+        base_dp=0.25,
+        base_ap=0.30,
+        market_odds={"home": 1.75, "draw": 3.80, "away": 5.20},
+    )
+
+    assert result == pytest.approx((0.2, 0.3, 0.5))
+    assert captured["values"][0][:3] == [1.75, 3.8, 5.2]
+    assert captured["values"][0][3:] == [0.45, 0.25, 0.3]
+
 @pytest.mark.asyncio
 async def test_predict_returns_required_keys(orchestrator):
     features = {

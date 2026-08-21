@@ -124,6 +124,8 @@ async def test_registry_api_returns_expected_shape(monkeypatch):
     assert payload["status"] in {"healthy", "degraded"}
     assert payload["services"]
     assert "gateway" in payload["services"]
+    assert "blockchain" in payload["services"]
+    assert "explorer" in payload["services"]
     assert payload["services"]["gateway"]["url"].startswith("http")
 
 
@@ -154,6 +156,18 @@ async def test_storage_probe_keeps_health_contract():
 
     assert client.requests == [("https://vit-storage.example/health", 5.0)]
     assert result["status"] == "quantum_stable"
+    assert result["reachable"] is True
+
+
+@pytest.mark.asyncio
+async def test_blockchain_probe_uses_ping_contract():
+    from app.api.routes.registry import _probe
+
+    client = _ProbeClient({"status": "ok", "chain_id": 7764})
+    result = await _probe(client, "blockchain", "https://vit-chain.example")
+
+    assert client.requests == [("https://vit-chain.example/ping", 5.0)]
+    assert result["status"] == "ok"
     assert result["reachable"] is True
 
 
