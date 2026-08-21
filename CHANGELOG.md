@@ -1,3 +1,5 @@
+- 2026-08-21 `24cde3a` fix(alembic): remove alembic/__init__.py to prevent shadowing third-p…
+
 - 2026-08-21 `2219dcd` fix(frontend): update vit-storage upload and file listing endpoints
 
 - 2026-08-20 `c1f598f` Fix runtime error on Validators page by handling missing validator fields
