@@ -1,3 +1,5 @@
+- 2026-08-21 `d516faa` fix(auth): support email/username input and trim login whitespace
+
 - 2026-08-21 `fd61b7c` fix(auth): support email/username input and trim login whitespace
 
 - 2026-08-21 `5b13589` feat(marketplace): expose staking endpoints, fix frontend gaps and ad…
