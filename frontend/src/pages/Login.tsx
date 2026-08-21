@@ -29,9 +29,11 @@ export default function Login() {
     try {
       // Fix: /api/auth/login (not /api/auth/auth/login)
       const path = tab === 'login' ? '/api/auth/login' : '/api/auth/register'
+      const trimmedEmail = email.trim()
+      const trimmedUsername = username.trim()
       const body = tab === 'login'
-        ? { email, password }
-        : { email, username, password }
+        ? { email: trimmedEmail, password }
+        : { email: trimmedEmail, username: trimmedUsername, password }
 
       const res = await fetch(`${ENDPOINTS.gateway}${path}`, {
         method: 'POST',
@@ -172,17 +174,19 @@ export default function Login() {
             </div>
 
             <form onSubmit={submit} className="space-y-4">
-              {/* Email */}
+              {/* Email or Username */}
               <div>
-                <label className="block text-xs font-medium text-white/50 mb-1.5 uppercase tracking-wide">Email</label>
+                <label className="block text-xs font-medium text-white/50 mb-1.5 uppercase tracking-wide">
+                  {tab === 'login' ? 'Email or Username' : 'Email'}
+                </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
                   <input
-                    type="email"
+                    type={tab === 'login' ? 'text' : 'email'}
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     required
-                    placeholder="you@example.com"
+                    placeholder={tab === 'login' ? 'you@example.com or username' : 'you@example.com'}
                     className="w-full bg-surface-900/60 border border-white/8 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-vit-500/60 focus:ring-1 focus:ring-vit-500/20 transition-all"
                   />
                 </div>
