@@ -87,6 +87,12 @@ async def _probe(client: httpx.AsyncClient, name: str, base_url: str) -> dict[st
         return {"status": "unreachable", "latency_ms": None, "reachable": False}
 
 
+def _probe_is_healthy(probe: dict[str, Any]) -> bool:
+    return probe.get("reachable", False) and probe.get("status") in (
+        "ok", "healthy", "quantum_stable", "starting"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -197,10 +203,10 @@ async def get_platform_status() -> JSONResponse:
     issues = sum([
         db_status != "connected",
         redis_status == "disconnected",
-        not ai_probe["reachable"],
-        not storage_probe["reachable"],
-        not blockchain_probe["reachable"],
-        not explorer_probe["reachable"],
+        not _probe_is_healthy(ai_probe),
+        not _probe_is_healthy(storage_probe),
+        not _probe_is_healthy(blockchain_probe),
+        not _probe_is_healthy(explorer_probe),
         kernel_state == "DEGRADED",
     ])
     if issues == 0:

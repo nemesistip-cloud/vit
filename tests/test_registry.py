@@ -193,3 +193,10 @@ async def test_platform_status_api_returns_infrastructure_section(monkeypatch):
     assert payload["services"]["gateway"]["status"] == "ok"
     assert "infrastructure" in payload
     assert payload["infrastructure"]["database"]["status"] in {"connected", "disconnected"}
+
+
+def test_probe_is_healthy_rejects_degraded_http_response():
+    from app.api.routes.registry import _probe_is_healthy
+
+    assert not _probe_is_healthy({"status": "degraded", "reachable": True, "http_status": 502})
+    assert _probe_is_healthy({"status": "healthy", "reachable": True})
