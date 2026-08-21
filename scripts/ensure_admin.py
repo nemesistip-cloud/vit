@@ -32,10 +32,27 @@ async def main():
     from app.auth.jwt_utils import hash_password, verify_password
 
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(User).where(User.email == ADMIN_EMAIL.lower()))
+        # Resolve by email first, then username. When ADMIN_EMAIL changes,
+        # reuse the existing bootstrap account instead of inserting a duplicate
+        # username and failing the entire admin bootstrap step.
+        result = await db.execute(
+            select(User).where(User.email == ADMIN_EMAIL.lower())
+        )
         existing = result.scalar_one_or_none()
+        if existing is None and ADMIN_USERNAME:
+            result = await db.execute(
+                select(User).where(User.username == ADMIN_USERNAME)
+            )
+            existing = result.scalar_one_or_none()
 
         if existing:
+            # Keep the configured email/username pair authoritative when the
+            # admin email is rotated through Render environment variables.
+            existing.email = ADMIN_EMAIL.lower()
+            existing.username = ADMIN_USERNAME
+            existing.role = "admin"
+            existing.is_active = True
+
             # Sync password: if the stored hash doesn't match the env-var password,
             # update it so the configured credential is always authoritative.
             pw_ok = False
@@ -46,9 +63,6 @@ async def main():
 
             if not pw_ok:
                 existing.hashed_password = hash_password(ADMIN_PASSWORD)
-                # Ensure admin role and active state are correct
-                existing.role = "admin"
-                existing.is_active = True
                 await db.commit()
                 print(
                     f"[ensure_admin] Admin user '{ADMIN_EMAIL}' password synced "
