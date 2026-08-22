@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { Spinner } from '@/components/ui/Spinner'
 import { toast } from 'sonner'
 
@@ -124,6 +125,33 @@ function ProbBar({ label, prob, color }: { label: string; prob?: number; color: 
           transition={{ duration: 0.6, ease: 'easeOut' }}
           className={cn('h-full rounded-full', color.replace('text-', 'bg-'))}
         />
+      </div>
+    </div>
+  )
+}
+
+function MatchCardSkeleton() {
+  return (
+    <div className="rounded-2xl border border-white/6 bg-surface-800/50 p-5" aria-hidden="true">
+      <div className="flex items-center justify-between mb-4">
+        <Skeleton className="h-2.5 w-32" />
+        <Skeleton className="h-5 w-16 rounded-full" />
+      </div>
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+        <Skeleton className="h-3 w-6" />
+        <div className="flex-1 space-y-2 flex flex-col items-end">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+      </div>
+      <div className="border-t border-white/5 pt-4 flex gap-3">
+        <Skeleton className="h-8 flex-1" />
+        <Skeleton className="h-8 flex-1" />
+        <Skeleton className="h-8 flex-1" />
       </div>
     </div>
   )
@@ -315,13 +343,15 @@ export default function Matches() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
 
         {/* ── Tabs (horizontal scroll on mobile) ────────────────────────── */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide" role="tablist" aria-label="Match status">
           {TABS.map(({ value, label, icon: Icon }) => {
             const isLive = value === 'live'
             return (
               <button
                 key={value}
                 onClick={() => setTab(value)}
+                role="tab"
+                aria-selected={tab === value}
                 className={cn(
                   'flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all shrink-0',
                   tab === value
@@ -347,11 +377,12 @@ export default function Matches() {
         {/* ── Sport filters + search ─────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Sport chips — horizontal scroll, never wrap */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide shrink-0" role="group" aria-label="Filter by sport">
             {SPORTS.map(({ value, label }) => (
               <button
                 key={value}
                 onClick={() => setSport(value)}
+                aria-pressed={sport === value}
                 className={cn(
                   'px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all shrink-0',
                   sport === value
@@ -379,19 +410,22 @@ export default function Matches() {
 
         {/* ── Results count ──────────────────────────────────────────────── */}
         {!isLoading && (
-          <p className="text-xs text-white/25 px-1">
-            {filtered.length === 0 ? 'No matches' : `${filtered.length} match${filtered.length !== 1 ? 'es' : ''}`}
-            {search && <span className="text-white/20"> · searching "{search}"</span>}
-          </p>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <p className="text-xs text-white/35" aria-live="polite">
+              <span className="font-medium text-white/60">{filtered.length}</span>{' '}
+              {filtered.length === 1 ? 'match' : 'matches'}
+              {search && <span className="text-white/25"> · searching "{search}"</span>}
+            </p>
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Live data
+            </span>
+          </div>
         )}
 
         {/* ── Loading ────────────────────────────────────────────────────── */}
         {isLoading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="flex flex-col items-center gap-3">
-              <Spinner className="w-7 h-7 text-vit-400" />
-              <p className="text-white/30 text-sm">Loading matches…</p>
-            </div>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4" aria-label="Loading matches" aria-busy="true">
+            {Array.from({ length: 6 }).map((_, i) => <MatchCardSkeleton key={i} />)}
           </div>
         )}
 

@@ -26,6 +26,13 @@ export function formatUptime(seconds: number): string {
 export function timeAgo(date: string | Date): string {
   const diff = Date.now() - new Date(date).getTime()
   const s = Math.floor(diff / 1000)
+  if (s < 0) {
+    const until = Math.abs(s)
+    if (until < 60)    return 'starting soon'
+    if (until < 3600)  return `in ${Math.floor(until / 60)}m`
+    if (until < 86400) return `in ${Math.floor(until / 3600)}h`
+    return `in ${Math.floor(until / 86400)}d`
+  }
   if (s < 60)    return `${s}s ago`
   if (s < 3600)  return `${Math.floor(s / 60)}m ago`
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`

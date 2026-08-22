@@ -1,27 +1,24 @@
 import { test, expect } from '@playwright/test';
 
-test('Matches page has tabs and dynamic counts', async ({ page }) => {
+test('Matches page renders its real tabs, summary count, and search', async ({ page }) => {
   await page.goto('/matches');
 
-  // Accept the gambling notice if it appears
+  // Accept the gambling notice if it appears.
   const acceptButton = page.getByText('I Understand & Accept');
-  if (await acceptButton.isVisible()) {
+  if (await acceptButton.isVisible().catch(() => false)) {
     await acceptButton.click();
   }
 
-  // Check for the "Matches" and "Teams" tabs
-  await expect(page.getByRole('tab', { name: /Matches/ })).toBeVisible();
-  await expect(page.getByRole('tab', { name: /Teams/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Matches & Predictions/i })).toBeVisible();
 
-  // Check for the dynamic count in the summary line
-  await expect(page.getByText(/Matches found:/)).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Upcoming/i })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Live/i })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Recent/i })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^All$/i })).toBeVisible();
 
-  // Switch to Teams tab
-  await page.getByRole('tab', { name: /Teams/ }).click();
-  await expect(page.getByText(/Teams found:/)).toBeVisible();
+  await expect(page.getByText(/\d+ match(?:es)?|No matches/i)).toBeVisible();
 
-  // Verify search input placeholder changes
-  const searchInput = page.getByPlaceholder(/Search teams/);
+  const searchInput = page.getByPlaceholder(/Search teams or leagues/i);
   await expect(searchInput).toBeVisible();
 
   await page.screenshot({ path: 'matches-tabs.png' });
