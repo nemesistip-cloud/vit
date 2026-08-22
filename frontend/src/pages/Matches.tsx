@@ -174,7 +174,12 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: i * 0.04, duration: 0.3 }}
-      onClick={() => navigate(`/matches/${match.id ?? match.match_id}`)}
+      onClick={() => {
+        const targetId = Number(match.id ?? match.match_id)
+        if (Number.isFinite(targetId) && targetId > 0) {
+          navigate(`/matches/${targetId}`)
+        }
+      }}
       className={cn(
         'group relative rounded-2xl border p-5 cursor-pointer transition-all duration-200',
         'bg-surface-800/50 hover:bg-surface-700/60',
