@@ -134,10 +134,12 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
   const conf   = match.confidence != null ? Math.round(match.confidence * 100) : null
   const isLive = match.status === 'live' || match.status === 'in_play'
 
-  const autoSide = match.home_prob != null && match.away_prob != null
-    ? (match.home_prob >= match.away_prob && match.home_prob >= (match.draw_prob ?? 0) ? 'HOME' : match.away_prob >= (match.draw_prob ?? 0) ? 'AWAY' : 'DRAW')
+  const autoSide = match.home_prob != null && match.draw_prob != null && match.away_prob != null
+    ? (match.home_prob >= match.away_prob && match.home_prob >= match.draw_prob ? 'HOME' : match.away_prob >= match.draw_prob ? 'AWAY' : 'DRAW')
     : null
-  const pickSide = match.bet_side ? match.bet_side.toUpperCase() : autoSide
+  const pickSide = (match.bet_side && match.home_prob != null && match.draw_prob != null && match.away_prob != null)
+    ? match.bet_side.toUpperCase()
+    : autoSide
 
   return (
     <motion.div

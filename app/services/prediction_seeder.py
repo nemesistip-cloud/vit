@@ -70,15 +70,37 @@ def _seed_hash(match_id: int, seed_idx: int) -> str:
     return hashlib.sha256(f"seed:{match_id}:{seed_idx}".encode()).hexdigest()[:32]
 
 
+def _balance_home_advantage(h: float, d: float, a: float) -> tuple[float, float, float]:
+    """Keep synthetic predictions from defaulting to home every time.
+
+    Most league priors are naturally home-favourable, but a deterministic home
+    bias in the synthetic fallback creates false "AI pick: Home" labels across a
+    large share of matches. We damp the spread before normalisation so the model
+    still behaves realistically without forcing every match to home.
+    """
+    spread = h - a
+    if spread > 0.10:
+        correction = spread * 0.55
+        h -= correction
+        a += correction
+    h, d, a = _normalize(max(0.05, h), max(0.05, d), max(0.05, a))
+    return h, d, a
+
+
 def _make_prediction(match: Match, seed_idx: int, win_bias: float = 0.60) -> Optional[Prediction]:
-    prior = LEAGUE_PRIORS.get(match.league or "", (0.44, 0.26, 0.30))
+    prior = LEAGUE_PRIORS.get(match.league or "", (0.37, 0.27, 0.36))
     h_base, d_base, a_base = prior
+
+    # Counteract the synthetic home-bias that can otherwise dominate all picks.
+    if h_base > a_base + 0.08:
+        h_base -= (h_base - a_base) * 0.55
+        a_base += (h_base - a_base) * 0.55
 
     noise = 0.08
     h = h_base + random.uniform(-noise, noise)
     d = d_base + random.uniform(-noise * 0.5, noise * 0.5)
     a = a_base + random.uniform(-noise, noise)
-    h, d, a = _normalize(max(0.05, h), max(0.05, d), max(0.05, a))
+    h, d, a = _balance_home_advantage(h, d, a)
 
     bet_side = max([("home", h), ("draw", d), ("away", a)], key=lambda x: x[1])[0]
 

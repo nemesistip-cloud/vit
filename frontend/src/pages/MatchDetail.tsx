@@ -468,7 +468,7 @@ export default function MatchDetail() {
             className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"
           >
             {[
-              { label: 'AI Pick',     value: aiPick?.toUpperCase() ?? 'HOME',       icon: Brain,       color: 'text-vit-400'     },
+              { label: 'AI Pick',     value: aiPick ? aiPick.toUpperCase() : 'N/A',     icon: Brain,       color: 'text-vit-400'     },
               { label: 'Confidence',  value: match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '72%', icon: Target, color: 'text-emerald-400' },
               { label: 'Market Edge', value: match.edge != null ? `${match.edge > 0 ? '+' : ''}${match.edge.toFixed(3)}` : '+0.08', icon: TrendingUp, color: 'text-emerald-400' },
               { label: 'Home Odds',  value: match.odds?.home?.toFixed(2) ?? '2.10',            icon: Activity,    color: 'text-amber-400'   },

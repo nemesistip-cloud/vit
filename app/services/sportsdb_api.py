@@ -75,6 +75,17 @@ LEAGUES: Dict[str, int] = {
     "wc_qual_south_america": 4410,
 }
 
+
+def _all_tracked_leagues() -> Dict[str, int]:
+    """Return every league ID currently configured across football and the other supported sports."""
+    all_leagues: Dict[str, int] = dict(LEAGUES)
+    for sport, leagues in SPORT_LEAGUES.items():
+        if sport == "football":
+            continue
+        for slug, league_id in leagues.items():
+            all_leagues.setdefault(slug, league_id)
+    return all_leagues
+
 # ── Multi-sport league IDs ──────────────────────────────────────────────────
 SPORT_LEAGUES: Dict[str, Dict[str, int]] = {
     "football": LEAGUES,
@@ -394,7 +405,7 @@ async def fetch_next_events() -> List[Dict]:
     Sequential with 2s delays to respect the free-tier rate limit.
     """
     events: List[Dict] = []
-    league_items = list(LEAGUES.items())
+    league_items = list(_all_tracked_leagues().items())
     for i, (slug, lid) in enumerate(league_items):
         evs = await _fetch(f"eventsnextleague.php?id={lid}")
         for ev in evs:
@@ -405,14 +416,14 @@ async def fetch_next_events() -> List[Dict]:
                 events.append(mapped)
         if i < len(league_items) - 1:
             await asyncio.sleep(2.5)
-    logger.info("[sportsdb] fetch_next_events: %d events across %d leagues", len(events), len(LEAGUES))
+    logger.info("[sportsdb] fetch_next_events: %d events across %d leagues", len(events), len(league_items))
     return events
 
 
 async def fetch_past_events() -> List[Dict]:
     """Fetch the most recently finished event for every tracked league — SEQUENTIALLY."""
     events: List[Dict] = []
-    league_items = list(LEAGUES.items())
+    league_items = list(_all_tracked_leagues().items())
     for i, (slug, lid) in enumerate(league_items):
         evs = await _fetch(f"eventspastleague.php?id={lid}")
         for ev in evs:
@@ -423,7 +434,7 @@ async def fetch_past_events() -> List[Dict]:
                 events.append(mapped)
         if i < len(league_items) - 1:
             await asyncio.sleep(2.5)
-    logger.info("[sportsdb] fetch_past_events: %d events across %d leagues", len(events), len(LEAGUES))
+    logger.info("[sportsdb] fetch_past_events: %d events across %d leagues", len(events), len(league_items))
     return events
 
 
@@ -518,7 +529,7 @@ async def fetch_season_fixtures(days_ahead: int = 90) -> List[Dict]:
     events: List[Dict] = []
     seen: set = set()
 
-    league_items = list(LEAGUES.items())
+    league_items = list(_all_tracked_leagues().items())
     for i, (slug, lid) in enumerate(league_items):
         try:
             league_evs = await _fetch_season_for_league(slug, lid)
@@ -713,6 +724,7 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
                     home_team=home,
                     away_team=away,
                     league=league,
+                    sport=ev.get("sport", "football"),
                     kickoff_time=ko_naive,
                     status="upcoming",
                     source="sportsdb",
