@@ -50,7 +50,7 @@ function useProfile() {
   return useQuery({
     queryKey: ['profile'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/users/me`, { signal, headers: authHeaders() })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/auth/me`, { signal, headers: authHeaders() })
       return r.ok ? r.json() : null
     },
     retry: false, staleTime: 60_000,

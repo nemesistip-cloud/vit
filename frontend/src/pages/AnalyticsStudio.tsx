@@ -100,7 +100,7 @@ function useModelComparison(sortBy: string) {
   return useQuery({
     queryKey: ['studio-models', sortBy],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${BASE()}/model-comparison?sort_by=${sortBy}`, { signal })
+      const r = await fetch(`${BASE()}/model-comparison?sort_by=${sortBy}`, { signal, headers: authHeaders() })
       return r.ok ? r.json() : { models: [] }
     },
     staleTime: 120_000,

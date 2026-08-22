@@ -28,20 +28,6 @@ const VAULTS: VaultDef[] = [
   { id: 'elite',   name: 'Elite Vault',   apy: 32,  lockDays: 180, minStake: 10000, color: 'text-vit-400',     icon: Clock,       description: '6-month lock, reserved for Elite-tier holders.' },
 ]
 
-function useVaultPositions() {
-  return useQuery({
-    queryKey: ['vault-positions'],
-    queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/vaults/positions`, { signal, headers: authHeaders() })
-      if (!r.ok) return []
-      const d = await r.json()
-      return Array.isArray(d) ? d : d.items ?? []
-    },
-    retry: false,
-    staleTime: 60_000,
-  })
-}
-
 function useWalletBalance() {
   return useQuery({
     queryKey: ['wallet'],
@@ -141,8 +127,8 @@ function StakeModal({ vault, onClose }: { vault: VaultDef; onClose: () => void }
 
 export default function Vaults() {
   const [stakeVault, setStakeVault] = useState<VaultDef | null>(null)
-  const { data: positions = [], isLoading: loadingPositions } = useVaultPositions()
-  const posArr: any[] = Array.isArray(positions) ? positions : []
+  const loadingPositions = false
+  const posArr: any[] = []
 
   return (
     <div className="pt-16 min-h-screen">

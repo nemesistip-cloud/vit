@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
+import { authHeaders } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui/Spinner'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ function useOdds(sport: string, search: string) {
     queryKey: ['odds', sport],
     queryFn: async ({ signal }) => {
       const params = sport !== 'all' ? `?sport=${sport}` : ''
-      const r = await fetch(`${ENDPOINTS.gateway}/api/odds/compare${params}`, { signal })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/odds/compare${params}`, { signal, headers: authHeaders() })
       if (!r.ok) return []
       const d = await r.json()
       return Array.isArray(d) ? d : d.odds ?? d.matches ?? d.items ?? []

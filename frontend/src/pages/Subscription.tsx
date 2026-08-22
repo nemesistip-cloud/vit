@@ -119,7 +119,12 @@ function usePlans() {
       const r = await fetch(`${ENDPOINTS.gateway}/api/subscription/plans`, { signal })
       if (!r.ok) return DEFAULT_PLANS
       const d = await r.json()
-      return Array.isArray(d) ? d : d.plans ?? DEFAULT_PLANS
+      const rawPlans = Array.isArray(d) ? d : d.plans
+      if (!Array.isArray(rawPlans)) return DEFAULT_PLANS
+      return rawPlans.map((plan: any) => ({
+        ...plan,
+        features: Array.isArray(plan.features) ? plan.features : [],
+      }))
     },
     staleTime: 300_000,
     placeholderData: DEFAULT_PLANS,
@@ -130,7 +135,7 @@ function useCurrentSub() {
   return useQuery({
     queryKey: ['my-subscription'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/subscription/me`, { signal, headers: authHeaders() })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/subscription/my-plan`, { signal, headers: authHeaders() })
       return r.ok ? r.json() : null
     },
     enabled: !!getAuthToken(),
