@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Trophy, Brain, HardDrive, Layers, Zap, Users, TrendingUp,
@@ -128,6 +128,7 @@ const HOW_IT_WORKS = [
 ]
 
 export default function Home() {
+  const navigate = useNavigate()
   const { data: sysStatus }  = useSystemStatus()
   const { data: stats }      = usePlatformStats()
   const { data: matches }    = useTopMatches()
@@ -303,7 +304,13 @@ export default function Home() {
           <div className="grid sm:grid-cols-3 gap-4">
             {matches.map((m: any, i: number) => (
               <motion.div key={i} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-                className="bg-surface-800/60 border border-white/8 rounded-xl p-5 hover:border-vit-500/30 transition-all group">
+                onClick={() => {
+                  const targetId = Number(m.id ?? m.match_id)
+                  if (Number.isFinite(targetId) && targetId > 0) {
+                    navigate(`/matches/${targetId}`)
+                  }
+                }}
+                className="bg-surface-800/60 border border-white/8 rounded-xl p-5 hover:border-vit-500/30 transition-all group cursor-pointer">
                 <div className="text-xs text-white/40 mb-3">{m.league}</div>
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <span className="text-sm font-medium text-white">{m.home_team}</span>
