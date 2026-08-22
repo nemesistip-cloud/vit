@@ -100,11 +100,15 @@ function normalizeMatch(payload: unknown): Match | null {
 
 // ── Hooks ──────────────────────────────────────────────────────────────────────
 
-function useMatch(id: string) {
+function useMatch(id?: string) {
+  const numId = Number(id)
+  const valid = Number.isFinite(numId) && numId > 0
   return useQuery<Match | null>({
     queryKey: ['match', id],
+    enabled: valid,
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/matches/${id}`, { signal })
+      if (!valid) return null
+      const r = await fetch(`${ENDPOINTS.gateway}/api/matches/${numId}`, { signal })
       return r.ok ? normalizeMatch(await r.json()) : null
     },
     retry: false,
