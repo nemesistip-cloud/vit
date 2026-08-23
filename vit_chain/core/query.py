@@ -1,3 +1,4 @@
+import time
 import logging
 from typing import Optional, List, Dict, Any, Union
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -165,9 +166,8 @@ class BlockchainQueryEngine:
         total_accounts = await db.scalar(select(func.count(ChainAccount.address))) or 0
         circulating_supply = await db.scalar(select(func.sum(ChainAccount.balance))) or 0
 
-        # Last 24h stats
-        one_day_ago = int(func.now().cast(func.Integer)) - 86400 # Approximation
-        # Real timestamp comparison would be better if we had it properly in SQL
+        # Last 24h stats calculation safely in Python
+        one_day_ago_ts = int(time.time()) - 86400
 
         data = {
             "total_blocks": total_blocks,
