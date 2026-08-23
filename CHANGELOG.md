@@ -1,3 +1,5 @@
+- 2026-08-23 `a30cfe2` Fix/debug render vitnetwork playwright 3209626880598886194
+
 - 2026-08-23 `2360f2e` fix(matches): resolve home pick bias in match cards and formatting
 
 - 2026-08-23 `a5a84ec` fix(render): resolve frontend React crash and blockchain API errors
