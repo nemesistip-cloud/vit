@@ -270,7 +270,20 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
     dnb_away_prob = secondary.get("dnb_away")
     confidence = float(pred.confidence) if pred and pred.confidence is not None else None
 
+    bet_side = getattr(pred, 'bet_side', None)
+    if not bet_side and (home_prob is not None or draw_prob is not None or away_prob is not None):
+        hp = home_prob if home_prob is not None else -1.0
+        dp = draw_prob if draw_prob is not None else -1.0
+        ap = away_prob if away_prob is not None else -1.0
+        if hp >= dp and hp >= ap:
+            bet_side = 'home'
+        elif ap >= dp:
+            bet_side = 'away'
+        else:
+            bet_side = 'draw'
+
     return {
+        "bet_side": bet_side,
         "match_id": m.id,
         "external_id": m.external_id,
         "home_team": m.home_team,
