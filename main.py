@@ -836,6 +836,12 @@ except Exception as _e:
     logging.error("quality_feed router not mounted — routes unavailable: %s", _e, exc_info=True)
 
 try:
+    from app.api.routes.recommendations import router as recommendations_router
+    app.include_router(recommendations_router, prefix="/api", tags=["Recommendations"])
+except Exception as _e:
+    logging.error("recommendations router not mounted — routes unavailable: %s", _e, exc_info=True)
+
+try:
     from app.api.routes.agents import router as agents_router
     app.include_router(agents_router, prefix="/api", tags=["Agents"])
 except Exception as _e:
