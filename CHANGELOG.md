@@ -1,3 +1,5 @@
+- 2026-08-23 `2360f2e` fix(matches): resolve home pick bias in match cards and formatting
+
 - 2026-08-23 `a5a84ec` fix(render): resolve frontend React crash and blockchain API errors
 
 - 2026-08-23 `f6ea17f` fix: remove home bias in prediction seeder and synthetic data generator
