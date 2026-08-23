@@ -1,3 +1,5 @@
+- 2026-08-23 `a5a84ec` fix(render): resolve frontend React crash and blockchain API errors
+
 - 2026-08-23 `f6ea17f` fix: remove home bias in prediction seeder and synthetic data generator
 
 - 2026-08-22 `d4c8644` fix: prevent navigation to /matches/undefined and validate match IDs
