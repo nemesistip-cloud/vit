@@ -46,10 +46,10 @@ class DataLoader:
         random.seed(42)  # For reproducibility
 
         for match in matches:
-            # Generate model probabilities (biased towards home win for realism)
-            home_prob = random.uniform(0.3, 0.7)
-            draw_prob = random.uniform(0.1, 0.4)
-            away_prob = 1 - home_prob - draw_prob
+            # Generate model probabilities (unbiased and balanced)
+            home_prob = random.uniform(0.25, 0.55)
+            draw_prob = random.uniform(0.15, 0.35)
+            away_prob = random.uniform(0.25, 0.55)
 
             # Normalize
             total = home_prob + draw_prob + away_prob

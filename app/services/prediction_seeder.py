@@ -31,27 +31,27 @@ MODEL_SOURCES = [
 ]
 
 LEAGUE_PRIORS = {
-    "premier_league":           (0.44, 0.24, 0.32),
-    "la_liga":                  (0.46, 0.26, 0.28),
-    "bundesliga":               (0.47, 0.25, 0.28),
-    "serie_a":                  (0.43, 0.28, 0.29),
-    "ligue_1":                  (0.45, 0.27, 0.28),
-    "champions_league":         (0.40, 0.24, 0.36),
-    "europa_league":            (0.42, 0.25, 0.33),
-    "conference_league":        (0.43, 0.26, 0.31),
-    "eredivisie":               (0.48, 0.24, 0.28),
-    "primeira_liga":            (0.44, 0.26, 0.30),
-    "championship":             (0.43, 0.27, 0.30),
-    "scottish_premiership":     (0.46, 0.24, 0.30),
-    "belgian_pro_league":       (0.45, 0.25, 0.30),
-    "super_lig":                (0.47, 0.24, 0.29),
-    "ekstraklasa":              (0.45, 0.27, 0.28),
-    "mls":                      (0.40, 0.30, 0.30),
-    "liga_mx":                  (0.46, 0.26, 0.28),
-    "brasileirao":              (0.46, 0.24, 0.30),
-    "brazil_serie_a":           (0.46, 0.24, 0.30),
-    "argentine_primera":        (0.47, 0.23, 0.30),
-    "argentina_liga_profesional": (0.47, 0.23, 0.30),
+    "premier_league":           (0.36, 0.28, 0.36),
+    "la_liga":                  (0.36, 0.28, 0.36),
+    "bundesliga":               (0.36, 0.28, 0.36),
+    "serie_a":                  (0.36, 0.28, 0.36),
+    "ligue_1":                  (0.36, 0.28, 0.36),
+    "champions_league":         (0.36, 0.28, 0.36),
+    "europa_league":            (0.36, 0.28, 0.36),
+    "conference_league":        (0.36, 0.28, 0.36),
+    "eredivisie":               (0.36, 0.28, 0.36),
+    "primeira_liga":            (0.36, 0.28, 0.36),
+    "championship":             (0.36, 0.28, 0.36),
+    "scottish_premiership":     (0.36, 0.28, 0.36),
+    "belgian_pro_league":       (0.36, 0.28, 0.36),
+    "super_lig":                (0.36, 0.28, 0.36),
+    "ekstraklasa":              (0.36, 0.28, 0.36),
+    "mls":                      (0.36, 0.28, 0.36),
+    "liga_mx":                  (0.36, 0.28, 0.36),
+    "brasileirao":              (0.36, 0.28, 0.36),
+    "brazil_serie_a":           (0.36, 0.28, 0.36),
+    "argentine_primera":        (0.36, 0.28, 0.36),
+    "argentina_liga_profesional": (0.36, 0.28, 0.36),
 }
 
 
@@ -71,18 +71,12 @@ def _seed_hash(match_id: int, seed_idx: int) -> str:
 
 
 def _balance_home_advantage(h: float, d: float, a: float) -> tuple[float, float, float]:
-    """Keep synthetic predictions from defaulting to home every time.
-
-    Most league priors are naturally home-favourable, but a deterministic home
-    bias in the synthetic fallback creates false "AI pick: Home" labels across a
-    large share of matches. We damp the spread before normalisation so the model
-    still behaves realistically without forcing every match to home.
-    """
+    """Ensure synthetic predictions are balanced and unbiased between home and away outcomes."""
     spread = h - a
-    if spread > 0.10:
-        correction = spread * 0.55
-        h -= correction
-        a += correction
+    if abs(spread) > 0.02:
+        mid = (h + a) / 2.0
+        h = mid + (h - mid) * 0.5
+        a = mid + (a - mid) * 0.5
     h, d, a = _normalize(max(0.05, h), max(0.05, d), max(0.05, a))
     return h, d, a
 
