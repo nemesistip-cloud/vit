@@ -1,3 +1,5 @@
+- 2026-08-23 `3e5ba2d` feat(sports): Phase C Sports Intelligence & Multi-Sport Markets
+
 - 2026-08-23 `d7e2be2` feat(ai): implement Phase B Recommendation Engine with market-aware signals and consensus
 
 - 2026-08-23 `a30cfe2` Fix/debug render vitnetwork playwright 3209626880598886194
