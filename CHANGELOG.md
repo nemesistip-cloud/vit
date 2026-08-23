@@ -1,3 +1,5 @@
+- 2026-08-23 `f6ea17f` fix: remove home bias in prediction seeder and synthetic data generator
+
 - 2026-08-22 `d4c8644` fix: prevent navigation to /matches/undefined and validate match IDs
 
 - 2026-08-21 `d793826` fix(auth): support email/username input and trim login whitespace
