@@ -177,27 +177,41 @@ export default function AI() {
                 <BarChart3 className="w-4 h-4 text-vit-400" />
                 <h2 className="font-semibold text-white">Model Confidence Breakdown</h2>
               </div>
-              {!modelConf ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <Target className="w-10 h-10 text-white/10 mb-3" />
-                  <p className="text-white/40 text-sm">Sign in to view model confidence</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {Object.entries(modelConf).slice(0, 8).map(([model, conf]: any) => (
-                    <div key={model} className="flex items-center gap-3">
-                      <span className="text-xs text-white/50 w-28 shrink-0 capitalize">{model.replace(/_/g, ' ')}</span>
-                      <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${Math.round((conf ?? 0) * 100)}%` }}
-                          transition={{ duration: 0.6 }} className="h-full bg-vit-500 rounded-full" />
-                      </div>
-                      <span className="text-xs text-vit-400 font-medium w-10 text-right">
-                        {typeof conf === 'number' ? `${Math.round(conf * 100)}%` : conf}
-                      </span>
+              {(() => {
+                const modelEntries = Array.isArray(modelConf?.models)
+                  ? modelConf.models.map((m: any) => ({ name: m.name || m.key || 'Model', value: typeof m.accuracy === 'number' ? m.accuracy : (m.weight ?? 0) * 100 }))
+                  : modelConf && typeof modelConf === 'object'
+                  ? Object.entries(modelConf)
+                      .filter(([k]) => k !== 'ensemble_accuracy' && k !== 'active_count' && k !== 'models')
+                      .map(([k, v]: [string, any]) => ({ name: k, value: typeof v === 'number' ? (v <= 1 ? v * 100 : v) : 0 }))
+                  : []
+
+                if (modelEntries.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <Target className="w-10 h-10 text-white/10 mb-3" />
+                      <p className="text-white/40 text-sm">Sign in or load models to view confidence</p>
                     </div>
-                  ))}
-                </div>
-              )}
+                  )
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {modelEntries.slice(0, 8).map((item: { name: string; value: number }, idx: number) => (
+                      <div key={item.name + idx} className="flex items-center gap-3">
+                        <span className="text-xs text-white/50 w-28 shrink-0 capitalize truncate">{item.name.replace(/_/g, ' ')}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                          <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, Math.max(0, Math.round(item.value)))}%` }}
+                            transition={{ duration: 0.6 }} className="h-full bg-vit-500 rounded-full" />
+                        </div>
+                        <span className="text-xs text-vit-400 font-medium w-12 text-right">
+                          {item.value.toFixed(1)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* AI Feed Sources */}

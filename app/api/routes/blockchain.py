@@ -125,6 +125,39 @@ async def get_transaction(tx_hash: str, db: AsyncSession = Depends(get_db)):
 
     return tx
 
+@router.get("/transactions")
+async def get_recent_transactions(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves recent chain transactions via the Query Engine."""
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem or not subsystem.query_engine:
+        raise HTTPException(status_code=503, detail="Blockchain query engine unavailable")
+
+    # Fetch recent transactions across blocks
+    from sqlalchemy import select, desc
+    from vit_chain.models import ChainTransaction
+    result = await db.execute(
+        select(ChainTransaction).order_by(desc(ChainTransaction.block_height)).offset(offset).limit(limit)
+    )
+    txs = result.scalars().all()
+    tx_list = [
+        {
+            "tx_hash": tx.tx_hash,
+            "sender": tx.sender,
+            "recipient": tx.recipient,
+            "amount": str(tx.amount),
+            "fee": str(tx.fee),
+            "payload": tx.payload,
+            "timestamp": tx.timestamp,
+            "block_height": tx.block_height,
+        }
+        for tx in txs
+    ]
+    return {"transactions": tx_list, "total": len(tx_list)}
+
 @router.get("/recent-blocks")
 async def get_recent_blocks(
     limit: int = Query(20, ge=1, le=100),
