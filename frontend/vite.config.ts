@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'script',
       includeAssets: ['logo.png', 'favicon.ico'],
       manifest: {
         name: 'VIT Network',
