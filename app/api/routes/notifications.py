@@ -1,7 +1,7 @@
-"""app/api/routes/notifications.py — Notification API endpoints
+"""app/api/routes/notifications.py — Notification API endpoints (Compatibility layer)
 
-Routes: /api/notifications/*
-Auth: Depends(get_current_user) on most endpoints
+Routes: /api/notifications/* or /notifications/*
+Auth: Depends(get_current_user)
 """
 import logging
 from typing import List
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.models import User
-from app.core.security import get_current_user
+from app.api.deps import get_current_user
 from app.modules.notifications.models import Notification
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ async def list_notifications(
         query = select(Notification).where(Notification.user_id == current_user.id)
         
         if read is not None:
-            query = query.where(Notification.read == read)
+            query = query.where(Notification.is_read == read)
         
         query = query.order_by(desc(Notification.created_at)).offset(offset).limit(limit)
         
@@ -53,7 +53,8 @@ async def list_notifications(
                 "id": n.id,
                 "title": n.title,
                 "body": n.body,
-                "read": n.read,
+                "read": n.is_read,
+                "is_read": n.is_read,
                 "created_at": n.created_at.isoformat() if n.created_at else None,
                 "url": getattr(n, 'url', None),
             }
@@ -82,7 +83,7 @@ async def mark_notification_read(
         if not notif:
             return {"status": "not_found"}
         
-        notif.read = True
+        notif.is_read = True
         await db.commit()
         return {"status": "ok", "id": notification_id}
     except Exception as e:
@@ -100,13 +101,13 @@ async def mark_all_notifications_read(
     try:
         result = await db.execute(
             select(Notification).where(
-                (Notification.user_id == current_user.id) & (Notification.read == False)
+                (Notification.user_id == current_user.id) & (Notification.is_read == False)
             )
         )
         notifications = result.scalars().all()
         
         for notif in notifications:
-            notif.read = True
+            notif.is_read = True
         
         await db.commit()
         return {"status": "ok", "count": len(notifications)}
