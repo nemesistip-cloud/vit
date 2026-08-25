@@ -658,6 +658,10 @@ async def predict(
             entry_odds_to_store = best_bet.get("odds", 2.0)
 
         prediction = Prediction(
+            status="READY",
+            source="live_generated",
+            is_seed=False,
+            provenance={"source": data_source, "models_used": models_used, "models_total": models_total},
             request_hash=idempotency_key,
             match_id=db_match.id,
             user_id=user_id,

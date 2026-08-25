@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -13,9 +14,12 @@ import {
   BarChart3,
   Zap,
   CheckCircle2,
-  ShieldAlert,
   Flame,
-  Award,
+  Clock,
+  RefreshCw,
+  Play,
+  ShieldCheck,
+  Database,
 } from 'lucide-react'
 import { ENDPOINTS } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -44,6 +48,18 @@ interface Match {
   sport?: string
   kickoff_time: string
   status: string
+  prediction_status?: 'not_initialized' | 'initializing' | 'ready' | 'failed' | 'stale'
+  prediction_source?: 'live_generated' | 'seed_demo'
+  is_seed?: boolean
+  job_id?: string
+  error_message?: string
+  provenance?: {
+    job_id?: string
+    source?: string
+    model_version?: string
+    generated_at?: string
+    data_snapshot?: Record<string, unknown>
+  }
   home_score?: number
   away_score?: number
   home_prob?: number
@@ -80,6 +96,13 @@ interface Match {
       key_factors?: string[]
       recommendation?: string
     }
+    market_edge?: {
+      ai_prob?: number
+      bookmaker_prob?: number
+      edge?: number
+      expected_roi?: number
+      kelly_stake?: number
+    }
   }
 }
 
@@ -112,7 +135,7 @@ function useMatch(id?: string) {
       return r.ok ? normalizeMatch(await r.json()) : null
     },
     retry: false,
-    staleTime: 30_000,
+    staleTime: 10_000,
   })
 }
 
@@ -128,21 +151,14 @@ function ProbBar({ label, prob, color, recommended }: { label: string; prob?: nu
         : 'bg-white/3 border border-white/6'
     )}>
       {recommended && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-vit-500/20 text-vit-300 text-[10px] font-bold tracking-wide">
-          <Award className="w-3 h-3 text-vit-400" />
-          TOP PICK
-        </div>
+        <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-vit-500 text-black">
+          AI Pick
+        </span>
       )}
-      <p className="text-xs text-white/40 uppercase tracking-wider mb-2">{label}</p>
-      <p className={cn('text-3xl font-extrabold mb-3 tracking-tight', color)}>{pct != null ? `${pct}%` : '—'}</p>
-      <div className="h-2 rounded-full bg-white/10 overflow-hidden p-0.5">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${pct ?? 0}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          className={cn('h-full rounded-full', color.replace('text-', 'bg-'))}
-        />
-      </div>
+      <p className="text-xs font-medium text-white/40 mb-1">{label}</p>
+      <p className={cn('text-3xl font-bold font-mono tracking-tight', color)}>
+        {pct != null ? `${pct}%` : '—'}
+      </p>
     </div>
   )
 }
@@ -167,7 +183,7 @@ function SecondaryMarketsPanel({ match }: { match: Match }) {
         {over25 != null && (
           <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
             <p className="text-xs text-white/40 mb-1">Over 2.5 Goals</p>
-            <p className="text-2xl font-bold text-amber-400">{over25}%</p>
+            <p className="text-2xl font-bold text-amber-400 font-mono">{over25}%</p>
             <p className="text-[10px] text-white/30 mt-1">Under 2.5: {100 - over25}%</p>
           </div>
         )}
@@ -175,16 +191,18 @@ function SecondaryMarketsPanel({ match }: { match: Match }) {
         {btts != null && (
           <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
             <p className="text-xs text-white/40 mb-1">Both Teams To Score (BTTS)</p>
-            <p className="text-2xl font-bold text-vit-400">{btts}%</p>
+            <p className="text-2xl font-bold text-vit-400 font-mono">{btts}%</p>
             <p className="text-[10px] text-white/30 mt-1">No BTTS: {100 - btts}%</p>
           </div>
         )}
 
         {dnbHome != null && (
           <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
-            <p className="text-xs text-white/40 mb-1">Draw No Bet (DNB Home)</p>
-            <p className="text-2xl font-bold text-emerald-400">{dnbHome}%</p>
-            <p className="text-[10px] text-white/30 mt-1">DNB Away: {100 - dnbHome}%</p>
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <p className="text-xs text-white/40">Draw No Bet (DNB Home)</p>
+            </div>
+            <p className="text-2xl font-bold text-emerald-400 font-mono">{dnbHome}%</p>
+            <p className="text-[10px] text-white/30 mt-1">DNB Away: {100 - dnbHome}% (Draw Excluded)</p>
           </div>
         )}
       </div>
@@ -207,7 +225,7 @@ function TacticalPanel({ tactical }: { tactical: NonNullable<NonNullable<Match['
         </div>
         <div>
           <h2 className="font-bold text-white text-base">Tactical AI Analysis</h2>
-          <p className="text-xs text-vit-300/60">Generated via Multi-Model Ensemble Intelligence</p>
+          <p className="text-xs text-vit-300/60">Grounded in Live Model & Team Form Features</p>
         </div>
       </div>
 
@@ -229,7 +247,7 @@ function TacticalPanel({ tactical }: { tactical: NonNullable<NonNullable<Match['
 
       {tactical.key_factors && tactical.key_factors.length > 0 && (
         <div>
-          <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2.5">Key Match Factors</h3>
+          <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2.5">Key Factors</h3>
           <ul className="space-y-2">
             {tactical.key_factors.map((factor, idx) => (
               <li key={idx} className="flex items-start gap-2.5 text-xs text-white/70 bg-white/3 p-2.5 rounded-lg border border-white/5">
@@ -265,13 +283,13 @@ function ModelRow({ pred, i }: { pred: Prediction; i: number }) {
       </span>
 
       <div className="text-right shrink-0">
-        <p className="text-sm font-bold text-white">{Math.round(pred.confidence * 100)}%</p>
+        <p className="text-sm font-bold text-white font-mono">{Math.round(pred.confidence * 100)}%</p>
         <p className="text-[10px] text-white/30">confidence</p>
       </div>
 
       {pred.final_ev != null && (
         <div className="text-right shrink-0">
-          <p className={cn('text-sm font-bold', pred.final_ev > 0 ? 'text-emerald-400' : 'text-red-400')}>
+          <p className={cn('text-sm font-bold font-mono', pred.final_ev > 0 ? 'text-emerald-400' : 'text-red-400')}>
             {pred.final_ev > 0 ? '+' : ''}{pred.final_ev.toFixed(2)}
           </p>
           <p className="text-[10px] text-white/30">EV</p>
@@ -303,7 +321,7 @@ function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
       <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-vit-400" />
-          <h2 className="font-semibold text-white">Model Consensus &amp; Risk Metrics</h2>
+          <h2 className="font-semibold text-white">Model Consensus & Risk Metrics</h2>
         </div>
         {consensus.models_active != null && consensus.models_active > 0 && (
           <span className="px-2.5 py-1 rounded-full bg-vit-500/15 border border-vit-500/30 text-vit-300 text-xs font-medium">
@@ -316,7 +334,7 @@ function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
         {cards.map(c => (
           <div key={c.label} className="flex-1 p-3.5 rounded-xl text-center bg-white/3 border border-white/5">
             <p className="text-xs text-white/35 mb-1">{c.label}</p>
-            <p className={cn('text-2xl font-bold', c.color)}>{c.prob != null ? `${Math.round(c.prob * 100)}%` : '—'}</p>
+            <p className={cn('text-2xl font-bold font-mono', c.color)}>{c.prob != null ? `${Math.round(c.prob * 100)}%` : '—'}</p>
           </div>
         ))}
       </div>
@@ -341,12 +359,56 @@ function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
   )
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+// ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function MatchDetail() {
-  const { id }  = useParams<{ id: string }>()
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: match, isLoading: matchLoading } = useMatch(id!)
+  const { data: match, isLoading: matchLoading, refetch } = useMatch(id!)
+
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [stepIndex, setStepIndex] = useState(0)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const steps = [
+    'Collecting match statistical features & team form...',
+    'Querying live market odds and bookmaker consensus...',
+    'Executing 13-model AI ensemble (LSTM, XGBoost, Transformers)...',
+    'Calculating vig-free edge & Kelly staking strategy...',
+    'Recording provenance & on-chain verification snapshot...'
+  ]
+
+  const handleAction = async (endpoint: 'initialize' | 'rerun') => {
+    if (!match) return
+    setIsProcessing(true)
+    setErrorMessage(null)
+    setStepIndex(0)
+
+    const interval = setInterval(() => {
+      setStepIndex(prev => (prev < steps.length - 1 ? prev + 1 : prev))
+    }, 1200)
+
+    try {
+      const res = await fetch(`${ENDPOINTS.gateway}/api/matches/${match.id}/predict/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      clearInterval(interval)
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ detail: 'Failed to process prediction' }))
+        throw new Error(errData.detail || 'Failed to process prediction request')
+      }
+
+      await refetch()
+    } catch (err: unknown) {
+      clearInterval(interval)
+      const msg = err instanceof Error ? err.message : 'Prediction initialization failed'
+      setErrorMessage(msg)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   if (matchLoading) {
     return (
@@ -368,6 +430,7 @@ export default function MatchDetail() {
     )
   }
 
+  const status = match.prediction_status || 'not_initialized'
   const isLive = match.status?.toLowerCase() === 'live' || match.status?.toLowerCase() === 'in_play'
   const aiPick = match.intelligence?.attribution?.[0]?.bet_side
   const consensus = match.intelligence?.consensus
@@ -388,7 +451,7 @@ export default function MatchDetail() {
           Back to Matches
         </Link>
 
-        {/* Match hero */}
+        {/* Match Hero Header */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -396,7 +459,7 @@ export default function MatchDetail() {
         >
           {isLive && <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-emerald-400" />}
 
-          {/* Meta */}
+          {/* Meta header */}
           <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <span className="text-xs text-white/40">{match.league}</span>
@@ -407,9 +470,12 @@ export default function MatchDetail() {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-white/35">
-              <Calendar className="w-3.5 h-3.5" />
-              {new Date(match.kickoff_time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-white/35">
+                <Calendar className="w-3.5 h-3.5" />
+                {new Date(match.kickoff_time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              </div>
             </div>
           </div>
 
@@ -439,67 +505,228 @@ export default function MatchDetail() {
             </div>
           </div>
 
-          {/* Probability bars */}
-          <div className="flex gap-3">
-            <ProbBar label="Home" prob={match.home_prob} color="text-vit-400"  recommended={aiPick === 'home'} />
-            <ProbBar label="Draw" prob={match.draw_prob} color="text-white/50" recommended={aiPick === 'draw'} />
-            <ProbBar label="Away" prob={match.away_prob} color="text-amber-400" recommended={aiPick === 'away'} />
-          </div>
-
-          {/* Venue / meta */}
+          {/* Venue / Meta info */}
           {(match.venue || match.referee) && (
-            <div className="flex flex-wrap gap-4 mt-5 pt-5 border-t border-white/6 text-xs text-white/35">
-              {match.venue    && <span>🏟 {match.venue}</span>}
-              {match.referee  && <span>👤 Referee: {match.referee}</span>}
+            <div className="flex flex-wrap gap-4 pt-4 border-t border-white/6 text-xs text-white/35">
+              {match.venue && <span>🏟 {match.venue}</span>}
+              {match.referee && <span>👤 Referee: {match.referee}</span>}
               {match.attendance != null && <span>👥 {match.attendance.toLocaleString()} attendance</span>}
             </div>
           )}
         </motion.div>
 
+        {/* --- PREDICTION STATE MACHINE CONTAINER --- */}
+        <div className="mb-6">
+          {/* STATE 1: NOT_INITIALIZED */}
+          {status === 'not_initialized' && !isProcessing && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-surface-800/80 border border-vit-500/30 rounded-2xl p-8 text-center shadow-2xl relative overflow-hidden"
+            >
+              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-vit-500/15 border border-vit-500/30 flex items-center justify-center text-vit-400">
+                <Brain className="w-7 h-7 animate-pulse" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">AI Prediction Not Initialized</h2>
+              <p className="text-sm text-white/60 max-w-md mx-auto mb-6">
+                No active prediction exists for this match. Click below to generate real-time 13-model ensemble outputs, market edge metrics, and tactical analysis.
+              </p>
+              <button
+                onClick={() => handleAction('initialize')}
+                className="px-6 py-3.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-black font-bold text-sm inline-flex items-center gap-2 shadow-lg shadow-vit-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Play className="w-4 h-4 fill-black" />
+                Initialize Prediction
+              </button>
+            </motion.div>
+          )}
+
+          {/* STATE 2: INITIALIZING or LOCAL PROCESSING */}
+          {(status === 'initializing' || isProcessing) && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-surface-800/80 border border-vit-500/40 rounded-2xl p-8 shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <Spinner className="w-5 h-5 text-vit-400" />
+                <div>
+                  <h3 className="text-base font-bold text-white">Initializing AI Prediction Pipeline</h3>
+                  <p className="text-xs text-vit-300/60">Executing multi-model ensemble intelligence</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {steps.map((st, idx) => (
+                  <div
+                    key={st}
+                    className={cn(
+                      'flex items-center gap-3 text-xs p-3 rounded-xl border transition-all',
+                      idx < stepIndex
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                        : idx === stepIndex
+                        ? 'bg-vit-500/15 border-vit-500/40 text-white font-medium animate-pulse'
+                        : 'bg-white/2 border-white/5 text-white/30'
+                    )}
+                  >
+                    {idx < stepIndex ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : idx === stepIndex ? (
+                      <Spinner className="w-3.5 h-3.5 text-vit-400 shrink-0" />
+                    ) : (
+                      <div className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0" />
+                    )}
+                    <span>{st}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* STATE 3: FAILED */}
+          {status === 'failed' && !isProcessing && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6 text-center"
+            >
+              <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-white mb-1">Prediction Generation Failed</h3>
+              <p className="text-xs text-red-300/80 mb-4 max-w-md mx-auto">
+                {match.error_message || errorMessage || 'An unexpected error occurred during prediction generation.'}
+              </p>
+              <button
+                onClick={() => handleAction('initialize')}
+                className="px-5 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold text-xs border border-red-500/40 inline-flex items-center gap-2"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Retry Prediction
+              </button>
+            </motion.div>
+          )}
+
+          {/* STATE 4: STALE WARNING */}
+          {status === 'stale' && !isProcessing && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-4 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Stale Prediction</p>
+                  <p className="text-xs text-white/70">
+                    Last calculated: {match.provenance?.generated_at ? new Date(match.provenance.generated_at).toLocaleString() : 'Over 24h ago'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => handleAction('rerun')}
+                className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 inline-flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh Prediction
+              </button>
+            </div>
+          )}
+
+          {/* STATE 5: READY (or STALE with existing prediction) */}
+          {(status === 'ready' || status === 'stale') && !isProcessing && (
+            <>
+              {/* Provenance Header Bar */}
+              <div className="bg-surface-800/60 border border-white/8 rounded-2xl p-4 mb-5 flex items-center justify-between flex-wrap gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  {match.is_seed ? (
+                    <span className="px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5" /> Demo / Seeded Data
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5" /> Live AI Prediction
+                    </span>
+                  )}
+                  {match.provenance?.job_id && (
+                    <span className="text-white/40 font-mono hidden sm:inline">Job: {match.provenance.job_id}</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {match.provenance?.model_version && (
+                    <span className="text-white/40">Model: {match.provenance.model_version}</span>
+                  )}
+                  <button
+                    onClick={() => handleAction('rerun')}
+                    className="px-3 py-1.5 rounded-lg bg-vit-500/15 hover:bg-vit-500/25 border border-vit-500/30 text-vit-300 font-semibold text-xs inline-flex items-center gap-1.5 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Re-run Prediction
+                  </button>
+                </div>
+              </div>
+
+              {/* Primary Probability Distribution Bars */}
+              <div className="flex gap-3 mb-5">
+                <ProbBar label="Home Win" prob={match.home_prob} color="text-vit-400" recommended={aiPick === 'home'} />
+                <ProbBar label="Draw" prob={match.draw_prob} color="text-white/50" recommended={aiPick === 'draw'} />
+                <ProbBar label="Away Win" prob={match.away_prob} color="text-amber-400" recommended={aiPick === 'away'} />
+              </div>
+
+              {/* Key Metrics Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                <div className="bg-surface-800/50 border border-white/8 rounded-xl p-4 text-center">
+                  <Brain className="w-4 h-4 mx-auto mb-2 text-vit-400" />
+                  <p className="text-xl font-bold text-vit-400 font-mono">{aiPick ? aiPick.toUpperCase() : 'N/A'}</p>
+                  <p className="text-xs text-white/35 mt-0.5">AI Pick</p>
+                </div>
+
+                <div className="bg-surface-800/50 border border-white/8 rounded-xl p-4 text-center">
+                  <Target className="w-4 h-4 mx-auto mb-2 text-emerald-400" />
+                  <p className="text-xl font-bold text-emerald-400 font-mono">
+                    {match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '—'}
+                  </p>
+                  <p className="text-xs text-white/35 mt-0.5">Model Confidence</p>
+                </div>
+
+                <div className="bg-surface-800/50 border border-white/8 rounded-xl p-4 text-center">
+                  <TrendingUp className="w-4 h-4 mx-auto mb-2 text-emerald-400" />
+                  <p className="text-xl font-bold text-emerald-400 font-mono">
+                    {match.edge != null ? `${match.edge > 0 ? '+' : ''}${match.edge.toFixed(3)}` : '—'}
+                  </p>
+                  <p className="text-xs text-white/35 mt-0.5">Vig-Free Edge</p>
+                </div>
+
+                <div className="bg-surface-800/50 border border-white/8 rounded-xl p-4 text-center">
+                  <Activity className="w-4 h-4 mx-auto mb-2 text-amber-400" />
+                  <p className="text-xl font-bold text-amber-400 font-mono">
+                    {match.odds?.home ? match.odds.home.toFixed(2) : '—'}
+                  </p>
+                  <p className="text-xs text-white/35 mt-0.5">Home Market Odds</p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Tactical AI Analysis */}
-        {tactical && (
+        {(status === 'ready' || status === 'stale') && tactical && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-5">
             <TacticalPanel tactical={tactical} />
           </motion.div>
         )}
 
-        {/* AI summary */}
-        {(match.confidence != null || match.edge != null || aiPick != null) && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08 }}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"
-          >
-            {[
-              { label: 'AI Pick',     value: aiPick ? aiPick.toUpperCase() : 'N/A',     icon: Brain,       color: 'text-vit-400'     },
-              { label: 'Confidence',  value: match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '72%', icon: Target, color: 'text-emerald-400' },
-              { label: 'Market Edge', value: match.edge != null ? `${match.edge > 0 ? '+' : ''}${match.edge.toFixed(3)}` : '+0.08', icon: TrendingUp, color: 'text-emerald-400' },
-              { label: 'Home Odds',  value: match.odds?.home?.toFixed(2) ?? '2.10',            icon: Activity,    color: 'text-amber-400'   },
-            ].map(s => (
-              <div key={s.label} className="bg-surface-800/50 border border-white/8 rounded-xl p-4 text-center">
-                <s.icon className={cn('w-4 h-4 mx-auto mb-2', s.color)} />
-                <p className={cn('text-xl font-bold', s.color)}>{s.value}</p>
-                <p className="text-xs text-white/35 mt-0.5">{s.label}</p>
-              </div>
-            ))}
+        {/* Secondary Markets */}
+        {(status === 'ready' || status === 'stale') && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-5">
+            <SecondaryMarketsPanel match={match} />
           </motion.div>
         )}
 
-        {/* Secondary Markets */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-5">
-          <SecondaryMarketsPanel match={match} />
-        </motion.div>
-
         {/* Consensus */}
-        {consensus && (
+        {(status === 'ready' || status === 'stale') && consensus && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-5">
             <ConsensusPanel consensus={consensus} />
           </motion.div>
         )}
 
         {/* Model breakdown */}
-        {predictions.length > 0 && (
+        {(status === 'ready' || status === 'stale') && predictions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -515,13 +742,6 @@ export default function MatchDetail() {
               {predictions.map((p, i) => <ModelRow key={`${p.model_name}-${i}`} pred={p} i={i} />)}
             </div>
           </motion.div>
-        )}
-
-        {!predictions.length && (
-          <div className="flex items-center gap-2.5 p-4 rounded-xl bg-white/3 border border-white/8 text-sm text-white/40">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            AI predictions are not available for this match yet.
-          </div>
         )}
       </div>
     </div>
