@@ -1,3 +1,5 @@
+- 2026-08-25 `7e4adfa` feat(ai): audit, harden and upgrade vit-ai inference integration
+
 - 2026-08-25 `91aabb6` fix(prediction): implement end-to-end prediction lifecycle state machine
 
 - 2026-08-25 `5e41dc6` fix(ai): implement intent-based capability routing for AI assistant
