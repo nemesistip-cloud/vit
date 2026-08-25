@@ -120,6 +120,10 @@ def _make_prediction(match: Match, seed_idx: int, win_bias: float = 0.60) -> Opt
 
     return Prediction(
         match_id=match.id,
+        status="READY",
+        source="seed_demo",
+        is_seed=True,
+        provenance={"source": "prediction_seeder", "seed_idx": seed_idx},
         user_id=None,
         request_hash=req_hash,
         home_prob=round(h, 4),

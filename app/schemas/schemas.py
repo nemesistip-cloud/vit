@@ -1,3 +1,16 @@
+from enum import Enum
+
+class PredictionStatus(str, Enum):
+    NOT_INITIALIZED = "not_initialized"
+    INITIALIZING = "initializing"
+    READY = "ready"
+    FAILED = "failed"
+    STALE = "stale"
+
+class PredictionSource(str, Enum):
+    LIVE_GENERATED = "live_generated"
+    SEED_DEMO = "seed_demo"
+
 # app/schemas/schemas.py
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
