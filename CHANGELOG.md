@@ -1,3 +1,5 @@
+- 2026-08-25 `1521f12` fix(tachyon): add /api/v1/files compatibility routes and /metrics endpoint
+
 - 2026-08-25 `7e4adfa` feat(ai): audit, harden and upgrade vit-ai inference integration
 
 - 2026-08-25 `91aabb6` fix(prediction): implement end-to-end prediction lifecycle state machine
