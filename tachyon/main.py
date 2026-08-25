@@ -58,6 +58,19 @@ async def startup_event():
 async def health():
     return {"status": "quantum_stable", "plane": "coordination"}
 
+@app.get("/metrics")
+async def metrics():
+    from tachyon.api.router import get_status
+    async with AsyncSessionLocal() as db:
+        status_data = await get_status(db=db)
+    return {
+        "status": "healthy",
+        "bandwidth": status_data.get("network_bandwidth", "3.2 Tbps"),
+        "active_nodes": status_data.get("active_nodes", 0),
+        "manifest_count": status_data.get("manifest_count", 0),
+        "disk": status_data.get("disk", {}),
+    }
+
 app.include_router(api_router, prefix="/api/v1")
 
 if __name__ == "__main__":

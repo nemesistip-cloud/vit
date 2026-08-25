@@ -258,6 +258,81 @@ async def upload_file(
     }
 
 
+
+
+# ---------------------------------------------------------------------------
+# Storage Object Compatibility Routes (/api/v1/files)
+# ---------------------------------------------------------------------------
+
+@router.get("/files")
+async def list_files(
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    """List stored objects formatted for frontend StorageList schema."""
+    stmt = (
+        select(TachyonManifest)
+        .order_by(TachyonManifest.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+    total = (await db.execute(select(func.count(TachyonManifest.file_id)))).scalar() or 0
+
+    objects = []
+    for r in rows:
+        filename = r.filename or r.file_id
+        objects.append({
+            "key": r.file_id,
+            "size": r.size_bytes,
+            "contentType": "application/octet-stream",
+            "lastModified": r.created_at.isoformat() + "Z" if r.created_at else None,
+            "url": f"/api/v1/download/{r.file_id}",
+            "filename": filename,
+        })
+    return {
+        "total": total,
+        "objects": objects,
+    }
+
+
+@router.post("/files")
+async def upload_file_compat(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_optional_user),
+):
+    """Upload a file via POST /api/v1/files returning StorageObject schema."""
+    upload_res = await upload_file(file=file, db=db, user=user)
+    file_id = upload_res["file_id"]
+    filename = upload_res.get("filename") or file.filename
+    size_bytes = upload_res.get("size_bytes", 0)
+    created_at = upload_res.get("created_at") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    return {
+        "key": file_id,
+        "size": size_bytes,
+        "contentType": file.content_type or "application/octet-stream",
+        "lastModified": created_at,
+        "url": f"/api/v1/download/{file_id}",
+        "filename": filename,
+    }
+
+
+@router.get("/files/{key:path}")
+async def download_file_compat(key: str, db: AsyncSession = Depends(get_db)):
+    """Download or fetch object by key via GET /api/v1/files/{key}."""
+    return await download_file(file_id=key, db=db)
+
+
+@router.delete("/files/{key:path}")
+async def delete_file_compat(key: str, db: AsyncSession = Depends(get_db)):
+    """Delete object by key via DELETE /api/v1/files/{key}."""
+    return await delete_manifest(file_id=key, db=db)
+
+
 @router.get("/download/{file_id}")
 async def download_file(file_id: str, db: AsyncSession = Depends(get_db)):
     if not _providers:
