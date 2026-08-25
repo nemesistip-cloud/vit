@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
 import { Coins, Shield } from 'lucide-react'
 import { getStoredUser } from '@/hooks/useAuth'
-import { workspaceStoreInstance } from '@/lib/workspacePersistence'
 import { WindowManager } from '@/components/workspace/WindowManager'
 import { getAppRegistry } from '@/lib/appRegistry'
+import { workspaceProcessManager } from '@/lib/processManager'
 
 export default function Workspace() {
   const user = getStoredUser()
@@ -46,8 +46,9 @@ export default function Workspace() {
               return (
                 <button
                   key={app.id}
-                  onClick={() => workspaceStoreInstance.openWindow(app.id, { title: app.name, path: app.route })}
-                  className="rounded-2xl border border-white/8 bg-surface-800/60 p-4 text-left transition-colors hover:border-vit-500/20 hover:bg-surface-800/80"
+                  type="button"
+                  onClick={() => workspaceProcessManager.launchProcess(app.id)}
+                  className="rounded-2xl border border-white/8 bg-surface-800/60 p-4 text-left transition-colors hover:border-vit-500/20 hover:bg-surface-800/80 cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-vit-500/10 text-vit-300">
