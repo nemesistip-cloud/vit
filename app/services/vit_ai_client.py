@@ -101,7 +101,6 @@ class VitAIClient:
         except Exception as e:
             logger.warning(f"[VitAIClient] Redis cache write error: {e}")
 
-    # Retries with exponential backoff on HTTP/Timeout exceptions
     def _auth_headers(self) -> dict:
         """
         Return auth headers for outgoing vit-ai requests.
@@ -111,10 +110,8 @@ class VitAIClient:
         from app.core.service_auth import make_service_headers, _get_secret
         headers = {}
         if _get_secret():
-            # HMAC tokens are active — use them as the primary credential
             headers.update(make_service_headers("vitnetwork"))
         if self._api_key:
-            # Always include static key as backward-compat fallback
             headers["X-API-KEY"] = self._api_key
         return headers
 
@@ -143,11 +140,19 @@ class VitAIClient:
         if cached:
             return cached
 
+        # Dynamic model selection based on routing/intent
+        intent = kwargs.pop("intent", None)
+        if "model" in kwargs:
+            target_model = kwargs.pop("model")
+        elif intent == "prediction" or any(k in kwargs for k in ["market_odds", "features", "feature_vector"]):
+            target_model = "ensemble_v1"
+        else:
+            target_model = "llm_consensus_v1"
+
         # 2. Execute Request with Retries
-        # vit-ai /chat expects InferenceRequest: {model_id, payload}
         try:
             body = {
-                "model_id": kwargs.pop("model", "ensemble_v1"),
+                "model_id": target_model,
                 "payload": {"prompt": prompt, **kwargs},
             }
             response = await self._execute_with_retry("POST", "/api/v1/chat", body)
@@ -155,7 +160,6 @@ class VitAIClient:
                 raise httpx.HTTPStatusError(f"HTTP Error {response.status_code}", request=response.request, response=response)
 
             data = response.json()
-            # InferenceResponse shape: {result, metadata, ...}
             completion = data.get("result") or data.get("completion", "") or data.get("reply", "") or str(data)
 
             # Record success and cache response
@@ -190,5 +194,4 @@ class VitAIClient:
         except Exception:
             return False
 
-# Export singleton client instance
 vit_ai_client = VitAIClient()
