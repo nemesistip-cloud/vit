@@ -1,3 +1,5 @@
+- 2026-08-25 `91aabb6` fix(prediction): implement end-to-end prediction lifecycle state machine
+
 - 2026-08-25 `5e41dc6` fix(ai): implement intent-based capability routing for AI assistant
 
 - 2026-08-25 `3498d23` fix: improve firestore init credential checks and plugin discovery log levels
