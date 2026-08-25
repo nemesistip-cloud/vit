@@ -77,7 +77,7 @@ class VitAIClient:
                 raise CircuitBreakerOpenException("Circuit Breaker is OPEN. Target is temporarily isolated.")
 
     def _get_cache_key(self, prompt: str, kwargs: dict) -> str:
-        serialized = json.dumps({"prompt": prompt, "kwargs": sorted(kwargs.items())}, sort_keys=True)
+        serialized = json.dumps({"prompt": prompt, "kwargs": kwargs}, sort_keys=True, default=str)
         h = hashlib.md5(serialized.encode()).hexdigest()
         return f"vit:ai:cache:{h}"
 
@@ -104,13 +104,10 @@ class VitAIClient:
     def _auth_headers(self) -> dict:
         """
         Return auth headers for outgoing vit-ai requests.
-        Prefers HMAC service token (rotates every 2 min); falls back to static
-        API key if SERVICE_TOKEN_SECRET is not set.
+        Includes HMAC service token and optional static API key.
         """
-        from app.core.service_auth import make_service_headers, _get_secret
-        headers = {}
-        if _get_secret():
-            headers.update(make_service_headers("vitnetwork"))
+        from app.core.service_auth import make_service_headers
+        headers = make_service_headers("vitnetwork")
         if self._api_key:
             headers["X-API-KEY"] = self._api_key
         return headers
@@ -159,8 +156,23 @@ class VitAIClient:
             if response.status_code >= 400:
                 raise httpx.HTTPStatusError(f"HTTP Error {response.status_code}", request=response.request, response=response)
 
-            data = response.json()
-            completion = data.get("result") or data.get("completion", "") or data.get("reply", "") or str(data)
+            if response.headers.get("content-type", "").startswith("application/json"):
+                data = response.json()
+            else:
+                data = {"result": response.text}
+
+            if isinstance(data, dict):
+                completion = data.get("result")
+                if completion is None:
+                    completion = data.get("completion") or data.get("reply") or data.get("prediction_details")
+                if completion is None:
+                    completion = json.dumps(data)
+                elif isinstance(completion, (dict, list)):
+                    completion = json.dumps(completion)
+                else:
+                    completion = str(completion)
+            else:
+                completion = str(data)
 
             # Record success and cache response
             self._record_success()

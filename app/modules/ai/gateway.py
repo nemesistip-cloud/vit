@@ -91,7 +91,7 @@ class AIGateway:
             if orch:
                 res = await orch.predict({"prompt": prompt, "market_odds": {}}, "fastest_gate_id")
                 pred = res.get("predictions", {})
-                formatted = f"Fast-route prediction generated. Home Win Prob: {pred.get('home_prob', 0)*100:.1f}%. Model accuracy: 78.1%."
+                formatted = f"Fast-route prediction generated. Home Win Prob: {pred.get('home_prob', 0)*100:.1f}%, Draw: {pred.get('draw_prob', 0)*100:.1f}%, Away: {pred.get('away_prob', 0)*100:.1f}%."
                 return self._wrap_response(formatted, "local_orchestrator", "xgb_v2", t0)
 
         # ── 3. Cheapest Routing Mode ────────────────────────────────────────
@@ -128,7 +128,7 @@ class AIGateway:
             try:
                 from app.services.ai_client import call_ai as call_ai_local
                 response = await call_ai_local(prompt, intent=intent, **kwargs)
-                return self._wrap_response(response, "local_orchestrator", "ensemble_v2", t0)
+                return self._wrap_response(response, "local_orchestrator", "ensemble_v2", t0, is_fallback=True)
             except Exception as e:
                 logger.error(f"[AIGateway] Local ensemble fallback failed: {e}")
 
@@ -136,11 +136,13 @@ class AIGateway:
             "Intelligence layer is offline. Running on offline failover buffer.",
             "fallback_buffer",
             "offline_heuristic",
-            t0
+            t0,
+            is_fallback=True
         )
 
-    def _wrap_response(self, text: str, provider: str, model_id: str, start_time: float) -> Dict[str, Any]:
+    def _wrap_response(self, text: str, provider: str, model_id: str, start_time: float, is_fallback: bool = False) -> Dict[str, Any]:
         latency_ms = round((time.monotonic() - start_time) * 1000)
+        status = "fallback" if is_fallback or provider == "fallback_buffer" else "success"
         return {
             "response": text,
             "completion": text,
@@ -148,7 +150,8 @@ class AIGateway:
             "model_id": model_id,
             "latency_ms": latency_ms,
             "timestamp": int(time.time()),
-            "status": "success"
+            "status": status,
+            "is_fallback": is_fallback or (provider == "fallback_buffer")
         }
 
 ai_gateway = AIGateway()
