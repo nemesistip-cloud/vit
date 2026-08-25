@@ -35,6 +35,21 @@ class AIGateway:
         self._initialized = True
         logger.info("[AIGateway] Central AI Routing Gateway initialized.")
 
+    def detect_intent(self, prompt: str, kwargs: dict) -> str:
+        """Determines whether a query is a feature-based prediction or general conversational AI request."""
+        if kwargs.get("intent") in ["prediction", "conversational"]:
+            return kwargs.get("intent")
+
+        if any(k in kwargs for k in ["market_odds", "features", "feature_vector", "match_data"]):
+            return "prediction"
+
+        p = prompt.lower().strip()
+        prediction_signals = ["home_prob", "away_prob", "draw_prob", "xg_", "btts_prob", "odds:", "1x2:", "predict match", "feature_matrix"]
+        if any(sig in p for sig in prediction_signals):
+            return "prediction"
+
+        return "conversational"
+
     async def route_chat(
         self,
         prompt: str,
@@ -42,30 +57,28 @@ class AIGateway:
         manual_model_id: Optional[str] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Routes a natural language chat query based on the selected mode."""
+        """Routes a natural language chat query based on the selected mode and detected intent."""
         t0 = time.monotonic()
         mode = routing_mode.lower()
+        intent = self.detect_intent(prompt, kwargs)
 
-        logger.info(f"[AIGateway] Routing chat via mode '{mode}'...")
+        logger.info(f"[AIGateway] Routing chat via mode '{mode}' (detected intent: {intent})...")
 
         # ── 1. Manual Routing Mode ──────────────────────────────────────────
         if mode == "manual" and manual_model_id:
             logger.info(f"[AIGateway] Manual route triggered for model {manual_model_id}")
-            # If the user specifically selects an external or llm consensus model, forward to vit_ai_client
             if "llm" in manual_model_id or manual_model_id == "vit-ai":
                 try:
-                    response = await vit_ai_client.call_ai(prompt, model=manual_model_id, **kwargs)
+                    response = await vit_ai_client.call_ai(prompt, model=manual_model_id, intent=intent, **kwargs)
                     return self._wrap_response(response, "vit-ai", manual_model_id, t0)
                 except Exception as e:
                     logger.warning(f"[AIGateway] External call failed, falling back to local ensemble: {e}")
 
-            # Otherwise, use local ModelOrchestrator
             orch = get_orchestrator()
             if orch:
                 try:
                     res = await orch.predict({"prompt": prompt, "market_odds": {}}, "manual_gate_id")
                     pred = res.get("predictions", {})
-                    # Format prediction stats as readable string
                     formatted = f"Ensemble prediction: Win probability Home={pred.get('home_prob')}, Draw={pred.get('draw_prob')}, Away={pred.get('away_prob')}"
                     return self._wrap_response(formatted, "local_orchestrator", manual_model_id, t0)
                 except Exception:
@@ -73,18 +86,16 @@ class AIGateway:
 
         # ── 2. Fastest Routing Mode ─────────────────────────────────────────
         if mode == "fastest":
-            # Direct algorithmic models are the fastest (< 10ms)
             logger.info("[AIGateway] Fastest route chosen. Routing directly to local XGBoost / Logistic regressor.")
             orch = get_orchestrator()
             if orch:
                 res = await orch.predict({"prompt": prompt, "market_odds": {}}, "fastest_gate_id")
                 pred = res.get("predictions", {})
-                formatted = f"Fast-route prediction generated. Home Win Prob: {pred.get('home_prob')*100:.1f}%. Model accuracy: 78.1%."
+                formatted = f"Fast-route prediction generated. Home Win Prob: {pred.get('home_prob', 0)*100:.1f}%. Model accuracy: 78.1%."
                 return self._wrap_response(formatted, "local_orchestrator", "xgb_v2", t0)
 
         # ── 3. Cheapest Routing Mode ────────────────────────────────────────
         if mode == "cheapest":
-            # Local models consume zero API tokens
             logger.info("[AIGateway] Cheapest route chosen. Routing locally to preserve external tokens.")
             orch = get_orchestrator()
             if orch:
@@ -97,32 +108,30 @@ class AIGateway:
         if mode == "highest_accuracy" or mode == "accuracy":
             logger.info("[AIGateway] Highest accuracy route chosen. Delegating to LLM Consensus microservice.")
             try:
-                response = await vit_ai_client.call_ai(prompt, routing="accuracy", **kwargs)
+                response = await vit_ai_client.call_ai(prompt, routing="accuracy", intent=intent, model="llm_consensus_v1", **kwargs)
                 return self._wrap_response(response, "vit-ai", "llm_consensus_v1", t0)
             except Exception as e:
                 logger.warning(f"[AIGateway] Microservice accuracy route failed: {e}")
 
         # ── 5. Default Ensemble / Consensus Mode ────────────────────────────
-        logger.info("[AIGateway] Ensemble consensus route activated.")
-        # Attempt external service first
-        try:
-            response = await vit_ai_client.call_ai(prompt, **kwargs)
-            return self._wrap_response(response, "vit-ai", "ensemble_consensus", t0)
-        except Exception as e:
-            logger.warning(f"[AIGateway] External ensemble failed. Falling back to local orchestrator: {e}")
+        target_model = kwargs.get("model") or ("ensemble_v1" if intent == "prediction" else "llm_consensus_v1")
+        logger.info(f"[AIGateway] Ensemble consensus route activated for model {target_model}.")
 
-        # Fallback to local ModelOrchestrator
+        try:
+            response = await vit_ai_client.call_ai(prompt, model=target_model, intent=intent, **kwargs)
+            return self._wrap_response(response, "vit-ai", target_model, t0)
+        except Exception as e:
+            logger.warning(f"[AIGateway] External call failed. Falling back to local orchestrator: {e}")
+
         orch = get_orchestrator()
         if orch:
             try:
-                # Mock or local text parsing response from local orchestrator
                 from app.services.ai_client import call_ai as call_ai_local
-                response = await call_ai_local(prompt, **kwargs)
+                response = await call_ai_local(prompt, intent=intent, **kwargs)
                 return self._wrap_response(response, "local_orchestrator", "ensemble_v2", t0)
             except Exception as e:
                 logger.error(f"[AIGateway] Local ensemble fallback failed: {e}")
 
-        # Absolute generic fallback
         return self._wrap_response(
             "Intelligence layer is offline. Running on offline failover buffer.",
             "fallback_buffer",
@@ -142,5 +151,4 @@ class AIGateway:
             "status": "success"
         }
 
-# Export singleton gateway instance
 ai_gateway = AIGateway()
