@@ -126,6 +126,13 @@ class Prediction(Base):
     alternative_bets = Column(JSON, nullable=True)      # [{market, side, edge, odds, model_prob, kelly_stake}, …]
 
     # Metadata
+    # Lifecycle & Provenance
+    status = Column(String(32), nullable=False, default="READY", server_default="READY", index=True) # NOT_INITIALIZED, INITIALIZING, READY, FAILED, STALE
+    source = Column(String(32), nullable=False, default="live_generated", server_default="live_generated") # live_generated, seed_demo
+    is_seed = Column(Boolean, nullable=False, default=False, server_default="false")
+    provenance = Column(JSON, nullable=True) # model_version, ensemble_version, data_snapshot_id, etc.
+    job_id = Column(String(64), nullable=True)
+    error_message = Column(String, nullable=True)
     consensus_prob = Column(Float)
     final_ev = Column(Float)
     recommended_stake = Column(Float)

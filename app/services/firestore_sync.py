@@ -35,7 +35,8 @@ def init_firestore():
                     'projectId': GCP_PROJECT_ID,
                 })
             else:
-                firebase_admin.initialize_app()
+                logger.info("Google Application Credentials not configured. Firestore initialization skipped; real-time features disabled.")
+                return None
 
         _db = firestore.client()
         logger.info("Firestore Admin SDK initialized successfully")

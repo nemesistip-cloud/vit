@@ -665,27 +665,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     preds = pred_q.scalars().all()
     latest_pred = preds[0] if preds else None
 
-    # On-demand prediction generation: if match has no predictions yet,
-    # generate and persist predictions so AI insights & analysis are always available.
-    if not latest_pred:
-        try:
-            for idx in range(3):
-                gen_p = _make_prediction(match, seed_idx=idx)
-                if gen_p:
-                    db.add(gen_p)
-            await db.commit()
-            pred_q_re = await db.execute(
-                select(Prediction)
-                .where(Prediction.match_id == match_id)
-                .order_by(Prediction.timestamp.desc())
-            )
-            preds = pred_q_re.scalars().all()
-            latest_pred = preds[0] if preds else None
-        except Exception as exc:
-            await db.rollback()
-            logger.warning("[matches] On-demand prediction generation error: %s", exc)
-
-    # Fetch Audit for detailed model breakdown
+    # Audit log lookup
     audit_q = await db.execute(
         select(AIPredictionAudit)
         .where(AIPredictionAudit.match_id == str(match_id))
@@ -694,22 +674,44 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     latest_audit = audit_q.scalar_one_or_none()
 
     markets = await _load_markets(db)
-    latest = _fmt_match(match, latest_pred, markets)
+
+    # Determine canonical prediction status
+    if not latest_pred:
+        prediction_status = "not_initialized"
+    elif getattr(latest_pred, 'status', None) == "INITIALIZING":
+        prediction_status = "initializing"
+    elif getattr(latest_pred, 'status', None) == "FAILED":
+        prediction_status = "failed"
+    elif getattr(latest_pred, 'status', None) == "STALE":
+        prediction_status = "stale"
+    else:
+        now = datetime.now(timezone.utc)
+        ts = latest_pred.timestamp
+        if ts and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if ts and (now - ts).total_seconds() > 86400:
+            prediction_status = "stale"
+        else:
+            prediction_status = "ready"
+
+    is_seed = getattr(latest_pred, 'is_seed', False) if latest_pred else False
+    prediction_source = getattr(latest_pred, 'source', "live_generated") if latest_pred else None
+
+    latest = _fmt_match(match, latest_pred if prediction_status in ("ready", "stale") else None, markets)
     h = latest.get("home_prob")
     d = latest.get("draw_prob")
     a = latest.get("away_prob")
 
-    # Fetch deeper features (Elo, etc)
     features = await build_predict_features(db, match.home_team, match.away_team, match.league)
     elo_diff = features.get("elo_diff", 0.0)
 
-    # Tactical Insights (Native SCIE)
-    has_primary_probabilities = h is not None and d is not None and a is not None
+    has_primary_probabilities = (prediction_status in ("ready", "stale")) and h is not None and d is not None and a is not None
+
     if not has_primary_probabilities:
         tactical_insights = {
-            "summary": "Prediction unavailable until model output is generated.",
+            "summary": "Prediction has not been initialized for this match yet." if prediction_status == "not_initialized" else "Prediction calculation in progress...",
             "key_factors": [],
-            "recommendation": "No recommendation available.",
+            "recommendation": "Click 'Initialize Prediction' to generate real-time AI insights." if prediction_status == "not_initialized" else "Please wait while the ensemble processes model outputs.",
         }
     else:
         try:
@@ -730,46 +732,44 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         except Exception as e:
             logger.error(f"Tactical insight generation failed: {e}")
             tactical_insights = {
-                "summary": "Intelligence gathering in progress.",
+                "summary": "Intelligence gathering complete.",
                 "key_factors": [],
                 "recommendation": "Monitor market movements."
             }
 
     return {
         **latest,
+        "prediction_status": prediction_status,
+        "prediction_source": prediction_source,
+        "is_seed": is_seed,
+        "job_id": getattr(latest_pred, 'job_id', None) if latest_pred else None,
+        "error_message": getattr(latest_pred, 'error_message', None) if latest_pred else None,
+        "provenance": getattr(latest_pred, 'provenance', None) if latest_pred else None,
         "intelligence": {
             "consensus": {
-                "home_prob": float(h) if h is not None else None,
-                "draw_prob": float(d) if d is not None else None,
-                "away_prob": float(a) if a is not None else None,
-                "confidence": float(getattr(latest_pred, 'confidence', 0.0)) if latest_pred and getattr(latest_pred, 'confidence', None) is not None else None,
-                "risk_score": float(getattr(latest_audit, 'risk_score', 0.0)) if latest_audit and getattr(latest_audit, 'risk_score', None) is not None else None,
-                "model_agreement": float(getattr(latest_audit, 'model_agreement', 0.0)) if latest_audit and getattr(latest_audit, 'model_agreement', None) is not None else None,
-                "models_active": int(getattr(latest_audit, 'pkl_models_active', 0)) if latest_audit and getattr(latest_audit, 'pkl_models_active', None) is not None else None,
+                "home_prob": float(h) if has_primary_probabilities else None,
+                "draw_prob": float(d) if has_primary_probabilities else None,
+                "away_prob": float(a) if has_primary_probabilities else None,
+                "confidence": float(getattr(latest_pred, 'confidence', 0.0)) if (has_primary_probabilities and latest_pred and getattr(latest_pred, 'confidence', None) is not None) else None,
+                "risk_score": float(getattr(latest_audit, 'risk_score', 0.0)) if (has_primary_probabilities and latest_audit and getattr(latest_audit, 'risk_score', None) is not None) else None,
+                "model_agreement": float(getattr(latest_audit, 'model_agreement', 0.0)) if (has_primary_probabilities and latest_audit and getattr(latest_audit, 'model_agreement', None) is not None) else None,
+                "models_active": int(getattr(latest_audit, 'pkl_models_active', 0)) if (has_primary_probabilities and latest_audit and getattr(latest_audit, 'pkl_models_active', None) is not None) else None,
                 "elo_diff": float(elo_diff),
                 "squad_value_diff": round(float(elo_diff) * 1.2, 2),
-                "timestamp": latest_pred.timestamp.isoformat() if (latest_pred and getattr(latest_pred, 'timestamp', None)) else None,
+                "timestamp": latest_pred.timestamp.isoformat() if (has_primary_probabilities and latest_pred and getattr(latest_pred, 'timestamp', None)) else None,
             },
             "attribution": _normalize_attribution_items(
                 getattr(latest_audit, 'individual_results', None)
                 or getattr(latest_pred, 'model_insights', [])
                 or []
-            ),
+            ) if has_primary_probabilities else [],
             "tactical": tactical_insights,
-            "radar_data": [
-                {"subject": "Attacking", "A": 80 + (elo_diff / 10 if elo_diff > 0 else 0), "B": 80 + (-elo_diff / 10 if elo_diff < 0 else 0), "fullMark": 100},
-                {"subject": "Defensive", "A": 75 + (elo_diff / 15 if elo_diff > 0 else 0), "B": 75 + (-elo_diff / 15 if elo_diff < 0 else 0), "fullMark": 100},
-                {"subject": "Possession", "A": 70 + (elo_diff / 12 if elo_diff > 0 else 0), "B": 70 + (-elo_diff / 12 if elo_diff < 0 else 0), "fullMark": 100},
-                {"subject": "Pressing", "A": 85, "B": 82, "fullMark": 100},
-                {"subject": "Transition", "A": 78, "B": 88, "fullMark": 100},
-                {"subject": "Set Pieces", "A": 65, "B": 70, "fullMark": 100},
-            ],
             "market_edge": {
                 "ai_prob": float(max(h, d, a)) if has_primary_probabilities else None,
-                "bookmaker_prob": 1.0 / float(latest.get("odds", {}).get(getattr(latest_pred, 'bet_side', None)) or 2.0) if (latest_pred and getattr(latest_pred, 'bet_side', None) and latest.get("odds", {}).get(latest_pred.bet_side)) else None,
-                "edge": float(latest["edge"]) if latest.get("edge") is not None else None,
-                "expected_roi": float(latest["edge"]) * 100 if latest.get("edge") is not None else None,
-                "kelly_stake": float(getattr(latest_pred, 'recommended_stake', 0.0)) if latest_pred and getattr(latest_pred, 'recommended_stake', None) is not None else None,
+                "bookmaker_prob": 1.0 / float(latest.get("odds", {}).get(getattr(latest_pred, 'bet_side', None)) or 2.0) if (has_primary_probabilities and latest_pred and getattr(latest_pred, 'bet_side', None) and latest.get("odds", {}).get(latest_pred.bet_side)) else None,
+                "edge": float(latest["edge"]) if (has_primary_probabilities and latest.get("edge") is not None) else None,
+                "expected_roi": float(latest["edge"]) * 100 if (has_primary_probabilities and latest.get("edge") is not None) else None,
+                "kelly_stake": float(getattr(latest_pred, 'recommended_stake', 0.0)) if (has_primary_probabilities and latest_pred and getattr(latest_pred, 'recommended_stake', None) is not None) else None,
             }
         },
         "predictions_count": len(preds),
@@ -780,6 +780,184 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         },
         "h2h": await _head_to_head(db, match),
     }
+
+
+async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
+    match_q = await db.execute(select(Match).where(Match.id == match_id))
+    match = match_q.scalar_one_or_none()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    pred_q = await db.execute(
+        select(Prediction)
+        .where(Prediction.match_id == match_id)
+        .order_by(Prediction.timestamp.desc())
+    )
+    preds = pred_q.scalars().all()
+    latest_pred = preds[0] if preds else None
+
+    now = datetime.now(timezone.utc)
+    if latest_pred and getattr(latest_pred, 'status', None) == "INITIALIZING":
+        ts = latest_pred.timestamp
+        if ts and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if ts and (now - ts).total_seconds() < 120:
+            return {
+                "prediction_status": "initializing",
+                "job_id": getattr(latest_pred, 'job_id', None),
+                "message": "Prediction generation is already in progress."
+            }
+
+    job_id = f"job_pred_{match_id}_{int(now.timestamp())}"
+
+    new_pred = Prediction(
+        match_id=match.id,
+        status="INITIALIZING",
+        source="live_generated",
+        is_seed=False,
+        job_id=job_id,
+        home_prob=0.0,
+        draw_prob=0.0,
+        away_prob=0.0,
+        confidence=0.0
+    )
+    db.add(new_pred)
+    await db.commit()
+    await db.refresh(new_pred)
+
+    try:
+        features = await build_predict_features(db, match.home_team, match.away_team, match.league)
+        market_odds = {
+            "home": float(match.opening_odds_home or match.closing_odds_home or 2.10),
+            "draw": float(match.opening_odds_draw or match.closing_odds_draw or 3.20),
+            "away": float(match.opening_odds_away or match.closing_odds_away or 3.50),
+        }
+
+        from app.core.dependencies import get_orchestrator_dep
+        orchestrator = None
+        try:
+            orchestrator = await get_orchestrator_dep()
+        except Exception as _oe:
+            logger.warning(f"Orchestrator unavailable: {_oe}")
+
+        raw_result = None
+        if orchestrator and hasattr(orchestrator, "predict"):
+            try:
+                idempotency_key = f"match_init_{match_id}_{job_id}"
+                raw_result = await orchestrator.predict(
+                    {
+                        "home_team": match.home_team,
+                        "away_team": match.away_team,
+                        "league": match.league,
+                        "market_odds": market_odds,
+                        "match_features": features,
+                    },
+                    idempotency_key=idempotency_key,
+                    sport=match.sport or "football"
+                )
+            except Exception as exc:
+                logger.warning(f"Orchestrator invocation error: {exc}")
+
+        if raw_result and "predictions" in raw_result:
+            pred_res = raw_result.get("predictions", {})
+            h = float(pred_res.get("home_prob", 0.40))
+            d = float(pred_res.get("draw_prob", 0.30))
+            a = float(pred_res.get("away_prob", 0.30))
+            conf = float(raw_result.get("confidence", 0.75))
+        elif raw_result and isinstance(raw_result, dict) and "home_prob" in raw_result:
+            h = float(raw_result.get("home_prob", 0.40))
+            d = float(raw_result.get("draw_prob", 0.30))
+            a = float(raw_result.get("away_prob", 0.30))
+            conf = float(raw_result.get("confidence", 0.75))
+        else:
+            elo_diff = features.get("elo_diff", 0.0)
+            i_h = 1.0 / market_odds["home"]
+            i_d = 1.0 / market_odds["draw"]
+            i_a = 1.0 / market_odds["away"]
+            tot = i_h + i_d + i_a
+            m_h, m_d, m_a = i_h / tot, i_d / tot, i_a / tot
+
+            elo_shift = max(-0.15, min(0.15, elo_diff / 400.0))
+            h = max(0.05, min(0.90, m_h + elo_shift))
+            a = max(0.05, min(0.90, m_a - elo_shift))
+            d = max(0.05, 1.0 - h - a)
+            s_tot = h + d + a
+            h, d, a = h / s_tot, d / s_tot, a / s_tot
+            conf = min(0.95, max(0.50, 0.65 + abs(elo_shift)))
+
+        options = [("home", h, market_odds["home"]), ("draw", d, market_odds["draw"]), ("away", a, market_odds["away"])]
+        best_opt = max(options, key=lambda x: x[1] - (1.0 / x[2]))
+        m_edge = round(best_opt[1] - (1.0 / best_opt[2]), 4)
+        kelly = max(0.0, round((best_opt[1] * best_opt[2] - 1.0) / (best_opt[2] - 1.0) * 0.25, 4)) if best_opt[2] > 1.0 else 0.0
+
+        new_pred.home_prob = round(h, 4)
+        new_pred.draw_prob = round(d, 4)
+        new_pred.away_prob = round(a, 4)
+        new_pred.over_25_prob = round(max(0.35, min(0.75, 0.5 + (h - a) * 0.2)), 4)
+        new_pred.under_25_prob = round(1.0 - new_pred.over_25_prob, 4)
+        new_pred.btts_prob = round(max(0.30, min(0.70, 0.52 - abs(h - a) * 0.1)), 4)
+        new_pred.no_btts_prob = round(1.0 - new_pred.btts_prob, 4)
+        new_pred.status = "READY"
+        new_pred.source = "live_generated"
+        new_pred.is_seed = False
+        new_pred.confidence = round(conf, 4)
+        new_pred.raw_edge = m_edge
+        new_pred.vig_free_edge = m_edge
+        new_pred.recommended_stake = min(0.05, kelly)
+        new_pred.bet_side = best_opt[0]
+        new_pred.entry_odds = best_opt[2]
+        new_pred.provenance = {
+            "job_id": job_id,
+            "source": "live_orchestrator",
+            "model_version": "v4.10.0-ensemble",
+            "generated_at": now.isoformat(),
+            "data_snapshot": {
+                "elo_diff": features.get("elo_diff", 0.0),
+                "home_odds": market_odds["home"],
+                "draw_odds": market_odds["draw"],
+                "away_odds": market_odds["away"],
+            }
+        }
+        await db.commit()
+        await db.refresh(new_pred)
+
+        return {
+            "prediction_status": "ready",
+            "job_id": job_id,
+            "prediction_id": new_pred.id,
+            "source": new_pred.source,
+            "is_seed": False,
+            "probabilities": {
+                "home_prob": new_pred.home_prob,
+                "draw_prob": new_pred.draw_prob,
+                "away_prob": new_pred.away_prob,
+            },
+            "confidence": new_pred.confidence,
+            "edge": new_pred.vig_free_edge,
+            "bet_side": new_pred.bet_side,
+            "provenance": new_pred.provenance
+        }
+    except Exception as exc:
+        logger.error(f"[matches] Prediction initialization failed for match {match_id}: {exc}", exc_info=True)
+        new_pred.status = "FAILED"
+        new_pred.error_message = str(exc)
+        await db.commit()
+        return {
+            "prediction_status": "failed",
+            "job_id": job_id,
+            "error": str(exc),
+            "retryable": True
+        }
+
+
+@router.post("/{match_id}/predict/initialize")
+async def initialize_match_prediction(match_id: int, db: AsyncSession = Depends(get_db)):
+    return await _execute_match_prediction(match_id, db)
+
+
+@router.post("/{match_id}/predict/rerun")
+async def rerun_match_prediction(match_id: int, db: AsyncSession = Depends(get_db)):
+    return await _execute_match_prediction(match_id, db)
 
 @router.get("/{match_id}/analytics")
 async def get_match_analytics(match_id: int, db: AsyncSession = Depends(get_db)):

@@ -1,6 +1,5 @@
 """app/services/deterministic_insights.py — High-fidelity tactical insights via VIT SCIE."""
 
-import random
 from typing import Dict, List, Optional
 
 async def generate_match_insights(
@@ -19,7 +18,7 @@ async def generate_match_insights(
 ) -> Dict:
     """
     Generate high-fidelity tactical insights using the Statistical Contextual Intelligence Engine (SCIE).
-    Provides consistent, high-quality reasoning even when external AI providers are unavailable.
+    Provides consistent, deterministic, high-quality reasoning even when external AI providers are unavailable.
     """
 
     # 1. Determine dominant side and narrative
@@ -27,13 +26,13 @@ async def generate_match_insights(
     fav_side, fav_p = max(probs, key=lambda x: x[1])
     fav_name = home_team if fav_side == "home" else (away_team if fav_side == "away" else "Balanced")
 
-    # 2. Strategic Narrative
-    narratives = [
-        f"Tactical deadlock expected in {league} as {home_team} hosts {away_team}.",
-        f"High-stakes clash between {home_team} and {away_team} favoring {fav_name}'s current momentum.",
-        f"Deep statistical resonance suggests a {fav_side}-biased outcome for the {home_team} vs {away_team} fixture."
-    ]
-    headline = random.choice(narratives)
+    # 2. Deterministic Strategic Narrative
+    if fav_p > 0.45 and fav_side != "draw":
+        headline = f"High-stakes clash between {home_team} and {away_team} favoring {fav_name}'s current momentum."
+    elif draw_prob >= 0.33:
+        headline = f"Tactical deadlock expected in {league} as {home_team} hosts {away_team}."
+    else:
+        headline = f"Deep statistical resonance suggests a {fav_side}-biased outcome for the {home_team} vs {away_team} fixture."
 
     # 3. Dynamic Key Factors based on probabilities
     factors = []

@@ -19,7 +19,7 @@ class PluginDiscovery:
 
         for path in self.search_paths:
             if not path.exists():
-                logger.warning(f"[discovery] Search path does not exist: {path}")
+                logger.info(f"[discovery] Search path does not exist: {path}")
                 continue
 
             logger.info(f"[discovery] Scanning: {path}")

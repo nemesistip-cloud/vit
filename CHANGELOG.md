@@ -1,4 +1,16 @@
-- 2026-08-24  fix(ai): implement intent-based capability routing for AI assistant and conversational intent pipeline
+- 2026-08-25 `1521f12` fix(tachyon): add /api/v1/files compatibility routes and /metrics endpoint
+
+- 2026-08-25 `7e4adfa` feat(ai): audit, harden and upgrade vit-ai inference integration
+
+- 2026-08-25 `91aabb6` fix(prediction): implement end-to-end prediction lifecycle state machine
+
+- 2026-08-25 `5e41dc6` fix(ai): implement intent-based capability routing for AI assistant
+
+- 2026-08-25 `3498d23` fix: improve firestore init credential checks and plugin discovery log levels
+
+- 2026-08-24 `fd64283` Fix notification router import bug and schema fields
+
+- 2026-08-23 `3e5ba2d` feat(sports): Phase C Sports Intelligence & Multi-Sport Markets
 
 - 2026-08-23 `d7e2be2` feat(ai): implement Phase B Recommendation Engine with market-aware signals and consensus
 
