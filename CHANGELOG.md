@@ -1,3 +1,5 @@
+- 2026-08-25 `3498d23` fix: improve firestore init credential checks and plugin discovery log levels
+
 - 2026-08-24 `fd64283` Fix notification router import bug and schema fields
 
 - 2026-08-23 `3e5ba2d` feat(sports): Phase C Sports Intelligence & Multi-Sport Markets
