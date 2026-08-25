@@ -1,3 +1,5 @@
+- 2026-08-25 `d489b16` fix(workspace): resolve window manager event handlers and process launching
+
 - 2026-08-25 `316f454` fix(ai): implement intent-based capability routing for AI assistant
 
 - 2026-08-25 `1521f12` fix(tachyon): add /api/v1/files compatibility routes and /metrics endpoint
