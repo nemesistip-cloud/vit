@@ -35,6 +35,30 @@ async def test_peer_connection_handshake():
         assert conn.chain_height == 100
         assert conn.is_connected is True
 
+
+@pytest.mark.asyncio
+async def test_peer_connection_uses_handshake_signer():
+    with patch("websockets.connect", new_callable=AsyncMock) as mock_connect:
+        mock_ws = AsyncMock()
+        mock_connect.return_value = mock_ws
+        mock_ws.recv.return_value = serialize(
+            MessageType.HANDSHAKE_ACK,
+            node_id="PEER_1",
+            chain_height=100,
+            accepted=True,
+        )
+
+        signer = MagicMock(return_value="signed-handshake")
+        conn = PeerConnection(
+            "PEER_1", "ws://localhost:7765", "OUR_NODE", "OUR_KEY",
+            handshake_signer=signer,
+        )
+        assert await conn.connect()
+        signer.assert_called_once()
+        payload = json.loads(mock_ws.send.call_args.args[0])
+        assert payload["signature"] == "signed-handshake"
+        assert payload["nonce"]
+
 @pytest.mark.asyncio
 async def test_gossip_handler_deduplication():
     cm = MagicMock(spec=ConnectionManager)

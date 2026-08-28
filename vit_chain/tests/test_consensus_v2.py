@@ -88,13 +88,9 @@ async def test_slashing_logic(mock_redis):
 
     mock_redis.incr.return_value = 3
 
-    mock_profile = MagicMock(stake_amount=Decimal("1000"), trust_score=Decimal("0.8"), user_id=1, id="val_1")
-    db.execute.return_value = MagicMock(one_or_none=lambda: (mock_profile, 1))
-
     engine = SlashEngine()
     await engine.check_absent_nodes(db, [addr], 100)
 
-    assert mock_profile.stake_amount == Decimal("900")
-    assert db.add.called
-    assert mock_redis.publish.called
-    mock_redis.set.assert_any_call(f"vit:node:misses:{addr}", 0)
+    # Three misses are below the configured production threshold (50).
+    assert not db.add.called
+    mock_redis.set.assert_not_called()

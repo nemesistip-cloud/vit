@@ -44,7 +44,7 @@ for _mod in _OPTIONAL_MODELS:
 # Read from the raw environment variable so we can control sslmode ourselves.
 # app.db.database converts to asyncpg AND strips sslmode; we need the original
 # URL to build a psycopg2-compatible sync URL with proper SSL settings.
-_raw_db_url: str = os.environ.get("DATABASE_URL", "")
+_raw_db_url: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./vit.db")
 
 # Import the asyncpg version just to confirm we parsed config correctly;
 # Alembic uses its own sync engine built below.

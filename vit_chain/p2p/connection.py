@@ -1,10 +1,11 @@
 import asyncio
+import secrets
 import time
 import json
 import websockets
 import logging
 from typing import Dict, List, Optional, Callable
-from .protocol import serialize, deserialize, validate_message, MessageType, PROTOCOL_VERSION
+from .protocol import serialize, deserialize, validate_message, MessageType, PROTOCOL_VERSION, handshake_signing_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -15,13 +16,15 @@ class PeerConnection:
     def __init__(self, node_id: str, ws_url: str,
                  our_node_id: str, our_key: str,
                  node_type: str = "validator",
-                 capabilities: dict = None):
+                 capabilities: dict = None,
+                 handshake_signer: Optional[Callable[[bytes], str]] = None):
         self.node_id = node_id
         self.ws_url = ws_url
         self.our_node_id = our_node_id
         self.our_key = our_key
         self.node_type = node_type
         self.capabilities = capabilities or {}
+        self.handshake_signer = handshake_signer
 
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self._last_ping_time = 0
@@ -35,15 +38,21 @@ class PeerConnection:
             self.ws = await websockets.connect(self.ws_url)
 
             # Initiate handshake
-            handshake = serialize(
-                MessageType.HANDSHAKE,
+            handshake_fields = dict(
                 node_id=self.our_node_id,
                 public_key=self.our_key,
                 chain_height=0,  # Should be actual height
                 node_type=self.node_type,
                 capabilities=self.capabilities,
-                protocol_version=PROTOCOL_VERSION
+                protocol_version=PROTOCOL_VERSION,
+                timestamp=time.time(),
+                nonce=secrets.token_hex(16),
             )
+            if self.handshake_signer:
+                handshake_fields["signature"] = self.handshake_signer(
+                    handshake_signing_bytes(handshake_fields)
+                )
+            handshake = serialize(MessageType.HANDSHAKE, **handshake_fields)
             await self.ws.send(handshake)
 
             # Wait for handshake_ack
@@ -122,9 +131,11 @@ class ConnectionManager:
     """Manages all peer connections for this node."""
     MAX_CONNECTIONS = 20
 
-    def __init__(self, our_node_id: str, our_key: str):
+    def __init__(self, our_node_id: str, our_key: str,
+                 handshake_signer: Optional[Callable[[bytes], str]] = None):
         self.our_node_id = our_node_id
         self.our_key = our_key
+        self.handshake_signer = handshake_signer
         self.connections: Dict[str, PeerConnection] = {}
         self._lock = asyncio.Lock()
 
@@ -154,7 +165,8 @@ class ConnectionManager:
                     our_node_id=self.our_node_id,
                     our_key=self.our_key,
                     node_type="validator", # Defaulting to validator for now
-                    capabilities={}
+                    capabilities={},
+                    handshake_signer=self.handshake_signer,
                 )
 
                 if await conn.connect():

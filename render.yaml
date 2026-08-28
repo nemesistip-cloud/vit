@@ -12,7 +12,7 @@ services:
           value: production
         - key: DATABASE_URL
           fromDatabase:
-            name: vit-postgres-v2
+            name: vitnetwork
             property: connectionString
         - key: REDIS_URL
           fromService:
@@ -78,7 +78,7 @@ services:
           value: "true"
         - key: DATABASE_URL
           fromDatabase:
-            name: vit-postgres-v2
+            name: vitnetwork
             property: connectionString
         - key: REDIS_URL
           fromService:
@@ -112,7 +112,7 @@ services:
           value: https://vit-chain.onrender.com
 
 databases:
-    - name: vit-postgres-v2
+  - name: vitnetwork
       region: oregon
       plan: free
 

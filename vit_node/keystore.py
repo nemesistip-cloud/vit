@@ -110,6 +110,12 @@ class Keystore:
 
         return data["address"]
 
+    def get_public_key(self, password: str) -> str:
+        """Derive the public key from the encrypted private key."""
+        private_key_hex, _ = self.load(password)
+        private_key = PrivateKey.from_hex(private_key_hex)
+        return private_key.public_key.format(compressed=False).hex()
+
     def sign(self, data: bytes, password: str) -> str:
         private_key_hex, _ = self.load(password)
 

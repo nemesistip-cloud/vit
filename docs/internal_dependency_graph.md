@@ -5,7 +5,7 @@ This file summarizes the primary services, runtime roles, and integration links 
 ## Services (from render.yaml)
 
 - vitnetwork (web)
-  - DATABASE_URL -> vit-postgres-v2
+  - DATABASE_URL -> vitnetwork
   - REDIS_URL -> vitnetwork-redis
   - VIT_AI_URL -> https://vit-ai.onrender.com
   - TACHYON_URL -> https://vit-storage-4trt.onrender.com
@@ -15,7 +15,7 @@ This file summarizes the primary services, runtime roles, and integration links 
   - VITE_CHAIN_URL -> https://vit-chain.onrender.com
 
 - vitnetwork-worker (worker)
-  - DATABASE_URL -> vit-postgres-v2
+  - DATABASE_URL -> vitnetwork
   - REDIS_URL -> vitnetwork-redis
   - VIT_AI_URL -> https://vit-ai.onrender.com
   - TACHYON_URL -> https://vit-storage-4trt.onrender.com

@@ -53,7 +53,7 @@ class ValidatorRegistry:
         """Sets validator status to 'jailed'."""
         stmt = update(Validator).where(Validator.node_id == node_id).values(
             status="jailed",
-            metadata=func.json_set(Validator.extra_metadata, "$.jail_reason", reason)
+            extra_metadata=func.json_set(Validator.extra_metadata, "$.jail_reason", reason)
         )
         await db.execute(stmt)
         # flush/commit handled by caller

@@ -1,0 +1,40 @@
+{
+  "audit_date": "2026-08-28",
+  "repository": "nemesistip-cloud/vit",
+  "baseline_score": 34,
+  "overall_score": 43,
+  "status_counts": {"FULLY_IMPLEMENTED":7,"PARTIALLY_IMPLEMENTED":31,"BROKEN":4,"STUB":8,"MOCKED":5,"SEEDED_ONLY":4,"ORPHANED":9,"NOT_IMPLEMENTED":18,"DOCUMENTED_ONLY":7,"BLOCKED":8,"UNKNOWN":12},
+  "subsystems": {
+    "VIT Chain": {"score":42,"status":"PARTIALLY_IMPLEMENTED"},
+    "VIT Node": {"score":52,"status":"PARTIALLY_IMPLEMENTED"},
+    "Consensus": {"score":30,"status":"STUB"},
+    "VIT AI": {"score":39,"status":"PARTIALLY_IMPLEMENTED"},
+    "Sport Intelligence": {"score":37,"status":"SEEDED_ONLY"},
+    "Exchange": {"score":35,"status":"PARTIALLY_IMPLEMENTED"},
+    "Commerce": {"score":18,"status":"DOCUMENTED_ONLY"},
+    "Backend/API": {"score":40,"status":"PARTIALLY_IMPLEMENTED"},
+    "Frontend": {"score":38,"status":"PARTIALLY_IMPLEMENTED"},
+    "Database": {"score":43,"status":"PARTIALLY_IMPLEMENTED"},
+    "Infrastructure": {"score":55,"status":"PARTIALLY_IMPLEMENTED"},
+    "Security": {"score":45,"status":"PARTIALLY_IMPLEMENTED"},
+    "Testing": {"score":58,"status":"PARTIALLY_IMPLEMENTED"}
+  },
+  "runtime_checks": [
+    {"check":"pytest --collect-only -q","result":"PASS","evidence":"496 tests collected"},
+    {"check":"pytest -q","result":"PASS","evidence":"493 passed, 3 skipped, 1841 warnings"},
+    {"check":"tests/test_vit_node_network.py","result":"PASS","evidence":"2 passed"},
+    {"check":"alembic upgrade head (temporary SQLite)","result":"PASS","evidence":"reached zz05_social_intelligence_tables"},
+    {"check":"deployed health endpoints","result":"PARTIAL","evidence":"gateway, AI, storage and chain returned 200; explorer timed out"},
+    {"check":"Render services API","result":"PASS","evidence":"five not-suspended web services returned"},
+    {"check":"Render PostgreSQL API","result":"PASS","evidence":"vitnetwork available, Oregon, free, PostgreSQL 18"},
+    {"check":"Render Redis API","result":"PASS","evidence":"vitnetwork-redis available, Oregon, free, Redis 8.1.4"}
+  ],
+  "critical_findings": [
+    {"priority":"P0","finding":"Multi-node consensus/finality and restart recovery remain unverified"},
+    {"priority":"P1","finding":"Render worker is declared but absent from live service inventory"},
+    {"priority":"P1","finding":"Consensus finality and multi-node behavior lack runtime evidence"},
+    {"priority":"P1","finding":"Exchange settlement, custody, withdrawals and risk controls are not verified"},
+    {"priority":"P1","finding":"Live sports provider and model data lineage is not production-verified"}
+  ],
+  "repositories": ["vitnetwork/vit","vitnetwork/vit-agents","vitnetwork/vit-ai","vitnetwork/vit-chain","vitnetwork/vit-contracts","vitnetwork/vit-devops","vitnetwork/vit-docs","vitnetwork/vit-explorer","vitnetwork/vit-governance","vitnetwork/vit-mobile","vitnetwork/vit-network","vitnetwork/vit-prophecy","vitnetwork/vit-sdk","vitnetwork/vit-storage"]
+}

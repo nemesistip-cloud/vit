@@ -1,19 +1,10 @@
 import json
 import asyncio
 import websockets
+import secrets
+import time
 from app.core.errors import AppError
-
-# TODO: Import from vit_chain.p2p.protocol when 3.2 merges
-try:
-    from vit_chain.p2p.protocol import P2PProtocol
-    PROTOCOL_AVAILABLE = True
-except ImportError:
-    PROTOCOL_AVAILABLE = False
-    class P2PProtocol:
-        @staticmethod
-        def create_handshake(node_id, key): return {"type": "handshake", "node_id": node_id}
-        @staticmethod
-        def parse_message(data): return json.loads(data)
+from vit_chain.p2p.protocol import MessageType, PROTOCOL_VERSION, deserialize, serialize
 
 class P2PClient:
     def __init__(self):
@@ -22,20 +13,38 @@ class P2PClient:
 
     async def connect(self, peer_url: str,
                        our_node_id: str,
-                       our_key: str) -> bool:
+                       our_key: str,
+                       node_type: str = "storage",
+                       capabilities: dict | None = None,
+                       chain_height: int = 0,
+                       signature: str | None = None,
+                       handshake_timestamp: float | None = None,
+                       handshake_nonce: str | None = None) -> bool:
         self.node_id = our_node_id
         try:
             self.ws = await websockets.connect(peer_url)
 
             # Perform handshake
-            handshake = P2PProtocol.create_handshake(our_node_id, our_key)
-            await self.send(handshake)
+            handshake_fields = dict(
+                node_id=our_node_id,
+                public_key=our_key,
+                chain_height=chain_height,
+                node_type=node_type,
+                capabilities=capabilities or {},
+                protocol_version=PROTOCOL_VERSION,
+                timestamp=handshake_timestamp if handshake_timestamp is not None else time.time(),
+                nonce=handshake_nonce if handshake_nonce is not None else secrets.token_hex(16),
+            )
+            if signature:
+                handshake_fields["signature"] = signature
+            handshake = serialize(MessageType.HANDSHAKE, **handshake_fields)
+            await self.ws.send(handshake)
 
             # Wait for handshake response
             response_raw = await self.ws.recv()
-            response = P2PProtocol.parse_message(response_raw)
+            response = deserialize(response_raw)
 
-            if response.get("type") == "handshake_ack":
+            if response.get("type") == MessageType.HANDSHAKE_ACK and response.get("accepted"):
                 return True
             return False
         except Exception as e:
@@ -47,7 +56,7 @@ class P2PClient:
 
         try:
             async for message_raw in self.ws:
-                message = P2PProtocol.parse_message(message_raw)
+                message = deserialize(message_raw)
                 await gossip_handler(message)
         except websockets.ConnectionClosed:
             pass

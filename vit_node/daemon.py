@@ -2,6 +2,8 @@ import asyncio
 import signal
 import sys
 import logging
+import time
+import secrets
 from vit_node.config import NodeConfig
 from vit_node.keystore import Keystore
 from vit_node.storage.gdrive import PersonalDriveStorage
@@ -11,6 +13,7 @@ from vit_node.storage.monitor import StorageMonitor
 from vit_node.network.client import P2PClient
 from vit_node.network.gossip import NodeGossipHandler
 from vit_node.earnings.tracker import EarningsTracker
+from vit_chain.p2p.protocol import handshake_signing_bytes
 
 class VITNodeDaemon:
     def __init__(self):
@@ -56,7 +59,27 @@ class VITNodeDaemon:
 
         print(f"Connecting to P2P network at {p2p_url}...")
         try:
-            connected = await self.p2p_client.connect(p2p_url, node_id, "dummy_key")
+            public_key = self.keystore.get_public_key(self.password)
+            handshake_payload = {
+                "node_id": node_id,
+                "public_key": public_key,
+                "chain_height": 0,
+                "node_type": self.config.node_type,
+                "capabilities": {},
+                "protocol_version": "1.0",
+                "timestamp": time.time(),
+                "nonce": secrets.token_hex(16),
+            }
+            signature = self.keystore.sign(handshake_signing_bytes(handshake_payload), self.password)
+            connected = await self.p2p_client.connect(
+                p2p_url,
+                node_id,
+                public_key,
+                node_type=self.config.node_type,
+                signature=signature,
+                handshake_timestamp=handshake_payload["timestamp"],
+                handshake_nonce=handshake_payload["nonce"],
+            )
             if not connected:
                 print("❌ P2P handshake failed.")
                 return

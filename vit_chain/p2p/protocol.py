@@ -1,7 +1,11 @@
 import json
+import time
 from typing import Any, Dict, List, Optional
+from vit_chain.crypto.ecdsa import verify_signature
+from vit_chain.crypto.hash import sha256_bytes
 
 PROTOCOL_VERSION = "1.0"
+HANDSHAKE_MAX_AGE_SECONDS = 30
 
 class MessageType:
     HANDSHAKE = "handshake"
@@ -30,6 +34,40 @@ def deserialize(raw: str) -> Dict[str, Any]:
         return json.loads(raw)
     except json.JSONDecodeError:
         return {}
+
+
+def handshake_signing_bytes(message: Dict[str, Any]) -> bytes:
+    """Return the stable handshake representation covered by the signature."""
+    fields = {
+        key: message[key]
+        for key in (
+            "node_id", "public_key", "chain_height", "node_type",
+            "capabilities", "protocol_version", "timestamp", "nonce",
+        )
+        if key in message
+    }
+    return json.dumps(fields, sort_keys=True, separators=(",", ":")).encode()
+
+
+def verify_handshake(message: Dict[str, Any], seen_nonces: set[str], now: float | None = None) -> bool:
+    """Validate handshake proof, freshness, and one-time nonce use."""
+    required = {"signature", "timestamp", "nonce"}
+    if not required.issubset(message) or not isinstance(message["nonce"], str):
+        return False
+    timestamp = message["timestamp"]
+    if not isinstance(timestamp, (int, float)):
+        return False
+    current_time = time.time() if now is None else now
+    if abs(current_time - timestamp) > HANDSHAKE_MAX_AGE_SECONDS or message["nonce"] in seen_nonces:
+        return False
+    if not verify_signature(
+        message.get("public_key", ""),
+        sha256_bytes(handshake_signing_bytes(message)),
+        message["signature"],
+    ):
+        return False
+    seen_nonces.add(message["nonce"])
+    return True
 
 def validate_message(msg: Dict[str, Any]) -> bool:
     """Validates that a message has a valid type and required fields."""

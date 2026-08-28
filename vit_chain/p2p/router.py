@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Dict, Any, List
 from app.db.database import get_db, AsyncSessionLocal
-from .protocol import deserialize, serialize, MessageType, PROTOCOL_VERSION, validate_message
+from .protocol import deserialize, serialize, MessageType, PROTOCOL_VERSION, validate_message, verify_handshake
 from .registry import PeerRegistry
 from .connection import ConnectionManager, PeerConnection
 from .gossip import GossipHandler
@@ -20,6 +20,7 @@ _connection_manager = ConnectionManager(our_node_id="VIT_SERVER", our_key="SERVE
 _monitor = PeerMonitor()
 _gossip_handler = GossipHandler(_connection_manager)
 _registry = PeerRegistry()
+_seen_handshake_nonces: set[str] = set()
 
 @router.websocket("/peer")
 async def p2p_websocket_peer(websocket: WebSocket):
@@ -31,7 +32,11 @@ async def p2p_websocket_peer(websocket: WebSocket):
         raw = await websocket.receive_text()
         msg = deserialize(raw)
 
-        if not validate_message(msg) or msg["type"] != MessageType.HANDSHAKE:
+        if (
+            not validate_message(msg)
+            or msg["type"] != MessageType.HANDSHAKE
+            or not verify_handshake(msg, _seen_handshake_nonces)
+        ):
             await websocket.close(code=4000, reason="Invalid handshake")
             return
 
