@@ -54,6 +54,10 @@ services:
           sync: false
         - key: VIT_AI_API_KEY
           sync: false
+        - key: P2P_NODE_ID
+          sync: false
+        - key: P2P_PUBLIC_KEY
+          sync: false
         # ── Frontend build-time service URLs (baked into Vite bundle) ────────
         - key: VITE_GATEWAY_URL
           value: https://vitnetwork-nls4.onrender.com
@@ -101,6 +105,10 @@ services:
           sync: false
         - key: VIT_AI_API_KEY
           sync: false
+        - key: P2P_NODE_ID
+          sync: false
+        - key: P2P_PUBLIC_KEY
+          sync: false
         # ── Frontend build-time service URLs (baked into Vite bundle) ────────
         - key: VITE_GATEWAY_URL
           value: https://vitnetwork-nls4.onrender.com
@@ -113,11 +121,11 @@ services:
 
 databases:
   - name: vitnetwork
-      region: oregon
-      plan: free
+    region: oregon
+    plan: free
 
 redis:
-    - name: vitnetwork-redis
-      region: oregon
-      plan: free
-      ipAllowList: []
+  - name: vitnetwork-redis
+    region: oregon
+    plan: free
+    ipAllowList: []

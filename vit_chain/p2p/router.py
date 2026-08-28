@@ -1,3 +1,4 @@
+import os
 import time
 from fastapi import APIRouter, WebSocket, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,9 +15,11 @@ router = APIRouter(prefix="/api/chain", tags=["p2p"])
 
 from .monitor import PeerMonitor
 
-# These would typically be managed by a global application state or service
-# For this implementation, we assume they are accessible.
-_connection_manager = ConnectionManager(our_node_id="VIT_SERVER", our_key="SERVER_KEY")
+# The server identity is deployment configuration, not a code placeholder.
+_connection_manager = ConnectionManager(
+    our_node_id=os.getenv("P2P_NODE_ID", "VIT_SERVER"),
+    our_key=os.getenv("P2P_PUBLIC_KEY", ""),
+)
 _monitor = PeerMonitor()
 _gossip_handler = GossipHandler(_connection_manager)
 _registry = PeerRegistry()
@@ -25,6 +28,25 @@ _seen_handshake_nonces: set[str] = set()
 @router.websocket("/peer")
 async def p2p_websocket_peer(websocket: WebSocket):
     """WebSocket endpoint for incoming peer connections."""
+    await handle_peer_websocket(
+        websocket,
+        _connection_manager,
+        _gossip_handler,
+        _registry,
+        AsyncSessionLocal,
+        _seen_handshake_nonces,
+    )
+
+
+async def handle_peer_websocket(
+    websocket: WebSocket,
+    connection_manager: ConnectionManager,
+    gossip_handler: GossipHandler,
+    registry: PeerRegistry,
+    session_factory,
+    seen_handshake_nonces: set[str],
+):
+    """Serve one authenticated peer using injectable node-local dependencies."""
     await websocket.accept()
 
     try:
@@ -35,7 +57,7 @@ async def p2p_websocket_peer(websocket: WebSocket):
         if (
             not validate_message(msg)
             or msg["type"] != MessageType.HANDSHAKE
-            or not verify_handshake(msg, _seen_handshake_nonces)
+            or not verify_handshake(msg, seen_handshake_nonces)
         ):
             await websocket.close(code=4000, reason="Invalid handshake")
             return
@@ -43,8 +65,8 @@ async def p2p_websocket_peer(websocket: WebSocket):
         node_id = msg["node_id"]
 
         # 2. Register/Update Peer in Registry
-        async with AsyncSessionLocal() as db:
-            await _registry.register(
+        async with session_factory() as db:
+            await registry.register(
                 db,
                 node_id=node_id,
                 public_key=msg["public_key"],
@@ -58,7 +80,7 @@ async def p2p_websocket_peer(websocket: WebSocket):
         # 3. Send Handshake ACK
         ack = serialize(
             MessageType.HANDSHAKE_ACK,
-            node_id=_connection_manager.our_node_id,
+            node_id=connection_manager.our_node_id,
             chain_height=0, # Should be actual height
             accepted=True
         )
@@ -68,8 +90,8 @@ async def p2p_websocket_peer(websocket: WebSocket):
         async for message_raw in websocket.iter_text():
             msg = deserialize(message_raw)
             if validate_message(msg):
-                async with AsyncSessionLocal() as db:
-                    await _gossip_handler.handle_message(msg, node_id, db)
+                async with session_factory() as db:
+                    await gossip_handler.handle_message(msg, node_id, db)
 
     except Exception as e:
         print(f"WebSocket error for {websocket.client}: {e}")

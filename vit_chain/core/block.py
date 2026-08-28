@@ -67,6 +67,44 @@ class VITBlock:
             nonce=self.nonce
         )
 
+    @classmethod
+    def deserialize(cls, data: dict[str, Any]) -> "VITBlock":
+        """Rehydrate a block from the canonical wire/persistence representation."""
+        transactions = [
+            VITTransaction(
+                from_address=tx["from_address"],
+                to_address=tx["to_address"],
+                amount=Decimal(str(tx["amount"])),
+                nonce=int(tx["nonce"]),
+                timestamp=int(tx["timestamp"]),
+                gas_fee=Decimal(str(tx.get("gas_fee", "0.001"))),
+                data=tx.get("data"),
+                metadata=tx.get("metadata", {}),
+                signature=tx.get("signature", ""),
+                status=tx.get("status", "confirmed"),
+                tx_hash=tx.get("tx_hash", ""),
+            )
+            for tx in data.get("transactions", [])
+        ]
+        return cls(
+            height=int(data["height"]),
+            prev_hash=data["prev_hash"],
+            merkle_root=data["merkle_root"],
+            timestamp=int(data["timestamp"]),
+            validator_id=data["validator_id"],
+            transactions=transactions,
+            tx_count=int(data.get("tx_count", len(transactions))),
+            total_fees=Decimal(str(data.get("total_fees", "0"))),
+            block_reward=Decimal(str(data.get("block_reward", "0"))),
+            version=int(data.get("version", CURRENT_BLOCK_VERSION)),
+            nonce=int(data.get("nonce", 0)),
+            metadata=data.get("metadata", {}),
+            validator_signature=data.get("validator_signature", ""),
+            block_hash=data.get("block_hash", ""),
+            storage_proofs=data.get("storage_proofs", []),
+            consensus_votes=data.get("consensus_votes", []),
+        )
+
 def build_block(prev_block: Optional["VITBlock"],
                 transactions: list[VITTransaction],
                 storage_proofs: list[dict],

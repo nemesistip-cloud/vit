@@ -1,18 +1,20 @@
 # VIT Ecosystem Remediation Plan
 
-This plan follows the requested order and is intentionally not implemented during discovery.
+Phase 2C implementation status: Signed node-facing proposals/votes, 2/3 quorum certificates, finality persistence, and healthy three-node restart/reconnect are verified. The plan remains gated on adversarial consensus scenarios and production validator policy.
 
 ## Recommended Implementation Order
 
 ### 1. Restore verification foundations (P0)
 
 - Core dependencies are declared in `pyproject.toml`; keep them synchronized with `requirements.txt`.
-- `pytest --collect-only -q` passes with 496 tests; retain the 493-pass/3-skip baseline in CI.
+- `python -m pytest --collect-only -q` collects 555 tests; the current full result is 552 passed, 3 skipped, 0 failed.
 - Add a CI gate that fails clearly on collection/import errors.
 
 ### 2. Secure and prove node/network startup (P0)
 
-- Server-side signature verification, freshness, and nonce replay protection are implemented and covered by focused tests.
+- Server-side signature verification, freshness, and nonce replay protection use the canonical Keccak/ECDSA contract and pass focused real-keystore/client tests.
+- `tests/integration/test_real_multinode_consensus.py` proves actual websocket transport, proposal/vote propagation, 2/3 quorum, certificate finality, independent SQLite persistence, restart recovery, and reconnect.
+- The existing multi-node test is simulation-only and must not be used as distributed-network evidence.
 - Add node startup, handshake rejection, graceful shutdown, restart, and persistence tests.
 - Verify P2P peer discovery, message validation, block/transaction receive, and propagation with at least two nodes.
 

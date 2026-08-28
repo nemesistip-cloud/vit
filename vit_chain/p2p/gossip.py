@@ -5,7 +5,10 @@ from collections import deque
 from sqlalchemy.ext.asyncio import AsyncSession
 from .protocol import MessageType, serialize
 from .connection import ConnectionManager
-from vit_chain.core.blockchain import VITChain, VITBlock, VITTransaction, Mempool, verify_transaction
+from vit_chain.core.blockchain import VITBlock, VITTransaction, Mempool, verify_transaction, validate_block
+from vit_chain.core.chain import VITChain
+from vit_chain.consensus.coordinator import ConsensusCoordinator
+from vit_chain.consensus.protocol import ConsensusVote
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +20,15 @@ class GossipHandler:
     SEEN_CACHE_SIZE = 10000
 
     def __init__(self, connection_manager: ConnectionManager,
-                 chain: VITChain = None, mempool: Mempool = None):
+                 chain: VITChain = None, mempool: Mempool = None,
+                 consensus: ConsensusCoordinator = None):
         self.connection_manager = connection_manager
         self.chain = chain or VITChain()
         self.mempool = mempool or Mempool()
         self.seen_messages_queue = deque(maxlen=self.SEEN_CACHE_SIZE)
         self.seen_messages_set: Set[str] = set()
         self._seen_lock = asyncio.Lock()
+        self.consensus = consensus
 
     async def _is_seen(self, msg_id: str) -> bool:
         async with self._seen_lock:
@@ -54,6 +59,21 @@ class GossipHandler:
             await self._handle_get_peers(from_node_id, db)
         elif msg_type == MessageType.BLOCKS_RESPONSE:
             await self._handle_blocks_response(msg["blocks"], from_node_id, db)
+        elif msg_type == MessageType.PROPOSAL and self.consensus:
+            accepted = await self.consensus.receive_proposal(db, msg)
+            if accepted:
+                vote = self.consensus.create_vote(msg["height"], msg["round"], msg["block"]["block_hash"])
+                await self.consensus.receive_vote(db, vote)
+                vote_message = {"type": MessageType.CONSENSUS_VOTE, **vote.to_dict()}
+                if self.consensus.broadcast:
+                    await self.consensus.broadcast(vote_message)
+                else:
+                    await self.connection_manager.broadcast(vote_message, exclude=from_node_id)
+        elif msg_type == MessageType.CONSENSUS_VOTE and self.consensus:
+            vote_data = {key: value for key, value in msg.items() if key != "type"}
+            await self.consensus.receive_vote(db, ConsensusVote(**vote_data))
+        elif msg_type == MessageType.FINALITY_CERTIFICATE and self.consensus:
+            await self.consensus.receive_certificate(db, msg)
         elif msg_type == MessageType.HANDSHAKE:
             await self._handle_handshake(msg, from_node_id, db)
         elif msg_type == MessageType.PEERS_RESPONSE:
@@ -116,13 +136,14 @@ class GossipHandler:
                                  from_node: str, db: AsyncSession):
         """Deserialize block, validate, add to chain, and forward if new."""
         block = VITBlock.deserialize(block_data)
-        block_hash = block.get_hash()
+        block_hash = block.block_hash
 
         if await self._is_seen(f"block:{block_hash}"):
             return
 
-        if block.validate():
-            await self.chain.add_block(block, db)
+        previous_block = await self.chain.get_latest_block(db)
+        if validate_block(block, previous_block):
+            await self.chain.add_block(db, block)
             await db.commit()
             # Update peer height in memory
             if from_node in self.connection_manager.connections:
@@ -149,7 +170,7 @@ class GossipHandler:
         for b_data in blocks_data:
             block = VITBlock.deserialize(b_data)
             if block.validate():
-                await self.chain.add_block(block, db)
+                await self.chain.add_block(db, block)
         await db.commit()
 
     async def _handle_get_peers(self, from_node: str, db: AsyncSession):

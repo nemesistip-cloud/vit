@@ -35,8 +35,8 @@ async def eth_blockNumber(db: AsyncSession) -> str:
 async def eth_getBalance(address: str, block: str, db: AsyncSession) -> str:
     """Returns balance in hex wei-equivalent"""
     subsystem = kernel.get_subsystem("blockchain")
-    if subsystem:
-        sdk = subsystem.get_sdk()
+    sdk = subsystem.get_sdk() if subsystem else None
+    if sdk:
         balance = await sdk.get_balance(db, address)
         return vit_to_wei_hex(balance)
 

@@ -1,14 +1,23 @@
 import time
 
-from vit_chain.crypto.ecdsa import generate_keypair, sign_transaction
-from vit_chain.crypto.hash import sha256_bytes
+import pytest
+
+from vit_node.keystore import Keystore
 from vit_chain.p2p.protocol import handshake_signing_bytes, verify_handshake
 
 
-def make_handshake(private_key, public_key, **overrides):
+@pytest.fixture
+def identity(tmp_path):
+    keystore = Keystore(tmp_path / "keystore.json")
+    password = "test-password"
+    keystore.create(password)
+    return keystore, password
+
+
+def make_handshake(keystore, password, **overrides):
     message = {
         "node_id": "NODE_1",
-        "public_key": public_key,
+        "public_key": keystore.get_public_key(password),
         "chain_height": 3,
         "node_type": "validator",
         "capabilities": {},
@@ -17,42 +26,48 @@ def make_handshake(private_key, public_key, **overrides):
         "nonce": "a" * 32,
     }
     message.update(overrides)
-    message["signature"] = sign_transaction(
-        private_key,
-        sha256_bytes(handshake_signing_bytes(message)),
-    )
+    message["signature"] = keystore.sign(handshake_signing_bytes(message), password)
     return message
 
 
-def test_valid_handshake_is_accepted_once():
-    private_key, public_key = generate_keypair()
-    message = make_handshake(private_key, public_key)
+def test_valid_handshake_is_accepted_once(identity):
+    keystore, password = identity
+    message = make_handshake(keystore, password)
     seen = set()
 
     assert verify_handshake(message, seen)
     assert not verify_handshake(message, seen)
 
 
-def test_invalid_signature_is_rejected():
-    private_key, public_key = generate_keypair()
-    message = make_handshake(private_key, public_key)
+def test_tampered_handshake_is_rejected(identity):
+    keystore, password = identity
+    message = make_handshake(keystore, password)
+    message["chain_height"] = 4
+
+    assert not verify_handshake(message, set())
+
+
+def test_invalid_signature_is_rejected(identity):
+    keystore, password = identity
+    message = make_handshake(keystore, password)
     message["signature"] = "00"
 
     assert not verify_handshake(message, set())
 
 
-def test_wrong_public_key_is_rejected():
-    private_key, public_key = generate_keypair()
-    _, wrong_public_key = generate_keypair()
-    message = make_handshake(private_key, public_key)
-    message["public_key"] = wrong_public_key
+def test_wrong_public_key_is_rejected(identity, tmp_path):
+    keystore, password = identity
+    wrong_keystore = Keystore(tmp_path / "wrong-keystore.json")
+    wrong_keystore.create("wrong-password")
+    message = make_handshake(keystore, password)
+    message["public_key"] = wrong_keystore.get_public_key("wrong-password")
 
     assert not verify_handshake(message, set())
 
 
-def test_stale_handshake_is_rejected():
-    private_key, public_key = generate_keypair()
-    message = make_handshake(private_key, public_key, timestamp=0)
+def test_stale_handshake_is_rejected(identity):
+    keystore, password = identity
+    message = make_handshake(keystore, password, timestamp=0)
 
     assert not verify_handshake(message, set(), now=100)
 

@@ -6,7 +6,7 @@
 - Workspace: `/workspaces/vit`
 - Repository: `nemesistip-cloud/vit`, branch `main`
 - Credentials: GitHub PAT and Render API key were loaded privately from `.env`; values were never printed.
-- Remediation phase is active; changes are limited to dependency metadata, node handshake wiring/tests, and database deployment configuration.
+- Phase 2A remediation is active; Render YAML, handshake crypto, server identity configuration, and test discovery were repaired.
 
 ## Checks performed
 
@@ -19,9 +19,13 @@
 | Render PostgreSQL inventory | PASS | `vitnetwork`, Oregon, free, PostgreSQL 18, available |
 | Render Redis inventory | PASS | `vitnetwork-redis`, Oregon, free, Redis 8.1.4, available |
 | Render environment name audit | PASS | Names enumerated for five services; values suppressed |
-| Python test collection | PASS | 496 tests collected with configured interpreter |
-| Python full test suite | PASS | 493 passed, 3 skipped, 1,841 warnings |
-| Node handshake regression tests | PASS | 22 focused P2P/handshake tests passed |
+| Render blueprint YAML | PASS | Ruby parser output: `render.yaml: VALID` |
+| Python test collection | PASS | 555 tests collected with configured interpreter |
+| Python full test suite | PASS | 552 passed, 3 skipped, 0 failed |
+| Node handshake regression tests | PASS | Focused real-keystore/client tests pass 15/15 |
+| Python compilation and diff check | PASS | `compileall` and `git diff --check` passed |
+| Frontend build | PASS | Vite build and asset validation passed |
+| Real three-node consensus integration | PASS | Authenticated websocket transport, proposal/vote propagation, 2/3 quorum certificate, finality, independent persistence, restart recovery, and reconnect |
 | Alembic current/heads/upgrade | PASS | Temporary SQLite database reached `zz05_social_intelligence_tables` |
 | Frontend route inspection | PASS (static) | Lazy routes and auth grouping found in `frontend/src/App.tsx`; not a browser runtime proof |
 | Node path inspection | PASS (static) | Startup/config/P2P/loops identified; signed handshake path is wired |
@@ -34,10 +38,10 @@
 - Deployed endpoint health: gateway, AI, storage, and chain returned 200; explorer timed out.
 - Live AI provider inference: credentials/provider execution not proven.
 - Live sports ingestion/model prediction: external provider runtime not proven.
-- Multi-node chain/consensus: no test network execution performed.
+- Multi-node consensus/finality: healthy proposal/vote/quorum/finality path passes; partition, timeout, conflicting proposal, and insufficient quorum integration remain.
 - Database connectivity/data counts: no production database connection attempted.
 - Worker queue execution/logs: not available from repository-only checks; live Render inventory contains no worker.
 
 ## Evidence-based conclusion
 
-Deployment metadata is real and available, but deployment configuration and source existence do not establish application health. The dependency and local test blockers are resolved, and signed P2P handshake verification passes locally. Remaining high-risk verification items are multi-node consensus/finality, restart recovery, Render worker deployment, production database migration state, live provider calls, exchange settlement, commerce integration, and browser smoke checks.
+Deployment metadata is real and available, and the blueprint now parses. The canonical signed handshake path and healthy three-node consensus/finality/persistence/reconnect integration pass. Adversarial consensus, Render worker deployment, production database migration state, live provider calls, exchange settlement, commerce integration, and browser smoke checks remain unverified.

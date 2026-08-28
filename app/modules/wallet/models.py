@@ -131,6 +131,7 @@ class Wallet(Base):
     pi_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
     vitcoin_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
     staked_vitcoin_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("0.00000000"))
+    tx_metadata: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
 
     is_frozen: Mapped[bool] = mapped_column(Boolean, default=False)
     kyc_verified: Mapped[bool] = mapped_column(Boolean, default=False)

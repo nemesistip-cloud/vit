@@ -1,5 +1,22 @@
 # VIT Ecosystem Implementation Progress
 
+## Phase 2C
+
+Before: **39/100**
+
+After: **39/100**
+
+Phase 2C added signed node-facing proposals and votes, deterministic proposer
+selection, 2/3 quorum certificates, double-vote protection, certificate-backed
+finality, durable consensus records, and a router-backed three-node integration
+test. The older consensus file remains an in-memory simulation and is labeled as
+such.
+
+Evidence: Render parser `render.yaml: VALID`; Python compilation passed; 555
+tests collected; full suite **552 passed, 3 skipped, 0 failed**; real three-node
+integration passed; frontend build and asset validation passed; `git diff --check`
+passed. Production deployment is not verified.
+
 ## Before
 
 - Overall score: **34/100**
@@ -9,11 +26,12 @@
 
 ## After
 
-- Current conservative score: **43/100**.
-- Test collection: **496 collected**.
-- Full Python suite: **493 passed, 3 skipped, 0 failed**.
-- Focused node handshake tests: **2 passed**.
-- Disposable SQLite Alembic upgrade: **passed**, reaching `zz05_social_intelligence_tables`.
+- Current conservative score: **39/100**.
+- Test collection: **555 collected**.
+- Full Python suite: **552 passed, 3 skipped, 0 failed**.
+- Real three-node consensus integration: **1 passed**.
+- Consensus unit/negative tests: **5 passed**.
+- Disposable SQLite Alembic upgrade: **passed**, reaching `zz06_wallet_transaction_metadata`.
 
 ## Fixed
 
@@ -33,17 +51,18 @@
 - Node identity and handshake proof are now cryptographically verified locally; unknown-peer admission policy and full multi-node execution remain open.
 - Render services and data resources are available, but the worker is declared in the blueprint and was not present in the live service inventory.
 - Alembic works against disposable SQLite; production PostgreSQL migration state remains intentionally unmodified and unverified.
-- The full test suite is green locally, but warnings, browser E2E, provider runtime, and deployed endpoint coverage remain.
+- The focused Phase 2B suite and full regression are green; warnings, browser E2E, provider runtime, and deployed endpoint coverage remain.
 
 ## Still Broken
 
-- No confirmed source/runtime failure remains in the local Python test baseline.
+- Full regression is green; warnings and deprecations remain.
 - Duplicate FastAPI operation IDs and deprecation warnings remain visible during tests.
 
 ## Still Missing
 
-- Server-side cryptographic P2P handshake verification.
-- Multi-node consensus/quorum/finality and restart recovery evidence.
+- Production node-facing consensus/quorum/finality and restart synchronization beyond local persistence.
+- Server-side peer admission policy and configured server signing identity lifecycle.
+- Adversarial live-node partition, timeout, conflicting-proposal, insufficient-quorum, and restart-during-consensus tests.
 - Durable exchange settlement, withdrawals, and risk controls.
 - Verified Piluno commerce execution path.
 - Live sports-provider lineage and model calibration/drift pipeline.
@@ -57,12 +76,12 @@
 ## Tests
 
 ```text
-Collected: 496
-Passed: 493
+Collected: 555
+Passed: 552
 Failed: 0
 Skipped: 3
 Blocked: 0 (local suite)
-Warnings: 1,841
+Warnings: 1,846
 ```
 
 ## Production Readiness

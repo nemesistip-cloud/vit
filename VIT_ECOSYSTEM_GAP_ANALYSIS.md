@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-VIT has substantial structural breadth but limited proof of integrated production behavior. The highest-confidence working areas are repository structure, deployment metadata access, local module/test presence, and basic frontend/API wiring. The highest-risk gaps are test-environment failure, node authentication, consensus/finality proof, data lineage, durable exchange settlement, and deployment drift.
+VIT has substantial structural breadth but limited proof of integrated production behavior. Phase 2C now has green regression and a router-backed three-node proposal, signed-vote, 2/3 quorum, certificate finality, persistence, and restart/reconnect path. The highest-risk remaining gaps are adversarial network scenarios, validator admission/selection policy, data lineage, durable exchange settlement, and deployment drift.
 
 ## P0 Critical
 
-1. **Multi-node consensus/finality is not runtime-proven.** Producer, voting, finalizer, verifier and slashing modules exist, but there is no verified multi-node quorum, conflicting-block, invalid-message, or restart test result.
+1. **Adversarial multi-node consensus/finality is not runtime-proven.** The real integration test now proves a healthy three-node proposal, signed votes, 2/3 quorum certificate, finality, persistence, and restart. Partition, timeout, conflicting-proposal, and insufficient-quorum behavior still need live-node tests.
 2. **Consensus is not runtime-proven.** Producer, voting, finalizer, verifier and slashing modules exist, but there is no verified multi-node quorum, conflicting-block, invalid-message, or restart test result.
 3. **Render worker is not present in live inventory.** The worker is declared in source but its deployed runtime could not be confirmed.
 
@@ -36,7 +36,8 @@ VIT has substantial structural breadth but limited proof of integrated productio
 
 ## Fake-completeness findings
 
-- Server-side handshake signature verification is implemented with freshness and nonce replay protection; unknown-peer admission policy remains open.
+- Server-side handshake signature verification uses the canonical Keccak/ECDSA contract with freshness and nonce replay protection; real daemon-to-router acceptance remains unverified.
+- The normal test command now collects both `tests` and `vit_chain/tests`; 555 tests collect and the full suite passes 552 with 3 skips. Consensus unit/negative tests and one real integration test pass.
 - Explicit demo behavior: detached node mode prints “not implemented in this demo”.
 - Fixed fallback response: “Intelligence layer is offline. Running on offline failover buffer.”
 - Historical/seed data exists under `data/`; it is not evidence of live provider ingestion.

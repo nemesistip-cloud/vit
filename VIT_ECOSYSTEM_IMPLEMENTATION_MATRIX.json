@@ -2,7 +2,7 @@
   "audit_date": "2026-08-28",
   "repository": "nemesistip-cloud/vit",
   "baseline_score": 34,
-  "overall_score": 43,
+  "overall_score": 39,
   "status_counts": {"FULLY_IMPLEMENTED":7,"PARTIALLY_IMPLEMENTED":31,"BROKEN":4,"STUB":8,"MOCKED":5,"SEEDED_ONLY":4,"ORPHANED":9,"NOT_IMPLEMENTED":18,"DOCUMENTED_ONLY":7,"BLOCKED":8,"UNKNOWN":12},
   "subsystems": {
     "VIT Chain": {"score":42,"status":"PARTIALLY_IMPLEMENTED"},
@@ -20,17 +20,21 @@
     "Testing": {"score":58,"status":"PARTIALLY_IMPLEMENTED"}
   },
   "runtime_checks": [
-    {"check":"pytest --collect-only -q","result":"PASS","evidence":"496 tests collected"},
-    {"check":"pytest -q","result":"PASS","evidence":"493 passed, 3 skipped, 1841 warnings"},
-    {"check":"tests/test_vit_node_network.py","result":"PASS","evidence":"2 passed"},
-    {"check":"alembic upgrade head (temporary SQLite)","result":"PASS","evidence":"reached zz05_social_intelligence_tables"},
+    {"check":"render.yaml YAML parse","result":"PASS","evidence":"Ruby parser: render.yaml: VALID"},
+    {"check":"python -m pytest --collect-only -q","result":"PASS","evidence":"555 tests collected"},
+    {"check":"python -m pytest -q","result":"PASS","evidence":"552 passed, 3 skipped, 0 failed"},
+    {"check":"real three-node consensus integration","result":"PASS","evidence":"Authenticated proposal/vote transport, 2/3 quorum certificate, finality, independent persistence, restart and reconnect passed"},
+    {"check":"consensus unit and negative tests","result":"PASS","evidence":"5 passed: proposer, quorum, certificate, duplicate/conflicting/invalid vote rejection"},
+    {"check":"Phase 2A handshake/client tests","result":"PASS","evidence":"15 passed"},
+    {"check":"npm run build","result":"PASS","evidence":"Vite build and frontend asset check passed"},
+    {"check":"alembic upgrade head (temporary SQLite)","result":"PASS","evidence":"reached zz06_wallet_transaction_metadata"},
     {"check":"deployed health endpoints","result":"PARTIAL","evidence":"gateway, AI, storage and chain returned 200; explorer timed out"},
     {"check":"Render services API","result":"PASS","evidence":"five not-suspended web services returned"},
     {"check":"Render PostgreSQL API","result":"PASS","evidence":"vitnetwork available, Oregon, free, PostgreSQL 18"},
     {"check":"Render Redis API","result":"PASS","evidence":"vitnetwork-redis available, Oregon, free, Redis 8.1.4"}
   ],
   "critical_findings": [
-    {"priority":"P0","finding":"Multi-node consensus/finality and restart recovery remain unverified"},
+    {"priority":"P0","finding":"Production node-facing consensus/finality and restart synchronization remain unverified"},
     {"priority":"P1","finding":"Render worker is declared but absent from live service inventory"},
     {"priority":"P1","finding":"Consensus finality and multi-node behavior lack runtime evidence"},
     {"priority":"P1","finding":"Exchange settlement, custody, withdrawals and risk controls are not verified"},

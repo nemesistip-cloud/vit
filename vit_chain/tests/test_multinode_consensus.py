@@ -30,10 +30,8 @@ from vit_chain.p2p.protocol import (
 )
 from vit_chain.p2p.router import router as p2p_router, _registry, _connection_manager
 from vit_chain.p2p.models import PeerNode
-from vit_chain.consensus.engine import ConsensusEngine
-from vit_chain.consensus.models import Block, Transaction, Validator
 from vit_chain.crypto.ecdsa import generate_keypair, sign_transaction, verify_signature
-from app.db.database import AsyncSessionLocal
+from vit_chain.crypto.hash import keccak256_hex
 
 # Test configuration
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +43,29 @@ NETWORK_LATENCY = 0.05  # seconds
 
 
 @dataclass
+class SimulationTransaction:
+    tx_id: str
+    sender: str
+    recipient: str
+    amount: float
+    signature: str
+    timestamp: float
+    status: str
+
+
+@dataclass
+class SimulationBlock:
+    height: int
+    proposer: str
+    timestamp: float
+    transactions_count: int
+    signature: str
+    state_root: str
+    prev_block_hash: str
+    finalized: bool = False
+
+
+@dataclass
 class NodeSimulation:
     """Represents a single node in the consensus test."""
     node_id: str
@@ -53,15 +74,15 @@ class NodeSimulation:
     public_key: str
     
     # State
-    blocks: List[Block] = None
+    blocks: List[SimulationBlock] = None
     peers: Dict[str, 'NodeSimulation'] = None
-    transactions_pool: List[Transaction] = None
-    validator_state: Optional[Validator] = None
+    transactions_pool: List[SimulationTransaction] = None
+    validator_state: Optional[dict] = None
     chain_height: int = 0
     
     # For async/network simulation
     message_queue: asyncio.Queue = None
-    consensus_engine: Optional[ConsensusEngine] = None
+    consensus_engine: Optional[object] = None
     
     def __post_init__(self):
         if self.blocks is None:
@@ -117,22 +138,7 @@ class MultiNodeConsensusTestHarness:
             )
             
             # Initialize database session (persistent state)
-            async with AsyncSessionLocal() as db:
-                # Create validator entry
-                validator = Validator(
-                    node_id=node_id,
-                    public_key=public_key,
-                    power=100,  # Equal voting power
-                    status="active",
-                    chain_height=0,
-                    missed_blocks=0,
-                    jailed=False,
-                    join_height=0
-                )
-                db.add(validator)
-                await db.commit()
-                
-                node.validator_state = validator
+            node.validator_state = {"node_id": node_id, "public_key": public_key}
             
             self.nodes[node_id] = node
             nodes.append(node)
@@ -197,7 +203,10 @@ class MultiNodeConsensusTestHarness:
         }
         
         # Sign handshake
-        signature = sign_transaction(initiator.private_key, handshake_signing_bytes(handshake_payload))
+        signature = sign_transaction(
+            initiator.private_key,
+            bytes.fromhex(keccak256_hex(handshake_signing_bytes(handshake_payload))),
+        )
         
         # Add signature to message
         handshake_payload["signature"] = signature
@@ -289,9 +298,9 @@ class MultiNodeConsensusTestHarness:
         else:
             initiator_key = initiator.private_key
         
-        tx_signature = sign_transaction(initiator_key, str(tx_data))
+        tx_signature = sign_transaction(initiator_key, str(tx_data).encode())
         
-        transaction = Transaction(
+        transaction = SimulationTransaction(
             tx_id=tx_id,
             sender=sender,
             recipient=recipient,
@@ -366,10 +375,10 @@ class MultiNodeConsensusTestHarness:
         # Sign block with proposer's key
         block_signature = sign_transaction(
             proposer.private_key,
-            str(block_data)
+            str(block_data).encode()
         )
         
-        block = Block(
+        block = SimulationBlock(
             height=block_height,
             proposer=proposer_id,
             timestamp=block_data["timestamp"],
@@ -384,7 +393,7 @@ class MultiNodeConsensusTestHarness:
         votes = {}
         for node_id, node in self.nodes.items():
             # Verify block signature
-            is_valid = verify_signature(proposer.public_key, str(block_data), block_signature)
+            is_valid = verify_signature(proposer.public_key, str(block_data).encode(), block_signature)
             
             if is_valid:
                 # Add to node's blocks

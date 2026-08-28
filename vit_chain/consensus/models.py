@@ -65,3 +65,17 @@ class ConsensusCheckpoint(Base):
     state_root: Mapped[str] = mapped_column(String(66), nullable=False)
     validator_set_hash: Mapped[str] = mapped_column(String(66), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+
+
+class ConsensusState(Base):
+    """Durable proposal, vote, and finality records for node recovery."""
+    __tablename__ = "consensus_states"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    node_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    height: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    round: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    state_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    block_hash: Mapped[str] = mapped_column(String(66), nullable=False)
+    validator_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    certificate: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())

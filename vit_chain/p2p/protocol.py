@@ -2,7 +2,7 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 from vit_chain.crypto.ecdsa import verify_signature
-from vit_chain.crypto.hash import sha256_bytes
+from vit_chain.crypto.hash import keccak256_hex
 
 PROTOCOL_VERSION = "1.0"
 HANDSHAKE_MAX_AGE_SECONDS = 30
@@ -21,6 +21,8 @@ class MessageType:
     STORAGE_CHALLENGE = "storage_challenge"
     STORAGE_RESPONSE = "storage_response"
     CONSENSUS_VOTE = "consensus_vote"
+    PROPOSAL = "proposal"
+    FINALITY_CERTIFICATE = "finality_certificate"
 
 def serialize(message_type: str, **kwargs) -> str:
     """Serializes a message to a JSON string."""
@@ -62,7 +64,7 @@ def verify_handshake(message: Dict[str, Any], seen_nonces: set[str], now: float 
         return False
     if not verify_signature(
         message.get("public_key", ""),
-        sha256_bytes(handshake_signing_bytes(message)),
+        bytes.fromhex(keccak256_hex(handshake_signing_bytes(message))),
         message["signature"],
     ):
         return False
@@ -111,8 +113,16 @@ def validate_message(msg: Dict[str, Any]) -> bool:
         return all(field in msg for field in required)
 
     if m_type == MessageType.CONSENSUS_VOTE:
+        if all(field in msg for field in ["validator_id", "public_key", "chain_id", "height", "round", "block_hash", "vote_type", "timestamp", "signature"]):
+            return True
         required = ["epoch", "block_hash", "signature"]
         return all(field in msg for field in required)
+
+    if m_type == MessageType.PROPOSAL:
+        return all(field in msg for field in ["height", "round", "proposer_id", "block"]) and isinstance(msg["block"], dict)
+
+    if m_type == MessageType.FINALITY_CERTIFICATE:
+        return all(field in msg for field in ["height", "round", "block_hash", "votes"]) and isinstance(msg["votes"], list)
 
     if m_type == MessageType.GET_PEERS:
         return True

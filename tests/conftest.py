@@ -27,7 +27,8 @@ os.environ.setdefault("SESSION_SECRET", "test-session-secret")
 os.environ.setdefault("PAYSTACK_SECRET_KEY", "sk_test_placeholder")
 os.environ.setdefault("PAYSTACK_WEBHOOK_SECRET", "whsec_test_placeholder")
 os.environ.setdefault("ENVIRONMENT", "testing")
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+_session_test_db_dir = Path(tempfile.mkdtemp(prefix="vit_session_"))
+os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{_session_test_db_dir / 'test.db'}")
 os.environ.setdefault("AUTH_ENABLED", "false")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 os.environ.setdefault("USE_REAL_ML_MODELS", "false")
@@ -117,7 +118,7 @@ def setup_env():
     os.environ.setdefault("PAYSTACK_SECRET_KEY", "sk_test_placeholder")
     os.environ.setdefault("PAYSTACK_WEBHOOK_SECRET", "whsec_test_placeholder")
     os.environ["ENVIRONMENT"] = "testing"
-    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+    os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_session_test_db_dir / 'test.db'}"
     os.environ["AUTH_ENABLED"] = "false"
     os.environ["RATE_LIMIT_ENABLED"] = "false"
     os.environ["USE_REAL_ML_MODELS"] = "false"

@@ -5,7 +5,7 @@
 **Audit date:** 2026-08-28  
 **Scope:** repository source, tests, deployment manifests, and safe metadata/runtime checks.  
 **Baseline score:** **34/100**  
-**Phase 2 current score:** **43/100**. This is a weighted engineering judgment, not a product claim; unverified code is not counted as fully implemented.
+**Phase 2C current score:** **39/100**. This is a weighted engineering judgment, not a product claim; unverified code is not counted as fully implemented.
 
 | Status | Count |
 |---|---:|
@@ -39,7 +39,7 @@ These counts are inventory findings, not line/file counts. A capability receives
 | Database | 43/100 | 30 Alembic revisions and many models; active-use/production migration state is not verified |
 | Infrastructure | 55/100 | gateway, AI, storage and chain deployed health returned 200; chain Redis is degraded and worker is absent from live inventory |
 | Security | 45/100 | signed node handshake and replay protection pass focused tests; endpoint-wide security review remains incomplete |
-| Testing | 58/100 | 496 tests collect; Phase 1 full suite passed 493/3 skipped; Phase 2 focused P2P tests pass, one legacy consensus contract fails |
+| Testing | 62/100 | 555 tests collect; full suite has 552 passed, 3 skipped, 0 failed; real transport integration passes |
 
 ## Feature Inventory
 
@@ -54,8 +54,8 @@ These counts are inventory findings, not line/file counts. A capability receives
 | State transitions | PARTIALLY_IMPLEMENTED | `vit_chain/core/state.py`, manager/query | Production database connection unverified |
 | Mempool | UNKNOWN | chain modules/tests indicate related behavior | Active node wiring not demonstrated |
 | RPC | PARTIALLY_IMPLEMENTED | `vit_chain/rpc/router.py`, `handlers.py`, `server.py`, RPC tests | Deployed RPC health not verified |
-| P2P discovery/gossip | PARTIALLY_IMPLEMENTED | `vit_chain/p2p/*`, P2P tests | Multi-node interoperability not verified |
-| Consensus voting/finality | STUB | `vit_chain/consensus/{engine,voting,finalizer}.py` | No quorum/fork/malicious-message runtime evidence |
+| P2P discovery/gossip | PARTIALLY_IMPLEMENTED | `vit_chain/p2p/*`, `tests/integration/test_real_multinode_consensus.py` | Authenticated transport, proposal/vote propagation, and restart pass; adversarial network cases remain |
+| Consensus voting/finality | PARTIALLY_IMPLEMENTED | `vit_chain/consensus/{protocol,coordinator}.py`, real integration | Signed votes, 2/3 quorum, certificate verification, durable finality, and restart pass; partition/timeout/fork integration remains |
 | Validator registry/rewards | PARTIALLY_IMPLEMENTED | registry/rewards/slashing modules and tests | Persistence and restart behavior not proven |
 | Smart contracts/VM | STUB | `vit_chain/smart_contracts/vm.py`, registry/types | No verified contract execution/consensus integration |
 | Node configuration | PARTIALLY_IMPLEMENTED | `vit_node/config.py` persists JSON under `~/.vit_node` | Defaults can hide missing configuration; no migration/versioning |
@@ -131,12 +131,12 @@ These counts are inventory findings, not line/file counts. A capability receives
 | Functional exchange | Order book/matching engine | No verified durable settlement, withdrawals, risk or authenticated API | PARTIALLY_IMPLEMENTED | `exchange/*` |
 | Integrated commerce/Piluno | Marketplace UI/module and documentation | No verified Piluno execution path | DOCUMENTED_ONLY | marketplace modules, docs references |
 | Complete explorer | Explorer UI and API client | Backend/live-chain contract and metrics not runtime-verified | PARTIALLY_IMPLEMENTED | `explorer/src/api/client.js` |
-| Production-ready test coverage | Many test files | 496 collected; 493 passed, 3 skipped | PARTIALLY_IMPLEMENTED | `pytest -q` |
+| Production-ready test coverage | Many test files | 555 collected; 552 passed, 3 skipped, 0 failed; simulation is not integration evidence | PARTIALLY_IMPLEMENTED | `pytest --collect-only -q`, `pytest -q` |
 
 ## Evidence Notes
 
 - PAT and Render API key were used only for metadata queries; secret values were not printed or included.
 - Render metadata showed five active web services: `vitnetwork`, `vit-ai`, `vit-storage`, `vit-chain`, and `vit-explorer`; all were not suspended. No Render worker appeared in the service list.
-- Remediation evidence: full suite passed 493 with 3 skipped. Focused node tests passed 2/2. Disposable SQLite migration upgrade reached `zz05_social_intelligence_tables`.
+- Phase 2B evidence: Render YAML parses; canonical handshake, real three-node transport/persistence/restart integration, frontend build, and Python compilation pass; full suite is 552 passed, 3 skipped, 0 failed.
 - Phase 2 evidence: signed handshake/P2P suite passed 22 tests; gateway, AI, storage and chain deployed health endpoints returned 200; chain reported testnet height 3060, one active validator, and degraded Redis.
 - This matrix intentionally marks unavailable external-provider behavior as BLOCKED/UNKNOWN rather than inferring success from environment variables.
