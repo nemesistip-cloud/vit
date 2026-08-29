@@ -16,6 +16,7 @@ from vit_node.network.gossip import NodeGossipHandler
 from vit_node.earnings.tracker import EarningsTracker
 from vit_chain.p2p.protocol import handshake_signing_bytes
 from vit_chain.consensus.coordinator import ConsensusCoordinator
+from vit_chain.consensus.models import ConsensusState  # ← CRITICAL: Import to register tables
 from vit_chain.crypto.address import public_key_to_address
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.db.database import Base
@@ -51,11 +52,11 @@ class VITNodeDaemon:
         self.drive = PersonalDriveStorage(self.config.gdrive_token_path)
         # Attempt to trigger authentication if token missing is handled in gdrive.py AppError
 
-        # 3. Initialize StorageAgent, ChallengeResponder, StorageMonitor, EarningsTracker
+        # 3. Initialize StorageAgent, ChallengeResponder, StorageMonitor
         self.agent = StorageAgent(self.drive, self.keystore, self.config)
         self.challenge_responder = ChallengeResponder(self.agent, self.keystore)
         self.storage_monitor = StorageMonitor()
-        self.earnings_tracker = EarningsTracker()
+        # Don't create EarningsTracker yet - we need db_sessions first (created below)
 
         # 3.5: Initialize consensus database and coordinator
         # For the node daemon, we use a local SQLite database for consensus state
@@ -75,6 +76,10 @@ class VITNodeDaemon:
 
         self.db_sessions = async_sessionmaker(self.db_engine, expire_on_commit=False, class_=AsyncSession)
 
+        # Initialize EarningsTracker with database session factory
+        # This allows earnings to be persisted across node restarts
+        self.earnings_tracker = EarningsTracker(db_session_factory=self.db_sessions)
+
         # Load validator set from config or use current node as only validator for testing
         # In production, this would come from genesis block or chain state
         validator_keys = self._load_validator_keys(public_key, node_id)
@@ -92,10 +97,18 @@ class VITNodeDaemon:
 
         # 4. Connect to VIT Network P2P
         self.p2p_client = P2PClient()
+        
+        # Create a closure that captures db_sessions for gossip handler
+        async def gossip_handler_with_db(msg: dict):
+            """Gossip handler that has access to database sessions."""
+            async with self.db_sessions() as db:
+                await gossip_handler.handle_with_db(msg, db)
+        
         gossip_handler = NodeGossipHandler(
             self.challenge_responder,
             self.password,
-            consensus=self.consensus  # ← PASS CONSENSUS HERE
+            consensus=self.consensus,  # ← PASS CONSENSUS HERE
+            db_sessions=self.db_sessions  # ← PASS DB SESSIONS FOR CONSENSUS OPERATIONS
         )
 
         # In a real app, we'd fetch the P2P URL from the config or discovery
@@ -147,8 +160,8 @@ class VITNodeDaemon:
         try:
             tasks = [
                 self.storage_monitor.monitor_loop(self.agent),
-                self.earnings_tracker.sync_loop(node_id, self.config.api_url),
-                self.p2p_client.receive_loop(gossip_handler.handle),
+                self.earnings_tracker.sync_loop(node_id, self.config.api_url, db_sessions=self.db_sessions),
+                self.p2p_client.receive_loop(gossip_handler_with_db),
             ]
 
             # Wait for stop event or any task to fail
