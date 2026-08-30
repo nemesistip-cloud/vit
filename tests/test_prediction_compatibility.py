@@ -87,7 +87,7 @@ async def test_predictions_match_endpoint_returns_prediction(client, auth_header
 @pytest.mark.asyncio
 async def test_matches_auto_sync_fallback(client, monkeypatch):
     # Ensure cache does not return stale fixture list data.
-    await cache.delete(f"{FIXTURE_LIST}:None:None")
+    await cache.clear_prefix("")
 
     async def fake_sync_upcoming_fixtures(db, days_ahead: int = 7):
         match = Match(
@@ -102,6 +102,7 @@ async def test_matches_auto_sync_fallback(client, monkeypatch):
         return {"inserted": 1, "updated": 0, "skipped": 0, "total_fetched": 1}
 
     monkeypatch.setattr("app.api.routes.matches.AsyncSessionLocal", db_module.AsyncSessionLocal)
+    monkeypatch.setattr("app.api.routes.matches.sync_upcoming_fixtures", fake_sync_upcoming_fixtures)
     monkeypatch.setattr(sportsdb_api, "sync_upcoming_fixtures", fake_sync_upcoming_fixtures)
 
     resp = await client.get("/api/matches")

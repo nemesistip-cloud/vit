@@ -70,7 +70,7 @@ class NodeGossipHandler:
                 # This is not just logging - this is the real consensus protocol execution
                 accepted = await self.consensus.receive_proposal(db, payload)
                 if accepted:
-                    self.logger.info(f"[CONSENSUS] PROPOSAL accepted, creating vote")
+                    self.logger.info("[CONSENSUS] PROPOSAL accepted, creating vote")
                     # Create and send vote
                     vote = self.consensus.create_vote(
                         payload.get("height"),

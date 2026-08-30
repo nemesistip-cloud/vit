@@ -336,6 +336,24 @@ async def get_matches(
                     match_map[m.id] = (m, p)
 
         res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+        if not res and not league and not status:
+            try:
+                async with AsyncSessionLocal() as sync_db:
+                    await sync_upcoming_fixtures(sync_db, days_ahead=7)
+                result = await db.execute(stmt)
+                rows = result.all()
+                match_map = {}
+                for m, p in rows:
+                    if m.id not in match_map:
+                        match_map[m.id] = (m, p)
+                    else:
+                        _, existing_p = match_map[m.id]
+                        if p and (not existing_p or p.timestamp > existing_p.timestamp):
+                            match_map[m.id] = (m, p)
+                res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+            except Exception as sync_err:
+                logger.warning(f"Auto-sync fallback failed: {sync_err}")
+
         try:
             await cache.set(_cache_key, res, ttl=300)
         except Exception:
