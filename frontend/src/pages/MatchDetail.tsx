@@ -63,6 +63,15 @@ interface Match {
     odds_snapshot?: { home?: number; draw?: number; away?: number }
     data_snapshot?: Record<string, unknown>
   }
+  evidence?: {
+    score: number
+    classification: 'STRONG' | 'STANDARD' | 'LIMITED' | 'UNAVAILABLE'
+    breakdown?: Record<string, number>
+    checklist?: Record<string, boolean>
+    odds_consensus?: Record<string, number>
+    bookmaker_count?: number
+    missing_elements?: string[]
+  }
   source?: string
   data_status?: 'LIVE' | 'CACHED' | 'DEGRADED' | 'UNAVAILABLE'
   data_provenance?: {
@@ -698,6 +707,58 @@ export default function MatchDetail() {
                   </button>
                 </div>
               </div>
+
+
+        {/* Evidence Quality Score & Data Coverage Bar */}
+        {match.evidence && match.evidence.score > 0 && (
+          <div className="bg-surface-800/80 border border-white/10 rounded-2xl p-5 mb-5 shadow-lg">
+            <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-vit-400" />
+                <h3 className="font-bold text-white text-sm">Data & Evidence Quality</h3>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-xs">
+                <span className="text-white/60">Quality Rating:</span>
+                <span className={cn(
+                  "px-2.5 py-0.5 rounded-full font-bold",
+                  match.evidence.classification === 'STRONG' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' :
+                  match.evidence.classification === 'STANDARD' ? 'bg-vit-500/20 text-vit-400 border border-vit-500/40' :
+                  match.evidence.classification === 'LIMITED' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
+                  'bg-red-500/20 text-red-400 border border-red-500/40'
+                )}>
+                  {match.evidence.classification} ({match.evidence.score.toFixed(0)}%)
+                </span>
+              </div>
+            </div>
+
+            {/* Score progress bar */}
+            <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-4">
+              <div
+                className={cn(
+                  "h-full transition-all duration-500",
+                  match.evidence.score >= 85 ? "bg-emerald-400" :
+                  match.evidence.score >= 70 ? "bg-vit-400" :
+                  match.evidence.score >= 55 ? "bg-amber-400" : "bg-red-400"
+                )}
+                style={{ width: `${Math.min(100, Math.max(0, match.evidence.score))}%` }}
+              />
+            </div>
+
+            {/* Checklist items */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {match.evidence.checklist && Object.entries(match.evidence.checklist).map(([key, ok]) => (
+                <div key={key} className="flex items-center gap-1.5 text-white/70">
+                  {ok ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  )}
+                  <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
               {/* Primary Probability Distribution Bars */}
               <div className="flex gap-3 mb-5">

@@ -17,6 +17,8 @@ from app.core.cache import cache
 from app.modules.ai.models import AIPredictionAudit
 from app.services.deterministic_insights import generate_match_insights
 from app.services.predict_features import build_predict_features
+from app.services.odds_provider import NormalizedOdds, OddsIntelligence, default_provider_registry, OddsFreshness
+from app.services.evidence_engine import EvidenceEngine, PredictionClassification
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
@@ -739,6 +741,15 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         "is_seed": is_seed,
         "job_id": getattr(latest_pred, 'job_id', None) if latest_pred else None,
         "error_message": getattr(latest_pred, 'error_message', None) if latest_pred else None,
+        "evidence": {
+            "score": (latest_pred.provenance or {}).get("evidence_score", 0.0) if (latest_pred and getattr(latest_pred, 'provenance', None)) else 0.0,
+            "classification": (latest_pred.provenance or {}).get("evidence_classification", "UNAVAILABLE") if (latest_pred and getattr(latest_pred, 'provenance', None)) else "UNAVAILABLE",
+            "breakdown": (latest_pred.provenance or {}).get("evidence_breakdown", {}) if (latest_pred and getattr(latest_pred, 'provenance', None)) else {},
+            "checklist": (latest_pred.provenance or {}).get("checklist", {}) if (latest_pred and getattr(latest_pred, 'provenance', None)) else {},
+            "odds_consensus": (latest_pred.provenance or {}).get("odds_consensus", {}) if (latest_pred and getattr(latest_pred, 'provenance', None)) else {},
+            "bookmaker_count": (latest_pred.provenance or {}).get("bookmaker_count", 0) if (latest_pred and getattr(latest_pred, 'provenance', None)) else 0,
+            "missing_elements": (latest_pred.provenance or {}).get("missing_elements", []) if (latest_pred and getattr(latest_pred, 'provenance', None)) else [],
+        },
         "provenance": getattr(latest_pred, 'provenance', None) if latest_pred else None,
         "intelligence": {
             "consensus": {
@@ -782,7 +793,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
     match = match_q.scalar_one_or_none()
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
-    if match.source not in {"isports", "sportsdb", "footballdata", "football-data.org"}:
+    if match.source not in {"isports", "sportsdb", "footballdata", "football-data.org", "the_odds_api"}:
         raise HTTPException(
             status_code=422,
             detail={
@@ -829,24 +840,90 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
     await db.refresh(new_pred)
 
     try:
+        # 1. Fetch Features
         features = await build_predict_features(db, match.home_team, match.away_team, match.league)
-        feature_completeness = float(features.get("feature_completeness", 0.0) or 0.0)
-        if feature_completeness <= 0:
-            raise RuntimeError("Prediction history is unavailable for this match")
+        h2h = await _head_to_head(db, match)
+        recent_form_data = {
+            "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time),
+            "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time),
+        }
 
+        # 2. Reconcile Multi-Provider Odds (NO manufactured / fake odds allowed)
+        odds_list: List[NormalizedOdds] = []
         odds_values = (
             match.opening_odds_home or match.closing_odds_home,
             match.opening_odds_draw or match.closing_odds_draw,
             match.opening_odds_away or match.closing_odds_away,
         )
-        if any(value is None or float(value) <= 1.0 for value in odds_values):
-            raise RuntimeError("Provider odds are unavailable for this match")
-        market_odds = {
-            "home": float(odds_values[0]),
-            "draw": float(odds_values[1]),
-            "away": float(odds_values[2]),
-        }
+        if all(val is not None and float(val) > 1.0 for val in odds_values):
+            odds_list.append(NormalizedOdds(
+                fixture_id=str(match.external_id or match.id),
+                sport=match.sport or "football",
+                market="match_winner",
+                selection="home",
+                odds=float(odds_values[0]),
+                bookmaker="MatchRecord",
+                timestamp=match.kickoff_time or now,
+                provider=match.source or "provider",
+            ))
+            if odds_values[1] and float(odds_values[1]) > 1.0:
+                odds_list.append(NormalizedOdds(
+                    fixture_id=str(match.external_id or match.id),
+                    sport=match.sport or "football",
+                    market="match_winner",
+                    selection="draw",
+                    odds=float(odds_values[1]),
+                    bookmaker="MatchRecord",
+                    timestamp=match.kickoff_time or now,
+                    provider=match.source or "provider",
+                ))
+            odds_list.append(NormalizedOdds(
+                fixture_id=str(match.external_id or match.id),
+                sport=match.sport or "football",
+                market="match_winner",
+                selection="away",
+                odds=float(odds_values[2]),
+                bookmaker="MatchRecord",
+                timestamp=match.kickoff_time or now,
+                provider=match.source or "provider",
+            ))
 
+        reconciled_odds = OddsIntelligence.reconcile(odds_list, sport=match.sport or "football", market="match_winner")
+
+        # 3. Data / Evidence Quality Engine Evaluation
+        evidence = EvidenceEngine.evaluate(
+            match_source=match.source,
+            match_features=features,
+            reconciled_odds=reconciled_odds,
+            h2h_data=h2h,
+            recent_form_data=recent_form_data,
+            model_agreement_pct=0.75,
+            market="match_winner"
+        )
+
+        if not evidence.is_sufficient:
+            new_pred.status = "FAILED"
+            new_pred.error_message = f"PREDICTION UNAVAILABLE: {evidence.rejection_reason or 'Insufficient data evidence'}"
+            new_pred.provenance = {
+                "job_id": job_id,
+                "status": "UNAVAILABLE",
+                "evidence_score": evidence.total_score,
+                "evidence_classification": evidence.classification.value,
+                "missing_elements": evidence.missing_elements,
+                "rejection_reason": evidence.rejection_reason,
+            }
+            await db.commit()
+            return {
+                "prediction_status": "unavailable",
+                "job_id": job_id,
+                "evidence_score": evidence.total_score,
+                "evidence_classification": evidence.classification.value,
+                "missing_elements": evidence.missing_elements,
+                "message": f"PREDICTION UNAVAILABLE. {evidence.rejection_reason or 'Insufficient evidence coverage.'}",
+                "retryable": False
+            }
+
+        # 4. Invoke Prediction Orchestrator
         from app.core.dependencies import get_orchestrator_dep
         try:
             orchestrator = await get_orchestrator_dep()
@@ -855,13 +932,14 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
         if not orchestrator or not hasattr(orchestrator, "predict"):
             raise RuntimeError("Prediction model unavailable")
 
+        market_odds_payload = reconciled_odds.consensus_odds if reconciled_odds else None
         idempotency_key = f"match_init_{match_id}_{job_id}"
         raw_result = await orchestrator.predict(
             {
                 "home_team": match.home_team,
                 "away_team": match.away_team,
                 "league": match.league,
-                "market_odds": market_odds,
+                "market_odds": market_odds_payload,
                 "match_features": features,
             },
             idempotency_key=idempotency_key,
@@ -874,6 +952,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             pred_res = raw_result
         else:
             raise RuntimeError("Prediction model returned no prediction")
+
         required = ("home_prob", "draw_prob", "away_prob")
         if any(pred_res.get(key) is None for key in required):
             raise RuntimeError("Prediction model returned incomplete probabilities")
@@ -887,10 +966,25 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             confidence_value = pred_res.get("confidence", {}).get("1x2", 0.0) if isinstance(pred_res.get("confidence"), dict) else pred_res.get("confidence")
         conf = float(confidence_value or 0.0)
 
-        options = [("home", h, market_odds["home"]), ("draw", d, market_odds["draw"]), ("away", a, market_odds["away"])]
-        best_opt = max(options, key=lambda x: x[1] - (1.0 / x[2]))
-        m_edge = round(best_opt[1] - (1.0 / best_opt[2]), 4)
-        kelly = max(0.0, round((best_opt[1] * best_opt[2] - 1.0) / (best_opt[2] - 1.0) * 0.25, 4)) if best_opt[2] > 1.0 else 0.0
+        # 5. Value Engine Analysis
+        m_edge = 0.0
+        kelly = 0.0
+        best_side = "home"
+        entry_price = 2.0
+
+        if reconciled_odds and reconciled_odds.consensus_odds:
+            options = [
+                ("home", h, reconciled_odds.consensus_odds.get("home", 2.0)),
+                ("draw", d, reconciled_odds.consensus_odds.get("draw", 3.0)),
+                ("away", a, reconciled_odds.consensus_odds.get("away", 3.0)),
+            ]
+            valid_opts = [o for o in options if o[2] and o[2] > 1.0]
+            if valid_opts:
+                best_opt = max(valid_opts, key=lambda x: x[1] - (1.0 / x[2]))
+                best_side = best_opt[0]
+                entry_price = best_opt[2]
+                m_edge = round(best_opt[1] - (1.0 / best_opt[2]), 4)
+                kelly = max(0.0, round((best_opt[1] * best_opt[2] - 1.0) / (best_opt[2] - 1.0) * 0.25, 4)) if best_opt[2] > 1.0 else 0.0
 
         new_pred.home_prob = round(h, 4)
         new_pred.draw_prob = round(d, 4)
@@ -906,19 +1000,31 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
         new_pred.raw_edge = m_edge
         new_pred.vig_free_edge = m_edge
         new_pred.recommended_stake = min(0.05, kelly)
-        new_pred.bet_side = best_opt[0]
-        new_pred.entry_odds = best_opt[2]
+        new_pred.bet_side = best_side
+        new_pred.entry_odds = entry_price
         new_pred.provenance = {
             "job_id": job_id,
             "source": match.source,
             "external_id": match.external_id,
             "model_version": "v4.10.0-ensemble",
             "generated_at": now.isoformat(),
-            "feature_completeness": feature_completeness,
-            "odds_snapshot": market_odds,
-            "data_snapshot": {
-                "elo_diff": features.get("elo_diff", 0.0),
-            }
+            "evidence_score": evidence.total_score,
+            "evidence_classification": evidence.classification.value,
+            "evidence_breakdown": {
+                "verified_fixture": evidence.verified_fixture,
+                "team_statistics": evidence.team_statistics,
+                "recent_form": evidence.recent_form,
+                "current_odds": evidence.current_odds,
+                "bookmaker_agreement": evidence.bookmaker_agreement,
+                "h2h_context": evidence.h2h_context,
+                "model_agreement": evidence.model_agreement,
+            },
+            "checklist": evidence.checklist,
+            "odds_consensus": reconciled_odds.consensus_odds if reconciled_odds else None,
+            "vig_free_probabilities": reconciled_odds.vig_free_probabilities if reconciled_odds else None,
+            "bookmaker_count": reconciled_odds.bookmaker_count if reconciled_odds else 0,
+            "odds_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
+            "feature_completeness": features.get("feature_completeness", 0.0),
         }
         await db.commit()
         await db.refresh(new_pred)
@@ -937,6 +1043,8 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             "confidence": new_pred.confidence,
             "edge": new_pred.vig_free_edge,
             "bet_side": new_pred.bet_side,
+            "evidence_score": evidence.total_score,
+            "evidence_classification": evidence.classification.value,
             "provenance": new_pred.provenance
         }
     except Exception as exc:
@@ -950,6 +1058,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             "error": str(exc),
             "retryable": True
         }
+
 
 
 @router.post("/{match_id}/predict/initialize")
