@@ -1,0 +1,510 @@
+VIT SPORTS INTELLIGENCE REMEDIATION
+
+Continue directly with the VIT Network sports product. Do not produce another audit-only report. Inspect, reproduce, fix, test, and verify the real sports workflows end-to-end.
+
+PRIMARY OBJECTIVE
+
+Make the Matches and Match Details experience a genuinely functional live sports intelligence product.
+
+The system must never use fabricated, hardcoded, placeholder, or training fixtures as if they were live football data.
+
+Trace and repair the complete path:
+
+"Sports provider → ingestion → normalization → database/cache → API → prediction engine → Match Details → UI"
+
+If the required code exists in another repository, clone that repository into "/workspaces/" and continue there.
+
+---
+
+1. START WITH THE CURRENT IMPLEMENTATION
+
+Identify:
+
+- frontend repository
+- sports-data service/repository
+- prediction service
+- "vit-ai"
+- backend/API repository
+- database models
+- scheduled ingestion/worker
+- every sports-data provider
+- API keys/configuration
+- caching layer
+- prediction storage
+- Match Details route/component
+
+Search for:
+
+"matches fixtures football predictions odds standings teams leagues sports-data football-data.org SportsDB iSports mock seed fixture fallback hardcoded placeholder"
+
+Do not assume a provider is live merely because an API client exists.
+
+---
+
+2. FIX THE MATCHES PAGE
+
+Test the actual Matches page as a user.
+
+Verify:
+
+- competitions/leagues
+- dates
+- match status
+- kickoff time
+- home team
+- away team
+- logos
+- scores
+- live/upcoming/finished state
+- filters
+- league filters
+- date filters
+- search
+- pagination
+- refresh
+- loading states
+- empty states
+- error states
+- mobile layout
+- match selection
+
+Every match displayed must have a traceable backend source.
+
+Remove or disable any fabricated match data.
+
+---
+
+3. FIX MATCH DETAILS PAGE
+
+This is the highest-priority sports UI workflow.
+
+A user selecting a match must receive a complete, coherent Match Details page.
+
+Trace:
+
+"Matches → match ID → API request → backend → database/provider → Match Details"
+
+Verify that the page does NOT silently fall back to static seeded information.
+
+The page should correctly display, where data is available:
+
+Match identity
+
+- competition
+- season
+- date
+- kickoff
+- venue
+- home team
+- away team
+- match status
+- score
+
+Live/statistical information
+
+Use only data actually supplied by the provider:
+
+- possession
+- shots
+- shots on target
+- corners
+- fouls
+- cards
+- offsides
+- substitutions
+- periods/halftime
+- other provider-supported statistics
+
+Do not invent missing statistics.
+
+Team information
+
+- recent form
+- league position
+- relevant historical performance
+- home/away form
+- head-to-head where legitimately available
+
+Clearly distinguish unavailable data from zero.
+
+Odds / markets
+
+If odds are supported by a real provider:
+
+- identify bookmaker/source
+- timestamp the odds
+- show market name
+- show available selections
+- show current odds
+- distinguish unavailable markets
+
+Never manufacture odds.
+
+---
+
+4. PREDICTION INITIALIZATION
+
+Fix the current product problem where prediction information can appear pre-seeded.
+
+The Match Details page must have a real:
+
+Initialize Prediction
+
+workflow.
+
+Expected flow:
+
+"User clicks Initialize Prediction"
+↓
+"Frontend sends match identifier"
+↓
+"Backend validates match"
+↓
+"Backend retrieves current/appropriate data"
+↓
+"Feature generation"
+↓
+"Prediction engine / vit-ai"
+↓
+"Model response"
+↓
+"Prediction stored"
+↓
+"Frontend displays result"
+
+The prediction must be generated for the selected match.
+
+Do not display a prediction simply because the match page loaded.
+
+If prediction generation fails, show a real error/degraded state.
+
+---
+
+5. DATA PROVENANCE
+
+Every prediction should be traceable.
+
+Where appropriate, return metadata similar to:
+
+{
+  "data_source": "football-data.org",
+  "source_type": "live",
+  "retrieved_at": "2026-08-29T...",
+  "fallback_used": false
+}
+
+Use the actual provider and actual retrieval timestamp.
+
+Support states such as:
+
+- "LIVE"
+- "CACHED"
+- "DEGRADED"
+- "UNAVAILABLE"
+
+Never silently convert "UNAVAILABLE" into fake data.
+
+Training datasets may be used by models where appropriate, but training fixtures must never masquerade as current match data.
+
+---
+
+6. SPORTS COVERAGE
+
+After fixing Match Details, inspect the broader sports coverage.
+
+Determine exactly which competitions and countries the current providers support.
+
+Verify:
+
+- Premier League
+- La Liga
+- Serie A
+- Bundesliga
+- Ligue 1
+- Champions League
+- Europa League
+- Conference League
+- international competitions
+- major African competitions
+- Nigerian football where provider coverage exists
+- other leagues currently advertised by VIT
+
+Do not promise coverage the provider cannot actually deliver.
+
+Where coverage is unavailable, make that explicit rather than generating fake fixtures.
+
+---
+
+7. PROVIDER RESILIENCE
+
+Test:
+
+- provider available
+- provider timeout
+- provider rate limit
+- invalid API key
+- malformed response
+- empty response
+- stale cached response
+- unavailable competition
+
+Implement safe behavior.
+
+The system should:
+
+"Provider healthy → LIVE"
+
+"Provider temporarily unavailable + valid recent cache → CACHED"
+
+"Provider unavailable + no trustworthy cache → UNAVAILABLE"
+
+Never:
+
+"Provider unavailable → fabricated fixture"
+
+---
+
+8. PREDICTION ENGINE INTEGRITY
+
+Trace every prediction feature.
+
+Determine whether inputs come from:
+
+- live provider
+- cached provider data
+- historical database
+- model training data
+- static fallback
+
+Verify the prediction model receives the intended features.
+
+Do not allow missing features to silently become arbitrary values.
+
+Check:
+
+- probabilities
+- confidence
+- expected outcome
+- model/provider identity
+- generated timestamp
+- feature timestamp
+- odds timestamp where applicable
+
+If confidence is calculated, verify the actual calculation.
+
+If an AI model is involved, expose the actual provider/model where appropriate.
+
+---
+
+9. REMOVE FAKE DATA
+
+Search production code for:
+
+"seed"
+"mock"
+"dummy"
+"fake"
+"sample"
+"placeholder"
+"fallback"
+"hardcoded"
+"simulation"
+"fixture"
+
+Inspect each occurrence.
+
+Do not blindly delete legitimate tests.
+
+Determine whether it is:
+
+- test-only
+- development-only
+- historical training data
+- legitimate cache
+- production fallback
+- fabricated production output
+
+Any production path that fabricates sports information must be fixed.
+
+---
+
+10. FRONTEND BROWSER TEST
+
+Use browser automation where available.
+
+Execute:
+
+Sports user journey
+
+"Matches"
+↓
+"Select real match"
+↓
+"Match Details"
+↓
+"Verify source"
+↓
+"Initialize Prediction"
+↓
+"Wait for real prediction"
+↓
+"View probabilities"
+↓
+"View supporting statistics"
+↓
+"View odds/markets"
+↓
+"Refresh"
+↓
+"Verify state persistence"
+↓
+"Return to Matches"
+↓
+"Open another match"
+
+Also test:
+
+- mobile viewport
+- direct Match Details URL
+- browser refresh
+- back navigation
+- invalid match ID
+- finished match
+- upcoming match
+- unavailable-data match
+- provider failure
+
+---
+
+11. CROSS-PAGE CONSISTENCY
+
+The same match must remain the same entity everywhere.
+
+Compare:
+
+"Matches"
+"Match Details"
+"Predictions"
+"AI"
+"Analytics"
+"Dashboard"
+
+Verify:
+
+- match ID
+- teams
+- competition
+- kickoff
+- status
+- score
+- prediction
+- timestamps
+
+No page should display a different match because of mismatched IDs or seeded data.
+
+---
+
+12. BACKEND/API CONTRACT
+
+Create or strengthen regression tests for:
+
+- match list
+- match detail
+- match statistics
+- teams
+- competitions
+- odds
+- prediction initialization
+- prediction retrieval
+- provider health
+- provenance metadata
+- unavailable provider behavior
+
+Test real API serialization, not only internal Python functions.
+
+---
+
+13. LIVE VERIFICATION
+
+After fixing local functionality:
+
+1. commit changes
+2. push the correct repository
+3. deploy the affected service
+4. wait for deployment
+5. verify live endpoints
+6. verify live frontend
+7. execute browser workflow against production
+
+Record:
+
+- repository
+- commit
+- service
+- endpoint
+- HTTP status
+- response validity
+- data source
+- prediction provider/model
+- deployment version
+
+Do not call it fixed until the deployed workflow works.
+
+---
+
+14. ACCEPTANCE CRITERIA
+
+The sports system is considered repaired only when:
+
+- Matches page loads real data
+- Match Details loads the selected real match
+- match IDs remain consistent
+- no production fixture is fabricated
+- provider provenance is available
+- live/cache/unavailable states are distinguishable
+- prediction initialization is an actual user action
+- prediction inputs are traceable
+- prediction output is generated for the selected match
+- AI/model provenance is accurate
+- odds are real or explicitly unavailable
+- unsupported statistics are not fabricated
+- filters work
+- refresh works
+- deep links work
+- invalid matches fail gracefully
+- provider failures fail safely
+- mobile workflow works
+- regression tests pass
+- production deployment is verified
+
+IMPORTANT
+
+Do not stop after fixing one component.
+
+If you discover the frontend is consuming the wrong API, fix the frontend.
+
+If the API is wrong, fix the backend.
+
+If the backend provider integration is wrong, fix the sports-data service.
+
+If the required service is in another repository, clone it and continue.
+
+If Render configuration is wrong, repair the deployment configuration.
+
+Keep following the dependency chain until the complete sports workflow works.
+
+Do not seed data to make the UI look complete.
+
+Do not claim success from screenshots alone.
+
+Do not produce a percentage.
+
+At completion report only:
+
+1. Fixed
+2. Repositories changed
+3. Tests passed
+4. Live sports endpoints verified
+5. Browser journeys verified
+6. Remaining genuine blockers
+7. Production status

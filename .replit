@@ -1,4 +1,4 @@
-modules = ["python-3.11", "nodejs-20", "bash", "web"]
+modules = ["python-3.11", "nodejs-20", "bash"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
