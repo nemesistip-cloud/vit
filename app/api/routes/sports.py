@@ -258,3 +258,16 @@ async def list_providers():
             "theoddsapi":   {"configured": bool(os.getenv("ODDS_API_KEY")),          "label": "The Odds API"},
         }
     }
+
+@router.get("/providers/matrix")
+async def get_provider_health_matrix():
+    """
+    Return Provider Health Matrix detailing coverage and readiness across all supported sports.
+    """
+    from app.services.odds_provider import default_provider_registry
+    matrix = await default_provider_registry.get_health_matrix()
+    return {
+        "status": "success",
+        "matrix": matrix,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
