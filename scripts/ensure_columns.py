@@ -34,6 +34,27 @@ for old, new in [
 
 COLUMNS = [
     # (table, column, DDL)
+    # ── Prediction lifecycle/provenance ────────────────────────────────────
+    # Older Render databases may have the original predictions table without
+    # the columns added by later ORM revisions. Keep the pre-flight guard
+    # idempotent so read queries cannot fail before Alembic catches up.
+    ("predictions", "status",              "VARCHAR(32) NOT NULL DEFAULT 'READY'"),
+    ("predictions", "source",              "VARCHAR(32) NOT NULL DEFAULT 'live_generated'"),
+    ("predictions", "is_seed",             "BOOLEAN NOT NULL DEFAULT false"),
+    ("predictions", "provenance",          "JSONB"),
+    ("predictions", "job_id",              "VARCHAR(64)"),
+    ("predictions", "error_message",       "TEXT"),
+    ("predictions", "model_insights",      "JSONB"),
+    ("predictions", "model_weights",       "JSONB"),
+    ("predictions", "submitted_market_id", "VARCHAR"),
+    ("predictions", "submitted_market_side", "VARCHAR"),
+    ("predictions", "submitted_stake",     "DOUBLE PRECISION"),
+    ("predictions", "normalized_edge",     "DOUBLE PRECISION"),
+    ("predictions", "raw_edge",            "DOUBLE PRECISION"),
+    ("predictions", "vig_free_edge",       "DOUBLE PRECISION"),
+    ("predictions", "recommended_stake",   "DOUBLE PRECISION"),
+    ("predictions", "was_correct",         "BOOLEAN"),
+    ("predictions", "settled_profit",      "DOUBLE PRECISION"),
     # ── Core user flags ────────────────────────────────────────────────────
     ("users", "is_active",              "BOOLEAN NOT NULL DEFAULT true"),
     ("users", "is_verified",            "BOOLEAN NOT NULL DEFAULT false"),
