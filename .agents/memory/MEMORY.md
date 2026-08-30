@@ -3,3 +3,4 @@
 - [Phase-1 audit fixes applied](vit-audit-fixes.md) — 11 issues fixed; score 70.9→74.6; see PLATFORM_AUDIT_REPORT.md for full inventory
 - [Branch and deployment contract](branch-deployment-contract.md) — Render deploys main; use the pnpm workspace lock and preserve production code when merging agent snapshots.
 - [Service registry startup contract](service-registry-startup.md) — Resolve the live registry before mounting React so first health queries use current service URLs and contracts.
+- [Render schema drift](render-schema-drift.md) — production reads can fail on missing ORM columns even when provider ingestion succeeds.
