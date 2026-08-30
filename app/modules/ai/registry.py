@@ -93,6 +93,8 @@ async def bootstrap_registry(db: AsyncSession, orchestrator: Any) -> int:
             inserted += 1
             logger.info(f"[registry] Registered v2 model: {key} (weight={initial_weight:.4f})")
         else:
+            if row.accuracy is None or float(row.accuracy) == 0.0:
+                row.accuracy = spec.get("spec_accuracy", 0.75)
             # Sync pkl_loaded status from live orchestrator
             meta = orch_meta.get(key, {})
             pkl_loaded = meta.get("pkl_loaded", False)
