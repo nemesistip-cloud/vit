@@ -1,0 +1,434 @@
+VITNETWORK NEXT PHASE: PRODUCT FUNCTIONALITY + SPORTS UX
+
+Continue from the current verified state. Do not redo completed work unless a regression is discovered.
+
+Current verified state:
+
+- "cad06bd" contains the production schema/read-path fix.
+- Sports ingestion works in production.
+- "/api/matches", "/upcoming", "/live", "/recent" return correctly.
+- Provider provenance and unavailable states are implemented.
+- Fabricated prediction fallbacks have been removed.
+- Local sports integration tests pass.
+- Frontend build/static checks pass.
+- Production edge cases and CORS have been verified.
+- Follow-up tasks #2–#4 already exist.
+
+Now move from data-pipeline remediation to product functionality.
+
+PRIMARY OBJECTIVE
+
+Make the VIT sports experience genuinely usable from the browser:
+
+"Matches → Match Details → Live Data → Initialize Prediction → AI Analysis → Prediction → Markets/Odds → Analytics"
+
+Do not seed data to make the interface look complete.
+
+Do not replace unavailable data with fake values.
+
+---
+
+1. MATCHES PAGE
+
+Use browser automation and inspect the actual rendered application.
+
+Test:
+
+- match list
+- league filters
+- date filters
+- search
+- pagination
+- refresh
+- match cards
+- status badges
+- kickoff times
+- team names/logos
+- scores
+- live/upcoming/finished states
+- empty state
+- unavailable provider state
+- loading state
+- API failures
+
+Click every match card.
+
+Verify the selected match ID is passed correctly into Match Details.
+
+Fix any broken interaction rather than documenting it.
+
+---
+
+2. MATCH DETAILS PAGE
+
+This is the highest priority.
+
+Trace the selected match all the way through:
+
+"URL → frontend route → API request → backend → database/provider → response → UI"
+
+Fix:
+
+- wrong match IDs
+- stale match information
+- incorrect team names
+- incorrect competition
+- incorrect status
+- broken refresh
+- missing loading state
+- broken empty state
+- incorrect timestamps
+- broken navigation
+- dead buttons
+- console errors
+- failed network requests
+
+The page must clearly distinguish:
+
+"LIVE"
+"CACHED"
+"DEGRADED"
+"UNAVAILABLE"
+
+Never render unavailable information as zero or fabricate it.
+
+---
+
+3. INITIALIZE PREDICTION
+
+Verify the actual button.
+
+A prediction must NOT already appear merely because a match page loaded.
+
+Required flow:
+
+"Click Initialize Prediction"
+→ validate match
+→ retrieve current trustworthy data
+→ generate features
+→ call intended prediction/AI service
+→ receive model result
+→ persist prediction
+→ render prediction
+
+Verify that the prediction belongs to the exact selected match.
+
+Test:
+
+- valid match
+- invalid match
+- unavailable provider
+- insufficient data
+- AI timeout
+- malformed AI response
+- repeated initialization
+- page refresh
+- returning to the match later
+
+No fabricated probability, confidence, odds, quality score, or secondary market values.
+
+---
+
+4. AI INTEGRITY
+
+Trace the prediction request into "vit-ai".
+
+Verify:
+
+- actual provider
+- actual model
+- request payload
+- response payload
+- timeout handling
+- rate-limit handling
+- provider failure
+- fallback behavior
+- confidence calculation
+- prediction persistence
+
+The UI must never imply that a real model generated something when a fallback or degraded path was used.
+
+Expose provenance where useful.
+
+---
+
+5. SPORTS COVERAGE
+
+Inspect the actual provider coverage and compare it with what VIT advertises.
+
+Do not promise leagues the providers cannot supply.
+
+Check:
+
+- Premier League
+- La Liga
+- Serie A
+- Bundesliga
+- Ligue 1
+- Champions League
+- Europa League
+- Conference League
+- major international competitions
+- African competitions
+- Nigerian competitions
+- every league currently visible in the UI
+
+If coverage is unavailable, represent that honestly.
+
+Do not create placeholder fixtures.
+
+---
+
+6. ODDS AND MARKETS
+
+Trace the odds pipeline.
+
+For every displayed market determine:
+
+"provider → timestamp → API → frontend"
+
+Remove any hardcoded odds.
+
+Verify:
+
+- 1X2
+- over/under
+- BTTS
+- other displayed markets
+
+Only display markets actually supported by the data source.
+
+If odds are unavailable, display unavailable.
+
+Never derive fake bookmaker odds from model probabilities.
+
+---
+
+7. PREDICTIONS PAGE
+
+Open the Predictions section independently.
+
+Verify:
+
+- prediction history
+- match association
+- prediction timestamp
+- model/provider
+- probabilities
+- confidence
+- status
+- result after match completion
+- filtering
+- pagination
+- refresh
+
+Ensure predictions displayed here come from actual stored predictions.
+
+No seeded predictions.
+
+---
+
+8. ANALYTICS
+
+Trace every visible sports metric to its source.
+
+Especially:
+
+- win rate
+- ROI
+- P&L
+- bankroll
+- prediction performance
+- historical predictions
+- charts
+- date filters
+
+A chart with no trustworthy underlying dataset must show an honest empty state.
+
+Do not manufacture chart data.
+
+---
+
+9. CROSS-SYSTEM CONSISTENCY
+
+Select several real matches and compare:
+
+"Matches"
+"Match Details"
+"Predictions"
+"AI"
+"Analytics"
+
+The following must remain identical:
+
+- match ID
+- teams
+- competition
+- kickoff
+- status
+- prediction
+- timestamps
+
+Fix any identity mismatch.
+
+---
+
+10. FRONTEND UX
+
+Use browser automation to test every clickable element on the sports surfaces:
+
+- buttons
+- cards
+- tabs
+- filters
+- dropdowns
+- CTAs
+- refresh
+- initialize prediction
+- view details
+- back navigation
+- breadcrumbs
+- copy controls
+- pagination
+- mobile menu
+
+Classify each failure internally as:
+
+"WORKS / PARTIAL / WRONG DESTINATION / DEAD / FAKE DATA / ERROR / MISSING"
+
+Then FIX it.
+
+Do not merely report it.
+
+---
+
+11. BROADER VITNETWORK PRODUCT CHECK
+
+After sports is stable, inspect these existing product surfaces in "vitnetwork":
+
+- Dashboard
+- AI
+- Predictions
+- Analytics
+- Wallet
+- Chain
+- Explorer
+- Exchange
+- Storage
+- Governance
+- Settings
+- Documentation
+- Contact
+- Pricing
+
+Test navigation and real API behavior.
+
+Pay special attention to:
+
+- logged-in users being redirected to the public landing page
+- Governance pointing to the wrong destination
+- Wallet actions that do nothing
+- charts using empty/fabricated data
+- Chain/Explorer API mismatches
+- dead CTAs
+- incorrect API URLs
+- frontend calls to services that do not exist
+- stale seeded content
+
+Fix issues that belong to "vitnetwork".
+
+If the root cause belongs to another repository, clone that repository and repair it there.
+
+---
+
+12. DO NOT STOP AT VITNETWORK
+
+If a defect requires:
+
+- "vit-ai"
+- "vit-chain"
+- "vit-explorer"
+- "vit-storage"
+- worker
+- admin
+- another VIT repository
+
+clone it into "/workspaces/", inspect it, fix it, test it, commit it and push it.
+
+The ecosystem is the product.
+
+Repository boundaries are not blockers.
+
+---
+
+13. TESTING
+
+After changes run:
+
+pytest --collect-only -q
+pytest -q
+npm run build
+
+Also run targeted sports and prediction suites.
+
+Use browser automation for the critical user journey.
+
+Do not claim tests passed if the process was interrupted or results came from an earlier tree.
+
+Record exact results.
+
+---
+
+14. LIVE DEPLOYMENT
+
+For every changed production service:
+
+- commit
+- push
+- verify deployed commit
+- wait for deployment
+- check health
+- check API
+- check frontend
+- execute the relevant browser workflow
+
+Do not call local functionality production-ready until the live service has been verified.
+
+---
+
+ACCEPTANCE CRITERIA
+
+This phase is complete only when:
+
+- Matches works
+- Match Details works
+- selected match identity is correct
+- live/provider provenance is visible
+- unavailable data is honest
+- prediction initialization is a real action
+- prediction is generated for the selected match
+- AI provenance is accurate
+- odds are real or explicitly unavailable
+- Predictions uses real stored predictions
+- Analytics uses real data
+- cross-page match state is consistent
+- critical sports browser journey works
+- mobile sports workflow works
+- no fabricated production sports data remains
+- regression tests pass
+- frontend builds
+- affected production services are live and verified
+
+Then continue into the next highest-priority product area rather than stopping.
+
+FINAL RULE
+
+Do not turn this into another audit.
+
+Every safely repairable defect should become:
+
+"reproduced → fixed → tested → deployed → verified"
+
+Only report something as a blocker when it genuinely requires unavailable credentials, an external provider, human approval, or another external dependency.
+
+Continue working until the next real blocker is reached.

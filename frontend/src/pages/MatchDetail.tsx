@@ -184,10 +184,13 @@ function ProbBar({ label, prob, color, recommended }: { label: string; prob?: nu
 
 function SecondaryMarketsPanel({ match }: { match: Match }) {
   const over25 = match.over_25_prob != null ? Math.round(match.over_25_prob * 100) : null
+  const under25 = match.under_25_prob != null ? Math.round(match.under_25_prob * 100) : null
   const btts = match.btts_prob != null ? Math.round(match.btts_prob * 100) : null
+  const noBtts = match.no_btts_prob != null ? Math.round(match.no_btts_prob * 100) : null
   const dnbHome = match.dnb_home_prob != null ? Math.round(match.dnb_home_prob * 100) : null
+  const dnbAway = match.dnb_away_prob != null ? Math.round(match.dnb_away_prob * 100) : null
 
-  if (over25 == null && btts == null && dnbHome == null) return null
+  if (over25 == null && under25 == null && btts == null && noBtts == null && dnbHome == null && dnbAway == null) return null
 
   return (
     <div className="bg-surface-800/50 border border-white/8 rounded-2xl p-6">
@@ -197,29 +200,29 @@ function SecondaryMarketsPanel({ match }: { match: Match }) {
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
-        {over25 != null && (
+        {(over25 != null || under25 != null) && (
           <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
             <p className="text-xs text-white/40 mb-1">Over 2.5 Goals</p>
-            <p className="text-2xl font-bold text-amber-400 font-mono">{over25}%</p>
-            <p className="text-[10px] text-white/30 mt-1">Under 2.5: {100 - over25}%</p>
+            <p className="text-2xl font-bold text-amber-400 font-mono">{over25 != null ? `${over25}%` : '—'}</p>
+            <p className="text-[10px] text-white/30 mt-1">Under 2.5: {under25 != null ? `${under25}%` : '—'}</p>
           </div>
         )}
 
-        {btts != null && (
+        {(btts != null || noBtts != null) && (
           <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
             <p className="text-xs text-white/40 mb-1">Both Teams To Score (BTTS)</p>
-            <p className="text-2xl font-bold text-vit-400 font-mono">{btts}%</p>
-            <p className="text-[10px] text-white/30 mt-1">No BTTS: {100 - btts}%</p>
+            <p className="text-2xl font-bold text-vit-400 font-mono">{btts != null ? `${btts}%` : '—'}</p>
+            <p className="text-[10px] text-white/30 mt-1">No BTTS: {noBtts != null ? `${noBtts}%` : '—'}</p>
           </div>
         )}
 
-        {dnbHome != null && (
+        {(dnbHome != null || dnbAway != null) && (
           <div className="p-4 rounded-xl bg-white/3 border border-white/6 text-center">
             <div className="flex items-center justify-center gap-1 mb-1">
               <p className="text-xs text-white/40">Draw No Bet (DNB Home)</p>
             </div>
-            <p className="text-2xl font-bold text-emerald-400 font-mono">{dnbHome}%</p>
-            <p className="text-[10px] text-white/30 mt-1">DNB Away: {100 - dnbHome}% (Draw Excluded)</p>
+            <p className="text-2xl font-bold text-emerald-400 font-mono">{dnbHome != null ? `${dnbHome}%` : '—'}</p>
+            <p className="text-[10px] text-white/30 mt-1">DNB Away: {dnbAway != null ? `${dnbAway}%` : '—'} (Draw Excluded)</p>
           </div>
         )}
       </div>
@@ -386,6 +389,7 @@ export default function MatchDetail() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [actionStatus, setActionStatus] = useState<'initializing' | 'failed' | null>(null)
 
   const steps = [
     'Collecting match statistical features & team form...',
@@ -398,6 +402,7 @@ export default function MatchDetail() {
   const handleAction = async (endpoint: 'initialize' | 'rerun') => {
     if (!match) return
     setIsProcessing(true)
+    setActionStatus('initializing')
     setErrorMessage(null)
     setStepIndex(0)
 
@@ -419,10 +424,12 @@ export default function MatchDetail() {
       }
 
       await refetch()
+      setActionStatus(null)
     } catch (err: unknown) {
       clearInterval(interval)
       const msg = err instanceof Error ? err.message : 'Prediction initialization failed'
       setErrorMessage(msg)
+      setActionStatus('failed')
     } finally {
       setIsProcessing(false)
     }
@@ -449,7 +456,7 @@ export default function MatchDetail() {
     )
   }
 
-  const status = match.prediction_status || 'not_initialized'
+  const status = actionStatus || match.prediction_status || 'not_initialized'
   const isLive = match.status?.toLowerCase() === 'live' || match.status?.toLowerCase() === 'in_play'
   const aiPick = match.intelligence?.attribution?.[0]?.bet_side
   const consensus = match.intelligence?.consensus

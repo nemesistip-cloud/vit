@@ -107,38 +107,25 @@ function KPI({
   )
 }
 
-// ── Placeholder data (shown when API is empty / loading) ──────────────────────
-
-const PLACEHOLDER_ACCURACY = Array.from({ length: 14 }, (_, i) => ({
-  date: new Date(Date.now() - (13 - i) * 86400000).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
-  accuracy: 62 + Math.sin(i * 0.8) * 8 + Math.random() * 4,
-  predictions: Math.floor(120 + Math.random() * 80),
-}))
-
-const PLACEHOLDER_SPORTS = [
-  { sport: 'Football',   count: 2840, accuracy: 68.4 },
-  { sport: 'Basketball', count: 1230, accuracy: 71.2 },
-  { sport: 'Tennis',     count:  890, accuracy: 65.8 },
-  { sport: 'Cricket',    count:  420, accuracy: 60.1 },
-]
-
-const PLACEHOLDER_MODELS: ModelMetric[] = [
-  { model_name: 'EnsembleV3',    accuracy: 71.4, roi: 8.2,  predictions: 1240, active: true  },
-  { model_name: 'NeuralBet',     accuracy: 68.9, roi: 5.7,  predictions:  890, active: true  },
-  { model_name: 'XGBoost-Match', accuracy: 65.2, roi: 3.1,  predictions:  640, active: true  },
-  { model_name: 'LegacyLR',      accuracy: 58.7, roi: -1.4, predictions:  320, active: false },
-]
+function EmptyChart({ message }: { message: string }) {
+  return (
+    <div className="h-[220px] flex flex-col items-center justify-center text-center border border-dashed border-white/8 rounded-xl bg-white/[0.02]">
+      <BarChart3 className="w-7 h-7 text-white/15 mb-2" />
+      <p className="text-sm text-white/40">{message}</p>
+      <p className="text-xs text-white/25 mt-1">No verified records are available yet.</p>
+    </div>
+  )
+}
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function Analytics() {
-  const { data: analytics, isLoading, refetch, isFetching } = useAnalytics()
+  const { data: analytics, isLoading, isError, refetch, isFetching } = useAnalytics()
   const { data: health } = useSystemHealth()
 
-  const accuracyData  = analytics?.accuracy_over_time ?? PLACEHOLDER_ACCURACY
-  const sportsData    = analytics?.sport_breakdown    ?? PLACEHOLDER_SPORTS
-  const modelsData    = analytics?.model_accuracy     ?? PLACEHOLDER_MODELS
-  const isPlaceholder = !analytics?.accuracy_over_time
+  const accuracyData = analytics?.accuracy_over_time ?? []
+  const sportsData = analytics?.sport_breakdown ?? []
+  const modelsData = analytics?.model_accuracy ?? []
 
   const CHART_STYLE = {
     '--recharts-tooltip-bg': 'transparent',
@@ -175,13 +162,13 @@ export default function Analytics() {
           <KPI delay={0}    label="Total Predictions"  value={analytics?.total_predictions != null ? analytics.total_predictions.toLocaleString() : (isLoading ? '…' : '—')} icon={Brain}     color="text-vit-400"    />
           <KPI delay={0.05} label="7-day Accuracy"     value={analytics?.accuracy_7d != null ? `${analytics.accuracy_7d.toFixed(1)}%` : (isLoading ? '…' : '—')}             icon={TrendingUp} color="text-emerald-400" />
           <KPI delay={0.1}  label="Active Users"       value={analytics?.active_users != null ? analytics.active_users.toLocaleString() : (isLoading ? '…' : '—')}           icon={Users}      color="text-sky-400"    />
-          <KPI delay={0.15} label="Models Deployed"    value={!isPlaceholder ? modelsData.filter(m => m.active).length.toString() : (isLoading ? '…' : '—')}                  icon={Activity}   color="text-purple-400" />
+          <KPI delay={0.15} label="Models Deployed"    value={isLoading ? '…' : modelsData.filter(m => m.active).length.toString()}                  icon={Activity}   color="text-purple-400" />
         </div>
 
-        {isPlaceholder && (
+        {isError && (
           <div className="flex items-center gap-2 text-xs text-amber-400 mb-5 p-3 rounded-lg bg-amber-500/8 border border-amber-500/15">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            Displaying sample data — analytics API not yet reachable. Charts will populate once data is available.
+            Analytics data is temporarily unavailable. No sample values are shown.
           </div>
         )}
 
@@ -193,41 +180,45 @@ export default function Analytics() {
           className="bg-surface-800/50 border border-white/8 rounded-2xl p-6 mb-5"
         >
           <h2 className="font-semibold text-white mb-5">Model Accuracy — 14 Days</h2>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={accuracyData} style={CHART_STYLE}>
-              <defs>
-                <linearGradient id="accGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor="#6366f1" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                domain={[50, 85]}
-                tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: number) => `${v}%`}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="accuracy"
-                name="Accuracy"
-                stroke="#6366f1"
-                strokeWidth={2}
-                fill="url(#accGrad)"
-                dot={false}
-                activeDot={{ r: 4, fill: '#6366f1' }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {accuracyData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={accuracyData} style={CHART_STYLE}>
+                <defs>
+                  <linearGradient id="accGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor="#6366f1" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  domain={[50, 85]}
+                  tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v: number) => `${v}%`}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="accuracy"
+                  name="Accuracy"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  fill="url(#accGrad)"
+                  dot={false}
+                  activeDot={{ r: 4, fill: '#6366f1' }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChart message="Accuracy history is not available" />
+          )}
         </motion.div>
 
         <div className="grid sm:grid-cols-2 gap-5 mb-5">
@@ -239,15 +230,19 @@ export default function Analytics() {
             className="bg-surface-800/50 border border-white/8 rounded-2xl p-6"
           >
             <h2 className="font-semibold text-white mb-5">Predictions by Sport</h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={sportsData} barSize={24}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="sport" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="count" name="Predictions" fill="#6366f1" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
-              </BarChart>
-            </ResponsiveContainer>
+            {sportsData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={sportsData} barSize={24}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="sport" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar dataKey="count" name="Predictions" fill="#6366f1" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart message="Sport totals are not available" />
+            )}
           </motion.div>
 
           {/* Accuracy by sport */}
@@ -258,15 +253,19 @@ export default function Analytics() {
             className="bg-surface-800/50 border border-white/8 rounded-2xl p-6"
           >
             <h2 className="font-semibold text-white mb-5">Accuracy by Sport (%)</h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={sportsData} barSize={24}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="sport" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis domain={[50, 80]} tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
-                <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="accuracy" name="Accuracy" fill="#10b981" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
-              </BarChart>
-            </ResponsiveContainer>
+            {sportsData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={sportsData} barSize={24}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="sport" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[50, 80]} tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar dataKey="accuracy" name="Accuracy" fill="#10b981" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart message="Sport accuracy is not available" />
+            )}
           </motion.div>
         </div>
 
@@ -280,7 +279,7 @@ export default function Analytics() {
           <div className="px-6 py-5 border-b border-white/6">
             <h2 className="font-semibold text-white">Model Performance</h2>
           </div>
-          <div className="overflow-x-auto">
+          {modelsData.length > 0 ? <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[11px] text-white/30 uppercase border-b border-white/6">
@@ -321,7 +320,11 @@ export default function Analytics() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </div> : (
+            <div className="px-6 py-12">
+              <EmptyChart message="Model performance is not available" />
+            </div>
+          )}
         </motion.div>
 
         {/* System health */}
