@@ -117,7 +117,7 @@ except ImportError:
     sys.exit(0)
 
 try:
-    conn = psycopg2.connect(sync_url)
+    conn = psycopg2.connect(sync_url, connect_timeout=10)
     conn.autocommit = True
     cur = conn.cursor()
     print("[ensure_columns] Connected. Adding missing columns…", flush=True)
