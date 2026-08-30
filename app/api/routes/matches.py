@@ -1,4 +1,3 @@
-from app.services.prediction_seeder import _make_prediction
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func, or_
@@ -15,7 +14,6 @@ from app.services.isports_api import ISportsClient, ISPORTS_LEAGUE_IDS
 from app.services.sportsdb_api import sync_upcoming_fixtures
 from app.modules.wallet.models import PlatformConfig
 from app.core.cache import cache
-import random
 from app.modules.ai.models import AIPredictionAudit
 from app.services.deterministic_insights import generate_match_insights
 from app.services.predict_features import build_predict_features
@@ -135,54 +133,12 @@ def _vig_free_probs(home_odds, draw_odds, away_odds) -> Optional[dict]:
 
 
 def _secondary_market_probs(home_prob: Optional[float], draw_prob: Optional[float], away_prob: Optional[float], draw_odds) -> dict:
-    import math as _math
-    if home_prob is None or draw_prob is None or away_prob is None:
-        return {"over_25": None, "under_25": None, "btts": None, "no_btts": None,
-                "over_15": None, "under_15": None, "over_35": None, "under_35": None,
-                "dnb_home": None, "dnb_away": None}
-    try:
-        draw_price = float(draw_odds) if draw_odds else 3.3
-    except (TypeError, ValueError):
-        draw_price = 3.3
-
-    balance = 1.0 - abs(home_prob - away_prob)
-    over_25 = max(0.32, min(0.72, 0.45 + (draw_price - 3.2) * 0.055 + max(home_prob, away_prob) * 0.12))
-    btts = max(0.28, min(0.68, 0.42 + balance * 0.20 + (draw_price - 3.2) * 0.025))
-
-    # Poisson-derived lambdas from implied goal expectation
-    # A rough estimate: lam ≈ f(over_25) via Poisson CDF inversion
-    # P(goals >= 3) = over_25 → solve for lam empirically
-    # Using approximation: lam_total ≈ -ln(1 - over_25) * 2.1
-    lam_total = max(1.0, -_math.log(max(0.01, 1.0 - over_25)) * 2.1)
-    lam_h = lam_total * (0.55 + (home_prob - away_prob) * 0.4)
-    lam_a = lam_total - lam_h
-
-    def _poisson_p_under(lam: float, k: int) -> float:
-        """P(X <= k) for Poisson(lam)."""
-        return sum(_math.exp(-lam) * (lam ** i) / _math.factorial(i) for i in range(k + 1))
-
-    p_under_total_1 = _poisson_p_under(lam_total, 1)  # P(total goals <= 1)
-    p_under_total_3 = _poisson_p_under(lam_total, 3)  # P(total goals <= 3)
-
-    over_15 = max(0.4, min(0.92, 1.0 - p_under_total_1))
-    over_35 = max(0.10, min(0.55, 1.0 - p_under_total_3))
-
-    # DNB = Draw No Bet — remove draw from market, renormalize home/away
-    dnb_total = home_prob + away_prob
-    dnb_home = round(home_prob / dnb_total, 4) if dnb_total > 0 else 0.5
-    dnb_away = round(away_prob / dnb_total, 4) if dnb_total > 0 else 0.5
-
+    # Secondary markets are predictions in their own right. They must come
+    # from the stored model response, never from 1X2 probabilities or odds.
     return {
-        "over_25": round(over_25, 4),
-        "under_25": round(1 - over_25, 4),
-        "btts": round(btts, 4),
-        "no_btts": round(1 - btts, 4),
-        "over_15": round(over_15, 4),
-        "under_15": round(1 - over_15, 4),
-        "over_35": round(over_35, 4),
-        "under_35": round(1 - over_35, 4),
-        "dnb_home": dnb_home,
-        "dnb_away": dnb_away,
+        "over_25": None, "under_25": None, "btts": None, "no_btts": None,
+        "over_15": None, "under_15": None, "over_35": None, "under_35": None,
+        "dnb_home": None, "dnb_away": None,
     }
 
 
@@ -238,6 +194,8 @@ def _normalize_attribution_items(raw_items: Optional[list]) -> list:
 
 
 def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[list] = None) -> dict:
+    if pred is not None and getattr(pred, "is_seed", False):
+        pred = None
     odds_home = m.opening_odds_home or m.closing_odds_home
     odds_draw = m.opening_odds_draw or m.closing_odds_draw
     odds_away = m.opening_odds_away or m.closing_odds_away
@@ -257,17 +215,16 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
     draw_prob = float(pred.draw_prob) if pred and pred.draw_prob is not None else None
     away_prob = float(pred.away_prob) if pred and pred.away_prob is not None else None
 
-    secondary = _secondary_market_probs(home_prob, draw_prob, away_prob, odds_draw)
-    over_25_prob = float(pred.over_25_prob) if pred and pred.over_25_prob is not None else secondary["over_25"]
-    under_25_prob = float(pred.under_25_prob) if pred and pred.under_25_prob is not None else secondary["under_25"]
-    btts_prob = float(pred.btts_prob) if pred and pred.btts_prob is not None else secondary["btts"]
-    no_btts_prob = float(pred.no_btts_prob) if pred and pred.no_btts_prob is not None else secondary["no_btts"]
-    over_15_prob = secondary.get("over_15")
-    under_15_prob = secondary.get("under_15")
-    over_35_prob = secondary.get("over_35")
-    under_35_prob = secondary.get("under_35")
-    dnb_home_prob = secondary.get("dnb_home")
-    dnb_away_prob = secondary.get("dnb_away")
+    over_25_prob = float(pred.over_25_prob) if pred and pred.over_25_prob is not None else None
+    under_25_prob = float(pred.under_25_prob) if pred and pred.under_25_prob is not None else None
+    btts_prob = float(pred.btts_prob) if pred and pred.btts_prob is not None else None
+    no_btts_prob = float(pred.no_btts_prob) if pred and pred.no_btts_prob is not None else None
+    over_15_prob = None
+    under_15_prob = None
+    over_35_prob = None
+    under_35_prob = None
+    dnb_home_prob = None
+    dnb_away_prob = None
     confidence = float(pred.confidence) if pred and pred.confidence is not None else None
 
     bet_side = getattr(pred, 'bet_side', None)
@@ -316,6 +273,16 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         "dnb_home_prob": dnb_home_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "dnb_away_prob": dnb_away_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "confidence": confidence,
+        # Match rows are database snapshots. They are provider-sourced, but
+        # must not be labelled LIVE unless a request-time provider refresh
+        # actually occurred.
+        "data_status": "CACHED" if m.source in {"isports", "sportsdb", "footballdata", "football-data.org"} else "UNAVAILABLE",
+        "data_provenance": {
+            "data_source": m.source or "unknown",
+            "source_type": "provider_cache" if m.source in {"isports", "sportsdb", "footballdata", "football-data.org"} else "unverified",
+            "retrieved_at": getattr(m, "updated_at", None).isoformat() if getattr(m, "updated_at", None) else None,
+            "fallback_used": False,
+        },
         "edge": edge,
     }
 
@@ -336,22 +303,6 @@ async def get_matches(
     except Exception:
         pass
     try:
-        # If DB is empty, attempt a quick fixture sync so `/api/matches` can return results
-        try:
-            existing_count = (await db.execute(select(func.count(Match.id)))).scalar_one()
-        except Exception:
-            existing_count = 0
-
-        if existing_count == 0:
-            try:
-                from app.services.sportsdb_api import sync_upcoming_fixtures as _sdb_sync
-                async with AsyncSessionLocal() as sdb_db:
-                    await _sdb_sync(sdb_db, days_ahead=7)
-                # refresh count after sync
-                existing_count = (await db.execute(select(func.count(Match.id)))).scalar_one()
-            except Exception as _sync_e:
-                logger.warning(f"Auto-sync attempt failed: {_sync_e}")
-
         stmt = select(Match, Prediction).outerjoin(
             Prediction,
             and_(
@@ -391,8 +342,11 @@ async def get_matches(
             pass
         return res
     except Exception as e:
-        logger.warning(f"get_matches DB error: {e}")
-        return []
+        logger.exception("get_matches database read failed")
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "SPORTS_DATA_UNAVAILABLE", "message": "Sports data is temporarily unavailable"},
+        ) from e
 
 
 @router.get("/upcoming")
@@ -400,37 +354,43 @@ async def get_upcoming_matches(
     sport: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    _cache_key = f"{FIXTURE_LIST}:upcoming:{sport}"
-    _cached = await cache.get(_cache_key)
-    if _cached: return _cached
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    # Match.status.in_(["upcoming", "scheduled"])
-    # Sort by kickoff time
-    stmt = (
-        select(Match, Prediction)
-        .outerjoin(Prediction, Match.id == Prediction.match_id)
-        .where(Match.kickoff_time >= now - timedelta(hours=2))
-        .where(Match.actual_outcome.is_(None))
-        .order_by(Match.kickoff_time.asc())
-    )
-    if sport:
-        stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
-    result = await db.execute(stmt)
-    rows = result.all()
+    try:
+        _cache_key = f"{FIXTURE_LIST}:upcoming:{sport}"
+        _cached = await cache.get(_cache_key)
+        if _cached is not None:
+            return _cached
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        stmt = (
+            select(Match, Prediction)
+            .outerjoin(Prediction, Match.id == Prediction.match_id)
+            .where(Match.kickoff_time >= now - timedelta(hours=2))
+            .where(Match.actual_outcome.is_(None))
+            .order_by(Match.kickoff_time.asc())
+        )
+        if sport:
+            stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
+        result = await db.execute(stmt)
+        rows = result.all()
 
-    match_map = {}
-    markets = await _load_markets(db)
-    for m, p in rows:
-        if m.id not in match_map:
-            match_map[m.id] = (m, p)
-        else:
-            _, existing_p = match_map[m.id]
-            if p and (not existing_p or p.timestamp > existing_p.timestamp):
+        match_map = {}
+        markets = await _load_markets(db)
+        for m, p in rows:
+            if m.id not in match_map:
                 match_map[m.id] = (m, p)
+            else:
+                _, existing_p = match_map[m.id]
+                if p and (not existing_p or p.timestamp > existing_p.timestamp):
+                    match_map[m.id] = (m, p)
 
-    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-    await cache.set(_cache_key, res, ttl=300)
-    return res
+        res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+        await cache.set(_cache_key, res, ttl=300)
+        return res
+    except Exception as e:
+        logger.exception("get_upcoming_matches database read failed")
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "SPORTS_DATA_UNAVAILABLE", "message": "Upcoming sports data is temporarily unavailable"},
+        ) from e
 
 
 async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
@@ -528,41 +488,48 @@ async def get_live_matches(
     sport: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    _cache_key = f"{FIXTURE_LIST}:live:{sport}"
-    _cached = await cache.get(_cache_key)
-    if _cached: return _cached
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    live_statuses = ["live", "in_play"]
-    terminal_statuses = ["finished", "completed", "cancelled", "postponed"]
-    # Prefer tracker status, while retaining a short kickoff window during provider lag.
-    stmt = (
-        select(Match, Prediction)
-        .outerjoin(Prediction, Match.id == Prediction.match_id)
-        .where(Match.actual_outcome.is_(None))
-        .where(Match.status.notin_(terminal_statuses))
-        .where(
-            or_(
-                Match.status.in_(live_statuses),
-                and_(
-                    Match.kickoff_time <= now,
-                    Match.kickoff_time >= now - timedelta(hours=2),
-                ),
+    try:
+        _cache_key = f"{FIXTURE_LIST}:live:{sport}"
+        _cached = await cache.get(_cache_key)
+        if _cached is not None:
+            return _cached
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        live_statuses = ["live", "in_play"]
+        terminal_statuses = ["finished", "completed", "cancelled", "postponed"]
+        stmt = (
+            select(Match, Prediction)
+            .outerjoin(Prediction, Match.id == Prediction.match_id)
+            .where(Match.actual_outcome.is_(None))
+            .where(Match.status.notin_(terminal_statuses))
+            .where(
+                or_(
+                    Match.status.in_(live_statuses),
+                    and_(
+                        Match.kickoff_time <= now,
+                        Match.kickoff_time >= now - timedelta(hours=2),
+                    ),
+                )
             )
+            .order_by(Match.kickoff_time.desc())
         )
-        .order_by(Match.kickoff_time.desc())
-    )
-    if sport:
-        stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
-    result = await db.execute(stmt)
-    rows = result.all()
-    match_map = {}
-    markets = await _load_markets(db)
-    for m, p in rows:
-        if m.id not in match_map:
-            match_map[m.id] = (m, p)
-    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-    await cache.set(_cache_key, res, ttl=15)
-    return res
+        if sport:
+            stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
+        result = await db.execute(stmt)
+        rows = result.all()
+        match_map = {}
+        markets = await _load_markets(db)
+        for m, p in rows:
+            if m.id not in match_map:
+                match_map[m.id] = (m, p)
+        res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+        await cache.set(_cache_key, res, ttl=15)
+        return res
+    except Exception as e:
+        logger.exception("get_live_matches database read failed")
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "SPORTS_DATA_UNAVAILABLE", "message": "Live sports data is temporarily unavailable"},
+        ) from e
 
 
 @router.get("/recent")
@@ -570,29 +537,36 @@ async def get_recent_matches(
     sport: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    _cache_key = f"{FIXTURE_LIST}:recent:{sport}"
-    _cached = await cache.get(_cache_key)
-    if _cached: return _cached
-    # Last 20 completed matches
-    stmt = (
-        select(Match, Prediction)
-        .outerjoin(Prediction, Match.id == Prediction.match_id)
-        .where(Match.actual_outcome.isnot(None))
-        .order_by(Match.kickoff_time.desc())
-        .limit(20)
-    )
-    if sport:
-        stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
-    result = await db.execute(stmt)
-    rows = result.all()
-    match_map = {}
-    markets = await _load_markets(db)
-    for m, p in rows:
-        if m.id not in match_map:
-            match_map[m.id] = (m, p)
-    res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-    await cache.set(_cache_key, res, ttl=300)
-    return res
+    try:
+        _cache_key = f"{FIXTURE_LIST}:recent:{sport}"
+        _cached = await cache.get(_cache_key)
+        if _cached is not None:
+            return _cached
+        stmt = (
+            select(Match, Prediction)
+            .outerjoin(Prediction, Match.id == Prediction.match_id)
+            .where(Match.actual_outcome.isnot(None))
+            .order_by(Match.kickoff_time.desc())
+            .limit(20)
+        )
+        if sport:
+            stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
+        result = await db.execute(stmt)
+        rows = result.all()
+        match_map = {}
+        markets = await _load_markets(db)
+        for m, p in rows:
+            if m.id not in match_map:
+                match_map[m.id] = (m, p)
+        res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+        await cache.set(_cache_key, res, ttl=300)
+        return res
+    except Exception as e:
+        logger.exception("get_recent_matches database read failed")
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "SPORTS_DATA_UNAVAILABLE", "message": "Recent sports data is temporarily unavailable"},
+        ) from e
 
 
 @router.get("/completed")
@@ -662,7 +636,10 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         .where(Prediction.match_id == match_id)
         .order_by(Prediction.timestamp.desc())
     )
-    preds = pred_q.scalars().all()
+    all_preds = pred_q.scalars().all()
+    # Seed/demo predictions are training artifacts and must not become the
+    # prediction shown for a live provider fixture.
+    preds = [p for p in all_preds if not getattr(p, "is_seed", False)]
     latest_pred = preds[0] if preds else None
 
     # Audit log lookup
@@ -755,7 +732,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
                 "model_agreement": float(getattr(latest_audit, 'model_agreement', 0.0)) if (has_primary_probabilities and latest_audit and getattr(latest_audit, 'model_agreement', None) is not None) else None,
                 "models_active": int(getattr(latest_audit, 'pkl_models_active', 0)) if (has_primary_probabilities and latest_audit and getattr(latest_audit, 'pkl_models_active', None) is not None) else None,
                 "elo_diff": float(elo_diff),
-                "squad_value_diff": round(float(elo_diff) * 1.2, 2),
+                "squad_value_diff": None,
                 "timestamp": latest_pred.timestamp.isoformat() if (has_primary_probabilities and latest_pred and getattr(latest_pred, 'timestamp', None)) else None,
             },
             "attribution": _normalize_attribution_items(
@@ -787,6 +764,14 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
     match = match_q.scalar_one_or_none()
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
+    if match.source not in {"isports", "sportsdb", "footballdata", "football-data.org"}:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "MATCH_SOURCE_UNVERIFIED",
+                "message": "Predictions are only available for provider-sourced fixtures",
+            },
+        )
 
     pred_q = await db.execute(
         select(Prediction)
@@ -827,63 +812,62 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
 
     try:
         features = await build_predict_features(db, match.home_team, match.away_team, match.league)
+        feature_completeness = float(features.get("feature_completeness", 0.0) or 0.0)
+        if feature_completeness <= 0:
+            raise RuntimeError("Prediction history is unavailable for this match")
+
+        odds_values = (
+            match.opening_odds_home or match.closing_odds_home,
+            match.opening_odds_draw or match.closing_odds_draw,
+            match.opening_odds_away or match.closing_odds_away,
+        )
+        if any(value is None or float(value) <= 1.0 for value in odds_values):
+            raise RuntimeError("Provider odds are unavailable for this match")
         market_odds = {
-            "home": float(match.opening_odds_home or match.closing_odds_home or 2.10),
-            "draw": float(match.opening_odds_draw or match.closing_odds_draw or 3.20),
-            "away": float(match.opening_odds_away or match.closing_odds_away or 3.50),
+            "home": float(odds_values[0]),
+            "draw": float(odds_values[1]),
+            "away": float(odds_values[2]),
         }
 
         from app.core.dependencies import get_orchestrator_dep
-        orchestrator = None
         try:
             orchestrator = await get_orchestrator_dep()
-        except Exception as _oe:
-            logger.warning(f"Orchestrator unavailable: {_oe}")
+        except Exception as exc:
+            raise RuntimeError(f"Prediction model unavailable: {exc}") from exc
+        if not orchestrator or not hasattr(orchestrator, "predict"):
+            raise RuntimeError("Prediction model unavailable")
 
-        raw_result = None
-        if orchestrator and hasattr(orchestrator, "predict"):
-            try:
-                idempotency_key = f"match_init_{match_id}_{job_id}"
-                raw_result = await orchestrator.predict(
-                    {
-                        "home_team": match.home_team,
-                        "away_team": match.away_team,
-                        "league": match.league,
-                        "market_odds": market_odds,
-                        "match_features": features,
-                    },
-                    idempotency_key=idempotency_key,
-                    sport=match.sport or "football"
-                )
-            except Exception as exc:
-                logger.warning(f"Orchestrator invocation error: {exc}")
+        idempotency_key = f"match_init_{match_id}_{job_id}"
+        raw_result = await orchestrator.predict(
+            {
+                "home_team": match.home_team,
+                "away_team": match.away_team,
+                "league": match.league,
+                "market_odds": market_odds,
+                "match_features": features,
+            },
+            idempotency_key=idempotency_key,
+            sport=match.sport or "football"
+        )
 
         if raw_result and "predictions" in raw_result:
             pred_res = raw_result.get("predictions", {})
-            h = float(pred_res.get("home_prob", 0.40))
-            d = float(pred_res.get("draw_prob", 0.30))
-            a = float(pred_res.get("away_prob", 0.30))
-            conf = float(raw_result.get("confidence", 0.75))
         elif raw_result and isinstance(raw_result, dict) and "home_prob" in raw_result:
-            h = float(raw_result.get("home_prob", 0.40))
-            d = float(raw_result.get("draw_prob", 0.30))
-            a = float(raw_result.get("away_prob", 0.30))
-            conf = float(raw_result.get("confidence", 0.75))
+            pred_res = raw_result
         else:
-            elo_diff = features.get("elo_diff", 0.0)
-            i_h = 1.0 / market_odds["home"]
-            i_d = 1.0 / market_odds["draw"]
-            i_a = 1.0 / market_odds["away"]
-            tot = i_h + i_d + i_a
-            m_h, m_d, m_a = i_h / tot, i_d / tot, i_a / tot
-
-            elo_shift = max(-0.15, min(0.15, elo_diff / 400.0))
-            h = max(0.05, min(0.90, m_h + elo_shift))
-            a = max(0.05, min(0.90, m_a - elo_shift))
-            d = max(0.05, 1.0 - h - a)
-            s_tot = h + d + a
-            h, d, a = h / s_tot, d / s_tot, a / s_tot
-            conf = min(0.95, max(0.50, 0.65 + abs(elo_shift)))
+            raise RuntimeError("Prediction model returned no prediction")
+        required = ("home_prob", "draw_prob", "away_prob")
+        if any(pred_res.get(key) is None for key in required):
+            raise RuntimeError("Prediction model returned incomplete probabilities")
+        h = float(pred_res["home_prob"])
+        d = float(pred_res["draw_prob"])
+        a = float(pred_res["away_prob"])
+        confidence_value = raw_result.get("confidence") if isinstance(raw_result, dict) else None
+        if isinstance(confidence_value, dict):
+            confidence_value = confidence_value.get("1x2")
+        if confidence_value is None:
+            confidence_value = pred_res.get("confidence", {}).get("1x2", 0.0) if isinstance(pred_res.get("confidence"), dict) else pred_res.get("confidence")
+        conf = float(confidence_value or 0.0)
 
         options = [("home", h, market_odds["home"]), ("draw", d, market_odds["draw"]), ("away", a, market_odds["away"])]
         best_opt = max(options, key=lambda x: x[1] - (1.0 / x[2]))
@@ -893,10 +877,10 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
         new_pred.home_prob = round(h, 4)
         new_pred.draw_prob = round(d, 4)
         new_pred.away_prob = round(a, 4)
-        new_pred.over_25_prob = round(max(0.35, min(0.75, 0.5 + (h - a) * 0.2)), 4)
-        new_pred.under_25_prob = round(1.0 - new_pred.over_25_prob, 4)
-        new_pred.btts_prob = round(max(0.30, min(0.70, 0.52 - abs(h - a) * 0.1)), 4)
-        new_pred.no_btts_prob = round(1.0 - new_pred.btts_prob, 4)
+        new_pred.over_25_prob = float(pred_res["over_25_prob"]) if pred_res.get("over_25_prob") is not None else None
+        new_pred.under_25_prob = float(pred_res["under_25_prob"]) if pred_res.get("under_25_prob") is not None else None
+        new_pred.btts_prob = float(pred_res["btts_prob"]) if pred_res.get("btts_prob") is not None else None
+        new_pred.no_btts_prob = float(pred_res["no_btts_prob"]) if pred_res.get("no_btts_prob") is not None else None
         new_pred.status = "READY"
         new_pred.source = "live_generated"
         new_pred.is_seed = False
@@ -908,14 +892,14 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
         new_pred.entry_odds = best_opt[2]
         new_pred.provenance = {
             "job_id": job_id,
-            "source": "live_orchestrator",
+            "source": match.source,
+            "external_id": match.external_id,
             "model_version": "v4.10.0-ensemble",
             "generated_at": now.isoformat(),
+            "feature_completeness": feature_completeness,
+            "odds_snapshot": market_odds,
             "data_snapshot": {
                 "elo_diff": features.get("elo_diff", 0.0),
-                "home_odds": market_odds["home"],
-                "draw_odds": market_odds["draw"],
-                "away_odds": market_odds["away"],
             }
         }
         await db.commit()
@@ -965,9 +949,10 @@ async def get_match_analytics(match_id: int, db: AsyncSession = Depends(get_db))
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
 
-    pred = (await db.execute(
+    pred_rows = (await db.execute(
         select(Prediction).where(Prediction.match_id == match_id).order_by(Prediction.timestamp.desc()).limit(1)
-    )).scalar_one_or_none()
+    )).scalars().all()
+    pred = next((candidate for candidate in pred_rows if not getattr(candidate, "is_seed", False)), None)
 
     audit = (await db.execute(
         select(AIPredictionAudit).where(AIPredictionAudit.match_id == str(match_id)).order_by(AIPredictionAudit.created_at.desc()).limit(1)
@@ -980,12 +965,12 @@ async def get_match_analytics(match_id: int, db: AsyncSession = Depends(get_db))
         "match": fmt,
         "prediction": {
             "side": pred.bet_side if pred else None,
-            "confidence": float(pred.confidence or 0.5) if pred else 0.5,
-            "edge": float(pred.vig_free_edge or 0.0) if pred else 0.0,
-            "risk_score": float(audit.risk_score or 0.0) if audit else 0.0,
-            "model_agreement": float(audit.model_agreement or 0.0) if audit else 0.0,
+            "confidence": float(pred.confidence) if pred and pred.confidence is not None else None,
+            "edge": float(pred.vig_free_edge) if pred and pred.vig_free_edge is not None else None,
+            "risk_score": float(audit.risk_score) if audit and audit.risk_score is not None else None,
+            "model_agreement": float(audit.model_agreement) if audit and audit.model_agreement is not None else None,
         } if pred else None,
-        "market_efficiency": "High" if fmt.get("odds", {}).get("draw") else "Medium",
+        "market_efficiency": "available" if any(value is not None for value in fmt.get("odds", {}).values()) else "unavailable",
     }
 
 
@@ -994,9 +979,10 @@ async def get_ensemble_breakdown(match_id: int, db: AsyncSession = Depends(get_d
     """
     Detailed breakdown of how the ensemble reached its conclusion.
     """
-    pred = (await db.execute(
-        select(Prediction).where(Prediction.match_id == match_id).order_by(Prediction.timestamp.desc()).limit(1)
-    )).scalar_one_or_none()
+    pred_rows = (await db.execute(
+        select(Prediction).where(Prediction.match_id == match_id).order_by(Prediction.timestamp.desc()).limit(20)
+    )).scalars().all()
+    pred = next((candidate for candidate in pred_rows if not getattr(candidate, "is_seed", False)), None)
 
     if not pred:
         return {"error": "No prediction yet", "match_id": match_id}

@@ -5,7 +5,6 @@ ModelOrchestrator v4 — Multi-Market Differentiated Ensemble
 import logging
 import math
 import os
-import random
 import sys
 import asyncio
 from typing import Any, Dict, List, Optional, Tuple
@@ -333,12 +332,12 @@ class ModelOrchestrator:
 
         odds = market_odds or {}
         feature_map = {
-            "home_odds": float(odds.get("home", 2.30) or 2.30),
-            "draw_odds": float(odds.get("draw", 3.30) or 3.30),
-            "away_odds": float(odds.get("away", 3.10) or 3.10),
+            "home_odds": float(odds["home"]),
+            "draw_odds": float(odds["draw"]),
+            "away_odds": float(odds["away"]),
             "home_implied": base_hp, "draw_implied": base_dp, "away_implied": base_ap,
             "lam_h": lam_h, "lam_a": lam_a,
-            "over_25_implied": 0.50,
+            "over_25_implied": None,
             "strength_ratio": lam_h / max(0.1, lam_a),
             "lambda_home_est": lam_h, "lambda_away_est": lam_a, "elo_diff": (lam_h - lam_a) * 80.0,
         }
@@ -398,9 +397,14 @@ class ModelOrchestrator:
 
     async def predict(self, features: Dict[str, Any], match_id: str, sport: str = "soccer") -> Dict[str, Any]:
         mkt   = features.get("market_odds", {})
-        h_raw = float(mkt.get("home", 2.30))
-        d_raw = float(mkt.get("draw", 3.30))
-        a_raw = float(mkt.get("away", 3.10))
+        try:
+            h_raw = float(mkt["home"])
+            d_raw = float(mkt["draw"])
+            a_raw = float(mkt["away"])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError("provider market odds are required for prediction")
+        if min(h_raw, d_raw, a_raw) <= 1.0:
+            raise ValueError("provider market odds must be greater than 1.0")
 
         home_team = features.get("home_team", "HomeTeam")
         away_team = features.get("away_team", "AwayTeam")
@@ -477,12 +481,14 @@ class ModelOrchestrator:
                     "model_name": meta["model_name"], "model_type": meta["model_type"], "model_weight": weight,
                     "supported_markets": meta["supported_markets"], "home_prob": round(hp, 4), "draw_prob": round(dp, 4), "away_prob": round(ap, 4),
                     "over_2_5_prob": round(ou25, 4), "btts_prob": round(btts, 4), "home_goals_expectation": round(lam_h, 2), "away_goals_expectation": round(lam_a, 2),
-                    "confidence": {"1x2": _confidence_from_probs(hp, dp, ap)}, "latency_ms": round(random.uniform(2, 25), 1), "failed": False, "calibration": calibration_meta
+                    "confidence": {"1x2": _confidence_from_probs(hp, dp, ap)}, "latency_ms": None, "failed": False, "calibration": calibration_meta
                 })
             except Exception as exc:
                 logger.warning(f"Model {key} failed: {exc}")
 
-        total_w = sum(weights) or 1.0
+        if not weights:
+            raise RuntimeError("No prediction models are available")
+        total_w = sum(weights)
         n = len(weights)
         raw_hp = sum(preds_h[i] * weights[i] for i in range(n)) / total_w
         raw_dp = sum(preds_d[i] * weights[i] for i in range(n)) / total_w
@@ -502,23 +508,46 @@ class ModelOrchestrator:
             raw_ap * diversity_factor + (1-diversity_factor)/3
         )
 
-        # Build default score matrix as fallback
+        # Correct-score and Asian handicap markets require their own model
+        # outputs. Do not expose values derived from the 1X2/odds path as if
+        # they were independently predicted markets.
         score_matrix = _build_score_matrix(lam_h, lam_a, _CS_MAX_GOALS)
-        cs_dict, top_cs, top_cs_p = _correct_score_probs(score_matrix)
+        cs_dict, top_cs, top_cs_p = {}, None, None
 
-        # Use specialized market models if available, else fallback to ensemble average
-        if self.market_models.get("over_under_v2") or self.market_models.get("btts_v2") or self.market_models.get("correct_score_v2"):
+        # Specialized market heads may only run when their complete feature
+        # payload was supplied by the provider/history pipeline.
+        has_specialized_features = all(
+            match_features.get(key) is not None
+            for key in (
+                "home_gf_pg_5", "away_gf_pg_5",
+                "home_ga_pg_5", "away_ga_pg_5",
+                "h2h_home_goals_pg", "h2h_away_goals_pg",
+            )
+        )
+        if has_specialized_features and (
+            self.market_models.get("over_under_v2")
+            or self.market_models.get("btts_v2")
+            or self.market_models.get("correct_score_v2")
+        ):
             try:
                 from app.ai.market_models import build_feature_vector, _OU_FEATURE_KEYS, _BTTS_FEATURE_KEYS, _CS_FEATURE_KEYS
                 mkt_feat = {
                     "home_xg_per_game": lam_h, "away_xg_per_game": lam_a,
-                    "home_xg_against_per_game": lam_a, "away_xg_against_per_game": lam_h,
-                    "home_form_gf": lam_h, "away_form_gf": lam_a,
+                    "home_xg_against_per_game": float(match_features["home_ga_pg_5"]),
+                    "away_xg_against_per_game": float(match_features["away_ga_pg_5"]),
+                    "home_form_gf": float(match_features["home_gf_pg_5"]),
+                    "away_form_gf": float(match_features["away_gf_pg_5"]),
                     "market_home_prob_vf": final_hp, "market_draw_prob_vf": final_dp, "market_away_prob_vf": final_ap,
                     "lambda_home": lam_h, "lambda_away": lam_a,
                     "xg_total_expected": lam_h + lam_a, "xg_dominance": lam_h / max(0.1, lam_a),
-                    "home_form_games": 5.0, "away_form_games": 5.0, "h2h_btts_rate": 0.5, "h2h_avg_goals": 2.5,
-                    "market_over25_prob_vf": 0.5, "market_btts_prob_vf": 0.5
+                    "home_form_games": 5.0, "away_form_games": 5.0,
+                    "h2h_btts_rate": match_features.get("h2h_btts_rate"),
+                    "h2h_avg_goals": (
+                        float(match_features["h2h_home_goals_pg"])
+                        + float(match_features["h2h_away_goals_pg"])
+                    ),
+                    "market_over25_prob_vf": match_features.get("market_over25_prob_vf"),
+                    "market_btts_prob_vf": match_features.get("market_btts_prob_vf"),
                 }
 
                 if self.market_models.get("over_under_v2"):
@@ -540,19 +569,29 @@ class ModelOrchestrator:
             except Exception as e:
                 logger.warning(f"Specialized market inference failed: {e}")
 
-        ah_ladder = _build_ah_ladder(score_matrix)
         overall_conf = _confidence_from_probs(final_hp, final_dp, final_ap)
-        # Bootstrap-like CI (simulated for contract compliance)
+        weighted_vars = [
+            sum((preds_h[i] - raw_hp) ** 2 * weights[i] for i in range(n)) / total_w,
+            sum((preds_d[i] - raw_dp) ** 2 * weights[i] for i in range(n)) / total_w,
+            sum((preds_a[i] - raw_ap) ** 2 * weights[i] for i in range(n)) / total_w,
+        ]
+        spread = [min(0.49, max(0.01, 1.96 * math.sqrt(v))) for v in weighted_vars]
         ci = {
-            "home": {"low": round(final_hp - 0.04, 4), "mid": round(final_hp, 4), "high": round(final_hp + 0.04, 4)},
-            "draw": {"low": round(final_dp - 0.03, 4), "mid": round(final_dp, 4), "high": round(final_dp + 0.03, 4)},
-            "away": {"low": round(final_ap - 0.04, 4), "mid": round(final_ap, 4), "high": round(final_ap + 0.04, 4)},
+            "home": {"low": round(max(0.0, final_hp - spread[0]), 4), "mid": round(final_hp, 4), "high": round(min(1.0, final_hp + spread[0]), 4)},
+            "draw": {"low": round(max(0.0, final_dp - spread[1]), 4), "mid": round(final_dp, 4), "high": round(min(1.0, final_dp + spread[1]), 4)},
+            "away": {"low": round(max(0.0, final_ap - spread[2]), 4), "mid": round(final_ap, 4), "high": round(min(1.0, final_ap + spread[2]), 4)},
         }
 
-        # Match Quality
-        mq_score = round(70.0 + random.uniform(0, 20), 1)
+        model_agreement = round(max(0.0, 100.0 * (1.0 - sum(weighted_vars) / 0.25)), 1)
+        mq_score = model_agreement
         mq_grade = "A" if mq_score >= 80 else "B" if mq_score >= 65 else "C"
-        match_quality = {"score": mq_score, "grade": mq_grade, "label": "Good", "home_advantage_bias": round(ha_bias, 4), "components": {"agreement": 25, "ci": 25, "participation": 20}}
+        match_quality = {
+            "score": mq_score,
+            "grade": mq_grade,
+            "label": "Model agreement",
+            "home_advantage_bias": round(ha_bias, 4),
+            "components": {"agreement": mq_score, "models_used": len(active_models)},
+        }
 
         # Attribution
         attribution = []
@@ -569,11 +608,17 @@ class ModelOrchestrator:
                 "over_25_prob": round(final_ou, 4), "over_2_5_prob": round(final_ou, 4), "under_25_prob": round(1-final_ou, 4),
                 "btts_prob": round(final_btts, 4), "no_btts_prob": round(1-final_btts, 4),
                 "home_xg": round(lam_h, 2), "away_xg": round(lam_a, 2),
-                "ah_line": -0.5, "ah_home_prob": 0.5, "ah_away_prob": 0.5, "ah_lines": ah_ladder,
+                "ah_line": None, "ah_home_prob": None, "ah_away_prob": None, "ah_lines": None,
                 "cs_probs": cs_dict, "top_correct_score": top_cs, "top_cs_prob": top_cs_p,
-                "confidence": {"1x2": overall_conf, "over_under": 0.7, "btts": 0.7, "asian_hcp": 0.7, "correct_score": 0.7},
+                "confidence": {
+                    "1x2": overall_conf,
+                    "over_under": _binary_confidence(final_ou),
+                    "btts": _binary_confidence(final_btts),
+                    "asian_hcp": None,
+                    "correct_score": None,
+                },
                 "home_advantage_bias": round(ha_bias, 4), "confidence_intervals": ci, "models_used": len(active_models), "models_total": _TOTAL_MODEL_SPECS,
-                "model_agreement": 75.0, "data_source": "differentiated_ensemble_v4", "ensemble_diversity": round(var_h, 5), "llm_signals_used": bool(ai_signals), "league": league or None,
+                "model_agreement": model_agreement, "data_source": "differentiated_ensemble_v4", "ensemble_diversity": round(var_h, 5), "llm_signals_used": bool(ai_signals), "league": league or None,
                 "match_quality_rating": match_quality,
             },
             "individual_results": individual_results, "attribution": attribution, "models_count": len(active_models)
@@ -581,7 +626,14 @@ class ModelOrchestrator:
 
     def predict_with_scoreline(self, features: Dict[str, Any], match_id: str, home_score: int, away_score: int, minute: int) -> Dict[str, Any]:
         mkt = features.get("market_odds", {})
-        h_raw, d_raw, a_raw = float(mkt.get("home", 2.3)), float(mkt.get("draw", 3.3)), float(mkt.get("away", 3.1))
+        try:
+            h_raw = float(mkt["home"])
+            d_raw = float(mkt["draw"])
+            a_raw = float(mkt["away"])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError("provider market odds are required for live prediction")
+        if min(h_raw, d_raw, a_raw) <= 1.0:
+            raise ValueError("provider market odds must be greater than 1.0")
         mkt_hp, mkt_dp, mkt_ap = _vig_free(h_raw, d_raw, a_raw)
         ha_bias = _HOME_ADVANTAGE_BIAS
         base_hp, base_dp, base_ap = _normalise(min(0.97, mkt_hp + ha_bias), max(0.02, mkt_dp - ha_bias * 0.15), max(0.02, mkt_ap - ha_bias * 0.85))
@@ -641,6 +693,9 @@ def _confidence_from_probs(hp, dp, ap) -> float:
     probs = [p for p in (hp, dp, ap) if p > 0]
     ent = -sum(p * math.log(p) for p in probs) if probs else math.log(3)
     return round(1.0 - ent/math.log(3), 3)
+
+def _binary_confidence(prob: float) -> float:
+    return round(abs(float(prob) - 0.5) * 2.0, 3)
 
 def _build_score_matrix(lam_h, lam_a, max_g) -> List[List[float]]:
     return [[_poisson_pmf(h, lam_h) * _poisson_pmf(a, lam_a) for a in range(max_g+1)] for h in range(max_g+1)]

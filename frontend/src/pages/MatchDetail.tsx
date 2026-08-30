@@ -56,9 +56,20 @@ interface Match {
   provenance?: {
     job_id?: string
     source?: string
+    external_id?: string
     model_version?: string
     generated_at?: string
+    feature_completeness?: number
+    odds_snapshot?: { home?: number; draw?: number; away?: number }
     data_snapshot?: Record<string, unknown>
+  }
+  source?: string
+  data_status?: 'LIVE' | 'CACHED' | 'DEGRADED' | 'UNAVAILABLE'
+  data_provenance?: {
+    data_source?: string
+    source_type?: string
+    retrieved_at?: string
+    fallback_used?: boolean
   }
   home_score?: number
   away_score?: number
@@ -132,7 +143,13 @@ function useMatch(id?: string) {
     queryFn: async ({ signal }) => {
       if (!valid) return null
       const r = await fetch(`${ENDPOINTS.gateway}/api/matches/${numId}`, { signal })
-      return r.ok ? normalizeMatch(await r.json()) : null
+      if (r.status === 404) return null
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        const detail = typeof body?.detail === 'string' ? body.detail : body?.detail?.message
+        throw new Error(detail || `Unable to load match (HTTP ${r.status})`)
+      }
+      return normalizeMatch(await r.json())
     },
     retry: false,
     staleTime: 10_000,
@@ -364,7 +381,7 @@ function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
 export default function MatchDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: match, isLoading: matchLoading, refetch } = useMatch(id!)
+  const { data: match, isLoading: matchLoading, isError: matchIsError, error: matchError, refetch } = useMatch(id!)
 
   const [isProcessing, setIsProcessing] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -397,7 +414,8 @@ export default function MatchDetail() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ detail: 'Failed to process prediction' }))
-        throw new Error(errData.detail || 'Failed to process prediction request')
+        const detail = typeof errData?.detail === 'string' ? errData.detail : errData?.detail?.message
+        throw new Error(detail || 'Failed to process prediction request')
       }
 
       await refetch()
@@ -422,7 +440,8 @@ export default function MatchDetail() {
     return (
       <div className="pt-24 min-h-screen flex flex-col items-center justify-center gap-4">
         <AlertCircle className="w-12 h-12 text-red-400" />
-        <p className="text-white font-semibold">Match not found</p>
+        <p className="text-white font-semibold">{matchIsError ? 'Unable to load match' : 'Match not found'}</p>
+        {matchIsError && <p className="text-white/40 text-sm max-w-sm text-center">{(matchError as Error)?.message}</p>}
         <button onClick={() => navigate('/matches')} className="px-5 py-2 rounded-lg bg-vit-600 text-white text-sm">
           Back to Matches
         </button>
@@ -464,6 +483,15 @@ export default function MatchDetail() {
             <div className="flex items-center gap-2">
               <span className="text-xs text-white/40">{match.league}</span>
               {match.sport && <span className="px-2 py-0.5 rounded text-[10px] bg-white/5 text-white/35 capitalize">{match.sport}</span>}
+              <span className={cn(
+                'px-2 py-0.5 rounded text-[10px] font-semibold uppercase',
+                match.data_status === 'LIVE' ? 'bg-emerald-500/15 text-emerald-300' :
+                match.data_status === 'CACHED' ? 'bg-sky-500/15 text-sky-300' :
+                match.data_status === 'DEGRADED' ? 'bg-amber-500/15 text-amber-300' :
+                'bg-white/8 text-white/35',
+              )}>
+                {match.data_status || 'UNAVAILABLE'}
+              </span>
               {isLive && (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />LIVE
@@ -641,6 +669,9 @@ export default function MatchDetail() {
                     <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5" /> Live AI Prediction
                     </span>
+                  )}
+                  {match.provenance?.source && (
+                    <span className="text-white/40">Data: {match.provenance.source}</span>
                   )}
                   {match.provenance?.job_id && (
                     <span className="text-white/40 font-mono hidden sm:inline">Job: {match.provenance.job_id}</span>

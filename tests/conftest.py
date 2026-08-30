@@ -28,7 +28,10 @@ os.environ.setdefault("PAYSTACK_SECRET_KEY", "sk_test_placeholder")
 os.environ.setdefault("PAYSTACK_WEBHOOK_SECRET", "whsec_test_placeholder")
 os.environ.setdefault("ENVIRONMENT", "testing")
 _session_test_db_dir = Path(tempfile.mkdtemp(prefix="vit_session_"))
-os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{_session_test_db_dir / 'test.db'}")
+# Always isolate tests from any inherited workspace/production database URL.
+# Using setdefault here allowed a pre-existing PostgreSQL URL to be captured
+# by app.db.database before the fixture could patch the engine.
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_session_test_db_dir / 'test.db'}"
 os.environ.setdefault("AUTH_ENABLED", "false")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 os.environ.setdefault("USE_REAL_ML_MODELS", "false")

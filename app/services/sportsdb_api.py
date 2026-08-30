@@ -633,37 +633,36 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
     """
     Fetch upcoming fixtures for the next N days and upsert as Match rows.
 
-    Strategy (in order):
-    1. Season schedule fetch — pulls the full current-season calendar for all
-       leagues in one round-trip per league. Best coverage for far-future dates.
-    2. Day-by-day range scan — catches matches not yet in the season schedule
-       (e.g. cup replays, rescheduled games).
+    Interactive syncs use the bounded next-events endpoint. The full season
+    and day-by-day scanners remain available to scheduled backfills, but are
+    too slow and rate-limit prone for a user request.
 
     Returns {inserted, updated, skipped, total_fetched}.
     """
     from sqlalchemy import select
     from app.db.models import Match
 
-    # --- Primary: full season calendar (best coverage for multi-week windows) ---
-    # fetch_season_fixtures calls eventsseason.php per league, which returns the
-    # complete schedule for the current season, filtered to the days_ahead window.
-    # This is the only way to get 200-500 upcoming matches reliably.
-    season_events = await fetch_season_fixtures(days_ahead=days_ahead)
-
-    # --- Supplement: next-events per league ---
-    # eventsnextleague.php catches near-term fixtures not yet in the season
-    # calendar (rescheduled games, cup matches) and is fast.
-    next_events = await fetch_next_events()
+    try:
+        next_events = await asyncio.wait_for(fetch_next_events(), timeout=90)
+    except asyncio.TimeoutError:
+        logger.warning("[sportsdb] interactive fixture sync timed out")
+        next_events = []
+    now = datetime.now(timezone.utc)
+    cutoff = now + timedelta(days=days_ahead)
+    next_events = [
+        ev for ev in next_events
+        if ev.get("kickoff_time") and ev["kickoff_time"] <= cutoff
+    ]
 
     logger.info(
-        "[sportsdb] sync_upcoming: %d season + %d next_events before dedup",
-        len(season_events), len(next_events),
+        "[sportsdb] sync_upcoming: %d next_events before dedup",
+        len(next_events),
     )
 
     # Merge, deduplicated by external_id then by home/away/date
     seen_keys: set = set()
     all_events: List[Dict] = []
-    for ev in season_events + next_events:
+    for ev in next_events:
         key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{ev.get('kickoff_time', '')}"
         if key not in seen_keys:
             seen_keys.add(key)

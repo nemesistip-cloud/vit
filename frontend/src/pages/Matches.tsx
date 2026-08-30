@@ -33,6 +33,13 @@ interface Match {
   away_score?: number
   home_goals?: number
   away_goals?: number
+  source?: string
+  data_status?: 'LIVE' | 'CACHED' | 'DEGRADED' | 'UNAVAILABLE'
+  data_provenance?: {
+    data_source?: string
+    source_type?: string
+    retrieved_at?: string
+  }
 }
 
 type Tab   = 'upcoming' | 'live' | 'recent' | 'all'
@@ -54,7 +61,10 @@ function useMatches(tab: Tab, sport: Sport) {
       const res = await fetch(`${ENDPOINTS.gateway}${endpoint}${params}`, { signal })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err?.error?.message || err?.detail || `HTTP ${res.status}`)
+        const detail = typeof err?.detail === 'string'
+          ? err.detail
+          : err?.detail?.message
+        throw new Error(err?.error?.message || detail || `HTTP ${res.status}`)
       }
       const payload = await res.json()
       const rawRows: unknown[] = Array.isArray(payload)
@@ -175,6 +185,7 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
   const pickSide = match.bet_side
     ? match.bet_side.toUpperCase()
     : autoSide
+  const dataStatus = match.data_status || (match.source && match.source !== 'test' ? 'LIVE' : 'UNAVAILABLE')
 
   return (
     <motion.div
@@ -199,6 +210,13 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
       <div className="flex items-center justify-between mb-3.5 gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[10px] font-medium text-white/35 uppercase tracking-wider truncate">{match.league}</span>
+          <span className={cn(
+            'px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide',
+            dataStatus === 'LIVE' ? 'bg-emerald-500/15 text-emerald-300' :
+            dataStatus === 'CACHED' ? 'bg-sky-500/15 text-sky-300' :
+            dataStatus === 'DEGRADED' ? 'bg-amber-500/15 text-amber-300' :
+            'bg-white/8 text-white/35',
+          )}>{dataStatus}</span>
           <span className="text-white/15">·</span>
           <span className="text-[10px] text-white/30 shrink-0 flex items-center gap-1">
             <Clock className="w-2.5 h-2.5" />
@@ -429,7 +447,7 @@ export default function Matches() {
               {search && <span className="text-white/25"> · searching "{search}"</span>}
             </p>
             <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Live data
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Provider data
             </span>
           </div>
         )}
