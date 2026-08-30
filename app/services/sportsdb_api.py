@@ -372,12 +372,6 @@ async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
             r = await client.get(url)
             if r.status_code == 429:
                 retry_after = r.headers.get("retry-after", "?")
-            # honour the retry-after header (cap at 30s to avoid stalling startup)
-                try:
-                    _ra = int(r.headers.get("retry-after", "5"))
-                    import asyncio as _a; await _a.sleep(min(_ra, 30))
-                except Exception:
-                    pass
                 logger.warning(
                     "[sportsdb] rate-limited (429) on %s (retry-after=%s) — skipping",
                     path, retry_after,
@@ -399,23 +393,30 @@ async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
 
 
 async def fetch_next_events() -> List[Dict]:
-    """Fetch the next scheduled events for every tracked league — SEQUENTIALLY.
-
-    Uses eventsnextleague.php which specifically returns upcoming (future) fixtures.
-    Sequential with 2s delays to respect the free-tier rate limit.
-    """
-    events: List[Dict] = []
+    """Fetch next events with bounded concurrency and no request-time stalls."""
     league_items = list(_all_tracked_leagues().items())
-    for i, (slug, lid) in enumerate(league_items):
-        evs = await _fetch(f"eventsnextleague.php?id={lid}")
+    semaphore = asyncio.Semaphore(4)
+
+    async def fetch_league(slug: str, lid: str) -> List[Dict]:
+        async with semaphore:
+            evs = await _fetch(f"eventsnextleague.php?id={lid}", timeout=8)
+        mapped_events: List[Dict] = []
         for ev in evs:
             mapped = _map_event(ev)
             if mapped:
                 if not mapped.get("league") or mapped["league"] == "unknown":
                     mapped["league"] = slug
-                events.append(mapped)
-        if i < len(league_items) - 1:
-            await asyncio.sleep(2.5)
+                mapped_events.append(mapped)
+        return mapped_events
+
+    batches = await asyncio.gather(
+        *(fetch_league(slug, lid) for slug, lid in league_items),
+        return_exceptions=True,
+    )
+    events: List[Dict] = []
+    for batch in batches:
+        if isinstance(batch, list):
+            events.extend(batch)
     logger.info("[sportsdb] fetch_next_events: %d events across %d leagues", len(events), len(league_items))
     return events
 
