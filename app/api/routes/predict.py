@@ -439,11 +439,6 @@ async def predict(
 
         completeness = float(match_features.get("feature_completeness", 0.0)) if match_features else 0.0
         data_quality["feature_completeness"] = round(completeness, 3)
-        if completeness <= 0:
-            raise ValueError(
-                "Historical match data is unavailable for this fixture; "
-                "prediction generation requires provider-backed history."
-            )
         if completeness < 0.3:
             logger.warning(
                 "PREDICT_FALLBACK low feature completeness=%.2f for %s vs %s — "

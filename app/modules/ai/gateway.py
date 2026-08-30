@@ -69,7 +69,8 @@ class AIGateway:
             logger.info(f"[AIGateway] Manual route triggered for model {manual_model_id}")
             if "llm" in manual_model_id or manual_model_id == "vit-ai":
                 try:
-                    response = await vit_ai_client.call_ai(prompt, model=manual_model_id, intent=intent, **kwargs)
+                    kwargs_clean = {k: v for k, v in kwargs.items() if k != "intent"}
+                    response = await vit_ai_client.call_ai(prompt, model=manual_model_id, intent=intent, **kwargs_clean)
                     return self._wrap_response(response, "vit-ai", manual_model_id, t0)
                 except Exception as e:
                     logger.warning(f"[AIGateway] External call failed, falling back to local ensemble: {e}")
@@ -77,7 +78,7 @@ class AIGateway:
             orch = get_orchestrator()
             if orch:
                 try:
-                    res = await orch.predict({"prompt": prompt, "market_odds": {}}, "manual_gate_id")
+                    res = await orch.predict({"prompt": prompt, "market_odds": kwargs.get("market_odds") or {"home": 2.0, "draw": 3.0, "away": 3.5}}, "manual_gate_id")
                     pred = res.get("predictions", {})
                     formatted = f"Ensemble prediction: Win probability Home={pred.get('home_prob')}, Draw={pred.get('draw_prob')}, Away={pred.get('away_prob')}"
                     return self._wrap_response(formatted, "local_orchestrator", manual_model_id, t0)
@@ -89,7 +90,7 @@ class AIGateway:
             logger.info("[AIGateway] Fastest route chosen. Routing directly to local XGBoost / Logistic regressor.")
             orch = get_orchestrator()
             if orch:
-                res = await orch.predict({"prompt": prompt, "market_odds": {}}, "fastest_gate_id")
+                res = await orch.predict({"prompt": prompt, "market_odds": kwargs.get("market_odds") or {"home": 2.0, "draw": 3.0, "away": 3.5}}, "fastest_gate_id")
                 pred = res.get("predictions", {})
                 formatted = f"Fast-route prediction generated. Home Win Prob: {pred.get('home_prob', 0)*100:.1f}%, Draw: {pred.get('draw_prob', 0)*100:.1f}%, Away: {pred.get('away_prob', 0)*100:.1f}%."
                 return self._wrap_response(formatted, "local_orchestrator", "xgb_v2", t0)
@@ -99,7 +100,7 @@ class AIGateway:
             logger.info("[AIGateway] Cheapest route chosen. Routing locally to preserve external tokens.")
             orch = get_orchestrator()
             if orch:
-                res = await orch.predict({"prompt": prompt, "market_odds": {}}, "cheapest_gate_id")
+                res = await orch.predict({"prompt": prompt, "market_odds": kwargs.get("market_odds") or {"home": 2.0, "draw": 3.0, "away": 3.5}}, "cheapest_gate_id")
                 pred = res.get("predictions", {})
                 formatted = f"Cheapest local route: Home={pred.get('home_prob')} | Draw={pred.get('draw_prob')} | Away={pred.get('away_prob')}"
                 return self._wrap_response(formatted, "local_orchestrator", "poisson_v2", t0)
@@ -118,7 +119,8 @@ class AIGateway:
         logger.info(f"[AIGateway] Ensemble consensus route activated for model {target_model}.")
 
         try:
-            response = await vit_ai_client.call_ai(prompt, model=target_model, intent=intent, **kwargs)
+            kwargs_clean = {k: v for k, v in kwargs.items() if k != "intent"}
+            response = await vit_ai_client.call_ai(prompt, model=target_model, intent=intent, **kwargs_clean)
             return self._wrap_response(response, "vit-ai", target_model, t0)
         except Exception as e:
             logger.warning(f"[AIGateway] External call failed. Falling back to local orchestrator: {e}")
@@ -127,7 +129,8 @@ class AIGateway:
         if orch:
             try:
                 from app.services.ai_client import call_ai as call_ai_local
-                response = await call_ai_local(prompt, intent=intent, **kwargs)
+                kwargs_clean = {k: v for k, v in kwargs.items() if k != "intent"}
+                response = await call_ai_local(prompt, intent=intent, **kwargs_clean)
                 return self._wrap_response(response, "local_orchestrator", "ensemble_v2", t0, is_fallback=True)
             except Exception as e:
                 logger.error(f"[AIGateway] Local ensemble fallback failed: {e}")
