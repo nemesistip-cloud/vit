@@ -11,23 +11,21 @@ echo "[production] VIT Network startup — port ${PORT}"
 # ── DB setup ──────────────────────────────────────────────────────────────────
 DATABASE_URL="${DATABASE_URL:-}"
 if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
-    # init_db.py creates the core tables (users, audit_logs, wallets, etc.) that
-    # auth routes depend on.  Run it synchronously BEFORE uvicorn starts so that
-    # the very first login/register request never hits a missing table.
-    echo "[production] Running DB table bootstrap (init_db.py) — blocking until complete..."
-    python3 scripts/init_db.py \
-      || echo "[production] WARNING: init_db failed — schema may be incomplete." >&2
-
-    echo "[production] Running pre-flight schema guard (ensure_columns.py)..."
-    python3 scripts/ensure_columns.py \
-      || { echo "[production] ERROR: ensure_columns failed — refusing to start." >&2; exit 1; }
-
-    echo "[production] Running production-safe migrations (run_migrations.py)..."
-    python3 scripts/run_migrations.py \
-      || { echo "[production] ERROR: migrations failed — refusing to start." >&2; exit 1; }
-
-    # Non-critical seed and reconciliation steps may run after the schema is ready.
+    # Run DB setup asynchronously in background so uvicorn binds immediately and
+    # Render port scan never times out waiting for remote DB connection/lock.
     (
+      echo "[production] [bg] Running DB table bootstrap (init_db.py)..."
+      python3 scripts/init_db.py \
+        || echo "[production] [bg] WARNING: init_db failed — schema may be incomplete." >&2
+
+      echo "[production] [bg] Running pre-flight schema guard (ensure_columns.py)..."
+      python3 scripts/ensure_columns.py \
+        || echo "[production] [bg] WARNING: ensure_columns failed." >&2
+
+      echo "[production] [bg] Running production-safe migrations (run_migrations.py)..."
+      python3 scripts/run_migrations.py \
+        || echo "[production] [bg] WARNING: migrations failed." >&2
+
       # ── Fresh-start user reset ─────────────────────────────────────────────
       # Only executes when RESET_USERS_ON_BOOT=true.
       # Clears all user accounts so a fresh admin can be created below.
