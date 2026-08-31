@@ -169,3 +169,25 @@ def test_model_independence_and_probability_validation():
     assert 0.0 <= res1["predictions"]["home_prob"] <= 1.0
     assert 0.0 <= res1["predictions"]["draw_prob"] <= 1.0
     assert 0.0 <= res1["predictions"]["away_prob"] <= 1.0
+
+
+@pytest.mark.asyncio
+async def test_compare_odds_endpoint_fallback(httpx_app=None):
+    from httpx import AsyncClient, ASGITransport
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.get("/api/odds/compare?sport=football")
+        assert res.status_code == 200
+        data = res.json()
+        assert "events" in data
+        assert "odds" in data
+        assert "data_status" in data
+        assert isinstance(data["events"], list)
+        if len(data["events"]) > 0:
+            first = data["events"][0]
+            assert "home_team" in first
+            assert "away_team" in first
+            assert "bookmakers" in first
+            assert "ai_pick" in first
+            assert "best_ev" in first

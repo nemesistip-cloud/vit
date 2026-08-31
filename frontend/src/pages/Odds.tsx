@@ -38,11 +38,38 @@ function useOdds(sport: string, search: string) {
   return useQuery<OddsEntry[]>({
     queryKey: ['odds', sport],
     queryFn: async ({ signal }) => {
-      const params = sport !== 'all' ? `?sport=${sport}` : ''
-      const r = await fetch(`${ENDPOINTS.gateway}/api/odds/compare${params}`, { signal, headers: authHeaders() })
-      if (!r.ok) return []
-      const d = await r.json()
-      return Array.isArray(d) ? d : d.odds ?? d.matches ?? d.items ?? []
+      const queryParams = new URLSearchParams()
+      if (sport && sport !== 'all') {
+        queryParams.set('sport', sport)
+        queryParams.set('league', sport)
+      }
+      const qs = queryParams.toString() ? `?${queryParams.toString()}` : ''
+      try {
+        const r = await fetch(`${ENDPOINTS.gateway}/api/odds/compare${qs}`, { signal, headers: authHeaders() })
+        if (!r.ok) return []
+        const d = await r.json()
+        const rawList = Array.isArray(d) ? d : d.odds ?? d.events ?? d.matches ?? d.items ?? []
+        return rawList.map((item: any) => ({
+          match_id: item.match_id ?? item.id ?? `${item.home_team}::${item.away_team}`,
+          home_team: item.home_team ?? '',
+          away_team: item.away_team ?? '',
+          league: item.league ?? item.sport_key ?? 'Sports',
+          kickoff_time: item.kickoff_time ?? item.kickoff ?? item.commence_time ?? new Date().toISOString(),
+          ai_pick: item.ai_pick,
+          ai_confidence: item.ai_confidence,
+          best_ev: item.best_ev,
+          bookmakers: Array.isArray(item.bookmakers)
+            ? item.bookmakers
+            : Object.entries(item.bookmakers ?? {}).map(([bk, val]: [string, any]) => ({
+                bookmaker: bk,
+                home: val.home ?? 1.0,
+                draw: val.draw ?? null,
+                away: val.away ?? 1.0,
+              })),
+        }))
+      } catch (e) {
+        return []
+      }
     },
     staleTime: 120_000,
     refetchInterval: 120_000,
