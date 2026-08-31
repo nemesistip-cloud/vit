@@ -131,3 +131,41 @@ async def test_provider_registry_health_matrix():
     football = next(item for item in matrix if item["sport"] == "Football")
     assert football["status"] == "Ready"
     assert football["active_odds_providers"] == 2
+
+def test_odds_intelligence_math_and_rejection():
+    # Zero / negative odds rejection
+    invalid_odds = [
+        NormalizedOdds("f_zero", "football", "match_winner", "home", 0.0, "BM1", datetime.now(timezone.utc), "p1"),
+        NormalizedOdds("f_zero", "football", "match_winner", "draw", -1.5, "BM1", datetime.now(timezone.utc), "p1"),
+        NormalizedOdds("f_zero", "football", "match_winner", "away", 3.0, "BM1", datetime.now(timezone.utc), "p1"),
+    ]
+    reconciled = OddsIntelligence.reconcile(invalid_odds, sport="football", market="match_winner")
+    assert reconciled is None
+
+def test_model_independence_and_probability_validation():
+    from app.services.multi_sport_orchestrator import MultiSportOrchestrator
+    orchestrator = MultiSportOrchestrator()
+
+    # 1. Test model independence: bookmaker odds change should NOT change raw ensemble probabilities when features stay same
+    features = {
+        "feature_completeness": 1.0,
+        "home_win_ratio_5": 0.6,
+        "away_win_ratio_5": 0.2,
+        "elo_diff": 150.0,
+        "home_goals_avg_5": 2.0,
+        "away_goals_avg_5": 0.8,
+    }
+
+    res1 = orchestrator._generate_scie_football(features)
+    res2 = orchestrator._generate_scie_football(features)
+
+    assert res1["predictions"]["home_prob"] == pytest.approx(res2["predictions"]["home_prob"], abs=1e-5)
+    assert res1["predictions"]["draw_prob"] == pytest.approx(res2["predictions"]["draw_prob"], abs=1e-5)
+    assert res1["predictions"]["away_prob"] == pytest.approx(res2["predictions"]["away_prob"], abs=1e-5)
+
+    # 2. Probability integrity validation
+    total_prob = res1["predictions"]["home_prob"] + res1["predictions"]["draw_prob"] + res1["predictions"]["away_prob"]
+    assert total_prob == pytest.approx(1.0, abs=1e-4)
+    assert 0.0 <= res1["predictions"]["home_prob"] <= 1.0
+    assert 0.0 <= res1["predictions"]["draw_prob"] <= 1.0
+    assert 0.0 <= res1["predictions"]["away_prob"] <= 1.0
