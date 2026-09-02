@@ -1,46 +1,56 @@
-import { useState, type MouseEvent } from 'react'
+import { useState, type MouseEvent, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Zap, Clock, Trophy, Target, Activity,
-  X, ChevronRight, AlertTriangle, Radio,
+  Zap, Clock, Target, Activity,
+  X, AlertTriangle, Radio, ShieldCheck, Database, Calendar
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
 import { authHeaders, getAuthToken } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui/Spinner'
 import { useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface LiveMatch {
   id: string
+  provider: string
+  provider_match_id: string
   home: string
   away: string
   league: string
+  sport: string
+  status: 'LIVE' | 'UPCOMING' | 'FINISHED' | 'DATA_UNAVAILABLE'
   minute: number
   home_score: number
   away_score: number
-  status: string
   period: string
+  kickoff_time?: string
+  source_timestamp: number
+  ingestion_timestamp: number
+  last_successful_update: number
+  markets_available: boolean
 }
 
 interface Selection {
   id: string
   label: string
   odds: number
+  source: string
 }
 
 interface Market {
   id: string
   match_id: string
   type: string
-  status: string
+  status: 'open' | 'suspended' | 'closed' | 'unavailable'
   home: string
   away: string
   selections: Selection[]
   updated_at: number
+  odds_source: string
+  odds_timestamp: number
 }
 
 interface Bet {
@@ -52,6 +62,7 @@ interface Bet {
   potential_win: number
   placed_at: number
   status: string
+  provider?: string
 }
 
 interface InPlayStats {
@@ -59,6 +70,16 @@ interface InPlayStats {
   open_markets: number
   total_bets: number
   total_staked: number
+  last_sync: number
+}
+
+interface MatchesApiResponse {
+  matches: LiveMatch[]
+  upcoming: LiveMatch[]
+  total_live: number
+  total_upcoming: number
+  is_live_available: boolean
+  timestamp: number
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────────────────
@@ -66,11 +87,11 @@ interface InPlayStats {
 const BASE = () => `${ENDPOINTS.gateway}/api/inplay`
 
 function useLiveMatches() {
-  return useQuery({
+  return useQuery<MatchesApiResponse>({
     queryKey: ['inplay-matches'],
     queryFn: async ({ signal }) => {
       const r = await fetch(`${BASE()}/matches`, { signal })
-      return r.ok ? r.json() : { matches: [] }
+      return r.ok ? r.json() : { matches: [], upcoming: [], total_live: 0, total_upcoming: 0, is_live_available: false, timestamp: Date.now() / 1000 }
     },
     refetchInterval: 10_000,
     retry: false,
@@ -78,12 +99,12 @@ function useLiveMatches() {
 }
 
 function useMatchMarkets(matchId: string | null) {
-  return useQuery({
+  return useQuery<{ match_id: string; provider: string; markets: Market[] }>({
     queryKey: ['inplay-markets', matchId],
     queryFn: async ({ signal }) => {
-      if (!matchId) return { markets: [] }
+      if (!matchId) return { match_id: '', provider: '', markets: [] }
       const r = await fetch(`${BASE()}/matches/${matchId}/markets`, { signal })
-      return r.ok ? r.json() : { markets: [] }
+      return r.ok ? r.json() : { match_id: matchId, provider: '', markets: [] }
     },
     enabled: !!matchId,
     refetchInterval: 8_000,
@@ -115,10 +136,10 @@ function useInPlayStats() {
 // ── Market type label ─────────────────────────────────────────────────────────
 
 const MARKET_LABELS: Record<string, string> = {
-  match_result: 'Match Result',
+  match_result: 'Match Result (1X2)',
   next_goal:    'Next Goal',
-  total_goals:  'Total Goals',
-  btts:         'Both To Score',
+  total_goals:  'Total Goals (Over/Under)',
+  btts:         'Both Teams To Score',
 }
 
 // ── Bet slip ──────────────────────────────────────────────────────────────────
@@ -179,7 +200,6 @@ function BetSlip({ market, selection, onClose }: BetSlipProps) {
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Selection summary */}
           <div className="bg-white/5 rounded-xl p-3">
             <p className="text-xs text-white/40 mb-1">{MARKET_LABELS[market.type] ?? market.type}</p>
             <p className="font-semibold text-white">{selection.label}</p>
@@ -189,7 +209,6 @@ function BetSlip({ market, selection, onClose }: BetSlipProps) {
             </div>
           </div>
 
-          {/* Stake input */}
           <div>
             <label className="block text-xs font-medium text-white/50 mb-1.5">Stake (VIT)</label>
             <input
@@ -244,6 +263,8 @@ function BetSlip({ market, selection, onClose }: BetSlipProps) {
 // ── Match card ────────────────────────────────────────────────────────────────
 
 function MatchCard({ match, selected, onSelect }: { match: LiveMatch; selected: boolean; onSelect: () => void }) {
+  const isLive = match.status === 'LIVE'
+
   return (
     <button
       onClick={onSelect}
@@ -257,23 +278,44 @@ function MatchCard({ match, selected, onSelect }: { match: LiveMatch; selected: 
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-white/40">{match.league}</span>
         <div className="flex items-center gap-1.5">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          </span>
-          <span className="text-xs font-medium text-red-400">{match.minute}'</span>
+          {isLive ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+              </span>
+              <span className="text-xs font-medium text-red-400">{match.minute}'</span>
+            </>
+          ) : (
+            <span className="text-xs font-medium text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+              UPCOMING
+            </span>
+          )}
         </div>
       </div>
       <div className="flex items-center justify-between">
         <span className="font-semibold text-sm text-white truncate max-w-[40%]">{match.home}</span>
-        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg">
-          <span className="text-lg font-bold text-white">{match.home_score}</span>
-          <span className="text-white/40 text-sm">-</span>
-          <span className="text-lg font-bold text-white">{match.away_score}</span>
-        </div>
+        {isLive ? (
+          <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg">
+            <span className="text-lg font-bold text-white">{match.home_score}</span>
+            <span className="text-white/40 text-sm">-</span>
+            <span className="text-lg font-bold text-white">{match.away_score}</span>
+          </div>
+        ) : (
+          <span className="text-xs text-white/40 px-2 py-1 bg-white/5 rounded">VS</span>
+        )}
         <span className="font-semibold text-sm text-white truncate max-w-[40%] text-right">{match.away}</span>
       </div>
-      <p className="text-xs text-white/30 mt-1.5 capitalize">{match.period.replace('_', ' ')}</p>
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[10px] text-white/30">
+        <span className="flex items-center gap-1">
+          <Database className="w-3 h-3" /> Source: {match.provider}
+        </span>
+        {match.kickoff_time && (
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" /> {new Date(match.kickoff_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        )}
+      </div>
     </button>
   )
 }
@@ -293,31 +335,36 @@ function MarketPanel({ matchId }: { matchId: string }) {
       {markets.map(mk => (
         <div key={mk.id} className="bg-white/3 border border-white/8 rounded-xl overflow-hidden">
           <div className="px-4 py-2.5 border-b border-white/5 flex items-center justify-between">
-            <span className="text-sm font-medium text-white">{MARKET_LABELS[mk.type] ?? mk.type}</span>
+            <div>
+              <span className="text-sm font-medium text-white">{MARKET_LABELS[mk.type] ?? mk.type}</span>
+              <span className="text-[10px] text-white/30 ml-2">Source: {mk.odds_source}</span>
+            </div>
             <span className={cn(
-              'px-2 py-0.5 rounded-full text-xs',
-              mk.status === 'open'
-                ? 'bg-emerald-500/15 text-emerald-400'
-                : 'bg-amber-500/15 text-amber-400',
+              'px-2 py-0.5 rounded-full text-xs font-semibold',
+              mk.status === 'open' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' :
+              mk.status === 'unavailable' ? 'bg-white/5 text-white/30 border border-white/10' :
+              'bg-amber-500/15 text-amber-400 border border-amber-500/30',
             )}>
-              {mk.status}
+              {mk.status.toUpperCase()}
             </span>
           </div>
           <div className="p-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {mk.selections.map(sel => (
               <button
                 key={sel.id}
-                onClick={() => mk.status === 'open' && setBetSlip({ market: mk, selection: sel })}
-                disabled={mk.status !== 'open'}
+                onClick={() => mk.status === 'open' && sel.odds > 1.0 && setBetSlip({ market: mk, selection: sel })}
+                disabled={mk.status !== 'open' || sel.odds <= 1.0}
                 className={cn(
                   'flex flex-col items-center p-3 rounded-lg border text-sm font-medium transition-all',
-                  mk.status === 'open'
+                  mk.status === 'open' && sel.odds > 1.0
                     ? 'bg-white/5 border-white/10 hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-300 text-white cursor-pointer'
-                    : 'bg-white/3 border-white/5 text-white/30 cursor-not-allowed',
+                    : 'bg-white/2 border-white/5 text-white/20 cursor-not-allowed',
                 )}
               >
                 <span className="text-xs text-white/50 mb-1 text-center leading-tight">{sel.label}</span>
-                <span className="text-base font-bold text-amber-400">{sel.odds}</span>
+                <span className="text-base font-bold text-amber-400">
+                  {sel.odds > 1.0 ? sel.odds : 'N/A'}
+                </span>
               </button>
             ))}
           </div>
@@ -352,13 +399,16 @@ export default function InPlay() {
   const { data: betsData }   = useMyBets()
   const { data: stats }      = useInPlayStats()
 
-  const matches: LiveMatch[] = matchesData?.matches ?? []
-  const bets:    Bet[]       = betsData?.bets ?? []
+  const liveMatches: LiveMatch[] = matchesData?.matches ?? []
+  const upcomingMatches: LiveMatch[] = matchesData?.upcoming ?? []
+  const bets: Bet[] = betsData?.bets ?? []
+
+  const displayMatches = liveMatches.length > 0 ? liveMatches : upcomingMatches
 
   // Auto-select first match
   useEffect(() => {
-    if (!selectedMatch && matches.length > 0) setSelectedMatch(matches[0].id)
-  }, [matches, selectedMatch])
+    if (!selectedMatch && displayMatches.length > 0) setSelectedMatch(displayMatches[0].id)
+  }, [displayMatches, selectedMatch])
 
   return (
     <div className="min-h-screen bg-surface-950 pt-24 pb-16">
@@ -373,7 +423,12 @@ export default function InPlay() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">Live In-Play Markets</h1>
-                <p className="text-white/50 text-sm">Real-time prediction markets on ongoing matches</p>
+                <p className="text-white/50 text-sm flex items-center gap-2">
+                  <span>Verified real-time prediction feeds</span>
+                  <span className="flex items-center gap-1 text-emerald-400 text-xs bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                    <ShieldCheck className="w-3 h-3" /> ZERO SIMULATED DATA
+                  </span>
+                </p>
               </div>
             </div>
           </div>
@@ -381,10 +436,10 @@ export default function InPlay() {
           {stats && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'Live Matches',   value: stats.live_matches,              color: 'text-red-400' },
-                { label: 'Open Markets',   value: stats.open_markets,              color: 'text-emerald-400' },
-                { label: 'Total Bets',     value: stats.total_bets,                color: 'text-white' },
-                { label: 'Total Staked',   value: `${stats.total_staked} VIT`,     color: 'text-vit-400' },
+                { label: 'Live Matches',   value: stats.live_matches,          color: 'text-red-400' },
+                { label: 'Open Markets',   value: stats.open_markets,          color: 'text-emerald-400' },
+                { label: 'Total Bets',     value: stats.total_bets,            color: 'text-white' },
+                { label: 'Total Staked',   value: `${stats.total_staked} VIT`, color: 'text-vit-400' },
               ].map(s => (
                 <div key={s.label} className="bg-white/3 border border-white/8 rounded-xl p-3 text-center">
                   <p className={cn('text-lg font-bold', s.color)}>{s.value}</p>
@@ -398,16 +453,36 @@ export default function InPlay() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Match list */}
           <div className="lg:col-span-1">
-            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">Live Matches</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">
+                {liveMatches.length > 0 ? 'Live In-Play Matches' : 'Upcoming Fixtures'}
+              </h2>
+              {liveMatches.length > 0 && (
+                <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded font-bold">
+                  {liveMatches.length} LIVE
+                </span>
+              )}
+            </div>
+
             {matchesLoading && <div className="flex justify-center py-6"><Spinner className="w-5 h-5 text-vit-400" /></div>}
-            {!matchesLoading && matches.length === 0 && (
-              <div className="text-center py-10">
+
+            {!matchesLoading && liveMatches.length === 0 && upcomingMatches.length === 0 && (
+              <div className="text-center py-10 bg-white/2 border border-white/5 rounded-xl p-4">
                 <Activity className="w-8 h-8 text-white/20 mx-auto mb-2" />
-                <p className="text-white/40 text-sm">No live matches right now</p>
+                <p className="text-white/80 font-semibold text-sm">No live matches currently in play</p>
+                <p className="text-white/40 text-xs mt-1">No ongoing real-world matches were found across connected provider feeds.</p>
               </div>
             )}
+
+            {!matchesLoading && liveMatches.length === 0 && upcomingMatches.length > 0 && (
+              <div className="mb-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 flex items-center gap-2">
+                <Calendar className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>No matches are currently in-play. Showing upcoming verified real fixtures.</span>
+              </div>
+            )}
+
             <div className="space-y-2">
-              {matches.map(m => (
+              {displayMatches.map(m => (
                 <MatchCard
                   key={m.id}
                   match={m}
@@ -448,14 +523,14 @@ export default function InPlay() {
                 {bets.length === 0 && (
                   <div className="text-center py-12">
                     <Target className="w-8 h-8 text-white/20 mx-auto mb-2" />
-                    <p className="text-white/40 text-sm">No bets placed yet</p>
+                    <p className="text-white/40 text-sm">No in-play bets placed yet</p>
                   </div>
                 )}
                 {bets.map(b => (
                   <div key={b.id} className="flex items-center justify-between p-3 bg-white/3 border border-white/8 rounded-xl">
                     <div>
                       <p className="text-sm font-medium text-white">{b.selection}</p>
-                      <p className="text-xs text-white/40">Stake: {b.stake} VIT · @{b.odds}</p>
+                      <p className="text-xs text-white/40">Stake: {b.stake} VIT · @{b.odds} · Provider: {b.provider || 'system'}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-vit-300">{(b.potential_win ?? 0).toFixed(2)} VIT</p>

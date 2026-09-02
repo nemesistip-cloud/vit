@@ -1,206 +1,269 @@
 # app/modules/inplay/routes.py
 """
 Live In-Play Prediction Markets — Phase VIII
-Real-time markets for ongoing matches: bet on next scorer, HT/FT,
-corners, cards, and more. Markets open/close automatically with
-match clock. Odds update on a simulated tick (replace with live
-feed adapter in production).
+
+Real-time prediction markets backed exclusively by verified external providers (Football-Data.org,
+iSports) and persistent database matches.
+
+STRICT GUARANTEES:
+1. Zero synthetic, fake, simulated, or demo live matches are ever created or served.
+2. If zero matches are live, returns an empty list for live matches and provides verified upcoming fixtures.
+3. In-play markets (1X2, Next Goal, Total Goals, BTTS) are strictly derived from real match state
+   and verified provider odds, or marked as unavailable/suspended.
+4. Full provenance tracking (provider name, provider match ID, ingestion timestamp, odds timestamp).
 """
 
 from __future__ import annotations
 
 import logging
-import math
-import random
 import time
 import uuid
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
 from app.db.models import User
+from app.services.live_match_ingestion import (
+    live_ingestion_service,
+    CanonicalLiveMatch,
+    LiveMarket,
+    LiveSelection,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/inplay", tags=["In-Play"])
 
-# ── Synthetic live match store ────────────────────────────────────────────────
-_LIVE_MATCHES: List[dict] = [
-    {
-        "id":        "lm-001",
-        "home":      "Manchester City",
-        "away":      "Arsenal",
-        "league":    "Premier League",
-        "minute":    67,
-        "home_score": 1,
-        "away_score": 1,
-        "status":    "in_progress",
-        "period":    "second_half",
-        "started_at": time.time() - 67 * 60,
-    },
-    {
-        "id":        "lm-002",
-        "home":      "Real Madrid",
-        "away":      "Barcelona",
-        "league":    "La Liga",
-        "minute":    38,
-        "home_score": 2,
-        "away_score": 0,
-        "status":    "in_progress",
-        "period":    "first_half",
-        "started_at": time.time() - 38 * 60,
-    },
-    {
-        "id":        "lm-003",
-        "home":      "Bayern Munich",
-        "away":      "Borussia Dortmund",
-        "league":    "Bundesliga",
-        "minute":    82,
-        "home_score": 3,
-        "away_score": 2,
-        "status":    "in_progress",
-        "period":    "second_half",
-        "started_at": time.time() - 82 * 60,
-    },
-]
-
-# market_id → market dict
-_MARKETS: Dict[str, dict] = {}
-
 # user bets: user_id → [ bet ]
 _BETS: Dict[int, List[dict]] = {}
 
 
-def _init_markets():
-    """Seed markets for live matches."""
-    for m in _LIVE_MATCHES:
-        mins_left = 90 - m["minute"]
-        for market_type in ["match_result", "next_goal", "total_goals", "btts"]:
-            mk_id = f"{m['id']}-{market_type}"
-            if mk_id in _MARKETS:
-                continue
-            _MARKETS[mk_id] = {
-                "id":           mk_id,
-                "match_id":     m["id"],
-                "type":         market_type,
-                "status":       "open" if mins_left > 2 else "suspended",
-                "home":         m["home"],
-                "away":         m["away"],
-                "selections":   _build_selections(m, market_type),
-                "updated_at":   time.time(),
-            }
+# ── Market derivation from verified match state ───────────────────────────────
 
+def _derive_live_markets(match: CanonicalLiveMatch) -> List[dict]:
+    """
+    Derive 1X2, Next Goal, Total Goals, and BTTS markets from real match state and odds.
+    If market odds cannot be reliably derived from provider data or match state, mark as unavailable.
+    """
+    now = time.time()
+    markets: List[dict] = []
 
-def _build_selections(match: dict, market_type: str) -> List[dict]:
-    h, a = match["home_score"], match["away_score"]
-    mins_left = max(1, 90 - match["minute"])
-    # Very rough in-play odds
-    if market_type == "match_result":
-        base_h = 1.5 + (a - h) * 0.3
-        base_d = 3.2
-        base_a = 1.5 + (h - a) * 0.3
-        return [
-            {"label": match["home"], "odds": round(max(1.05, base_h + random.uniform(-0.1, 0.1)), 2), "id": "home"},
-            {"label": "Draw",        "odds": round(max(1.05, base_d + random.uniform(-0.2, 0.2)), 2), "id": "draw"},
-            {"label": match["away"], "odds": round(max(1.05, base_a + random.uniform(-0.1, 0.1)), 2), "id": "away"},
-        ]
-    elif market_type == "next_goal":
-        return [
-            {"label": f"{match['home']} next",  "odds": round(1.8 + random.uniform(-0.2, 0.2), 2), "id": "home_next"},
-            {"label": f"{match['away']} next",  "odds": round(2.1 + random.uniform(-0.2, 0.2), 2), "id": "away_next"},
-            {"label": "No more goals",          "odds": round(2.9 + random.uniform(-0.3, 0.3), 2), "id": "no_goal"},
-        ]
-    elif market_type == "total_goals":
-        current = h + a
-        return [
-            {"label": f"Over {current + 0.5}",  "odds": round(1.65 + random.uniform(-0.15, 0.15), 2), "id": "over"},
-            {"label": f"Under {current + 0.5}", "odds": round(2.25 + random.uniform(-0.15, 0.15), 2), "id": "under"},
-        ]
-    else:  # btts
-        return [
-            {"label": "Both To Score",      "odds": round(1.72 + random.uniform(-0.1, 0.1), 2), "id": "yes"},
-            {"label": "Not Both To Score",  "odds": round(2.05 + random.uniform(-0.1, 0.1), 2), "id": "no"},
-        ]
+    is_open = match.status == "LIVE" and match.markets_available and match.minute < 88
 
+    # 1. Match Result (1X2)
+    # Check if raw provider odds exist
+    raw_odds = match.raw_odds or {}
+    h_odds = raw_odds.get("home") or raw_odds.get("1")
+    d_odds = raw_odds.get("draw") or raw_odds.get("X")
+    a_odds = raw_odds.get("away") or raw_odds.get("2")
 
-_init_markets()
+    # If match is live and no raw odds are provided, mark market status accordingly
+    mk_1x2_status = "open" if (is_open and h_odds and d_odds and a_odds) else ("suspended" if is_open else "closed")
+
+    selections_1x2 = []
+    if h_odds and d_odds and a_odds:
+        selections_1x2 = [
+            {"id": "home", "label": match.home, "odds": round(float(h_odds), 2), "source": match.provider},
+            {"id": "draw", "label": "Draw", "odds": round(float(d_odds), 2), "source": match.provider},
+            {"id": "away", "label": match.away, "odds": round(float(a_odds), 2), "source": match.provider},
+        ]
+    else:
+        # Mark selections as unavailable if no provider odds
+        selections_1x2 = [
+            {"id": "home", "label": match.home, "odds": 0.0, "source": "unavailable"},
+            {"id": "draw", "label": "Draw", "odds": 0.0, "source": "unavailable"},
+            {"id": "away", "label": match.away, "odds": 0.0, "source": "unavailable"},
+        ]
+        if is_open:
+            mk_1x2_status = "unavailable"
+
+    markets.append({
+        "id": f"{match.id}-match_result",
+        "match_id": match.id,
+        "type": "match_result",
+        "status": mk_1x2_status,
+        "home": match.home,
+        "away": match.away,
+        "selections": selections_1x2,
+        "updated_at": now,
+        "odds_source": match.provider if (h_odds and d_odds and a_odds) else "none",
+        "odds_timestamp": match.source_timestamp,
+    })
+
+    # 2. Next Goal Market
+    ng_status = "open" if (is_open and match.minute < 85) else ("suspended" if is_open else "closed")
+    ng_odds = raw_odds.get("next_goal", {})
+    markets.append({
+        "id": f"{match.id}-next_goal",
+        "match_id": match.id,
+        "type": "next_goal",
+        "status": ng_status if ng_odds else "unavailable",
+        "home": match.home,
+        "away": match.away,
+        "selections": [
+            {"id": "home_next", "label": f"{match.home} next", "odds": round(float(ng_odds.get("home", 0.0)), 2), "source": match.provider if ng_odds else "unavailable"},
+            {"id": "away_next", "label": f"{match.away} next", "odds": round(float(ng_odds.get("away", 0.0)), 2), "source": match.provider if ng_odds else "unavailable"},
+            {"id": "no_goal", "label": "No more goals", "odds": round(float(ng_odds.get("none", 0.0)), 2), "source": match.provider if ng_odds else "unavailable"},
+        ],
+        "updated_at": now,
+        "odds_source": match.provider if ng_odds else "none",
+        "odds_timestamp": match.source_timestamp,
+    })
+
+    # 3. Total Goals (Over/Under)
+    curr_goals = match.home_score + match.away_score
+    line = curr_goals + 0.5
+    ou_odds = raw_odds.get("total_goals", {})
+    markets.append({
+        "id": f"{match.id}-total_goals",
+        "match_id": match.id,
+        "type": "total_goals",
+        "status": "open" if (is_open and ou_odds) else ("unavailable" if is_open else "closed"),
+        "home": match.home,
+        "away": match.away,
+        "selections": [
+            {"id": "over", "label": f"Over {line}", "odds": round(float(ou_odds.get("over", 0.0)), 2), "source": match.provider if ou_odds else "unavailable"},
+            {"id": "under", "label": f"Under {line}", "odds": round(float(ou_odds.get("under", 0.0)), 2), "source": match.provider if ou_odds else "unavailable"},
+        ],
+        "updated_at": now,
+        "odds_source": match.provider if ou_odds else "none",
+        "odds_timestamp": match.source_timestamp,
+    })
+
+    # 4. Both Teams to Score (BTTS)
+    btts_odds = raw_odds.get("btts", {})
+    markets.append({
+        "id": f"{match.id}-btts",
+        "match_id": match.id,
+        "type": "btts",
+        "status": "open" if (is_open and btts_odds) else ("unavailable" if is_open else "closed"),
+        "home": match.home,
+        "away": match.away,
+        "selections": [
+            {"id": "yes", "label": "Both To Score", "odds": round(float(btts_odds.get("yes", 0.0)), 2), "source": match.provider if btts_odds else "unavailable"},
+            {"id": "no", "label": "Not Both To Score", "odds": round(float(btts_odds.get("no", 0.0)), 2), "source": match.provider if btts_odds else "unavailable"},
+        ],
+        "updated_at": now,
+        "odds_source": match.provider if btts_odds else "none",
+        "odds_timestamp": match.source_timestamp,
+    })
+
+    return markets
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class PlaceBet(BaseModel):
-    market_id:    str
+    market_id: str
     selection_id: str
-    stake:        float = Field(..., gt=0.5, description="Stake in VIT (min 0.5)")
+    stake: float = Field(..., gt=0.5, description="Stake in VIT (min 0.5)")
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.get("/matches", summary="Live matches with open markets")
+@router.get("/matches", summary="Verified live matches with open markets")
 async def live_matches():
-    # Tick match minutes forward (demo)
-    for m in _LIVE_MATCHES:
-        elapsed = int((time.time() - m["started_at"]) / 60)
-        m["minute"] = min(90, elapsed)
-        if m["minute"] >= 90:
-            m["status"] = "finished"
-    active = [m for m in _LIVE_MATCHES if m["status"] == "in_progress"]
-    return {"matches": active, "total": len(active)}
+    res = await live_ingestion_service.fetch_and_normalize_all()
+    live_list = res.get("live", [])
+    upcoming_list = res.get("upcoming", [])
+
+    return {
+        "matches": [m.dict() for m in live_list],
+        "upcoming": [m.dict() for m in upcoming_list],
+        "total_live": len(live_list),
+        "total": len(live_list),
+        "total_upcoming": len(upcoming_list),
+        "is_live_available": len(live_list) > 0,
+        "timestamp": time.time(),
+    }
 
 
-@router.get("/matches/{match_id}/markets", summary="All markets for a live match")
+@router.get("/matches/{match_id}/markets", summary="All markets for a specific live/upcoming match")
 async def get_match_markets(match_id: str):
-    markets = [m for m in _MARKETS.values() if m["match_id"] == match_id]
-    if not markets:
-        raise HTTPException(404, f"No markets for match '{match_id}'")
-    # Refresh odds on every read
-    for mk in markets:
-        match = next((m for m in _LIVE_MATCHES if m["id"] == match_id), None)
-        if match:
-            mk["selections"] = _build_selections(match, mk["type"])
-            mk["updated_at"] = time.time()
-    return {"match_id": match_id, "markets": markets}
+    res = await live_ingestion_service.fetch_and_normalize_all()
+    all_matches = res.get("live", []) + res.get("upcoming", [])
+
+    match = next((m for m in all_matches if m.id == match_id), None)
+    if not match:
+        raise HTTPException(404, f"Match '{match_id}' not found in live/upcoming feed")
+
+    markets = _derive_live_markets(match)
+    return {
+        "match_id": match_id,
+        "provider": match.provider,
+        "provider_match_id": match.provider_match_id,
+        "last_updated": match.last_successful_update,
+        "markets": markets,
+    }
 
 
-@router.get("/markets/{market_id}", summary="Get a specific market")
+@router.get("/markets/{market_id}", summary="Get a specific market details")
 async def get_market(market_id: str):
-    mk = _MARKETS.get(market_id)
+    res = await live_ingestion_service.fetch_and_normalize_all()
+    all_matches = res.get("live", []) + res.get("upcoming", [])
+
+    target_match = None
+    for m in all_matches:
+        if market_id.startswith(m.id):
+            target_match = m
+            break
+
+    if not target_match:
+        raise HTTPException(404, f"Market '{market_id}' not found")
+
+    markets = _derive_live_markets(target_match)
+    mk = next((m for m in markets if m["id"] == market_id), None)
     if not mk:
-        raise HTTPException(404, "Market not found")
-    match = next((m for m in _LIVE_MATCHES if m["id"] == mk["match_id"]), None)
-    if match:
-        mk["selections"] = _build_selections(match, mk["type"])
-        mk["updated_at"] = time.time()
+        raise HTTPException(404, f"Market '{market_id}' not found")
+
     return mk
 
 
-@router.post("/bet", summary="Place an in-play bet")
+@router.post("/bet", summary="Place an in-play bet on verified live markets")
 async def place_bet(body: PlaceBet, me: User = Depends(get_current_user)):
-    mk = _MARKETS.get(body.market_id)
-    if not mk:
-        raise HTTPException(404, "Market not found")
-    if mk["status"] != "open":
-        raise HTTPException(400, f"Market is {mk['status']}")
-    sel = next((s for s in mk["selections"] if s["id"] == body.selection_id), None)
-    if not sel:
-        raise HTTPException(400, "Selection not found in this market")
+    res = await live_ingestion_service.fetch_and_normalize_all()
+    all_matches = res.get("live", [])
+
+    target_match = None
+    target_market = None
+    for m in all_matches:
+        if body.market_id.startswith(m.id):
+            target_match = m
+            mk_list = _derive_live_markets(m)
+            target_market = next((mk for mk in mk_list if mk["id"] == body.market_id), None)
+            break
+
+    if not target_match or not target_market:
+        raise HTTPException(404, "Live market not found or match is no longer live")
+
+    if target_market["status"] != "open":
+        raise HTTPException(400, f"Market is currently {target_market['status']}")
+
+    sel = next((s for s in target_market["selections"] if s["id"] == body.selection_id), None)
+    if not sel or sel.get("odds", 0) <= 1.0:
+        raise HTTPException(400, "Selection unavailable or has invalid odds")
 
     bet = {
-        "id":           str(uuid.uuid4()),
-        "user_id":      me.id,
-        "market_id":    body.market_id,
+        "id": str(uuid.uuid4()),
+        "user_id": me.id,
+        "match_id": target_match.id,
+        "market_id": body.market_id,
         "selection_id": body.selection_id,
-        "selection":    sel["label"],
-        "odds":         sel["odds"],
-        "stake":        body.stake,
+        "selection": sel["label"],
+        "odds": sel["odds"],
+        "stake": body.stake,
         "potential_win": round(body.stake * sel["odds"], 4),
-        "placed_at":    time.time(),
-        "status":       "pending",
+        "placed_at": time.time(),
+        "status": "pending",
+        "provider": target_match.provider,
+        "provider_match_id": target_match.provider_match_id,
     }
+
     _BETS.setdefault(me.id, []).append(bet)
-    logger.info("inplay:bet user=%s market=%s stake=%.2f", me.id, body.market_id, body.stake)
+    logger.info("inplay:bet user=%s market=%s stake=%.2f provider=%s", me.id, body.market_id, body.stake, target_match.provider)
+
     return {"ok": True, "bet": bet}
 
 
@@ -217,11 +280,21 @@ async def my_bets(
 
 @router.get("/stats", summary="In-play platform stats")
 async def inplay_stats():
-    total_bets  = sum(len(v) for v in _BETS.values())
+    res = await live_ingestion_service.fetch_and_normalize_all()
+    live_matches = res.get("live", [])
+
+    total_open_markets = 0
+    for m in live_matches:
+        mks = _derive_live_markets(m)
+        total_open_markets += sum(1 for mk in mks if mk["status"] == "open")
+
+    total_bets = sum(len(v) for v in _BETS.values())
     total_stake = sum(b["stake"] for bets in _BETS.values() for b in bets)
+
     return {
-        "live_matches":  len([m for m in _LIVE_MATCHES if m["status"] == "in_progress"]),
-        "open_markets":  len([mk for mk in _MARKETS.values() if mk["status"] == "open"]),
-        "total_bets":    total_bets,
-        "total_staked":  round(total_stake, 2),
+        "live_matches": len(live_matches),
+        "open_markets": total_open_markets,
+        "total_bets": total_bets,
+        "total_staked": round(total_stake, 2),
+        "last_sync": time.time(),
     }
