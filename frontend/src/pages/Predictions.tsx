@@ -15,6 +15,27 @@ import { getAuthToken, authHeaders } from '@/hooks/useAuth'
 
 type OutcomeFilter = 'all' | 'won' | 'lost' | 'pending'
 
+function ProvenanceBadge({ source }: { source?: string }) {
+  if (!source) return null
+  const s = source.toLowerCase()
+  const isLive = s.includes('live') || s.includes('provider') || s.includes('isports')
+  const isFallback = s.includes('fallback') || s.includes('scie')
+  const isSeed = s.includes('seed') || s.includes('demo')
+
+  return (
+    <span className={cn(
+      'px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border',
+      isLive ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
+      isFallback ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
+      isSeed ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' :
+      'bg-vit-500/15 text-vit-300 border-vit-500/30'
+    )}>
+      {isLive ? 'LIVE' : isFallback ? 'SCIE FALLBACK' : isSeed ? 'DEMO SEED' : 'ENSEMBLE'}
+    </span>
+  )
+}
+
+
 function usePredictions(outcome: OutcomeFilter) {
   return useQuery({
     queryKey: ['predictions', outcome],
@@ -224,6 +245,7 @@ export default function Predictions() {
                           <Target className="w-3.5 h-3.5" />{Math.round(pred.confidence * 100)}%
                         </span>
                       )}
+                      <ProvenanceBadge source={pred.provenance ?? pred.data_provenance?.data_source} />
                       <OutcomeChip outcome={outcome} />
                     </div>
                   </div>
