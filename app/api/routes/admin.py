@@ -496,6 +496,50 @@ async def list_models(
     ]
 
 
+def _format_admin_job(j_db: Optional[TrainingJob] = None, j_mem: Optional[dict] = None) -> dict:
+    job_id = (j_mem.get("job_id") if j_mem else None) or (j_db.job_id if j_db else None) or (str(j_db.id) if j_db else None)
+    db_id = j_db.id if j_db else None
+
+    config = (j_mem.get("config") if j_mem else None) or (j_db.config if j_db else {}) or {}
+    summary = (j_mem.get("summary") if j_mem else None) or (j_db.summary if j_db else {}) or {}
+    results = (j_mem.get("results") if j_mem else None) or (j_db.results if j_db else {}) or {}
+    events = (j_mem.get("events") if j_mem else None) or (j_db.events if j_db else []) or []
+
+    status = (j_mem.get("status") if j_mem else None) or (j_db.status if j_db else "unknown")
+    progress_pct = j_mem.get("progress_pct") if (j_mem and "progress_pct" in j_mem) else (j_db.progress_pct if j_db and j_db.progress_pct is not None else 0.0)
+    current_model = (j_mem.get("current_model") if j_mem else None) or (j_db.current_model if j_db else None)
+    total_models = (j_mem.get("total_models") if j_mem else None) or (j_db.total_models if j_db else 0)
+    error_message = (j_mem.get("error_message") if j_mem else None) or (j_db.error_message if j_db else None)
+    created_by = (j_mem.get("created_by") if j_mem else None) or (j_db.created_by if j_db else "system")
+
+    target_keys = config.get("target_model_keys") or []
+    model_key = target_keys[0] if target_keys else (summary.get("model_key") or current_model or "ensemble")
+
+    created_at = (j_mem.get("created_at") if j_mem else None) or (j_db.created_at.isoformat() if j_db and j_db.created_at else None)
+    started_at = (j_mem.get("started_at") if j_mem else None) or (j_db.started_at.isoformat() if j_db and j_db.started_at else None)
+    completed_at = (j_mem.get("completed_at") if j_mem else None) or (j_db.completed_at.isoformat() if j_db and j_db.completed_at else None)
+
+    return {
+        "id": db_id or job_id,
+        "job_id": job_id,
+        "status": status,
+        "model_key": model_key,
+        "progress_pct": round(float(progress_pct or 0.0), 1),
+        "current_model": current_model,
+        "total_models": total_models,
+        "events": events,
+        "config": config,
+        "summary": summary,
+        "results": results,
+        "error_message": error_message,
+        "created_by": created_by,
+        "created_at": created_at,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "in_memory": j_mem is not None,
+    }
+
+
 @router.post("/models/{model_key}/retrain")
 async def retrain_model(
     model_key: str,
@@ -503,12 +547,23 @@ async def retrain_model(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
+    from app.api.routes.training import start_admin_training_request, TrainingConfig
     result = await db.execute(select(ModelMetadata).where(ModelMetadata.key == model_key))
     m = result.scalar_one_or_none()
     if not m:
         raise AppError("Model not found", status_code=404, code="not_found")
+
+    config = TrainingConfig(target_model_keys=[model_key])
+    created_by = getattr(admin, "email", None) or str(getattr(admin, "id", "admin"))
+    res = await start_admin_training_request(config, created_by=created_by)
     await write_audit(db, admin.id, "model.retrain", "model", model_key, request=request)
-    return {"ok": True, "model_key": model_key, "message": "Retrain queued"}
+    return {
+        "ok": True,
+        "job_id": res["job_id"],
+        "status": res["status"],
+        "model_key": model_key,
+        "message": f"Retrain job {res["job_id"]} queued for model {model_key}",
+    }
 
 
 @router.post("/models/retrain-all")
@@ -517,8 +572,38 @@ async def retrain_all_models(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
+    from app.api.routes.training import start_admin_training_request, TrainingConfig
+    config = TrainingConfig()
+    created_by = getattr(admin, "email", None) or str(getattr(admin, "id", "admin"))
+    res = await start_admin_training_request(config, created_by=created_by)
     await write_audit(db, admin.id, "model.retrain_all", request=request)
-    return {"ok": True, "message": "Full ensemble retrain queued"}
+    return {
+        "ok": True,
+        "job_id": res["job_id"],
+        "status": res["status"],
+        "message": f"Full ensemble retrain job {res["job_id"]} queued",
+    }
+
+
+@router.post("/training-jobs/trigger")
+@router.post("/training-jobs")
+async def trigger_training_job(
+    request: Request,
+    body: Optional[dict] = None,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.api.routes.training import start_admin_training_request, TrainingConfig
+    cfg = TrainingConfig(**(body or {}))
+    created_by = getattr(admin, "email", None) or str(getattr(admin, "id", "admin"))
+    res = await start_admin_training_request(cfg, created_by=created_by)
+    await write_audit(db, admin.id, "training_job.trigger", "training_job", res["job_id"], request=request)
+    return {
+        "ok": True,
+        "job_id": res["job_id"],
+        "status": res["status"],
+        "message": res["message"],
+    }
 
 
 @router.get("/training-jobs")
@@ -529,25 +614,37 @@ async def list_training_jobs(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
+    from app.api.routes.training import _training_jobs
+
     q = select(TrainingJob)
     if status:
         q = q.where(TrainingJob.status == status)
+
     total_res = await db.execute(select(func.count()).select_from(q.subquery()))
-    total = total_res.scalar_one()
+    total_db = total_res.scalar_one()
+
     q = q.order_by(desc(TrainingJob.created_at)).offset((page - 1) * limit).limit(limit)
     result = await db.execute(q)
-    jobs = result.scalars().all()
+    db_jobs = result.scalars().all()
 
-    def fmt(j: TrainingJob) -> dict:
-        return {
-            "id": j.id, "status": j.status,
-            "model_key": getattr(j, "model_key", None),
-            "progress_pct": getattr(j, "progress_pct", 0),
-            "created_at": j.created_at.isoformat() if hasattr(j, "created_at") and j.created_at else None,
-            "completed_at": j.completed_at.isoformat() if hasattr(j, "completed_at") and j.completed_at else None,
-        }
+    job_map = {}
+    for j_db in db_jobs:
+        j_mem = _training_jobs.get(j_db.job_id)
+        payload = _format_admin_job(j_db=j_db, j_mem=j_mem)
+        job_map[payload["job_id"]] = payload
 
-    return {"total": total, "page": page, "limit": limit, "jobs": [fmt(j) for j in jobs]}
+    for mem_id, j_mem in _training_jobs.items():
+        if mem_id not in job_map:
+            mem_status = j_mem.get("status", "unknown")
+            if status and mem_status != status:
+                continue
+            payload = _format_admin_job(j_db=None, j_mem=j_mem)
+            job_map[mem_id] = payload
+
+    formatted_jobs = list(job_map.values())
+    total = max(total_db, len(job_map))
+
+    return {"total": total, "page": page, "limit": limit, "jobs": formatted_jobs}
 
 
 @router.get("/training-jobs/{job_id}")
@@ -556,19 +653,121 @@ async def get_training_job(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    result = await db.execute(select(TrainingJob).where(TrainingJob.id == job_id))
-    j = result.scalar_one_or_none()
-    if not j:
+    from app.api.routes.training import _training_jobs
+
+    j_mem = _training_jobs.get(job_id)
+
+    conditions = [TrainingJob.job_id == job_id]
+    if job_id.isdigit():
+        conditions.append(TrainingJob.id == int(job_id))
+
+    result = await db.execute(select(TrainingJob).where(or_(*conditions)))
+    j_db = result.scalars().first()
+
+    if not j_mem and not j_db:
         raise AppError("Training job not found", status_code=404, code="not_found")
+
+    return _format_admin_job(j_db=j_db, j_mem=j_mem)
+
+
+@router.post("/training-jobs/{job_id}/cancel")
+async def cancel_training_job(
+    job_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.api.routes.training import _training_jobs, _training_tasks, _db_update_job
+
+    j_mem = _training_jobs.get(job_id)
+    conditions = [TrainingJob.job_id == job_id]
+    if job_id.isdigit():
+        conditions.append(TrainingJob.id == int(job_id))
+
+    result = await db.execute(select(TrainingJob).where(or_(*conditions)))
+    j_db = result.scalars().first()
+
+    if not j_mem and not j_db:
+        raise AppError("Training job not found", status_code=404, code="not_found")
+
+    current_status = (j_mem.get("status") if j_mem else None) or (j_db.status if j_db else "unknown")
+    if current_status in ("completed", "failed", "cancelled"):
+        raise AppError(f"Cannot cancel job in '{current_status}' state", status_code=400, code="bad_request")
+
+    real_job_id = (j_mem.get("job_id") if j_mem else None) or (j_db.job_id if j_db else job_id)
+
+    task = _training_tasks.get(real_job_id) or _training_tasks.get(job_id)
+    if task and not task.done():
+        task.cancel()
+
+    completed_at = datetime.now(timezone.utc)
+    if j_mem:
+        j_mem["status"] = "cancelled"
+        j_mem["completed_at"] = completed_at.isoformat()
+        if "events" in j_mem and isinstance(j_mem["events"], list):
+            j_mem["events"].append({"type": "cancelled", "message": "Cancelled by admin", "ts": time.time()})
+
+    if j_db:
+        j_db.status = "cancelled"
+        j_db.completed_at = completed_at
+        if j_db.events is None:
+            j_db.events = []
+        if isinstance(j_db.events, list):
+            j_db.events.append({"type": "cancelled", "message": "Cancelled by admin", "ts": time.time()})
+        await db.commit()
+
+    await _db_update_job(real_job_id, status="cancelled", completed_at=completed_at)
+    await write_audit(db, admin.id, "training_job.cancel", "training_job", real_job_id, request=request)
+
     return {
-        "id": j.id, "status": j.status,
-        "model_key": getattr(j, "model_key", None),
-        "progress_pct": getattr(j, "progress_pct", 0),
-        "events": getattr(j, "events", []),
-        "created_at": j.created_at.isoformat() if hasattr(j, "created_at") and j.created_at else None,
-        "completed_at": j.completed_at.isoformat() if hasattr(j, "completed_at") and j.completed_at else None,
-        "accuracy_before": getattr(j, "accuracy_before", None),
-        "accuracy_after": getattr(j, "accuracy_after", None),
+        "ok": True,
+        "job_id": real_job_id,
+        "status": "cancelled",
+        "message": f"Training job {real_job_id} cancelled",
+    }
+
+
+@router.delete("/training-jobs/{job_id}")
+async def delete_training_job(
+    job_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.api.routes.training import _training_jobs
+
+    j_mem = _training_jobs.get(job_id)
+    conditions = [TrainingJob.job_id == job_id]
+    if job_id.isdigit():
+        conditions.append(TrainingJob.id == int(job_id))
+
+    result = await db.execute(select(TrainingJob).where(or_(*conditions)))
+    j_db = result.scalars().first()
+
+    if not j_mem and not j_db:
+        raise AppError("Training job not found", status_code=404, code="not_found")
+
+    current_status = (j_mem.get("status") if j_mem else None) or (j_db.status if j_db else "unknown")
+    if current_status in ("queued", "running"):
+        raise AppError("Cannot delete an actively running or queued job. Cancel it first.", status_code=400, code="bad_request")
+
+    real_job_id = (j_mem.get("job_id") if j_mem else None) or (j_db.job_id if j_db else job_id)
+
+    if real_job_id in _training_jobs:
+        del _training_jobs[real_job_id]
+    if job_id in _training_jobs:
+        del _training_jobs[job_id]
+
+    if j_db:
+        await db.delete(j_db)
+        await db.commit()
+
+    await write_audit(db, admin.id, "training_job.delete", "training_job", real_job_id, request=request)
+
+    return {
+        "ok": True,
+        "job_id": real_job_id,
+        "message": f"Training job record {real_job_id} deleted",
     }
 
 
