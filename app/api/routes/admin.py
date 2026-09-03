@@ -562,7 +562,7 @@ async def retrain_model(
         "job_id": res["job_id"],
         "status": res["status"],
         "model_key": model_key,
-        "message": f"Retrain job {res["job_id"]} queued for model {model_key}",
+        "message": f"Retrain job {res['job_id']} queued for model {model_key}",
     }
 
 
@@ -581,7 +581,7 @@ async def retrain_all_models(
         "ok": True,
         "job_id": res["job_id"],
         "status": res["status"],
-        "message": f"Full ensemble retrain job {res["job_id"]} queued",
+        "message": f"Full ensemble retrain job {res['job_id']} queued",
     }
 
 

@@ -621,7 +621,7 @@ async def start_admin_training_request(config: TrainingConfig, created_by: str =
     if target_keys and hasattr(orch, "models") and orch.models:
         unknown = sorted(target_keys - set(orch.models.keys()))
         if unknown:
-            raise HTTPException(status_code=400, detail=f"Unknown model key(s): {", ".join(unknown)}")
+            raise HTTPException(status_code=400, detail=f"Unknown model key(s): {', '.join(unknown)}")
 
     job_id = str(uuid.uuid4())[:16]
     _training_jobs[job_id] = {

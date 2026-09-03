@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -53,6 +53,7 @@ class LiveMarket(BaseModel):
 
 class CanonicalLiveMatch(BaseModel):
     id: str  # Normalized ID e.g. "live-fd-12345" or "live-db-uuid"
+    db_match_id: Optional[int] = None
     provider: str  # footballdata | isports | db
     provider_match_id: str
     home: str
@@ -64,6 +65,13 @@ class CanonicalLiveMatch(BaseModel):
     home_score: int = 0
     away_score: int = 0
     period: str = "scheduled"  # first_half | second_half | HT | FT | scheduled
+    stoppage_time: int = 0
+    home_red_cards: int = 0
+    away_red_cards: int = 0
+    home_yellow_cards: int = 0
+    away_yellow_cards: int = 0
+    events: List[Dict[str, Any]] = Field(default_factory=list)
+    stats: Optional[Dict[str, Any]] = None
     kickoff_time: Optional[str] = None
     source_timestamp: float
     ingestion_timestamp: float
@@ -81,8 +89,7 @@ def _normalize_name(name: str) -> str:
 def _generate_match_fingerprint(home: str, away: str, kickoff_time: str) -> str:
     norm_h = _normalize_name(home)
     norm_a = _normalize_name(away)
-    date_str = (kickoff_time or "").split("T")[0]
-    return f"{norm_h}::vs::{norm_a}::{date_str}"
+    return f"{norm_h}::vs::{norm_a}"
 
 
 class LiveMatchIngestionService:
@@ -94,10 +101,10 @@ class LiveMatchIngestionService:
         self._last_ingest_time: float = 0.0
         self._cache_ttl: float = 15.0  # 15 second TTL for live feed caching
 
-    async def fetch_and_normalize_all(self) -> Dict[str, List[CanonicalLiveMatch]]:
+    async def fetch_and_normalize_all(self, force_refresh: bool = False) -> Dict[str, List[CanonicalLiveMatch]]:
         """Fetch from all providers, normalize, deduplicate, and classify as live or upcoming."""
         now = time.time()
-        if now - self._last_ingest_time < self._cache_ttl and (self._cache_live_matches or self._cache_upcoming_matches):
+        if not force_refresh and (now - self._last_ingest_time < self._cache_ttl) and (self._cache_live_matches or self._cache_upcoming_matches):
             return {
                 "live": self._cache_live_matches,
                 "upcoming": self._cache_upcoming_matches,
@@ -123,19 +130,40 @@ class LiveMatchIngestionService:
         deduped_live: Dict[str, CanonicalLiveMatch] = {}
         deduped_upcoming: Dict[str, CanonicalLiveMatch] = {}
 
+        # Group and merge matches across providers by fingerprint
+        grouped_by_fp: Dict[str, List[CanonicalLiveMatch]] = {}
         for m in raw_matches:
             fp = _generate_match_fingerprint(m.home, m.away, m.kickoff_time or "")
-            if m.status == "LIVE":
-                if fp not in deduped_live:
-                    deduped_live[fp] = m
-                else:
-                    # Prefer provider with live score/minute update over DB
-                    existing = deduped_live[fp]
-                    if existing.provider == "db" and m.provider != "db":
-                        deduped_live[fp] = m
-            elif m.status == "UPCOMING":
-                if fp not in deduped_upcoming and fp not in deduped_live:
-                    deduped_upcoming[fp] = m
+            grouped_by_fp.setdefault(fp, []).append(m)
+
+        for fp, group in grouped_by_fp.items():
+            # Find best live match or upcoming match
+            live_candidates = [m for m in group if m.status == "LIVE"]
+            if live_candidates:
+                # Priority: footballdata > isports > db
+                provider_order = {"footballdata": 0, "isports": 1, "db": 2}
+                live_candidates.sort(key=lambda x: provider_order.get(x.provider, 99))
+                best_live = live_candidates[0]
+
+                # Check if there's a DB match in group to attach db_match_id
+                db_cand = next((m for m in group if m.provider == "db" and m.db_match_id), None)
+                if db_cand:
+                    best_live.db_match_id = db_cand.db_match_id
+
+                deduped_live[fp] = best_live
+            else:
+                upcoming_candidates = [m for m in group if m.status == "UPCOMING"]
+                if upcoming_candidates:
+                    provider_order = {"footballdata": 0, "isports": 1, "db": 2}
+                    upcoming_candidates.sort(key=lambda x: provider_order.get(x.provider, 99))
+                    best_upcoming = upcoming_candidates[0]
+                    db_cand = next((m for m in group if m.provider == "db" and m.db_match_id), None)
+                    if db_cand:
+                        best_upcoming.db_match_id = db_cand.db_match_id
+                    deduped_upcoming[fp] = best_upcoming
+
+        # Async back-sync live provider score state to DB
+        await self._sync_live_to_db(list(deduped_live.values()))
 
         live_list = list(deduped_live.values())
         upcoming_list = list(deduped_upcoming.values())
@@ -270,7 +298,7 @@ class LiveMatchIngestionService:
         try:
             from app.db.database import AsyncSessionLocal, initialize_schema
             from app.db.models import Match
-            from sqlalchemy import select, or_
+            from sqlalchemy import select, or_, and_, func
 
             await initialize_schema()
 
@@ -279,12 +307,19 @@ class LiveMatchIngestionService:
 
             async with AsyncSessionLocal() as session:
                 # Query matches marked as live/in_progress or scheduled within next 24 hours
+                terminal_statuses = ["finished", "completed", "cancelled", "postponed"]
                 stmt = select(Match).where(
+                    Match.actual_outcome.is_(None),
+                    func.lower(Match.status).notin_(terminal_statuses),
                     or_(
-                        Match.status.in_(["live", "in_progress", "IN_PLAY"]),
+                        func.lower(Match.status).in_(["live", "in_progress", "in_play"]),
+                        and_(
+                            Match.kickoff_time <= now_dt,
+                            Match.kickoff_time >= now_dt - timedelta(hours=2),
+                        ),
                         Match.kickoff_time >= now_dt
                     )
-                ).limit(30)
+                ).limit(50)
                 res = await session.execute(stmt)
                 matches = res.scalars().all()
 
@@ -300,8 +335,9 @@ class LiveMatchIngestionService:
 
                     canon = CanonicalLiveMatch(
                         id=f"live-db-{m.id}",
+                        db_match_id=m.id,
                         provider="db",
-                        provider_match_id=str(m.id),
+                        provider_match_id=str(m.external_id) if m.external_id else str(m.id),
                         home=m.home_team or "Home",
                         away=m.away_team or "Away",
                         league=m.league or "Football",
@@ -321,6 +357,49 @@ class LiveMatchIngestionService:
             logger.warning("Error fetching live/upcoming matches from DB: %s", e)
 
         return results
+
+    async def _sync_live_to_db(self, live_matches: List[CanonicalLiveMatch]) -> None:
+        if not live_matches:
+            return
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.db.models import Match
+            from sqlalchemy import select, or_, and_, func
+
+            async with AsyncSessionLocal() as session:
+                for lm in live_matches:
+                    target_match = None
+                    if lm.db_match_id:
+                        target_match = (await session.execute(select(Match).where(Match.id == lm.db_match_id))).scalar_one_or_none()
+                    if not target_match:
+                        norm_h = _normalize_name(lm.home)
+                        norm_a = _normalize_name(lm.away)
+                        stmt = select(Match).where(
+                            Match.home_team.ilike(f"%{norm_h}%"),
+                            Match.away_team.ilike(f"%{norm_a}%")
+                        ).limit(5)
+                        res = await session.execute(stmt)
+                        candidates = res.scalars().all()
+                        if candidates:
+                            target_match = candidates[0]
+
+                    if target_match:
+                        lm.db_match_id = target_match.id
+                        changed = False
+                        if target_match.status != "live":
+                            target_match.status = "live"
+                            changed = True
+                        if target_match.home_goals != lm.home_score:
+                            target_match.home_goals = lm.home_score
+                            changed = True
+                        if target_match.away_goals != lm.away_score:
+                            target_match.away_goals = lm.away_score
+                            changed = True
+                        if changed:
+                            session.add(target_match)
+                await session.commit()
+        except Exception as e:
+            logger.warning("Error syncing live matches to DB: %s", e)
 
 
 live_ingestion_service = LiveMatchIngestionService()
