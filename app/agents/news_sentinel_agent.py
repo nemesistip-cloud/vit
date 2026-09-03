@@ -182,8 +182,8 @@ class NewsSentinelAgent(BaseAgent):
         from app.db.database import AsyncSessionLocal
         from app.db.models import AgentInsight
         from app.iot.processor import store_and_broadcast
-        from app.services.vit_analytics import get_team_form
-        from app.services.sentiment_analytics import analyze_market_sentiment
+        from app.services.vit_intelligence import get_team_form
+        from app.services.sentiment_analysis import analyze_market_sentiment
 
         scraper = InjuryScraper()
         try:
