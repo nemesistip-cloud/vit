@@ -133,34 +133,14 @@ class BlockchainSubsystem(Subsystem):
         return self._sdk
 
     async def health_check(self) -> bool:
-        """Check the health of the blockchain manager and ledger.
-
-        If no blocks are found (genesis absent), attempt one auto-seed before
-        returning False — this self-heals deployments where seed_genesis.py was
-        skipped or failed non-fatally during startup.
-        """
+        """Check the health of the blockchain manager and ledger."""
         if not self.manager:
             return False
 
         try:
             async with AsyncSessionLocal() as session:
                 latest = await self.manager.get_latest_block(session)
-
-            if latest is not None:
-                return True
-
-            # No blocks found — attempt a single genesis seed before giving up
-            logger.warning("[blockchain] health_check: no blocks found — attempting auto-seed...")
-            try:
-                async with AsyncSessionLocal() as session:
-                    await ensure_genesis(session)
-                    await session.commit()
-                logger.info("[blockchain] health_check: auto-seed succeeded.")
-                return True
-            except Exception as seed_exc:
-                logger.error("[blockchain] health_check: auto-seed failed: %s", seed_exc)
-                return False
-
+            return latest is not None
         except Exception as exc:
             logger.error("[blockchain] health_check exception: %s", exc)
             return False

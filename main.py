@@ -41,7 +41,6 @@ except Exception as _reg_exc:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_signal_handlers()
 
     try:
         from app.db.database import initialize_schema
@@ -107,8 +106,8 @@ async def lifespan(app: FastAPI):
 
         # TRACK-009: Start in-process APScheduler for autonomous agents (replaces Celery Beat)
         try:
-            from app.core.swarm_orchestrator import get_swarm as _get_swarm
-            _swarm = _get_swarm()
+            from app.core.swarm_orchestrator import init_swarm as _init_swarm
+            _swarm = _init_swarm()
             _swarm.start_scheduler()
             logging.getLogger(__name__).info("[lifespan] SwarmOrchestrator APScheduler started (%d agents)", len(_swarm._agents))
         except Exception as _sch_e:

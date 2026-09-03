@@ -1,3 +1,4 @@
+from tachyon.core.providers.disk import LocalDiskProvider
 import json
 import logging
 import os
@@ -63,9 +64,16 @@ class ProviderPool:
         except Exception as e:
             logger.error(f"Failed to load DROPBOX_TOKENS: {e}")
 
-        logger.info(f"Loaded {len(self.providers)} providers into the pool.")
-        if not self.providers:
-            logger.critical("No providers loaded in ProviderPool!")
+        # 5. Local Disk Fallback
+        allow_local = get_env("TACHYON_ALLOW_LOCAL_STORAGE", "true").lower() in ("true", "1", "yes")
+
+        if not self.providers and allow_local:
+            self.providers.append(LocalDiskProvider("local_disk_0"))
+            logger.info("[tachyon] Cloud storage credentials not configured. Operating in local storage mode using LocalDiskProvider.")
+        elif not self.providers and not allow_local:
+            logger.warning("[tachyon] No cloud providers loaded and TACHYON_ALLOW_LOCAL_STORAGE is set to false. Storage operations will fail.")
+        else:
+            logger.info(f"[tachyon] Loaded {len(self.providers)} cloud provider(s) into ProviderPool.")
 
     def _is_degraded(self, provider_id: str) -> bool:
         until = self.degraded_until.get(provider_id, 0)

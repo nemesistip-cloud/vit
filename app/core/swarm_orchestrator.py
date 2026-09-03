@@ -27,10 +27,29 @@ logger = logging.getLogger(__name__)
 _SWARM: Optional["SwarmOrchestrator"] = None
 
 
+def init_swarm(coordinator: Optional[Any] = None) -> "SwarmOrchestrator":
+    """Initialize and register the global SwarmOrchestrator using configured agents from AgentCoordinator."""
+    global _SWARM
+    if _SWARM is not None:
+        return _SWARM
+
+    swarm = SwarmOrchestrator()
+    if coordinator is None:
+        from app.agents.coordinator import AgentCoordinator
+        coordinator = AgentCoordinator()
+
+    if hasattr(coordinator, "_agents"):
+        for name, agent in coordinator._agents.items():
+            swarm.register(name, agent)
+
+    set_swarm(swarm)
+    return swarm
+
+
 def get_swarm() -> "SwarmOrchestrator":
-    """Return the running SwarmOrchestrator or raise RuntimeError."""
+    """Return the running SwarmOrchestrator, initializing via init_swarm() if uninitialized."""
     if _SWARM is None:
-        raise RuntimeError("SwarmOrchestrator has not been initialised yet")
+        return init_swarm()
     return _SWARM
 
 
@@ -89,6 +108,10 @@ class SwarmOrchestrator:
         individual agent runs are caught and logged — they never crash the
         scheduler.
         """
+        if self._scheduler is not None and getattr(self._scheduler, "running", False):
+            logger.info("[swarm] APScheduler already running.")
+            return
+
         if not self._agents:
             logger.info("[swarm] No agents registered — skipping scheduler start.")
             return
@@ -147,7 +170,9 @@ class SwarmOrchestrator:
         """Gracefully shut down the APScheduler (call from lifespan shutdown)."""
         if self._scheduler is not None:
             try:
-                self._scheduler.shutdown(wait=False)
+                if getattr(self._scheduler, "running", False):
+                    self._scheduler.shutdown(wait=False)
+                self._scheduler = None
                 logger.info("[swarm] APScheduler stopped.")
             except Exception as exc:
                 logger.warning("[swarm] APScheduler shutdown error: %s", exc)

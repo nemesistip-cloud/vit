@@ -89,6 +89,14 @@ class LifecycleManager:
         for mod_info in ordered_modules:
             mid = mod_info.metadata.module_id
             _sm = self._ensure_state_machine(mid)
+            if _sm.current_state == ModuleStatus.READY or mod_info.status == ModuleStatus.READY:
+                _results.append({
+                    "name": mid,
+                    "status": "READY",
+                    "ms": 0.0,
+                    "error": "",
+                })
+                continue
             _sm.transition_to(ModuleStatus.STARTING)
             start_time = time.time()
             error_msg: Optional[str] = None

@@ -1,3 +1,5 @@
+from app.core.lifecycle.manager import lifecycle_manager
+from app.core.registry.models import ModuleStatus
 import logging
 import asyncio
 import time
@@ -86,31 +88,50 @@ class PluginManager:
 
             # Bridge to Core Registry
             await registry.register(instance)
+            _sm = lifecycle_manager._ensure_state_machine(plugin_id)
+            _sm.transition_to(ModuleStatus.VALIDATED)
+            _sm.transition_to(ModuleStatus.INITIALIZING)
+            await registry.update_status(plugin_id, ModuleStatus.INITIALIZING)
 
             # Initialize
             try:
                 await instance.initialize({}) # Config injection handled by Framework
                 self.runtime_info[plugin_id].status = PluginStatus.INITIALIZED
+                await registry.update_status(plugin_id, ModuleStatus.INITIALIZED)
+                _sm.transition_to(ModuleStatus.INITIALIZED)
                 logger.info(f"[plugins] {plugin_id} initialized.")
                 return True
             except Exception as e:
                 logger.error(f"[plugins] Failed to initialize {plugin_id}: {e}")
                 self.runtime_info[plugin_id].status = PluginStatus.FAILED
+                await registry.update_status(plugin_id, ModuleStatus.FAILED)
+                _sm.transition_to(ModuleStatus.FAILED)
                 return False
 
     async def activate_all(self):
         """Activate all initialized plugins."""
         for plugin_id, instance in self.plugins.items():
-            if self.runtime_info[plugin_id].status == PluginStatus.INITIALIZED:
+            if self.runtime_info[plugin_id].status in (PluginStatus.INITIALIZED, PluginStatus.ACTIVE):
+                if self.runtime_info[plugin_id].status == PluginStatus.ACTIVE:
+                    continue
                 try:
                     self.runtime_info[plugin_id].status = PluginStatus.ACTIVATING
+                    _sm = lifecycle_manager._ensure_state_machine(plugin_id)
+                    _sm.transition_to(ModuleStatus.STARTING)
+                    await registry.update_status(plugin_id, ModuleStatus.STARTING)
+
                     await instance.activate()
                     await instance.start() # Ensure ModuleContract compatibility
+
                     self.runtime_info[plugin_id].status = PluginStatus.ACTIVE
+                    await registry.update_status(plugin_id, ModuleStatus.READY)
+                    _sm.transition_to(ModuleStatus.READY)
                     logger.info(f"[plugins] {plugin_id} activated.")
                 except Exception as e:
                     logger.error(f"[plugins] Activation failed for {plugin_id}: {e}")
                     self.runtime_info[plugin_id].status = PluginStatus.FAILED
+                    await registry.update_status(plugin_id, ModuleStatus.FAILED)
+                    _sm.transition_to(ModuleStatus.FAILED)
 
     async def shutdown_all(self):
         """Gracefully stop all plugins."""
