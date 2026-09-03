@@ -726,7 +726,7 @@ export default function MatchDetail() {
                   match.evidence.classification === 'LIMITED' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
                   'bg-red-500/20 text-red-400 border border-red-500/40'
                 )}>
-                  {match.evidence.classification} ({match.evidence.score.toFixed(0)}%)
+                  {match.evidence.classification} ({match.evidence.score != null ? match.evidence.score.toFixed(0) : 0}%)
                 </span>
               </div>
             </div>
