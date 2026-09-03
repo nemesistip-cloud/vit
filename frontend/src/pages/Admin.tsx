@@ -7,7 +7,7 @@ import {
   TrendingUp, AlertTriangle, RefreshCw, ChevronRight,
   Cpu, Zap, Star, BarChart2, Settings, ClipboardList,
   Wallet as WalletIcon, Layers, CheckCircle2, XCircle,
-  Clock, Globe, Lock, Unlock,
+  Clock, Globe, Lock, Unlock, Play, Trash2, ChevronDown,
 } from 'lucide-react'
 import { getAuthToken, getStoredUser, authHeaders } from '@/hooks/useAuth'
 import { ENDPOINTS } from '@/lib/api'
@@ -134,7 +134,7 @@ function useAdminTrainingJobs() {
     if (!r.ok) return []
     const data = await r.json()
     return Array.isArray(data) ? data : (data.jobs ?? [])
-  }, refetchInterval: 15_000 })
+  }, refetchInterval: 3000 })
 }
 function useAdminAudit(filters: { page: number; adminId: string; action: string; targetType: string; dateFrom: string; dateTo: string }) {
   const params = new URLSearchParams({ page: String(filters.page), limit: '25' })
@@ -477,8 +477,305 @@ function MarketplaceAdminTab() {
 }
 
 function TrainingJobsTab() {
+  const queryClient = useQueryClient()
   const { data: jobs = [], isLoading, refetch } = useAdminTrainingJobs()
-  return <div className="space-y-4"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-white">Training Jobs</h3><button type="button" onClick={() => refetch()} aria-label="Refresh training jobs"><RefreshCw className="h-4 w-4" /></button></div>{isLoading ? <Spinner className="w-5 h-5 text-vit-400" /> : jobs.length === 0 ? <EmptyState icon={Cpu} msg="No training jobs found" /> : jobs.map((job: any) => <div key={job.id} className="border border-white/8 rounded-xl p-4"><div className="flex justify-between"><span className="font-mono text-white">{job.model_key ?? 'Ensemble'}</span><StatusBadge status={job.status ?? 'unknown'} /></div><p className="text-sm text-white/50">{job.progress_pct ?? 0}% complete</p></div>)}</div>
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
+  const [targetModel, setTargetModel] = useState<string>('all')
+
+  const triggerRetrain = useMutation({
+    mutationFn: async (modelKey?: string) => {
+      const url = modelKey && modelKey !== 'all'
+        ? `${ENDPOINTS.gateway}/api/admin/models/${encodeURIComponent(modelKey)}/retrain`
+        : `${ENDPOINTS.gateway}/api/admin/models/retrain-all`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail ?? 'Failed to trigger retraining')
+      }
+      return response.json()
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-training-jobs'] })
+      toast.success(data.message ?? 'Training job queued successfully')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const cancelJob = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/training-jobs/${encodeURIComponent(jobId)}/cancel`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail ?? 'Failed to cancel training job')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-training-jobs'] })
+      toast.success('Training job cancelled')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const deleteJob = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/training-jobs/${encodeURIComponent(jobId)}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail ?? 'Failed to delete training job')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-training-jobs'] })
+      toast.success('Training job record deleted')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const filteredJobs = jobs.filter((j: any) => {
+    if (selectedStatus === 'all') return true
+    return j.status === selectedStatus
+  })
+
+  const availableModels = [
+    { key: 'all', label: 'Full Ensemble (All Models)' },
+    { key: 'xgb_match', label: 'XGBoost Match Predictor' },
+    { key: 'lstm_goals', label: 'LSTM Total Goals' },
+    { key: 'btts_prob', label: 'Both Teams To Score' },
+    { key: 'correct_score', label: 'Correct Score Poisson' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-surface-800/60 border border-white/8 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 className="text-base font-semibold text-white">Trigger Model Training</h3>
+          <p className="text-xs text-white/50">Launch background retraining across historical datasets & market signals</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={targetModel}
+            onChange={e => setTargetModel(e.target.value)}
+            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-white outline-none focus:border-vit-400"
+          >
+            {availableModels.map(m => (
+              <option key={m.key} value={m.key} className="bg-surface-800 text-white">
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={triggerRetrain.isPending}
+            onClick={() => triggerRetrain.mutate(targetModel)}
+            className="flex items-center gap-2 rounded-lg bg-vit-500 px-4 py-2 text-xs font-medium text-black hover:bg-vit-400 disabled:opacity-50 transition-all"
+          >
+            {triggerRetrain.isPending ? <Spinner className="w-3.5 h-3.5 text-black" /> : <Play className="w-3.5 h-3.5" />}
+            {targetModel === 'all' ? 'Retrain Full Ensemble' : 'Retrain Selected Model'}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 pb-3">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {['all', 'running', 'queued', 'completed', 'failed', 'cancelled'].map(st => (
+            <button
+              key={st}
+              type="button"
+              onClick={() => setSelectedStatus(st)}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all',
+                selectedStatus === st
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+              )}
+            >
+              {st}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Spinner className="w-6 h-6 text-vit-400" />
+        </div>
+      ) : filteredJobs.length === 0 ? (
+        <EmptyState icon={Cpu} msg={selectedStatus === 'all' ? 'No training jobs found' : `No ${selectedStatus} training jobs`} />
+      ) : (
+        <div className="space-y-3">
+          {filteredJobs.map((job: any) => {
+            const isExpanded = expandedJobId === job.job_id || expandedJobId === String(job.id)
+            const pct = Math.min(100, Math.max(0, job.progress_pct ?? 0))
+            return (
+              <div key={job.job_id || job.id} className="border border-white/8 rounded-xl bg-surface-800/40 overflow-hidden">
+                <div className="p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm font-semibold text-white">
+                        {job.job_id ?? job.id}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-white/5 text-white/60 font-mono">
+                        {job.model_key ?? 'Ensemble'}
+                      </span>
+                      <StatusBadge status={job.status ?? 'unknown'} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(job.status === 'running' || job.status === 'queued') && (
+                        <button
+                          type="button"
+                          disabled={cancelJob.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Cancel training job ${job.job_id || job.id}?`)) {
+                              cancelJob.mutate(job.job_id || String(job.id))
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 hover:bg-amber-500/20 transition-all"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {(job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && (
+                        <button
+                          type="button"
+                          disabled={deleteJob.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Delete record for training job ${job.job_id || job.id}?`)) {
+                              deleteJob.mutate(job.job_id || String(job.id))
+                            }
+                          }}
+                          className="p-1 rounded text-white/30 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                          title="Delete Record"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedJobId(isExpanded ? null : (job.job_id || String(job.id)))}
+                        className="px-2.5 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 hover:text-white transition-all flex items-center gap-1"
+                      >
+                        {isExpanded ? 'Hide Details' : 'View Details'}
+                        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isExpanded && 'rotate-180')} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-white/50 font-mono">
+                      <span>{job.current_model ? `Training: ${job.current_model}` : job.status}</span>
+                      <span>{pct}%</span>
+                    </div>
+                    <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full transition-all duration-300',
+                          job.status === 'completed' ? 'bg-emerald-400' :
+                          job.status === 'failed' ? 'bg-rose-500' :
+                          job.status === 'cancelled' ? 'bg-zinc-500' : 'bg-vit-400 animate-pulse'
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {job.error_message && (
+                    <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300">
+                      <strong>Error:</strong> {job.error_message}
+                    </div>
+                  )}
+                </div>
+
+                {isExpanded && (
+                  <div className="border-t border-white/8 bg-black/30 p-4 space-y-4 text-xs text-white/70 font-mono">
+                    <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <span className="text-white/40 block text-[10px] uppercase">Created By</span>
+                        <span className="text-white">{job.created_by ?? 'system'}</span>
+                      </div>
+                      <div>
+                        <span className="text-white/40 block text-[10px] uppercase">Created At</span>
+                        <span>{job.created_at ? new Date(job.created_at).toLocaleString() : 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-white/40 block text-[10px] uppercase">Completed At</span>
+                        <span>{job.completed_at ? new Date(job.completed_at).toLocaleString() : 'In Progress'}</span>
+                      </div>
+                      <div>
+                        <span className="text-white/40 block text-[10px] uppercase">Total Models</span>
+                        <span>{job.total_models ?? 0}</span>
+                      </div>
+                    </div>
+
+                    {job.results && Object.keys(job.results).length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-white/50 font-semibold block uppercase text-[10px]">Model Evaluation Metrics</span>
+                        <div className="grid sm:grid-cols-2 gap-2">
+                          {Object.entries(job.results).map(([mKey, res]: [string, any]) => (
+                            <div key={mKey} className="p-2.5 rounded bg-white/3 border border-white/6 space-y-1">
+                              <div className="flex justify-between font-bold text-white">
+                                <span>{res.model_name ?? mKey}</span>
+                                <span className={res.status === 'ok' ? 'text-emerald-400' : 'text-rose-400'}>{res.status}</span>
+                              </div>
+                              {res.status === 'ok' ? (
+                                <div className="grid grid-cols-2 gap-x-2 text-[11px] text-white/60">
+                                  <span>Accuracy: {(res.accuracy * 100).toFixed(1)}%</span>
+                                  <span>O/U Acc: {((res.over_under_accuracy ?? 0) * 100).toFixed(1)}%</span>
+                                  <span>Loss: {res.log_loss ?? 0}</span>
+                                  <span>Elapsed: {res.elapsed_s ?? 0}s</span>
+                                </div>
+                              ) : (
+                                <p className="text-rose-300 text-[11px]">{res.error}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {job.events && job.events.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-white/50 font-semibold block uppercase text-[10px]">Event Log Timeline</span>
+                        <div className="max-h-48 overflow-y-auto space-y-1 p-2 rounded bg-black/40 border border-white/5 text-[11px]">
+                          {job.events.map((ev: any, idx: number) => (
+                            <div key={idx} className="flex gap-2">
+                              <span className="text-white/30 shrink-0">
+                                {ev.ts ? new Date(ev.ts * 1000).toLocaleTimeString() : `#${idx + 1}`}
+                              </span>
+                              <span className="text-white/80">{ev.message || ev.type || JSON.stringify(ev)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Tab: Config ───────────────────────────────────────────────────────────────
