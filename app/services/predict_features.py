@@ -77,14 +77,55 @@ _FALLBACK_FEATURES: Dict[str, float] = {
 }
 
 
+
+def _team_search_terms(team: str) -> list[str]:
+    import re
+    if not team:
+        return []
+    lowered = team.lower().strip()
+    custom_map = {
+        'olympique lyonnais': ['lyon', 'olympique lyonnais', 'ol lyon'],
+        'lyon': ['lyon', 'olympique lyonnais'],
+        'aj auxerre': ['auxerre', 'aj auxerre'],
+        'auxerre': ['auxerre', 'aj auxerre'],
+        'paris saint germain': ['psg', 'paris sg', 'paris saint-germain'],
+        'paris sg': ['psg', 'paris sg', 'paris saint germain'],
+        'psg': ['psg', 'paris sg', 'paris saint germain'],
+    }
+    if lowered in custom_map:
+        return custom_map[lowered]
+    cleaned = re.sub(r'[^a-zA-Z0-9\s]', '', team).strip()
+    words = cleaned.split()
+    non_generic = [w for w in words if w.lower() not in {'fc', 'cf', 'afc', 'aj', 'as', 'us', 'sc', 'ogc', 'rc', 'the', 'club', 'sporting', 'olympique'}]
+    terms = [team, cleaned]
+    if non_generic:
+        terms.append(' '.join(non_generic))
+        for w in non_generic:
+            if len(w) >= 3:
+                terms.append(w)
+    seen = set()
+    res = []
+    for t in terms:
+        t_strip = t.strip()
+        if t_strip and t_strip.lower() not in seen:
+            seen.add(t_strip.lower())
+            res.append(t_strip)
+    return res
+
+
 async def _recent_matches_for(
     db: AsyncSession, team: str, limit: int = 10
 ) -> List[Match]:
     """Most-recent settled matches for a team (home or away), newest first."""
+    terms = _team_search_terms(team)
+    conditions = []
+    for term in terms:
+        conditions.append(Match.home_team.ilike(f'%{term}%'))
+        conditions.append(Match.away_team.ilike(f'%{term}%'))
     stmt = (
         select(Match)
         .where(
-            or_(Match.home_team == team, Match.away_team == team),
+            or_(*conditions),
             Match.home_goals.isnot(None),
             Match.away_goals.isnot(None),
         )
@@ -98,14 +139,16 @@ async def _recent_matches_for(
 async def _h2h_matches(
     db: AsyncSession, home: str, away: str, limit: int = 10
 ) -> List[Match]:
+    home_terms = _team_search_terms(home)
+    away_terms = _team_search_terms(away)
+    home_conds = [or_(Match.home_team.ilike(f'%{t}%'), Match.away_team.ilike(f'%{t}%')) for t in home_terms]
+    away_conds = [or_(Match.home_team.ilike(f'%{t}%'), Match.away_team.ilike(f'%{t}%')) for t in away_terms]
     stmt = (
         select(Match)
         .where(
             and_(
-                or_(
-                    and_(Match.home_team == home, Match.away_team == away),
-                    and_(Match.home_team == away, Match.away_team == home),
-                ),
+                or_(*home_conds),
+                or_(*away_conds),
                 Match.home_goals.isnot(None),
                 Match.away_goals.isnot(None),
             )
