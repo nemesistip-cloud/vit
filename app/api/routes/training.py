@@ -52,6 +52,7 @@ DEFAULT_LEARNING_RATE = float(get_env("DEFAULT_LEARNING_RATE", "0.001"))
 
 # ── In-memory training state + DB persistence ─────────────────────────
 _training_jobs: Dict[str, dict] = {}
+_training_tasks: Dict[str, asyncio.Task] = {}
 _model_versions: Dict[str, dict] = {}     # key → {version, metrics, promoted_at}
 _current_production: Optional[str] = None  # job_id of promoted model
 _sim_jobs: Dict[str, dict] = {}           # simulation job states
@@ -286,11 +287,24 @@ async def _run_training(job_id: str, config: TrainingConfig, orchestrator):
 
     try:
         await _run_training_body(job_id, job, config, orchestrator, started_at)
+    except asyncio.CancelledError:
+        logger.info(f"Training job {job_id} was cancelled")
+        job["status"] = "cancelled"
+        job["completed_at"] = datetime.now(timezone.utc).isoformat()
+        job["events"].append({"type": "cancelled", "message": "Training job cancelled by admin", "ts": time.time()})
+        await _db_update_job(
+            job_id,
+            status="cancelled",
+            completed_at=datetime.now(timezone.utc),
+            events=job["events"],
+        )
+        raise
     except Exception as _top_exc:
         _err = str(_top_exc)
         logger.error(f"Training job {job_id} crashed: {_err}", exc_info=True)
         job["status"]        = "failed"
         job["completed_at"]  = datetime.now(timezone.utc).isoformat()
+        job["error_message"] = _err
         job["events"].append({"type": "error", "message": _err, "ts": time.time()})
         await _db_update_job(
             job_id,
@@ -299,6 +313,8 @@ async def _run_training(job_id: str, config: TrainingConfig, orchestrator):
             error_message=_err,
             events=job["events"],
         )
+    finally:
+        _training_tasks.pop(job_id, None)
     return
 
 
@@ -597,12 +613,13 @@ async def _run_training_body(job_id: str, job: dict, config, orchestrator, start
 
 
 async def start_admin_training_request(config: TrainingConfig, created_by: str = "admin") -> dict:
-    if _orchestrator_ref is None:
+    orch = _orchestrator_ref or get_orchestrator()
+    if orch is None:
         raise HTTPException(status_code=503, detail="Orchestrator not initialized")
 
     target_keys = set(config.target_model_keys or [])
-    if target_keys:
-        unknown = sorted(target_keys - set(_orchestrator_ref.models.keys()))
+    if target_keys and hasattr(orch, "models") and orch.models:
+        unknown = sorted(target_keys - set(orch.models.keys()))
         if unknown:
             raise HTTPException(status_code=400, detail=f"Unknown model key(s): {', '.join(unknown)}")
 
@@ -620,9 +637,12 @@ async def start_admin_training_request(config: TrainingConfig, created_by: str =
         "results":       {},
         "summary":       {},
         "events":        [{"type": "queued", "message": "Admin training request queued", "ts": time.time()}],
+        "created_by":    created_by,
+        "progress_pct":  0.0,
     }
     await _db_create_job(job_id, config.dict(), created_by=created_by)
-    asyncio.create_task(_run_training(job_id, config, _orchestrator_ref))
+    task = asyncio.create_task(_run_training(job_id, config, orch))
+    _training_tasks[job_id] = task
     return {"job_id": job_id, "status": "queued", "message": "Admin training started. New .pkl weights will reload automatically when complete."}
 
 
