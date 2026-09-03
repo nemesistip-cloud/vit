@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.orm.attributes import flag_modified
 from ..crypto.hash import sha256_hex
+from ..crypto.address import ZERO_ADDRESS
 from .transaction import VITTransaction
 from app.modules.wallet.models import Wallet
 from app.db.models import User
@@ -64,6 +65,50 @@ class ChainState:
         Update nonces.
         Returns False if insufficient balance.
         """
+        # Protocol-level genesis mint path
+        is_genesis = (
+            tx.from_address == ZERO_ADDRESS
+            and isinstance(tx.data, dict)
+            and tx.data.get("type") == "genesis_mint"
+        )
+
+        if is_genesis:
+            if tx.nonce != 0 or tx.gas_fee != Decimal("0"):
+                return False
+
+            result = await db.execute(
+                select(Wallet).join(User).where(User.wallet_address == tx.to_address)
+            )
+            recipient_wallet = result.scalar_one_or_none()
+            if not recipient_wallet:
+                u_res = await db.execute(select(User).where(User.wallet_address == tx.to_address))
+                user = u_res.scalar_one_or_none()
+                if not user:
+                    user = User(
+                        email=f"genesis_{tx.to_address[:8]}@vit.network",
+                        username=f"genesis_{tx.to_address[:8]}",
+                        wallet_address=tx.to_address,
+                        role="validator"
+                    )
+                    db.add(user)
+                    await db.flush()
+
+                recipient_wallet = Wallet(
+                    user_id=user.id,
+                    vitcoin_balance=Decimal("0.00000000")
+                )
+                db.add(recipient_wallet)
+                await db.flush()
+
+            recipient_wallet.vitcoin_balance += tx.amount
+            db.add(recipient_wallet)
+            return True
+
+        # Non-genesis transactions with ZERO_ADDRESS are rejected
+        if tx.from_address == ZERO_ADDRESS:
+            return False
+
+        # Standard Transaction Path
         # 1. Get sender wallet
         result = await db.execute(
             select(Wallet).join(User).where(User.wallet_address == tx.from_address)

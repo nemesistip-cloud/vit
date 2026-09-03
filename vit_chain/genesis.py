@@ -81,5 +81,7 @@ async def ensure_genesis(db: AsyncSession):
         return latest
 
     genesis_block = build_genesis_block()
-    await chain.add_block(db, genesis_block)
+    success = await chain.add_block(db, genesis_block)
+    if not success:
+        raise RuntimeError("Failed to add genesis block to VIT Chain")
     return genesis_block

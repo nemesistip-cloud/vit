@@ -120,13 +120,13 @@ class VITRuntimeKernel:
             logger.warning(f"[kernel] Kernel already in {self.state.value} state.")
             return
 
-        # Formalize registration in the Module Registry now that we have an event loop
-        for sub in self.subsystems.values():
-            await registry.register(sub)
-        """Authoritative boot sequence delegating to LifecycleManager."""
         if self.state != KernelState.INITIALIZING:
             logger.warning(f"[kernel] Kernel already in {self.state.value} state.")
             return
+
+        # Formalize registration in the Module Registry now that we have an event loop
+        for sub in self.subsystems.values():
+            await registry.register(sub)
 
         logger.info("[kernel] VIT Runtime Kernel booting...")
         self.state = KernelState.STARTING
@@ -162,8 +162,9 @@ class VITRuntimeKernel:
         if self.state in [KernelState.SHUTTING_DOWN, KernelState.STOPPED]:
             return
 
-        logger.info("[kernel] VIT Runtime Kernel shutting down...")
+        prev_state = self.state
         self.state = KernelState.SHUTTING_DOWN
+        logger.info(f"[kernel] VIT Runtime Kernel shutting down (from {prev_state.value})...")
 
         obs_manager.record_metric("kernel_shutdown_start", 1.0)
 
