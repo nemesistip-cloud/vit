@@ -513,39 +513,84 @@ async def get_live_matches(
         _cached = await cache.get(_cache_key)
         if _cached is not None:
             return _cached
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        live_statuses = ["live", "in_play"]
-        terminal_statuses = ["finished", "completed", "cancelled", "postponed"]
-        stmt = (
-            select(Match, Prediction)
-            .outerjoin(Prediction, Match.id == Prediction.match_id)
-            .where(Match.actual_outcome.is_(None))
-            .where(Match.status.notin_(terminal_statuses))
-            .where(
-                or_(
-                    Match.status.in_(live_statuses),
-                    and_(
-                        Match.kickoff_time <= now,
-                        Match.kickoff_time >= now - timedelta(hours=2),
-                    ),
-                )
-            )
-            .order_by(Match.kickoff_time.desc())
-        )
+
+        from app.services.live_match_ingestion import live_ingestion_service
+        ingested = await live_ingestion_service.fetch_and_normalize_all(force_refresh=True)
+        live_list = ingested.get("live", [])
+
         if sport:
-            stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
-        result = await db.execute(stmt)
-        rows = result.all()
-        match_map = {}
+            sport_norm = sport.lower().replace(" ", "_")
+            live_list = [m for m in live_list if (m.sport or "football").lower().replace(" ", "_") == sport_norm]
+
         markets = await _load_markets(db)
-        for m, p in rows:
-            if m.id not in match_map:
-                match_map[m.id] = (m, p)
-        res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-        await cache.set(_cache_key, res, ttl=15)
+
+        # Collect db_match_ids to fetch predictions
+        db_ids = [m.db_match_id for m in live_list if m.db_match_id]
+        pred_map = {}
+        if db_ids:
+            pred_stmt = select(Prediction).where(Prediction.match_id.in_(db_ids)).order_by(Prediction.timestamp.desc())
+            pred_rows = (await db.execute(pred_stmt)).scalars().all()
+            for p in pred_rows:
+                if p.match_id not in pred_map and not getattr(p, "is_seed", False):
+                    pred_map[p.match_id] = p
+
+        res = []
+        for lm in live_list:
+            pred = pred_map.get(lm.db_match_id) if lm.db_match_id else None
+            home_prob = float(pred.home_prob) if pred and pred.home_prob is not None else None
+            draw_prob = float(pred.draw_prob) if pred and pred.draw_prob is not None else None
+            away_prob = float(pred.away_prob) if pred and pred.away_prob is not None else None
+            confidence = float(pred.confidence) if pred and pred.confidence is not None else None
+            bet_side = getattr(pred, "bet_side", None)
+            entry_odds = getattr(pred, "entry_odds", None)
+
+            match_id = lm.db_match_id if lm.db_match_id else abs(hash(lm.id)) % 1000000 + 100000
+
+            res.append({
+                "id": match_id,
+                "match_id": match_id,
+                "external_id": lm.provider_match_id,
+                "home_team": lm.home,
+                "away_team": lm.away,
+                "league": _fmt_league(lm.league),
+                "league_key": lm.league,
+                "kickoff_time": lm.kickoff_time or datetime.now(timezone.utc).isoformat(),
+                "status": "live",
+                "minute": lm.minute,
+                "period": lm.period,
+                "home_score": lm.home_score,
+                "away_score": lm.away_score,
+                "home_goals": lm.home_score,
+                "away_goals": lm.away_score,
+                "stoppage_time": lm.stoppage_time,
+                "home_red_cards": lm.home_red_cards,
+                "away_red_cards": lm.away_red_cards,
+                "home_yellow_cards": lm.home_yellow_cards,
+                "away_yellow_cards": lm.away_yellow_cards,
+                "events": lm.events,
+                "stats": lm.stats,
+                "sport": lm.sport,
+                "source": lm.provider,
+                "home_prob": home_prob,
+                "draw_prob": draw_prob,
+                "away_prob": away_prob,
+                "confidence": confidence,
+                "bet_side": bet_side,
+                "entry_odds": entry_odds,
+                "data_status": "LIVE",
+                "data_provenance": {
+                    "data_source": lm.provider,
+                    "provider_match_id": lm.provider_match_id,
+                    "retrieved_at": datetime.fromtimestamp(lm.source_timestamp, timezone.utc).isoformat(),
+                    "last_successful_update": datetime.fromtimestamp(lm.last_successful_update, timezone.utc).isoformat(),
+                    "fallback_used": lm.provider == "db",
+                }
+            })
+
+        await cache.set(_cache_key, res, ttl=10)
         return res
     except Exception as e:
-        logger.exception("get_live_matches database read failed")
+        logger.exception("get_live_matches read failed")
         raise HTTPException(
             status_code=503,
             detail={"code": "SPORTS_DATA_UNAVAILABLE", "message": "Live sports data is temporarily unavailable"},
