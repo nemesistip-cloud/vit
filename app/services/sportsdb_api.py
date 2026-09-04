@@ -359,37 +359,51 @@ def _league_slug(name: str) -> str:
     return name.lower().replace(" ", "_")
 
 
-async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
-    """GET a TheSportsDB endpoint and return the first non-None events/results list.
+_last_request_time = 0.0
 
-    Returns [] immediately on rate-limit (429) or any error — callers should
-    handle absence of data gracefully. The background sync loop retries naturally
-    every 3 hours, so inline retries are not needed and would block startup.
-    """
+
+async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
+    """GET a TheSportsDB endpoint with automatic rate limit pacing and 429 retry backoff."""
+    global _last_request_time
     url = f"{BASE}/{path}"
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.get(url)
-            if r.status_code == 429:
-                retry_after = r.headers.get("retry-after", "?")
-                logger.warning(
-                    "[sportsdb] rate-limited (429) on %s (retry-after=%s) — skipping",
-                    path, retry_after,
-                )
+
+    now = asyncio.get_event_loop().time()
+    elapsed = now - _last_request_time
+    if elapsed < 1.2:
+        await asyncio.sleep(1.2 - elapsed)
+
+    for attempt in range(2):
+        _last_request_time = asyncio.get_event_loop().time()
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                r = await client.get(url)
+                if r.status_code == 429:
+                    retry_after_str = r.headers.get("retry-after", "2")
+                    try:
+                        retry_after = int(retry_after_str)
+                    except ValueError:
+                        retry_after = 2
+                    wait_time = min(max(retry_after, 2), 8)
+                    logger.warning(
+                        "[sportsdb] rate-limited (429) on %s, waiting %ds (attempt %d/2)...",
+                        path, wait_time, attempt + 1
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                for key in ("events", "results"):
+                    evs = data.get(key)
+                    if evs:
+                        return evs
                 return []
-            r.raise_for_status()
-            data = r.json()
-            for key in ("events", "results"):
-                evs = data.get(key)
-                if evs:
-                    return evs
+        except httpx.TimeoutException:
+            logger.debug("[sportsdb] timeout on %s", path)
             return []
-    except httpx.TimeoutException:
-        logger.debug("[sportsdb] timeout on %s", path)
-        return []
-    except Exception as exc:
-        logger.debug("[sportsdb] fetch %s failed: %s", path, exc)
-        return []
+        except Exception as exc:
+            logger.debug("[sportsdb] fetch %s failed: %s", path, exc)
+            return []
+    return []
 
 
 async def fetch_next_events() -> List[Dict]:
@@ -439,10 +453,10 @@ async def fetch_past_events() -> List[Dict]:
     return events
 
 
-async def fetch_events_by_date(target: date) -> List[Dict]:
-    """Fetch all soccer events on a specific calendar date."""
+async def fetch_events_by_date(target: date, sport: str = "Soccer") -> List[Dict]:
+    """Fetch all events on a specific calendar date for a given sport."""
     date_str = target.strftime("%Y-%m-%d")
-    evs = await _fetch(f"eventsday.php?d={date_str}&s=Soccer")
+    evs = await _fetch(f"eventsday.php?d={date_str}&s={sport}")
     events = []
     for ev in evs:
         mapped = _map_event(ev)
@@ -451,35 +465,24 @@ async def fetch_events_by_date(target: date) -> List[Dict]:
     return events
 
 
-async def fetch_upcoming_range(days: int = 60) -> List[Dict]:
-    """Fetch soccer events for the next N days via day-by-day queries.
-
-    Runs date requests in batches of 10 to avoid hammering the free API.
-    """
+async def fetch_upcoming_range(days: int = 14) -> List[Dict]:
+    """Fetch multi-sport events across all configured sports for the next N days."""
     today = datetime.now(timezone.utc).date()
-    dates = [today + timedelta(days=i) for i in range(1, days + 1)]
+    dates = [today + timedelta(days=i) for i in range(0, days)]
 
-    # Batch in groups of 3 concurrent requests — free-tier is rate-limited
-    batch_size = 2
     events: List[Dict] = []
     seen: set = set()
 
-    for start in range(0, len(dates), batch_size):
-        batch = dates[start: start + batch_size]
-        tasks = [fetch_events_by_date(d) for d in batch]
-        daily = await asyncio.gather(*tasks, return_exceptions=True)
-        for day_evs in daily:
-            if isinstance(day_evs, list):
-                for ev in day_evs:
-                    key = (ev["home_team"], ev["away_team"], str(ev.get("kickoff_time", "")))
-                    if key not in seen:
-                        seen.add(key)
-                        events.append(ev)
-        # 2-second pause between each batch to respect free-tier rate limits
-        if start + batch_size < len(dates):
-            await asyncio.sleep(2.5)
+    for sport_key, tsdb_sport in TSDB_SPORT_NAMES.items():
+        for d in dates:
+            day_evs = await fetch_events_by_date(d, sport=tsdb_sport)
+            for ev in day_evs:
+                key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{str(ev.get('kickoff_time', ''))}"
+                if key not in seen:
+                    seen.add(key)
+                    events.append(ev)
 
-    logger.info("[sportsdb] fetch_upcoming_range(%dd): %d events", days, len(events))
+    logger.info("[sportsdb] fetch_upcoming_range(%dd): %d multi-sport events", days, len(events))
     return events
 
 
@@ -643,11 +646,19 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
     from sqlalchemy import select
     from app.db.models import Match
 
+    next_events = []
     try:
-        next_events = await asyncio.wait_for(fetch_next_events(), timeout=90)
-    except asyncio.TimeoutError:
-        logger.warning("[sportsdb] interactive fixture sync timed out")
-        next_events = []
+        next_evs = await asyncio.wait_for(fetch_next_events(), timeout=120)
+        next_events.extend(next_evs)
+    except Exception as exc:
+        logger.warning("[sportsdb] fetch_next_events warning: %s", exc)
+
+    try:
+        range_evs = await asyncio.wait_for(fetch_upcoming_range(days=min(days_ahead, 14)), timeout=120)
+        next_events.extend(range_evs)
+    except Exception as exc:
+        logger.warning("[sportsdb] fetch_upcoming_range warning: %s", exc)
+
     now = datetime.now(timezone.utc)
     cutoff = now + timedelta(days=days_ahead)
     next_events = [
