@@ -317,7 +317,7 @@ async def get_matches(
             stmt = stmt.where(Match.league == league)
         if status:
             stmt = stmt.where(Match.status == status)
-        if sport:
+        if sport and sport.lower() != "all":
             stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
 
         stmt = stmt.order_by(Match.kickoff_time.asc())
@@ -387,7 +387,7 @@ async def get_upcoming_matches(
             .where(Match.actual_outcome.is_(None))
             .order_by(Match.kickoff_time.asc())
         )
-        if sport:
+        if sport and sport.lower() != "all":
             stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
         result = await db.execute(stmt)
         rows = result.all()
@@ -518,7 +518,7 @@ async def get_live_matches(
         ingested = await live_ingestion_service.fetch_and_normalize_all(force_refresh=True)
         live_list = ingested.get("live", [])
 
-        if sport:
+        if sport and sport.lower() != "all":
             sport_norm = sport.lower().replace(" ", "_")
             live_list = [m for m in live_list if (m.sport or "football").lower().replace(" ", "_") == sport_norm]
 
@@ -614,7 +614,7 @@ async def get_recent_matches(
             .order_by(Match.kickoff_time.desc())
             .limit(20)
         )
-        if sport:
+        if sport and sport.lower() != "all":
             stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
         result = await db.execute(stmt)
         rows = result.all()
