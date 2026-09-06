@@ -143,13 +143,13 @@ LEAGUE_SPORT_MAP: Dict[str, str] = {
 
 # TheSportsDB sport name for eventsday.php?s=... endpoint
 TSDB_SPORT_NAMES: Dict[str, str] = {
-    "football":          "Soccer",
     "basketball":        "Basketball",
     "tennis":            "Tennis",
+    "cricket":           "Cricket",
+    "football":          "Soccer",
     "american_football": "American Football",
     "baseball":          "Baseball",
     "ice_hockey":        "Ice Hockey",
-    "cricket":           "Cricket",
     "mma":               "MMA",
     "formula1":          "Motorsport",
     "rugby":             "Rugby League",
