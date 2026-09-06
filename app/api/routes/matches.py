@@ -16,7 +16,7 @@ from app.modules.wallet.models import PlatformConfig
 from app.core.cache import cache
 from app.modules.ai.models import AIPredictionAudit
 from app.services.deterministic_insights import generate_match_insights
-from app.services.predict_features import build_predict_features
+from app.services.predict_features import build_predict_features, _team_search_terms
 from app.services.odds_provider import NormalizedOdds, OddsIntelligence, default_provider_registry, OddsFreshness
 from app.services.evidence_engine import EvidenceEngine, PredictionClassification
 
@@ -414,12 +414,17 @@ async def get_upcoming_matches(
 
 
 async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
-    # Last 5 matches for this team
+    terms = _team_search_terms(team)
+    conditions = []
+    for term in terms:
+        conditions.append(Match.home_team.ilike(f'%{term}%'))
+        conditions.append(Match.away_team.ilike(f'%{term}%'))
+
     stmt = (
         select(Match)
-        .where(or_(Match.home_team == team, Match.away_team == team))
+        .where(or_(*conditions))
         .where(Match.kickoff_time < before)
-        .where(Match.actual_outcome.isnot(None))
+        .where(or_(Match.actual_outcome.isnot(None), and_(Match.home_goals.isnot(None), Match.away_goals.isnot(None))))
         .order_by(Match.kickoff_time.desc())
         .limit(5)
     )
@@ -427,24 +432,35 @@ async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
     matches = res.scalars().all()
     form = []
     for m in matches:
-        if m.actual_outcome == "draw":
-            form.append("D")
-        elif (m.home_team == team and m.actual_outcome == "home") or \
-             (m.away_team == team and m.actual_outcome == "away"):
-            form.append("W")
+        outcome = m.actual_outcome
+        if not outcome and m.home_goals is not None and m.away_goals is not None:
+            if m.home_goals > m.away_goals:
+                outcome = 'home'
+            elif m.home_goals < m.away_goals:
+                outcome = 'away'
+            else:
+                outcome = 'draw'
+
+        if outcome == 'draw':
+            form.append('D')
+        elif any(t.lower() in m.home_team.lower() for t in terms) and outcome == 'home':
+            form.append('W')
+        elif any(t.lower() in m.away_team.lower() for t in terms) and outcome == 'away':
+            form.append('W')
         else:
-            form.append("L")
+            form.append('L')
 
     return {
-        "results": form,
-        "form": "".join(form) if form else "N/A",
-        "matches": [
+        'results': form,
+        'form': ''.join(form) if form else 'N/A',
+        'matches_played': len(matches),
+        'matches': [
             {
-                "home": m.home_team,
-                "away": m.away_team,
-                "score": f"{m.home_goals}-{m.away_goals}" if m.home_goals is not None else None,
-                "outcome": m.actual_outcome,
-                "date": m.kickoff_time.isoformat()
+                'home': m.home_team,
+                'away': m.away_team,
+                'score': f'{m.home_goals}-{m.away_goals}' if m.home_goals is not None else None,
+                'outcome': m.actual_outcome,
+                'date': m.kickoff_time.isoformat() if m.kickoff_time else None
             }
             for m in matches
         ]
@@ -452,13 +468,18 @@ async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
 
 
 async def _head_to_head(db: AsyncSession, m: Match) -> dict:
+    home_terms = _team_search_terms(m.home_team)
+    away_terms = _team_search_terms(m.away_team)
+    home_conds = [or_(Match.home_team.ilike(f'%{t}%'), Match.away_team.ilike(f'%{t}%')) for t in home_terms]
+    away_conds = [or_(Match.home_team.ilike(f'%{t}%'), Match.away_team.ilike(f'%{t}%')) for t in away_terms]
+
     stmt = (
         select(Match)
-        .where(or_(
-            and_(Match.home_team == m.home_team, Match.away_team == m.away_team),
-            and_(Match.home_team == m.away_team, Match.away_team == m.home_team)
+        .where(and_(
+            or_(*home_conds),
+            or_(*away_conds),
+            or_(Match.actual_outcome.isnot(None), and_(Match.home_goals.isnot(None), Match.away_goals.isnot(None)))
         ))
-        .where(Match.actual_outcome.isnot(None))
         .where(Match.id != m.id)
         .order_by(Match.kickoff_time.desc())
         .limit(5)
@@ -466,22 +487,42 @@ async def _head_to_head(db: AsyncSession, m: Match) -> dict:
     res = await db.execute(stmt)
     matches = res.scalars().all()
 
-    home_wins = sum(1 for match in matches if (match.home_team == m.home_team and match.actual_outcome == "home") or (match.away_team == m.home_team and match.actual_outcome == "away"))
-    away_wins = sum(1 for match in matches if (match.home_team == m.away_team and match.actual_outcome == "home") or (match.away_team == m.away_team and match.actual_outcome == "away"))
-    draws = sum(1 for match in matches if match.actual_outcome == "draw")
+    home_wins = 0
+    away_wins = 0
+    draws = 0
+
+    for match in matches:
+        outcome = match.actual_outcome
+        if not outcome and match.home_goals is not None and match.away_goals is not None:
+            if match.home_goals > match.away_goals:
+                outcome = 'home'
+            elif match.home_goals < match.away_goals:
+                outcome = 'away'
+            else:
+                outcome = 'draw'
+
+        if outcome == 'draw':
+            draws += 1
+        elif any(t.lower() in match.home_team.lower() for t in home_terms) and outcome == 'home':
+            home_wins += 1
+        elif any(t.lower() in match.away_team.lower() for t in home_terms) and outcome == 'away':
+            home_wins += 1
+        else:
+            away_wins += 1
 
     return {
-        "count": len(matches),
-        "home_wins": home_wins,
-        "away_wins": away_wins,
-        "draws": draws,
-        "matches": [
+        'count': len(matches),
+        'matches_played': len(matches),
+        'home_wins': home_wins,
+        'away_wins': away_wins,
+        'draws': draws,
+        'matches': [
             {
-                "home": match.home_team,
-                "away": match.away_team,
-                "score": f"{match.home_goals}-{match.away_goals}" if match.home_goals is not None else None,
-                "outcome": match.actual_outcome,
-                "date": match.kickoff_time.isoformat()
+                'home': match.home_team,
+                'away': match.away_team,
+                'score': f'{match.home_goals}-{match.away_goals}' if match.home_goals is not None else None,
+                'outcome': match.actual_outcome,
+                'date': match.kickoff_time.isoformat() if match.kickoff_time else None
             }
             for match in matches
         ]
@@ -970,17 +1011,17 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
 
         # 4. Invoke Prediction Orchestrator
         from app.core.dependencies import get_orchestrator_dep
+        from app.services.multi_sport_orchestrator import MultiSportOrchestrator
         try:
-            orchestrator = await get_orchestrator_dep()
+            base_orch = await get_orchestrator_dep()
+            orchestrator = MultiSportOrchestrator(football_orchestrator=base_orch)
         except Exception as exc:
             raise RuntimeError(f"Prediction model unavailable: {exc}") from exc
-        if not orchestrator or not hasattr(orchestrator, "predict"):
-            raise RuntimeError("Prediction model unavailable")
 
         market_odds_payload = reconciled_odds.consensus_odds if reconciled_odds else None
         idempotency_key = f"match_init_{match_id}_{job_id}"
         raw_result = await orchestrator.predict(
-            {
+            features={
                 "home_team": match.home_team,
                 "away_team": match.away_team,
                 "league": match.league,

@@ -475,15 +475,12 @@ async def fetch_upcoming_range(days: int = 14) -> List[Dict]:
 
     for sport_key, tsdb_sport in TSDB_SPORT_NAMES.items():
         for d in dates:
-            try:
-                day_evs = await fetch_events_by_date(d, sport=tsdb_sport)
-                for ev in day_evs:
-                    key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{str(ev.get('kickoff_time', ''))}"
-                    if key not in seen:
-                        seen.add(key)
-                        events.append(ev)
-            except Exception as exc:
-                logger.warning("[sportsdb] fetch error for %s on %s: %s", sport_key, d, exc)
+            day_evs = await fetch_events_by_date(d, sport=tsdb_sport)
+            for ev in day_evs:
+                key = ev.get("external_id") or f"{ev['home_team']}|{ev['away_team']}|{str(ev.get('kickoff_time', ''))}"
+                if key not in seen:
+                    seen.add(key)
+                    events.append(ev)
 
     logger.info("[sportsdb] fetch_upcoming_range(%dd): %d multi-sport events", days, len(events))
     return events
@@ -651,16 +648,16 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
 
     next_events = []
     try:
-        range_evs = await asyncio.wait_for(fetch_upcoming_range(days=min(days_ahead, 7)), timeout=120)
-        next_events.extend(range_evs)
-    except Exception as exc:
-        logger.warning("[sportsdb] fetch_upcoming_range warning: %s", exc)
-
-    try:
         next_evs = await asyncio.wait_for(fetch_next_events(), timeout=120)
         next_events.extend(next_evs)
     except Exception as exc:
         logger.warning("[sportsdb] fetch_next_events warning: %s", exc)
+
+    try:
+        range_evs = await asyncio.wait_for(fetch_upcoming_range(days=min(days_ahead, 14)), timeout=120)
+        next_events.extend(range_evs)
+    except Exception as exc:
+        logger.warning("[sportsdb] fetch_upcoming_range warning: %s", exc)
 
     now = datetime.now(timezone.utc)
     cutoff = now + timedelta(days=days_ahead)
