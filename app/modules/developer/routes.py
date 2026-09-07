@@ -82,6 +82,7 @@ async def list_plans(
 # ── API Keys ──────────────────────────────────────────────────────────────────
 
 @router.get("/keys", summary="List my API keys")
+@router.get("/api-keys", summary="List my API keys (alias)")
 async def list_keys(
     db:           AsyncSession = Depends(get_db),
     current_user: User         = Depends(get_current_user),
@@ -91,6 +92,7 @@ async def list_keys(
 
 
 @router.post("/keys", summary="Create a new API key", status_code=201)
+@router.post("/api-keys", summary="Create a new API key (alias)", status_code=201)
 async def create_key(
     body:         CreateKeyRequest,
     db:           AsyncSession = Depends(get_db),
@@ -106,6 +108,7 @@ async def create_key(
         )
         result = _fmt_key(key, show_plain=True)
         result["key"] = raw   # shown only once
+        result["raw_value"] = raw  # alias field for compatibility
         # Clear stored plain key
         key.key_plain = None
         await db.commit()
@@ -115,6 +118,7 @@ async def create_key(
 
 
 @router.delete("/keys/{key_id}", summary="Delete an API key")
+@router.delete("/api-keys/{key_id}", summary="Delete an API key (alias)")
 async def delete_key(
     key_id:       int,
     db:           AsyncSession = Depends(get_db),
@@ -127,6 +131,8 @@ async def delete_key(
 
 
 @router.patch("/keys/{key_id}/revoke", summary="Revoke (disable) an API key")
+@router.patch("/api-keys/{key_id}/revoke", summary="Revoke (disable) an API key (alias)")
+@router.delete("/api-keys/{key_id}/revoke", summary="Revoke (disable) an API key (alias)")
 async def revoke_key(
     key_id:       int,
     db:           AsyncSession = Depends(get_db),

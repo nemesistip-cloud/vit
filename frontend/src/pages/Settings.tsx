@@ -834,35 +834,86 @@ function ApiKeysTab() {
   const qc = useQueryClient()
   const { data: keys = [], isLoading } = useApiKeys()
   const keyList = Array.isArray(keys) ? keys : keys?.keys ?? []
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
 
   const createKey = useMutation({
     mutationFn: async () => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/developer/api-keys`, {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ name: `Key ${Date.now()}` }),
       })
-      if (!r.ok) throw new Error('Failed to create key')
+      if (!r.ok) {
+        let errDetail = "Failed to create key"
+        try {
+          const errData = await r.json()
+          if (errData.detail) {
+            errDetail = typeof errData.detail === "string" ? errData.detail : JSON.stringify(errData.detail)
+          } else if (errData.message) {
+            errDetail = errData.message
+          }
+        } catch (_) {}
+        throw new Error(errDetail)
+      }
       return r.json()
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['api-keys'] }); toast.success('API key created') },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["api-keys"] })
+      const rawSecret = data?.key || data?.raw_value
+      if (rawSecret) {
+        setNewlyCreatedKey(rawSecret)
+      }
+      toast.success("API key created successfully")
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to create key"),
   })
 
   const revokeKey = useMutation({
     mutationFn: async (id: string | number) => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/developer/api-keys/${id}`, {
-        method: 'DELETE', headers: authHeaders(),
+        method: "DELETE", headers: authHeaders(),
       })
-      if (!r.ok) throw new Error('Failed to revoke key')
+      if (!r.ok) {
+        let errDetail = "Failed to revoke key"
+        try {
+          const errData = await r.json()
+          if (errData.detail) {
+            errDetail = typeof errData.detail === "string" ? errData.detail : JSON.stringify(errData.detail)
+          }
+        } catch (_) {}
+        throw new Error(errDetail)
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['api-keys'] }); toast.success('Key revoked') },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["api-keys"] }); toast.success("Key revoked") },
+    onError: (e: Error) => toast.error(e.message || "Failed to revoke key"),
   })
-
   return (
     <div className="space-y-6">
       <SectionHead title="API Keys" subtitle="Programmatic access to the VIT platform. Keep these secret." />
+      {newlyCreatedKey && (
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+              New Secret Generated — Copy Now
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(newlyCreatedKey)
+                toast.success("Copied API Key to clipboard")
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 rounded transition-colors font-medium"
+            >
+              <Copy className="w-3.5 h-3.5" /> Copy Secret
+            </button>
+          </div>
+          <code className="block p-2.5 bg-black/40 text-emerald-300 font-mono text-xs rounded border border-emerald-500/20 break-all">
+            {newlyCreatedKey}
+          </code>
+          <p className="text-[11px] text-emerald-200/60">
+            For security, this raw secret key will not be shown again once you leave or refresh this page.
+          </p>
+        </div>
+      )}
       <button
         onClick={() => createKey.mutate()}
         disabled={createKey.isPending}

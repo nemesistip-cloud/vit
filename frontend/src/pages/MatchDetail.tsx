@@ -80,6 +80,7 @@ interface Match {
     retrieved_at?: string
     fallback_used?: boolean
   }
+  actual_outcome?: string
   home_score?: number
   away_score?: number
   home_prob?: number
@@ -627,25 +628,49 @@ export default function MatchDetail() {
             </motion.div>
           )}
 
-          {/* STATE 3: FAILED */}
+          {/* STATE 3: FAILED / COMPLETED FIXTURE */}
           {status === 'failed' && !isProcessing && (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6 text-center"
+              className={cn(
+                "rounded-2xl p-6 text-center border",
+                (match.status?.toLowerCase() === 'completed' || match.status?.toLowerCase() === 'settled' || match.actual_outcome)
+                  ? "bg-surface-800/80 border-vit-500/30"
+                  : "bg-red-500/10 border-red-500/30"
+              )}
             >
-              <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-white mb-1">Prediction Generation Failed</h3>
-              <p className="text-xs text-red-300/80 mb-4 max-w-md mx-auto">
-                {match.error_message || errorMessage || 'An unexpected error occurred during prediction generation.'}
-              </p>
-              <button
-                onClick={() => handleAction('initialize')}
-                className="px-5 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold text-xs border border-red-500/40 inline-flex items-center gap-2"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Retry Prediction
-              </button>
+              {(match.status?.toLowerCase() === 'completed' || match.status?.toLowerCase() === 'settled' || match.actual_outcome) ? (
+                <>
+                  <CheckCircle2 className="w-10 h-10 text-vit-400 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-white mb-1">Match Completed</h3>
+                  <p className="text-xs text-white/60 mb-4 max-w-md mx-auto">
+                    This match has concluded with outcome <span className="font-semibold text-vit-300 uppercase">{match.actual_outcome || 'Verified'}</span> ({match.home_score ?? 0} - {match.away_score ?? 0}).
+                  </p>
+                  <button
+                    onClick={() => handleAction('initialize')}
+                    className="px-5 py-2.5 rounded-xl bg-vit-500/20 hover:bg-vit-500/30 text-vit-300 font-semibold text-xs border border-vit-500/40 inline-flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Generate Historical Analysis
+                  </button>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-white mb-1">Prediction Generation Failed</h3>
+                  <p className="text-xs text-red-300/80 mb-4 max-w-md mx-auto">
+                    {match.error_message || errorMessage || 'An unexpected error occurred during prediction generation.'}
+                  </p>
+                  <button
+                    onClick={() => handleAction('initialize')}
+                    className="px-5 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold text-xs border border-red-500/40 inline-flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Retry Prediction
+                  </button>
+                </>
+              )}
             </motion.div>
           )}
 
