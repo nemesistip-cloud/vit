@@ -97,6 +97,11 @@ class SwarmOrchestrator:
         """Store the asyncio.Task list so status() can report running/stopped."""
         self._tasks = tasks
 
+    def get_agent_result(self, agent_name: str) -> Optional[Dict[str, Any]]:
+        """Return the last result for an agent, matching AgentCoordinator's API."""
+        agent = self._agents.get(agent_name)
+        return getattr(agent, "last_result", None) if agent else None
+
     # ── APScheduler in-process scheduling ───────────────────────────────────
 
     def start_scheduler(self) -> None:

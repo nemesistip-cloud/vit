@@ -25,6 +25,7 @@
 | # | Service | File | Bug | Fix |
 |---|---------|------|-----|-----|
 | H7 | vitnetwork | `app/core/swarm_orchestrator.py`, `app/agents/base.py` | In-process APScheduler called `agent.run_once()`, but the shared `BaseAgent` contract exposed only `run_cycle()`/`loop()`; live logs showed `LiveMatchTrackerAgent object has no attribute 'run_once'` on every scheduled run | Fixed — added `BaseAgent.run_once()` with shared lifecycle/error bookkeeping and reused it from the long-running loop; regression test added |
+| H8 | vitnetwork | `app/core/swarm_orchestrator.py` | `get_coordinator()` returns the swarm in production, but `RetrainTriggerAgent` and `SelfHealingAgent` called the missing `get_agent_result()` compatibility method; live logs showed retrain cycles failing with `SwarmOrchestrator object has no attribute 'get_agent_result'` | Fixed — added the AgentCoordinator-compatible result lookup and regression assertion |
 
 ## 🟡 MEDIUM — Deployment drift
 

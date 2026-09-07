@@ -31,6 +31,11 @@ async def test_base_agent_run_once_updates_lifecycle_state(monkeypatch):
     assert agent.last_run_at is not None
     assert agent.last_error is None
 
+    swarm = SwarmOrchestrator()
+    swarm.register("one-cycle", agent)
+    assert swarm.get_agent_result("one-cycle") == {"ok": True}
+    assert swarm.get_agent_result("missing") is None
+
 @pytest.mark.asyncio
 async def test_swarm_orchestrator_initialization_and_scheduling(monkeypatch):
     # Set ENABLED_AGENTS to a specific subset
