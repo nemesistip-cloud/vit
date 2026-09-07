@@ -60,6 +60,9 @@ def _bootstrap_sqlite_schema(database_url: str) -> None:
     import app.modules.developer.models  # noqa: F401
     import app.modules.governance.models  # noqa: F401
     import app.modules.rewards.models  # noqa: F401
+    import app.modules.network.models  # noqa: F401
+    import app.modules.evidence.models  # noqa: F401
+    import app.modules.storage_verification.models  # noqa: F401
     import app.modules.ai.models  # noqa: F401
 
     _OPTIONAL_MODELS = [

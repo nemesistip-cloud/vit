@@ -24,6 +24,9 @@ import app.modules.bridge.models       # noqa: E402
 import app.modules.developer.models    # noqa: E402
 import app.modules.governance.models   # noqa: E402
 import app.modules.rewards.models      # noqa: E402
+import app.modules.network.models      # noqa: E402
+import app.modules.evidence.models     # noqa: E402
+import app.modules.storage_verification.models  # noqa: E402
 
 # Optional models — some may depend on heavy ML libraries or have conditional
 # imports.  Wrap each in try/except so a single bad import doesn't crash Alembic.

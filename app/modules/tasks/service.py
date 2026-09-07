@@ -292,6 +292,7 @@ class TaskService:
                     description=f"Task completion: {task.title}",
                     tx_type="TASK_REWARD",
                     metadata={
+                        "idempotency_key": f"task-completion:{completion.id}",
                         "task_id": task.id,
                         "base_vit_reward": str(task.vit_reward),
                         "reward_multiplier": str(reward_multiplier),

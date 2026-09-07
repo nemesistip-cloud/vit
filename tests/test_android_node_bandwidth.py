@@ -61,6 +61,7 @@ async def test_android_heartbeat_authorized():
     assert response["status"] == "online"
     assert response["tasks_available"] is True
     db.add.assert_called_once()
+    assert db.add.call_args.args[0].contribution_score == 0.0
 
 @pytest.mark.asyncio
 async def test_bandwidth_tracking():

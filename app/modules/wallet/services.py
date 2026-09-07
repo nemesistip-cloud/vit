@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 from decimal import Decimal
 from datetime import datetime, timezone, timedelta
@@ -56,10 +58,11 @@ class WalletService:
                 )
             )
             if not tx_check.scalar_one_or_none():
+                wallet.vitcoin_balance = (wallet.vitcoin_balance or Decimal("0")) + welcome_bonus
                 tx = WalletTransaction(
                     wallet_id=wallet.id, user_id=user_id, type="welcome_bonus",
                     amount=welcome_bonus, currency="VITCoin", status="confirmed",
-                    reference="welcome_bonus",
+                    direction="credit", reference="welcome_bonus",
                     processed_at=datetime.now(timezone.utc).replace(tzinfo=None),
                 )
                 self.db.add(tx)
@@ -73,12 +76,15 @@ class WalletService:
                     )
                     wallet = result.scalar_one()
 
-        if not wallet.profile:
+        profile_result = await self.db.execute(
+            select(WalletProfile).where(WalletProfile.wallet_id == wallet.id)
+        )
+        profile = profile_result.scalar_one_or_none()
+        if not profile:
             try:
                 profile = WalletProfile(wallet_id=wallet.id)
                 self.db.add(profile)
                 await self.db.flush()
-                wallet.profile = profile
             except _IntegrityError:
                 await self.db.rollback()
                 result = await self.db.execute(
@@ -168,6 +174,53 @@ class WalletService:
         self.db.add(tx)
         await self.db.flush()
         return tx
+
+    async def deposit_vitcoin(
+        self,
+        user_id: int,
+        amount: Decimal,
+        description: str,
+        tx_type: str = "reward",
+        metadata: Optional[dict] = None,
+    ) -> WalletTransaction:
+        """Credit VITCoin once using a deterministic accounting reference.
+
+        Reward, task, storage, and progression callers use this compatibility
+        boundary. The reference is unique so retries return the original
+        ledger transaction instead of crediting the wallet twice.
+        """
+        amount = Decimal(str(amount))
+        if amount <= 0:
+            raise ValueError("VITCoin deposit amount must be positive")
+
+        metadata = dict(metadata or {})
+        explicit_key = metadata.get("idempotency_key")
+        if explicit_key:
+            reference_key = str(explicit_key)
+        else:
+            canonical = json.dumps(metadata, sort_keys=True, default=str, separators=(",", ":"))
+            reference_key = hashlib.sha256(
+                f"{user_id}:{tx_type}:{canonical}".encode("utf-8")
+            ).hexdigest()
+        reference = f"vitcoin:{tx_type}:{user_id}:{reference_key}"
+
+        existing = await self.db.execute(
+            select(WalletTransaction).where(WalletTransaction.reference == reference)
+        )
+        existing_tx = existing.scalar_one_or_none()
+        if existing_tx:
+            return existing_tx
+
+        wallet = await self.get_or_create_wallet(user_id)
+        return await self.credit(
+            wallet_id=wallet.id,
+            user_id=user_id,
+            currency=Currency.VITCOIN,
+            amount=amount,
+            tx_type=tx_type.lower(),
+            reference=reference,
+            metadata={**metadata, "description": description},
+        )
 
     async def stake(self, wallet_id: str, user_id: int, amount: Decimal) -> WalletTransaction:
         liquid_tx = await self.debit(wallet_id, user_id, Currency.VITCOIN, amount, "stake")

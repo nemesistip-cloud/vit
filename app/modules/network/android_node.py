@@ -114,7 +114,7 @@ async def android_heartbeat(
         node_name=node_record.node_name,
         node_type="android",
         activity_type="android_heartbeat",
-        contribution_score=0.1, # Small uptime bonus
+        contribution_score=0.0,
         activity_meta={
             "charge_status": "charging" if body.is_charging else "discharging",
             "wifi_status": "connected" if body.is_on_wifi else "disconnected",

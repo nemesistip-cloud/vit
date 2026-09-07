@@ -35,6 +35,14 @@
 | M9 | vitnetwork | `app/tasks/chain_snapshot.py` | Render logs recorded a chain snapshot Dropbox upload failure: `AuthError(... invalid_access_token ...)` | Recorded — rotate/refresh the Dropbox token in Render and verify the next snapshot upload |
 | M10 | local deployment tooling | `.env:4` | A non-assignment line causes `source .env` to execute it as a shell command (`Never: command not found`) | Recorded — convert the line to a comment or remove it locally; do not commit `.env` |
 
+## 🔴 CRITICAL — Provider/accounting foundations
+
+| # | File | Bug | Fix |
+|---|------|-----|-----|
+| C13 | `alembic/env.py`, `alembic/versions/zz08_provider_evidence_storage_tables.py` | Production Alembic history omitted provider activity, evidence, Tachyon/storage-verification, and storage-node tables even though production routes imported them; tests using `Base.metadata.create_all()` masked the migration gap | Fixed — registered model metadata and added an idempotent migration; fresh-database upgrade verified all 10 required tables |
+| C14 | `app/modules/wallet/services.py` | Reward/storage/task callers invoked missing `deposit_vitcoin()`; first-wallet welcome bonus also violated the required transaction direction and did not update the balance projection | Fixed — added deterministic idempotent VITCoin deposit boundary and repaired welcome-bonus ledger/projection consistency |
+| C15 | `app/modules/network/android_node.py` | Android heartbeats recorded `contribution_score=0.1`, allowing uptime alone to appear as rewardable contribution | Fixed — heartbeat activity is now explicitly non-rewardable (`0.0`); relay work must create separate verified contribution evidence |
+
 ---
 
 ## 🟠 HIGH — Fixed
