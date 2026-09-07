@@ -154,7 +154,69 @@ async def _fetch_odds(
 
 # ── Market extraction helpers ─────────────────────────────────────────
 
-def _extract_h2h_odds(event: dict) -> dict:
+def _prediction_fields(prediction: Optional[dict]) -> tuple[Optional[str], Optional[float], Optional[float]]:
+    if not prediction:
+        return None, None, None
+    probabilities = {
+        "home": prediction.get("home_prob"),
+        "draw": prediction.get("draw_prob"),
+        "away": prediction.get("away_prob"),
+    }
+    valid = {side: float(value) for side, value in probabilities.items() if value is not None and 0 <= value <= 1}
+    if not valid:
+        return None, None, None
+    pick = max(valid, key=valid.get)
+    confidence = prediction.get("confidence")
+    return pick, valid[pick], float(confidence) if confidence is not None else None
+
+
+def _prediction_ev(pick: Optional[str], probability: Optional[float], best_odds: dict) -> Optional[float]:
+    if pick is None or probability is None:
+        return None
+    odds = best_odds.get(pick)
+    if odds is None or odds <= 1:
+        return None
+    return round((probability * odds) - 1.0, 2)
+
+
+async def _prediction_for_event(event: dict) -> Optional[dict]:
+    from sqlalchemy import desc, or_, select
+    from app.db.database import AsyncSessionLocal
+    from app.db.models import Match, Prediction
+
+    home = str(event.get("home_team", "")).strip()
+    away = str(event.get("away_team", "")).strip()
+    external_id = event.get("id")
+    async with AsyncSessionLocal() as db:
+        match_result = await db.execute(
+            select(Match.id)
+            .where(
+                or_(Match.external_id == external_id, (Match.home_team == home) & (Match.away_team == away))
+            )
+            .limit(1)
+        )
+        match_id = match_result.scalar_one_or_none()
+        if match_id is None:
+            return None
+
+        prediction_result = await db.execute(
+            select(Prediction)
+            .where(Prediction.match_id == match_id, Prediction.status == "READY", Prediction.is_seed.is_(False))
+            .order_by(desc(Prediction.timestamp))
+            .limit(1)
+        )
+        prediction = prediction_result.scalar_one_or_none()
+        if prediction is None:
+            return None
+        return {
+            "home_prob": prediction.home_prob,
+            "draw_prob": prediction.draw_prob,
+            "away_prob": prediction.away_prob,
+            "confidence": prediction.confidence,
+        }
+
+
+def _extract_h2h_odds(event: dict, prediction: Optional[dict] = None) -> dict:
     """Extract best + per-bookmaker 1X2 odds for a single event."""
     home     = str(event.get("home_team", "")).strip()
     away     = str(event.get("away_team", "")).strip()
@@ -190,9 +252,7 @@ def _extract_h2h_odds(event: dict) -> dict:
     ]
 
     kickoff_str = event.get("commence_time", "")
-    ai_pick = "home" if best_home < best_away else "away"
-    conf = 0.65
-    best_price = best_home if ai_pick == "home" else best_away
+    ai_pick, ai_probability, model_confidence = _prediction_fields(prediction)
 
     return {
         "match_id":     event.get("id", f"{home}::{away}"),
@@ -205,8 +265,9 @@ def _extract_h2h_odds(event: dict) -> dict:
         "best_odds":    {"home": best_home, "draw": best_draw, "away": best_away},
         "n_bookmakers": len(bookmakers_list),
         "ai_pick":      ai_pick,
-        "ai_confidence": conf,
-        "best_ev":      round((conf * best_price) - 1.0, 2),
+        "ai_confidence": model_confidence,
+        "ai_probability": ai_probability,
+        "best_ev":      _prediction_ev(ai_pick, ai_probability, {"home": best_home, "draw": best_draw, "away": best_away}),
     }
 
 
@@ -462,9 +523,9 @@ def _detect_ou_arbitrage(
 
 async def _fetch_fallback_matches_odds(sport: Optional[str] = None, league: Optional[str] = None) -> List[dict]:
     """Fallback odds generation using database matches when live external odds API is unavailable."""
-    from sqlalchemy import select
+    from sqlalchemy import desc, select
     from app.db.database import AsyncSessionLocal
-    from app.db.models import Match
+    from app.db.models import Match, Prediction
 
     async with AsyncSessionLocal() as db:
         stmt = select(Match).where(Match.status.in_(["scheduled", "upcoming"]))
@@ -484,23 +545,30 @@ async def _fetch_fallback_matches_odds(sport: Optional[str] = None, league: Opti
 
         results = []
         for m in matches:
-            h_odds = m.closing_odds_home or m.opening_odds_home or 2.15
-            d_odds = m.closing_odds_draw or m.opening_odds_draw or 3.30
-            a_odds = m.closing_odds_away or m.opening_odds_away or 3.10
+            h_odds = m.closing_odds_home or m.opening_odds_home
+            d_odds = m.closing_odds_draw or m.opening_odds_draw
+            a_odds = m.closing_odds_away or m.opening_odds_away
+            if not all(value is not None and value > 1 for value in (h_odds, d_odds, a_odds)):
+                continue
 
-            bks = [
-                {"bookmaker": "Pinnacle", "home": round(h_odds, 2), "draw": round(d_odds, 2), "away": round(a_odds, 2)},
-                {"bookmaker": "Bet365", "home": round(h_odds * 0.97, 2), "draw": round(d_odds * 0.98, 2), "away": round(a_odds * 0.97, 2)},
-                {"bookmaker": "Betfair", "home": round(h_odds * 1.02, 2), "draw": round(d_odds * 1.01, 2), "away": round(a_odds * 1.03, 2)},
-            ]
-            best_h = max(b["home"] for b in bks)
-            best_d = max(b["draw"] for b in bks)
-            best_a = max(b["away"] for b in bks)
+            prediction_result = await db.execute(
+                select(Prediction)
+                .where(Prediction.match_id == m.id, Prediction.status == "READY", Prediction.is_seed.is_(False))
+                .order_by(desc(Prediction.timestamp))
+                .limit(1)
+            )
+            prediction = prediction_result.scalar_one_or_none()
+            prediction_data = {
+                "home_prob": prediction.home_prob,
+                "draw_prob": prediction.draw_prob,
+                "away_prob": prediction.away_prob,
+                "confidence": prediction.confidence,
+            } if prediction else None
 
-            ai_pick = "home" if h_odds <= a_odds else "away"
-            conf = 0.62
-            best_price = best_h if ai_pick == "home" else best_a
-            ev = round((conf * best_price) - 1.0, 2)
+            bks = [{"bookmaker": m.source or "database", "home": round(h_odds, 2), "draw": round(d_odds, 2), "away": round(a_odds, 2)}]
+            best_h, best_d, best_a = h_odds, d_odds, a_odds
+            ai_pick, ai_probability, model_confidence = _prediction_fields(prediction_data)
+            ev = _prediction_ev(ai_pick, ai_probability, {"home": best_h, "draw": best_d, "away": best_a})
 
             kickoff_str = m.kickoff_time.isoformat() if m.kickoff_time else datetime.now(timezone.utc).isoformat()
 
@@ -515,7 +583,8 @@ async def _fetch_fallback_matches_odds(sport: Optional[str] = None, league: Opti
                 "best_odds": {"home": best_h, "draw": best_d, "away": best_a},
                 "n_bookmakers": len(bks),
                 "ai_pick": ai_pick,
-                "ai_confidence": conf,
+                "ai_confidence": model_confidence,
+                "ai_probability": ai_probability,
                 "best_ev": ev,
             })
         return results
@@ -549,7 +618,7 @@ async def compare_odds(
         events, data_status, requests_remaining = await _fetch_odds(sport_key, odds_key, markets="h2h")
 
         for ev in events[:20]:
-            parsed = _extract_h2h_odds(ev)
+            parsed = _extract_h2h_odds(ev, await _prediction_for_event(ev))
             if parsed:
                 comparison.append(parsed)
 

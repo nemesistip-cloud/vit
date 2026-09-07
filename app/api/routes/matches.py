@@ -852,7 +852,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     a = latest.get("away_prob")
 
     features = await build_predict_features(db, match.home_team, match.away_team, match.league)
-    elo_diff = features.get("elo_diff", 0.0)
+    elo_diff = features.get("elo_diff")
 
     has_primary_probabilities = (prediction_status in ("ready", "stale")) and h is not None and d is not None and a is not None
 
@@ -871,12 +871,12 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
                 home_prob=h,
                 draw_prob=d,
                 away_prob=a,
-                over_25_prob=float(latest.get("over_25_prob") or 0.5),
-                btts_prob=float(latest.get("btts_prob") or 0.5),
+                over_25_prob=latest.get("over_25_prob"),
+                btts_prob=latest.get("btts_prob"),
                 bet_side=getattr(latest_pred, 'bet_side', None),
-                edge=float(latest.get("edge") or 0.0),
-                entry_odds=float(latest.get("odds", {}).get("home") or 2.0),
-                confidence=float(getattr(latest_pred, 'confidence', 0.5) or 0.5),
+                edge=latest.get("edge"),
+                entry_odds=latest.get("odds", {}).get("home"),
+                confidence=getattr(latest_pred, 'confidence', None),
             )
         except Exception as e:
             logger.error(f"Tactical insight generation failed: {e}")

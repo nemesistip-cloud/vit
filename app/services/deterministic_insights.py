@@ -9,12 +9,12 @@ async def generate_match_insights(
     home_prob: float,
     draw_prob: float,
     away_prob: float,
-    over_25_prob: float = 0.5,
-    btts_prob: float = 0.5,
+    over_25_prob: Optional[float] = None,
+    btts_prob: Optional[float] = None,
     bet_side: Optional[str] = None,
-    edge: float = 0.0,
-    entry_odds: float = 2.0,
-    confidence: float = 0.5,
+    edge: Optional[float] = None,
+    entry_odds: Optional[float] = None,
+    confidence: Optional[float] = None,
 ) -> Dict:
     """
     Generate high-fidelity tactical insights using the Statistical Contextual Intelligence Engine (SCIE).
@@ -44,29 +44,30 @@ async def generate_match_insights(
     if draw_prob > 0.35:
         factors.append("Low-variance profile: Both sides demonstrating defensive stability recently.")
 
-    if over_25_prob > 0.6:
+    if over_25_prob is not None and over_25_prob > 0.6:
         factors.append("High-tempo projection: Attack-oriented setups likely to yield multiple goals.")
-    elif over_25_prob < 0.4:
+    elif over_25_prob is not None and over_25_prob < 0.4:
         factors.append("Consolidated midfields: Tactical emphasis on defensive structure over offensive risk.")
 
-    if btts_prob > 0.6:
+    if btts_prob is not None and btts_prob > 0.6:
         factors.append("Offensive synchronization: Both units showing high conversion rates in recent cycles.")
 
-    # Fillers if needed
-    if len(factors) < 3:
-        factors.append("Market Efficiency: Odds alignment indicates a well-defined value window.")
-        factors.append("Squad Depth: Rotation patterns suggest high tactical flexibility for this match.")
+    if edge is not None and entry_odds is not None:
+        factors.append("Market edge is available from the stored odds snapshot.")
+    if not factors:
+        factors.append("No additional feature-backed tactical factors are available.")
 
     # 4. Value Assessment
-    risk_level = "LOW" if confidence > 0.75 else ("MEDIUM" if confidence > 0.6 else "HIGH")
+    risk_level = None if confidence is None else ("LOW" if confidence > 0.75 else ("MEDIUM" if confidence > 0.6 else "HIGH"))
 
     return {
         "summary": headline,
         "key_factors": factors[:4],
         "tactical_assessment": f"VIT SCIE analysis suggests {fav_name} holds a {fav_p:.1%} theoretical advantage. "
-                               f"The current {bet_side or 'market'} position shows an estimated edge of {edge:.2%}.",
+                       + (f"The current {bet_side or 'market'} position shows an estimated edge of {edge:.2%}." if edge is not None
+                      else "No stored market edge is available for this fixture."),
         "risk_level": risk_level,
-        "value_assessment": "High-confidence entry" if edge > 0.05 else "Standard value play",
+        "value_assessment": None if edge is None else ("High-confidence entry" if edge > 0.05 else "Standard value play"),
         "scie_version": "5.5.0-native",
         "provider": "VIT-SCIE",
         "confidence": confidence,

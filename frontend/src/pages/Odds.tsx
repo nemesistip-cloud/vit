@@ -62,9 +62,9 @@ function useOdds(sport: string, search: string) {
             ? item.bookmakers
             : Object.entries(item.bookmakers ?? {}).map(([bk, val]: [string, any]) => ({
                 bookmaker: bk,
-                home: val.home ?? 1.0,
+                home: val.home ?? null,
                 draw: val.draw ?? null,
-                away: val.away ?? 1.0,
+                away: val.away ?? null,
               })),
         }))
       } catch (e) {

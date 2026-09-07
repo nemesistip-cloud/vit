@@ -373,11 +373,11 @@ function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
         <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/6 text-center text-xs">
           <div>
             <p className="text-white/35 mb-0.5">Risk Score</p>
-            <p className="font-semibold text-white">{consensus.risk_score != null ? `${(consensus.risk_score * 100).toFixed(0)}/100` : 'Low'}</p>
+            <p className="font-semibold text-white">{consensus.risk_score != null ? `${(consensus.risk_score * 100).toFixed(0)}/100` : '—'}</p>
           </div>
           <div>
             <p className="text-white/35 mb-0.5">Model Agreement</p>
-            <p className="font-semibold text-emerald-400">{consensus.model_agreement != null ? `${Math.round(consensus.model_agreement * 100)}%` : 'High'}</p>
+            <p className="font-semibold text-emerald-400">{consensus.model_agreement != null ? `${Math.round(consensus.model_agreement * 100)}%` : '—'}</p>
           </div>
           <div>
             <p className="text-white/35 mb-0.5">Elo Diff</p>
