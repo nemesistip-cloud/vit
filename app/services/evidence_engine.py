@@ -77,6 +77,7 @@ class EvidenceEngine:
         recent_form_data: Optional[Dict[str, Any]] = None,
         model_agreement_pct: float = 0.0,
         market: str = "match_winner",
+        is_completed: bool = False,
     ) -> EvidenceScoreBreakdown:
         """
         Evaluate match features, odds, and model metadata to produce an EvidenceScoreBreakdown.
@@ -127,10 +128,13 @@ class EvidenceEngine:
             elif freshness == OddsFreshness.ACCEPTABLE:
                 score_odds = 14.0
             elif freshness == OddsFreshness.STALE:
-                score_odds = 8.0
-            checklist["current_market_odds"] = freshness in (OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE)
-            if freshness in (OddsFreshness.STALE, OddsFreshness.INVALID):
+                score_odds = 18.0 if is_completed else 8.0
+            checklist["current_market_odds"] = freshness in (OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE) or is_completed
+            if freshness in (OddsFreshness.STALE, OddsFreshness.INVALID) and not is_completed:
                 missing.append(f"Fresh market odds (currently {freshness.value.lower()})")
+        elif is_completed:
+            score_odds = 18.0
+            checklist["current_market_odds"] = True
         else:
             missing.append("Current market odds")
 
@@ -185,7 +189,7 @@ class EvidenceEngine:
         is_sufficient = total_score >= min_required_score
         rejection_reason = None
 
-        if needs_odds and score_odds <= 0.0:
+        if needs_odds and score_odds <= 0.0 and not is_completed:
             is_sufficient = False
             classification = PredictionClassification.UNAVAILABLE
             rejection_reason = f"Market '{market}' strictly requires market odds which are unavailable"

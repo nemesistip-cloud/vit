@@ -641,31 +641,79 @@ async def get_live_matches(
 @router.get("/recent")
 async def get_recent_matches(
     sport: Optional[str] = Query(None),
+    limit: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        _cache_key = f"{FIXTURE_LIST}:recent:{sport}"
+        _cache_key = f"{FIXTURE_LIST}:recent:{sport}:{limit}"
         _cached = await cache.get(_cache_key)
-        if _cached is not None:
+        if _cached is not None and isinstance(_cached, list) and len(_cached) >= 10:
             return _cached
-        stmt = (
-            select(Match, Prediction)
-            .outerjoin(Prediction, Match.id == Prediction.match_id)
-            .where(Match.actual_outcome.isnot(None))
-            .order_by(Match.kickoff_time.desc())
-            .limit(20)
-        )
-        if sport and sport.lower() != "all":
-            stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
-        result = await db.execute(stmt)
+
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        def _build_stmt():
+            stmt = (
+                select(Match, Prediction)
+                .outerjoin(Prediction, Match.id == Prediction.match_id)
+                .where(
+                    or_(
+                        Match.actual_outcome.isnot(None),
+                        Match.status.in_(["completed", "settled", "finished"]),
+                        Match.kickoff_time < now_utc
+                    )
+                )
+                .order_by(Match.kickoff_time.desc())
+                .limit(limit)
+            )
+            if sport and sport.lower() != "all":
+                stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
+            return stmt
+
+        result = await db.execute(_build_stmt())
         rows = result.all()
+
+        # Deduplicate matches keeping the latest prediction
         match_map = {}
         markets = await _load_markets(db)
         for m, p in rows:
             if m.id not in match_map:
                 match_map[m.id] = (m, p)
+            else:
+                _, existing_p = match_map[m.id]
+                if p and (not existing_p or (p.timestamp and existing_p.timestamp and p.timestamp > existing_p.timestamp)):
+                    match_map[m.id] = (m, p)
+
         res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-        await cache.set(_cache_key, res, ttl=300)
+
+        # If history is sparse, attempt lightweight background/sync fallback to populate recent matches
+        if len(res) < 5:
+            try:
+                from app.services.sportsdb_api import sync_fixture_results
+                from app.services.settlement_service import run_auto_settlement
+                await sync_fixture_results(db, days_back=14)
+                await run_auto_settlement(db)
+
+                # Re-query
+                result = await db.execute(_build_stmt())
+                rows = result.all()
+                match_map = {}
+                for m, p in rows:
+                    if m.id not in match_map:
+                        match_map[m.id] = (m, p)
+                    else:
+                        _, existing_p = match_map[m.id]
+                        if p and (not existing_p or (p.timestamp and existing_p.timestamp and p.timestamp > existing_p.timestamp)):
+                            match_map[m.id] = (m, p)
+                res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
+            except Exception as sync_err:
+                logger.warning(f"Recent match auto-sync fallback failed: {sync_err}")
+
+        try:
+            await cache.set(_cache_key, res, ttl=120)
+        except Exception:
+            pass
+
         return res
     except Exception as e:
         logger.exception("get_recent_matches database read failed")
@@ -678,18 +726,29 @@ async def get_recent_matches(
 @router.get("/completed")
 async def get_completed_matches(
     limit: int = Query(default=50, ge=1, le=100),
+    sport: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
-    _cache_key = f"{FIXTURE_LIST}:completed:{limit}"
+    _cache_key = f"{FIXTURE_LIST}:completed:{sport}:{limit}"
     _cached = await cache.get(_cache_key)
-    if _cached: return _cached
+    if _cached and isinstance(_cached, list) and len(_cached) >= 10:
+        return _cached
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     stmt = (
         select(Match, Prediction)
         .outerjoin(Prediction, Match.id == Prediction.match_id)
-        .where(Match.actual_outcome.isnot(None))
+        .where(
+            or_(
+                Match.actual_outcome.isnot(None),
+                Match.status.in_(["completed", "settled", "finished"]),
+                Match.kickoff_time < now_utc
+            )
+        )
         .order_by(Match.kickoff_time.desc())
         .limit(limit)
     )
+    if sport and sport.lower() != "all":
+        stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
     result = await db.execute(stmt)
     rows = result.all()
     match_map = {}
@@ -697,8 +756,15 @@ async def get_completed_matches(
     for m, p in rows:
         if m.id not in match_map:
             match_map[m.id] = (m, p)
+        else:
+            _, existing_p = match_map[m.id]
+            if p and (not existing_p or (p.timestamp and existing_p.timestamp and p.timestamp > existing_p.timestamp)):
+                match_map[m.id] = (m, p)
     res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-    await cache.set(_cache_key, res, ttl=300)
+    try:
+        await cache.set(_cache_key, res, ttl=120)
+    except Exception:
+        pass
     return res
 
 
@@ -977,6 +1043,11 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
         reconciled_odds = OddsIntelligence.reconcile(odds_list, sport=match.sport or "football", market="match_winner")
 
         # 3. Data / Evidence Quality Engine Evaluation
+        is_match_completed = bool(
+            match.actual_outcome is not None or
+            match.status in ("completed", "settled", "finished") or
+            (match.kickoff_time and match.kickoff_time < now.replace(tzinfo=None))
+        )
         evidence = EvidenceEngine.evaluate(
             match_source=match.source,
             match_features=features,
@@ -984,7 +1055,8 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             h2h_data=h2h,
             recent_form_data=recent_form_data,
             model_agreement_pct=0.75,
-            market="match_winner"
+            market="match_winner",
+            is_completed=is_match_completed
         )
 
         if not evidence.is_sufficient:
