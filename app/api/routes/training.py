@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from app.api.middleware.auth import verify_api_key
 from app.config import APP_VERSION, AUTH_ENABLED, API_KEY, get_env
 from app.core.dependencies import get_orchestrator
+from app.auth.dependencies import get_current_admin
 from app.db.database import AsyncSessionLocal
 from app.db.models import TrainingJob as _TrainingJobModel
 import app.modules.notifications.models
@@ -651,7 +652,11 @@ _orchestrator_ref = get_orchestrator()
 
 
 @router.post("/start")
-async def start_training(config: TrainingConfig, api_key: Optional[str] = Query(default=None)):
+async def start_training(
+    config: TrainingConfig,
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """
     Trigger async model retraining. Returns job_id immediately.
     Poll /training/status/{job_id} or stream /training/progress/{job_id}.
@@ -965,7 +970,11 @@ async def _rehydrate_version_from_db(job_id: str) -> Optional[dict]:
 
 
 @router.post("/promote")
-async def promote_version(body: PromoteRequest, api_key: Optional[str] = Query(default=None)):
+async def promote_version(
+    body: PromoteRequest,
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """
     Promote a trained version to production (reloads models into orchestrator).
     Previous production version is marked as rolled back.
@@ -1008,7 +1017,11 @@ async def promote_version(body: PromoteRequest, api_key: Optional[str] = Query(d
 
 
 @router.post("/rollback")
-async def rollback_to_version(body: PromoteRequest, api_key: Optional[str] = Query(default=None)):
+async def rollback_to_version(
+    body: PromoteRequest,
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """Roll back production to a previous version."""
     _verify_key(api_key)
     return await promote_version(body, api_key)
@@ -1478,7 +1491,11 @@ class ContinuousUpdateRequest(BaseModel):
 # ── New Beast Mode Endpoints ───────────────────────────────────────────────────
 
 @router.post("/simulate")
-async def start_simulation(config: SimulateConfig, api_key: Optional[str] = Query(default=None)):
+async def start_simulation(
+    config: SimulateConfig,
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """
     Start a synthetic dataset generation job.
     Generates Tier1/2/3 matches using the 3-tier simulation engine.
@@ -1533,7 +1550,11 @@ async def list_simulation_jobs(api_key: Optional[str] = Query(default=None)):
 
 
 @router.post("/bootstrap")
-async def start_bootstrap(config: BootstrapConfig, api_key: Optional[str] = Query(default=None)):
+async def start_bootstrap(
+    config: BootstrapConfig,
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """
     Bootstrap train all models on synthetic (simulation) + historical data.
     This pre-trains models before they see live match data.
@@ -1563,7 +1584,11 @@ async def start_bootstrap(config: BootstrapConfig, api_key: Optional[str] = Quer
 
 
 @router.post("/self-play")
-async def start_self_play(config: SelfPlayConfig, api_key: Optional[str] = Query(default=None)):
+async def start_self_play(
+    config: SelfPlayConfig,
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """
     Start RL self-play: model predicts vs simulated market, learns profit/loss signal.
     """
@@ -1613,7 +1638,11 @@ async def get_edge_memory(
 
 
 @router.post("/edge-memory/decay")
-async def apply_edge_decay(days: float = Query(default=1.0), api_key: Optional[str] = Query(default=None)):
+async def apply_edge_decay(
+    days: float = Query(default=1.0),
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """Apply time decay to all active edge patterns."""
     _verify_key(api_key)
     try:
@@ -1626,7 +1655,11 @@ async def apply_edge_decay(days: float = Query(default=1.0), api_key: Optional[s
 
 
 @router.post("/continuous/update")
-async def continuous_update(body: ContinuousUpdateRequest, api_key: Optional[str] = Query(default=None)):
+async def continuous_update(
+    body: ContinuousUpdateRequest,
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """
     Continuous learning: update model weights after a match result.
     Computes CLV and updates edge memory with the actual outcome.
@@ -1757,6 +1790,7 @@ async def upload_training_dataset(
     file: UploadFile = File(...),
     api_key: Optional[str] = Query(default=None),
     merge: bool = Query(default=True, description="Merge with existing historical_matches.json (default). Pass merge=false to replace."),
+    _admin=Depends(get_current_admin),
 ):
     """
     Upload a CSV or JSON file of historical match data.
@@ -1921,7 +1955,10 @@ async def browse_training_dataset(
 
 
 @router.delete("/dataset/clear")
-async def clear_training_dataset(api_key: Optional[str] = Query(default=None)):
+async def clear_training_dataset(
+    api_key: Optional[str] = Query(default=None),
+    _admin=Depends(get_current_admin),
+):
     """Clear the historical_matches.json dataset (admin only)."""
     _verify_key(api_key)
     await set_config_value("training_dataset_file_id", None)

@@ -14,18 +14,27 @@ POST   /api/tachyon/node/{node_id}/verify  — run a proof-of-storage check
 GET    /api/tachyon/node/network-stats     — global swarm stats
 GET    /api/tachyon/node/earnings          — caller's lifetime TSC earnings
 POST   /api/tachyon/node/{node_id}/claim   — flush pending TSC → wallet
-"""
+    if not manifest_row:
+        raise HTTPException(
+            status_code=409,
+            detail="No Tachyon manifest is available for verification; no reward was issued.",
+        )
 
-from __future__ import annotations
+    fragment_names = manifest_row.fragment_names or []
+    if not fragment_names:
+        raise HTTPException(
+            status_code=409,
+            detail="Tachyon manifest has no fragments to verify; no reward was issued.",
+        )
 
-import hashlib
-import logging
-import os
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal
-from typing import Dict, List, Optional
-
-from fastapi import APIRouter, Depends, HTTPException
+    challenge_fragment = (
+        fragment_names[0] if isinstance(fragment_names, list) else list(fragment_names)[0]
+    )
+    challenge_hash = hashlib.blake2b(
+        challenge_fragment.encode() + str(node.config_key).encode(), digest_size=16
+    ).hexdigest()
+    passed = len(challenge_hash) == 32
+    challenge_detail = f"fragment_check:{challenge_fragment[:12]}…"
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -263,17 +272,27 @@ async def verify_node(
         )
     ).scalar_one_or_none()
 
-    passed = True
-    challenge_detail = "synthetic"
-    if manifest_row:
-        fragment_names = manifest_row.fragment_names or []
-        if fragment_names:
-            challenge_fragment = fragment_names[0] if isinstance(fragment_names, list) else list(fragment_names)[0]
-            challenge_hash = hashlib.blake2b(
-                challenge_fragment.encode() + str(node.config_key).encode(), digest_size=16
-            ).hexdigest()
-            passed = len(challenge_hash) == 32
-            challenge_detail = f"fragment_check:{challenge_fragment[:12]}…"
+    if not manifest_row:
+        raise HTTPException(
+            status_code=409,
+            detail="No Tachyon manifest is available for verification; no reward was issued.",
+        )
+
+    fragment_names = manifest_row.fragment_names or []
+    if not fragment_names:
+        raise HTTPException(
+            status_code=409,
+            detail="Tachyon manifest has no fragments to verify; no reward was issued.",
+        )
+
+    challenge_fragment = (
+        fragment_names[0] if isinstance(fragment_names, list) else list(fragment_names)[0]
+    )
+    challenge_hash = hashlib.blake2b(
+        challenge_fragment.encode() + str(node.config_key).encode(), digest_size=16
+    ).hexdigest()
+    passed = len(challenge_hash) == 32
+    challenge_detail = f"fragment_check:{challenge_fragment[:12]}"
 
     node.verification_count += 1
     if passed:
@@ -303,7 +322,7 @@ async def claim_earnings(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Flush pending TSC from a node into the user's VITCoin wallet."""
+    # Flush pending TSC from a node into the user's VITCoin wallet.
     node = (
         await db.execute(
             select(UserStorageNode).where(

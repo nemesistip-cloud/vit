@@ -1,0 +1,1518 @@
+Use this as the full consolidated master prompt for the next Jules/engineering session. It is deliberately written as an execution brief, not a vague “please improve everything” spell, because software responds poorly to telepathy.
+
+VIT NETWORK FULL ECOSYSTEM HARDENING MASTER PROMPT
+
+Mission
+
+You are the lead engineer responsible for taking the existing VIT Network from its current implementation state to a tightly integrated, production-ready distributed network.
+
+Do not rebuild the system blindly.
+
+Your job is to:
+
+1. Inspect the existing repository and deployed services.
+2. Understand the actual architecture and contracts.
+3. Identify broken, incomplete, mocked, disconnected, duplicated, or unsafe functionality.
+4. Fix the root causes.
+5. Integrate all sectors of the ecosystem.
+6. Verify everything with tests and production checks.
+7. Ensure the real Android provider device can successfully participate again.
+8. Restore the complete provider contribution lifecycle.
+9. Ensure verified provider contributions can generate correctly accounted rewards.
+10. Leave the repository, deployment, database, APIs, schedulers, and runtime in a coherent state.
+
+The target lifecycle is:
+
+DISCOVER → JOIN → IDENTIFY → REGISTER → ACTIVATE → PROVIDE RESOURCES → CONNECT → RECEIVE VERIFIED WORK → EXECUTE → REPORT EVIDENCE → STORE/TRANSMIT RESULTS → VALIDATE → BUILD REPUTATION → CALCULATE REWARD → RECORD LEDGER ENTRY → DISPLAY EARNINGS
+
+Nothing in this lifecycle should depend on fake success responses, placeholder implementations, silently swallowed exceptions, or disconnected services.
+
+---
+
+1. FIRST: PERFORM A COMPLETE SYSTEM AUDIT
+
+Before changing significant code, inspect the entire repository.
+
+Map:
+
+- applications
+- services
+- APIs
+- models
+- database
+- migrations
+- repositories
+- workers
+- schedulers
+- agents
+- orchestration
+- AI services
+- model training
+- storage
+- Tachyon Network
+- providers
+- Android integration
+- validators
+- reputation
+- rewards
+- ledger
+- admin
+- authentication
+- authorization
+- observability
+- deployment
+- CI/CD
+- configuration
+- tests
+- scripts
+- background jobs
+
+Search for:
+
+- TODO
+- FIXME
+- mock
+- mocked
+- placeholder
+- stub
+- fake
+- demo
+- temporary
+- hardcoded
+- "return True"
+- empty handlers
+- swallowed exceptions
+- unreachable code
+- duplicate implementations
+- obsolete APIs
+- dead services
+- missing imports
+- missing methods
+- incorrect interfaces
+- incorrect dependency injection
+- inconsistent schemas
+- database/model mismatches
+- production-only failures
+- scheduler failures
+- race conditions
+- retry problems
+- authentication gaps
+
+Do not assume documentation accurately represents production.
+
+Use the actual code, database schema, deployed configuration, logs, API behavior, and tests as the source of truth.
+
+Create an internal dependency map before making major changes.
+
+---
+
+2. ESTABLISH THE REAL SYSTEM CONTRACT
+
+For every major service, determine:
+
+- who calls it
+- what it calls
+- request schema
+- response schema
+- database dependencies
+- authentication requirements
+- authorization requirements
+- retry behavior
+- failure behavior
+- lifecycle states
+- idempotency requirements
+- observability
+- production deployment status
+
+Look specifically for interface mismatches such as:
+
+- caller expects a method that does not exist
+- caller expects a field that does not exist
+- service returns a different schema than its consumer expects
+- scheduler invokes an incompatible lifecycle method
+- production dependency differs from test dependency
+- database model differs from API model
+- old compatibility layer has become the actual production path
+
+Fix the contract at the correct architectural boundary.
+
+Do not hide incompatibilities with random wrappers unless compatibility is genuinely required.
+
+---
+
+3. PROVIDER / DEVICE NETWORK
+
+Treat providers as first-class network participants.
+
+The provider lifecycle must be explicit.
+
+Required states should be modeled clearly, for example:
+
+DISCOVERED
+REGISTERED
+PENDING_ACTIVATION
+ACTIVE
+CONNECTING
+AVAILABLE
+BUSY
+DEGRADED
+OFFLINE
+SUSPENDED
+REVOKED
+
+Do not invent duplicate lifecycle systems if an existing canonical system already exists.
+
+Ensure providers can:
+
+- register
+- authenticate
+- identify themselves
+- report capabilities
+- report health
+- report availability
+- connect to the network
+- establish Tachyon connectivity where applicable
+- receive authorized work
+- execute permitted work
+- report execution
+- submit evidence
+- recover after disconnect
+- reconnect after restart
+- transition between lifecycle states correctly
+- stop gracefully
+- resume safely
+
+The lifecycle must survive:
+
+- process restart
+- Android restart
+- network interruption
+- temporary API failure
+- duplicate registration
+- duplicate task delivery
+- duplicate result submission
+- stale heartbeat
+- clock differences
+- service restart
+
+---
+
+4. REDMI 12 FIRE REAL DEVICE
+
+The existing Redmi 12 Fire must be treated as the first real physical provider node.
+
+Do not merely create a simulated device record.
+
+Verify the complete path:
+
+Android Device
+      ↓
+Provider Identity
+      ↓
+Registration
+      ↓
+Authentication
+      ↓
+Capability Discovery
+      ↓
+Activation
+      ↓
+Network Connection
+      ↓
+Tachyon
+      ↓
+Task Assignment
+      ↓
+Task Execution
+      ↓
+Evidence / Result
+      ↓
+Storage
+      ↓
+Validation
+      ↓
+Reward Calculation
+      ↓
+Ledger
+      ↓
+Provider Earnings
+
+Determine exactly where this chain currently breaks.
+
+Fix the actual failure instead of masking it.
+
+The device must not receive rewards simply because it exists or is online.
+
+Rewards must correspond to verifiable network contribution.
+
+---
+
+5. DEVICE CAPABILITY DISCOVERY
+
+The provider should expose legitimate capabilities available to the network.
+
+Inspect the existing architecture for capabilities such as:
+
+- CPU
+- memory
+- storage
+- network connectivity
+- uptime
+- available processing capacity
+- supported workloads
+- device health
+- bandwidth where legitimately measurable
+- storage contribution where supported
+
+Do not claim capabilities that cannot actually be measured.
+
+Use capability information for scheduling and eligibility.
+
+The scheduler must not assign work that exceeds the provider's declared or measured capabilities.
+
+---
+
+6. TACHYON NETWORK INTEGRATION
+
+Audit Tachyon as a real network subsystem, not merely a label in the UI.
+
+Verify:
+
+- registration
+- identity
+- connection
+- discovery
+- communication
+- heartbeat
+- peer state
+- message handling
+- task delivery
+- result delivery
+- reconnect
+- timeout handling
+- authentication
+- authorization
+- failure recovery
+
+Trace the complete message path.
+
+If VIT Network says a provider is connected to Tachyon, that state must correspond to an actual validated connection state.
+
+Do not create fake connectivity merely to make dashboards look healthy.
+
+---
+
+7. DISTRIBUTED STORAGE
+
+Audit storage from end to end.
+
+Verify:
+
+- provider storage registration
+- capacity reporting
+- allocation
+- data placement
+- metadata
+- retrieval
+- integrity verification
+- checksums/hashes
+- replication where supported
+- availability
+- failure handling
+- recovery
+- cleanup
+- authorization
+
+If storage contribution is rewardable, establish measurable evidence.
+
+Examples:
+
+storage_capacity
+storage_allocated
+storage_available
+storage_duration
+retrieval_success
+integrity_verified
+availability
+replication_contribution
+
+Do not reward declared capacity when the system cannot prove actual contribution.
+
+---
+
+8. REPOSITORIES AND DATABASE
+
+Audit every repository/data-access layer.
+
+Check:
+
+- transaction boundaries
+- session lifecycle
+- connection handling
+- concurrency
+- stale reads
+- duplicate writes
+- idempotency
+- missing indexes
+- incorrect joins
+- pagination
+- filtering
+- ordering
+- nullable fields
+- foreign keys
+- migration compatibility
+- rollback safety
+- data integrity
+
+Pay special attention to:
+
+- providers
+- devices
+- tasks
+- task assignments
+- executions
+- results
+- validations
+- rewards
+- ledger
+- reputation
+- storage
+- validators
+- AI jobs
+- training jobs
+- audit logs
+
+No API should claim success if the underlying database operation failed.
+
+---
+
+9. REWARD SYSTEM: CRITICAL PRIORITY
+
+The reward system must become a real accounting subsystem.
+
+Do not implement fake balances.
+
+Do not increment balances simply because a task was requested.
+
+Do not reward "online" status by itself.
+
+Rewards must be based on verified contribution.
+
+Define a canonical reward pipeline:
+
+Contribution
+    ↓
+Evidence
+    ↓
+Validation
+    ↓
+Eligibility
+    ↓
+Reward Calculation
+    ↓
+Reward Record
+    ↓
+Ledger Entry
+    ↓
+Balance Projection
+    ↓
+Provider Dashboard
+
+Every reward must have traceable provenance.
+
+At minimum, determine:
+
+- provider
+- device
+- contribution
+- task/work reference
+- validation reference
+- reward rule/version
+- calculated amount/units
+- timestamp
+- status
+- ledger reference
+- idempotency key
+
+Recommended reward states:
+
+PENDING
+ELIGIBLE
+CALCULATED
+APPROVED
+POSTED
+REJECTED
+REVERSED
+
+Use the actual architecture if an equivalent canonical state machine already exists.
+
+---
+
+10. REWARD ACCOUNTING
+
+The ledger must be authoritative.
+
+Do not make the dashboard balance the source of truth.
+
+A provider balance should be derived from valid ledger/accounting records.
+
+Ensure:
+
+- double-entry or equivalent accounting integrity where appropriate
+- idempotent reward posting
+- unique contribution identifiers
+- duplicate protection
+- reversal support
+- correction support
+- immutable audit history
+- deterministic calculations
+- reward rule versioning
+- reconciliation
+
+Example conceptual flow:
+
+Validated Contribution #123
+        ↓
+Reward Rule vX
+        ↓
+Reward = Y units
+        ↓
+Ledger Transaction
+        ↓
+Provider Balance Projection
+
+If the same contribution is submitted twice, it must not produce two rewards.
+
+If a contribution is later invalidated, the system must have a safe correction/reversal mechanism.
+
+Never silently mutate historical accounting records.
+
+---
+
+11. PROVIDER EARNINGS
+
+The provider dashboard must expose real accounting information.
+
+At minimum, support:
+
+- current balance
+- pending rewards
+- posted rewards
+- rejected rewards
+- reversed rewards
+- contribution history
+- reward history
+- ledger history
+- task history
+- validation status
+
+Do not display numbers that cannot be traced to backend records.
+
+The Redmi 12 Fire should eventually be able to show its actual verified network contribution and corresponding reward records.
+
+---
+
+12. VALIDATOR SYSTEM
+
+Audit validator lifecycle separately from provider lifecycle.
+
+Validators should have clear states and eligibility.
+
+Possible lifecycle:
+
+REGISTERED
+ELIGIBLE
+ACTIVE
+VALIDATING
+DEGRADED
+OFFLINE
+SUSPENDED
+REVOKED
+
+Do not automatically make every provider a validator.
+
+Verify:
+
+- validator registration
+- eligibility
+- assignment
+- validation execution
+- result submission
+- consensus/verification rules
+- failure handling
+- reputation impact
+- validator rewards if applicable
+
+Validation must not be self-serving.
+
+Where architecture requires separation between worker and validator, enforce it.
+
+---
+
+13. REPUTATION
+
+Audit provider and validator reputation.
+
+Reputation should be based on measurable behavior.
+
+Possible signals:
+
+- successful task completion
+- valid results
+- availability
+- reliability
+- integrity
+- failed work
+- invalid results
+- abuse
+- timeout rate
+- storage reliability
+- validation quality
+
+Do not allow a provider to arbitrarily increase its own reputation.
+
+Ensure reputation changes are auditable.
+
+---
+
+14. TASK SYSTEM
+
+Trace tasks from creation to completion.
+
+Required lifecycle should be explicit:
+
+CREATED
+QUEUED
+ASSIGNED
+ACCEPTED
+RUNNING
+COMPLETED
+VALIDATING
+VALIDATED
+REWARDED
+FAILED
+EXPIRED
+CANCELLED
+
+Use existing canonical states where available.
+
+Verify:
+
+- task creation
+- scheduling
+- provider selection
+- assignment
+- acceptance
+- execution
+- timeout
+- result submission
+- validation
+- completion
+- retry
+- failure
+- reward eligibility
+
+Prevent:
+
+- duplicate assignments
+- duplicate execution where unsafe
+- double rewards
+- stale task ownership
+- unauthorized task execution
+
+---
+
+15. SECURE TASK EXECUTION
+
+Never allow arbitrary remote code execution merely because a task was received from the network.
+
+Audit workload boundaries carefully.
+
+Tasks should use approved workload types and controlled execution mechanisms.
+
+Validate:
+
+- task identity
+- authorization
+- workload type
+- parameters
+- resource limits
+- execution timeout
+- output limits
+- network permissions
+- storage permissions
+
+Reject malformed or unauthorized work safely.
+
+---
+
+16. AI ECOSYSTEM
+
+Audit the entire AI subsystem.
+
+Include:
+
+- prediction
+- feature generation
+- models
+- model registry
+- inference
+- ensemble
+- training
+- retraining
+- training jobs
+- schedulers
+- agents
+- orchestration
+- AI service
+- provider workloads
+- model versions
+- evaluation
+- deployment
+
+Remove mock execution where production functionality is expected.
+
+Verify model lifecycle:
+
+REGISTERED
+TRAINING
+EVALUATING
+APPROVED
+DEPLOYED
+DEPRECATED
+RETIRED
+
+Training jobs must have real lifecycle tracking.
+
+Verify the scheduler and orchestrator contracts.
+
+Every method called by production jobs must actually exist and return the schema expected by its callers.
+
+---
+
+17. AGENT / SWARM SYSTEM
+
+Audit:
+
+- agent registration
+- initialization
+- lifecycle
+- scheduling
+- run-once execution
+- recurring execution
+- result storage
+- result retrieval
+- error handling
+- retries
+- shutdown
+- health
+- orchestration
+
+Pay particular attention to interface compatibility between:
+
+- AgentCoordinator
+- SwarmOrchestrator
+- individual agents
+- schedulers
+- retraining jobs
+- background workers
+
+Do not fix one missing method only to leave the surrounding contract inconsistent.
+
+Test every production path discovered during the audit.
+
+---
+
+18. ADMIN CONTROL PLANE
+
+Audit all admin functionality.
+
+Admin must be able to safely inspect and control:
+
+- providers
+- devices
+- activation
+- suspension
+- validators
+- tasks
+- storage
+- Tachyon
+- rewards
+- ledger
+- reputation
+- AI
+- training
+- schedulers
+- system health
+- logs
+- configuration
+
+Actions must have:
+
+- authentication
+- authorization
+- validation
+- audit logging
+- clear success/failure responses
+
+A UI button must correspond to a real backend operation.
+
+Do not leave buttons that only display success messages without performing the requested operation.
+
+---
+
+19. DEVICE ACTIVATION
+
+Fix the complete admin-to-provider activation flow.
+
+Expected conceptual path:
+
+Admin
+ ↓
+Select Device
+ ↓
+Validate Device Identity
+ ↓
+Approve / Activate
+ ↓
+Persist State
+ ↓
+Notify Provider
+ ↓
+Provider Connects
+ ↓
+Health Verified
+ ↓
+Eligible For Work
+
+Ensure state changes are persistent and reflected consistently across:
+
+- API
+- database
+- provider
+- Tachyon
+- admin dashboard
+- scheduler
+
+---
+
+20. AUTHENTICATION AND SECURITY
+
+Audit all authentication and authorization boundaries.
+
+Check:
+
+- provider authentication
+- device authentication
+- admin authentication
+- service-to-service authentication
+- token validation
+- token expiration
+- role permissions
+- ownership checks
+- replay protection where required
+- rate limiting
+- input validation
+- secret handling
+- audit logging
+
+Never trust a provider-supplied identity without server-side verification.
+
+Never trust client-supplied reward amounts.
+
+Never trust client-supplied reputation.
+
+Never trust client-supplied validation results where the architecture requires independent validation.
+
+---
+
+21. SECRETS AND CREDENTIALS
+
+You have access to the required GitHub and Render credentials through the authorized environment.
+
+Use them only through secure environment/configuration mechanisms.
+
+ABSOLUTE RULES:
+
+- Never print secrets.
+- Never include tokens in logs.
+- Never commit secrets.
+- Never place secrets in source code.
+- Never put secrets in test fixtures.
+- Never expose secrets in API responses.
+- Never paste credentials into reports.
+- Never echo environment variables containing credentials.
+- Never create screenshots containing credentials.
+- Never disclose credential values in chat.
+
+If a credential is already available through the environment, use it without exposing its value.
+
+If a secret is missing, report the variable name or configuration requirement, not the secret itself.
+
+---
+
+22. API AUDIT
+
+Audit every important API endpoint.
+
+For each endpoint verify:
+
+- request validation
+- authentication
+- authorization
+- database behavior
+- response schema
+- status codes
+- error handling
+- pagination
+- filtering
+- idempotency
+- observability
+- production behavior
+
+Pay particular attention to endpoints involving:
+
+- providers
+- devices
+- tasks
+- predictions
+- AI
+- training
+- rewards
+- ledger
+- validators
+- storage
+- Tachyon
+- admin
+
+No endpoint should return HTTP success merely because the handler executed.
+
+---
+
+23. OBSERVABILITY
+
+Every important subsystem must be diagnosable.
+
+Add or repair:
+
+- structured logging
+- correlation IDs
+- request IDs
+- service identifiers
+- task IDs
+- provider IDs
+- device IDs
+- reward IDs
+- ledger IDs
+- validation IDs
+- useful error messages
+- health checks
+- readiness checks
+
+Logs must explain failures without leaking secrets or sensitive data.
+
+---
+
+24. ERROR REGRESSION HUNT
+
+After the main audit, inspect recent production logs and deployment history.
+
+Search specifically for:
+
+- exceptions
+- missing methods
+- scheduler errors
+- worker crashes
+- task failures
+- database errors
+- connection failures
+- timeout errors
+- authentication failures
+- invalid state transitions
+- reward failures
+- ledger failures
+- storage failures
+- Tachyon failures
+- AI failures
+- deployment failures
+
+For every recurring error:
+
+1. Identify root cause.
+2. Reproduce if possible.
+3. Fix it.
+4. Add a regression test.
+5. Deploy.
+6. Verify production logs no longer show recurrence.
+
+Do not stop after fixing the first visible error.
+
+---
+
+25. TESTING STRATEGY
+
+Run:
+
+Static checks
+
+- syntax
+- imports
+- type checks where configured
+- lint
+- formatting
+- compile checks
+
+Unit tests
+
+Test individual components.
+
+Integration tests
+
+Test service boundaries.
+
+Database tests
+
+Test migrations, transactions, constraints, and repositories.
+
+API tests
+
+Test important endpoints.
+
+Lifecycle tests
+
+Test provider, device, validator, task, reward, and training state machines.
+
+Failure tests
+
+Simulate:
+
+- network loss
+- duplicate requests
+- service restart
+- timeout
+- stale state
+- database failure
+- invalid task
+- invalid result
+- duplicate reward
+- invalid ledger transaction
+
+End-to-end test
+
+Prove:
+
+Redmi 12 Fire
+→ Registration
+→ Activation
+→ Connection
+→ Capability Discovery
+→ Tachyon
+→ Task
+→ Execution
+→ Evidence
+→ Storage/Result
+→ Validation
+→ Reward
+→ Ledger
+→ Provider Balance
+
+This is the most important acceptance test.
+
+---
+
+26. REWARD ACCEPTANCE TEST
+
+Create a deterministic test contribution.
+
+The test must prove:
+
+1. Provider is active.
+2. Provider receives eligible work.
+3. Provider completes the work.
+4. Evidence is recorded.
+5. Work is independently validated.
+6. Contribution becomes eligible.
+7. Reward is calculated.
+8. Reward is posted once.
+9. Ledger reflects the transaction.
+10. Provider balance reflects the ledger.
+11. Duplicate submission does not create another reward.
+12. Invalidated contribution can be reversed/corrected safely.
+13. Admin can audit the entire chain.
+
+Do not mark this complete because a database row exists.
+
+Prove the complete accounting lifecycle.
+
+---
+
+27. DEPLOYMENT AND RENDER
+
+Inspect the actual production deployment.
+
+Verify:
+
+- service configuration
+- environment variables
+- startup commands
+- migrations
+- worker processes
+- schedulers
+- health checks
+- readiness
+- background jobs
+- deployment status
+- logs
+- API availability
+
+Use the authorized Render credentials securely.
+
+Do not expose them.
+
+After deployment:
+
+1. Confirm deployment completed.
+2. Confirm services are healthy.
+3. Check logs.
+4. Exercise critical APIs.
+5. Verify scheduler behavior.
+6. Verify background workers.
+7. Verify provider connectivity.
+8. Verify reward/accounting behavior.
+9. Check for new regressions.
+
+---
+
+28. GITHUB / CI/CD
+
+Audit the CI/CD system.
+
+Check:
+
+- tests
+- build
+- deployment workflows
+- Render triggers
+- required secrets
+- optional secrets
+- branch protection assumptions
+- environment handling
+- failed workflows
+- stale workflows
+- incorrect service IDs
+- broken API calls
+
+A missing optional secret must not cause a workflow to make malformed requests.
+
+CI should fail for real defects and skip genuinely optional operations safely.
+
+After changes:
+
+- run relevant tests
+- commit logically grouped changes
+- push to the intended branch
+- monitor CI
+- verify deployment
+- inspect production
+
+Do not create giant commits containing unrelated changes.
+
+---
+
+29. PERFORMANCE AND SCALE
+
+The first physical device is only the beginning.
+
+Design the repaired architecture so it can eventually support many providers without rewriting core lifecycle logic.
+
+Inspect:
+
+- database indexes
+- connection pooling
+- task queues
+- scheduler efficiency
+- provider heartbeats
+- retry storms
+- duplicate events
+- reward calculations
+- ledger writes
+- storage metadata
+- API pagination
+- caching where justified
+
+Avoid premature complexity.
+
+Prioritize correctness, observability, and deterministic behavior before optimization.
+
+---
+
+30. MIGRATION SAFETY
+
+If database changes are required:
+
+- create proper migrations
+- preserve existing data
+- avoid destructive changes unless justified
+- handle existing records
+- provide safe defaults
+- test upgrades
+- verify rollback strategy
+- verify production compatibility
+
+Never casually drop production tables or data.
+
+---
+
+31. DOCUMENTATION
+
+Update documentation for any behavior that changes.
+
+Document:
+
+- architecture
+- provider lifecycle
+- device lifecycle
+- task lifecycle
+- validator lifecycle
+- reward lifecycle
+- ledger rules
+- APIs
+- configuration
+- deployment
+- troubleshooting
+- Android provider requirements
+
+Documentation must describe actual behavior, not intended behavior.
+
+---
+
+32. IMPLEMENTATION ORDER
+
+Use this order unless repository evidence demonstrates a better dependency order:
+
+Phase 1
+
+Repository and production audit.
+
+Phase 2
+
+Core contracts and broken dependencies.
+
+Phase 3
+
+Provider/device lifecycle.
+
+Phase 4
+
+Redmi 12 Fire registration and activation.
+
+Phase 5
+
+Tachyon connectivity.
+
+Phase 6
+
+Task scheduling and execution.
+
+Phase 7
+
+Storage and result integrity.
+
+Phase 8
+
+Validation and reputation.
+
+Phase 9
+
+Reward calculation and accounting ledger.
+
+Phase 10
+
+Provider earnings/dashboard.
+
+Phase 11
+
+Validators.
+
+Phase 12
+
+AI, agents, training, and orchestration.
+
+Phase 13
+
+Admin control plane.
+
+Phase 14
+
+Security and observability.
+
+Phase 15
+
+CI/CD and Render production verification.
+
+Phase 16
+
+End-to-end physical-device testing.
+
+Phase 17
+
+Scale and resilience testing.
+
+Do not move forward while a foundational phase is knowingly broken unless there is a documented dependency reason.
+
+---
+
+33. CHANGE CONTROL
+
+Before every major change:
+
+- understand existing implementation
+- identify affected consumers
+- check database impact
+- check API compatibility
+- check background jobs
+- check tests
+- check deployment impact
+
+After every meaningful change:
+
+TEST
+→ COMPILE
+→ CHECK DIFF
+→ COMMIT
+→ PUSH
+→ CI
+→ DEPLOY
+→ HEALTH CHECK
+→ LOG CHECK
+→ REGRESSION CHECK
+
+Keep the working tree clean.
+
+Do not overwrite unrelated work.
+
+Do not delete existing functionality merely because it is inconvenient.
+
+---
+
+34. DO NOT MASK FAILURES
+
+Never solve a production problem by:
+
+- returning fake success
+- swallowing exceptions
+- disabling validation
+- bypassing authentication
+- bypassing accounting
+- hardcoding production data
+- pretending a device is online
+- pretending Tachyon is connected
+- inventing task completion
+- inventing rewards
+- disabling tests
+- weakening security
+- hiding errors from logs
+
+The objective is a functioning network, not a convincing screenshot.
+
+---
+
+35. DEFINITION OF DONE
+
+The work is complete only when all applicable conditions below are satisfied.
+
+Provider
+
+- provider can register
+- provider can authenticate
+- provider can activate
+- provider can connect
+- provider can report capabilities
+- provider can receive authorized work
+- provider can execute work
+- provider can submit evidence
+- provider can recover from failures
+
+Redmi 12 Fire
+
+The physical device can complete the real provider lifecycle rather than existing only as a database record.
+
+Tachyon
+
+Provider connectivity and communication are real and verifiable.
+
+Tasks
+
+Tasks can move through their complete lifecycle.
+
+Storage
+
+Contribution and data integrity are verifiable.
+
+Validation
+
+Work can be independently validated.
+
+Reputation
+
+Provider behavior affects reputation through measurable rules.
+
+Rewards
+
+Verified contribution can produce a legitimate reward record.
+
+Ledger
+
+The reward is recorded exactly once and is auditable.
+
+Earnings
+
+Provider balance and history reflect the actual ledger.
+
+Validators
+
+Validator lifecycle and validation behavior are functional.
+
+AI
+
+Production AI jobs, agents, orchestration, and training contracts are internally consistent.
+
+Admin
+
+Admin controls perform real backend operations.
+
+Security
+
+Authentication, authorization, and secrets are protected.
+
+CI/CD
+
+Builds, tests, workflows, and deployment operate correctly.
+
+Production
+
+Critical services are healthy after deployment.
+
+Regression
+
+Previously discovered failures remain fixed.
+
+---
+
+36. FINAL END-TO-END PROOF
+
+Before declaring completion, produce evidence for the following chain:
+
+REAL ANDROID DEVICE
+        ↓
+PROVIDER IDENTITY
+        ↓
+REGISTRATION
+        ↓
+ADMIN ACTIVATION
+        ↓
+HEALTH / CAPABILITIES
+        ↓
+TACHYON CONNECTION
+        ↓
+ELIGIBLE TASK
+        ↓
+TASK ASSIGNMENT
+        ↓
+TASK EXECUTION
+        ↓
+RESULT / EVIDENCE
+        ↓
+STORAGE
+        ↓
+VALIDATION
+        ↓
+REPUTATION UPDATE
+        ↓
+REWARD CALCULATION
+        ↓
+REWARD APPROVAL
+        ↓
+LEDGER POSTING
+        ↓
+PROVIDER BALANCE
+        ↓
+ADMIN AUDIT
+
+If any link fails, continue debugging.
+
+Do not declare the ecosystem complete until the failure is either fixed or explicitly documented as an external dependency that cannot currently be controlled.
+
+---
+
+37. FINAL ENGINEERING REPORT
+
+At the end, provide a concise but evidence-based report containing:
+
+A. What was discovered
+
+- broken components
+- incomplete components
+- contract mismatches
+- production failures
+- security issues
+- data/accounting issues
+
+B. What was fixed
+
+List every meaningful fix with affected subsystem.
+
+C. What was tested
+
+Include:
+
+- unit tests
+- integration tests
+- API tests
+- lifecycle tests
+- failure tests
+- CI
+- deployment
+- production health
+
+D. Provider status
+
+State whether the Redmi 12 Fire successfully completed the provider lifecycle.
+
+E. Reward status
+
+State whether the device successfully generated a verified contribution → reward → ledger → balance path.
+
+F. Remaining blockers
+
+Only list genuine blockers with evidence.
+
+G. Deployment status
+
+Report:
+
+- commit
+- branch
+- CI status
+- deployment status
+- health status
+
+Never include secrets, tokens, passwords, API keys, or private credentials in the report.
+
+---
+
+FINAL PRINCIPLE
+
+Do not optimize VIT Network for appearances.
+
+Optimize it for:
+
+CORRECTNESS → INTEGRATION → VERIFIABILITY → SECURITY → ACCOUNTABILITY → RELIABILITY → SCALE
+
+The goal is not to make every dashboard green.
+
+The goal is to make the underlying network actually work.
+
+The most important proof is that a real provider device can contribute useful, verifiable work and that the system can correctly recognize that contribution, validate it, account for it, and record the resulting reward without fabrication or double counting.
+
+Start with the repository and production audit, identify the first broken dependency in the real lifecycle, fix it at the correct architectural boundary, test it, deploy it, verify it, and continue systematically through the ecosystem.This version makes provider recovery + real reward accounting the spine of the whole audit, rather than treating rewards as a disconnected dashboard feature.

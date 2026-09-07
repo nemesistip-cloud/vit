@@ -117,6 +117,7 @@ async def set_model_weight(
     key: str,
     body: WeightUpdateRequest,
     db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
 ):
     """Manually override a model's ensemble weight."""
     row = await get_model_by_key(db, key)
@@ -141,7 +142,11 @@ async def set_model_weight(
 
 
 @router.post("/models/{key}/toggle")
-async def toggle_model(key: str, db: AsyncSession = Depends(get_db)):
+async def toggle_model(
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
+):
     """Activate or deactivate a model in the ensemble."""
     row = await get_model_by_key(db, key)
     if row is None:

@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.auth.dependencies import get_current_user
+from app.db.models import User
 from app.modules.storage_verification.service import (
     attest_availability,
     get_storage_stats,
@@ -19,7 +21,11 @@ from app.modules.storage_verification.service import (
     list_registered_content,
 )
 
-router = APIRouter(prefix="/api/storage", tags=["storage-verification"])
+router = APIRouter(
+    prefix="/api/storage",
+    tags=["storage-verification"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 class RegisterContentRequest(BaseModel):
@@ -29,7 +35,6 @@ class RegisterContentRequest(BaseModel):
     arweave_id: Optional[str] = None
     description: Optional[str] = None
     size_bytes: Optional[int] = None
-    owner_user_id: Optional[int] = None
     ref_type: Optional[str] = None
     ref_id: Optional[int] = None
     is_public: bool = True
@@ -44,14 +49,12 @@ class SubmitProofRequest(BaseModel):
     node_address: str
     proof_data: str
     proof_type: str = "merkle"
-    prover_user_id: Optional[int] = None
     stake_locked: float = 10.0
     validity_days: int = 30
 
 
 class IssueChallengeRequest(BaseModel):
     proof_id: int
-    challenger_user_id: Optional[int] = None
     response_hours: int = 24
 
 
@@ -61,23 +64,34 @@ class RespondChallengeRequest(BaseModel):
 
 class AttestRequest(BaseModel):
     content_hash: str
-    attestor_user_id: int
     available: bool = True
     latency_ms: Optional[int] = None
 
 
 @router.get("/stats")
-async def storage_stats(db: AsyncSession = Depends(get_db)):
+async def storage_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return await get_storage_stats(db)
 
 
 @router.get("/objects")
-async def list_objects(limit: int = 100, offset: int = 0, db: AsyncSession = Depends(get_db)):
+async def list_objects(
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return await list_registered_content(db, limit=limit, offset=offset)
 
 
 @router.post("/content/register")
-async def register(req: RegisterContentRequest, db: AsyncSession = Depends(get_db)):
+async def register(
+    req: RegisterContentRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     entry = await register_content(
         db,
         content_hash=req.content_hash,
@@ -86,7 +100,7 @@ async def register(req: RegisterContentRequest, db: AsyncSession = Depends(get_d
         arweave_id=req.arweave_id,
         description=req.description,
         size_bytes=req.size_bytes,
-        owner_user_id=req.owner_user_id,
+        owner_user_id=current_user.id,
         ref_type=req.ref_type,
         ref_id=req.ref_id,
         is_public=req.is_public,
@@ -106,7 +120,11 @@ async def register(req: RegisterContentRequest, db: AsyncSession = Depends(get_d
 
 
 @router.post("/proofs/submit")
-async def submit_proof(req: SubmitProofRequest, db: AsyncSession = Depends(get_db)):
+async def submit_proof(
+    req: SubmitProofRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
         proof = await submit_storage_proof(
             db,
@@ -114,7 +132,7 @@ async def submit_proof(req: SubmitProofRequest, db: AsyncSession = Depends(get_d
             node_address=req.node_address,
             proof_data=req.proof_data,
             proof_type=req.proof_type,
-            prover_user_id=req.prover_user_id,
+            prover_user_id=current_user.id,
             stake_locked=Decimal(str(req.stake_locked)),
             validity_days=req.validity_days,
         )
@@ -131,12 +149,16 @@ async def submit_proof(req: SubmitProofRequest, db: AsyncSession = Depends(get_d
 
 
 @router.post("/challenges/issue")
-async def issue_storage_challenge(req: IssueChallengeRequest, db: AsyncSession = Depends(get_db)):
+async def issue_storage_challenge(
+    req: IssueChallengeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
         challenge = await issue_challenge(
             db,
             proof_id=req.proof_id,
-            challenger_user_id=req.challenger_user_id,
+            challenger_user_id=current_user.id,
             response_hours=req.response_hours,
         )
         return {
@@ -155,8 +177,18 @@ async def respond_to_storage_challenge(
     challenge_id: int,
     req: RespondChallengeRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
+        from app.modules.storage_verification.models import StorageChallenge, StorageProof
+        challenge = await db.get(StorageChallenge, challenge_id)
+        if not challenge:
+            raise HTTPException(status_code=404, detail="Challenge not found")
+        proof = await db.get(StorageProof, challenge.proof_id)
+        if challenge.challenger_user_id != current_user.id and (
+            not proof or proof.prover_user_id != current_user.id
+        ):
+            raise HTTPException(status_code=403, detail="Challenge access denied")
         challenge = await respond_to_challenge(db, challenge_id, req.response_data)
         return {
             "challenge_id": challenge.id,
@@ -170,12 +202,16 @@ async def respond_to_storage_challenge(
 
 
 @router.post("/attestations")
-async def attest(req: AttestRequest, db: AsyncSession = Depends(get_db)):
+async def attest(
+    req: AttestRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
         att = await attest_availability(
             db,
             content_hash=req.content_hash,
-            attestor_user_id=req.attestor_user_id,
+            attestor_user_id=current_user.id,
             available=req.available,
             latency_ms=req.latency_ms,
         )
@@ -189,6 +225,10 @@ async def attest(req: AttestRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/nodes")
-async def get_storage_nodes(limit: int = 50, db: AsyncSession = Depends(get_db)):
+async def get_storage_nodes(
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     from app.modules.storage_verification.service import list_storage_nodes
     return await list_storage_nodes(db, limit=limit)

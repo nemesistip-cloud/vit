@@ -9,15 +9,14 @@ from app.modules.storage_verification.models import ContentHashRegistry
 pytestmark = pytest.mark.integration
 
 @pytest.mark.asyncio
-async def test_list_objects_empty():
+async def test_list_objects_requires_authentication():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/api/storage/objects")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    assert response.status_code == 401
 
 @pytest.mark.asyncio
-async def test_list_objects_with_data():
+async def test_list_objects_with_data_still_requires_authentication():
     async with AsyncSessionLocal() as db:
         content = ContentHashRegistry(
             content_hash="0xTEST_1782626733.8523111",
@@ -32,10 +31,7 @@ async def test_list_objects_with_data():
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/api/storage/objects")
 
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) >= 1
-    assert any(obj["content_hash"] == "0xTEST_1782626733.8523111" for obj in data)
+    assert response.status_code == 401
 
     # Cleanup
     async with AsyncSessionLocal() as db:
