@@ -3,6 +3,33 @@ import os
 import asyncio
 from app.core.swarm_orchestrator import init_swarm, get_swarm, set_swarm, SwarmOrchestrator
 from app.agents.coordinator import AgentCoordinator
+from app.agents.base import BaseAgent, AgentStatus
+
+
+class _OneCycleAgent(BaseAgent):
+    def __init__(self):
+        super().__init__(name="one-cycle", interval_seconds=60)
+
+    async def run_cycle(self):
+        return {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_base_agent_run_once_updates_lifecycle_state(monkeypatch):
+    agent = _OneCycleAgent()
+
+    async def _skip_contribution(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(agent, "_record_network_contribution", _skip_contribution)
+
+    result = await agent.run_once()
+
+    assert result == {"ok": True}
+    assert agent.status == AgentStatus.OK
+    assert agent.run_count == 1
+    assert agent.last_run_at is not None
+    assert agent.last_error is None
 
 @pytest.mark.asyncio
 async def test_swarm_orchestrator_initialization_and_scheduling(monkeypatch):

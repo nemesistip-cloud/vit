@@ -20,6 +20,20 @@
 | C11 | `app/modules/ai/routes.py:728-763` | `POST /models/register` had no `get_current_admin` dependency | Fixed — admin auth required |
 | C12 | `app/modules/wallet/routes.py:398-445` | DB insert failure rolled back but still returned `status: pending` with payment link | Fixed — DB write committed first; error raised on failure |
 
+## 🟠 HIGH — Observed in Render logs
+
+| # | Service | File | Bug | Fix |
+|---|---------|------|-----|-----|
+| H7 | vitnetwork | `app/core/swarm_orchestrator.py`, `app/agents/base.py` | In-process APScheduler called `agent.run_once()`, but the shared `BaseAgent` contract exposed only `run_cycle()`/`loop()`; live logs showed `LiveMatchTrackerAgent object has no attribute 'run_once'` on every scheduled run | Fixed — added `BaseAgent.run_once()` with shared lifecycle/error bookkeeping and reused it from the long-running loop; regression test added |
+
+## 🟡 MEDIUM — Deployment drift
+
+| # | Service | File | Bug | Status |
+|---|---------|------|-----|--------|
+| M8 | `vitnetwork-worker` | `render.yaml` | Blueprint declares a Celery worker, but Render's live service inventory (2026-09-07) contains no deployed worker; the web service currently runs the APScheduler replacement | Recorded — verify whether the worker should be provisioned before relying on Celery-only tasks |
+| M9 | vitnetwork | `app/tasks/chain_snapshot.py` | Render logs recorded a chain snapshot Dropbox upload failure: `AuthError(... invalid_access_token ...)` | Recorded — rotate/refresh the Dropbox token in Render and verify the next snapshot upload |
+| M10 | local deployment tooling | `.env:4` | A non-assignment line causes `source .env` to execute it as a shell command (`Never: command not found`) | Recorded — convert the line to a comment or remove it locally; do not commit `.env` |
+
 ---
 
 ## 🟠 HIGH — Fixed

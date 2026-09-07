@@ -122,33 +122,10 @@ class BaseAgent(ABC):
         await asyncio.sleep(self.initial_delay_s)
 
         while True:
-            self.status = AgentStatus.RUNNING
-            t0 = time.monotonic()
             try:
-                result = await self.run_cycle()
-                self.last_result  = result
-                self.status       = AgentStatus.OK
-                self.last_error   = None
-                self.run_count   += 1
-                self.last_run_at  = datetime.now(timezone.utc)
-                elapsed = time.monotonic() - t0
-                logger.info(
-                    "[agent:%s] cycle complete in %.2fs run=%d",
-                    self.name, elapsed, self.run_count,
-                )
-                # Record contribution on successful cycle (background, non-blocking)
-                asyncio.create_task(
-                    self._record_network_contribution(
-                        activity_type="cycle",
-                        score=1.0,
-                        metadata={"cycle": self.run_count, "elapsed_s": round(elapsed, 2)},
-                    ),
-                )
+                await self.run_once()
             except Exception as exc:
-                self.status      = AgentStatus.ERROR
-                self.last_error  = str(exc)
-                self.error_count += 1
-                logger.error("[agent:%s] cycle error: %s", self.name, exc, exc_info=True)
+                logger.debug("[agent:%s] loop cycle already recorded as failed: %s", self.name, exc)
 
             next_run = datetime.now(timezone.utc).timestamp() + self.interval_seconds
             self.next_run_at = datetime.fromtimestamp(next_run, tz=timezone.utc)
@@ -162,6 +139,41 @@ class BaseAgent(ABC):
                 logger.info("[agent:%s] early trigger — running now", self.name)
             except asyncio.TimeoutError:
                 pass
+
+    async def run_once(self) -> Dict[str, Any]:
+        """Run one cycle with the same status and contribution bookkeeping as ``loop``."""
+        if not self.enabled:
+            self.status = AgentStatus.DISABLED
+            return {"skipped": True, "reason": "disabled"}
+
+        self.status = AgentStatus.RUNNING
+        started = time.monotonic()
+        try:
+            result = await self.run_cycle()
+            self.last_result = result
+            self.status = AgentStatus.OK
+            self.last_error = None
+            self.run_count += 1
+            self.last_run_at = datetime.now(timezone.utc)
+            elapsed = time.monotonic() - started
+            logger.info(
+                "[agent:%s] cycle complete in %.2fs run=%d",
+                self.name, elapsed, self.run_count,
+            )
+            asyncio.create_task(
+                self._record_network_contribution(
+                    activity_type="cycle",
+                    score=1.0,
+                    metadata={"cycle": self.run_count, "elapsed_s": round(elapsed, 2)},
+                ),
+            )
+            return result
+        except Exception as exc:
+            self.status = AgentStatus.ERROR
+            self.last_error = str(exc)
+            self.error_count += 1
+            logger.error("[agent:%s] cycle error: %s", self.name, exc, exc_info=True)
+            raise
 
     def snapshot(self) -> Dict[str, Any]:
         """Return a JSON-serialisable status snapshot."""
