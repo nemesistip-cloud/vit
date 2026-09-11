@@ -1,7 +1,7 @@
 """add_chain_and_slash_tables
 
-Revision ID: zz02_add_chain_and_slash_tables
-Revises: zz01_add_missing_indexes
+Revision ID: zz02_chain_slash
+Revises: zz01_indexes
 Create Date: 2026-07-19 00:00:00.000000
 
 Phase 1 gate migration — creates:
@@ -15,8 +15,8 @@ All DDL uses IF NOT EXISTS / IF EXISTS so the migration is safe to re-run.
 from alembic import op
 import sqlalchemy as sa
 
-revision      = "zz02_add_chain_and_slash_tables"
-down_revision = "zz01_add_missing_indexes"
+revision      = "zz02_chain_slash"
+down_revision = "zz01_indexes"
 branch_labels = None
 depends_on    = None
 

@@ -4,8 +4,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision = "zz06_wallet_transaction_metadata"
-down_revision: Union[str, Sequence[str], None] = "zz05_social_intelligence_tables"
+revision = "zz06_wallet_tx_meta"
+down_revision: Union[str, Sequence[str], None] = "zz05_social_intel"
 branch_labels = None
 depends_on = None
 

@@ -1,15 +1,15 @@
 """Add identity organizations and workspace settings tables
 
-Revision ID: zz03_identity_workspace_tables
-Revises: zz02_add_chain_and_slash_tables
+Revision ID: zz03_identity_ws
+Revises: zz02_chain_slash
 Create Date: 2026-07-25 00:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = "zz03_identity_workspace_tables"
-down_revision = "zz02_add_chain_and_slash_tables"
+revision = "zz03_identity_ws"
+down_revision = "zz02_chain_slash"
 branch_labels = None
 depends_on = None
 

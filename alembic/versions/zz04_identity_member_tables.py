@@ -1,15 +1,15 @@
 """Add identity organization & team member tables
 
-Revision ID: zz04_identity_member_tables
-Revises: zz03_identity_workspace_tables
+Revision ID: zz04_identity_mem
+Revises: zz03_identity_ws
 Create Date: 2026-08-04 00:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = "zz04_identity_member_tables"
-down_revision = "zz03_identity_workspace_tables"
+revision = "zz04_identity_mem"
+down_revision = "zz03_identity_ws"
 branch_labels = None
 depends_on = None
 
