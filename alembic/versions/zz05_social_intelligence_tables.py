@@ -1,15 +1,15 @@
 """Add social intelligence tables
 
-Revision ID: zz05_social_intelligence_tables
-Revises: zz04_identity_member_tables, ff00aabbccdd
+Revision ID: zz05_social_intel
+Revises: zz04_identity_mem, ff00aabbccdd
 Create Date: 2026-08-16 18:50:00.000000
 """
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision = "zz05_social_intelligence_tables"
-down_revision: Union[str, Sequence[str]] = ("zz04_identity_member_tables", "ff00aabbccdd")
+revision = "zz05_social_intel"
+down_revision: Union[str, Sequence[str]] = ("zz04_identity_mem", "ff00aabbccdd")
 branch_labels = None
 depends_on = None
 

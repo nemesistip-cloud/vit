@@ -4,7 +4,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision = "zz08_provider_evidence_storage_tables"
+revision = "zz08_provider_evid_store"
 down_revision: Union[str, Sequence[str], None] = "zz07_consensus_state"
 branch_labels = None
 depends_on = None

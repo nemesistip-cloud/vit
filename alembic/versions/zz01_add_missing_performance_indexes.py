@@ -1,6 +1,6 @@
 """add_missing_performance_indexes
 
-Revision ID: zz01_add_missing_indexes
+Revision ID: zz01_indexes
 Revises: ee1f2c3d4e5f
 Create Date: 2026-07-18 00:00:00.000000
 
@@ -12,7 +12,7 @@ is safe to re-run and idempotent.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "zz01_add_missing_indexes"
+revision = "zz01_indexes"
 # Merges all four current heads into a single linear chain
 down_revision = (
     "004_add_user_id_to_predictions",

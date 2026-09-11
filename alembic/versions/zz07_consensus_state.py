@@ -4,7 +4,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "zz07_consensus_state"
-down_revision: Union[str, Sequence[str], None] = "zz06_wallet_transaction_metadata"
+down_revision: Union[str, Sequence[str], None] = "zz06_wallet_tx_meta"
 branch_labels = None
 depends_on = None
 
