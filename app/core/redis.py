@@ -1,14 +1,19 @@
-"""app/core/redis.py — Redis client lifecycle with TLS + fakeredis fallback.
+"""app/core/redis.py — Centralized Redis client factory and lifecycle management.
 
 Supports both redis:// (plain) and rediss:// (TLS, e.g. Render managed Redis).
+Provides helper functions for both async (`build_redis_client`) and sync
+(`build_sync_redis_client`) connections, automatically configuring SSL options
+for TLS endpoints to avoid certificate verification failures on Render.
 Falls back to fakeredis in non-production environments when REDIS_URL is absent
 or unreachable. Raises RuntimeError in production so the deployment fails fast
 rather than silently using ephemeral in-memory state.
 """
 import logging
 import os
+from typing import Any, Optional
 
 import redis.asyncio as redis
+import redis as sync_redis
 from fakeredis import FakeAsyncRedis
 
 from app.config import ENVIRONMENT, _clean_redis_url
@@ -19,12 +24,12 @@ logger = logging.getLogger(__name__)
 redis_client = None
 
 
-def _build_redis_client(redis_url: str):
+def build_redis_client(redis_url: str = "", **kwargs) -> redis.Redis:
     """Return a configured async Redis client for the given URL.
 
     For rediss:// (TLS) URLs — which Render managed Redis uses — we set
-    ssl_cert_reqs="none" to skip certificate verification.  Render's Redis
-    is signed by a private CA; without this flag the connection handshake
+    ssl_cert_reqs="none" to skip certificate verification unless specified otherwise.
+    Render's Redis is signed by a private CA; without this flag the connection handshake
     raises ssl.SSLCertVerificationError and require_redis() fails hard in
     production.
 
@@ -32,22 +37,48 @@ def _build_redis_client(redis_url: str):
     reqs), NOT ssl_certreqs.  The latter is silently ignored by redis-py,
     leaving the default "required" in place and breaking TLS on Render.
     """
-    common_kwargs: dict = {
+    url = _clean_redis_url(redis_url or os.getenv("REDIS_URL", ""))
+    if not url:
+        raise ValueError("REDIS_URL is empty or not provided.")
+
+    options: dict[str, Any] = {
         "decode_responses": True,
         "socket_connect_timeout": 5,
         "socket_timeout": 5,
     }
-    if redis_url.startswith("rediss://"):
-        # TLS — disable cert verification for Render managed Redis
-        common_kwargs["ssl_cert_reqs"] = "none"
-    return redis.from_url(redis_url, **common_kwargs)
+    options.update(kwargs)
+
+    if url.startswith("rediss://") and "ssl_cert_reqs" not in options:
+        options["ssl_cert_reqs"] = "none"
+
+    return redis.from_url(url, **options)
+
+
+def build_sync_redis_client(redis_url: str = "", **kwargs) -> sync_redis.Redis:
+    """Return a configured synchronous Redis client for the given URL."""
+    url = _clean_redis_url(redis_url or os.getenv("REDIS_URL", ""))
+    if not url:
+        raise ValueError("REDIS_URL is empty or not provided.")
+
+    options: dict[str, Any] = {
+        "decode_responses": True,
+        "socket_connect_timeout": 5,
+        "socket_timeout": 5,
+    }
+    options.update(kwargs)
+
+    if url.startswith("rediss://") and "ssl_cert_reqs" not in options:
+        options["ssl_cert_reqs"] = "none"
+
+    return sync_redis.from_url(url, **options)
+
+
+# Backwards compatibility alias
+_build_redis_client = build_redis_client
 
 
 async def require_redis(app):
     global redis_client
-    # Read live from the environment: app.config's REDIS_URL constant is
-    # frozen at import time (before ConfigurationManager.load() runs) and
-    # can be stale/empty even when the real env var is set correctly.
     REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))
     if not REDIS_URL:
         if ENVIRONMENT == "production":
@@ -60,7 +91,7 @@ async def require_redis(app):
             return
 
     try:
-        client = _build_redis_client(REDIS_URL)
+        client = build_redis_client(REDIS_URL)
         await client.ping()
         redis_client = client
         app.state.redis = client

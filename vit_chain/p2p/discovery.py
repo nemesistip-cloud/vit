@@ -26,7 +26,8 @@ class PeerDiscovery:
     async def _get_redis(self):
         if not self._redis and self.redis_url:
             try:
-                self._redis = aioredis.from_url(self.redis_url, decode_responses=True)
+                from app.core.redis import build_redis_client
+                self._redis = build_redis_client(self.redis_url, decode_responses=True)
             except Exception:
                 return None
         return self._redis

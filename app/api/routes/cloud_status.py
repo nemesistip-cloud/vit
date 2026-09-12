@@ -312,9 +312,9 @@ async def _take_snapshot():
         # the real env var is set correctly.
         import os
         from app.config import _clean_redis_url
-        import redis.asyncio as aioredis
+        from app.core.redis import build_redis_client
         REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))
-        r = aioredis.from_url(REDIS_URL, decode_responses=True) if REDIS_URL else None
+        r = build_redis_client(REDIS_URL, decode_responses=True) if REDIS_URL else None
 
         mock_req = MockRequest(r)
 

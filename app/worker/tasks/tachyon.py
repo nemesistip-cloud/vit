@@ -29,7 +29,8 @@ async def _run_health():
 
     try:
         import redis as _r
-        r = _r.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+        from app.core.redis import build_sync_redis_client
+        r = build_sync_redis_client(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
         r.setex("tachyon:health:last", 7200, json.dumps(result))
         r.close()
     except Exception: pass

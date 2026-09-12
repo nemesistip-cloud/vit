@@ -71,17 +71,11 @@ def _get_redis():
     global _redis_client, _redis_checked
     if _redis_checked: return _redis_client
     _redis_checked = True
-    # Read live from the environment: app.config's REDIS_URL constant is
-    # frozen at import time (before ConfigurationManager.load() runs) and
-    # can be stale/empty even when the real env var is set correctly.
-    redis_url = _clean_redis_url(os.getenv("REDIS_URL", ""))
+    redis_url = os.getenv("REDIS_URL", "")
     if not redis_url: return None
     try:
-        import redis.asyncio as aioredis
-        # socket_connect_timeout caps the initial TCP connect; socket_timeout caps
-        # individual operations. Both must be short so a broken Redis URL does not
-        # add per-request latency.
-        _redis_client = aioredis.from_url(
+        from app.core.redis import build_redis_client
+        _redis_client = build_redis_client(
             redis_url,
             decode_responses=True,
             socket_connect_timeout=0.5,

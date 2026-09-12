@@ -94,7 +94,8 @@ async def _run_weekly_acc():
     result = {"accuracy_7d": acc, "sample_size": len(rows), "ts": time.time()}
     try:
         import redis as _r
-        r = _r.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+        from app.core.redis import build_sync_redis_client
+        r = build_sync_redis_client(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
         r.setex("ml:accuracy:7d", 604800, json.dumps(result))
         r.close()
     except Exception: pass
