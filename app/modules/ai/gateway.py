@@ -128,10 +128,13 @@ class AIGateway:
         orch = get_orchestrator()
         if orch:
             try:
-                from app.services.ai_client import call_ai as call_ai_local
-                kwargs_clean = {k: v for k, v in kwargs.items() if k != "intent"}
-                response = await call_ai_local(prompt, intent=intent, **kwargs_clean)
-                return self._wrap_response(response, "local_orchestrator", "ensemble_v2", t0, is_fallback=True)
+                res = await orch.predict(
+                    {"prompt": prompt, "market_odds": kwargs.get("market_odds") or {"home": 2.0, "draw": 3.0, "away": 3.5}},
+                    "ensemble_fallback_gate_id"
+                )
+                pred = res.get("predictions", {})
+                formatted = f"Ensemble prediction: Win probability Home={pred.get('home_prob')}, Draw={pred.get('draw_prob')}, Away={pred.get('away_prob')}"
+                return self._wrap_response(formatted, "local_orchestrator", "ensemble_v2", t0, is_fallback=True)
             except Exception as e:
                 logger.error(f"[AIGateway] Local ensemble fallback failed: {e}")
 

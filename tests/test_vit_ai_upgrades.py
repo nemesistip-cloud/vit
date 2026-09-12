@@ -141,3 +141,14 @@ async def test_deterministic_insights_reproducibility():
     res2 = await generate_match_insights("Arsenal", "Chelsea", "Premier League", 0.55, 0.25, 0.20)
     assert res1["summary"] == res2["summary"]
     assert res1["summary"] == "High-stakes clash between Arsenal and Chelsea favoring Arsenal's current momentum."
+
+
+async def test_ai_gateway_ensemble_fallback_no_recursion():
+    """Verify AI Gateway ensemble fallback routes to local orchestrator without infinite recursion."""
+    gw = AIGateway()
+    with patch("app.services.vit_ai_client.vit_ai_client.call_ai", side_effect=RuntimeError("External service offline")):
+        res = await gw.route_chat("Arsenal vs Chelsea match prediction", routing_mode="ensemble")
+        assert res["status"] == "fallback"
+        assert res["is_fallback"] is True
+        assert res["provider"] in ("local_orchestrator", "fallback_buffer")
+        assert "response" in res
