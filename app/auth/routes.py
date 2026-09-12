@@ -247,6 +247,10 @@ class TwoFARequired(BaseModel):
     two_fa_required: bool = True
     pre_auth_token: str
 
+class TelegramAuthRequest(BaseModel):
+    init_data: str
+
+
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # Check if user exists
@@ -463,6 +467,92 @@ async def logout(
                     pass
 
 # Preserve the auth router's public mount path for main.py and frontend routing tests.
+
+@router.post("/telegram", response_model=TokenResponse)
+async def telegram_auth(body: TelegramAuthRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Authenticate or auto-provision a user via Telegram Mini App initData.
+    """
+    tg_user = validate_telegram_init_data(body.init_data)
+    if not tg_user or "id" not in tg_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired Telegram authentication data",
+        )
+
+    telegram_id = str(tg_user["id"])
+    tg_username = tg_user.get("username")
+    first_name = tg_user.get("first_name", "")
+    last_name = tg_user.get("last_name", "")
+
+    # 1. Lookup existing user by telegram_id
+    stmt = select(User).where(User.telegram_id == telegram_id)
+    result = await _execute_with_retry(db, stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        # Check if username exists, if so generate unique username
+        base_username = tg_username if tg_username else f"tg_{telegram_id}"
+        username = base_username
+        counter = 1
+        while True:
+            existing = (await db.execute(select(User).where(User.username == username))).scalar_one_or_none()
+            if not existing:
+                break
+            username = f"{base_username}_{counter}"
+            counter += 1
+
+        email = f"tg_{telegram_id}@telegram.vit"
+        user = User(
+            email=email,
+            username=username,
+            telegram_id=telegram_id,
+            telegram_username=tg_username,
+            role="user",
+            is_active=True,
+            is_verified=True,
+        )
+        db.add(user)
+        await db.flush()
+
+        user_id = user.id
+        # Create default wallet
+        wallet = Wallet(user_id=user_id, vitcoin_balance=Decimal("0"))
+        db.add(wallet)
+        await db.commit()
+
+        await _run_auth_side_effects(
+            db,
+            action="user.telegram_register",
+            event_name="user.registered",
+            user_id=user_id,
+            email=email,
+            username=username,
+            role="user",
+            welcome=True,
+        )
+    else:
+        if not user.is_active:
+            raise HTTPException(status_code=401, detail="User account is deactivated")
+
+        # Update telegram username if changed
+        if tg_username and user.telegram_username != tg_username:
+            user.telegram_username = tg_username
+
+        user.last_login = datetime.now(timezone.utc)
+        await db.commit()
+
+    access_token = create_access_token({"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+    )
+
 router.prefix = "/auth"
 
 for route in router.routes:

@@ -91,7 +91,8 @@ const PHASES = [
     items: [
       { label: 'vit-mobile React Native app',          done: true },
       { label: 'Push notifications (Firebase)',        done: true },
-      { label: 'Telegram bot integration',             done: true },
+      { label: 'Telegram bot integration (alerts & commands)', done: true },
+      { label: 'Telegram Mini App (WebAppData auth & Stars payment)', done: true },
       { label: 'SDK & third-party developer API',      done: true },
       { label: 'Asset CDN via vit-storage',            done: true },
     ],
