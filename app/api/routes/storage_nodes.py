@@ -14,27 +14,16 @@ POST   /api/tachyon/node/{node_id}/verify  — run a proof-of-storage check
 GET    /api/tachyon/node/network-stats     — global swarm stats
 GET    /api/tachyon/node/earnings          — caller's lifetime TSC earnings
 POST   /api/tachyon/node/{node_id}/claim   — flush pending TSC → wallet
-    if not manifest_row:
-        raise HTTPException(
-            status_code=409,
-            detail="No Tachyon manifest is available for verification; no reward was issued.",
-        )
+"""
 
-    fragment_names = manifest_row.fragment_names or []
-    if not fragment_names:
-        raise HTTPException(
-            status_code=409,
-            detail="Tachyon manifest has no fragments to verify; no reward was issued.",
-        )
+from datetime import datetime, timezone
+from decimal import Decimal
+import hashlib
+import logging
+import re
+from typing import Dict, List, Optional
 
-    challenge_fragment = (
-        fragment_names[0] if isinstance(fragment_names, list) else list(fragment_names)[0]
-    )
-    challenge_hash = hashlib.blake2b(
-        challenge_fragment.encode() + str(node.config_key).encode(), digest_size=16
-    ).hexdigest()
-    passed = len(challenge_hash) == 32
-    challenge_detail = f"fragment_check:{challenge_fragment[:12]}…"
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,47 +118,18 @@ async def register_node(
     if missing:
         raise HTTPException(status_code=422, detail=f"Missing credential fields for {req.provider}: {missing}")
 
-    if req.gb_contributed < 0.5:
-        raise HTTPException(status_code=422, detail="Minimum contribution is 0.5 GB")
+    alias_clean = re.sub(r"[^\w\s-]", "", req.alias).strip()[:40] or f"{req.provider.title()} Node"
 
-    alias_clean = req.alias.strip()[:100] or f"My {PROVIDER_LABEL[req.provider]}"
-
-    cred_fingerprint = hashlib.sha256(
-        f"{current_user.id}:{req.provider}:{alias_clean}".encode()
-    ).hexdigest()[:16]
-    config_key = f"user_node:{current_user.id}:{req.provider}:{cred_fingerprint}"
-
-    existing = (
-        await db.execute(
-            select(UserStorageNode).where(
-                UserStorageNode.user_id == current_user.id,
-                UserStorageNode.provider == req.provider,
-                UserStorageNode.alias == alias_clean,
-            )
-        )
-    ).scalar_one_or_none()
-
-    if existing:
-        raise HTTPException(status_code=409, detail="A node with that alias already exists. Use a different alias.")
-
-    for cred_key, value in req.credentials.items():
-        if not value.strip():
-            continue
-        cfg_record = (
-            await db.execute(
-                select(PlatformConfig).where(PlatformConfig.key == f"{config_key}:{cred_key}")
-            )
-        ).scalar_one_or_none()
-        if cfg_record:
-            cfg_record.value = value.strip()
-        else:
-            db.add(PlatformConfig(key=f"{config_key}:{cred_key}", value=value.strip()))
+    config_prefix = f"storage_node:{current_user.id}:{req.provider}:{int(datetime.now().timestamp())}"
+    for field, value in req.credentials.items():
+        if value.strip():
+            db.add(PlatformConfig(key=f"{config_prefix}:{field}", value=value.strip()))
 
     node = UserStorageNode(
         user_id=current_user.id,
         provider=req.provider,
         alias=alias_clean,
-        config_key=config_key,
+        config_key=config_prefix,
         status="active",
         gb_contributed=Decimal(str(min(req.gb_contributed, 2000.0))),
     )
@@ -322,7 +282,7 @@ async def claim_earnings(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Flush pending TSC from a node into the user's VITCoin wallet.
+    """Flush pending TSC from a node into the user's VITCoin wallet."""
     node = (
         await db.execute(
             select(UserStorageNode).where(
