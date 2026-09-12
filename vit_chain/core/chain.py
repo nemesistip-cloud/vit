@@ -1,4 +1,5 @@
 import json
+import logging
 from decimal import Decimal
 from typing import Optional, Callable
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +8,8 @@ from .block import VITBlock, validate_block
 from .transaction import VITTransaction
 from .state import ChainState
 from app.db.models import IoTEvent
+
+logger = logging.getLogger(__name__)
 
 class VITChain:
     CHAIN_ID = 7764
@@ -122,6 +125,32 @@ class VITChain:
             payload=p
         )
         db.add(event)
+
+        # Index block into ChainBlock, ChainTransaction, ChainAccount
+        try:
+            from vit_chain.storage.indexer import ChainIndexer
+            indexer = ChainIndexer()
+            await indexer.index_block(db, block)
+        except Exception as exc:
+            logger.warning(f"[vitchain] Could not index block: {exc}")
+
+        # Persist into Block model (vit_blocks)
+        try:
+            from app.db.models import Block
+            res = await db.execute(select(Block).where(Block.height == block.height))
+            if not res.scalar_one_or_none():
+                v_block = Block(
+                    height=block.height,
+                    chain_id=self.CHAIN_ID,
+                    hash=block.block_hash,
+                    parent_hash=block.prev_hash,
+                    proposer=block.validator_id,
+                    tx_count=block.tx_count,
+                    extra_data=f"VIT Chain block height={block.height}",
+                )
+                db.add(v_block)
+        except Exception as exc:
+            logger.warning(f"[vitchain] Could not persist Block model: {exc}")
 
         return True
 

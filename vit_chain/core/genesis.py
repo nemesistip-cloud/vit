@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 CHAIN_ID: int = 7764
 
+
 # ── Types ──────────────────────────────────────────────────────────────────────
 
 class GenesisValidator:
@@ -48,35 +49,27 @@ async def seed_genesis(db: AsyncSession) -> bool:
         AppError — on unrecoverable database failure.
     """
     try:
-        from app.db.models import Block, ValidatorStake  # import here to avoid circular refs
+        from app.db.models import Block, ValidatorStake
+        from vit_chain.genesis import ensure_genesis
 
-        async with db.begin():
-            # ── Guard: check for existing genesis block ────────────────────
-            result = await db.execute(
-                select(func.count()).select_from(Block).where(Block.height == 0)
+        result = await db.execute(
+            select(func.count()).select_from(Block).where(Block.height == 0)
+        )
+        count = result.scalar_one()
+        if count > 0:
+            logger.info("[genesis] Genesis block already present — skipping seed.")
+            return False
+
+        logger.info("[genesis] Seeding genesis block & initial validators (chain_id=%d)...", CHAIN_ID)
+        await ensure_genesis(db)
+
+        # ── Initial validator set ──────────────────────────────────────
+        validators = _load_genesis_validators()
+        for v in validators:
+            res = await db.execute(
+                select(ValidatorStake).where(ValidatorStake.address == v.address)
             )
-            count = result.scalar_one()
-            if count > 0:
-                logger.info("[genesis] Genesis block already present — skipping seed.")
-                return False
-
-            logger.info("[genesis] No genesis block found — seeding now (chain_id=%d).", CHAIN_ID)
-
-            # ── Genesis block ──────────────────────────────────────────────
-            genesis_block = Block(
-                height=0,
-                chain_id=CHAIN_ID,
-                hash=_genesis_hash(),
-                parent_hash="0x" + "0" * 64,
-                proposer=get_env("GENESIS_PROPOSER_ADDRESS", "0x0000000000000000000000000000000000000000"),
-                tx_count=0,
-                extra_data="VIT Chain genesis — Phase 1 bootstrap",
-            )
-            db.add(genesis_block)
-
-            # ── Initial validator set ──────────────────────────────────────
-            validators = _load_genesis_validators()
-            for v in validators:
+            if not res.scalar_one_or_none():
                 stake = ValidatorStake(
                     address=v.address,
                     stake_amount=v.stake,
@@ -85,13 +78,14 @@ async def seed_genesis(db: AsyncSession) -> bool:
                 )
                 db.add(stake)
 
-            logger.info(
-                "[genesis] Seeded genesis block + %d bootstrap validators.", len(validators)
-            )
+        logger.info(
+            "[genesis] Seeded genesis block + %d bootstrap validators.", len(validators)
+        )
 
         return True
 
     except Exception as exc:
+        logger.error("[genesis] Genesis seeding failed: %s", exc, exc_info=True)
         raise AppError(
             code="GENESIS_SEED_FAILED",
             message=f"Genesis seeding failed: {exc}",

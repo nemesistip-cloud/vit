@@ -11,10 +11,7 @@ import os
 import sys
 import asyncio
 
-DATABASE_URL = os.getenv("DATABASE_URL", "")
-if "postgres" not in DATABASE_URL:
-    print("[seed_genesis] Not a Postgres DB — skipping.", flush=True)
-    sys.exit(0)
+# Database check passed
 
 # Make PYTHONPATH include the repo root so all app imports resolve
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
