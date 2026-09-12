@@ -98,3 +98,8 @@ ignore = [
 # Test helpers import fixtures that appear unused to ruff.
 "tests/**" = ["F401", "F811"]
 "conftest.py" = ["F401", "F811"]
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.1.1,<10.0.0)"
+]
