@@ -548,9 +548,11 @@ async def retrain_model(
     admin: User = Depends(require_admin),
 ):
     from app.api.routes.training import start_admin_training_request, TrainingConfig
+    from app.services.model_orchestrator import model_orchestrator
     result = await db.execute(select(ModelMetadata).where(ModelMetadata.key == model_key))
     m = result.scalar_one_or_none()
-    if not m:
+    known_keys = set(model_orchestrator.models.keys()) | {'all', 'xgb_match', 'lstm_goals', 'btts_prob', 'correct_score', 'xgb_v1', 'lstm_v1', 'rf_v1', 'logistic_v1', 'gbm_v1', 'bayes_v1', 'poisson_v1', 'elo_v1', 'dixon_coles_v1', 'ensemble_v1', 'hybrid_v1', 'btts_v2', 'over_under_v2', 'correct_score_v2'}
+    if not m and model_key not in known_keys:
         raise AppError("Model not found", status_code=404, code="not_found")
 
     config = TrainingConfig(target_model_keys=[model_key])
