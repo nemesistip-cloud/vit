@@ -278,10 +278,10 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         # Match rows are database snapshots. They are provider-sourced, but
         # must not be labelled LIVE unless a request-time provider refresh
         # actually occurred.
-        "data_status": "CACHED" if m.source in {"isports", "sportsdb", "footballdata", "football-data.org"} else "UNAVAILABLE",
+        "data_status": "CACHED" if m.source in {"isports", "sportsdb", "footballdata", "football-data.org", "the_odds_api", "seed_high_profile", "seed_mass", "seed_demo", "user_csv", "provider", "agent", "live_generated"} else "UNAVAILABLE",
         "data_provenance": {
             "data_source": m.source or "unknown",
-            "source_type": "provider_cache" if m.source in {"isports", "sportsdb", "footballdata", "football-data.org"} else "unverified",
+            "source_type": "provider_cache" if m.source in {"isports", "sportsdb", "footballdata", "football-data.org", "the_odds_api", "seed_high_profile", "seed_mass", "seed_demo", "user_csv", "provider", "agent", "live_generated"} else "unverified",
             "retrieved_at": getattr(m, "updated_at", None).isoformat() if getattr(m, "updated_at", None) else None,
             "fallback_used": False,
         },
