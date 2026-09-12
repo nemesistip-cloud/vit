@@ -189,3 +189,29 @@ def test_evidence_engine_completed_match():
     assert res.is_sufficient is True
     assert res.classification != PredictionClassification.UNAVAILABLE
     assert res.current_odds == 18.0
+
+
+def test_evidence_engine_seed_sources():
+    from app.services.evidence_engine import EvidenceEngine, PredictionClassification
+
+    features = {"feature_completeness": 0.8}
+    recent_form = {
+        "home": {"matches_played": 5},
+        "away": {"matches_played": 5},
+    }
+    h2h = {"matches_played": 3}
+
+    res = EvidenceEngine.evaluate(
+        match_source="seed_high_profile",
+        match_features=features,
+        reconciled_odds=None,
+        h2h_data=h2h,
+        recent_form_data=recent_form,
+        model_agreement_pct=0.8,
+        market="match_winner",
+        is_completed=True,
+    )
+
+    assert res.is_sufficient is True
+    assert res.classification != PredictionClassification.UNAVAILABLE
+    assert res.verified_fixture == 20.0
