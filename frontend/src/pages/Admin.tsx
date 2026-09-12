@@ -548,14 +548,21 @@ function TrainingJobsTab() {
     return j.status === selectedStatus
   })
 
+  const { data: fetchedModels = [] } = useAdminModels()
+  const dynamicModels = Array.isArray(fetchedModels) ? fetchedModels.map((m: any) => ({
+    key: m.key ?? m.model_key ?? m.name,
+    label: `${m.name ?? m.key} (${m.type ?? m.framework ?? 'model'})`,
+  })).filter((m: any) => m.key && m.key !== 'all') : []
+
   const availableModels = [
     { key: 'all', label: 'Full Ensemble (All Models)' },
-    { key: 'xgb_match', label: 'XGBoost Match Predictor' },
-    { key: 'lstm_goals', label: 'LSTM Total Goals' },
-    { key: 'btts_prob', label: 'Both Teams To Score' },
-    { key: 'correct_score', label: 'Correct Score Poisson' },
+    ...(dynamicModels.length > 0 ? dynamicModels : [
+      { key: 'xgb_match', label: 'XGBoost Match Predictor' },
+      { key: 'lstm_goals', label: 'LSTM Total Goals' },
+      { key: 'btts_prob', label: 'Both Teams To Score' },
+      { key: 'correct_score', label: 'Correct Score Poisson' },
+    ])
   ]
-
   return (
     <div className="space-y-6">
       <div className="bg-surface-800/60 border border-white/8 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
