@@ -71,7 +71,8 @@ async def shutdown_sequence() -> None:
         redis_url = os.environ.get("REDIS_URL", "")
         if redis_url:
             import redis.asyncio as aioredis
-            r = aioredis.from_url(redis_url)
+            from app.core.redis import build_redis_client
+            r = build_redis_client(redis_url)
             await r.aclose()
             logger.info("[shutdown] redis connection closed")
     except Exception as exc:
@@ -115,7 +116,8 @@ async def _check_redis() -> None:
         return
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url(redis_url, socket_connect_timeout=3)
+        from app.core.redis import build_redis_client
+        r = build_redis_client(redis_url, socket_connect_timeout=3)
         await r.ping()
         await r.aclose()
         print("\u2705 Redis: connection OK")

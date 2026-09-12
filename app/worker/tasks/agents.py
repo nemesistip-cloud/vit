@@ -27,7 +27,8 @@ def _heartbeat(name: str, status: str, detail: Dict[str, Any]) -> None:
     """Write agent heartbeat to Redis. Silent on any failure."""
     try:
         import os, redis as _r
-        r = _r.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+        from app.core.redis import build_sync_redis_client
+        r = build_sync_redis_client(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
         r.setex(f"agent:heartbeat:{name}", 120,
                 json.dumps({"agent": name, "status": status,
                             "ts": time.time(), **detail}))

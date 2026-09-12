@@ -18,8 +18,8 @@ logger = get_task_logger(__name__)
 
 def _redis():
     import redis as _r
-    return _r.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-                       socket_connect_timeout=3)
+    from app.core.redis import build_sync_redis_client
+    return build_sync_redis_client(os.environ.get("REDIS_URL", "redis://localhost:6379/0"), socket_connect_timeout=3)
 
 
 @celery.task(name="ml.evict_stale_models", max_retries=2, default_retry_delay=60)

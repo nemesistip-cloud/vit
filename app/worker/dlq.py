@@ -19,9 +19,8 @@ _DLQ_MAX = 500
 
 
 def _r():
-    import redis
-    return redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-                          socket_connect_timeout=3)
+    from app.core.redis import build_sync_redis_client
+    return build_sync_redis_client(os.environ.get("REDIS_URL", "redis://localhost:6379/0"), socket_connect_timeout=3)
 
 
 @signals.task_failure.connect

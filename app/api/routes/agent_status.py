@@ -25,7 +25,8 @@ async def agent_status() -> Dict[str, Any]:
         return _in_process_fallback()
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url(redis_url, socket_connect_timeout=2)
+        from app.core.redis import build_redis_client
+        r = build_redis_client(redis_url, socket_connect_timeout=2)
         keys = await r.keys("agent:heartbeat:*")
         agents: Dict[str, Any] = {}
         for raw_key in keys:
@@ -86,7 +87,8 @@ async def get_retrain_status() -> dict:
         return {"status": "no_redis"}
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url(redis_url, socket_connect_timeout=2)
+        from app.core.redis import build_redis_client
+        r = build_redis_client(redis_url, socket_connect_timeout=2)
         raw = await r.get("ml:retrain:status")
         acc_raw = await r.get("ml:accuracy:overall")
         acc_7d  = await r.get("ml:accuracy:7d")

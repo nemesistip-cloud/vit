@@ -187,7 +187,8 @@ async def get_platform_status() -> JSONResponse:
     redis_status = "not_configured"
     if redis_url:
         try:
-            r = aioredis.from_url(redis_url, socket_connect_timeout=2)
+            from app.core.redis import build_redis_client
+            r = build_redis_client(redis_url, socket_connect_timeout=2)
             await r.ping()
             await r.aclose()
             redis_status = "connected"

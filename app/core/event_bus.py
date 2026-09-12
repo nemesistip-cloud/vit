@@ -165,8 +165,8 @@ class EventBus:
             logger.info("[event_bus] REDIS_URL not set — Redis pub/sub disabled")
             return
         try:
-            import redis.asyncio as aioredis
-            self._redis = aioredis.from_url(url, decode_responses=True)
+            from app.core.redis import build_redis_client
+            self._redis = build_redis_client(url, decode_responses=True)
             await self._redis.ping()
             self._redis_enabled = True
             logger.info("[event_bus] Redis pub/sub connected on channel '%s'", self._redis_channel)

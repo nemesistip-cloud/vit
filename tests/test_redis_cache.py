@@ -45,3 +45,31 @@ async def test_cache_delete():
 
         await cache.delete("test_key")
         mock_r.delete.assert_called_with("test_key")
+
+
+def test_build_redis_client_tls():
+    """Test that build_redis_client and build_sync_redis_client add ssl_cert_reqs='none' for rediss:// URLs."""
+    from app.core.redis import build_redis_client, build_sync_redis_client
+
+    async_client = build_redis_client("rediss://:password@localhost:6379/0")
+    conn_kwargs = async_client.connection_pool.connection_kwargs
+    assert conn_kwargs.get("ssl_cert_reqs") == "none"
+
+    sync_client = build_sync_redis_client("rediss://:password@localhost:6379/0")
+    sync_conn_kwargs = sync_client.connection_pool.connection_kwargs
+    assert sync_conn_kwargs.get("ssl_cert_reqs") == "none"
+
+
+@pytest.mark.asyncio
+async def test_require_redis_fallback():
+    """Test that require_redis falls back to FakeAsyncRedis when REDIS_URL is not provided in dev."""
+    from app.core.redis import require_redis, FakeAsyncRedis
+
+    class DummyApp:
+        def __init__(self):
+            self.state = type("state", (), {})()
+
+    app = DummyApp()
+    with patch("os.getenv", return_value=""):
+        await require_redis(app)
+        assert isinstance(app.state.redis, FakeAsyncRedis)
