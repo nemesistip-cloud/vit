@@ -296,6 +296,14 @@ function TacticalPanel({ tactical }: { tactical: NonNullable<NonNullable<Match['
 
 function ModelRow({ pred, i }: { pred: Prediction; i: number }) {
   const sideColor = pred.bet_side === 'home' ? 'text-vit-400' : pred.bet_side === 'away' ? 'text-amber-400' : 'text-white/50'
+
+  let rawConf = pred.confidence as unknown
+  if (rawConf && typeof rawConf === 'object') {
+    const confObj = rawConf as Record<string, number>
+    rawConf = confObj['1x2'] ?? confObj['home'] ?? 0
+  }
+  const confVal = typeof rawConf === 'number' && Number.isFinite(rawConf) ? rawConf : 0
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -8 }}
@@ -313,7 +321,7 @@ function ModelRow({ pred, i }: { pred: Prediction; i: number }) {
       </span>
 
       <div className="text-right shrink-0">
-        <p className="text-sm font-bold text-white font-mono">{Math.round(pred.confidence * 100)}%</p>
+        <p className="text-sm font-bold text-white font-mono">{Math.round(confVal * 100)}%</p>
         <p className="text-[10px] text-white/30">confidence</p>
       </div>
 
@@ -788,7 +796,9 @@ export default function MatchDetail() {
               {/* Primary Probability Distribution Bars */}
               <div className="flex gap-3 mb-5">
                 <ProbBar label="Home Win" prob={match.home_prob} color="text-vit-400" recommended={aiPick === 'home'} />
-                <ProbBar label="Draw" prob={match.draw_prob} color="text-white/50" recommended={aiPick === 'draw'} />
+                {match.draw_prob != null && match.draw_prob > 0 && (
+                  <ProbBar label="Draw" prob={match.draw_prob} color="text-white/50" recommended={aiPick === 'draw'} />
+                )}
                 <ProbBar label="Away Win" prob={match.away_prob} color="text-amber-400" recommended={aiPick === 'away'} />
               </div>
 
@@ -818,10 +828,10 @@ export default function MatchDetail() {
 
                 <div className="bg-surface-800/50 border border-white/8 rounded-xl p-4 text-center">
                   <Activity className="w-4 h-4 mx-auto mb-2 text-amber-400" />
-                  <p className="text-xl font-bold text-amber-400 font-mono">
-                    {match.odds?.home ? match.odds.home.toFixed(2) : '—'}
+                  <p className="text-lg font-bold text-amber-400 font-mono">
+                    {match.odds?.home ? match.odds.home.toFixed(2) : '—'} / {match.odds?.draw ? match.odds.draw.toFixed(2) : '—'} / {match.odds?.away ? match.odds.away.toFixed(2) : '—'}
                   </p>
-                  <p className="text-xs text-white/35 mt-0.5">Home Market Odds</p>
+                  <p className="text-xs text-white/35 mt-0.5">Market Odds (H / D / A)</p>
                 </div>
               </div>
             </>

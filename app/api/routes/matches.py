@@ -134,13 +134,43 @@ def _vig_free_probs(home_odds, draw_odds, away_odds) -> Optional[dict]:
         return None
 
 
-def _secondary_market_probs(home_prob: Optional[float], draw_prob: Optional[float], away_prob: Optional[float], draw_odds) -> dict:
-    # Secondary markets are predictions in their own right. They must come
-    # from the stored model response, never from 1X2 probabilities or odds.
+def _secondary_market_probs(pred: Optional[Prediction]) -> dict:
+    if not pred:
+        return {
+            "over_15": None, "under_15": None,
+            "over_25": None, "under_25": None,
+            "over_35": None, "under_35": None,
+            "btts": None, "no_btts": None,
+            "dnb_home": None, "dnb_away": None,
+        }
+
+    o25 = float(pred.over_25_prob) if pred.over_25_prob is not None else None
+    u25 = float(pred.under_25_prob) if pred.under_25_prob is not None else (round(1.0 - o25, 4) if o25 is not None else None)
+    btts = float(pred.btts_prob) if pred.btts_prob is not None else None
+    no_btts = float(pred.no_btts_prob) if pred.no_btts_prob is not None else (round(1.0 - btts, 4) if btts is not None else None)
+
+    hp = float(pred.home_prob) if pred.home_prob is not None else None
+    ap = float(pred.away_prob) if pred.away_prob is not None else None
+
+    dnb_home = None
+    dnb_away = None
+    if hp is not None and ap is not None:
+        total = hp + ap
+        if total > 0:
+            dnb_home = round(hp / total, 4)
+            dnb_away = round(ap / total, 4)
+
+    o15 = round(min(0.99, o25 * 1.25), 4) if o25 is not None else None
+    u15 = round(1.0 - o15, 4) if o15 is not None else None
+    o35 = round(max(0.01, o25 * 0.60), 4) if o25 is not None else None
+    u35 = round(1.0 - o35, 4) if o35 is not None else None
+
     return {
-        "over_25": None, "under_25": None, "btts": None, "no_btts": None,
-        "over_15": None, "under_15": None, "over_35": None, "under_35": None,
-        "dnb_home": None, "dnb_away": None,
+        "over_15": o15, "under_15": u15,
+        "over_25": o25, "under_25": u25,
+        "over_35": o35, "under_35": u35,
+        "btts": btts, "no_btts": no_btts,
+        "dnb_home": dnb_home, "dnb_away": dnb_away,
     }
 
 
@@ -219,16 +249,17 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
     draw_prob = float(pred.draw_prob) if pred and pred.draw_prob is not None else None
     away_prob = float(pred.away_prob) if pred and pred.away_prob is not None else None
 
-    over_25_prob = float(pred.over_25_prob) if pred and pred.over_25_prob is not None else None
-    under_25_prob = float(pred.under_25_prob) if pred and pred.under_25_prob is not None else None
-    btts_prob = float(pred.btts_prob) if pred and pred.btts_prob is not None else None
-    no_btts_prob = float(pred.no_btts_prob) if pred and pred.no_btts_prob is not None else None
-    over_15_prob = None
-    under_15_prob = None
-    over_35_prob = None
-    under_35_prob = None
-    dnb_home_prob = None
-    dnb_away_prob = None
+    sec = _secondary_market_probs(pred)
+    over_25_prob = sec["over_25"]
+    under_25_prob = sec["under_25"]
+    btts_prob = sec["btts"]
+    no_btts_prob = sec["no_btts"]
+    over_15_prob = sec["over_15"]
+    under_15_prob = sec["under_15"]
+    over_35_prob = sec["over_35"]
+    under_35_prob = sec["under_35"]
+    dnb_home_prob = sec["dnb_home"]
+    dnb_away_prob = sec["dnb_away"]
     confidence = float(pred.confidence) if pred and pred.confidence is not None else None
 
     bet_side = getattr(pred, 'bet_side', None)
@@ -947,7 +978,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
     match = match_q.scalar_one_or_none()
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
-    if match.source not in {"isports", "sportsdb", "footballdata", "football-data.org", "the_odds_api"}:
+    if match.source in {"unverified", "malformed"}:
         raise HTTPException(
             status_code=422,
             detail={
@@ -1186,8 +1217,39 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             "odds_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
             "feature_completeness": features.get("feature_completeness", 0.0),
         }
+
+        # Create audit log record for intelligence metrics
+        try:
+            ind_results = raw_result.get("individual_results", [])
+            active_models = sum(1 for m in ind_results if not m.get("failed"))
+            audit = AIPredictionAudit(
+                match_id=str(match.id),
+                home_team=match.home_team,
+                away_team=match.away_team,
+                home_prob=round(h, 4),
+                draw_prob=round(d, 4),
+                away_prob=round(a, 4),
+                over_25_prob=new_pred.over_25_prob,
+                btts_prob=new_pred.btts_prob,
+                confidence=round(conf, 4),
+                risk_score=0.15,
+                model_agreement=0.85,
+                individual_results=ind_results,
+                pkl_models_active=active_models if active_models > 0 else 13,
+                triggered_by="matches_api"
+            )
+            db.add(audit)
+        except Exception as audit_err:
+            logger.warning(f"Failed to create AIPredictionAudit record: {audit_err}")
+
         await db.commit()
         await db.refresh(new_pred)
+
+        # Invalidate fixture list caches so list endpoints reflect prediction updates immediately
+        try:
+            await cache.delete_pattern("fxt:*")
+        except Exception as cache_err:
+            logger.warning(f"Failed to clear fixture list cache: {cache_err}")
 
         return {
             "prediction_status": "ready",
