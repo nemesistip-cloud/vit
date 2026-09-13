@@ -61,6 +61,29 @@ def test_odds_do_not_become_prediction_data_without_model_prediction():
     assert payload["odds"] == {"home": 2.0, "draw": 3.5, "away": 4.0}
 
 
+def test_initializing_prediction_does_not_expose_zero_pick():
+    prediction = SimpleNamespace(
+        status="INITIALIZING",
+        is_seed=False,
+        home_prob=0.0,
+        draw_prob=0.0,
+        away_prob=0.0,
+        bet_side="home",
+        confidence=0.0,
+        over_25_prob=None,
+        under_25_prob=None,
+        btts_prob=None,
+        no_btts_prob=None,
+        vig_free_edge=None,
+    )
+
+    payload = _fmt_match(_match(), pred=prediction, markets=[{"id": "1x2", "status": "active"}])
+
+    assert payload["bet_side"] is None
+    assert payload["home_prob"] is None
+    assert payload["confidence"] is None
+
+
 def test_seed_prediction_does_not_default_every_pick_to_home():
     seen = {"home": 0, "draw": 0, "away": 0}
     for i in range(20):

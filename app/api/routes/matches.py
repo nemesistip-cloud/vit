@@ -198,6 +198,8 @@ def _normalize_attribution_items(raw_items: Optional[list]) -> list:
 def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[list] = None) -> dict:
     if pred is not None and getattr(pred, "is_seed", False):
         pred = None
+    if pred is not None and getattr(pred, "status", None) not in (None, "READY", "STALE", "ready", "stale"):
+        pred = None
     odds_home = m.opening_odds_home or m.closing_odds_home
     odds_draw = m.opening_odds_draw or m.closing_odds_draw
     odds_away = m.opening_odds_away or m.closing_odds_away
