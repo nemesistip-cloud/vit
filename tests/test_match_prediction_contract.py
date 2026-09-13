@@ -6,6 +6,8 @@ import pytest
 
 from app.api.routes.matches import _fmt_match
 from app.services.prediction_seeder import _make_prediction
+from app.services.prediction_seeder import seed_upcoming_predictions
+from app.agents.prediction_agent import PROVIDER_SOURCES, _confidence_for_sport
 import app.services.sportsdb_api as sportsdb_api
 
 
@@ -71,6 +73,26 @@ def test_seed_prediction_does_not_default_every_pick_to_home():
     assert seen["away"] > 0
     assert seen["home"] < 20
     assert seen["away"] < 20
+
+
+@pytest.mark.asyncio
+async def test_upcoming_prediction_seeder_never_creates_synthetic_rows():
+    result = await seed_upcoming_predictions(None)
+
+    assert result["seeded"] == 0
+    assert result["disabled"] is True
+
+
+def test_prediction_agent_allows_only_provider_fixture_sources():
+    assert "football-data.org" in PROVIDER_SOURCES
+    assert "isports" in PROVIDER_SOURCES
+    assert "test" not in PROVIDER_SOURCES
+
+
+def test_prediction_agent_reads_sport_specific_confidence():
+    assert _confidence_for_sport({"1x2": 0.61}, "football") == 0.61
+    assert _confidence_for_sport({"moneyline": 0.72}, "basketball") == 0.72
+    assert _confidence_for_sport({"winner": 0.81}, "tennis") == 0.81
 
 
 @pytest.mark.asyncio

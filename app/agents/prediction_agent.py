@@ -15,6 +15,25 @@ from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
 
+PROVIDER_SOURCES = {
+    "isports",
+    "sportsdb",
+    "footballdata",
+    "football-data.org",
+    "the_odds_api",
+}
+
+
+def _confidence_for_sport(payload: Any, sport: str) -> Any:
+    if not isinstance(payload, dict):
+        return payload
+    key = {
+        "football": "1x2",
+        "basketball": "moneyline",
+        "tennis": "winner",
+    }.get((sport or "football").lower(), "general")
+    return payload.get(key)
+
 class PredictionAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
@@ -47,6 +66,8 @@ class PredictionAgent(BaseAgent):
                     Match.kickoff_time >= now,
                     Match.kickoff_time <= cutoff,
                     Match.status.in_(["scheduled", "upcoming", "open"]),
+                    Match.source.in_(PROVIDER_SOURCES),
+                    Match.external_id.isnot(None),
                     Prediction.id.is_(None)
                 )
                 .limit(10) # Process in small batches
@@ -77,9 +98,27 @@ class PredictionAgent(BaseAgent):
                         match.league,
                     )
 
+                    market_odds = {
+                        "home": match.opening_odds_home or match.closing_odds_home,
+                        "draw": match.opening_odds_draw or match.closing_odds_draw,
+                        "away": match.opening_odds_away or match.closing_odds_away,
+                    }
+                    features["market_odds"] = {
+                        side: float(value)
+                        for side, value in market_odds.items()
+                        if value is not None and float(value) > 1.0
+                    }
+
                     # 2. Get prediction (awaiting because MultiSportOrchestrator.predict is now async)
-                    pred_data = await multi_orch.predict(features, sport=match.sport or "football")
+                    pred_data = await multi_orch.predict(
+                        features,
+                        idempotency_key=f"agent_match_{match.id}_{int(now.timestamp())}",
+                        sport=match.sport or "football",
+                    )
                     res = pred_data.get("predictions", {})
+
+                    if res.get("data_source") == "vit_scie_v5_neutral_fallback":
+                        raise ValueError("live market odds or a real ML model are required")
 
                     probabilities = {
                         key: res.get(key)
@@ -92,7 +131,11 @@ class PredictionAgent(BaseAgent):
                     if not math.isclose(sum(probabilities.values()), 1.0, abs_tol=0.01):
                         raise ValueError("prediction probabilities do not sum to 1")
 
-                    confidence_value = res.get("confidence", {}).get("1x2") if isinstance(res.get("confidence"), dict) else None
+                    confidence_payload = res.get("confidence")
+                    confidence_value = _confidence_for_sport(
+                        confidence_payload,
+                        match.sport or "football",
+                    )
                     if (
                         not isinstance(confidence_value, (int, float))
                         or not math.isfinite(confidence_value)
@@ -120,6 +163,15 @@ class PredictionAgent(BaseAgent):
                     prediction = Prediction(
                         match_id=match.id,
                         user_id=None,
+                        status="READY",
+                        source="live_generated",
+                        is_seed=False,
+                        provenance={
+                            "source": res.get("data_source") or match.source,
+                            "source_type": "live",
+                            "external_id": match.external_id,
+                            "generated_at": datetime.now(timezone.utc).isoformat(),
+                        },
                         home_prob=probabilities["home_prob"],
                         draw_prob=probabilities["draw_prob"],
                         away_prob=probabilities["away_prob"],
