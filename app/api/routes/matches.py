@@ -284,6 +284,35 @@ def _normalize_attribution_items(raw_items: Optional[list]) -> list:
 
 
 def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[list] = None) -> dict:
+    raw_pred = pred
+    prediction_status = "not_initialized"
+    prediction_source = None
+    evidence = {}
+    if raw_pred is not None and not getattr(raw_pred, "is_seed", False):
+        prediction_source = getattr(raw_pred, "source", "live_generated")
+        raw_provenance = getattr(raw_pred, "provenance", None) or {}
+        evidence = {
+            "score": raw_provenance.get("evidence_score", 0.0),
+            "classification": raw_provenance.get("evidence_classification", "UNAVAILABLE"),
+            "missing_elements": raw_provenance.get("missing_elements", []),
+        }
+        raw_status = getattr(raw_pred, "status", None)
+        if raw_status == "INITIALIZING":
+            prediction_status = "initializing"
+        elif raw_status == "FAILED":
+            prediction_status = "failed"
+        elif raw_status == "STALE":
+            prediction_status = "stale"
+        elif raw_provenance and float(raw_provenance.get("evidence_score", 0.0) or 0.0) >= 55.0:
+            prediction_status = "ready"
+            ts = getattr(raw_pred, "timestamp", None)
+            if ts:
+                ts = ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+                if (datetime.now(timezone.utc) - ts).total_seconds() > 86400:
+                    prediction_status = "stale"
+        else:
+            prediction_status = "failed"
+
     if pred is not None and getattr(pred, "is_seed", False):
         pred = None
     if pred is not None and getattr(pred, "status", None) not in (None, "READY", "STALE", "ready", "stale"):
@@ -366,6 +395,11 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         "dnb_home_prob": dnb_home_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "dnb_away_prob": dnb_away_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "confidence": confidence,
+        "final_ev": float(getattr(pred, "final_ev", None)) if pred and getattr(pred, "final_ev", None) is not None else edge,
+        "entry_odds": float(getattr(pred, "entry_odds", None)) if pred and getattr(pred, "entry_odds", None) is not None else None,
+        "prediction_status": prediction_status,
+        "prediction_source": prediction_source,
+        "evidence": evidence,
         # Match rows are database snapshots. They are provider-sourced, but
         # must not be labelled LIVE unless a request-time provider refresh
         # actually occurred.

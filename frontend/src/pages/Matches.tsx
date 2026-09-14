@@ -40,10 +40,15 @@ interface Match {
     source_type?: string
     retrieved_at?: string
   }
+  prediction_status?: 'not_initialized' | 'initializing' | 'ready' | 'failed' | 'stale'
+  prediction_source?: string
+  evidence?: { score?: number; classification?: string; missing_elements?: string[] }
 }
 
 type Tab   = 'upcoming' | 'live' | 'recent' | 'all'
 type Sport = 'all' | 'football' | 'basketball' | 'tennis' | 'cricket'
+type IntelligenceFilter = 'all' | 'verified' | 'needs_data' | 'unavailable'
+type SortMode = 'kickoff' | 'confidence' | 'edge' | 'quality'
 
 // ── Hooks ──────────────────────────────────────────────────────────────────────
 
@@ -186,6 +191,8 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
     ? match.bet_side.toUpperCase()
     : autoSide
   const dataStatus = match.data_status || (match.source && match.source !== 'test' ? 'LIVE' : 'UNAVAILABLE')
+  const predictionStatus = match.prediction_status ?? (pickSide ? 'ready' : 'not_initialized')
+  const isVerified = predictionStatus === 'ready' || predictionStatus === 'stale'
 
   return (
     <motion.div
@@ -234,7 +241,14 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
             <Brain className="w-3 h-3 text-vit-400" />
             <span>AI PICK: {pickSide}</span>
           </div>
-        ) : null}
+        ) : (
+          <span className={cn(
+            'px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide shrink-0',
+            predictionStatus === 'failed' ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-white/6 text-white/35 border border-white/8',
+          )}>
+            {predictionStatus === 'failed' ? 'Needs data' : 'No forecast'}
+          </span>
+        )}
       </div>
 
       {/* Teams */}
@@ -268,6 +282,10 @@ function MatchCard({ match, i }: { match: Match; i: number }) {
       {/* Footer meta */}
       <div className="flex items-center justify-between text-xs text-white/30">
         <div className="flex items-center gap-3 flex-wrap">
+          <span className={cn('flex items-center gap-1', isVerified ? 'text-emerald-400' : 'text-white/30')}>
+            <span className={cn('h-1.5 w-1.5 rounded-full', isVerified ? 'bg-emerald-400' : 'bg-white/20')} />
+            {isVerified ? 'Verified forecast' : predictionStatus === 'failed' ? 'Evidence limited' : 'Forecast pending'}
+          </span>
           {conf != null && (
             <span className="flex items-center gap-1">
               <Target className="w-3 h-3 text-vit-400" />
@@ -315,18 +333,31 @@ export default function Matches() {
   const [tab, setTab]     = useState<Tab>('upcoming')
   const [sport, setSport] = useState<Sport>('all')
   const [search, setSearch] = useState('')
+  const [league, setLeague] = useState('all')
+  const [intelligence, setIntelligence] = useState<IntelligenceFilter>('all')
+  const [sort, setSort] = useState<SortMode>('kickoff')
 
   const qc = useQueryClient()
   const { data = [], isLoading, isError, error, refetch } = useMatches(tab, sport)
   const syncMutation = useSyncFixtures()
 
-  const filtered = search.trim()
-    ? data.filter(m =>
-        m.home_team.toLowerCase().includes(search.toLowerCase()) ||
-        m.away_team.toLowerCase().includes(search.toLowerCase()) ||
-        m.league.toLowerCase().includes(search.toLowerCase()),
-      )
-    : data
+  const leagues = Array.from(new Set(data.map(m => m.league).filter(Boolean))).sort()
+  const filtered = data.filter(m => {
+      const query = search.trim().toLowerCase()
+      const matchesSearch = !query || [m.home_team, m.away_team, m.league].some(value => value.toLowerCase().includes(query))
+      const status = m.prediction_status ?? ((m.home_prob != null || m.away_prob != null) ? 'ready' : 'not_initialized')
+      const matchesIntelligence = intelligence === 'all'
+        || (intelligence === 'verified' && (status === 'ready' || status === 'stale'))
+        || (intelligence === 'needs_data' && status === 'not_initialized')
+        || (intelligence === 'unavailable' && status === 'failed')
+      return matchesSearch && (league === 'all' || m.league === league) && matchesIntelligence
+    })
+    .sort((a, b) => {
+      if (sort === 'confidence') return (b.confidence ?? -1) - (a.confidence ?? -1)
+      if (sort === 'edge') return (b.final_ev ?? -Infinity) - (a.final_ev ?? -Infinity)
+      if (sort === 'quality') return (b.evidence?.score ?? -1) - (a.evidence?.score ?? -1)
+      return new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
+    })
 
   return (
     <div className="pt-16 min-h-screen bg-surface-900">
@@ -405,7 +436,7 @@ export default function Matches() {
         </div>
 
         {/* ── Sport filters + search ─────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col gap-3">
           {/* Sport chips — horizontal scroll, never wrap */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide shrink-0" role="group" aria-label="Filter by sport">
             {SPORTS.map(({ value, label }) => (
@@ -426,7 +457,7 @@ export default function Matches() {
           </div>
 
           {/* Search — grows to fill remaining space */}
-          <div className="relative flex-1 min-w-0">
+          <div className="relative min-w-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
             <input
               type="text"
@@ -436,6 +467,28 @@ export default function Matches() {
               className="w-full bg-surface-800/60 border border-white/8 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-vit-500/50 focus:ring-1 focus:ring-vit-500/15 transition-all"
             />
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <select value={league} onChange={e => setLeague(e.target.value)} aria-label="Filter by league"
+              className="bg-surface-800/60 border border-white/8 rounded-xl px-3 py-2 text-xs text-white/70 focus:outline-none focus:border-vit-500/50">
+              <option value="all">All competitions</option>
+              {leagues.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
+            <select value={intelligence} onChange={e => setIntelligence(e.target.value as IntelligenceFilter)} aria-label="Filter by intelligence status"
+              className="bg-surface-800/60 border border-white/8 rounded-xl px-3 py-2 text-xs text-white/70 focus:outline-none focus:border-vit-500/50">
+              <option value="all">All intelligence states</option>
+              <option value="verified">Verified forecasts</option>
+              <option value="needs_data">Awaiting analysis</option>
+              <option value="unavailable">Evidence limited</option>
+            </select>
+            <select value={sort} onChange={e => setSort(e.target.value as SortMode)} aria-label="Sort matches"
+              className="bg-surface-800/60 border border-white/8 rounded-xl px-3 py-2 text-xs text-white/70 focus:outline-none focus:border-vit-500/50">
+              <option value="kickoff">Sort: kickoff time</option>
+              <option value="confidence">Sort: model confidence</option>
+              <option value="edge">Sort: expected value</option>
+              <option value="quality">Sort: evidence quality</option>
+            </select>
+          </div>
         </div>
 
         {/* ── Results count ──────────────────────────────────────────────── */}
@@ -444,7 +497,7 @@ export default function Matches() {
             <p className="text-xs text-white/35" aria-live="polite">
               <span className="font-medium text-white/60">{filtered.length}</span>{' '}
               {filtered.length === 1 ? 'match' : 'matches'}
-              {search && <span className="text-white/25"> · searching "{search}"</span>}
+              {(search || league !== 'all' || intelligence !== 'all') && <span className="text-white/25"> · filters active</span>}
             </p>
             <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/20">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Provider data
