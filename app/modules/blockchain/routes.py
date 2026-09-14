@@ -884,7 +884,7 @@ class SignalPublishRequest(BaseModel):
 @router.post("/signals/publish", summary="Push a manual signal to the UniversalOracle")
 async def publish_blockchain_signal(
     body: SignalPublishRequest,
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(require_admin)
 ):
     from app.modules.blockchain.contract_service import contract_service
     tx_hash = await contract_service.publish_signal(
@@ -906,7 +906,7 @@ class ShopRegisterRequest(BaseModel):
 @router.post("/shops/register", summary="Register a new betting shop agent")
 async def register_shop(
     body: ShopRegisterRequest,
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(require_admin)
 ):
     # This would call ShopManager.sol via contract_service
     return {
@@ -1094,7 +1094,7 @@ class AppealReviewRequest(BaseModel):
 async def review_validator_appeal(
     appeal_id: str,
     body: AppealReviewRequest,
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Admin reviews a validator appeal. Approved → restore SUSPENDED status + optional restake."""
@@ -1164,7 +1164,7 @@ async def review_validator_appeal(
 @router.get("/admin/appeals")
 async def list_pending_appeals(
     status: str = "pending",
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """List validator appeals by status."""

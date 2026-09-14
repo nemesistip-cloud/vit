@@ -4,6 +4,8 @@ from .core.block import VITBlock, build_block
 from .core.transaction import VITTransaction, keccak256_hex
 from .core.chain import VITChain
 from app.config import get_env
+import hashlib
+import os
 import time
 
 GENESIS_TIMESTAMP = 1735689600  # 2025-01-01 00:00:00 UTC
@@ -11,13 +13,12 @@ INITIAL_SUPPLY = Decimal("1000000")
 GENESIS_VALIDATOR = get_env("GENESIS_VALIDATOR_ADDRESS", "VIT_GENESIS_VALIDATOR_ADDRESS")
 _raw_treasury_key = get_env("VIT_TREASURY_PRIVATE_KEY", "")
 if not _raw_treasury_key:
-    import logging as _log
-    _log.getLogger(__name__).warning(
-        "VIT_TREASURY_PRIVATE_KEY is not set — using the embedded dev key. "
-        "THIS MUST NEVER HAPPEN IN PRODUCTION. Set the secret in Render."
-    )
-    _raw_treasury_key = "92238e8a9a98ec05691c77ba77324ddbe94fe33588d5f27af2ac254f70810955"
-TREASURY_PRIV_KEY = _raw_treasury_key
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        TREASURY_PRIV_KEY = None
+    else:
+        TREASURY_PRIV_KEY = hashlib.sha256(b"vit-non-production-genesis-key").hexdigest()
+else:
+    TREASURY_PRIV_KEY = _raw_treasury_key
 
 def build_genesis_block() -> VITBlock:
     """
@@ -27,6 +28,8 @@ def build_genesis_block() -> VITBlock:
     - No storage proofs
     - validator_id = GENESIS_VALIDATOR
     """
+    if not TREASURY_PRIV_KEY:
+        raise RuntimeError("VIT_TREASURY_PRIVATE_KEY is required in production")
     from coincurve import PrivateKey
     from .crypto.address import public_key_to_address
 
