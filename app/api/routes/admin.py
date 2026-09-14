@@ -635,7 +635,7 @@ async def recover_service(
         raise AppError("Explicit confirmation is required", status_code=400, code="confirmation_required")
     await _require_mfa(admin, body.mfa_code)
     watchdog.mark_recovering(service_name)
-    result = await _render_action(service_name, "restart")
+    result = await _render_action(watchdog.states[service_name].render_service or service_name, "restart")
     await write_audit(db, admin.id, "watchdog.recover", "service", service_name, None, {"action": "restart", "reason": body.reason, "status_code": result["status_code"]}, request)
     return {"ok": True, **result}
 

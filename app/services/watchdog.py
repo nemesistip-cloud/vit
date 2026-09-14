@@ -30,6 +30,7 @@ class ServiceState:
     error: str | None = None
     recovery_attempts: int = 0
     incident_open: bool = False
+    render_service: str | None = None
 
 
 @dataclass
@@ -38,8 +39,8 @@ class Watchdog:
     recovery_cooldown_seconds: int = 300
     states: dict[str, ServiceState] = field(default_factory=dict)
 
-    def register(self, name: str, url: str, health_path: str = "/health") -> None:
-        self.states.setdefault(name, ServiceState(name=name, url=url.rstrip("/"), health_path=health_path))
+    def register(self, name: str, url: str, health_path: str = "/health", render_service: str | None = None) -> None:
+        self.states.setdefault(name, ServiceState(name=name, url=url.rstrip("/"), health_path=health_path, render_service=render_service))
 
     async def probe(self, name: str, client: httpx.AsyncClient | None = None) -> ServiceState:
         service = self.states[name]
@@ -82,6 +83,7 @@ class Watchdog:
                 "latency_ms": state.latency_ms,
                 "consecutive_failures": state.consecutive_failures,
                 "deployment": state.deployment,
+                "render_service": state.render_service,
                 "error": state.error,
                 "recovery_attempts": state.recovery_attempts,
             }
@@ -130,7 +132,7 @@ class Watchdog:
 
 
 watchdog = Watchdog()
-watchdog.register("gateway", os.getenv("VIT_GATEWAY_URL", f"http://127.0.0.1:{os.getenv('PORT', '8000')}"), "/ping")
+watchdog.register("gateway", os.getenv("VIT_GATEWAY_URL", f"http://127.0.0.1:{os.getenv('PORT', '8000')}"), "/ping", "vitnetwork")
 watchdog.register("ai", os.getenv("VIT_AI_URL", "https://vit-ai.onrender.com"))
 watchdog.register("storage", os.getenv("VIT_STORAGE_URL", "https://vit-storage-4trt.onrender.com"))
 watchdog.register("chain", os.getenv("VIT_CHAIN_URL", "https://vit-chain.onrender.com"))
