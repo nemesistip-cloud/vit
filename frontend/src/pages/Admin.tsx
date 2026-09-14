@@ -213,7 +213,7 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
               <div className="flex items-center gap-2"><Server className="w-4 h-4 text-vit-400" /><span className="text-white font-medium text-sm">VIT Gateway</span></div>
               <StatusBadge status={health?.status ?? (status ? 'operational' : 'unknown')} size="sm" pulse />
             </div>
-            <Row label="Version"  value={health?.version ?? status?.version ?? '1.1.0'} />
+            <Row label="Version"  value={health?.version ?? status?.version} />
             <Row label="Database" value={health?.db_connected !== false ? 'Connected' : 'Disconnected'} />
             <Row label="Redis"    value={health?.redis?.status ?? 'Not configured'} />
             <Row label="Models"   value={health?.models_loaded != null ? `${health.models_loaded} loaded` : null} />

@@ -25,6 +25,7 @@ import { ENDPOINTS } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Spinner } from '@/components/ui/Spinner'
+import { fetchWithAuth } from '@/hooks/useAuth'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -429,7 +430,7 @@ export default function MatchDetail() {
     }, 1200)
 
     try {
-      const res = await fetch(`${ENDPOINTS.gateway}/api/matches/${match.id}/predict/${endpoint}`, {
+      const res = await fetchWithAuth(`${ENDPOINTS.gateway}/api/matches/${match.id}/predict/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -437,7 +438,9 @@ export default function MatchDetail() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ detail: 'Failed to process prediction' }))
-        const detail = typeof errData?.detail === 'string' ? errData.detail : errData?.detail?.message
+        const detail = typeof errData?.detail === 'string'
+          ? errData.detail
+          : errData?.detail?.message || errData?.message || errData?.error?.message
         throw new Error(detail || 'Failed to process prediction request')
       }
 

@@ -31,12 +31,7 @@ function useVITPriceHistory() {
     queryFn: async ({ signal }) => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/vitcoin/price-history?days=30`, { signal, headers: authHeaders() })
       if (!r.ok) {
-        // Synthetic fallback chart data
-        const base = 0.00042
-        return Array.from({ length: 30 }, (_, i) => ({
-          day: `Day ${i + 1}`,
-          price: +(base + (Math.random() - 0.46) * 0.00008).toFixed(7),
-        }))
+        throw new Error(`Price history unavailable (HTTP ${r.status})`)
       }
       return r.json()
     },
@@ -74,19 +69,18 @@ export default function VITCoin() {
   const [submitting, setSubmitting] = useState(false)
 
   const balance = parseFloat(wallet?.vit_balance ?? wallet?.balance ?? '0') || 0
-  const priceNGN = price?.price_ngn ?? 2100
-  const priceUSD = price?.price_usd ?? 0.00136
+  const priceNGN = price?.price_ngn
+  const priceUSD = price?.price_usd
 
   const cur = CURRENCIES.find(c => c.code === currency) ?? CURRENCIES[0]
   const fiatAmount = parseFloat(amount) || 0
   const vitAmount  = tab === 'buy'
-    ? fiatAmount / (priceNGN * cur.rate)
-    : fiatAmount * priceNGN * cur.rate
+    ? priceNGN ? fiatAmount / (priceNGN * cur.rate) : 0
+    : priceNGN ? fiatAmount * priceNGN * cur.rate : 0
 
   async function submit() {
     if (!amount) return
     setSubmitting(true)
-    await new Promise(r => setTimeout(r, 1200))
     setSubmitting(false)
     setAmount('')
   }
@@ -147,6 +141,10 @@ export default function VITCoin() {
               </div>
               {loadingChart ? (
                 <div className="h-48 flex items-center justify-center"><Spinner className="w-5 h-5 text-vit-400" /></div>
+              ) : chartData.length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-center">
+                  <p className="text-sm text-white/35">Price history is unavailable.</p>
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height={180}>
                   <AreaChart data={chartData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
@@ -179,12 +177,12 @@ export default function VITCoin() {
               </div>
               <div className="grid sm:grid-cols-4 gap-3">
                 {CURRENCIES.map(c => {
-                  const vitInFiat = 1 / (priceNGN * c.rate)
-                  const fiatInVit = priceNGN * c.rate
+                  const vitInFiat = priceNGN ? 1 / (priceNGN * c.rate) : null
+                  const fiatInVit = priceNGN ? priceNGN * c.rate : null
                   return (
                     <div key={c.code} className="bg-white/3 border border-white/6 rounded-xl p-3 text-center">
                       <p className="text-xs text-white/40 mb-1">{c.code}</p>
-                      <p className="text-sm font-semibold text-white">{c.symbol}{fiatInVit.toFixed(4)}</p>
+                      <p className="text-sm font-semibold text-white">{fiatInVit == null ? '—' : `${c.symbol}${fiatInVit.toFixed(4)}`}</p>
                       <p className="text-xs text-white/25 mt-0.5">per VIT</p>
                     </div>
                   )
@@ -242,11 +240,9 @@ export default function VITCoin() {
                 )}
               </div>
 
-              <button onClick={submit} disabled={!amount || submitting}
+              <button onClick={submit} disabled
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-vit-600 hover:bg-vit-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors shadow-lg shadow-vit-500/20">
-                {submitting ? <Spinner className="w-4 h-4" /> : (
-                  <>{tab === 'buy' ? 'Buy VIT' : 'Sell VIT'} <ChevronRight className="w-4 h-4" /></>
-                )}
+                Trading unavailable
               </button>
 
               <p className="text-center text-xs text-white/20 mt-3">Powered by VIT Network DEX</p>

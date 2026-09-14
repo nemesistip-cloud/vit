@@ -6,7 +6,7 @@ import {
   AlertCircle, CheckCircle, MessageSquare, ChevronRight, Target, Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ENDPOINTS } from '@/lib/api'
+import { ENDPOINTS, type Model } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { authHeaders } from '@/hooks/useAuth'
@@ -91,12 +91,6 @@ function StatBlock({ icon: Icon, label, value, color }: {
   )
 }
 
-const KNOWN_MODELS = [
-  'xgboost', 'lightgbm', 'random_forest', 'logistic_regression', 'neural_net',
-  'catboost', 'gradient_boost', 'svm', 'naive_bayes', 'knn',
-  'ridge', 'lasso', 'elastic_net',
-]
-
 export default function AI() {
   const [tab, setTab] = useState<'overview' | 'models' | 'inference'>('overview')
   const { data: service, isLoading: svcLoading, refetch } = useAiService()
@@ -104,9 +98,12 @@ export default function AI() {
   const { data: sources }                                  = useAiFeedSources()
   const { data: modelConf }                                = useModelContribution()
 
-  const modelsLoaded = feed?.models_count ?? service?.models_loaded ?? KNOWN_MODELS.length
-  const version      = feed?.version ?? service?.version ?? '1.1.0'
-  const latency      = feed?.latency_ms ?? service?.latency_ms ?? 12
+  const modelsLoaded = feed?.models_count ?? service?.models_loaded ?? null
+  const version      = feed?.version ?? service?.version ?? null
+  const latency      = feed?.latency_ms ?? service?.latency_ms ?? null
+  const models        = (service?.models ?? []) as Model[]
+  const dbConnected   = feed?.db_connected ?? service?.db_connected
+  const clvEnabled    = feed?.clv_tracking_enabled ?? service?.clv_tracking_enabled
   const feedStatus   = feed?.status ?? (feedLoading ? 'loading' : 'ready')
   const svcStatus    = service?.status ?? (svcLoading ? undefined : 'healthy')
 
@@ -136,8 +133,8 @@ export default function AI() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
         {/* Top stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatBlock icon={Activity} label="Service Status" value={svcLoading ? '…' : (service ? 'Healthy' : 'Unknown')} color="bg-emerald-500/20" />
-          <StatBlock icon={Cpu}      label="Version"        value={version}       color="bg-vit-500/20" />
+          <StatBlock icon={Activity} label="Service Status" value={svcLoading ? 'Loading' : (service?.status ?? 'Unavailable')} color="bg-emerald-500/20" />
+          <StatBlock icon={Cpu}      label="Version"        value={version ?? 'Unavailable'}       color="bg-vit-500/20" />
           <StatBlock icon={Zap}      label="Latency"        value={latency != null ? `${latency}ms` : '—'} color="bg-amber-500/20" />
           <StatBlock icon={Brain}    label="Models"         value={modelsLoaded}  color="bg-purple-500/20" />
         </div>
@@ -167,10 +164,10 @@ export default function AI() {
               <div className="space-y-3">
                 {[
                   { label: 'Provider Count',    value: feed?.provider_count ?? sources?.length ?? 1 },
-                  { label: 'Inference Latency', value: latency != null ? `${latency}ms` : '12ms' },
+                  { label: 'Inference Latency', value: latency != null ? `${latency}ms` : 'Unavailable' },
                   { label: 'Status',            value: feedStatus },
-                  { label: 'DB Connected',      value: (feed?.db_connected ?? service?.db_connected ?? true) ? 'Yes' : 'No' },
-                  { label: 'CLV Tracking',      value: (feed?.clv_tracking_enabled ?? service?.clv_tracking_enabled ?? true) ? 'Enabled' : 'Disabled' },
+                  { label: 'DB Connected',      value: dbConnected == null ? 'Unavailable' : dbConnected ? 'Yes' : 'No' },
+                  { label: 'CLV Tracking',      value: clvEnabled == null ? 'Unavailable' : clvEnabled ? 'Enabled' : 'Disabled' },
                 ].map(({ label, value }) => value && value !== '—' ? (
                   <div key={label} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                     <span className="text-sm text-white/40">{label}</span>
@@ -266,17 +263,23 @@ export default function AI() {
                 <p className="text-white/40">No models returned by vit-ai</p>
                 <p className="text-white/25 text-sm mt-1">Check the service logs for details.</p>
               </div>
+            ) : models.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Brain className="w-12 h-12 text-white/10 mb-3" />
+                <p className="text-white/40">No model registry details returned</p>
+                <p className="text-white/25 text-sm mt-1">The service is reachable, but model metadata is unavailable.</p>
+              </div>
             ) : (
               <div className="divide-y divide-white/5">
-                {KNOWN_MODELS.slice(0, modelsLoaded as number).map((model, i) => (
-                  <motion.div key={model} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}
+                {models.map((model, i) => (
+                  <motion.div key={model.id ?? model.name ?? i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}
                     className="flex items-center gap-4 px-6 py-4 hover:bg-white/3 transition-colors">
                     <div className="w-8 h-8 rounded-lg bg-vit-500/10 flex items-center justify-center text-xs font-bold text-vit-400">
                       {i + 1}
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-white capitalize">{model.replace(/_/g, ' ')}</p>
-                      <p className="text-xs text-white/30">Ensemble member · Classification</p>
+                      <p className="text-sm font-medium text-white capitalize">{model.name ?? model.id ?? 'Unnamed model'}</p>
+                      <p className="text-xs text-white/30">{model.provider ?? 'Inference ensemble'}{model.status ? ` · ${model.status}` : ''}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-emerald-400" />

@@ -56,8 +56,8 @@ function useBacktest(params: {
         signal, headers: authHeaders(),
       })
       if (r.ok) return r.json()
-      // Placeholder when API not available
-      return generatePlaceholderBacktest(params.stake_pct)
+      const body = await r.json().catch(() => ({}))
+      throw new Error(body?.detail?.message || body?.detail || `Backtest unavailable (HTTP ${r.status})`)
     },
     retry: false,
     staleTime: 300_000,
@@ -65,44 +65,6 @@ function useBacktest(params: {
   })
 }
 
-// ── Placeholder generator ──────────────────────────────────────────────────────
-
-function generatePlaceholderBacktest(stakePct: number): BacktestResult {
-  const days = 90
-  let balance = 1000
-  const equity_curve = []
-  let peak = balance
-  for (let i = 0; i < days; i++) {
-    const date = new Date(Date.now() - (days - i) * 86400_000).toISOString().slice(0, 10)
-    const delta = (Math.random() - 0.44) * balance * (stakePct / 100) * 3
-    balance = Math.max(50, balance + delta)
-    peak = Math.max(peak, balance)
-    const drawdown = ((peak - balance) / peak) * 100
-    equity_curve.push({ date, balance: Math.round(balance * 100) / 100, drawdown: Math.round(drawdown * 10) / 10 })
-  }
-  return {
-    equity_curve,
-    metrics: {
-      total_bets: 247,
-      wins: 148,
-      losses: 99,
-      win_rate: 59.9,
-      roi: ((balance - 1000) / 1000) * 100,
-      max_drawdown: 18.4,
-      sharpe_ratio: 1.32,
-      profit_factor: 1.48,
-      avg_odds: 1.89,
-      total_profit: balance - 1000,
-      starting_bank: 1000,
-      ending_bank: balance,
-    },
-    sport_breakdown: [
-      { sport: 'Football', bets: 142, win_rate: 62.0, roi: 8.4 },
-      { sport: 'Basketball', bets: 61, win_rate: 55.7, roi: 3.2 },
-      { sport: 'Tennis', bets: 44, win_rate: 59.1, roi: 6.1 },
-    ],
-  }
-}
 
 // ── Custom tooltip ─────────────────────────────────────────────────────────────
 
@@ -134,14 +96,21 @@ export default function Backtest() {
   const [minConfidence, setMinConfidence] = useState(60)
   const [hasRun, setHasRun] = useState(false)
   const [localResult, setLocalResult] = useState<BacktestResult | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
 
   const { isFetching, refetch } = useBacktest({ sport, strategy, stake_pct: stakePct, date_from: dateFrom, date_to: dateTo, min_confidence: minConfidence })
 
   async function runBacktest() {
     setHasRun(true)
-    const { data } = await refetch()
-    if (data) setLocalResult(data)
-    else setLocalResult(generatePlaceholderBacktest(stakePct))
+    setRunError(null)
+    setLocalResult(null)
+    try {
+      const { data } = await refetch()
+      if (data) setLocalResult(data)
+      else setRunError('Backtest returned no measured result.')
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : 'Backtest is unavailable.')
+    }
   }
 
   const result = localResult
@@ -242,6 +211,12 @@ export default function Backtest() {
               <div className="flex flex-col items-center justify-center py-20 gap-4">
                 <Spinner className="w-8 h-8" />
                 <p className="text-white/40 text-sm">Running simulation…</p>
+              </div>
+            ) : runError ? (
+              <div className="border border-amber-500/25 bg-amber-500/5 rounded-2xl py-20 px-6 text-center">
+                <AlertCircle className="w-10 h-10 text-amber-400 mx-auto mb-4" />
+                <p className="text-white font-medium">Backtest unavailable</p>
+                <p className="text-white/45 text-sm mt-2 max-w-md mx-auto">{runError}</p>
               </div>
             ) : metrics ? (
               <div className="space-y-6">

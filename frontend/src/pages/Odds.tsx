@@ -41,7 +41,6 @@ function useOdds(sport: string, search: string) {
       const queryParams = new URLSearchParams()
       if (sport && sport !== 'all') {
         queryParams.set('sport', sport)
-        queryParams.set('league', sport)
       }
       const qs = queryParams.toString() ? `?${queryParams.toString()}` : ''
       try {

@@ -55,26 +55,14 @@ export default function Bridge() {
 
   const bridge = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/bridge/transfer`, {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/bridge/initiate`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from_chain: fromChain.id,
-          to_chain:   toChain.id,
-          amount:     parseFloat(amount),
-        }),
+        body: JSON.stringify({ pool_id: 0, amount_in: parseFloat(amount) }),
       })
       if (!r.ok) {
-        // Simulate for demo
-        await new Promise(res => setTimeout(res, 1500))
-        return {
-          id: `bridge-${Date.now()}`,
-          status: 'pending' as const,
-          amount,
-          from: fromChain.name,
-          to: toChain.name,
-          hash: `0x${Math.random().toString(16).slice(2, 18)}`,
-        }
+        const body = await r.json().catch(() => ({}))
+        throw new Error(body?.detail?.message || body?.detail || `Bridge unavailable (HTTP ${r.status})`)
       }
       return r.json()
     },

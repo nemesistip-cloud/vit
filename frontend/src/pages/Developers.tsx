@@ -114,7 +114,7 @@ export default function Developers() {
           <CodeBlock lang="json" code={`{
   "name": "VIT Platform",
   "status": "healthy",
-  "version": "1.1.0",
+  "version": "<gateway-version>",
   "environment": "production"
 }`} />
         </motion.div>
