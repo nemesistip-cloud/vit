@@ -955,10 +955,19 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     has_primary_probabilities = (prediction_status in ("ready", "stale")) and h is not None and d is not None and a is not None
 
     if not has_primary_probabilities:
+        if prediction_status == "failed":
+            tactical_summary = "AI prediction is unavailable because the match does not have enough verified evidence yet."
+            tactical_recommendation = "Review the available match data below or retry when provider coverage improves."
+        elif prediction_status == "not_initialized":
+            tactical_summary = "Prediction has not been initialized for this match yet."
+            tactical_recommendation = "Click 'Initialize Prediction' to generate real-time AI insights."
+        else:
+            tactical_summary = "Prediction calculation in progress..."
+            tactical_recommendation = "Please wait while the ensemble processes model outputs."
         tactical_insights = {
-            "summary": "Prediction has not been initialized for this match yet." if prediction_status == "not_initialized" else "Prediction calculation in progress...",
+            "summary": tactical_summary,
             "key_factors": [],
-            "recommendation": "Click 'Initialize Prediction' to generate real-time AI insights." if prediction_status == "not_initialized" else "Please wait while the ensemble processes model outputs.",
+            "recommendation": tactical_recommendation,
         }
     else:
         try:

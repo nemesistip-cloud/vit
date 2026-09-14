@@ -127,6 +127,18 @@ interface Match {
       kelly_stake?: number
     }
   }
+  recent_form?: {
+    home?: { results?: string[]; form?: string; matches_played?: number; matches?: { home?: string; away?: string; score?: string; date?: string }[] }
+    away?: { results?: string[]; form?: string; matches_played?: number; matches?: { home?: string; away?: string; score?: string; date?: string }[] }
+  }
+  h2h?: {
+    count?: number
+    matches_played?: number
+    home_wins?: number
+    away_wins?: number
+    draws?: number
+    matches?: { home?: string; away?: string; score?: string; date?: string }[]
+  }
 }
 
 function normalizeMatch(payload: unknown): Match | null {
@@ -394,6 +406,101 @@ function ConsensusPanel({ consensus }: { consensus: MatchConsensus }) {
             <p className="font-semibold text-amber-400">{consensus.elo_diff != null ? `${consensus.elo_diff > 0 ? '+' : ''}${Math.round(consensus.elo_diff)}` : '—'}</p>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+function MatchDataPanel({ match }: { match: Match }) {
+  const homeForm = match.recent_form?.home
+  const awayForm = match.recent_form?.away
+  const h2h = match.h2h
+  const odds = match.odds
+  const hasOdds = odds && Object.values(odds).some(value => value != null)
+  const hasForm = homeForm || awayForm
+  const hasH2H = h2h && (h2h.matches_played ?? 0) > 0
+
+  return (
+    <div className="space-y-5 mb-5">
+      {hasOdds && (
+        <section className="bg-surface-800/50 border border-white/8 rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-4 h-4 text-amber-400" />
+            <h2 className="font-semibold text-white">Market Snapshot</h2>
+            <span className="ml-auto text-[11px] text-white/30">Provider data · {match.data_status ?? 'CACHED'}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Home', value: odds?.home },
+              { label: 'Draw', value: odds?.draw },
+              { label: 'Away', value: odds?.away },
+            ].map(item => (
+              <div key={item.label} className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
+                <p className="text-xs text-white/40">{item.label}</p>
+                <p className="mt-1 font-mono text-lg font-semibold text-white">{item.value != null ? item.value.toFixed(2) : '—'}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {hasForm && (
+        <section className="bg-surface-800/50 border border-white/8 rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-4 h-4 text-vit-400" />
+            <h2 className="font-semibold text-white">Recent Form</h2>
+            <span className="ml-auto text-[11px] text-white/30">Verified completed matches</span>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[
+              { label: match.home_team, form: homeForm },
+              { label: match.away_team, form: awayForm },
+            ].map(team => (
+              <div key={team.label} className="rounded-xl border border-white/6 bg-white/3 p-4">
+                <p className="truncate text-xs text-white/50">{team.label}</p>
+                <div className="mt-2 flex items-center gap-1.5">
+                  {(team.form?.results ?? []).map((result, index) => (
+                    <span key={`${result}-${index}`} className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-bold',
+                      result === 'W' ? 'bg-emerald-500/15 text-emerald-300' : result === 'D' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/15 text-red-300',
+                    )}>{result}</span>
+                  ))}
+                  {!(team.form?.results?.length) && <span className="text-xs text-white/30">No completed matches available</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {hasH2H && (
+        <section className="bg-surface-800/50 border border-white/8 rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-4 h-4 text-cyan-400" />
+            <h2 className="font-semibold text-white">Head-to-Head</h2>
+            <span className="ml-auto text-[11px] text-white/30">Last {h2h?.matches_played} meetings</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div><p className="text-lg font-semibold text-vit-400">{h2h?.home_wins ?? 0}</p><p className="text-[11px] text-white/35">{match.home_team} wins</p></div>
+            <div><p className="text-lg font-semibold text-white/60">{h2h?.draws ?? 0}</p><p className="text-[11px] text-white/35">Draws</p></div>
+            <div><p className="text-lg font-semibold text-amber-400">{h2h?.away_wins ?? 0}</p><p className="text-[11px] text-white/35">{match.away_team} wins</p></div>
+          </div>
+        </section>
+      )}
+
+      {match.prediction_status === 'failed' && (
+        <section className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+            <div>
+              <h2 className="text-sm font-semibold text-amber-200">AI analysis is currently unavailable</h2>
+              <p className="mt-1 text-xs leading-relaxed text-white/55">The match data remains available, but the evidence threshold for a verified prediction was not met. No fallback probabilities are being shown.</p>
+              {match.evidence?.missing_elements && match.evidence.missing_elements.length > 0 && (
+                <p className="mt-2 text-xs text-amber-200/70">Missing: {match.evidence.missing_elements.join(' · ')}</p>
+              )}
+            </div>
+          </div>
+        </section>
       )}
     </div>
   )
@@ -860,6 +967,9 @@ export default function MatchDetail() {
             </>
           )}
         </div>
+
+        {/* Tactical AI Analysis */}
+        <MatchDataPanel match={match} />
 
         {/* Tactical AI Analysis */}
         {(status === 'ready' || status === 'stale') && tactical && (
