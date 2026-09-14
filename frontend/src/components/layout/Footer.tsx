@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Github, Twitter, ExternalLink, Zap, Shield, Globe } from 'lucide-react'
+import { useGatewayHealth } from '@/hooks/useHealth'
 
 // ── Link columns ──────────────────────────────────────────────────────────────
 
@@ -60,6 +61,9 @@ const CHAIN_STATS = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function Footer() {
+  const { data: health } = useGatewayHealth()
+  const healthLabel = health?.status === 'degraded' ? 'Network degraded' : health?.status === 'healthy' || health?.status === 'ok' ? 'All systems operational' : 'Status unavailable'
+  const healthClass = health?.status === 'degraded' ? 'text-amber-400/80' : health?.status === 'healthy' || health?.status === 'ok' ? 'text-emerald-400/70' : 'text-white/40'
   return (
     <footer className="mt-24 border-t border-white/6 bg-gradient-to-b from-surface-800/40 to-surface-900">
 
@@ -78,7 +82,7 @@ export function Footer() {
             </div>
             <div className="flex items-center gap-1.5 text-xs shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-emerald-400/70 font-medium">All systems operational</span>
+              <span className={`${healthClass} font-medium`}>{healthLabel}</span>
               <Link to="/status" className="text-white/25 hover:text-white/50 transition-colors ml-1">
                 <ExternalLink className="w-3 h-3" />
               </Link>

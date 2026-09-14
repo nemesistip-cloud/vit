@@ -910,6 +910,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         select(AIPredictionAudit)
         .where(AIPredictionAudit.match_id == str(match_id))
         .order_by(AIPredictionAudit.created_at.desc())
+        .limit(1)
     )
     latest_audit = audit_q.scalar_one_or_none()
 
@@ -928,8 +929,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         stored_provenance = getattr(latest_pred, "provenance", None) or {}
         stored_evidence = stored_provenance.get("evidence_score")
         if (
-            getattr(latest_pred, "source", None) == "live_generated"
-            and (not stored_provenance or stored_evidence is None or float(stored_evidence) < 55.0)
+            not stored_provenance or stored_evidence is None or float(stored_evidence) < 55.0
         ):
             prediction_status = "failed"
         else:

@@ -61,6 +61,7 @@ interface Match {
     model_version?: string
     generated_at?: string
     feature_completeness?: number
+    evidence_score?: number
     odds_snapshot?: { home?: number; draw?: number; away?: number }
     data_snapshot?: Record<string, unknown>
   }
@@ -478,6 +479,13 @@ export default function MatchDetail() {
   }
 
   const status = actionStatus || match.prediction_status || 'not_initialized'
+  const storedEvidenceScore = match.provenance?.evidence_score
+  const hasVerifiedPrediction = (
+    (status === 'ready' || status === 'stale') &&
+    match.prediction_source === 'live_generated' &&
+    typeof storedEvidenceScore === 'number' && storedEvidenceScore >= 55 &&
+    match.home_prob != null && match.draw_prob != null && match.away_prob != null
+  )
   const isLive = match.status?.toLowerCase() === 'live' || match.status?.toLowerCase() === 'in_play'
   const aiPick = match.intelligence?.attribution?.[0]?.bet_side
   const consensus = match.intelligence?.consensus
@@ -725,9 +733,13 @@ export default function MatchDetail() {
                     <span className="px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold flex items-center gap-1.5">
                       <Database className="w-3.5 h-3.5" /> Demo / Seeded Data
                     </span>
-                  ) : (
+                  ) : hasVerifiedPrediction ? (
                     <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5" /> Live AI Prediction
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5" /> Evidence-limited prediction
                     </span>
                   )}
                   {match.provenance?.source && (
