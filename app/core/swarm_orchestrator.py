@@ -241,6 +241,29 @@ class SwarmOrchestrator:
         self._trigger_log.append(event)
         return {"ok": True, "agent": name}
 
+    def summary(self) -> Dict[str, Any]:
+        """Compatibility shim for legacy AgentCoordinator.summary()."""
+        rows = []
+        for name, agent in self._agents.items():
+            last_run_at = getattr(agent, "last_run_at", None)
+            next_run_at = getattr(agent, "next_run_at", None)
+            rows.append({
+                "name": name,
+                "node_id": getattr(agent, "node_id", None),
+                "status": getattr(agent, "status", "idle"),
+                "run_count": getattr(agent, "run_count", 0),
+                "error_count": getattr(agent, "error_count", 0),
+                "contribution_count": getattr(agent, "contribution_count", 0),
+                "contribution_score": round(float(getattr(agent, "contribution_score", 0.0)), 2),
+                "last_run_at": last_run_at.isoformat() if last_run_at is not None else None,
+                "next_run_at": next_run_at.isoformat() if next_run_at is not None else None,
+                "last_error": getattr(agent, "last_error", None),
+            })
+        return {
+            "started_at": self._started.isoformat(),
+            "agents": rows,
+        }
+
     # ── dict-like helpers for legacy coordinator code ────────────────────────
 
     def get(self, name: str, default: Any = None) -> Any:

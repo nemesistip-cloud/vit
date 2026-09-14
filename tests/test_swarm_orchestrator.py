@@ -1,3 +1,32 @@
+from types import SimpleNamespace
+
+from app.core.swarm_orchestrator import SwarmOrchestrator
+
+
+def test_swarm_summary_matches_legacy_coordinator_contract():
+    swarm = SwarmOrchestrator()
+    swarm.register(
+        "alpha",
+        SimpleNamespace(
+            node_id="did:vit:agent:alpha",
+            status="ok",
+            run_count=2,
+            error_count=0,
+            contribution_count=5,
+            contribution_score=7.5,
+            last_run_at=None,
+            next_run_at=None,
+            last_error=None,
+        ),
+    )
+
+    summary = swarm.summary()
+
+    assert summary["started_at"]
+    assert len(summary["agents"]) == 1
+    assert summary["agents"][0]["name"] == "alpha"
+    assert summary["agents"][0]["status"] == "ok"
+    assert summary["agents"][0]["contribution_score"] == 7.5
 import pytest
 import os
 import asyncio
