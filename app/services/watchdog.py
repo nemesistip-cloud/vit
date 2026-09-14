@@ -130,7 +130,7 @@ class Watchdog:
 
 
 watchdog = Watchdog()
-watchdog.register("gateway", os.getenv("VIT_GATEWAY_URL", "http://127.0.0.1:8000"), "/ping")
+watchdog.register("gateway", os.getenv("VIT_GATEWAY_URL", f"http://127.0.0.1:{os.getenv('PORT', '8000')}"), "/ping")
 watchdog.register("ai", os.getenv("VIT_AI_URL", "https://vit-ai.onrender.com"))
 watchdog.register("storage", os.getenv("VIT_STORAGE_URL", "https://vit-storage-4trt.onrender.com"))
 watchdog.register("chain", os.getenv("VIT_CHAIN_URL", "https://vit-chain.onrender.com"))
