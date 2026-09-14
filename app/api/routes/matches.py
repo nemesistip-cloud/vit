@@ -6,6 +6,7 @@ from typing import Optional
 import logging
 import os
 import asyncio
+import math
 
 from app.db.database import get_db, AsyncSessionLocal
 from app.core.cache_keys import FIXTURE_LIST
@@ -19,9 +20,66 @@ from app.services.deterministic_insights import generate_match_insights
 from app.services.predict_features import build_predict_features, _team_search_terms
 from app.services.odds_provider import NormalizedOdds, OddsIntelligence, default_provider_registry, OddsFreshness
 from app.services.evidence_engine import EvidenceEngine, PredictionClassification
+from app.core.dependencies import get_data_loader
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
+
+
+async def _refresh_prediction_odds(match: Match, now: datetime) -> list[NormalizedOdds]:
+    """Fetch odds for this fixture without confusing internal and provider IDs."""
+    external_id = getattr(match, "external_id", None)
+    if not external_id:
+        logger.warning("PREDICTION_ODDS_SKIP match=%s reason=missing_external_id", match.id)
+        return []
+
+    loader = get_data_loader()
+    client = getattr(loader, "odds_client", None) if loader else None
+    if not client:
+        logger.warning("PREDICTION_ODDS_SKIP match=%s reason=odds_client_unavailable", match.id)
+        return []
+
+    sport_key = getattr(client, "SPORT_MAPPING", {}).get(
+        (match.league or "").lower(), "soccer_epl"
+    )
+    try:
+        raw_event = await client.get_all_markets_for_event(sport_key, str(external_id))
+        odds_data = client._extract_best_odds(raw_event) if raw_event else None
+    except Exception:
+        logger.exception(
+            "PREDICTION_ODDS_REFRESH_FAILED match=%s external_id=%s sport=%s",
+            match.id, external_id, sport_key,
+        )
+        return []
+
+    if not odds_data or not all(
+        value and float(value) > 1.0
+        for value in (odds_data.home_odds, odds_data.draw_odds, odds_data.away_odds)
+    ):
+        logger.warning(
+            "PREDICTION_ODDS_EMPTY match=%s external_id=%s sport=%s",
+            match.id, external_id, sport_key,
+        )
+        return []
+
+    timestamp = odds_data.timestamp or now
+    return [
+        NormalizedOdds(
+            fixture_id=str(external_id),
+            sport=match.sport or "football",
+            market="match_winner",
+            selection=selection,
+            odds=float(value),
+            bookmaker=odds_data.bookmaker or "odds_api",
+            timestamp=timestamp,
+            provider="the_odds_api",
+        )
+        for selection, value in (
+            ("home", odds_data.home_odds),
+            ("draw", odds_data.draw_odds),
+            ("away", odds_data.away_odds),
+        )
+    ]
 
 LEAGUE_DISPLAY_NAMES = {
     "premier_league":       "Premier League",
@@ -973,11 +1031,13 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     }
 
 
-async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
+async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refresh: bool = False) -> dict:
     match_q = await db.execute(select(Match).where(Match.id == match_id))
     match = match_q.scalar_one_or_none()
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
+    if force_refresh:
+        await cache.invalidate_pattern(f"pred:{match_id}:")
     if match.source in {"unverified", "malformed"}:
         raise HTTPException(
             status_code=422,
@@ -1033,14 +1093,16 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time),
         }
 
-        # 2. Reconcile Multi-Provider Odds (NO manufactured / fake odds allowed)
+        # 2. Refresh odds for this provider fixture. Stored odds are only used
+        # when the provider did not return the same external fixture.
         odds_list: List[NormalizedOdds] = []
+        odds_list.extend(await _refresh_prediction_odds(match, now))
         odds_values = (
             match.opening_odds_home or match.closing_odds_home,
             match.opening_odds_draw or match.closing_odds_draw,
             match.opening_odds_away or match.closing_odds_away,
         )
-        if all(val is not None and float(val) > 1.0 for val in odds_values):
+        if not odds_list and all(val is not None and float(val) > 1.0 for val in odds_values):
             odds_list.append(NormalizedOdds(
                 fixture_id=str(match.external_id or match.id),
                 sport=match.sport or "football",
@@ -1075,7 +1137,54 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
 
         reconciled_odds = OddsIntelligence.reconcile(odds_list, sport=match.sport or "football", market="match_winner")
 
-        # 3. Data / Evidence Quality Engine Evaluation
+        # 3. Run models before evidence evaluation. Model agreement is an
+        # evidence input and must come from actual ensemble outputs.
+        from app.core.dependencies import get_orchestrator_dep
+        from app.services.multi_sport_orchestrator import MultiSportOrchestrator
+        try:
+            base_orch = await get_orchestrator_dep()
+            orchestrator = MultiSportOrchestrator(football_orchestrator=base_orch)
+            market_odds_payload = reconciled_odds.consensus_odds if reconciled_odds else None
+            raw_result = await orchestrator.predict(
+                features={
+                    "home_team": match.home_team,
+                    "away_team": match.away_team,
+                    "league": match.league,
+                    "market_odds": market_odds_payload,
+                    "match_features": features,
+                },
+                idempotency_key=f"match_init_{match_id}_{job_id}",
+                sport=match.sport or "football",
+            )
+        except Exception as exc:
+            raise RuntimeError(f"Prediction model unavailable: {exc}") from exc
+
+        if raw_result and "predictions" in raw_result:
+            pred_res = raw_result.get("predictions", {})
+        elif raw_result and isinstance(raw_result, dict) and "home_prob" in raw_result:
+            pred_res = raw_result
+        else:
+            raise RuntimeError("Prediction model returned no prediction")
+
+        required = ("home_prob", "draw_prob", "away_prob")
+        if any(pred_res.get(key) is None for key in required):
+            raise RuntimeError("Prediction model returned incomplete probabilities")
+        h, d, a = (float(pred_res[key]) for key in required)
+        if any(value < 0 or value > 1 for value in (h, d, a)) or not math.isclose(h + d + a, 1.0, abs_tol=0.01):
+            raise RuntimeError("Prediction model returned invalid probabilities")
+
+        individual_results = raw_result.get("individual_results", []) if isinstance(raw_result, dict) else []
+        active_results = [item for item in individual_results if not item.get("failed")]
+        model_agreement_pct = 0.0
+        if active_results:
+            model_agreement_pct = sum(
+                1 for item in active_results
+                if abs(float(item.get("home_prob", h)) - h) <= 0.05
+                and abs(float(item.get("draw_prob", d)) - d) <= 0.05
+                and abs(float(item.get("away_prob", a)) - a) <= 0.05
+            ) / len(active_results)
+
+        # 4. Data / Evidence Quality Engine Evaluation
         is_match_completed = bool(
             match.actual_outcome is not None or
             match.status in ("completed", "settled", "finished") or
@@ -1087,7 +1196,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             reconciled_odds=reconciled_odds,
             h2h_data=h2h,
             recent_form_data=recent_form_data,
-            model_agreement_pct=0.75,
+            model_agreement_pct=model_agreement_pct,
             market="match_winner",
             is_completed=is_match_completed
         )
@@ -1100,8 +1209,22 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
                 "status": "UNAVAILABLE",
                 "evidence_score": evidence.total_score,
                 "evidence_classification": evidence.classification.value,
+                "evidence_breakdown": {
+                    "verified_fixture": evidence.verified_fixture,
+                    "team_statistics": evidence.team_statistics,
+                    "recent_form": evidence.recent_form,
+                    "current_odds": evidence.current_odds,
+                    "bookmaker_agreement": evidence.bookmaker_agreement,
+                    "h2h_context": evidence.h2h_context,
+                    "model_agreement": evidence.model_agreement,
+                },
+                "checklist": evidence.checklist,
                 "missing_elements": evidence.missing_elements,
                 "rejection_reason": evidence.rejection_reason,
+                "feature_completeness": features.get("feature_completeness", 0.0),
+                "model_agreement_pct": model_agreement_pct,
+                "odds_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
+                "bookmaker_count": reconciled_odds.bookmaker_count if reconciled_odds else 0,
             }
             await db.commit()
             return {
@@ -1111,45 +1234,10 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
                 "evidence_classification": evidence.classification.value,
                 "missing_elements": evidence.missing_elements,
                 "message": f"PREDICTION UNAVAILABLE. {evidence.rejection_reason or 'Insufficient evidence coverage.'}",
-                "retryable": False
+                "retryable": True
             }
 
-        # 4. Invoke Prediction Orchestrator
-        from app.core.dependencies import get_orchestrator_dep
-        from app.services.multi_sport_orchestrator import MultiSportOrchestrator
-        try:
-            base_orch = await get_orchestrator_dep()
-            orchestrator = MultiSportOrchestrator(football_orchestrator=base_orch)
-        except Exception as exc:
-            raise RuntimeError(f"Prediction model unavailable: {exc}") from exc
-
-        market_odds_payload = reconciled_odds.consensus_odds if reconciled_odds else None
-        idempotency_key = f"match_init_{match_id}_{job_id}"
-        raw_result = await orchestrator.predict(
-            features={
-                "home_team": match.home_team,
-                "away_team": match.away_team,
-                "league": match.league,
-                "market_odds": market_odds_payload,
-                "match_features": features,
-            },
-            idempotency_key=idempotency_key,
-            sport=match.sport or "football"
-        )
-
-        if raw_result and "predictions" in raw_result:
-            pred_res = raw_result.get("predictions", {})
-        elif raw_result and isinstance(raw_result, dict) and "home_prob" in raw_result:
-            pred_res = raw_result
-        else:
-            raise RuntimeError("Prediction model returned no prediction")
-
-        required = ("home_prob", "draw_prob", "away_prob")
-        if any(pred_res.get(key) is None for key in required):
-            raise RuntimeError("Prediction model returned incomplete probabilities")
-        h = float(pred_res["home_prob"])
-        d = float(pred_res["draw_prob"])
-        a = float(pred_res["away_prob"])
+        # 5. Persist the validated ensemble output.
         confidence_value = raw_result.get("confidence") if isinstance(raw_result, dict) else None
         if isinstance(confidence_value, dict):
             confidence_value = confidence_value.get("1x2")
@@ -1216,6 +1304,11 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
             "bookmaker_count": reconciled_odds.bookmaker_count if reconciled_odds else 0,
             "odds_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
             "feature_completeness": features.get("feature_completeness", 0.0),
+            "model_agreement_pct": model_agreement_pct,
+            "model_status": "ready" if active_results else "statistical_fallback",
+            "model_results": individual_results,
+            "recent_form": recent_form_data,
+            "h2h": h2h,
         }
 
         # Create audit log record for intelligence metrics
@@ -1233,9 +1326,9 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
                 btts_prob=new_pred.btts_prob,
                 confidence=round(conf, 4),
                 risk_score=0.15,
-                model_agreement=0.85,
+                model_agreement=model_agreement_pct,
                 individual_results=ind_results,
-                pkl_models_active=active_models if active_models > 0 else 13,
+                pkl_models_active=active_models,
                 triggered_by="matches_api"
             )
             db.add(audit)
@@ -1247,7 +1340,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession) -> dict:
 
         # Invalidate fixture list caches so list endpoints reflect prediction updates immediately
         try:
-            await cache.delete_pattern("fxt:*")
+            await cache.invalidate_pattern("fxt:")
         except Exception as cache_err:
             logger.warning(f"Failed to clear fixture list cache: {cache_err}")
 
@@ -1290,7 +1383,57 @@ async def initialize_match_prediction(match_id: int, db: AsyncSession = Depends(
 
 @router.post("/{match_id}/predict/rerun")
 async def rerun_match_prediction(match_id: int, db: AsyncSession = Depends(get_db)):
-    return await _execute_match_prediction(match_id, db)
+    return await _execute_match_prediction(match_id, db, force_refresh=True)
+
+
+@router.get("/{match_id}/prediction-diagnostics")
+async def get_prediction_diagnostics(match_id: int, db: AsyncSession = Depends(get_db)):
+    """Return the last auditable prediction inputs and blocker for operators."""
+    match = (await db.execute(select(Match).where(Match.id == match_id))).scalar_one_or_none()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    prediction = (await db.execute(
+        select(Prediction).where(Prediction.match_id == match_id)
+        .order_by(Prediction.timestamp.desc()).limit(1)
+    )).scalar_one_or_none()
+    provenance = getattr(prediction, "provenance", None) or {}
+    return {
+        "match_id": str(match_id),
+        "fixture": {
+            "external_id": match.external_id,
+            "source": match.source,
+            "home_team": match.home_team,
+            "away_team": match.away_team,
+            "sport": match.sport,
+        },
+        "feature_completeness": provenance.get("feature_completeness", 0.0),
+        "recent_form": provenance.get("recent_form", {}),
+        "h2h": provenance.get("h2h", {}),
+        "odds": {
+            "freshness": provenance.get("odds_freshness"),
+            "bookmaker_count": provenance.get("bookmaker_count", 0),
+            "consensus": provenance.get("odds_consensus"),
+        },
+        "models": {
+            "status": provenance.get("model_status"),
+            "agreement_pct": provenance.get("model_agreement_pct"),
+            "results": provenance.get("model_results", []),
+        },
+        "evidence": {
+            "total": provenance.get("evidence_score", 0.0),
+            "classification": provenance.get("evidence_classification", "UNAVAILABLE"),
+            "breakdown": provenance.get("evidence_breakdown", {}),
+            "missing_elements": provenance.get("missing_elements", []),
+        },
+        "prediction": {
+            "status": getattr(prediction, "status", None),
+            "error": getattr(prediction, "error_message", None),
+            "home_prob": getattr(prediction, "home_prob", None),
+            "draw_prob": getattr(prediction, "draw_prob", None),
+            "away_prob": getattr(prediction, "away_prob", None),
+        },
+        "status": "READY" if prediction and prediction.status == "READY" else "BLOCKED" if provenance.get("missing_elements") else "FAILED",
+    }
 
 @router.get("/{match_id}/analytics")
 async def get_match_analytics(match_id: int, db: AsyncSession = Depends(get_db)):

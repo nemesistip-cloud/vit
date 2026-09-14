@@ -671,7 +671,7 @@ export default function MatchDetail() {
                     {match.error_message || errorMessage || 'An unexpected error occurred during prediction generation.'}
                   </p>
                   <button
-                    onClick={() => handleAction('initialize')}
+                    onClick={() => handleAction('rerun')}
                     className="px-5 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold text-xs border border-red-500/40 inline-flex items-center gap-2"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
