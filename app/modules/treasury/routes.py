@@ -4,13 +4,15 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.models import User
-from app.api.deps import get_current_admin, get_current_user
+from app.api.dependencies.admin import require_admin, require_super_admin
+from app.api.deps import get_current_user
+from app.services.audit import write_audit
 from app.modules.treasury.models import PoolType
 from app.modules.treasury.service import (
     allocate_from_pool,
@@ -98,17 +100,20 @@ async def list_grants(db: AsyncSession = Depends(get_db)):
 @router.post("/bootstrap", summary="Admin: bootstrap treasury pools")
 async def bootstrap_pools(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin),
+    admin: User = Depends(require_super_admin),
+    request: Request = None,
 ):
     count = await bootstrap_treasury_pools(db)
+    await write_audit(db, admin.id, "treasury.bootstrap", "treasury", None, None, {"created": count}, request)
     return {"created": count, "message": f"Bootstrapped {count} treasury pools"}
 
 
 @router.post("/deposit", summary="Admin: deposit to treasury pool")
 async def deposit(
     req: DepositRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin),
+    admin: User = Depends(require_super_admin),
 ):
     try:
         pool = await deposit_to_pool(
@@ -119,6 +124,7 @@ async def deposit(
             depositor_user_id=req.depositor_user_id,
             notes=req.notes,
         )
+        await write_audit(db, admin.id, "treasury.deposit", "treasury_pool", req.pool_type.value, None, {"amount": req.amount, "source": req.source}, request)
         return {
             "pool_type": pool.pool_type.value,
             "new_balance": float(pool.balance),
@@ -131,8 +137,9 @@ async def deposit(
 @router.post("/allocate", summary="Admin: allocate funds from treasury pool")
 async def allocate(
     req: AllocateRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin),
+    admin: User = Depends(require_super_admin),
 ):
     try:
         alloc = await allocate_from_pool(
@@ -142,6 +149,7 @@ async def allocate(
             reason=req.reason,
             recipient_user_id=req.recipient_user_id,
         )
+        await write_audit(db, admin.id, "treasury.allocate", "treasury_pool", req.pool_type.value, None, {"amount": req.amount, "reason": req.reason, "allocation_id": alloc.id}, request)
         return {
             "allocation_id": alloc.id,
             "amount": float(alloc.amount),
@@ -155,10 +163,14 @@ async def allocate(
 @router.post("/distribute-epoch", summary="Admin: distribute epoch rewards")
 async def distribute_epoch(
     req: EpochRewardRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin),
+    admin: User = Depends(require_super_admin),
 ):
+    if req.total_block_reward <= 0:
+        raise HTTPException(status_code=400, detail="Reward must be greater than zero")
     distributed = await distribute_epoch_rewards(db, Decimal(str(req.total_block_reward)))
+    await write_audit(db, admin.id, "treasury.distribute_epoch", "treasury", None, None, {"total_block_reward": req.total_block_reward}, request)
     return {"distributed": {k: float(v) for k, v in distributed.items()}}
 
 
@@ -193,8 +205,9 @@ async def submit_grant(
 async def review_grant_proposal(
     proposal_id: int,
     req: ReviewGrantRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_super_admin),
 ):
     try:
         proposal = await review_grant(
@@ -205,6 +218,7 @@ async def review_grant_proposal(
             approved_amount=Decimal(str(req.approved_amount)) if req.approved_amount else None,
             review_notes=req.review_notes,
         )
+        await write_audit(db, admin.id, "treasury.grant_review", "grant", proposal_id, None, {"approved": req.approved, "approved_amount": req.approved_amount}, request)
         return {
             "proposal_id": proposal.id,
             "status": proposal.status.value,
@@ -217,11 +231,13 @@ async def review_grant_proposal(
 @router.post("/grants/{proposal_id}/execute", summary="Admin: execute approved grant")
 async def execute_grant_proposal(
     proposal_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin),
+    admin: User = Depends(require_super_admin),
 ):
     try:
         alloc = await execute_grant(db, proposal_id)
+        await write_audit(db, admin.id, "treasury.grant_execute", "grant", proposal_id, None, {"allocation_id": alloc.id, "amount": float(alloc.amount)}, request)
         return {
             "allocation_id": alloc.id,
             "amount": float(alloc.amount),

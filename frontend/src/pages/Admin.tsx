@@ -24,6 +24,87 @@ function useSystemStatus() {
     return r.ok ? r.json() : null
   }, staleTime: 30_000, refetchInterval: 30_000 })
 }
+
+function ControlPlaneTab() {
+  const queryClient = useQueryClient()
+  const [mfaCode, setMfaCode] = useState('')
+  const reliability = useQuery({ queryKey: ['admin-reliability'], queryFn: async () => {
+    const response = await fetch(`${ENDPOINTS.gateway}/api/admin/reliability`, { headers: authHeaders() })
+    if (!response.ok) throw new Error(`Reliability unavailable (${response.status})`)
+    return response.json()
+  }, refetchInterval: 30000 })
+  const launch = useQuery({ queryKey: ['admin-token-launch'], queryFn: async () => {
+    const response = await fetch(`${ENDPOINTS.gateway}/api/admin/token-launch`, { headers: authHeaders() })
+    if (!response.ok) throw new Error(`Token launch unavailable (${response.status})`)
+    return response.json()
+  } })
+  const emergency = useQuery({ queryKey: ['admin-emergency'], queryFn: async () => {
+    const response = await fetch(`${ENDPOINTS.gateway}/api/admin/emergency`, { headers: authHeaders() })
+    if (!response.ok) throw new Error(`Emergency controls unavailable (${response.status})`)
+    return response.json()
+  } })
+  const updateLaunch = useMutation({
+    mutationFn: async (status: string) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/token-launch`, {
+        method: 'PUT', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, reason: 'Admin control-plane update', confirm: true }),
+      })
+      if (!response.ok) throw new Error(`Launch update failed (${response.status})`)
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-token-launch'] }); toast.success('Launch state updated') },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  const updateEmergency = useMutation({
+    mutationFn: async ({ control, enabled }: { control: string; enabled: boolean }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/emergency/${control}`, {
+        method: 'PUT', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, reason: 'Admin control-plane update', confirm: true }),
+      })
+      if (!response.ok) throw new Error(`Emergency update failed (${response.status})`)
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-emergency'] }); toast.success('Emergency control updated') },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  const recover = useMutation({
+    mutationFn: async (service: string) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/reliability/${service}/recover`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true, reason: 'Admin reliability recovery', mfa_code: mfaCode }),
+      })
+      if (!response.ok) throw new Error(`Recovery failed (${response.status})`)
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-reliability'] }); toast.success('Recovery requested') },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  const status = launch.data?.status ?? 'DRAFT'
+  const controls = emergency.data?.services ?? {}
+  return <div className="space-y-6">
+    <section className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-semibold text-white">Reliability</h3><input value={mfaCode} onChange={event => setMfaCode(event.target.value)} inputMode="numeric" placeholder="MFA code" aria-label="MFA code" className="w-28 rounded-lg border border-white/10 bg-surface-900 px-3 py-2 text-sm text-white" /></div>
+      <div className="space-y-2">{(reliability.data?.services ?? []).map((service: any) => <div key={service.service} className="flex items-center justify-between border-b border-white/5 py-2 text-sm"><span className="text-white/70 capitalize">{service.service}</span><span className={service.state === 'HEALTHY' ? 'text-emerald-400' : 'text-amber-400'}>{service.state} {service.latency_ms != null ? `(${service.latency_ms}ms)` : ''}</span><button type="button" onClick={() => { if (window.confirm(`Recover ${service.service}?`)) recover.mutate(service.service) }} className="text-vit-400">Recover</button></div>)}</div>
+    </section>
+    <section className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
+      <h3 className="text-lg font-semibold text-white mb-4">Token Launch</h3>
+      <div className="flex items-center gap-3">
+        <select value={status} onChange={event => { if (window.confirm('Change token launch state?')) updateLaunch.mutate(event.target.value) }} className="rounded-lg border border-white/10 bg-surface-900 px-3 py-2 text-sm text-white">
+          {['DRAFT', 'PRE_LAUNCH', 'ACTIVE', 'PAUSED', 'SUSPENDED', 'ENDED'].map(value => <option key={value}>{value}</option>)}
+        </select>
+        <span className="text-sm text-white/40">Persisted launch configuration</span>
+      </div>
+    </section>
+    <section className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
+      <h3 className="text-lg font-semibold text-white mb-4">Emergency Controls</h3>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {['maintenance', 'withdrawals', 'token', 'validators', 'predictions', 'data', 'markets'].map(control => {
+          const enabled = control === 'maintenance' ? emergency.data?.maintenance === true : controls[control] === true
+          return <button key={control} type="button" onClick={() => { if (window.confirm(`${enabled ? 'Resume' : 'Pause'} ${control}?`)) updateEmergency.mutate({ control, enabled: !enabled }) }} className={cn('flex items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors', enabled ? 'border-red-400/40 bg-red-500/10 text-red-300' : 'border-white/10 text-white/60 hover:bg-white/5')}>
+            <span className="capitalize">{control}</span><span>{enabled ? 'Enabled' : 'Disabled'}</span>
+          </button>
+        })}
+      </div>
+    </section>
+  </div>
+}
 function useAdminHealth() {
   return useQuery({ queryKey: ['admin-health'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/system/health`, { signal, headers: authHeaders() })
@@ -382,7 +463,16 @@ function MatchesTab() {
 
 function ValidatorsTab() {
   const { data: list = [], isLoading, refetch } = useAdminValidators()
+  const queryClient = useQueryClient()
   const vals: any[] = Array.isArray(list) ? list : []
+  const lifecycle = useMutation({
+    mutationFn: async ({ id, action }: { id: string | number; action: string }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/blockchain/admin/validators/${id}/${action}`, { method: 'POST', headers: authHeaders() })
+      if (!response.ok) throw new Error(`Validator ${action} failed (${response.status})`)
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-validators'] }); toast.success('Validator state updated') },
+    onError: (error: Error) => toast.error(error.message),
+  })
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -395,7 +485,7 @@ function ValidatorsTab() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className="border-b border-white/8">
-                {['ID','Address','Stake','Accuracy','Status','Since'].map(h => <th key={h} className="text-left text-xs font-medium text-white/35 uppercase tracking-wide px-4 py-3">{h}</th>)}
+                {['ID','Address','Stake','Accuracy','Status','Since','Actions'].map(h => <th key={h} className="text-left text-xs font-medium text-white/35 uppercase tracking-wide px-4 py-3">{h}</th>)}
               </tr></thead>
               <tbody>{vals.map((v: any, i: number) => (
                 <tr key={v.id ?? i} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
@@ -405,6 +495,7 @@ function ValidatorsTab() {
                   <td className="px-4 py-3 text-white/60 text-sm">{v.accuracy_score != null ? `${(v.accuracy_score*100).toFixed(1)}%` : '—'}</td>
                   <td className="px-4 py-3"><span className={cn('text-xs px-2 py-0.5 rounded-full border', v.status==='active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : v.status==='slashed' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-white/30 border-white/10')}>{v.status ?? 'unknown'}</span></td>
                   <td className="px-4 py-3 text-white/30 text-xs">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-4 py-3"><div className="flex gap-2">{v.status === 'pending' && <button type="button" onClick={() => { if (window.confirm('Approve this validator?')) lifecycle.mutate({ id: v.id, action: 'approve' }) }} className="text-xs text-emerald-400">Approve</button>}{v.status === 'suspended' && <button type="button" onClick={() => { if (window.confirm('Reactivate this validator?')) lifecycle.mutate({ id: v.id, action: 'reactivate' }) }} className="text-xs text-vit-400">Reactivate</button>}{v.status === 'active' && <button type="button" onClick={() => { if (window.confirm('Suspend this validator?')) lifecycle.mutate({ id: v.id, action: 'suspend' }) }} className="text-xs text-amber-400">Suspend</button>}</div></td>
                 </tr>
               ))}</tbody>
             </table>
@@ -984,6 +1075,7 @@ const TABS = [
   { id: 'config',      label: 'Config',     icon: Settings     },
   { id: 'audit',       label: 'Audit',      icon: ClipboardList},
   { id: 'system',      label: 'System',     icon: Server       },
+  { id: 'controls',    label: 'Controls',   icon: AlertTriangle },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -1064,6 +1156,7 @@ export default function Admin() {
         {activeTab === 'config'     && <ConfigTab     />}
         {activeTab === 'audit'      && <AuditTab      />}
         {activeTab === 'system'     && <SystemTab     status={status} health={health} metrics={metrics} loadingStatus={loadingStatus} loadingHealth={loadingHealth} />}
+        {activeTab === 'controls'   && <ControlPlaneTab />}
       </div>
     </div>
   )

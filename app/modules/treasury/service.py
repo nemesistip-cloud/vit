@@ -67,6 +67,8 @@ async def deposit_to_pool(
     depositor_user_id: int | None = None,
     notes: str | None = None,
 ) -> TreasuryPool:
+    if amount <= 0:
+        raise ValueError("Amount must be greater than zero")
     pool = await db.scalar(select(TreasuryPool).where(TreasuryPool.pool_type == pool_type))
     if not pool:
         raise ValueError(f"Pool {pool_type} not found")
@@ -120,6 +122,8 @@ async def allocate_from_pool(
     recipient_user_id: int | None = None,
     grant_id: int | None = None,
 ) -> TreasuryAllocation:
+    if amount <= 0:
+        raise ValueError("Amount must be greater than zero")
     pool = await db.scalar(select(TreasuryPool).where(TreasuryPool.pool_type == pool_type))
     if not pool:
         raise ValueError(f"Pool {pool_type} not found")

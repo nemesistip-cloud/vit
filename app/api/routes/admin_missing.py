@@ -4,24 +4,25 @@ Endpoints: stats overview, user management, audit logs, system ops,
 fixture sync, leagues, markets, marketplace pending listings.
 
 Prefix: /admin  (registered as /api/admin/* via main.py include_router).
-Auth:   Depends(get_current_admin) on every route.
+Auth:   centralized admin dependency on every route.
 """
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, or_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_admin
+from app.api.dependencies.admin import require_admin, require_super_admin
 from app.db.database import get_db
 from app.db.models import User, Match, TrainingJob, AuditLog, SubscriptionPlan
+from app.services.audit import write_audit
 
 router = APIRouter(prefix="/admin", tags=["Admin — Supplementary"])
 
 
 @router.get("/stats")
-async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin)):
+async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depends(require_admin)):
     """Provides dashboard overview statistics."""
     user_count = (await db.execute(select(func.count(User.id)))).scalar() or 0
     match_count = (await db.execute(select(func.count(Match.id)))).scalar() or 0
@@ -72,20 +73,30 @@ async def get_admin_stats(db: AsyncSession = Depends(get_db), current_user=Depen
 async def update_user(
     user_id: int,
     body: dict,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin)
+    current_user=Depends(require_super_admin)
 ):
-    """Updates user details (role, tier, etc)."""
+    """Updates the explicitly supported user fields."""
+    allowed_fields = {"role", "subscription_tier", "is_active", "is_flagged", "withdrawals_frozen"}
+    unknown_fields = set(body) - allowed_fields
+    if unknown_fields:
+        raise HTTPException(status_code=422, detail=f"Unsupported fields: {', '.join(sorted(unknown_fields))}")
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    before = {key: getattr(user, key) for key in body}
     for key, value in body.items():
-        if hasattr(user, key) and key not in ("id", "hashed_password"):
-            setattr(user, key, value)
+        setattr(user, key, value)
 
     await db.commit()
+    await write_audit(
+        db, current_user.id, "user.update", "user", user_id,
+        before, {key: getattr(user, key) for key in body}, request,
+    )
     return {"status": "success"}
 
 @router.post("/users/{user_id}/ban")
@@ -93,7 +104,7 @@ async def ban_user(
     user_id: int,
     body: dict,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin)
+    current_user=Depends(require_admin)
 ):
     """Bans or unbans a user."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -121,7 +132,7 @@ async def list_audit_logs(
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin)
+    current_user=Depends(require_admin)
 ):
     """Returns system audit logs."""
     result = await db.execute(
@@ -148,19 +159,36 @@ async def list_audit_logs(
     }
 
 @router.post("/system/cache/clear")
-async def clear_cache(current_user=Depends(get_current_admin)):
+async def clear_cache(current_user=Depends(require_admin)):
+    try:
+        from app.services.cache import get_redis
+        redis = await get_redis()
+        if redis is None:
+            raise HTTPException(status_code=503, detail="Cache is not configured")
+        await redis.flushdb()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Cache flush failed") from exc
     return {"status": "success", "message": "Cache cleared"}
 
 @router.post("/system/backup")
-async def create_backup(current_user=Depends(get_current_admin)):
-    return {"status": "success", "backup": f"backup_{int(datetime.now().timestamp())}.sql"}
+async def create_backup(request: Request, db: AsyncSession = Depends(get_db), current_user=Depends(require_super_admin)):
+    from app.core.persistence.backup import BackupManager
+    import os
+    try:
+        filename = await BackupManager({"persistence": {"backup_path": os.getenv("BACKUP_PATH", "./backups")}}).create_backup()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    await write_audit(db, current_user.id, "system.backup.create", "backup", filename, None, {"created": True}, request)
+    return {"status": "success", "filename": filename}
 
 @router.post("/matches/fetch-fixtures")
 async def fetch_fixtures(
     count: int = 50,
     days: int = 14,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    current_user=Depends(require_admin),
 ):
     """Trigger an immediate fixture sync from TheSportsDB + Football-Data.org."""
     from app.services.sportsdb_api import sync_upcoming_fixtures
@@ -190,7 +218,7 @@ async def fetch_fixtures(
 async def sync_fixtures(
     days: int = 90,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    current_user=Depends(require_admin),
 ):
     """Full fixture + prediction sync."""
     from app.services.sportsdb_api import sync_upcoming_fixtures
@@ -209,7 +237,7 @@ async def sync_fixtures(
     return {"status": "success", "fixtures": result, "predictions_seeded": seeded, "days_ahead": days}
 
 @router.get("/leagues")
-async def list_leagues(current_user=Depends(get_current_admin)):
+async def list_leagues(current_user=Depends(require_admin)):
     from app.services.sportsdb_api import LEAGUE_DISPLAY, LEAGUES
     return [
         {"slug": slug, "name": LEAGUE_DISPLAY.get(slug, slug), "id": lid}
@@ -219,7 +247,7 @@ async def list_leagues(current_user=Depends(get_current_admin)):
 @router.get("/markets")
 async def list_markets(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    current_user=Depends(require_admin),
 ):
     """List all markets from the DB."""
     from app.db.models import Market
@@ -242,7 +270,7 @@ async def list_markets(
 @router.get("/marketplace/pending")
 async def list_pending_listings(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin),
+    current_user=Depends(require_admin),
 ):
     """List marketplace listings awaiting admin approval."""
     from app.modules.marketplace.models import AIModelListing

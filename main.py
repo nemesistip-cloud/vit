@@ -5,6 +5,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -136,6 +137,8 @@ async def lifespan(app: FastAPI):
     # the server. The yield below happens right away, so Render's health check
     # gets a 200 from /ping even while subsystems are still initialising.
     _boot_task = asyncio.create_task(_boot_and_setup(), name="kernel-boot")
+    _watchdog_stop = asyncio.Event()
+    _watchdog_task = asyncio.create_task(_watchdog_loop(_watchdog_stop), name="service-watchdog")
 
     print(f'🚀 VIT Network v{APP_VERSION} starting (RUNTIME KERNEL MODE)...')
     yield
@@ -144,6 +147,13 @@ async def lifespan(app: FastAPI):
     _boot_task.cancel()
     try:
         await _boot_task
+    except asyncio.CancelledError:
+        pass
+
+    _watchdog_stop.set()
+    _watchdog_task.cancel()
+    try:
+        await _watchdog_task
     except asyncio.CancelledError:
         pass
 
@@ -176,6 +186,43 @@ app = FastAPI(
     version=APP_VERSION,
     lifespan=lifespan
 )
+
+
+@app.middleware("http")
+async def emergency_control_guard(request: Request, call_next):
+    """Enforce persisted emergency controls for user-facing operations."""
+    path = request.url.path
+    if path.startswith(("/api/admin", "/admin", "/health", "/ping", "/readiness", "/api/auth", "/auth")):
+        return await call_next(request)
+
+    control = None
+    if path.startswith(("/api/wallet/withdraw", "/api/wallet/payout")):
+        control = "withdrawals"
+    elif path.startswith(("/api/wallet", "/api/exchange", "/api/vitcoin")):
+        control = "token"
+    elif path.startswith(("/api/predict", "/api/predictions")):
+        control = "predictions"
+    elif path.startswith(("/api/sports", "/api/matches", "/api/fixtures")):
+        control = "data"
+    elif path.startswith(("/api/odds", "/api/markets")):
+        control = "markets"
+    elif path.startswith(("/api/blockchain/validators", "/api/validators")):
+        control = "validators"
+
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.modules.wallet.models import PlatformConfig
+        from sqlalchemy import select
+        async with AsyncSessionLocal() as db:
+            cfg = (await db.execute(select(PlatformConfig).where(PlatformConfig.key == "emergency_controls"))).scalar_one_or_none()
+            state = cfg.value if cfg else {}
+        blocked = state.get("maintenance") is True if control is not None else False
+        blocked = blocked or (control is not None and (state.get("services") or {}).get(control) is True)
+        if blocked:
+            return JSONResponse(status_code=503, content={"code": "service_paused", "message": "This service is temporarily paused"})
+    except Exception:
+        pass
+    return await call_next(request)
 
 # --- CORS ---
 # In production, restrict to an explicit allowlist read from CORS_ALLOWED_ORIGINS
@@ -340,6 +387,44 @@ async def readiness(request: Request, db: AsyncSession = Depends(get_db)):
         status_code=200 if ready else 503,
         content={"status": "ready" if ready else "not_ready", "db": db_ok, "redis": redis_ok},
     )
+
+
+@app.get("/ready", include_in_schema=False)
+@app.get("/api/ready", include_in_schema=False)
+async def ready_alias(request: Request, db: AsyncSession = Depends(get_db)):
+    return await readiness(request, db)
+
+
+@app.get("/deep-health", include_in_schema=False)
+@app.get("/api/deep-health", include_in_schema=False)
+async def deep_health(request: Request, db: AsyncSession = Depends(get_db)):
+    from app.services.watchdog import watchdog
+    database_ok = True
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception:
+        database_ok = False
+    services = await watchdog.snapshot()
+    return JSONResponse(
+        status_code=200 if database_ok and all(item["state"] == "HEALTHY" for item in services if item["service"] != "gateway") else 503,
+        content={"status": "healthy" if database_ok else "degraded", "database": database_ok, "services": services},
+    )
+
+
+async def _watchdog_loop(stop_event: asyncio.Event) -> None:
+    from app.db.database import AsyncSessionLocal
+    from app.services.watchdog import watchdog
+    while not stop_event.is_set():
+        try:
+            snapshot = await watchdog.snapshot()
+            async with AsyncSessionLocal() as db:
+                await watchdog.record_incidents(db, snapshot)
+        except Exception as exc:
+            logging.getLogger(__name__).warning("watchdog cycle failed: %s", type(exc).__name__)
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=60)
+        except asyncio.TimeoutError:
+            continue
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
@@ -581,10 +666,14 @@ except Exception as _e:
 try:
     from app.api.routes.admin import router as admin_router
     app.include_router(admin_router, prefix="/api")
+except Exception as _e:
+    logging.warning("admin_router not mounted — routes unavailable: %s", _e)
+
+try:
     app.include_router(platform_events_router)
     app.include_router(platform_search_router)
 except Exception as _e:
-    logging.warning("admin_router not mounted — routes unavailable: %s", _e)
+    logging.warning("platform search/event routers not mounted: %s", _e)
 
 # Command Palette — Phase 1 feature; was missing from main.py despite the
 # module and frontend component being fully implemented.

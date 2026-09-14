@@ -4,12 +4,14 @@ import logging
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_current_admin
+from app.api.deps import get_current_user
+from app.api.dependencies.admin import require_admin, require_super_admin
+from app.services.audit import write_audit
 from app.db.database import get_db
 from app.db.models import User
 from app.modules.blockchain.consensus import calculate_consensus
@@ -294,7 +296,7 @@ async def list_validators(db: AsyncSession = Depends(get_db)):
 @router.get("/admin/validators")
 async def admin_list_validators(
     status: str | None = None,
-    _admin: User = Depends(get_current_admin),
+    _admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Admin: list all validators, optionally filtered by status."""
@@ -324,7 +326,8 @@ async def _get_validator_or_404(vp_id: str, db: AsyncSession) -> tuple[Validator
 @router.post("/admin/validators/{vp_id}/approve")
 async def admin_approve_validator(
     vp_id: str,
-    _admin: User = Depends(get_current_admin),
+    request: Request,
+    _admin: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     vp, user = await _get_validator_or_404(vp_id, db)
@@ -337,6 +340,7 @@ async def admin_approve_validator(
         user.role = "validator"
     await db.commit()
     await db.refresh(vp)
+    await write_audit(db, _admin.id, "validator.approve", "validator", vp_id, None, {"status": vp.status}, request)
     logger.info(f"Admin approved validator {vp.id} (user {user.username})")
     await NotificationService.notify_validator_status(
         db, user.id, status="approved",
@@ -348,7 +352,8 @@ async def admin_approve_validator(
 @router.post("/admin/validators/{vp_id}/reject")
 async def admin_reject_validator(
     vp_id: str,
-    _admin: User = Depends(get_current_admin),
+    request: Request,
+    _admin: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Reject a pending application and refund the staked VITCoin."""
@@ -376,6 +381,7 @@ async def admin_reject_validator(
 
     await db.delete(vp)
     await db.commit()
+    await write_audit(db, _admin.id, "validator.reject", "validator", vp_id, {"status": vp.status.value if hasattr(vp.status, "value") else vp.status}, {"refunded": float(refund)}, request)
     logger.info(f"Admin rejected validator {vp_id} (refunded {refund} VIT to {user.username})")
     await NotificationService.notify_validator_status(
         db, user.id, status="rejected",
@@ -387,7 +393,8 @@ async def admin_reject_validator(
 @router.post("/admin/validators/{vp_id}/suspend")
 async def admin_suspend_validator(
     vp_id: str,
-    _admin: User = Depends(get_current_admin),
+    request: Request,
+    _admin: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     vp, user = await _get_validator_or_404(vp_id, db)
@@ -396,6 +403,7 @@ async def admin_suspend_validator(
     vp.status = ValidatorStatus.SUSPENDED.value
     await db.commit()
     await db.refresh(vp)
+    await write_audit(db, _admin.id, "validator.suspend", "validator", vp_id, None, {"status": vp.status}, request)
     logger.info(f"Admin suspended validator {vp.id}")
     await NotificationService.notify_validator_status(
         db, user.id, status="suspended",
@@ -407,7 +415,8 @@ async def admin_suspend_validator(
 @router.post("/admin/validators/{vp_id}/reactivate")
 async def admin_reactivate_validator(
     vp_id: str,
-    _admin: User = Depends(get_current_admin),
+    request: Request,
+    _admin: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     vp, user = await _get_validator_or_404(vp_id, db)
@@ -416,6 +425,7 @@ async def admin_reactivate_validator(
     vp.status = ValidatorStatus.ACTIVE.value
     await db.commit()
     await db.refresh(vp)
+    await write_audit(db, _admin.id, "validator.reactivate", "validator", vp_id, None, {"status": vp.status}, request)
     await NotificationService.notify_validator_status(
         db, user.id, status="reactivated",
         detail="Your validator privileges have been restored. You can resume submitting predictions.",
@@ -432,7 +442,8 @@ class SlashRequest(BaseModel):
 async def admin_slash_validator(
     vp_id: str,
     body: SlashRequest,
-    _admin: User = Depends(get_current_admin),
+    request: Request,
+    _admin: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Slash (burn part/all of) a validator's stake and mark them SLASHED."""
@@ -478,6 +489,7 @@ async def admin_slash_validator(
     vp.status = ValidatorStatus.SLASHED.value
     await db.commit()
     await db.refresh(vp)
+    await write_audit(db, _admin.id, "validator.slash", "validator", vp_id, {"stake_amount": float(original_stake)}, {"burned": float(burn), "refunded": float(refund), "reason": body.reason}, request)
     logger.warning(
         f"Admin slashed validator {vp.id} — burned {burn} VIT, refunded {refund} VIT. "
         f"Reason: {body.reason or '(none)'}"

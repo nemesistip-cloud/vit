@@ -7,6 +7,7 @@ database (no PostgreSQL required).
 """
 import uuid
 import pytest
+from sqlalchemy import update
 
 
 def _unique_user(suffix: str = "", password: str = "RbacTest@1234!") -> dict:
@@ -61,6 +62,21 @@ async def test_admin_users_list_blocked_for_regular_user(client):
     assert resp.status_code in (401, 403, 404), (
         f"Expected blocked, got {resp.status_code}"
     )
+
+
+@pytest.mark.asyncio
+async def test_super_admin_role_can_access_shared_admin_dependency(client, db_session):
+    token, user_id = await _register(client, "super-admin")
+    from app.db.models import User
+
+    await db_session.execute(update(User).where(User.id == user_id).values(role="super_admin"))
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/admin/stats",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code not in (401, 403), f"Super admin was denied: {resp.text}"
 
 
 @pytest.mark.asyncio

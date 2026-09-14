@@ -1,6 +1,6 @@
-# app/api/routes/__init__.py
-from . import (
-    predict, result, history, admin, ai_feed, ai, config, training,
-    analytics, odds_compare, subscription, audit, matches, ai_assistant,
-    ai_intelligence, ai_support, basketball, tennis, watchlist
-)
+"""API route package.
+
+Route modules are imported explicitly by the application bootstrap. Keeping
+this package lazy prevents an optional integration failure from unmounting
+unrelated routes such as authentication and administration.
+"""

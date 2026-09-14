@@ -8,6 +8,7 @@ import csv
 import io
 import json
 import logging
+import os
 import time
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
@@ -15,7 +16,7 @@ from typing import List, Optional
 import psutil
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +34,34 @@ from app.services.audit import write_audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+_SECRET_KEY_MARKERS = ("_key", "_password", "_secret", "_token", "_private", "_credential")
+
+
+def _safe_config_value(key: str, value: object) -> object:
+    normalized_key = key.lower()
+    if normalized_key in {"key", "password", "secret", "token", "private", "credential"} or any(normalized_key.endswith(marker) for marker in _SECRET_KEY_MARKERS):
+        return {"configured": value not in (None, "", {}, [])}
+    return value
+
+
+async def _require_mfa(admin: User, code: str) -> None:
+    if not getattr(admin, "totp_enabled", False) or not getattr(admin, "totp_secret", None):
+        raise AppError("MFA is required for this operation", status_code=403, code="mfa_required")
+    import pyotp
+    if not pyotp.TOTP(admin.totp_secret).verify(code, valid_window=1):
+        raise AppError("Invalid MFA code", status_code=401, code="invalid_mfa")
+
+
+async def _upsert_config(db: AsyncSession, key: str, value: dict, admin_id: int) -> None:
+    result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == key))
+    cfg = result.scalar_one_or_none()
+    if cfg:
+        cfg.value = value
+        cfg.updated_by = admin_id
+        cfg.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(PlatformConfig(key=key, value=value, updated_by=admin_id))
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -383,6 +412,234 @@ async def recalculate_clv(
 
 # ── Platform Config ────────────────────────────────────────────────────────────
 
+_SERVICE_SECRET_NAMES = {
+    "RENDER_API_KEY", "GITHUB_PAT", "VIT_API_KEY", "VIT_AI_API_KEY",
+    "ODDS_API_KEY", "FOOTBALL_DATA_API_KEY", "SERVICE_TOKEN_SECRET",
+}
+
+
+@router.get("/secrets")
+async def list_secret_metadata(admin: User = Depends(require_admin)):
+    return [
+        {"name": name, "configured": bool(os.getenv(name)), "masked": "********" if os.getenv(name) else None}
+        for name in sorted(_SERVICE_SECRET_NAMES)
+    ]
+
+
+class SecretRotationBody(BaseModel):
+    value: str = Field(..., min_length=1)
+    reason: str = Field(..., min_length=3, max_length=500)
+    confirm: bool = False
+    mfa_code: str = Field(..., min_length=6, max_length=8)
+
+
+@router.put("/secrets/{name}")
+async def rotate_service_secret(
+    name: str,
+    body: SecretRotationBody,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    if name not in _SERVICE_SECRET_NAMES:
+        raise AppError("Secret is not rotatable through this endpoint", status_code=400, code="invalid_secret")
+    if not body.confirm:
+        raise AppError("Explicit confirmation is required", status_code=400, code="confirmation_required")
+    await _require_mfa(admin, body.mfa_code)
+    from app.services.secrets_manager import save_secret_to_db
+    await save_secret_to_db(name, body.value, updated_by=admin.id)
+    os.environ[name] = body.value
+    await write_audit(
+        db, admin.id, "secret.rotate", "platform_secret", name,
+        {"configured": True}, {"configured": True, "reason": body.reason}, request,
+    )
+    return {"ok": True, "name": name, "configured": True, "masked": "********"}
+
+
+class LaunchControlBody(BaseModel):
+    status: str = Field(..., pattern="^(DRAFT|PRE_LAUNCH|ACTIVE|PAUSED|SUSPENDED|ENDED)$")
+    launch_date: Optional[datetime] = None
+    initial_price_usd: Optional[float] = Field(default=None, gt=0)
+    total_supply: Optional[float] = Field(default=None, gt=0)
+    reason: str = Field(..., min_length=3, max_length=500)
+    confirm: bool = False
+
+
+@router.get("/token-launch")
+async def get_token_launch(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "token_launch"))
+    cfg = result.scalar_one_or_none()
+    return _safe_config_value("token_launch", cfg.value if cfg else {"status": "DRAFT"})
+
+
+@router.put("/token-launch")
+async def update_token_launch(
+    body: LaunchControlBody,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    if not body.confirm:
+        raise AppError("Explicit confirmation is required", status_code=400, code="confirmation_required")
+    result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "token_launch"))
+    current = result.scalar_one_or_none()
+    before = current.value if current else {"status": "DRAFT"}
+    value = body.model_dump(exclude={"reason", "confirm"}, mode="json")
+    await _upsert_config(db, "token_launch", value, admin.id)
+    await db.commit()
+    await write_audit(db, admin.id, "token_launch.update", "token_launch", None, before, value, request)
+    return {"ok": True, **value}
+
+
+class EmergencyControlBody(BaseModel):
+    enabled: bool
+    reason: str = Field(..., min_length=3, max_length=500)
+    confirm: bool = False
+
+
+@router.get("/emergency")
+async def get_emergency_controls(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "emergency_controls"))
+    cfg = result.scalar_one_or_none()
+    return cfg.value if cfg else {"maintenance": False, "services": {}}
+
+
+@router.put("/emergency/{control}")
+async def set_emergency_control(
+    control: str,
+    body: EmergencyControlBody,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    allowed = {"maintenance", "withdrawals", "token", "validators", "predictions", "data", "markets"}
+    if control not in allowed:
+        raise AppError("Unknown emergency control", status_code=400, code="invalid_control")
+    if not body.confirm:
+        raise AppError("Explicit confirmation is required", status_code=400, code="confirmation_required")
+    result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "emergency_controls"))
+    cfg = result.scalar_one_or_none()
+    before = cfg.value if cfg else {"maintenance": False, "services": {}}
+    value = dict(before)
+    if control == "maintenance":
+        value[control] = body.enabled
+    else:
+        services = dict(value.get("services") or {})
+        services[control] = body.enabled
+        value["services"] = services
+    await _upsert_config(db, "emergency_controls", value, admin.id)
+    await db.commit()
+    await write_audit(db, admin.id, "emergency.update", "emergency_controls", control, before, {"enabled": body.enabled, "reason": body.reason}, request)
+    return {"ok": True, "control": control, "enabled": body.enabled}
+
+
+async def _render_service(service_name: str) -> dict:
+    api_key = os.getenv("RENDER_API_KEY")
+    if not api_key:
+        raise AppError("Render API is not configured", status_code=503, code="render_unavailable")
+    import httpx
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.get("https://api.render.com/v1/services", headers={"Authorization": f"Bearer {api_key}"})
+    if response.status_code != 200:
+        raise AppError("Render API unavailable", status_code=503, code="render_unavailable")
+    services = response.json() if isinstance(response.json(), list) else response.json().get("services", [])
+    for item in services:
+        service = item.get("service", item)
+        if service.get("name") == service_name:
+            return service
+    raise AppError("Render service not found", status_code=404, code="not_found")
+
+
+@router.get("/render/services")
+async def render_services(admin: User = Depends(require_admin)):
+    api_key = os.getenv("RENDER_API_KEY")
+    if not api_key:
+        raise AppError("Render API is not configured", status_code=503, code="render_unavailable")
+    import httpx
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.get("https://api.render.com/v1/services", headers={"Authorization": f"Bearer {api_key}"})
+    if response.status_code != 200:
+        raise AppError("Render API unavailable", status_code=503, code="render_unavailable")
+    services = response.json() if isinstance(response.json(), list) else response.json().get("services", [])
+    return [{"id": item.get("service", item).get("id"), "name": item.get("service", item).get("name"), "type": item.get("service", item).get("type"), "suspended": item.get("service", item).get("suspended")} for item in services]
+
+
+class RenderActionBody(BaseModel):
+    confirm: bool = False
+    reason: str = Field(..., min_length=3, max_length=500)
+    mfa_code: str = Field(..., min_length=6, max_length=8)
+
+
+async def _render_action(service_name: str, action: str) -> dict:
+    service = await _render_service(service_name)
+    api_key = os.getenv("RENDER_API_KEY")
+    import httpx
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(f"https://api.render.com/v1/services/{service['id']}/{action}", headers={"Authorization": f"Bearer {api_key}"})
+    if response.status_code >= 300:
+        raise AppError(f"Render {action} failed", status_code=503, code="render_action_failed")
+    return {"service": service_name, "service_id": service["id"], "action": action, "status_code": response.status_code}
+
+
+@router.post("/render/services/{service_name}/{action}")
+async def render_service_action(
+    service_name: str,
+    action: str,
+    body: RenderActionBody,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    if action not in {"deploys", "restart"}:
+        raise AppError("Unsupported Render action", status_code=400, code="invalid_action")
+    if not body.confirm:
+        raise AppError("Explicit confirmation is required", status_code=400, code="confirmation_required")
+    await _require_mfa(admin, body.mfa_code)
+    result = await _render_action(service_name, action)
+    await write_audit(db, admin.id, f"render.{action}", "render_service", service_name, None, {"reason": body.reason, "status_code": result["status_code"]}, request)
+    return {"ok": True, **result}
+
+
+@router.get("/reliability")
+async def reliability_snapshot(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.services.watchdog import watchdog
+    services = await watchdog.snapshot()
+    worker_heartbeats: list[str] = []
+    try:
+        from app.services.cache import get_redis
+        redis = await get_redis()
+        if redis:
+            keys = await redis.keys("agent:heartbeat:*")
+            worker_heartbeats = [key.removeprefix("agent:heartbeat:") for key in keys]
+    except Exception:
+        pass
+    return {"services": services, "worker_heartbeats": worker_heartbeats, "generated_at": datetime.now(timezone.utc).isoformat()}
+
+
+@router.post("/reliability/{service_name}/recover")
+async def recover_service(
+    service_name: str,
+    body: RenderActionBody,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    from app.services.watchdog import watchdog
+    if service_name not in watchdog.states:
+        raise AppError("Unknown watchdog service", status_code=404, code="not_found")
+    if not body.confirm:
+        raise AppError("Explicit confirmation is required", status_code=400, code="confirmation_required")
+    await _require_mfa(admin, body.mfa_code)
+    watchdog.mark_recovering(service_name)
+    result = await _render_action(service_name, "restart")
+    await write_audit(db, admin.id, "watchdog.recover", "service", service_name, None, {"action": "restart", "reason": body.reason, "status_code": result["status_code"]}, request)
+    return {"ok": True, **result}
+
+
 @router.get("/config")
 async def get_config(
     db: AsyncSession = Depends(get_db),
@@ -392,7 +649,7 @@ async def get_config(
     rows = result.scalars().all()
     return [
         {
-            "id": r.id, "key": r.key, "value": r.value,
+            "id": r.id, "key": r.key, "value": _safe_config_value(r.key, r.value),
             "description": r.description,
             "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         }
@@ -416,13 +673,14 @@ async def update_config(
     cfg = result.scalar_one_or_none()
     if not cfg:
         raise AppError("Config key not found", status_code=404, code="not_found")
-    before = {"value": cfg.value}
+    before = {"value": _safe_config_value(key, cfg.value)}
     cfg.value = body.value
     cfg.updated_at = datetime.now(timezone.utc)
     cfg.updated_by = admin.id
     await db.commit()
-    await write_audit(db, admin.id, "config.update", "platform_config", key, before, {"value": body.value}, request)
-    return {"ok": True, "key": key, "value": body.value}
+    safe_value = _safe_config_value(key, body.value)
+    await write_audit(db, admin.id, "config.update", "platform_config", key, before, {"value": safe_value}, request)
+    return {"ok": True, "key": key, "value": safe_value}
 
 
 class ConfigCreateBody(BaseModel):
@@ -449,7 +707,8 @@ async def create_config(
     )
     db.add(cfg)
     await db.commit()
-    await write_audit(db, admin.id, "config.create", "platform_config", body.key, None, {"value": body.value}, request)
+    safe_value = _safe_config_value(body.key, body.value)
+    await write_audit(db, admin.id, "config.create", "platform_config", body.key, None, {"value": safe_value}, request)
     return {"ok": True, "key": body.key}
 
 
@@ -464,7 +723,7 @@ async def delete_config(
     cfg = result.scalar_one_or_none()
     if not cfg:
         raise AppError("Config key not found", status_code=404, code="not_found")
-    before = {"key": key, "value": cfg.value}
+    before = {"key": key, "value": _safe_config_value(key, cfg.value)}
     await db.delete(cfg)
     await db.commit()
     await write_audit(db, admin.id, "config.delete", "platform_config", key, before, None, request)

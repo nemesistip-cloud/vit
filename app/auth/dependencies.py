@@ -10,6 +10,9 @@ from app.db.models import User
 from app.auth.jwt_utils import decode_token, is_token_revoked
 
 
+_ADMIN_ROLES = {"admin", "super_admin"}
+
+
 def _auth_enabled() -> bool:
     """Return False when AUTH_ENABLED env-var is explicitly set to 'false'."""
     return os.getenv("AUTH_ENABLED", "true").strip().lower() not in ("false", "0", "no")
@@ -72,19 +75,19 @@ async def get_current_admin(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         real_user = await get_current_user(credentials, db)
-        if real_user.role != "admin":
+        if real_user.role not in _ADMIN_ROLES:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
         return real_user
 
     real_user = await get_current_user(credentials, db)
-    if real_user.role != "admin":
+    if real_user.role not in _ADMIN_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return real_user
 
 
 async def get_current_super_admin(current_user: User = Depends(get_current_admin)) -> User:
     admin_role = getattr(current_user, "admin_role", None)
-    if admin_role != "super_admin":
+    if current_user.role != "super_admin" and admin_role != "super_admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access required")
     return current_user
 
