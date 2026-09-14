@@ -925,14 +925,21 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     elif getattr(latest_pred, 'status', None) == "STALE":
         prediction_status = "stale"
     else:
+        stored_provenance = getattr(latest_pred, "provenance", None) or {}
+        stored_evidence = stored_provenance.get("evidence_score")
+        if (
+            getattr(latest_pred, "source", None) == "live_generated"
+            and (not stored_provenance or stored_evidence is None or float(stored_evidence) < 55.0)
+        ):
+            prediction_status = "failed"
+        else:
+            prediction_status = "ready"
         now = datetime.now(timezone.utc)
         ts = latest_pred.timestamp
         if ts and ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
-        if ts and (now - ts).total_seconds() > 86400:
+        if prediction_status == "ready" and ts and (now - ts).total_seconds() > 86400:
             prediction_status = "stale"
-        else:
-            prediction_status = "ready"
 
     is_seed = getattr(latest_pred, 'is_seed', False) if latest_pred else False
     prediction_source = getattr(latest_pred, 'source', "live_generated") if latest_pred else None
@@ -983,7 +990,13 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         "prediction_source": prediction_source,
         "is_seed": is_seed,
         "job_id": getattr(latest_pred, 'job_id', None) if latest_pred else None,
-        "error_message": getattr(latest_pred, 'error_message', None) if latest_pred else None,
+        "error_message": (
+            getattr(latest_pred, 'error_message', None)
+            or (
+                "PREDICTION UNAVAILABLE: persisted prediction has no valid evidence provenance"
+                if prediction_status == "failed" and latest_pred else None
+            )
+        ),
         "evidence": {
             "score": (latest_pred.provenance or {}).get("evidence_score", 0.0) if (latest_pred and getattr(latest_pred, 'provenance', None)) else 0.0,
             "classification": (latest_pred.provenance or {}).get("evidence_classification", "UNAVAILABLE") if (latest_pred and getattr(latest_pred, 'provenance', None)) else "UNAVAILABLE",
@@ -1087,6 +1100,28 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
     try:
         # 1. Fetch Features
         features = await build_predict_features(db, match.home_team, match.away_team, match.league)
+
+        # A newly started season can leave the local result window empty even
+        # though the live results provider has real history. Refresh that
+        # provider-backed history before evaluating evidence; neutral model
+        # defaults must never be counted as evidence.
+        if force_refresh or float(features.get("feature_completeness", 0.0) or 0.0) < 0.8:
+            try:
+                from app.services.sportsdb_api import sync_and_insert_historical
+
+                backfill_days = max(30, int(os.getenv("PREDICTION_HISTORY_BACKFILL_DAYS", "365")))
+                backfill = await sync_and_insert_historical(db, days_back=backfill_days)
+                logger.info(
+                    "PREDICTION_HISTORY_REFRESH match=%s days=%s inserted=%s updated=%s",
+                    match.id, backfill_days, backfill.get("inserted", 0), backfill.get("updated", 0),
+                )
+                features = await build_predict_features(db, match.home_team, match.away_team, match.league)
+            except Exception as refresh_exc:
+                logger.warning(
+                    "PREDICTION_HISTORY_REFRESH_FAILED match=%s reason=%s",
+                    match.id, refresh_exc,
+                )
+
         h2h = await _head_to_head(db, match)
         recent_form_data = {
             "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time),
@@ -1233,6 +1268,23 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                 "evidence_score": evidence.total_score,
                 "evidence_classification": evidence.classification.value,
                 "missing_elements": evidence.missing_elements,
+                "evidence_breakdown": {
+                    "verified_fixture": evidence.verified_fixture,
+                    "team_statistics": evidence.team_statistics,
+                    "recent_form": evidence.recent_form,
+                    "current_odds": evidence.current_odds,
+                    "bookmaker_agreement": evidence.bookmaker_agreement,
+                    "h2h_context": evidence.h2h_context,
+                    "model_agreement": evidence.model_agreement,
+                },
+                "checklist": evidence.checklist,
+                "provider_status": {
+                    "fixture_source": match.source,
+                    "external_id": match.external_id,
+                    "odds_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
+                    "bookmaker_count": reconciled_odds.bookmaker_count if reconciled_odds else 0,
+                    "history_feature_completeness": features.get("feature_completeness", 0.0),
+                },
                 "message": f"PREDICTION UNAVAILABLE. {evidence.rejection_reason or 'Insufficient evidence coverage.'}",
                 "retryable": True
             }
@@ -1432,7 +1484,11 @@ async def get_prediction_diagnostics(match_id: int, db: AsyncSession = Depends(g
             "draw_prob": getattr(prediction, "draw_prob", None),
             "away_prob": getattr(prediction, "away_prob", None),
         },
-        "status": "READY" if prediction and prediction.status == "READY" else "BLOCKED" if provenance.get("missing_elements") else "FAILED",
+        "status": (
+            "READY"
+            if prediction and prediction.status == "READY" and float(provenance.get("evidence_score", 0.0) or 0.0) >= 55.0
+            else "BLOCKED" if provenance.get("missing_elements") or prediction and prediction.status == "READY" else "FAILED"
+        ),
     }
 
 @router.get("/{match_id}/analytics")

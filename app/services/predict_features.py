@@ -91,6 +91,20 @@ def _team_search_terms(team: str) -> list[str]:
         'paris saint germain': ['psg', 'paris sg', 'paris saint-germain'],
         'paris sg': ['psg', 'paris sg', 'paris saint germain'],
         'psg': ['psg', 'paris sg', 'paris saint germain'],
+        'fc internazionale milano': [
+            'fc internazionale milano', 'internazionale milano',
+            'inter milan', 'inter milano', 'inter',
+        ],
+        'inter milan': [
+            'inter milan', 'fc internazionale milano',
+            'internazionale milano', 'inter milano', 'inter',
+        ],
+        'udinese calcio': ['udinese calcio', 'udinese'],
+        'udinese': ['udinese calcio', 'udinese'],
+        'ararat-armenia-2': [
+            'ararat-armenia-2', 'ararat armenia 2', 'ararat-armenia',
+        ],
+        'bentonit ijevan': ['bentonit ijevan', 'bentonit'],
     }
     if lowered in custom_map:
         return custom_map[lowered]
@@ -166,9 +180,15 @@ def _form_block(team: str, matches: List[Match], window: int) -> Dict[str, float
     if not sliced:
         return {"pts_pg": 1.25, "gf_pg": 1.30, "ga_pg": 1.30, "n": 0}
 
+    team_terms = [term.lower() for term in _team_search_terms(team)]
+
+    def is_team_name(value: str) -> bool:
+        lowered = value.lower()
+        return any(term in lowered or lowered in term for term in team_terms)
+
     pts = gf = ga = 0
     for m in sliced:
-        if m.home_team == team:
+        if is_team_name(m.home_team):
             tg, og = int(m.home_goals or 0), int(m.away_goals or 0)
         else:
             tg, og = int(m.away_goals or 0), int(m.home_goals or 0)

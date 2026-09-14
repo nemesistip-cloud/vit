@@ -670,6 +670,14 @@ export default function MatchDetail() {
                   <p className="text-xs text-red-300/80 mb-4 max-w-md mx-auto">
                     {match.error_message || errorMessage || 'An unexpected error occurred during prediction generation.'}
                   </p>
+                  {match.evidence?.missing_elements && match.evidence.missing_elements.length > 0 && (
+                    <div className="mb-4 text-left max-w-md mx-auto rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-red-300/70">Missing evidence</p>
+                      <ul className="mt-1 space-y-1 text-xs text-red-200/70">
+                        {match.evidence.missing_elements.map((item) => <li key={item}>• {item}</li>)}
+                      </ul>
+                    </div>
+                  )}
                   <button
                     onClick={() => handleAction('rerun')}
                     className="px-5 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold text-xs border border-red-500/40 inline-flex items-center gap-2"
