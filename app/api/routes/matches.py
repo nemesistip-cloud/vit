@@ -1109,11 +1109,16 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             try:
                 from app.services.sportsdb_api import sync_and_insert_historical
 
-                backfill_days = max(30, int(os.getenv("PREDICTION_HISTORY_BACKFILL_DAYS", "365")))
-                backfill = await sync_and_insert_historical(db, days_back=backfill_days)
+                backfill_days = max(7, int(os.getenv("PREDICTION_HISTORY_BACKFILL_DAYS", "30")))
+                refresh_timeout = max(3.0, float(os.getenv("PREDICTION_HISTORY_REFRESH_TIMEOUT", "15")))
+                backfill = await asyncio.wait_for(
+                    sync_and_insert_historical(db, days_back=backfill_days),
+                    timeout=refresh_timeout,
+                )
                 logger.info(
-                    "PREDICTION_HISTORY_REFRESH match=%s days=%s inserted=%s updated=%s",
-                    match.id, backfill_days, backfill.get("inserted", 0), backfill.get("updated", 0),
+                    "PREDICTION_HISTORY_REFRESH match=%s days=%s timeout=%ss inserted=%s updated=%s",
+                    match.id, backfill_days, refresh_timeout,
+                    backfill.get("inserted", 0), backfill.get("updated", 0),
                 )
                 features = await build_predict_features(db, match.home_team, match.away_team, match.league)
             except Exception as refresh_exc:
