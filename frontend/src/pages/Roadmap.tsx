@@ -20,7 +20,7 @@ const PHASES = [
   {
     phase: 'Phase II',
     title: 'Frontend & Intelligence Layer',
-    status: 'complete',
+    status: 'active',
     items: [
       { label: 'React + Vite + TypeScript frontend', done: true },
       { label: 'TailwindCSS design system',          done: true },
@@ -35,7 +35,7 @@ const PHASES = [
   {
     phase: 'Phase III',
     title: 'Wallet, Identity & Rewards',
-    status: 'complete',
+    status: 'partial',
     items: [
       { label: 'VIT token wallet & balance',          done: true },
       { label: 'JWT auth with refresh tokens',        done: true },
@@ -50,7 +50,7 @@ const PHASES = [
   {
     phase: 'Phase IV',
     title: 'Blockchain & On-Chain Verification',
-    status: 'complete',
+    status: 'partial',
     items: [
       { label: 'VIT chain ledger (vit_chain)',         done: true },
       { label: 'Block explorer UI',                   done: true },
@@ -65,7 +65,7 @@ const PHASES = [
   {
     phase: 'Phase V',
     title: 'Governance & DAO',
-    status: 'complete',
+    status: 'partial',
     items: [
       { label: 'Proposal creation & voting',          done: true },
       { label: 'On-chain governance execution',       done: true },
@@ -76,7 +76,7 @@ const PHASES = [
   {
     phase: 'Phase VI',
     title: 'Commerce & Marketplace',
-    status: 'complete',
+    status: 'partial',
     items: [
       { label: 'Decentralised prediction marketplace', done: true },
       { label: 'Peer-to-peer tip trading',             done: true },
@@ -87,7 +87,7 @@ const PHASES = [
   {
     phase: 'Phase VII',
     title: 'Mobile & Ecosystem Expansion',
-    status: 'complete',
+    status: 'partial',
     items: [
       { label: 'vit-mobile React Native app',          done: true },
       { label: 'Push notifications (Firebase)',        done: true },
@@ -112,7 +112,7 @@ const PHASES = [
   {
     phase: 'Phase IX',
     title: 'Platform Integrity & Auth Restoration',
-    status: 'complete',
+    status: 'partial',
     items: [
       { label: 'Global error boundary (no blank-screen crashes)',  done: true },
       { label: 'Real 404 Not Found page (replace silent redirect)', done: true },
@@ -129,7 +129,7 @@ const PHASES = [
   {
     phase: 'Phase X',
     title: 'Predictions, Analytics & Tools Restoration',
-    status: 'complete',
+    status: 'partial',
     items: [
       { label: 'Match Detail with intelligence panels (ConsensusPanel, TacticalRadar, ModelBreakdown)', done: true },
       { label: 'Network Intelligence analytics dashboard (Recharts)',        done: true },
@@ -146,7 +146,7 @@ const PHASES = [
   {
     phase: 'Phase XI',
     title: 'Financial Flows & Admin Suite Restoration',
-    status: 'complete',
+    status: 'partial',
     items: [
       { label: 'Wallet deposit — Paystack, Mobile Money, Crypto',            done: true },
       { label: 'Wallet withdraw with KYC gating',                            done: true },
@@ -180,12 +180,13 @@ const STATUS_STYLES = {
   active:      { dot: 'bg-vit-500 animate-pulse',              pill: 'bg-vit-500/15 border-vit-500/30 text-vit-400',            label: 'Active'       },
   restoration: { dot: 'bg-amber-500',                          pill: 'bg-amber-500/15 border-amber-500/30 text-amber-400',      label: 'Restoration'  },
   planned:     { dot: 'bg-white/20',                           pill: 'bg-white/5 border-white/10 text-white/30',                label: 'Planned'      },
+  partial:     { dot: 'bg-amber-500',                          pill: 'bg-amber-500/15 border-amber-500/30 text-amber-400',      label: 'Partially implemented' },
 }
 
 export default function Roadmap() {
   const done        = PHASES.filter(p => p.status === 'complete').length
   const active      = PHASES.filter(p => p.status === 'active').length
-  const restoration = PHASES.filter(p => p.status === 'restoration').length
+  const restoration = PHASES.filter(p => p.status === 'restoration' || p.status === 'partial').length
   const planned     = PHASES.filter(p => p.status === 'planned').length
 
   return (
@@ -240,7 +241,7 @@ export default function Roadmap() {
           <div className="space-y-6">
             {PHASES.map((phase, i) => {
               const style = STATUS_STYLES[phase.status as keyof typeof STATUS_STYLES] ?? STATUS_STYLES.planned
-              const isRestoration = phase.status === 'restoration'
+               const isRestoration = phase.status === 'restoration' || phase.status === 'partial'
 
               return (
                 <motion.div
@@ -271,6 +272,7 @@ export default function Roadmap() {
                         {phase.status === 'complete'    && <CheckCircle2 className="w-3 h-3" />}
                         {phase.status === 'active'      && <Clock className="w-3 h-3" />}
                         {phase.status === 'restoration' && <Wrench className="w-3 h-3" />}
+                         {phase.status === 'partial'     && <Wrench className="w-3 h-3" />}
                         {phase.status === 'planned'     && <Circle className="w-3 h-3" />}
                         {style.label}
                       </span>
