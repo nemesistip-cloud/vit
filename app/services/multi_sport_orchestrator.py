@@ -26,6 +26,18 @@ def _implied_lambda(prob: float, fallback: float) -> float:
     p = max(0.05, min(0.90, prob))
     return max(0.5, -math.log(1.0 - p) * 1.8 + fallback * 0.3)
 
+
+def _require_two_way_odds(features: Dict[str, Any]) -> tuple[float, float]:
+    market = features.get("market_odds") or {}
+    try:
+        home = float(market["home"])
+        away = float(market["away"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("provider home/away odds are required for this sport") from exc
+    if not all(math.isfinite(value) and value > 1.0 for value in (home, away)):
+        raise ValueError("provider home/away odds must be greater than 1.0")
+    return home, away
+
 class MultiSportOrchestrator:
     """
     Enhanced orchestrator to handle non-football sports with dynamic logic.
@@ -49,8 +61,10 @@ class MultiSportOrchestrator:
             return self._predict_basketball(features)
         elif sport == "tennis":
             return self._predict_tennis(features)
+        elif sport == "cricket":
+            return self._predict_two_way(features, "cricket_scie_v3")
         else:
-            return self._generate_base_prediction(features, sport)
+            raise ValueError(f"No production prediction engine is registered for sport '{sport}'")
 
     async def _predict_football(self, features: Dict[str, Any], idempotency_key: str = None) -> Dict[str, Any]:
         """Hybrid football prediction: ML Ensemble with SCIE Fallback."""
@@ -123,9 +137,7 @@ class MultiSportOrchestrator:
 
     def _predict_basketball(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """Market-derived basketball prediction — no random stubs."""
-        mkt = features.get("market_odds", {})
-        h_odds = float(mkt.get("home", 1.9))
-        a_odds = float(mkt.get("away", 1.9))
+        h_odds, a_odds = _require_two_way_odds(features)
 
         total_implied = (1/h_odds) + (1/a_odds)
         h_prob = round((1/h_odds) / total_implied, 4)
@@ -143,9 +155,9 @@ class MultiSportOrchestrator:
                 "away_prob": a_prob,
                 "over_25_prob": over_total,
                 "btts_prob": 0.0,
-                "confidence": {"moneyline": 0.75},
-                "models_used": 2,
-                "models_total": 13,
+                "confidence": {"moneyline": self._two_way_confidence(h_prob, a_prob)},
+                "models_used": 0,
+                "models_total": 0,
                 "data_source": "basketball_scie_v2"
             },
             "individual_results": []
@@ -153,9 +165,7 @@ class MultiSportOrchestrator:
 
     def _predict_tennis(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """Market-derived tennis prediction — no random stubs."""
-        mkt = features.get("market_odds", {})
-        h_odds = float(mkt.get("home", 1.8))
-        a_odds = float(mkt.get("away", 2.0))
+        h_odds, a_odds = _require_two_way_odds(features)
 
         total_implied = (1/h_odds) + (1/a_odds)
         h_prob = round((1/h_odds) / total_implied, 4)
@@ -168,38 +178,35 @@ class MultiSportOrchestrator:
                 "away_prob": a_prob,
                 "over_25_prob": 0.0,
                 "btts_prob": 0.0,
-                "confidence": {"winner": 0.8},
-                "models_used": 1,
-                "models_total": 13,
+                "confidence": {"winner": self._two_way_confidence(h_prob, a_prob)},
+                "models_used": 0,
+                "models_total": 0,
                 "data_source": "tennis_scie_v2"
             },
             "individual_results": []
         }
 
-    def _generate_base_prediction(self, features: Dict[str, Any], sport: str) -> Dict[str, Any]:
-        """Generic market-derived fallback prediction."""
-        mkt = features.get("market_odds", {})
-        h = float(mkt.get("home", 2.0))
-        d = float(mkt.get("draw", 3.0))
-        a = float(mkt.get("away", 3.0))
-
-        total = (1/h) + (1/d) + (1/a)
-        hp, dp, ap = (1/h)/total, (1/d)/total, (1/a)/total
+    def _predict_two_way(self, features: Dict[str, Any], source: str) -> Dict[str, Any]:
+        h_odds, a_odds = _require_two_way_odds(features)
+        total = (1 / h_odds) + (1 / a_odds)
+        hp, ap = (1 / h_odds) / total, (1 / a_odds) / total
 
         return {
             "predictions": {
-                "home_prob": round(hp, 4),
-                "draw_prob": round(dp, 4),
-                "away_prob": round(ap, 4),
-                "over_25_prob": 0.5,
-                "btts_prob": 0.5,
-                "confidence": {"general": 0.5},
+                "home_prob": round(hp, 4), "draw_prob": 0.0, "away_prob": round(ap, 4),
+                "over_25_prob": None, "btts_prob": None,
+                "confidence": {"winner": self._two_way_confidence(hp, ap)},
                 "models_used": 0,
-                "models_total": 13,
-                "data_source": f"{sport}_base_scie"
+                "models_total": 0, "data_source": source,
             },
             "individual_results": []
         }
+
+    @staticmethod
+    def _two_way_confidence(home_prob: float, away_prob: float) -> float:
+        # Market-implied probabilities are not calibrated model confidence.
+        # Keep confidence at zero until a sport-specific model is validated.
+        return 0.0
 
     def _normalise(self, h: float, d: float, a: float):
         total = h + d + a

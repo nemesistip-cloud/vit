@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 # --- Core App Settings ---
 APP_NAME: str = "VIT Network"
-APP_VERSION: str = "1.1.0"
+APP_VERSION: str = "1.2.0"
 ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
 def get_env(key: str, default: str = "") -> str:

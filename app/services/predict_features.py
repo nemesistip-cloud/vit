@@ -34,6 +34,8 @@ from app.db.models import Match
 
 logger = logging.getLogger(__name__)
 
+FEATURE_VERSION = "3.0.0"
+
 # League-level home advantage estimates (goals). Empty = neutral default.
 _LEAGUE_HOME_ADV: Dict[str, float] = {
     "premier_league":       0.42,
@@ -352,5 +354,6 @@ async def build_predict_features(
     completeness_signals.append(min(1.0, away_10["n"] / 5.0))
     completeness_signals.append(min(1.0, h2h_b["n"] / 3.0))
     out["feature_completeness"] = round(sum(completeness_signals) / 3.0, 3)
+    out["feature_version"] = FEATURE_VERSION
 
     return out

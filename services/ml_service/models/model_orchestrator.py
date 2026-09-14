@@ -7,6 +7,8 @@ import math
 import os
 import sys
 import asyncio
+import hashlib
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,12 @@ def _use_real_ml_models() -> bool:
 
 def _ml_cache_enabled() -> bool:
     return os.getenv("ML_MODEL_CACHE_ENABLED", "true").lower() == "true"
+
+
+def _stable_seed(model_key: str, match_id: str) -> int:
+    """Return a reproducible seed across processes and deployments."""
+    digest = hashlib.sha256(f"{model_key}:{match_id}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big")
 
 def _get_enabled_models() -> Optional[List[str]]:
     val = os.getenv("ENABLED_MODELS", "").lower().strip()
@@ -35,6 +43,7 @@ _WEIGHT_MAX = 1.50
 _DISPLAY_CONF_MIN = 62.0
 _DISPLAY_CONF_MAX = 88.0
 _CS_MAX_GOALS = 10
+MODEL_VERSION = "v5.0.0"
 
 _MODEL_SPECS: list = [
     {"key": "logistic_v2", "name": "LogisticRegression", "markets": ["1x2", "over_under", "btts"], "sigma": 0.018, "market_trust": 0.70, "parent": "logistic_v1"},
@@ -442,7 +451,8 @@ class ModelOrchestrator:
         for key, model in active_models.items():
             meta   = self.model_meta[key]
             weight = meta["weight"]
-            seed   = abs(hash(f"{key}_{match_id}")) % (2 ** 31)
+            started = time.perf_counter()
+            seed = _stable_seed(key, str(match_id))
 
             try:
                 hp, dp, ap = model.predict_1x2(base_hp, base_dp, base_ap, lam_h, lam_a, home_team, away_team, mkt, seed)
@@ -481,10 +491,20 @@ class ModelOrchestrator:
                     "model_name": meta["model_name"], "model_type": meta["model_type"], "model_weight": weight,
                     "supported_markets": meta["supported_markets"], "home_prob": round(hp, 4), "draw_prob": round(dp, 4), "away_prob": round(ap, 4),
                     "over_2_5_prob": round(ou25, 4), "btts_prob": round(btts, 4), "home_goals_expectation": round(lam_h, 2), "away_goals_expectation": round(lam_a, 2),
-                    "confidence": {"1x2": _confidence_from_probs(hp, dp, ap)}, "latency_ms": None, "failed": False, "calibration": calibration_meta
+                    "confidence": {"1x2": _confidence_from_probs(hp, dp, ap)},
+                    "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+                    "failed": False, "calibration": calibration_meta,
+                    "model_version": getattr(model, "_sklearn_version", None) or MODEL_VERSION,
                 })
             except Exception as exc:
-                logger.warning(f"Model {key} failed: {exc}")
+                latency_ms = round((time.perf_counter() - started) * 1000, 3)
+                logger.warning("Model %s failed after %.3fms: %s", key, latency_ms, exc)
+                individual_results.append({
+                    "model_name": meta["model_name"], "model_type": meta["model_type"],
+                    "model_weight": weight, "latency_ms": latency_ms, "failed": True,
+                    "error": str(exc),
+                    "model_version": getattr(model, "_sklearn_version", None) or MODEL_VERSION,
+                })
 
         if not weights:
             raise RuntimeError("No prediction models are available")
@@ -618,7 +638,9 @@ class ModelOrchestrator:
                     "correct_score": None,
                 },
                 "home_advantage_bias": round(ha_bias, 4), "confidence_intervals": ci, "models_used": len(active_models), "models_total": _TOTAL_MODEL_SPECS,
-                "model_agreement": model_agreement, "data_source": "differentiated_ensemble_v4", "ensemble_diversity": round(var_h, 5), "llm_signals_used": bool(ai_signals), "league": league or None,
+                "model_agreement": model_agreement, "data_source": "differentiated_ensemble_v4", "model_version": MODEL_VERSION,
+                "ensemble_diversity": round(var_h, 5), "llm_signals_used": bool(ai_signals), "league": league or None,
+                "feature_version": match_features.get("feature_version"),
                 "match_quality_rating": match_quality,
             },
             "individual_results": individual_results, "attribution": attribution, "models_count": len(active_models)

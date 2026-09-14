@@ -10,7 +10,7 @@ class Environment(str, Enum):
 
 class AppConfig(BaseModel):
     name: str = Field("VIT Network", alias="APP_NAME")
-    version: str = Field("1.1.0", alias="APP_VERSION")
+    version: str = Field("1.2.0", alias="APP_VERSION")
     environment: Environment = Field(Environment.DEVELOPMENT, alias="ENVIRONMENT")
     debug: bool = Field(False, alias="DEBUG")
     secret_key: SecretStr = Field(SecretStr("dev-secret-key"), alias="SECRET_KEY")

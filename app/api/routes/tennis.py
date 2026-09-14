@@ -36,13 +36,7 @@ async def predict_tennis(
 
     raw_res = await m_orch.predict(features, sport="tennis")
     pred = raw_res["predictions"]
-    individual_results = raw_res.get("individual_results") or [{
-        "model_name": "atp_v1",
-        "home_prob": pred.get("home_prob"),
-        "away_prob": pred.get("away_prob"),
-        "confidence": 0.8,
-        "failed": False,
-    }]
+    individual_results = raw_res.get("individual_results") or []
 
     # Create individual results as ModelInsight objects
     insights = [
@@ -54,8 +48,8 @@ async def predict_tennis(
             home_prob=ir.get("home_prob"),
             draw_prob=ir.get("draw_prob", 0.0),
             away_prob=ir.get("away_prob"),
-            over_2_5_prob=0.0,
-            btts_prob=0.0,
+                over_2_5_prob=None,
+                btts_prob=None,
             home_goals_expectation=0.0,
             away_goals_expectation=0.0,
             confidence=ir.get("confidence", 0.5),
@@ -76,21 +70,21 @@ async def predict_tennis(
         btts_prob=pred.get("btts_prob", 0.0),
         consensus_prob=max(pred["home_prob"], pred["draw_prob"], pred["away_prob"]),
         final_ev=0.0,
-        recommended_stake=0.02,
+        recommended_stake=0.0,
         edge=0.0,
-        confidence=0.7,
+        confidence=float((pred.get("confidence") or {}).get("winner", 0.0)),
         timestamp=datetime.now(timezone.utc),
-        models_used=pred["models_used"],
-        models_total=pred["models_total"],
+        models_used=1,
+        models_total=1,
         data_source=pred["data_source"],
         bet_side="home" if pred["home_prob"] > pred["away_prob"] else "away",
-        entry_odds=match.market_odds.get("home", 2.0),
+        entry_odds=match.market_odds.get("home"),
         raw_edge=0.0,
         normalized_edge=0.0,
         vig_free_edge=0.0,
-        model_weights={ir.get("model_name", "unknown"): 1.0/max(1, len(insights)) for ir in individual_results},
+        model_weights={"atp_v1": 1.0},
         model_insights=insights,
         neural_consensus_score=pred["home_prob"] * 100,
-        analytics_rating="GOOD",
-        prediction_accuracy_estimate=0.75
+        analytics_rating=None,
+        prediction_accuracy_estimate=None
     )

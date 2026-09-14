@@ -101,8 +101,8 @@ class PredictionResponse(BaseModel):
     model_weights: Dict[str, Any]
     model_insights: List[ModelInsight]
     neural_consensus_score: float
-    analytics_rating: str
-    prediction_accuracy_estimate: float
+    analytics_rating: Optional[str] = None
+    prediction_accuracy_estimate: Optional[float] = None
 
     # v4.10.0 — explicit fallback / data-quality surfacing.
     # Lets the frontend (and operators) tell at a glance whether this
