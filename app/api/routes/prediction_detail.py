@@ -168,6 +168,25 @@ class PredictionDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SignalResponse(BaseModel):
+    """Stable VIT-SIGNAL contract for clients and developer integrations."""
+    signal_id: str
+    event_id: int
+    status: str
+    sport: str
+    league: Optional[str] = None
+    created_at: Optional[str] = None
+    prediction: Optional[ModelBlock] = None
+    evidence: Optional[EvidenceBlock] = None
+    market: Optional[MarketIntelligenceBlock] = None
+    value: Optional[ValueBlock] = None
+    provenance: Optional[ProvenanceBlock] = None
+    proof_hash: Optional[str] = None
+    unavailable_reason: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Endpoint implementation
 # ══════════════════════════════════════════════════════════════════════
@@ -419,4 +438,36 @@ async def get_match_prediction_detail(
         value=value_block,
         validation=validation_block,
         provenance=provenance_block,
+    )
+
+
+@router.get("/{match_id}/signal", response_model=SignalResponse)
+async def get_match_signal(
+    match_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
+    """Expose the canonical prediction detail as a versionable VIT-SIGNAL."""
+    detail = await get_match_prediction_detail(match_id, db, current_user)
+    proof_hash = detail.validation.attestation_hash if detail.validation else None
+    signal_status = {
+        "verified": "PRE_EVENT" if detail.status == "verified" else detail.status.upper(),
+        "validating": "VALIDATING",
+        "unavailable": "UNAVAILABLE",
+        "not_initialized": "NOT_INITIALIZED",
+    }.get(detail.status, detail.status.upper())
+    return SignalResponse(
+        signal_id=f"VIT-SIGNAL-{match_id}-{proof_hash[-12:] if proof_hash else 'PENDING'}",
+        event_id=match_id,
+        status=signal_status,
+        sport=detail.provenance.sport if detail.provenance else "football",
+        league=None,
+        created_at=detail.provenance.timestamp if detail.provenance else None,
+        prediction=detail.model,
+        evidence=detail.evidence,
+        market=detail.market_intelligence,
+        value=detail.value,
+        provenance=detail.provenance,
+        proof_hash=proof_hash,
+        unavailable_reason=detail.unavailable_reason,
     )

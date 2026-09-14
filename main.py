@@ -483,6 +483,12 @@ except Exception as _e:
     logging.warning("attestation_router not mounted — routes unavailable: %s", _e)
 
 try:
+    from app.api.routes.prediction_detail import router as prediction_detail_router
+    app.include_router(prediction_detail_router)
+except Exception as _e:
+    logging.warning("prediction_detail_router not mounted — routes unavailable: %s", _e)
+
+try:
     from app.api.routes.payout_verify import router as payout_verify_router
     app.include_router(payout_verify_router)
 except Exception as _e:

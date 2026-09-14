@@ -141,3 +141,51 @@ async def test_prediction_detail_full_verified(async_client: AsyncClient):
     assert data["markets"]["1x2"]["requirements_met"] is True
     assert data["validation"]["all_passed"] is True
     assert data["validation"]["attestation_hash"].startswith("vit:")
+
+
+@pytest.mark.asyncio
+async def test_vit_signal_contract_exposes_verified_proof(async_client: AsyncClient):
+    async with AsyncSessionLocal() as session:
+        match = Match(
+            home_team="Signal Home",
+            away_team="Signal Away",
+            league="test_league",
+            kickoff_time=datetime.now(timezone.utc),
+            opening_odds_home=1.8,
+            opening_odds_draw=3.5,
+            opening_odds_away=4.2,
+            status="scheduled",
+        )
+        session.add(match)
+        await session.commit()
+        await session.refresh(match)
+        prediction = Prediction(
+            match_id=match.id,
+            home_prob=0.6,
+            draw_prob=0.2,
+            away_prob=0.2,
+            consensus_prob=0.6,
+            confidence=0.7,
+            bet_side="home",
+            entry_odds=1.8,
+            recommended_stake=0.02,
+            timestamp=datetime.now(timezone.utc),
+        )
+        session.add(prediction)
+        await session.commit()
+        await create_evidence_snapshot(
+            db=session,
+            match_id=match.id,
+            feature_completeness_pct=90,
+            provider_data={"features": {}, "market_odds": {"home": 1.8, "draw": 3.5, "away": 4.2}},
+            market_keys_to_evaluate=["1x2"],
+        )
+        match_id = match.id
+
+    response = await async_client.get(f"/api/matches/{match_id}/signal")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["signal_id"].startswith("VIT-SIGNAL-")
+    assert data["event_id"] == match_id
+    assert data["proof_hash"].startswith("vit:")
+    assert data["evidence"]["quality_score"] >= 90
