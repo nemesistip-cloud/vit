@@ -4,3 +4,4 @@
 - [Branch and deployment contract](branch-deployment-contract.md) — Render deploys main; use the pnpm workspace lock and preserve production code when merging agent snapshots.
 - [Service registry startup contract](service-registry-startup.md) — Resolve the live registry before mounting React so first health queries use current service URLs and contracts.
 - [Render schema drift](render-schema-drift.md) — production reads can fail on missing ORM columns even when provider ingestion succeeds.
+- [Replit local gateway preview](replit-local-gateway.md) — keep Vite on 5000 and supervise FastAPI on 8000 so same-origin API calls stay real.
