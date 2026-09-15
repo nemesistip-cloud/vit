@@ -455,13 +455,18 @@ class OddsAPIClient:
         self,
         competition: str,
         days_ahead: int = 3,
+        include_live: bool = False,
     ) -> List["OddsData"]:
         """
         Return a list of ``OddsData`` objects (one per event) for a competition.
         All markets are fetched and derived in a single API call.
+
+        Live fixtures must not use a future-only ``dateFrom`` filter: an
+        in-play event has already started, but its current market can still be
+        returned by the provider's competition feed.
         """
         sport = self.SPORT_MAPPING.get(competition.lower(), "soccer_epl")
-        date_from = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+        date_from = None if include_live else datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
         date_to   = (datetime.now() + timedelta(days=days_ahead)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         try:

@@ -115,15 +115,24 @@ class EvidenceEngine:
             missing.append("Comprehensive team statistics (rolling features)")
 
         # 3. Recent Form Data (Max 15)
-        has_home_form = bool(recent_form_data and recent_form_data.get("home", {}).get("matches_played", 0) >= 3)
-        has_away_form = bool(recent_form_data and recent_form_data.get("away", {}).get("matches_played", 0) >= 3)
+        home_form_matches = int((recent_form_data or {}).get("home", {}).get("matches_played", 0) or 0)
+        away_form_matches = int((recent_form_data or {}).get("away", {}).get("matches_played", 0) or 0)
+        has_home_form = home_form_matches >= 3
+        has_away_form = away_form_matches >= 3
         if has_home_form and has_away_form:
             score_form = 15.0
             checklist["recent_form"] = True
-        elif has_home_form or has_away_form:
-            score_form = 7.5
+        elif home_form_matches > 0 and away_form_matches > 0:
+            # Count real partial history as limited evidence, not as complete
+            # form. This permits a transparent limited prediction early in a
+            # season without pretending that missing matches exist.
+            score_form = round(15.0 * min(home_form_matches, away_form_matches, 3) / 3.0, 1)
             checklist["recent_form"] = False
             missing.append("Full recent form history for both teams")
+        elif home_form_matches > 0 or away_form_matches > 0:
+            score_form = round(15.0 * min(max(home_form_matches, away_form_matches), 3) / 6.0, 1)
+            checklist["recent_form"] = False
+            missing.append("Recent match form data for both teams")
         else:
             score_form = 0.0
             checklist["recent_form"] = False
