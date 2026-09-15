@@ -42,15 +42,55 @@ if [ ! -x "${ROOT_DIR}/frontend/node_modules/.bin/vite" ] && \
       "${ROOT_DIR}/frontend/node_modules/.bin/vite"
 fi
 
-# In Replit dev environment: run Vite dev server only (no Python backend needed)
+# In Replit dev environment, keep the preview on port 5000 and run the
+# FastAPI gateway locally on port 8000. Vite proxies /api/* to that gateway;
+# starting only Vite leaves the preview looking healthy while every API call
+# fails with a synthetic 503.
 if [ -n "${REPLIT_DEV_DOMAIN:-}" ] || [ -n "${REPL_ID:-}" ]; then
-    echo "[startup] Replit environment detected — starting frontend dev server..."
+    # PORT=5000 belongs to the public preview; keep the local API on the
+    # private proxy target instead of reusing the preview port.
+    LOCAL_BACKEND_PORT="${LOCAL_BACKEND_PORT:-8000}"
+    echo "[startup] Replit environment detected — starting local backend on port ${LOCAL_BACKEND_PORT}..."
+    PYTHONPATH="${ROOT_DIR}" \
+        PORT="${LOCAL_BACKEND_PORT}" \
+        python -m uvicorn main:app \
+        --host 127.0.0.1 \
+        --port "${LOCAL_BACKEND_PORT}" &
+    BACKEND_PID=$!
+
+    cleanup() {
+        if kill -0 "${BACKEND_PID}" 2>/dev/null; then
+            kill "${BACKEND_PID}" 2>/dev/null || true
+            wait "${BACKEND_PID}" 2>/dev/null || true
+        fi
+    }
+    trap cleanup EXIT INT TERM
+
+    echo "[startup] Waiting for local backend health..."
+    for _ in $(seq 1 60); do
+        if curl -fsS "http://127.0.0.1:${LOCAL_BACKEND_PORT}/ping" >/dev/null 2>&1; then
+            break
+        fi
+        if ! kill -0 "${BACKEND_PID}" 2>/dev/null; then
+            echo "[startup] ERROR: local backend exited before /ping became healthy." >&2
+            exit 1
+        fi
+        sleep 0.5
+    done
+
+    if ! curl -fsS "http://127.0.0.1:${LOCAL_BACKEND_PORT}/ping" >/dev/null 2>&1; then
+        echo "[startup] ERROR: local backend did not become healthy in 30 seconds." >&2
+        exit 1
+    fi
+
+    echo "[startup] Starting frontend dev server..."
     cd "${ROOT_DIR}/frontend"
     if [ ! -x node_modules/.bin/vite ]; then
         echo "[startup] ERROR: Vite is not installed. Dependency installation did not complete." >&2
         exit 1
     fi
-    exec node_modules/.bin/vite --port 5000 --host 0.0.0.0
+    node_modules/.bin/vite --port 5000 --host 0.0.0.0
+    exit $?
 fi
 
 # Production: build frontend then start Python backend

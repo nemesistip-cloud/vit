@@ -141,7 +141,15 @@ function useWalletSettings() {
     queryKey: ['wallet-settings'],
     queryFn: async ({ signal }) => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/wallet/me`, { signal, headers: authHeaders() })
-      return r.ok ? r.json() : null
+      if (!r.ok) {
+        let message = `Unable to load wallet (${r.status})`
+        try {
+          const body = await r.json()
+          message = body.detail ?? body.message ?? message
+        } catch { /* keep the status-based message */ }
+        throw new Error(message)
+      }
+      return r.json()
     },
     retry: false, staleTime: 60_000,
   })
@@ -1021,50 +1029,86 @@ function ConnectedAccountsTab() {
 // ── Wallet Settings Tab ───────────────────────────────────────────────────────
 
 function WalletSettingsTab() {
-  const { data: wallet, isLoading } = useWalletSettings()
+  const { data: wallet, isLoading, isError, error, refetch, isFetching } = useWalletSettings()
+  const [copied, setCopied] = useState(false)
+  const address = wallet?.address ?? wallet?.wallet_address ?? ''
+  const chainId = wallet?.chain_id ?? 7764
+  const network = wallet?.network ?? 'VIT Chain'
+
+  async function copyAddress() {
+    if (!address) return
+    try {
+      await navigator.clipboard.writeText(address)
+      setCopied(true)
+      toast.success('Wallet address copied')
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      toast.error('Could not copy wallet address')
+    }
+  }
 
   return (
     <div className="space-y-6">
       <SectionHead title="Wallet" subtitle="Your VIT wallet address and on-chain settings." />
       {isLoading ? (
         <div className="flex items-center justify-center py-8"><Spinner className="w-6 h-6 text-vit-400" /></div>
-      ) : !wallet ? (
+      ) : isError ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <AlertTriangle className="w-8 h-8 text-amber-400/80" />
+          <p className="text-sm text-white/70">Wallet details could not be loaded.</p>
+          <p className="max-w-sm text-xs text-white/35">{error instanceof Error ? error.message : 'Check your connection and try again.'}</p>
+          <button onClick={() => refetch()} disabled={isFetching} className="btn-muted text-xs disabled:opacity-50">
+            <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} />
+            {isFetching ? 'Retrying…' : 'Try again'}
+          </button>
+        </div>
+      ) : !wallet || !address ? (
         <div className="text-center py-10 text-white/40">
           <Wallet className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Wallet not found. Visit the Wallet page to create one.</p>
+          <p className="text-sm text-white/60">No wallet is linked to this account.</p>
+          <p className="text-xs mt-1">Visit the Wallet page to connect or create one.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl space-y-3">
+          <div className="p-4 sm:p-5 bg-surface-900/60 border border-vit-500/20 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-white/40 uppercase tracking-wide">Address</span>
+              <div>
+                <span className="text-xs text-white/40 uppercase tracking-wide">Wallet address</span>
+                <p className="text-[11px] text-white/25 mt-0.5">Use this address for VIT Chain transfers</p>
+              </div>
               <button
-                onClick={() => { navigator.clipboard.writeText(wallet.address ?? ''); toast.success('Copied') }}
-                className="flex items-center gap-1 text-xs text-white/40 hover:text-vit-400 transition-colors"
+                onClick={copyAddress}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/55 hover:text-vit-300 hover:bg-vit-500/10 transition-colors"
+                aria-label="Copy wallet address"
               >
-                <Copy className="w-3 h-3" /> Copy
+                {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
-            <p className="text-sm font-mono text-white/70 break-all">{wallet.address ?? wallet.wallet_address ?? '—'}</p>
+            <p className="text-sm font-mono text-white/80 break-all select-all">{address}</p>
           </div>
 
-          {wallet.balance != null && (
-            <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl flex items-center justify-between">
-              <span className="text-sm text-white/60">VIT Balance</span>
-              <span className="text-lg font-bold text-vit-400">{wallet.balance}</span>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+              <span className="text-xs text-white/40 uppercase tracking-wide">VIT balance</span>
+              <p className="text-lg font-bold text-vit-400 mt-1">{wallet.vitcoin_balance ?? '—'} <span className="text-xs font-medium text-white/35">VIT</span></p>
             </div>
-          )}
 
-          {wallet.staking_amount != null && (
-            <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl flex items-center justify-between">
-              <span className="text-sm text-white/60">Staked Amount</span>
-              <span className="text-sm font-semibold text-purple-400">{wallet.staking_amount} VIT</span>
+            <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl">
+              <span className="text-xs text-white/40 uppercase tracking-wide">Staked amount</span>
+              <p className="text-lg font-bold text-cyan-400 mt-1">{wallet.staked_vitcoin ?? wallet.staking_amount ?? '—'} <span className="text-xs font-medium text-white/35">VIT</span></p>
             </div>
-          )}
+          </div>
 
-          <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl flex items-center justify-between">
-            <span className="text-sm text-white/60">Network</span>
-            <span className="text-sm text-cyan-400">VIT Chain (7764)</span>
+          <div className="p-4 bg-surface-900/60 border border-white/6 rounded-xl flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-white/60">Network</p>
+              <p className="text-xs text-white/30 mt-0.5">Chain ID {chainId}</p>
+            </div>
+            <span className="inline-flex items-center gap-2 text-sm text-cyan-300 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+              {network}
+            </span>
           </div>
         </div>
       )}

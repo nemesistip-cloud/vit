@@ -850,6 +850,16 @@ except Exception as _e:
 # --- Wallet Routers ---
 try:
     from app.modules.wallet.routes import router as wallet_router
+    # The wallet module still contains the pre-idempotency P2P handlers for
+    # backwards source compatibility. The dedicated P2P router below is the
+    # canonical implementation, so do not mount both copies of the same
+    # paths (FastAPI otherwise emits duplicate operation IDs and dispatches
+    # the first registered handler).
+    wallet_router.routes = [
+        route
+        for route in wallet_router.routes
+        if not getattr(route, "path", "").startswith("/api/wallet/p2p")
+    ]
     app.include_router(wallet_router)
 except Exception as _e:
     logging.warning("wallet_router not mounted — routes unavailable: %s", _e)
@@ -1248,13 +1258,6 @@ try:
     app.include_router(tachyon_router, prefix="/api/tachyon", tags=["Tachyon"])
 except Exception as _e:
     logging.error("tachyon router not mounted: %s", _e, exc_info=True)
-
-# Tachyon VESS — Admin (/api/tachyon/admin/*)
-try:
-    from tachyon.api.admin_routes import router as tachyon_admin_router
-    app.include_router(tachyon_admin_router, prefix="/api/tachyon/admin", tags=["Tachyon Admin"])
-except Exception as _e:
-    logging.error("tachyon_admin router not mounted: %s", _e, exc_info=True)
 
 # TRACK-009: Global Search (/api/search)
 try:

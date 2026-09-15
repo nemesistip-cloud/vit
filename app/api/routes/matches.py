@@ -7,6 +7,8 @@ import logging
 import os
 import asyncio
 import math
+import re
+import unicodedata
 
 from app.db.database import get_db, AsyncSessionLocal
 from app.core.cache_keys import FIXTURE_LIST
@@ -26,46 +28,122 @@ router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
 
 
-async def _refresh_prediction_odds(match: Match, now: datetime) -> list[NormalizedOdds]:
-    """Fetch odds for this fixture without confusing internal and provider IDs."""
-    external_id = getattr(match, "external_id", None)
-    if not external_id:
-        logger.warning("PREDICTION_ODDS_SKIP match=%s reason=missing_external_id", match.id)
-        return []
+def _prediction_provenance(prediction: Optional[Prediction]) -> dict:
+    """Return persisted provenance only when it has the expected object shape."""
+    provenance = getattr(prediction, "provenance", None) if prediction else None
+    return provenance if isinstance(provenance, dict) else {}
 
+
+def _evidence_score(value) -> float:
+    """Normalize persisted evidence scores and fail closed for malformed data."""
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return score if math.isfinite(score) else 0.0
+
+
+def _normalise_provider_team_name(name: Optional[str]) -> str:
+    """Create a comparison key that tolerates provider display-name variants."""
+    if not name:
+        return ""
+    folded = unicodedata.normalize("NFKD", str(name))
+    folded = "".join(char for char in folded if not unicodedata.combining(char))
+    tokens = re.findall(r"[a-z0-9]+", folded.lower())
+    return " ".join(token for token in tokens if token not in {"fc", "cf", "afc", "rcd", "club"})
+
+
+def _provider_team_names_match(expected: Optional[str], provider: Optional[str]) -> bool:
+    """Match full provider names with shortened bookmaker display names."""
+    expected_key = _normalise_provider_team_name(expected)
+    provider_key = _normalise_provider_team_name(provider)
+    if not expected_key or not provider_key:
+        return False
+    if expected_key == provider_key:
+        return True
+    expected_tokens = set(expected_key.split())
+    provider_tokens = set(provider_key.split())
+    return expected_tokens.issubset(provider_tokens) or provider_tokens.issubset(expected_tokens)
+
+
+async def _refresh_prediction_odds(match: Match, now: datetime) -> list[NormalizedOdds]:
+    """Fetch odds for this fixture using provider event identity, not SportsDB IDs.
+
+    Match.external_id is a TheSportsDB event ID for the normal fixture sync.
+    The Odds API has a separate event ID namespace, so requesting
+    ``/events/{match.external_id}/odds`` cannot reliably work. Fetch the
+    competition window and reconcile the event by its provider team names
+    instead. This also handles harmless display-name differences between
+    SportsDB and bookmaker feeds.
+    """
     loader = get_data_loader()
     client = getattr(loader, "odds_client", None) if loader else None
     if not client:
         logger.warning("PREDICTION_ODDS_SKIP match=%s reason=odds_client_unavailable", match.id)
         return []
 
-    sport_key = getattr(client, "SPORT_MAPPING", {}).get(
-        (match.league or "").lower(), "soccer_epl"
-    )
     try:
-        raw_event = await client.get_all_markets_for_event(sport_key, str(external_id))
-        odds_data = client._extract_best_odds(raw_event) if raw_event else None
+        kickoff = getattr(match, "kickoff_time", None)
+        if kickoff and kickoff.tzinfo is None:
+            kickoff = kickoff.replace(tzinfo=timezone.utc)
+        if kickoff:
+            seconds_until_kickoff = (kickoff - now).total_seconds()
+            days_ahead = max(1, min(7, math.ceil(max(0.0, seconds_until_kickoff) / 86400) + 1))
+        else:
+            days_ahead = 3
+        league_value = (match.league or "premier_league").lower()
+        league_key = next(
+            (
+                key
+                for key, display_name in LEAGUE_DISPLAY_NAMES.items()
+                if display_name.lower() == league_value
+            ),
+            league_value,
+        )
+        is_live = (getattr(match, "status", "") or "").lower() in {
+            "live", "in_progress", "in_play",
+        }
+        if is_live:
+            odds_candidates = await client.get_odds_for_competition(
+                league_key,
+                days_ahead=days_ahead,
+                include_live=True,
+            ) or []
+        else:
+            odds_candidates = await client.get_odds_for_competition(
+                league_key,
+                days_ahead=days_ahead,
+            ) or []
     except Exception:
         logger.exception(
-            "PREDICTION_ODDS_REFRESH_FAILED match=%s external_id=%s sport=%s",
-            match.id, external_id, sport_key,
+            "PREDICTION_ODDS_REFRESH_FAILED match=%s league=%s",
+            match.id, match.league,
         )
         return []
 
+    odds_data = next(
+        (
+            candidate
+            for candidate in odds_candidates
+            if _provider_team_names_match(match.home_team, getattr(candidate, "home_team", None))
+            and _provider_team_names_match(match.away_team, getattr(candidate, "away_team", None))
+        ),
+        None,
+    )
     if not odds_data or not all(
         value and float(value) > 1.0
         for value in (odds_data.home_odds, odds_data.draw_odds, odds_data.away_odds)
     ):
         logger.warning(
-            "PREDICTION_ODDS_EMPTY match=%s external_id=%s sport=%s",
-            match.id, external_id, sport_key,
+            "PREDICTION_ODDS_EMPTY match=%s external_id=%s league=%s candidates=%s",
+            match.id, getattr(match, "external_id", None), match.league, len(odds_candidates),
         )
         return []
 
     timestamp = odds_data.timestamp or now
     return [
         NormalizedOdds(
-            fixture_id=str(external_id),
+            fixture_id=str(getattr(odds_data, "match_id", None) or getattr(match, "external_id", match.id)),
             sport=match.sport or "football",
             market="match_winner",
             selection=selection,
@@ -284,6 +362,35 @@ def _normalize_attribution_items(raw_items: Optional[list]) -> list:
 
 
 def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[list] = None) -> dict:
+    raw_pred = pred
+    prediction_status = "not_initialized"
+    prediction_source = None
+    evidence = {}
+    if raw_pred is not None and not getattr(raw_pred, "is_seed", False):
+        prediction_source = getattr(raw_pred, "source", "live_generated")
+        raw_provenance = _prediction_provenance(raw_pred)
+        evidence = {
+            "score": _evidence_score(raw_provenance.get("evidence_score")),
+            "classification": raw_provenance.get("evidence_classification", "UNAVAILABLE"),
+            "missing_elements": raw_provenance.get("missing_elements", []),
+        }
+        raw_status = getattr(raw_pred, "status", None)
+        if raw_status == "INITIALIZING":
+            prediction_status = "initializing"
+        elif raw_status == "FAILED":
+            prediction_status = "failed"
+        elif raw_status == "STALE":
+            prediction_status = "stale"
+        elif raw_provenance and _evidence_score(raw_provenance.get("evidence_score")) >= 55.0:
+            prediction_status = "ready"
+            ts = getattr(raw_pred, "timestamp", None)
+            if ts:
+                ts = ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+                if (datetime.now(timezone.utc) - ts).total_seconds() > 86400:
+                    prediction_status = "stale"
+        else:
+            prediction_status = "failed"
+
     if pred is not None and getattr(pred, "is_seed", False):
         pred = None
     if pred is not None and getattr(pred, "status", None) not in (None, "READY", "STALE", "ready", "stale"):
@@ -366,6 +473,11 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         "dnb_home_prob": dnb_home_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "dnb_away_prob": dnb_away_prob if "dnb" in active_markets or "1x2" in active_markets else None,
         "confidence": confidence,
+        "final_ev": float(getattr(pred, "final_ev", None)) if pred and getattr(pred, "final_ev", None) is not None else edge,
+        "entry_odds": float(getattr(pred, "entry_odds", None)) if pred and getattr(pred, "entry_odds", None) is not None else None,
+        "prediction_status": prediction_status,
+        "prediction_source": prediction_source,
+        "evidence": evidence,
         # Match rows are database snapshots. They are provider-sourced, but
         # must not be labelled LIVE unless a request-time provider refresh
         # actually occurred.
@@ -926,11 +1038,9 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     elif getattr(latest_pred, 'status', None) == "STALE":
         prediction_status = "stale"
     else:
-        stored_provenance = getattr(latest_pred, "provenance", None) or {}
-        stored_evidence = stored_provenance.get("evidence_score")
-        if (
-            not stored_provenance or stored_evidence is None or float(stored_evidence) < 55.0
-        ):
+        stored_provenance = _prediction_provenance(latest_pred)
+        stored_evidence = _evidence_score(stored_provenance.get("evidence_score"))
+        if not stored_provenance or stored_evidence < 55.0:
             prediction_status = "failed"
         else:
             prediction_status = "ready"
@@ -953,12 +1063,22 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     elo_diff = features.get("elo_diff")
 
     has_primary_probabilities = (prediction_status in ("ready", "stale")) and h is not None and d is not None and a is not None
+    prediction_provenance = _prediction_provenance(latest_pred)
 
     if not has_primary_probabilities:
+        if prediction_status == "failed":
+            tactical_summary = "AI prediction is unavailable because the match does not have enough verified evidence yet."
+            tactical_recommendation = "Review the available match data below or retry when provider coverage improves."
+        elif prediction_status == "not_initialized":
+            tactical_summary = "Prediction has not been initialized for this match yet."
+            tactical_recommendation = "Click 'Initialize Prediction' to generate real-time AI insights."
+        else:
+            tactical_summary = "Prediction calculation in progress..."
+            tactical_recommendation = "Please wait while the ensemble processes model outputs."
         tactical_insights = {
-            "summary": "Prediction has not been initialized for this match yet." if prediction_status == "not_initialized" else "Prediction calculation in progress...",
+            "summary": tactical_summary,
             "key_factors": [],
-            "recommendation": "Click 'Initialize Prediction' to generate real-time AI insights." if prediction_status == "not_initialized" else "Please wait while the ensemble processes model outputs.",
+            "recommendation": tactical_recommendation,
         }
     else:
         try:
@@ -998,15 +1118,15 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
             )
         ),
         "evidence": {
-            "score": (latest_pred.provenance or {}).get("evidence_score", 0.0) if (latest_pred and getattr(latest_pred, 'provenance', None)) else 0.0,
-            "classification": (latest_pred.provenance or {}).get("evidence_classification", "UNAVAILABLE") if (latest_pred and getattr(latest_pred, 'provenance', None)) else "UNAVAILABLE",
-            "breakdown": (latest_pred.provenance or {}).get("evidence_breakdown", {}) if (latest_pred and getattr(latest_pred, 'provenance', None)) else {},
-            "checklist": (latest_pred.provenance or {}).get("checklist", {}) if (latest_pred and getattr(latest_pred, 'provenance', None)) else {},
-            "odds_consensus": (latest_pred.provenance or {}).get("odds_consensus", {}) if (latest_pred and getattr(latest_pred, 'provenance', None)) else {},
-            "bookmaker_count": (latest_pred.provenance or {}).get("bookmaker_count", 0) if (latest_pred and getattr(latest_pred, 'provenance', None)) else 0,
-            "missing_elements": (latest_pred.provenance or {}).get("missing_elements", []) if (latest_pred and getattr(latest_pred, 'provenance', None)) else [],
+            "score": _evidence_score(prediction_provenance.get("evidence_score")),
+            "classification": prediction_provenance.get("evidence_classification", "UNAVAILABLE"),
+            "breakdown": prediction_provenance.get("evidence_breakdown", {}),
+            "checklist": prediction_provenance.get("checklist", {}),
+            "odds_consensus": prediction_provenance.get("odds_consensus", {}),
+            "bookmaker_count": prediction_provenance.get("bookmaker_count", 0),
+            "missing_elements": prediction_provenance.get("missing_elements", []),
         },
-        "provenance": getattr(latest_pred, 'provenance', None) if latest_pred else None,
+        "provenance": prediction_provenance if latest_pred else None,
         "intelligence": {
             "consensus": {
                 "home_prob": float(h) if has_primary_probabilities else None,
@@ -1225,10 +1345,11 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             ) / len(active_results)
 
         # 4. Data / Evidence Quality Engine Evaluation
+        # A kickoff in the past is not proof that a match is complete:
+        # in-play fixtures still need live evidence and live odds.
         is_match_completed = bool(
             match.actual_outcome is not None or
-            match.status in ("completed", "settled", "finished") or
-            (match.kickoff_time and match.kickoff_time < now.replace(tzinfo=None))
+            (match.status or "").lower() in {"completed", "settled", "finished"}
         )
         evidence = EvidenceEngine.evaluate(
             match_source=match.source,

@@ -29,6 +29,14 @@ from app.services.team_mapper import TeamMapper
 logger = logging.getLogger(__name__)
 
 
+def _database_utc_now(value: Optional[datetime] = None) -> datetime:
+    """Return a UTC-naive timestamp for TIMESTAMP WITHOUT TIME ZONE queries."""
+    current = value or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    return current.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 # ── Canonical Live Match Schemas ──────────────────────────────────────────────
 
 class LiveSelection(BaseModel):
@@ -303,6 +311,10 @@ class LiveMatchIngestionService:
             await initialize_schema()
 
             now_dt = datetime.now(timezone.utc)
+            # Match.kickoff_time is a PostgreSQL TIMESTAMP WITHOUT TIME ZONE.
+            # Pass a UTC-naive value to SQLAlchemy so asyncpg does not reject
+            # comparisons between aware and naive datetimes.
+            db_now = _database_utc_now(now_dt)
             now = time.time()
 
             async with AsyncSessionLocal() as session:
@@ -314,10 +326,10 @@ class LiveMatchIngestionService:
                     or_(
                         func.lower(Match.status).in_(["live", "in_progress", "in_play"]),
                         and_(
-                            Match.kickoff_time <= now_dt,
-                            Match.kickoff_time >= now_dt - timedelta(hours=2),
+                            Match.kickoff_time <= db_now,
+                            Match.kickoff_time >= db_now - timedelta(hours=2),
                         ),
-                        Match.kickoff_time >= now_dt
+                        Match.kickoff_time >= db_now
                     )
                 ).limit(50)
                 res = await session.execute(stmt)

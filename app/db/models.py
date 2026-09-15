@@ -469,7 +469,9 @@ class User(Base):
     telegram_id = Column(String(255), unique=True, nullable=True, index=True)
     telegram_username = Column(String(255), nullable=True)
     role = Column(String(20), default="user")  # user, admin, validator
-    wallet_address = Column(String(42), unique=True, nullable=True, index=True)
+    # EVM addresses are 42 chars (0x + 40 hex), while native VIT Chain
+    # addresses are 43 chars (VIT + 40 hex). Keep room for both formats.
+    wallet_address = Column(String(64), unique=True, nullable=True, index=True)
     # RBAC extensions
     admin_role = Column(String(20), nullable=True)          # super_admin, admin, auditor, support
     subscription_tier = Column(String(20), default="viewer") # viewer, analyst, pro, elite

@@ -64,7 +64,9 @@ COLUMNS = [
     # ── Profile extras ────────────────────────────────────────────────────
     ("users", "company_name",           "VARCHAR(255)"),
     ("users", "phone",                  "VARCHAR(50)"),
-    ("users", "wallet_address",         "VARCHAR(42)"),
+    # Supports both EVM addresses (42 chars) and native VIT Chain addresses
+    # (43 chars: VIT + 40 hexadecimal characters).
+    ("users", "wallet_address",         "VARCHAR(64)"),
     ("users", "google_id",              "VARCHAR(255)"),
     ("users", "telegram_id",            "VARCHAR(255)"),
     ("users", "telegram_username",      "VARCHAR(255)"),
@@ -130,6 +132,17 @@ try:
             added += 1
         except Exception as e:
             print(f"[ensure_columns]   WARN {table}.{col}: {e}", flush=True)
+
+    # Older deployments already have this column as VARCHAR(42). Widen it
+    # without truncating existing values so native VIT Chain genesis addresses
+    # can be persisted. This is idempotent on every subsequent startup.
+    try:
+        cur.execute(
+            "ALTER TABLE users "
+            "ALTER COLUMN wallet_address TYPE VARCHAR(64)"
+        )
+    except Exception as e:
+        print(f"[ensure_columns]   WARN users.wallet_address type: {e}", flush=True)
 
     for idx, table, col in INDEXES:
         try:
