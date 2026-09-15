@@ -1,3 +1,5 @@
+- 2026-09-15 `ca21e01` Enhance wallet settings, match intelligence, and prediction logic (#455)
+
 - 2026-08-25 `a24f0b9` fix(workspace): resolve window manager event handlers and process lau…
 
 - 2026-08-25 `d489b16` fix(workspace): resolve window manager event handlers and process launching
