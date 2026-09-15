@@ -7,6 +7,8 @@ import logging
 import os
 import asyncio
 import math
+import re
+import unicodedata
 
 from app.db.database import get_db, AsyncSessionLocal
 from app.core.cache_keys import FIXTURE_LIST
@@ -26,46 +28,97 @@ router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
 
 
-async def _refresh_prediction_odds(match: Match, now: datetime) -> list[NormalizedOdds]:
-    """Fetch odds for this fixture without confusing internal and provider IDs."""
-    external_id = getattr(match, "external_id", None)
-    if not external_id:
-        logger.warning("PREDICTION_ODDS_SKIP match=%s reason=missing_external_id", match.id)
-        return []
+def _normalise_provider_team_name(name: Optional[str]) -> str:
+    """Create a comparison key that tolerates provider display-name variants."""
+    if not name:
+        return ""
+    folded = unicodedata.normalize("NFKD", str(name))
+    folded = "".join(char for char in folded if not unicodedata.combining(char))
+    tokens = re.findall(r"[a-z0-9]+", folded.lower())
+    return " ".join(token for token in tokens if token not in {"fc", "cf", "afc", "rcd", "club"})
 
+
+def _provider_team_names_match(expected: Optional[str], provider: Optional[str]) -> bool:
+    """Match full provider names with shortened bookmaker display names."""
+    expected_key = _normalise_provider_team_name(expected)
+    provider_key = _normalise_provider_team_name(provider)
+    if not expected_key or not provider_key:
+        return False
+    if expected_key == provider_key:
+        return True
+    expected_tokens = set(expected_key.split())
+    provider_tokens = set(provider_key.split())
+    return expected_tokens.issubset(provider_tokens) or provider_tokens.issubset(expected_tokens)
+
+
+async def _refresh_prediction_odds(match: Match, now: datetime) -> list[NormalizedOdds]:
+    """Fetch odds for this fixture using provider event identity, not SportsDB IDs.
+
+    Match.external_id is a TheSportsDB event ID for the normal fixture sync.
+    The Odds API has a separate event ID namespace, so requesting
+    ``/events/{match.external_id}/odds`` cannot reliably work. Fetch the
+    competition window and reconcile the event by its provider team names
+    instead. This also handles harmless display-name differences between
+    SportsDB and bookmaker feeds.
+    """
     loader = get_data_loader()
     client = getattr(loader, "odds_client", None) if loader else None
     if not client:
         logger.warning("PREDICTION_ODDS_SKIP match=%s reason=odds_client_unavailable", match.id)
         return []
 
-    sport_key = getattr(client, "SPORT_MAPPING", {}).get(
-        (match.league or "").lower(), "soccer_epl"
-    )
     try:
-        raw_event = await client.get_all_markets_for_event(sport_key, str(external_id))
-        odds_data = client._extract_best_odds(raw_event) if raw_event else None
+        kickoff = getattr(match, "kickoff_time", None)
+        if kickoff and kickoff.tzinfo is None:
+            kickoff = kickoff.replace(tzinfo=timezone.utc)
+        if kickoff:
+            seconds_until_kickoff = (kickoff - now).total_seconds()
+            days_ahead = max(1, min(7, math.ceil(max(0.0, seconds_until_kickoff) / 86400) + 1))
+        else:
+            days_ahead = 3
+        league_value = (match.league or "premier_league").lower()
+        league_key = next(
+            (
+                key
+                for key, display_name in LEAGUE_DISPLAY_NAMES.items()
+                if display_name.lower() == league_value
+            ),
+            league_value,
+        )
+        odds_candidates = await client.get_odds_for_competition(
+            league_key,
+            days_ahead=days_ahead,
+        ) or []
     except Exception:
         logger.exception(
-            "PREDICTION_ODDS_REFRESH_FAILED match=%s external_id=%s sport=%s",
-            match.id, external_id, sport_key,
+            "PREDICTION_ODDS_REFRESH_FAILED match=%s league=%s",
+            match.id, match.league,
         )
         return []
 
+    odds_data = next(
+        (
+            candidate
+            for candidate in odds_candidates
+            if _provider_team_names_match(match.home_team, getattr(candidate, "home_team", None))
+            and _provider_team_names_match(match.away_team, getattr(candidate, "away_team", None))
+        ),
+        None,
+    )
     if not odds_data or not all(
         value and float(value) > 1.0
         for value in (odds_data.home_odds, odds_data.draw_odds, odds_data.away_odds)
     ):
         logger.warning(
-            "PREDICTION_ODDS_EMPTY match=%s external_id=%s sport=%s",
-            match.id, external_id, sport_key,
+            "PREDICTION_ODDS_EMPTY match=%s external_id=%s league=%s candidates=%s",
+            match.id, getattr(match, "external_id", None), match.league, len(odds_candidates),
         )
         return []
 
     timestamp = odds_data.timestamp or now
     return [
         NormalizedOdds(
-            fixture_id=str(external_id),
+            fixture_id=str(getattr(odds_data, "match_id", None) or getattr(match, "external_id", match.id)),
             sport=match.sport or "football",
             market="match_winner",
             selection=selection,

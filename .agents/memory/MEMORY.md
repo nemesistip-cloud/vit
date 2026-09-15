@@ -5,3 +5,4 @@
 - [Service registry startup contract](service-registry-startup.md) — Resolve the live registry before mounting React so first health queries use current service URLs and contracts.
 - [Render schema drift](render-schema-drift.md) — production reads can fail on missing ORM columns even when provider ingestion succeeds.
 - [Replit local gateway preview](replit-local-gateway.md) — keep Vite on 5000 and supervise FastAPI on 8000 so same-origin API calls stay real.
+- [Sports odds identity](sports-odds-identity.md) — SportsDB fixture IDs and Odds API event IDs are different; reconcile odds by provider team names.
