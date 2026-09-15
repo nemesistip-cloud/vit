@@ -243,8 +243,6 @@ async def wallet_verify(
 
     if not user:
         is_new = True
-        # Check if address column uses 42-char checksum
-        checksum_addr = recovered  # keep original case for DB
         username = f"wallet_{address[2:8]}"
         suffix = 1
         base = username
@@ -260,7 +258,9 @@ async def wallet_verify(
             email=pseudo_email,
             username=username,
             hashed_password=hash_password(secrets.token_hex(32)),
-            wallet_address=address[:42],   # store checksummed
+            # Preserve the complete address. EVM addresses are 42 chars,
+            # while native VIT Chain addresses are 43 chars.
+            wallet_address=address,
             role="viewer",
             is_active=True,
         )
@@ -334,7 +334,7 @@ async def link_wallet(
     if existing.scalar_one_or_none():
         raise HTTPException(409, "Wallet address already linked to another account")
 
-    current_user.wallet_address = address[:42]
+    current_user.wallet_address = address
     await db.commit()
 
     return {"status": "linked", "address": address}
