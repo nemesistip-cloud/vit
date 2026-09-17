@@ -148,9 +148,26 @@ class VitAIClient:
 
         # 2. Execute Request with Retries
         try:
+            request_payload = {"prompt": prompt, **kwargs}
+            if target_model.startswith("ensemble"):
+                features = (
+                    request_payload.get("features")
+                    or request_payload.get("feature_vector")
+                    or request_payload.get("match_features")
+                )
+                if not isinstance(features, (list, dict)) or not features:
+                    features = {
+                        key: value
+                        for key, value in request_payload.items()
+                        if key in {"market_odds", "match_data", "league", "home_team", "away_team"}
+                        and value not in (None, {}, [])
+                    }
+                if not features:
+                    features = {"prompt": prompt}
+                request_payload["features"] = features
             body = {
                 "model_id": target_model,
-                "payload": {"prompt": prompt, **kwargs},
+                "payload": request_payload,
             }
             response = await self._execute_with_retry("POST", "/api/v1/chat", body)
             if response.status_code >= 400:

@@ -73,3 +73,20 @@ async def test_vit_ai_client_prediction_features():
         args, kwargs = mock_exec.call_args
         posted_json = kwargs.get("json") or args[2]
         assert posted_json["model_id"] == "ensemble_v1"
+
+
+@pytest.mark.asyncio
+async def test_vit_ai_client_prediction_always_sends_features():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"result": "Prediction output"}
+
+    with patch.object(vit_ai_client, "_execute_with_retry", new_callable=AsyncMock) as mock_exec:
+        mock_exec.return_value = mock_resp
+
+        await vit_ai_client.call_ai("Predict", market_odds={"home": 2.0})
+
+        args, kwargs = mock_exec.call_args
+        posted_json = kwargs.get("json") or args[2]
+        assert posted_json["model_id"] == "ensemble_v1"
+        assert posted_json["payload"]["features"] == {"market_odds": {"home": 2.0}}
