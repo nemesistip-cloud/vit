@@ -4,6 +4,19 @@ import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ command }) => ({
+  build: {
+    target: 'es2019',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['framer-motion', 'lucide-react', 'sonner'],
+          'chart-vendor': ['recharts'],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
