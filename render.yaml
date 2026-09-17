@@ -21,6 +21,14 @@ services:
             property: connectionString
         - key: JWT_SECRET_KEY
           sync: false
+        - key: VIT_TREASURY_PRIVATE_KEY
+          sync: false
+        - key: GENESIS_VALIDATOR_KEY
+          sync: false
+        - key: GENESIS_VALIDATOR_ADDRESS
+          sync: false
+        - key: GENESIS_VALIDATORS
+          sync: false
         - key: FOOTBALL_DATA_API_KEY
           sync: false
         - key: ODDS_API_KEY
@@ -90,6 +98,14 @@ services:
             name: vitnetwork-redis
             property: connectionString
         - key: JWT_SECRET_KEY
+          sync: false
+        - key: VIT_TREASURY_PRIVATE_KEY
+          sync: false
+        - key: GENESIS_VALIDATOR_KEY
+          sync: false
+        - key: GENESIS_VALIDATOR_ADDRESS
+          sync: false
+        - key: GENESIS_VALIDATORS
           sync: false
         - key: FOOTBALL_DATA_API_KEY
           sync: false
