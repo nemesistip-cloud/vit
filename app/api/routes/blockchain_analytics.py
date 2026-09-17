@@ -14,11 +14,12 @@ GET  /api/blockchain/analytics/performance   — real-time performance metrics
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_current_user
@@ -29,9 +30,41 @@ from app.modules.blockchain.models import (
     ValidatorSlashEvent,
     ValidatorProfile,
 )
+from vit_chain.storage.db import ChainBlock, ChainTransaction
 
 router = APIRouter(prefix="/api/blockchain", tags=["Blockchain Analytics"])
 logger = logging.getLogger(__name__)
+
+
+async def _live_chain_performance(db: AsyncSession, window_seconds: int = 300) -> dict:
+    """Calculate rolling TPS and block time from persisted chain data."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    cutoff = now - window_seconds
+    recent_transactions = await db.scalar(
+        select(func.count(ChainTransaction.tx_hash)).where(
+            ChainTransaction.timestamp >= cutoff,
+            ChainTransaction.status.in_(("confirmed", "finalized")),
+        )
+    ) or 0
+
+    block_rows = (
+        await db.execute(
+            select(ChainBlock.timestamp)
+            .where(ChainBlock.timestamp.is_not(None))
+            .order_by(desc(ChainBlock.height))
+            .limit(100)
+        )
+    ).scalars().all()
+    intervals = [
+        older - newer
+        for newer, older in zip(block_rows, block_rows[1:])
+        if older > newer
+    ]
+
+    return {
+        "tps": round(float(recent_transactions) / window_seconds, 6),
+        "block_time_avg": round(sum(intervals) / len(intervals), 6) if intervals else None,
+    }
 
 
 # ── Analytics endpoints ────────────────────────────────────────────────────────
@@ -79,10 +112,11 @@ async def performance_metrics(db: AsyncSession = Depends(get_db)):
 
     stats = await subsystem.manager.indexer.get_chain_stats(db)
     mempool = await subsystem.manager.get_mempool_stats()
+    live_metrics = await _live_chain_performance(db)
 
     return {
-        "tps": 12.5, # Placeholder for live rolling average
-        "block_time_avg": stats.get("avg_block_time_seconds", 15),
+        "tps": live_metrics["tps"],
+        "block_time_avg": live_metrics["block_time_avg"],
         "mempool_depth": mempool.get("size", 0),
         "total_blocks": stats.get("total_blocks", 0),
         "total_transactions": stats.get("total_transactions", 0),
