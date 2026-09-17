@@ -100,6 +100,11 @@ def _get_redis():
     return _redis_client
 
 
+async def get_redis():
+    """Return the shared cache Redis client for operational probes and admin tools."""
+    return _get_redis()
+
+
 # ---------------------------------------------------------------------------
 # Cache class
 # ---------------------------------------------------------------------------

@@ -77,6 +77,11 @@ def build_sync_redis_client(redis_url: str = "", **kwargs) -> sync_redis.Redis:
 _build_redis_client = build_redis_client
 
 
+async def get_redis():
+    """Return the initialized service Redis client for health and admin probes."""
+    return redis_client
+
+
 async def require_redis(app):
     global redis_client
     REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))
