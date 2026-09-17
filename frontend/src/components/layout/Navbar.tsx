@@ -79,24 +79,37 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
   const { data: health }               = useGatewayHealth()
 
   useEffect(() => {
-    const token = getAuthToken()
-    const user  = getStoredUser()
-    setIsLoggedIn(!!token)
-    setIsAdmin(hasAdminAccess(user?.role))
+    function syncAuthState() {
+      const token = getAuthToken()
+      const user  = getStoredUser()
+      setIsLoggedIn(!!token)
+      setIsAdmin(hasAdminAccess(user?.role))
+    }
+
+    syncAuthState()
   }, [location.pathname])
 
-  // Sync auth state when localStorage changes in another tab (logout/login).
+  // Sync auth state when localStorage changes in this tab or another tab.
   useEffect(() => {
+    function syncAuthState() {
+      const token = getAuthToken()
+      const user  = getStoredUser()
+      setIsLoggedIn(!!token)
+      setIsAdmin(hasAdminAccess(user?.role))
+    }
+
     function onStorage(e: StorageEvent) {
       if (e.key === 'vit_token' || e.key === 'vit_user' || e.key === null) {
-        const token = getAuthToken()
-        const user  = getStoredUser()
-        setIsLoggedIn(!!token)
-        setIsAdmin(hasAdminAccess(user?.role))
+        syncAuthState()
       }
     }
+
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    window.addEventListener('vit-auth-change', syncAuthState)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('vit-auth-change', syncAuthState)
+    }
   }, [])
 
   useEffect(() => {

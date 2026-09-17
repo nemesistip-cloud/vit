@@ -12,11 +12,17 @@ export function getAuthToken(): string | null {
 
 export function setAuthToken(token: string) {
   localStorage.setItem('vit_token', token)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('vit-auth-change'))
+  }
 }
 
 export function clearAuth() {
   localStorage.removeItem('vit_token')
   localStorage.removeItem('vit_user')
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('vit-auth-change'))
+  }
 }
 
 export function getStoredUser(): AuthUser | null {
@@ -30,6 +36,9 @@ export function getStoredUser(): AuthUser | null {
 
 export function storeUser(user: AuthUser) {
   localStorage.setItem('vit_user', JSON.stringify(user))
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('vit-auth-change'))
+  }
 }
 
 /** Returns auth header object ready for fetch, or {} if not logged in. */

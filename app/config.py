@@ -1,9 +1,42 @@
 import os
 import sys
 import logging
+from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def load_runtime_env(env_path: str | None = None) -> None:
+    """Load the workspace .env files if python-dotenv is available.
+
+    This is required because several subsystems check REDIS_URL and other
+    runtime settings before the main app lifecycle has initialized its config
+    manager. When the process starts outside the repo root or with a nested
+    working directory, those values can remain unset even though a .env file
+    exists in the project root.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+
+    candidates: list[Path] = []
+    if env_path:
+        candidates.append(Path(env_path))
+
+    start_dir = Path.cwd()
+    for directory in [start_dir, *start_dir.parents]:
+        for filename in (".env", ".env.local"):
+            path = directory / filename
+            if path not in candidates and path.exists():
+                candidates.append(path)
+
+    for path in candidates:
+        load_dotenv(path, override=False)
+
+
+load_runtime_env()
 
 # --- Core App Settings ---
 APP_NAME: str = "VIT Network"

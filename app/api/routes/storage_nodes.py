@@ -55,6 +55,32 @@ PROVIDER_CRED_FIELDS: Dict[str, List[str]] = {
 }
 
 
+def normalize_storage_credentials(provider: str, credentials: Dict[str, str]) -> Dict[str, str]:
+    normalized = {key: value.strip() for key, value in (credentials or {}).items() if value and value.strip()}
+    provider_key = provider.strip().lower().replace("google_drive", "gdrive").replace("google-drive", "gdrive")
+
+    if provider_key not in PROVIDER_CRED_FIELDS:
+        raise ValueError(f"Unknown provider: {provider}")
+
+    if provider_key == "gdrive":
+        if normalized.get("service_account_json"):
+            return {
+                "service_account_json": normalized["service_account_json"],
+            }
+        if normalized.get("access_token") and normalized.get("refresh_token"):
+            return {
+                "access_token": normalized["access_token"],
+                "refresh_token": normalized["refresh_token"],
+            }
+        raise ValueError("Google Drive requires service_account_json or both access_token and refresh_token")
+
+    required = PROVIDER_CRED_FIELDS[provider_key]
+    missing = [field for field in required if not normalized.get(field)]
+    if missing:
+        raise ValueError(f"Missing credential fields for {provider_key}: {missing}")
+    return {field: normalized[field] for field in required if normalized.get(field)}
+
+
 class RegisterNodeRequest(BaseModel):
     provider: str
     alias: str
@@ -115,20 +141,10 @@ async def register_node(
     if provider not in PROVIDER_CRED_FIELDS:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {req.provider}. Use: {list(PROVIDER_CRED_FIELDS)}")
 
-    credentials = {key: value.strip() for key, value in req.credentials.items() if value and value.strip()}
-    if provider == "gdrive":
-        has_service_account = bool(credentials.get("service_account_json"))
-        has_oauth = bool(credentials.get("access_token")) and bool(credentials.get("refresh_token"))
-        if not has_service_account and not has_oauth:
-            raise HTTPException(
-                status_code=422,
-                detail="Google Drive requires service_account_json or both access_token and refresh_token",
-            )
-    else:
-        required = PROVIDER_CRED_FIELDS[provider]
-        missing = [f for f in required if not credentials.get(f)]
-        if missing:
-            raise HTTPException(status_code=422, detail=f"Missing credential fields for {provider}: {missing}")
+    try:
+        credentials = normalize_storage_credentials(provider, req.credentials)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     alias_clean = re.sub(r"[^\w\s-]", "", req.alias).strip()[:40] or f"{req.provider.title()} Node"
 

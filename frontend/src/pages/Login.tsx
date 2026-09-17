@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { Mail, Lock, User, Eye, EyeOff, AlertCircle, Layers, Brain, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
-import { setAuthToken, storeUser } from '@/hooks/useAuth'
+import { getAuthToken, setAuthToken, storeUser } from '@/hooks/useAuth'
 
 const PERKS = [
   { icon: Brain,  label: 'AI Predictions',  desc: '13+ ML models across 50+ leagues' },
@@ -21,6 +21,14 @@ export default function Login() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
   const navigate                = useNavigate()
+  const location                = useLocation()
+  const redirectTarget          = (location.state as { from?: string } | null)?.from || '/workspace'
+
+  useEffect(() => {
+    if (getAuthToken()) {
+      navigate(redirectTarget, { replace: true })
+    }
+  }, [navigate, redirectTarget])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -75,7 +83,7 @@ export default function Login() {
       }
       setAuthToken(data.access_token)
       storeUser({ id: data.user_id, username: data.username, role: data.role })
-      navigate('/workspace')
+      navigate(redirectTarget, { replace: true })
     } catch (e: any) {
       // Surface network errors separately for clarity
       if (e instanceof TypeError) {

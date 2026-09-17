@@ -141,6 +141,7 @@ export default function Home() {
 
   const overallStatus = sysStatus?.gateway_status ?? 'loading'
   const isHealthy     = overallStatus === 'healthy' || overallStatus === 'ok'
+  const isAuthenticated = Boolean(getAuthToken())
 
   const STAT_ITEMS = [
     { label: 'Models Loaded',    value: stats?.models_loaded ?? '13+' },
@@ -193,11 +194,11 @@ export default function Home() {
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/register" className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white font-medium transition-all shadow-xl shadow-vit-500/25 hover:shadow-vit-500/40 text-sm">
-              Enter the network <ArrowRight className="w-4 h-4" />
+            <Link to={isAuthenticated ? '/dashboard' : '/register'} className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white font-medium transition-all shadow-xl shadow-vit-500/25 hover:shadow-vit-500/40 text-sm">
+              {isAuthenticated ? 'Open dashboard' : 'Enter the network'} <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link to="/matches" className="flex items-center gap-2 px-8 py-3.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white font-medium transition-colors text-sm">
-              Browse Matches <ChevronRight className="w-4 h-4" />
+            <Link to={isAuthenticated ? '/workspace' : '/matches'} className="flex items-center gap-2 px-8 py-3.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white font-medium transition-colors text-sm">
+              {isAuthenticated ? 'Open workspace' : 'Browse Matches'} <ChevronRight className="w-4 h-4" />
             </Link>
           </motion.div>
 

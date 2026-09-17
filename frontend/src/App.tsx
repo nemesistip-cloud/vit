@@ -46,6 +46,20 @@ function RequireAuth() {
   return <Outlet />
 }
 
+function RequireGuest() {
+  const token    = getAuthToken()
+  const location = useLocation()
+  if (token) {
+    const from = (location.state as { from?: string } | null)?.from
+    return <Navigate to={from && from.startsWith('/') ? from : '/dashboard'} replace />
+  }
+  return <Outlet />
+}
+
+function PublicHomeGate() {
+  return getAuthToken() ? <Navigate to="/dashboard" replace /> : <Home />
+}
+
 // ── Public / marketing (lazy) ─────────────────────────────────────────────────
 const Home          = lazy(() => import('@/pages/Home'))
 const Platform      = lazy(() => import('@/pages/Platform'))
@@ -119,7 +133,7 @@ export default function App() {
     <Routes>
       {/* ── Public / marketing ─────────────────────────────────────────────── */}
       <Route element={<PublicShell />}>
-        <Route path="/"                element={wrap(<Home />)}          />
+        <Route path="/"                element={wrap(<PublicHomeGate />)} />
         <Route path="/platform"        element={wrap(<Platform />)}       />
         <Route path="/ai"              element={wrap(<AI />)}             />
         <Route path="/storage"         element={wrap(<Storage />)}        />
@@ -136,8 +150,10 @@ export default function App() {
         <Route path="/marketplace"     element={wrap(<Marketplace />)}    />
         <Route path="/chain"           element={wrap(<Explorer />)}       />
         <Route path="/explorer"        element={<Navigate to="/chain" replace />} />
-        <Route path="/login"           element={wrap(<Login />)}          />
-        <Route path="/register"        element={wrap(<Login />)}          />
+        <Route element={<RequireGuest />}>
+          <Route path="/login"           element={wrap(<Login />)}          />
+          <Route path="/register"        element={wrap(<Login />)}          />
+        </Route>
         <Route path="/forgot-password" element={wrap(<ForgotPassword />)} />
         <Route path="/reset-password"  element={wrap(<ResetPassword />)}  />
         <Route path="/verify-email"    element={wrap(<VerifyEmail />)}    />
