@@ -20,6 +20,7 @@ jobs:
       - name: Trigger deploy via Render API
         run: |
           SERVICE_ID="${{ secrets.RENDER_SERVICE_ID }}"
+          SERVICE_ID="${SERVICE_ID:-srv-d8sipgjeo5us73eis7hg}"
           API_KEY="${{ secrets.RENDER_API_KEY }}"
           if [[ -z "$SERVICE_ID" || -z "$API_KEY" ]]; then
             echo "Render API trigger secrets are not configured; autoDeploy:yes will handle this push."

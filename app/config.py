@@ -168,7 +168,10 @@ BOOTSTRAP_MATCH_MONTHS: int = int(get_val("app", "bootstrap_match_months", 6))
 
 # Base L2 removed. VIT Chain standalone: VIT_CHAIN_URL points to vitnetwork/vit-chain.
 VIT_CHAIN_URL: str = get_val("chain", "vit_chain_url", "")
-VIT_CHAIN_MODE: str = os.getenv("VIT_CHAIN_MODE", "local").strip().lower()
+VIT_CHAIN_MODE: str = os.getenv(
+    "VIT_CHAIN_MODE",
+    "external" if ENVIRONMENT.lower() == "production" else "local",
+).strip().lower()
 
 ENABLE_SCRAPING: bool = os.getenv("ENABLE_SCRAPING", "false").lower() == "true"
 AUTH_ENABLED: bool = os.getenv("AUTH_ENABLED", "true").lower() == "true"
