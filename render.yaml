@@ -58,6 +58,10 @@ services:
           value: https://vit-storage-4trt.onrender.com
         - key: TACHYON_ENDPOINT
           value: https://vit-storage-4trt.onrender.com/api/tachyon
+        - key: VIT_CHAIN_MODE
+          value: external
+        - key: VIT_CHAIN_URL
+          value: https://vit-chain.onrender.com
         - key: SERVICE_TOKEN_SECRET
           sync: false
         - key: VIT_AI_API_KEY
@@ -117,6 +121,10 @@ services:
           value: https://vit-storage-4trt.onrender.com
         - key: TACHYON_ENDPOINT
           value: https://vit-storage-4trt.onrender.com/api/tachyon
+        - key: VIT_CHAIN_MODE
+          value: external
+        - key: VIT_CHAIN_URL
+          value: https://vit-chain.onrender.com
         - key: SERVICE_TOKEN_SECRET
           sync: false
         - key: VIT_AI_API_KEY

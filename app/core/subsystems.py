@@ -355,11 +355,16 @@ def register_core_subsystems():
     except Exception as _e:
         _log.warning("[kernel] AuthorizationSubsystem unavailable (skipped): %s", _e)
 
-    try:
-        from vit_chain.core.subsystem import BlockchainSubsystem
-        kernel.register_subsystem(BlockchainSubsystem)
-    except Exception as _e:
-        _log.warning("[kernel] BlockchainSubsystem unavailable (skipped): %s", _e)
+    # Production uses the standalone VIT Chain service. The gateway must not
+    # run local genesis against its own database in that mode.
+    if os.getenv("VIT_CHAIN_MODE", "local").strip().lower() == "external":
+        _log.info("[kernel] External VIT Chain configured; local blockchain subsystem skipped.")
+    else:
+        try:
+            from vit_chain.core.subsystem import BlockchainSubsystem
+            kernel.register_subsystem(BlockchainSubsystem)
+        except Exception as _e:
+            _log.warning("[kernel] BlockchainSubsystem unavailable (skipped): %s", _e)
 
     try:
         from app.core.wallet.subsystem import WalletSubsystem

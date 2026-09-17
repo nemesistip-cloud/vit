@@ -85,6 +85,7 @@ _ENV_ALIASES = {
     ("db", "echo"): "DB_ECHO",
     ("redis", "url"): "REDIS_URL",
     ("redis", "pool_size"): "REDIS_POOL_SIZE",
+    ("chain", "vit_chain_url"): "VIT_CHAIN_URL",
     ("ai", "isports_api_key"): "ISPORTS_API_KEY",
     ("ai", "football_data_api_key"): "FOOTBALL_DATA_API_KEY",
     ("ai", "the_odds_api_key"): "ODDS_API_KEY",
@@ -167,6 +168,7 @@ BOOTSTRAP_MATCH_MONTHS: int = int(get_val("app", "bootstrap_match_months", 6))
 
 # Base L2 removed. VIT Chain standalone: VIT_CHAIN_URL points to vitnetwork/vit-chain.
 VIT_CHAIN_URL: str = get_val("chain", "vit_chain_url", "")
+VIT_CHAIN_MODE: str = os.getenv("VIT_CHAIN_MODE", "local").strip().lower()
 
 ENABLE_SCRAPING: bool = os.getenv("ENABLE_SCRAPING", "false").lower() == "true"
 AUTH_ENABLED: bool = os.getenv("AUTH_ENABLED", "true").lower() == "true"
