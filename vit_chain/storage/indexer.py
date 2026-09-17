@@ -114,6 +114,21 @@ class ChainIndexer:
         latest_res = await db.execute(select(ChainBlock).order_by(desc(ChainBlock.height)).limit(1))
         latest = latest_res.scalar_one_or_none()
 
+        recent_timestamps = (
+            await db.execute(
+                select(ChainBlock.timestamp)
+                .where(ChainBlock.timestamp.is_not(None))
+                .order_by(desc(ChainBlock.height))
+                .limit(100)
+            )
+        ).scalars().all()
+        intervals = [
+            older - newer
+            for newer, older in zip(recent_timestamps, recent_timestamps[1:])
+            if older > newer
+        ]
+        avg_block_time = sum(intervals) / len(intervals) if intervals else None
+
         circ = await db.scalar(select(func.sum(ChainAccount.balance))) or Decimal("0")
 
         # Explicitly flush to ensure data is visible to queries in same session
@@ -125,6 +140,6 @@ class ChainIndexer:
             "total_accounts": total_accounts,
             "latest_block_height": latest.height if latest else -1,
             "latest_block_time": latest.timestamp if latest else 0,
-            "avg_block_time_seconds": 15, # Constant for now
+            "avg_block_time_seconds": avg_block_time,
             "total_vit_in_circulation": str(circ)
         }
