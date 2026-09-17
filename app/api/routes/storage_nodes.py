@@ -48,6 +48,7 @@ PROVIDER_LABEL = {
 }
 
 PROVIDER_CRED_FIELDS: Dict[str, List[str]] = {
+    # Personal Drive accounts use OAuth; service accounts remain supported for nodes.
     "gdrive": ["service_account_json"],
     "dropbox": ["access_token", "app_key", "app_secret", "refresh_token"],
     "onedrive": ["client_id", "client_secret", "tenant_id", "user_id"],
@@ -110,24 +111,34 @@ async def register_node(
     db: AsyncSession = Depends(get_db),
 ):
     """Link a personal cloud storage account as a Tachyon swarm node."""
-    if req.provider not in PROVIDER_CRED_FIELDS:
+    provider = req.provider.strip().lower().replace("google_drive", "gdrive").replace("google-drive", "gdrive")
+    if provider not in PROVIDER_CRED_FIELDS:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {req.provider}. Use: {list(PROVIDER_CRED_FIELDS)}")
 
-    required = PROVIDER_CRED_FIELDS[req.provider]
-    missing = [f for f in required if not req.credentials.get(f, "").strip()]
-    if missing:
-        raise HTTPException(status_code=422, detail=f"Missing credential fields for {req.provider}: {missing}")
+    credentials = {key: value.strip() for key, value in req.credentials.items() if value and value.strip()}
+    if provider == "gdrive":
+        has_service_account = bool(credentials.get("service_account_json"))
+        has_oauth = bool(credentials.get("access_token")) and bool(credentials.get("refresh_token"))
+        if not has_service_account and not has_oauth:
+            raise HTTPException(
+                status_code=422,
+                detail="Google Drive requires service_account_json or both access_token and refresh_token",
+            )
+    else:
+        required = PROVIDER_CRED_FIELDS[provider]
+        missing = [f for f in required if not credentials.get(f)]
+        if missing:
+            raise HTTPException(status_code=422, detail=f"Missing credential fields for {provider}: {missing}")
 
     alias_clean = re.sub(r"[^\w\s-]", "", req.alias).strip()[:40] or f"{req.provider.title()} Node"
 
-    config_prefix = f"storage_node:{current_user.id}:{req.provider}:{int(datetime.now().timestamp())}"
-    for field, value in req.credentials.items():
-        if value.strip():
-            db.add(PlatformConfig(key=f"{config_prefix}:{field}", value=value.strip()))
+    config_prefix = f"storage_node:{current_user.id}:{provider}:{int(datetime.now().timestamp())}"
+    for field, value in credentials.items():
+        db.add(PlatformConfig(key=f"{config_prefix}:{field}", value=value))
 
     node = UserStorageNode(
         user_id=current_user.id,
-        provider=req.provider,
+        provider=provider,
         alias=alias_clean,
         config_key=config_prefix,
         status="active",
@@ -139,7 +150,7 @@ async def register_node(
 
     logger.info(
         "[storage_node] user=%d registered %s node '%s' (%s GB)",
-        current_user.id, req.provider, alias_clean, node.gb_contributed,
+        current_user.id, provider, alias_clean, node.gb_contributed,
     )
     return {
         "node": _node_out(node),

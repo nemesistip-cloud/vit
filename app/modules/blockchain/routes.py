@@ -565,7 +565,9 @@ async def apply_as_validator(
     db: AsyncSession = Depends(get_db),
 ):
     allowed_roles = {"analyst", "pro", "elite", "admin", "validator"}
-    if current_user.role not in allowed_roles:
+    admin_roles = {"super_admin", "admin", "support", "auditor"}
+    is_admin = current_user.role in allowed_roles or getattr(current_user, "admin_role", None) in admin_roles
+    if not is_admin:
         raise HTTPException(
             403,
             "Analyst, Pro, Elite, or Admin tier required to apply as a validator. "
