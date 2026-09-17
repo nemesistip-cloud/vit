@@ -163,6 +163,9 @@ class VitAIClient:
 
             if isinstance(data, dict):
                 completion = data.get("result")
+                if isinstance(completion, dict) and completion.get("status") == "error":
+                    message = completion.get("message") or "vit-ai returned an inference error"
+                    raise RuntimeError(f"vit-ai inference failed: {message}")
                 if completion is None:
                     completion = data.get("completion") or data.get("reply") or data.get("prediction_details")
                 if completion is None:

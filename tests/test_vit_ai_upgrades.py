@@ -122,6 +122,28 @@ async def test_vit_ai_client_call_ai_parsing():
         res = await c.call_ai("Predict Arsenal vs Chelsea", model="ensemble_v1")
         assert res == "Home Win 2-1"
 
+
+async def test_vit_ai_client_rejects_structured_error_response():
+    """HTTP 200 must not turn a failed vit-ai inference into a success."""
+    c = VitAIClient()
+    c.state = "CLOSED"
+    c.failure_count = 0
+
+    mock_resp = Response(
+        200,
+        headers={"content-type": "application/json"},
+        json={
+            "model_id": "xgb_v1",
+            "result": {"status": "error", "message": "model artifact invalid"},
+        },
+        request=Request("POST", "https://vit-ai.onrender.com/api/v1/chat"),
+    )
+
+    with patch.object(c, "_execute_with_retry", new_callable=AsyncMock) as mock_exec:
+        mock_exec.return_value = mock_resp
+        with pytest.raises(RuntimeError, match="model artifact invalid"):
+            await c.call_ai("Predict Arsenal vs Chelsea", model="xgb_v1")
+
 async def test_probability_validation_integrity():
     """Verify probability distribution normalization and validation."""
     # 3-way market (Football)

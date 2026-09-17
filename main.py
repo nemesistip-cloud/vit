@@ -376,7 +376,13 @@ async def readiness(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception:
         pass
     try:
+        # The startup path may expose Redis through the shared client without
+        # attaching it to app.state. Use that client before declaring Redis
+        # unavailable; readiness must reflect the actual runtime connection.
         redis_client = getattr(request.app.state, "redis", None)
+        if redis_client is None:
+            from app.core.redis import redis_client as shared_redis_client
+            redis_client = shared_redis_client
         if redis_client:
             await redis_client.ping()
             redis_ok = True
@@ -444,12 +450,15 @@ async def health():
     models = orch.num_models_ready() if orch else 0
 
     kernel_status = kernel.get_status()
-    kernel_degraded = kernel_status['kernel_state'] == 'DEGRADED'
+    kernel_degraded = kernel_status.get('kernel_state') == 'DEGRADED'
 
+    # Optional subsystem degradation should not force the whole gateway offline
+    # when the database is healthy and the model registry has loaded. The app can
+    # still serve traffic while non-blocking services recover.
     if not db_ok:
         overall_status = "degraded"
-    elif kernel_degraded or models == 0:
-        overall_status = "starting" if models == 0 and not kernel_degraded else "degraded"
+    elif models == 0:
+        overall_status = "starting"
     else:
         overall_status = "ok"
 
