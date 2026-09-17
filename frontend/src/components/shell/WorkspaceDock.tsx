@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Brain, Home, MoreHorizontal, Settings, Shield, Sparkles, Trophy, Wallet, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getStoredUser } from '@/hooks/useAuth'
 import { useWorkspaceStore, workspaceStoreInstance } from '@/lib/workspacePersistence'
 import { getPinnedApps } from '@/lib/appRegistry'
 
@@ -10,6 +11,8 @@ export function WorkspaceDock() {
   const { pathname } = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
   const workspaceState = useWorkspaceStore()
+  const user = getStoredUser()
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
   const registryItems = getPinnedApps().map((app) => ({
     label: app.name,
     path: app.route,
@@ -114,6 +117,7 @@ export function WorkspaceDock() {
               { label: 'Explorer', path: '/chain', icon: Sparkles },
               { label: 'Governance', path: '/governance', icon: Shield },
               { label: 'Settings', path: '/settings', icon: Settings },
+              ...(isAdmin ? [{ label: 'Admin Control', path: '/admin', icon: Shield }] : []),
             ].map(({ label, path, icon: Icon }) => (
               <Link
                 key={path}
