@@ -7,8 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Wallet, Vote, Landmark, Store,
   Share2, Coins, Radio, BarChart3, Shield, Settings,
-  ChevronLeft, ChevronRight, Activity, Cpu, HardDrive,
-  Layers, Trophy, Star, Sparkles,
+  ChevronLeft, ChevronRight, Activity, HardDrive,
+  Layers, Trophy, Star, Sparkles, Globe2, Brain, Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getAuthToken, getStoredUser } from '@/hooks/useAuth'
@@ -28,19 +28,22 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    label: 'Explore',
+    items: [
+      { label: 'Platform', path: '/platform', icon: Globe2 },
+      { label: 'AI Intelligence', path: '/ai', icon: Brain },
+      { label: 'Matches', path: '/matches', icon: Trophy },
+      { label: 'Explorer', path: '/chain', icon: Layers },
+      { label: 'Status', path: '/status', icon: Activity },
+    ],
+  },
+  {
     label: 'Workspace',
     items: [
       { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
       { label: 'Predictions', path: '/predictions', icon: Sparkles },
-      { label: 'Matches', path: '/matches', icon: Trophy },
       { label: 'In-Play', path: '/inplay', icon: Radio, badge: 'LIVE' },
       { label: 'Wallet', path: '/wallet', icon: Wallet },
-    ],
-  },
-  {
-    label: 'Intelligence',
-    items: [
-      { label: 'AI Assistant', path: '/assistant', icon: Cpu },
       { label: 'Analytics Studio', path: '/analytics-studio', icon: BarChart3 },
       { label: 'Odds Compare', path: '/odds', icon: Star },
       { label: 'Backtest', path: '/backtest', icon: Layers },
@@ -50,20 +53,13 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Ecosystem',
     items: [
       { label: 'Marketplace', path: '/marketplace', icon: Store },
+      { label: 'Governance', path: '/governance', icon: Vote },
+      { label: 'Validators', path: '/validators', icon: Shield },
+      { label: 'Contributors', path: '/social', icon: Users },
       { label: 'Treasury', path: '/treasury', icon: Landmark },
       { label: 'DeFi', path: '/defi', icon: Coins },
       { label: 'Referral', path: '/referral', icon: Share2 },
-      { label: 'Ecosystem', path: '/ecosystem', icon: Sparkles },
-    ],
-  },
-  {
-    label: 'Network',
-    items: [
-      { label: 'Chain Explorer', path: '/chain', icon: Layers },
       { label: 'Storage', path: '/storage', icon: HardDrive },
-      { label: 'Validators', path: '/validators', icon: Shield },
-      { label: 'Governance', path: '/governance', icon: Vote },
-      { label: 'Status', path: '/status', icon: Activity },
     ],
   },
   {
@@ -84,6 +80,7 @@ export function Sidebar({ className }: SidebarProps) {
   const isLoggedIn = !!getAuthToken()
   const user = getStoredUser()
   const collapsed = workspaceState.sidebar.collapsed
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
   if (!isLoggedIn) return null
 
@@ -159,6 +156,33 @@ export function Sidebar({ className }: SidebarProps) {
             </ul>
           </div>
         ))}
+        {isAdmin && (
+          <div>
+            {!collapsed && (
+              <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-vit-400/60 truncate">
+                Admin
+              </p>
+            )}
+            <ul className="space-y-0.5 px-2">
+              <li>
+                <Link
+                  to="/admin"
+                  title={collapsed ? 'Admin Control' : undefined}
+                  className={cn(
+                    'flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm font-medium transition-colors',
+                    pathname.startsWith('/admin')
+                      ? 'bg-vit-500/15 text-vit-400'
+                      : 'text-white/45 hover:text-white hover:bg-white/5',
+                    collapsed && 'justify-center',
+                  )}
+                >
+                  <Shield className="w-4 h-4 shrink-0" />
+                  {!collapsed && <span className="truncate">Admin Control</span>}
+                </Link>
+              </li>
+            </ul>
+          </div>
+        )}
       </nav>
 
       {/* User footer */}

@@ -1,12 +1,14 @@
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Settings, Sparkles } from 'lucide-react'
+import { Brain, Home, MoreHorizontal, Settings, Shield, Sparkles, Trophy, Wallet, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkspaceStore, workspaceStoreInstance } from '@/lib/workspacePersistence'
 import { getPinnedApps } from '@/lib/appRegistry'
 
 export function WorkspaceDock() {
   const { pathname } = useLocation()
+  const [moreOpen, setMoreOpen] = useState(false)
   const workspaceState = useWorkspaceStore()
   const registryItems = getPinnedApps().map((app) => ({
     label: app.name,
@@ -29,7 +31,7 @@ export function WorkspaceDock() {
       <motion.nav
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-surface-900/85 px-2 py-2 shadow-2xl shadow-black/40 backdrop-blur-xl"
+        className="pointer-events-auto hidden flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-surface-900/85 px-2 py-2 shadow-2xl shadow-black/40 backdrop-blur-xl lg:flex"
       >
         {orderedItems.map(({ label, path, icon: Icon, hint }) => {
           const active = pathname === path || pathname.startsWith(`${path}/`)
@@ -67,6 +69,64 @@ export function WorkspaceDock() {
           <Sparkles className="h-4 w-4" />
           <span className="hidden sm:inline">Ask AI</span>
         </Link>
+      </motion.nav>
+      <motion.nav
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="pointer-events-auto relative flex w-full max-w-md items-center justify-around rounded-2xl border border-white/10 bg-surface-900/95 px-2 py-2 shadow-2xl shadow-black/50 backdrop-blur-xl lg:hidden"
+      >
+        {[
+          { label: 'Home', path: '/dashboard', icon: Home },
+          { label: 'Matches', path: '/matches', icon: Trophy },
+          { label: 'AI', path: '/assistant', icon: Brain },
+          { label: 'Wallet', path: '/wallet', icon: Wallet },
+        ].map(({ label, path, icon: Icon }) => {
+          const active = pathname === path || pathname.startsWith(`${path}/`)
+          return (
+            <Link
+              key={path}
+              to={path}
+              className={cn(
+                'flex min-w-14 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-medium transition-colors',
+                active ? 'bg-vit-500/15 text-vit-300' : 'text-white/45 hover:bg-white/5 hover:text-white',
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </Link>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => setMoreOpen(value => !value)}
+          className={cn(
+            'flex min-w-14 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-medium transition-colors',
+            moreOpen ? 'bg-white/10 text-white' : 'text-white/45 hover:bg-white/5 hover:text-white',
+          )}
+          aria-label="Open more navigation"
+        >
+          {moreOpen ? <X className="h-4 w-4" /> : <MoreHorizontal className="h-4 w-4" />}
+          More
+        </button>
+        {moreOpen && (
+          <div className="absolute bottom-full right-0 mb-2 w-52 rounded-2xl border border-white/10 bg-surface-800/98 p-2 shadow-2xl shadow-black/50">
+            {[
+              { label: 'Explorer', path: '/chain', icon: Sparkles },
+              { label: 'Governance', path: '/governance', icon: Shield },
+              { label: 'Settings', path: '/settings', icon: Settings },
+            ].map(({ label, path, icon: Icon }) => (
+              <Link
+                key={path}
+                to={path}
+                onClick={() => setMoreOpen(false)}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </Link>
+            ))}
+          </div>
+        )}
       </motion.nav>
     </div>
   )

@@ -23,3 +23,26 @@ test('Matches page renders its real tabs, summary count, and search', async ({ p
 
   await page.screenshot({ path: 'matches-tabs.png' });
 });
+
+test('authenticated shell exposes product layers and mobile More navigation', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'ui-shell-smoke-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'operator', role: 'admin' }));
+  });
+
+  await page.goto('/workspace');
+  const sidebar = page.getByRole('complementary');
+  await expect(sidebar.getByText('Explore', { exact: true })).toBeVisible();
+  await expect(sidebar.getByText('Workspace', { exact: true })).toBeVisible();
+  await expect(sidebar.getByText('Ecosystem', { exact: true })).toBeVisible();
+  await expect(sidebar.getByText('Admin Control', { exact: true })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('button', { name: 'Open more navigation' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open more navigation' }).click();
+  const moreMenu = page.locator('div.absolute.bottom-full');
+  await expect(moreMenu.getByRole('link', { name: 'Explorer', exact: true })).toBeVisible();
+  await expect(moreMenu.getByRole('link', { name: 'Governance', exact: true })).toBeVisible();
+
+  await page.screenshot({ path: 'authenticated-shell-mobile.png' });
+});
