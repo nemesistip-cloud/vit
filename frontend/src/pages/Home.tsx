@@ -15,8 +15,13 @@ function useSystemStatus() {
   return useQuery({
     queryKey: ['system-status-home'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/system/health/summary`, { signal })
-      return r.ok ? r.json() : null
+      const [healthResponse, summaryResponse] = await Promise.all([
+        fetch(`${ENDPOINTS.gateway}/health`, { signal }),
+        fetch(`${ENDPOINTS.gateway}/api/system/health/summary`, { signal }),
+      ])
+      const health = healthResponse.ok ? await healthResponse.json() : null
+      const summary = summaryResponse.ok ? await summaryResponse.json() : null
+      return { ...summary, gateway_status: health?.status, gateway_health: health }
     },
     staleTime: 30_000, refetchInterval: 60_000,
   })
@@ -134,8 +139,8 @@ export default function Home() {
   const { data: matches }    = useTopMatches()
   const { data: leaderboard } = useLeaderboardPreview()
 
-  const overallStatus = sysStatus?.overall_status ?? 'loading'
-  const isHealthy     = overallStatus === 'HEALTHY' || overallStatus === 'ok'
+  const overallStatus = sysStatus?.gateway_status ?? 'loading'
+  const isHealthy     = overallStatus === 'healthy' || overallStatus === 'ok'
 
   const STAT_ITEMS = [
     { label: 'Models Loaded',    value: stats?.models_loaded ?? '13+' },
