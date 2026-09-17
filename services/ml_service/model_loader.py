@@ -15,6 +15,7 @@ the orchestrator to fall back to its algorithmic models.
 import logging
 import os
 import tempfile
+import warnings
 import concurrent.futures
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -145,7 +146,15 @@ def load_model(model_key: str, cache_enabled: bool = True) -> Optional[Dict[str,
 
     try:
         import joblib
-        raw = joblib.load(pkl_path)
+        from sklearn.exceptions import InconsistentVersionWarning
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+            warnings.filterwarnings(
+                "ignore",
+                message=".*Trying to unpickle.*version.*This might lead to breaking code.*",
+            )
+            raw = joblib.load(pkl_path)
 
         if isinstance(raw, dict) and "model" in raw:
             payload = raw

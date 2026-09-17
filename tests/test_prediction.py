@@ -85,6 +85,42 @@ def test_validate_prediction_response_rejects_invalid_two_way_probs():
         validate_prediction_response(payload, sport="basketball")
 
 
+@pytest.mark.asyncio
+async def test_predict_accepts_valid_two_way_market_odds_for_basketball():
+    payload = {
+        "home_team": "Atlanta Dream",
+        "away_team": "Connecticut Sun",
+        "league": "WNBA",
+        "kickoff_time": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+        "sport": "basketball",
+        "market_odds": {"home": 1.87, "away": 1.96},
+    }
+    async with _client() as client:
+        resp = await client.post("/api/predict", json=payload)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["draw_prob"] == 0.0
+    assert data["bet_side"] in {"home", "away"}
+
+
+@pytest.mark.asyncio
+async def test_predict_accepts_valid_two_way_market_odds_for_rugby():
+    payload = {
+        "home_team": "Castres Olympique",
+        "away_team": "RC Toulonnais",
+        "league": "French Top 14",
+        "kickoff_time": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+        "sport": "rugby",
+        "market_odds": {"home": 1.80, "away": 2.05},
+    }
+    async with _client() as client:
+        resp = await client.post("/api/predict", json=payload)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["draw_prob"] == 0.0
+    assert data["bet_side"] in {"home", "away"}
+
+
 def test_validate_prediction_response_rejects_invalid_three_way_probs():
     payload = {"home_prob": 0.0, "draw_prob": 0.0, "away_prob": 0.0}
     with pytest.raises(ValueError, match="must include valid home, draw, and away probabilities"):

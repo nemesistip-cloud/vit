@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, delete, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,6 +61,8 @@ async def _get_or_create_global_identity(db: AsyncSession, user: User):
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
 class SessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     session_token_preview: str
     device_id: Optional[str]
@@ -70,10 +72,6 @@ class SessionOut(BaseModel):
     created_at: datetime
     last_activity: datetime
     expires_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 @router.get("/sessions", response_model=List[SessionOut])
 async def list_sessions(
@@ -168,6 +166,8 @@ async def revoke_all_sessions(
 # ── Devices ───────────────────────────────────────────────────────────────────
 
 class DeviceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     device_id: str
     platform: Optional[str]
@@ -176,10 +176,6 @@ class DeviceOut(BaseModel):
     risk_score: int
     last_ip: Optional[str]
     last_active: datetime
-
-    class Config:
-        from_attributes = True
-
 
 @router.get("/devices", response_model=List[DeviceOut])
 async def list_devices(

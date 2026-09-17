@@ -5,7 +5,10 @@ Unit tests for supporting ML service modules:
   - market_engine
 """
 import random
+import warnings
+
 import pytest
+from sklearn.exceptions import InconsistentVersionWarning
 
 
 # ── ModelLoader ───────────────────────────────────────────────────────────────
@@ -35,6 +38,31 @@ class TestModelLoader:
         from services.ml_service.model_loader import list_available_models
         models = list_available_models()
         assert isinstance(models, list)
+
+    def test_load_model_suppresses_version_mismatch_warning(self, monkeypatch):
+        from pathlib import Path
+
+        from services.ml_service import model_loader
+
+        def fake_load(_path):
+            warnings.warn(
+                InconsistentVersionWarning(
+                    estimator_name="X",
+                    current_sklearn_version="1.9.1",
+                    original_sklearn_version="1.6.1",
+                )
+            )
+            return {"model": object(), "metrics": {"accuracy": 0.5}, "training_samples": 10}
+
+        monkeypatch.setattr(model_loader, "_find_pkl", lambda _key: Path("/tmp/legacy_model.pkl"))
+        monkeypatch.setattr("joblib.load", fake_load)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = model_loader.load_model("legacy_model", cache_enabled=False)
+
+        assert result is not None
+        assert not any(isinstance(w.message, InconsistentVersionWarning) for w in caught)
 
 
 # ── Simulation Engine — module-level pure functions ───────────────────────────

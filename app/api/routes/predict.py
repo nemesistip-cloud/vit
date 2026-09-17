@@ -194,12 +194,14 @@ def compute_model_consensus(
         }
     votes: dict = {"home": 0, "draw": 0, "away": 0}
     for m in model_insights:
+        if m.get("failed"):
+            continue
         hp = float(m.get("home_prob") or 0.0)
         dp = float(m.get("draw_prob") or 0.0)
         ap = float(m.get("away_prob") or 0.0)
         side = max((("home", hp), ("draw", dp), ("away", ap)), key=lambda x: x[1])[0]
         votes[side] += 1
-    n = len(model_insights)
+    n = sum(1 for model in model_insights if not model.get("failed"))
     denom = max(1.0, float(total_specs or n or 0))
     return {
         "leader": final_pick,
@@ -246,17 +248,19 @@ def build_alternative_bets(best_bet: dict, top_n: int = 5, min_edge: float = 0.0
 def build_prediction_response(prediction: Prediction, match: Match, orchestrator: Optional[object] = None, sport: str = "football", available_markets: list[str] = None, data_quality: Optional[dict] = None, data_source: str = "native_ensemble") -> PredictionResponse:
     conf = prediction.confidence
     rating = "EXCELLENT" if conf >= 0.80 else ("VERY GOOD" if conf >= 0.72 else ("GOOD" if conf >= 0.63 else ("FAIR" if conf >= 0.55 else "POOR")))
-    accuracy = round(min(82.0, max(54.0, 44.0 + conf * 50.0)), 1)
     return PredictionResponse(
         match_id=prediction.match_id, sport=sport, available_markets=available_markets or [],
         home_prob=prediction.home_prob, draw_prob=prediction.draw_prob, away_prob=prediction.away_prob,
         over_25_prob=prediction.over_25_prob, under_25_prob=prediction.under_25_prob, btts_prob=prediction.btts_prob,
         model_consensus=prediction.model_consensus, alternative_bets=prediction.alternative_bets, consensus_prob=prediction.consensus_prob,
         final_ev=prediction.final_ev, recommended_stake=prediction.recommended_stake, edge=prediction.vig_free_edge, confidence=prediction.confidence, timestamp=prediction.timestamp,
-        models_used=len(prediction.model_insights) if prediction.model_insights else 0,
+        models_used=sum(
+            1 for insight in (prediction.model_insights or [])
+            if not insight.get("failed", False)
+        ),
         models_total=13,
         data_source=data_source, bet_side=prediction.bet_side, entry_odds=prediction.entry_odds, raw_edge=prediction.raw_edge, normalized_edge=prediction.normalized_edge, vig_free_edge=prediction.vig_free_edge,
-        model_weights=prediction.model_weights or {}, model_insights=prediction.model_insights or [], neural_consensus_score=(prediction.consensus_prob * 100), analytics_rating=rating, prediction_accuracy_estimate=accuracy, data_quality=data_quality
+        model_weights=prediction.model_weights or {}, model_insights=prediction.model_insights or [], neural_consensus_score=(prediction.consensus_prob * 100), analytics_rating=rating, prediction_accuracy_estimate=None, data_quality=data_quality
     )
 
 @router.post("", response_model=PredictionResponse)
@@ -479,7 +483,11 @@ async def predict(
             "web_context_text":  web_context_text,       # ← formatted for AI prompts
         }
 
-        raw_result = await orchestrator.predict(features, idempotency_key, sport=sport)
+        if sport == "football":
+            raw_result = await orchestrator.predict(features, idempotency_key, sport=sport)
+        else:
+            multi_orch = MultiSportOrchestrator(orchestrator)
+            raw_result = await multi_orch.predict(features, idempotency_key, sport=sport)
         pred_data  = raw_result.get("predictions", raw_result)
         result     = validate_prediction_response(pred_data, market_odds=match.market_odds, sport=getattr(match, "sport", None))
 
@@ -576,9 +584,9 @@ async def predict(
                 scalar_conf = float(raw_conf or 0.0)
                 conf_breakdown = {}
             model_insights_payload.append({
-                "model_name":            p.get("model_name"),
-                "model_type":            p.get("model_type"),
-                "model_weight":          p.get("model_weight", 1.0),
+                "model_name":            p.get("model_name") or "unknown",
+                "model_type":            p.get("model_type") or "algorithmic",
+                "model_weight":          float(p.get("model_weight") or 1.0),
                 "supported_markets":     p.get("supported_markets", []),
                 "home_prob":             p.get("home_prob"),
                 "draw_prob":             p.get("draw_prob"),
@@ -709,6 +717,52 @@ async def predict(
         db.add(prediction)
         await db.flush()
         await db.commit()
+
+        # Persist the exact feature and market snapshot used for this prediction
+        # so the detail endpoint can explain its evidence instead of rebuilding
+        # quality from mutable match data later.
+        try:
+            from app.modules.evidence.service import create_evidence_snapshot
+
+            evidence_features = {
+                **match_features,
+                "home_team": match.home_team,
+                "away_team": match.away_team,
+                "league": match.league,
+                "kickoff_time": naive_kickoff.isoformat(),
+            }
+            evidence_snapshot = await create_evidence_snapshot(
+                db=db,
+                match_id=db_match.id,
+                feature_completeness_pct=round(completeness * 100),
+                provider_data={
+                    "source": db_match.source,
+                    "features": evidence_features,
+                    "market_odds": match.market_odds,
+                    "fixture_id": match.fixture_id,
+                },
+                missing_critical_inputs=data_quality["warnings"],
+                market_keys_to_evaluate=["1x2", "over_under_2_5", "btts"],
+            )
+            data_quality["evidence_score"] = evidence_snapshot.quality_score
+            data_quality["evidence_snapshot_id"] = evidence_snapshot.id
+            evidence_score = float(evidence_snapshot.quality_score)
+            evidence_classification = (
+                "STRONG" if evidence_score >= 85.0 else
+                "STANDARD" if evidence_score >= 70.0 else
+                "LIMITED" if evidence_score >= 55.0 else
+                "UNAVAILABLE"
+            )
+            prediction.provenance = {
+                **(prediction.provenance or {}),
+                "evidence_score": evidence_score,
+                "evidence_classification": evidence_classification,
+                "evidence_snapshot_id": evidence_snapshot.id,
+            }
+            await db.commit()
+        except Exception as evidence_exc:
+            logger.warning("Evidence snapshot creation failed (non-fatal): %s", evidence_exc)
+            data_quality["warnings"].append("evidence_snapshot_failed")
 
         logger.info(
             f"Prediction saved: fixture_id={fixture_id}, match={db_match.id}, "

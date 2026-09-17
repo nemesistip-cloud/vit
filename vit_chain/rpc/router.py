@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from app.db.database import get_db
 from .server import VITChainRPC
 from vit_chain.storage.db import ChainBlock, ChainTransaction, ChainAccount
@@ -14,6 +14,8 @@ rpc_server = VITChainRPC()
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class BlockSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     height: int
     hash: str
     timestamp: int
@@ -21,10 +23,9 @@ class BlockSummary(BaseModel):
     validator: str
     block_reward: float
     
-    class Config:
-        from_attributes = True
-
 class TransactionSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     hash: str
     from_address: str
     to_address: str
@@ -33,17 +34,13 @@ class TransactionSummary(BaseModel):
     block_height: Optional[int]
     status: str
     
-    class Config:
-        from_attributes = True
-
 class AccountSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     address: str
     balance: str
     nonce: int
     
-    class Config:
-        from_attributes = True
-
 # ── RPC Endpoint ─────────────────────────────────────────────────────────────
 
 @router.post("/chain/rpc")

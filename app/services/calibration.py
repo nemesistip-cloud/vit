@@ -23,11 +23,13 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
 import joblib
 import numpy as np
+from sklearn.exceptions import InconsistentVersionWarning
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +82,13 @@ class CalibratorRegistry:
                 continue
             model_name, klass, method = parts
             try:
-                est = joblib.load(p)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+                    warnings.filterwarnings(
+                        "ignore",
+                        message=".*Trying to unpickle.*version.*This might lead to breaking code.*",
+                    )
+                    est = joblib.load(p)
             except Exception as e:
                 logger.warning("CALIBRATION load failed for %s: %s", p.name, e)
                 continue

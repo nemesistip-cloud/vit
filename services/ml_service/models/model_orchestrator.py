@@ -340,13 +340,27 @@ class ModelOrchestrator:
             return None
 
         odds = market_odds or {}
+        over25_implied = None
+        if isinstance(match_features, dict):
+            over25_implied = match_features.get("market_over25_prob_vf")
+        if over25_implied is None:
+            over25_odds = odds.get("over_2_5") or odds.get("over25")
+            under25_odds = odds.get("under_2_5") or odds.get("under25")
+            try:
+                if float(over25_odds) > 1.0 and float(under25_odds) > 1.0:
+                    over25_implied = _normalise(1.0 / float(over25_odds), 1.0 / float(under25_odds))[0]
+            except (TypeError, ValueError):
+                over25_implied = None
+        if over25_implied is None:
+            # Training uses a neutral value when the provider has no O/U market.
+            over25_implied = 0.50
         feature_map = {
             "home_odds": float(odds["home"]),
             "draw_odds": float(odds["draw"]),
             "away_odds": float(odds["away"]),
             "home_implied": base_hp, "draw_implied": base_dp, "away_implied": base_ap,
             "lam_h": lam_h, "lam_a": lam_a,
-            "over_25_implied": None,
+            "over_25_implied": float(over25_implied),
             "strength_ratio": lam_h / max(0.1, lam_a),
             "lambda_home_est": lam_h, "lambda_away_est": lam_a, "elo_diff": (lam_h - lam_a) * 80.0,
         }
@@ -502,7 +516,7 @@ class ModelOrchestrator:
                 individual_results.append({
                     "model_name": meta["model_name"], "model_type": meta["model_type"],
                     "model_weight": weight, "latency_ms": latency_ms, "failed": True,
-                    "error": str(exc),
+                    "error": "model_inference_failed",
                     "model_version": getattr(model, "_sklearn_version", None) or MODEL_VERSION,
                 })
 
@@ -610,7 +624,7 @@ class ModelOrchestrator:
             "grade": mq_grade,
             "label": "Model agreement",
             "home_advantage_bias": round(ha_bias, 4),
-            "components": {"agreement": mq_score, "models_used": len(active_models)},
+            "components": {"agreement": mq_score, "models_used": len(weights)},
         }
 
         # Attribution
@@ -637,13 +651,13 @@ class ModelOrchestrator:
                     "asian_hcp": None,
                     "correct_score": None,
                 },
-                "home_advantage_bias": round(ha_bias, 4), "confidence_intervals": ci, "models_used": len(active_models), "models_total": _TOTAL_MODEL_SPECS,
+                "home_advantage_bias": round(ha_bias, 4), "confidence_intervals": ci, "models_used": len(weights), "models_total": _TOTAL_MODEL_SPECS,
                 "model_agreement": model_agreement, "data_source": "differentiated_ensemble_v4", "model_version": MODEL_VERSION,
                 "ensemble_diversity": round(var_h, 5), "llm_signals_used": bool(ai_signals), "league": league or None,
                 "feature_version": match_features.get("feature_version"),
                 "match_quality_rating": match_quality,
             },
-            "individual_results": individual_results, "attribution": attribution, "models_count": len(active_models)
+            "individual_results": individual_results, "attribution": attribution, "models_count": len(weights)
         }
 
     def predict_with_scoreline(self, features: Dict[str, Any], match_id: str, home_score: int, away_score: int, minute: int) -> Dict[str, Any]:
