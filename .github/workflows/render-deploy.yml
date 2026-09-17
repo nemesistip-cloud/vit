@@ -30,9 +30,7 @@ jobs:
           RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
             -X POST \
             -H "Authorization: Bearer $API_KEY" \
-            -H "Content-Type: application/json" \
-            "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
-            -d '{}')
+            "https://api.render.com/v1/services/$SERVICE_ID/deploys")
           HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
           BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
           echo "Status: $HTTP_STATUS"
