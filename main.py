@@ -1405,6 +1405,27 @@ if os.path.exists(_frontend_dist):
             return FileResponse(_f)
         raise HTTPException(status_code=404)
 
+    @app.get("/manifest.webmanifest", include_in_schema=False)
+    async def manifest():
+        _f = f"{_frontend_dist}/manifest.webmanifest"
+        if os.path.exists(_f):
+            return FileResponse(_f, media_type="application/manifest+json")
+        raise HTTPException(status_code=404)
+
+    @app.get("/registerSW.js", include_in_schema=False)
+    async def register_sw():
+        _f = f"{_frontend_dist}/registerSW.js"
+        if os.path.exists(_f):
+            return FileResponse(_f, media_type="application/javascript")
+        raise HTTPException(status_code=404)
+
+    @app.get("/sw.js", include_in_schema=False)
+    async def service_worker():
+        _f = f"{_frontend_dist}/sw.js"
+        if os.path.exists(_f):
+            return FileResponse(_f, media_type="application/javascript")
+        raise HTTPException(status_code=404)
+
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
         """Catch-all: serve index.html so React Router handles client-side navigation.

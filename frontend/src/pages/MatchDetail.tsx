@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -513,6 +513,15 @@ export default function MatchDetail() {
   const navigate = useNavigate()
   const { data: match, isLoading: matchLoading, isError: matchIsError, error: matchError, refetch } = useMatch(id!)
 
+  useEffect(() => {
+    if (!match) return
+    const title = `${match.home_team} vs ${match.away_team} | VIT Network`
+    document.title = title
+    return () => {
+      document.title = 'VIT Network'
+    }
+  }, [match])
+
   const [isProcessing, setIsProcessing] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -612,6 +621,10 @@ export default function MatchDetail() {
           <ArrowLeft className="w-4 h-4" />
           Back to Matches
         </Link>
+
+        <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-4">
+          {match.home_team} vs {match.away_team}
+        </h1>
 
         {/* Match Hero Header */}
         <motion.div

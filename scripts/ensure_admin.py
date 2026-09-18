@@ -14,7 +14,11 @@ import os
 import sys
 import asyncio
 
+from dotenv import load_dotenv
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"), override=False)
 
 ADMIN_EMAIL    = os.getenv("ADMIN_EMAIL",    "admin@vit.network")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
