@@ -357,11 +357,16 @@ async def build_predict_features(
         ),
     })
 
-    # Completeness: 1.0 if we have ≥5 home, ≥5 away, ≥3 h2h matches
+    # Keep the underlying sample size explicit so readiness can distinguish
+    # real history from neutral fallback values.
     completeness_signals.append(min(1.0, home_10["n"] / 5.0))
     completeness_signals.append(min(1.0, away_10["n"] / 5.0))
     completeness_signals.append(min(1.0, h2h_b["n"] / 3.0))
     out["feature_completeness"] = round(sum(completeness_signals) / 3.0, 3)
+    out["history_sample_size"] = min(home_10["n"], away_10["n"])
+    out["home_history_sample_size"] = home_10["n"]
+    out["away_history_sample_size"] = away_10["n"]
+    out["h2h_sample_size"] = h2h_b["n"]
     out["feature_version"] = FEATURE_VERSION
 
     return out

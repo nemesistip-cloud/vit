@@ -49,7 +49,8 @@ class MultiSportOrchestrator:
 
     def __init__(self, football_orchestrator=None):
         self.football_orchestrator = football_orchestrator
-        self.use_real_ml = os.getenv("USE_REAL_ML_MODELS", "false").lower() == "true"
+        default_real_ml = "true" if os.getenv("ENVIRONMENT", "").lower() == "production" else "false"
+        self.use_real_ml = os.getenv("USE_REAL_ML_MODELS", default_real_ml).lower() == "true"
 
     async def predict(self, features: Dict[str, Any], idempotency_key: str = None, sport: str = "football") -> Dict[str, Any]:
         """Dispatch prediction request to the appropriate engine based on sport."""

@@ -22,6 +22,7 @@ from app.services.deterministic_insights import generate_match_insights
 from app.services.predict_features import build_predict_features, _team_search_terms
 from app.services.odds_provider import NormalizedOdds, OddsIntelligence, default_provider_registry, OddsFreshness
 from app.services.evidence_engine import EvidenceEngine, PredictionClassification
+from app.services.match_intelligence import MatchIntelligenceProfile, PredictionReadinessGate, ValidationStatus
 from app.core.dependencies import get_data_loader
 
 router = APIRouter(prefix="/matches", tags=["matches"])
@@ -41,6 +42,66 @@ def _evidence_score(value) -> float:
     except (TypeError, ValueError):
         return 0.0
     return score if math.isfinite(score) else 0.0
+
+
+def _build_match_intelligence_profile(
+    match: Match,
+    features: Optional[dict],
+    evidence: Optional[object],
+    reconciled_odds: Optional[object],
+    h2h_data: Optional[dict],
+    recent_form_data: Optional[dict],
+    model_agreement_pct: float,
+    historical_sample_size: int,
+    model_ready: bool,
+) -> MatchIntelligenceProfile:
+    """Create a traceable, real-data intelligence snapshot for a match."""
+    feature_block = features or {}
+    completeness = float(feature_block.get("feature_completeness", 0.0) or 0.0)
+    freshness = getattr(reconciled_odds, "freshness", None)
+    profile = MatchIntelligenceProfile(
+        fixture_id=str(match.external_id or match.id),
+        home_team=match.home_team,
+        away_team=match.away_team,
+        competition=match.league or "",
+        season="current",
+        feature_completeness=completeness,
+        data_quality_score=float(getattr(evidence, "total_score", 0.0) or 0.0),
+        validation_status=ValidationStatus.PARTIAL,
+        freshness_status=getattr(freshness, "value", "unknown") if freshness else "unknown",
+        odds_source=(
+            ",".join(getattr(reconciled_odds, "provider_sources", []) or [])
+            or match.source
+            or "unknown"
+        ),
+        history_samples=historical_sample_size,
+        model_ready=model_ready,
+    )
+
+    if not completeness:
+        profile.mark_missing("feature completeness below threshold")
+    if not getattr(reconciled_odds, "consensus_odds", None):
+        profile.mark_missing("Current market odds")
+    if model_agreement_pct < 0.6:
+        profile.mark_conflict("Model agreement below threshold")
+    h2h_matches = int((h2h_data or {}).get("matches_played", 0) or 0)
+    if h2h_matches < 1:
+        profile.mark_missing("Head-to-head context")
+    home_form = int((recent_form_data or {}).get("home", {}).get("matches_played", 0) or 0)
+    away_form = int((recent_form_data or {}).get("away", {}).get("matches_played", 0) or 0)
+    if home_form < 3 or away_form < 3:
+        profile.mark_missing("Recent form history for both teams")
+    if getattr(reconciled_odds, "has_anomaly", False):
+        profile.mark_conflict("Odds disagreement across bookmakers")
+
+    if evidence is not None and getattr(evidence, "missing_elements", None):
+        for reason in evidence.missing_elements:
+            profile.mark_missing(reason)
+
+    if not profile.missing_data_reasons and not profile.conflicting_reasons and completeness >= 0.8 and profile.data_quality_score >= 70.0:
+        profile.validation_status = ValidationStatus.VALID
+
+    return profile
 
 
 def _normalise_provider_team_name(name: Optional[str]) -> str:
@@ -1320,8 +1381,16 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
         # evidence input and must come from actual ensemble outputs.
         from app.core.dependencies import get_orchestrator_dep
         from app.services.multi_sport_orchestrator import MultiSportOrchestrator
+        model_ready = False
         try:
             base_orch = await get_orchestrator_dep()
+            model_ready = bool(
+                os.getenv(
+                    "USE_REAL_ML_MODELS",
+                    "true" if os.getenv("ENVIRONMENT", "").lower() == "production" else "false",
+                ).lower() == "true"
+                and getattr(base_orch, "num_models_ready", lambda: 0)() > 0
+            )
             orchestrator = MultiSportOrchestrator(football_orchestrator=base_orch)
             market_odds_payload = reconciled_odds.consensus_odds if reconciled_odds else None
             market_features = {
@@ -1392,6 +1461,90 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             is_completed=is_match_completed
         )
 
+        readiness_gate = PredictionReadinessGate(
+            min_feature_completeness=0.8,
+            min_evidence_score=55.0,
+            min_history_samples=3,
+        )
+        intelligence_profile = _build_match_intelligence_profile(
+            match=match,
+            features=features,
+            evidence=evidence,
+            reconciled_odds=reconciled_odds,
+            h2h_data=h2h,
+            recent_form_data=recent_form_data,
+            model_agreement_pct=model_agreement_pct,
+            historical_sample_size=int(features.get("history_sample_size", 0) or 0),
+            model_ready=model_ready,
+        )
+        readiness = readiness_gate.evaluate(
+            feature_completeness=float(features.get("feature_completeness", 0.0) or 0.0),
+            evidence_score=float(evidence.total_score or 0.0),
+            odds_available=bool(reconciled_odds and reconciled_odds.consensus_odds),
+            historical_sample_size=int(features.get("history_sample_size", 0) or 0),
+            data_freshness_ok=(getattr(reconciled_odds, "freshness", None) in {OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE}) if reconciled_odds else False,
+            model_ready=model_ready,
+        )
+
+        if not readiness["ready"]:
+            new_pred.status = "FAILED"
+            new_pred.error_message = f"PREDICTION UNAVAILABLE: {'; '.join(readiness['reasons']) or 'Insufficient evidence coverage'}"
+            new_pred.provenance = {
+                "job_id": job_id,
+                "status": "UNAVAILABLE",
+                "evidence_score": evidence.total_score,
+                "evidence_classification": evidence.classification.value,
+                "evidence_breakdown": {
+                    "verified_fixture": evidence.verified_fixture,
+                    "team_statistics": evidence.team_statistics,
+                    "recent_form": evidence.recent_form,
+                    "current_odds": evidence.current_odds,
+                    "bookmaker_agreement": evidence.bookmaker_agreement,
+                    "h2h_context": evidence.h2h_context,
+                    "model_agreement": evidence.model_agreement,
+                },
+                "checklist": evidence.checklist,
+                "missing_elements": evidence.missing_elements,
+                "rejection_reason": evidence.rejection_reason,
+                "feature_completeness": features.get("feature_completeness", 0.0),
+                "feature_version": features.get("feature_version"),
+                "model_agreement_pct": model_agreement_pct,
+                "odds_freshness": getattr(reconciled_odds, "freshness", None).value if getattr(reconciled_odds, "freshness", None) else None,
+                "bookmaker_count": getattr(reconciled_odds, "bookmaker_count", 0) if reconciled_odds else 0,
+                "market_consensus": getattr(reconciled_odds, "vig_free_probabilities", None) if reconciled_odds else None,
+                "market_margin": getattr(reconciled_odds, "margin", None) if reconciled_odds else None,
+                "market_dispersion": getattr(reconciled_odds, "dispersion", None) if reconciled_odds else {},
+                "match_intelligence": intelligence_profile.to_dict(),
+            }
+            await db.commit()
+            return {
+                "prediction_status": "unavailable",
+                "job_id": job_id,
+                "evidence_score": evidence.total_score,
+                "evidence_classification": evidence.classification.value,
+                "missing_elements": evidence.missing_elements,
+                "evidence_breakdown": {
+                    "verified_fixture": evidence.verified_fixture,
+                    "team_statistics": evidence.team_statistics,
+                    "recent_form": evidence.recent_form,
+                    "current_odds": evidence.current_odds,
+                    "bookmaker_agreement": evidence.bookmaker_agreement,
+                    "h2h_context": evidence.h2h_context,
+                    "model_agreement": evidence.model_agreement,
+                },
+                "checklist": evidence.checklist,
+                "provider_status": {
+                    "fixture_source": match.source,
+                    "external_id": match.external_id,
+                    "odds_freshness": getattr(reconciled_odds, "freshness", None).value if getattr(reconciled_odds, "freshness", None) else None,
+                    "bookmaker_count": getattr(reconciled_odds, "bookmaker_count", 0) if reconciled_odds else 0,
+                    "history_feature_completeness": features.get("feature_completeness", 0.0),
+                },
+                "match_intelligence": intelligence_profile.to_dict(),
+                "message": f"PREDICTION UNAVAILABLE. {'; '.join(readiness['reasons']) or 'Insufficient evidence coverage.'}",
+                "retryable": True,
+            }
+
         if not evidence.is_sufficient:
             new_pred.status = "FAILED"
             new_pred.error_message = f"PREDICTION UNAVAILABLE: {evidence.rejection_reason or 'Insufficient data evidence'}"
@@ -1420,6 +1573,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                 "market_consensus": reconciled_odds.vig_free_probabilities if reconciled_odds else None,
                 "market_margin": reconciled_odds.margin if reconciled_odds else None,
                 "market_dispersion": reconciled_odds.dispersion if reconciled_odds else {},
+                "match_intelligence": intelligence_profile.to_dict(),
             }
             await db.commit()
             return {
@@ -1525,6 +1679,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             "model_results": individual_results,
             "recent_form": recent_form_data,
             "h2h": h2h,
+            "match_intelligence": intelligence_profile.to_dict(),
         }
 
         # Create audit log record for intelligence metrics
@@ -1576,7 +1731,8 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             "bet_side": new_pred.bet_side,
             "evidence_score": evidence.total_score,
             "evidence_classification": evidence.classification.value,
-            "provenance": new_pred.provenance
+            "provenance": new_pred.provenance,
+            "match_intelligence": intelligence_profile.to_dict(),
         }
     except Exception as exc:
         logger.error(f"[matches] Prediction initialization failed for match {match_id}: {exc}", exc_info=True)
