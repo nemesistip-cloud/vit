@@ -290,8 +290,38 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         details=None,
     )
 
+def _is_database_failure(exc: Exception) -> bool:
+    """Recognize driver-level connection failures that bypass SQLAlchemy wrappers."""
+    current: BaseException | None = exc
+    while current is not None:
+        module = type(current).__module__.lower()
+        name = type(current).__name__.lower()
+        message = str(current).lower()
+        if module.startswith("asyncpg"):
+            return True
+        if "sqlalchemy" in module and any(
+            marker in name or marker in message
+            for marker in ("connection", "operational", "pool", "database")
+        ):
+            return True
+        if any(marker in name for marker in ("connectiondoesnotexist", "connectionrefused", "connectionreset", "gaierror")):
+            return True
+        if any(marker in message for marker in ("name or service not known", "could not translate host name", "temporary failure in name resolution")):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
+    if _is_database_failure(exc):
+        logging.error("Database driver unavailable: %s", type(exc).__name__, exc_info=True)
+        return error_response(
+            request=request,
+            status_code=503,
+            code="database_unavailable",
+            message="The database is temporarily unavailable. Please retry shortly.",
+            headers={"Retry-After": "15"},
+        )
     logging.error(f"Unhandled error: {exc}", exc_info=True)
     return error_response(
         request=request,

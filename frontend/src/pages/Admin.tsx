@@ -467,7 +467,7 @@ function ValidatorsTab() {
   const vals: any[] = Array.isArray(list) ? list : []
   const lifecycle = useMutation({
     mutationFn: async ({ id, action }: { id: string | number; action: string }) => {
-      const response = await fetch(`${ENDPOINTS.gateway}/api/blockchain/admin/validators/${id}/${action}`, { method: 'POST', headers: authHeaders() })
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/validators/${id}/reinstate`, { method: 'POST', headers: authHeaders() })
       if (!response.ok) throw new Error(`Validator ${action} failed (${response.status})`)
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-validators'] }); toast.success('Validator state updated') },
@@ -495,7 +495,7 @@ function ValidatorsTab() {
                   <td className="px-4 py-3 text-white/60 text-sm">{v.accuracy_score != null ? `${(v.accuracy_score*100).toFixed(1)}%` : '—'}</td>
                   <td className="px-4 py-3"><span className={cn('text-xs px-2 py-0.5 rounded-full border', v.status==='active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : v.status==='slashed' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-white/30 border-white/10')}>{v.status ?? 'unknown'}</span></td>
                   <td className="px-4 py-3 text-white/30 text-xs">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-3"><div className="flex gap-2">{v.status === 'pending' && <button type="button" onClick={() => { if (window.confirm('Approve this validator?')) lifecycle.mutate({ id: v.id, action: 'approve' }) }} className="text-xs text-emerald-400">Approve</button>}{v.status === 'suspended' && <button type="button" onClick={() => { if (window.confirm('Reactivate this validator?')) lifecycle.mutate({ id: v.id, action: 'reactivate' }) }} className="text-xs text-vit-400">Reactivate</button>}{v.status === 'active' && <button type="button" onClick={() => { if (window.confirm('Suspend this validator?')) lifecycle.mutate({ id: v.id, action: 'suspend' }) }} className="text-xs text-amber-400">Suspend</button>}</div></td>
+                  <td className="px-4 py-3"><div className="flex gap-2">{v.status === 'suspended' && <button type="button" onClick={() => { if (window.confirm('Reactivate this validator?')) lifecycle.mutate({ id: v.id, action: 'reinstate' }) }} className="text-xs text-vit-400">Reactivate</button>}</div></td>
                 </tr>
               ))}</tbody>
             </table>
@@ -645,15 +645,7 @@ function TrainingJobsTab() {
     label: `${m.name ?? m.key} (${m.type ?? m.framework ?? 'model'})`,
   })).filter((m: any) => m.key && m.key !== 'all') : []
 
-  const availableModels = [
-    { key: 'all', label: 'Full Ensemble (All Models)' },
-    ...(dynamicModels.length > 0 ? dynamicModels : [
-      { key: 'xgb_match', label: 'XGBoost Match Predictor' },
-      { key: 'lstm_goals', label: 'LSTM Total Goals' },
-      { key: 'btts_prob', label: 'Both Teams To Score' },
-      { key: 'correct_score', label: 'Correct Score Poisson' },
-    ])
-  ]
+  const availableModels = dynamicModels
   return (
     <div className="space-y-6">
       <div className="bg-surface-800/60 border border-white/8 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
@@ -667,20 +659,20 @@ function TrainingJobsTab() {
             onChange={e => setTargetModel(e.target.value)}
             className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-white outline-none focus:border-vit-400"
           >
-            {availableModels.map(m => (
+            {availableModels.length > 0 ? availableModels.map(m => (
               <option key={m.key} value={m.key} className="bg-surface-800 text-white">
                 {m.label}
               </option>
-            ))}
+            )) : <option value="" className="bg-surface-800 text-white">No models available</option>}
           </select>
           <button
             type="button"
-            disabled={triggerRetrain.isPending}
+            disabled={triggerRetrain.isPending || availableModels.length === 0}
             onClick={() => triggerRetrain.mutate(targetModel)}
             className="flex items-center gap-2 rounded-lg bg-vit-500 px-4 py-2 text-xs font-medium text-black hover:bg-vit-400 disabled:opacity-50 transition-all"
           >
             {triggerRetrain.isPending ? <Spinner className="w-3.5 h-3.5 text-black" /> : <Play className="w-3.5 h-3.5" />}
-            {targetModel === 'all' ? 'Retrain Full Ensemble' : 'Retrain Selected Model'}
+            {availableModels.length === 0 ? 'Training unavailable' : targetModel === 'all' ? 'Retrain Full Ensemble' : 'Retrain Selected Model'}
           </button>
         </div>
       </div>
@@ -1022,7 +1014,7 @@ function SystemTab({ health, status, metrics, loadingHealth, loadingStatus }: an
           <h3 className="flex items-center gap-2 text-sm font-semibold text-white mb-4"><Server className="w-4 h-4 text-vit-400" /> Gateway Info</h3>
           {loadingHealth ? <Spinner className="w-4 h-4 text-vit-400" /> : <>
             <Row label="Version"     value={health?.version ?? status?.version ?? '—'} />
-            <Row label="Environment" value={health?.environment ?? 'production'} />
+            <Row label="Environment" value={health?.environment ?? '—'} />
             <Row label="DB"          value={health?.db_connected !== false ? 'Connected' : 'Disconnected'} />
             <Row label="Redis"       value={health?.redis?.status ?? '—'} />
             <Row label="Models"      value={health?.models_loaded != null ? `${health.models_loaded} loaded` : '—'} />

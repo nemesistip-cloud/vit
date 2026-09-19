@@ -3,7 +3,20 @@ import httpx
 import asyncio
 from unittest.mock import patch, MagicMock
 from sqlalchemy.exc import OperationalError
-from main import app
+from main import app, _is_database_failure
+
+
+def test_driver_level_database_failure_is_classified_as_retryable():
+    class ConnectionDoesNotExistError(Exception):
+        pass
+
+    error = ConnectionDoesNotExistError("database connection was closed")
+    assert _is_database_failure(error) is True
+
+
+def test_database_dns_failure_is_classified_as_retryable():
+    error = OSError("[Errno -2] Name or service not known")
+    assert _is_database_failure(error) is True
 
 @pytest.mark.asyncio
 async def test_login_retry_on_transient_error():
