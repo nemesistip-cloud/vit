@@ -178,7 +178,10 @@ def _github_row_to_event(row: dict[str, str]) -> dict[str, Any] | None:
         },
         "statistics": {},
     }
-async def fetch_historical_matches(before: datetime | None = None) -> list[dict[str, Any]]:
+async def fetch_historical_matches(
+    before: datetime | None = None,
+    teams: set[str] | None = None,
+) -> list[dict[str, Any]]:
     """Fetch completed Premier League rows from public season CSVs."""
     cutoff = before or datetime.now(timezone.utc)
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
@@ -210,6 +213,11 @@ async def fetch_historical_matches(before: datetime | None = None) -> list[dict[
             # The public CSV has no kickoff time. Exclude the entire cutoff
             # date so a result from later that day can never leak backward.
             if not event or event["kickoff_time"].date() >= cutoff.date():
+                continue
+            if teams and not {
+                event["home_team"].lower(),
+                event["away_team"].lower(),
+            }.intersection(team.lower() for team in teams):
                 continue
             key = (
                 event["kickoff_time"].date().isoformat(),

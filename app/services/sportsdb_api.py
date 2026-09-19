@@ -761,6 +761,7 @@ async def sync_and_insert_historical(
     days_back: int = 180,
     include_sportsdb: bool = True,
     before=None,
+    teams: set[str] | None = None,
 ) -> Dict:
     """
     Fetch historical matches from TheSportsDB and upsert them into the DB.
@@ -775,7 +776,7 @@ async def sync_and_insert_historical(
 
     events = []
     try:
-        events.extend(await fetch_historical_matches(before=before))
+        events.extend(await fetch_historical_matches(before=before, teams=teams))
     except Exception as public_exc:
         logger.warning("Public football CSV history failed: %s", type(public_exc).__name__)
     if include_sportsdb:
@@ -806,6 +807,18 @@ async def sync_and_insert_historical(
     updated = 0
     skipped = 0
 
+    existing_rows = (await db.execute(select(Match))).scalars().all()
+    existing_by_external = {
+        str(row.external_id): row
+        for row in existing_rows
+        if row.external_id
+    }
+    existing_by_fingerprint = {
+        row.fingerprint: row
+        for row in existing_rows
+        if row.fingerprint
+    }
+
     for ev in events:
         ext_id = ev.get("external_id") or ""
         home = ev["home_team"]
@@ -820,13 +833,9 @@ async def sync_and_insert_historical(
         fingerprint = f"{date_str}::{home.lower()}::{away.lower()}::{ev.get('league', '')}"
 
         try:
-            existing = None
-            if ext_id:
-                res = await db.execute(select(Match).where(Match.external_id == ext_id))
-                existing = res.scalar_one_or_none()
+            existing = existing_by_external.get(ext_id) if ext_id else None
             if not existing:
-                res = await db.execute(select(Match).where(Match.fingerprint == fingerprint))
-                existing = res.scalar_one_or_none()
+                existing = existing_by_fingerprint.get(fingerprint)
 
             if existing:
                 changed = False
@@ -841,7 +850,6 @@ async def sync_and_insert_historical(
                     existing.status = "settled"
                     changed = True
                 if changed:
-                    await db.commit()
                     updated += 1
                 else:
                     skipped += 1
@@ -860,7 +868,9 @@ async def sync_and_insert_historical(
                     fingerprint=fingerprint,
                 )
                 db.add(match)
-                await db.flush()
+                if ext_id:
+                    existing_by_external[ext_id] = match
+                existing_by_fingerprint[fingerprint] = match
                 inserted += 1
         except Exception as exc:
             logger.error("[sportsdb] historical batch rolled back at %s vs %s: %s", home, away, exc)
