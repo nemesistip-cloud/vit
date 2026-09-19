@@ -53,8 +53,13 @@ The local recovery simulation subsequently reached `READY` with public history: 
 - Consensus retains bookmaker count, median/minimum/maximum odds, raw margin, vig-free probabilities, dispersion, provider, event ID, and freshness.
 - The shared provider registry lazily activates configured Odds API credentials and remains empty without credentials. No key is logged or exposed.
 - Market features are passed separately from football-performance features and persisted in prediction provenance. Missing odds still block the real odds-dependent ensemble; synthetic odds are never generated.
+- A secondary public results mirror was added from `github:AnishKhetani/premier-league-data`; its documented upstream is Football-Data.co.uk, and its rows are cutoff-filtered and deduplicated rather than treated as independent evidence.
 
 The local environment currently has no `ODDS_API_KEY`, so live bookmaker retrieval for match `41` could not be attempted here. Production verification requires running the same flow with the configured secret and checking the returned event, bookmaker count, market set, timestamps, and quota headers.
+
+## Latest Production Boundary
+
+Render deployment `e5ff283` is live and healthy. The target rerun returns `HTTP 200` with an explicit unavailable result, evidence `27.7`, and feature completeness `0.133`; no prediction is promoted. Render reports the Odds API secret as configured, but the target-specific market query and the public historical refresh return no accepted rows. The local admin credentials return `401` against Render, so authenticated admin feature verification remains blocked without valid production credentials.
 
 ## Recovery Execution Contract
 
