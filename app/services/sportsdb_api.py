@@ -756,7 +756,11 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
     return {"inserted": inserted, "updated": updated, "skipped": skipped, "total_fetched": len(all_events)}
 
 
-async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
+async def sync_and_insert_historical(
+    db,
+    days_back: int = 180,
+    include_sportsdb: bool = True,
+) -> Dict:
     """
     Fetch historical matches from TheSportsDB and upsert them into the DB.
     Returns stats: {inserted, updated, skipped, total_fetched}
@@ -764,7 +768,34 @@ async def sync_and_insert_historical(db, days_back: int = 180) -> Dict:
     from sqlalchemy import select
     from app.db.models import Match
 
-    events = await fetch_historical_range(days_back=days_back)
+    # Prefer public Football-Data.co.uk season CSVs for historical rows. They
+    # cover the prior season when the authenticated API provider is unavailable.
+    from app.services.public_football_data import fetch_historical_matches
+
+    events = []
+    try:
+        events.extend(await fetch_historical_matches())
+    except Exception as public_exc:
+        logger.warning("Public football CSV history failed: %s", type(public_exc).__name__)
+    if include_sportsdb:
+        try:
+            events.extend(await fetch_historical_range(days_back=days_back))
+        except Exception as sportsdb_exc:
+            logger.warning("TheSportsDB historical history failed: %s", type(sportsdb_exc).__name__)
+
+    deduped_events: list[Dict] = []
+    seen_keys: set[tuple[str, str, str]] = set()
+    for ev in events:
+        kickoff = ev.get("kickoff_time")
+        key = (
+            kickoff.date().isoformat() if kickoff else "unknown",
+            str(ev.get("home_team", "")).lower(),
+            str(ev.get("away_team", "")).lower(),
+        )
+        if key not in seen_keys:
+            seen_keys.add(key)
+            deduped_events.append(ev)
+    events = deduped_events
 
     inserted = 0
     updated = 0
