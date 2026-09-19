@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, func
+from sqlalchemy.exc import SQLAlchemyError
 from fastapi.exceptions import RequestValidationError
 from app.core.errors import AppError, error_response
 
@@ -266,6 +267,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         code="validation_error",
         message="Request validation failed",
         details=exc.errors()
+    )
+
+@app.exception_handler(SQLAlchemyError)
+async def database_exception_handler(request: Request, exc: SQLAlchemyError):
+    logging.error("Database unavailable: %s", type(exc).__name__, exc_info=True)
+    return error_response(
+        request=request,
+        status_code=503,
+        code="database_unavailable",
+        message="The database is temporarily unavailable. Please retry shortly.",
+        headers={"Retry-After": "15"},
     )
 
 @app.exception_handler(HTTPException)

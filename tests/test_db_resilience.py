@@ -2,6 +2,7 @@ import pytest
 import httpx
 import asyncio
 from unittest.mock import patch, MagicMock
+from sqlalchemy.exc import OperationalError
 from main import app
 
 @pytest.mark.asyncio
@@ -39,7 +40,7 @@ async def test_login_retry_on_transient_error():
 @pytest.mark.asyncio
 async def test_login_eventual_failure_after_retries():
     """
-    Test that the login endpoint eventually fails with 500
+    Test that the login endpoint eventually reports 503
     if the DB remains unavailable after all retries.
     """
 
@@ -47,7 +48,7 @@ async def test_login_eventual_failure_after_retries():
     async def always_fail(*args, **kwargs):
         nonlocal fail_count
         fail_count += 1
-        raise Exception("connection was closed")
+        raise OperationalError("connection was closed", {}, Exception("connection was closed"))
 
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
 
@@ -58,8 +59,9 @@ async def test_login_eventual_failure_after_retries():
                 "password": "Password123!"
             })
 
-            # After 3 attempts, it should return 500
+            # After 3 attempts, it should return a retryable database error.
             assert fail_count == 3
-            assert resp.status_code == 500
+            assert resp.status_code == 503
+            assert resp.headers["Retry-After"] == "15"
             data = resp.json()
-            assert data["error"]["code"] == "internal_error"
+            assert data["error"]["code"] == "database_unavailable"
