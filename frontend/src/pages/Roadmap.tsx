@@ -1,176 +1,72 @@
 import { motion } from 'framer-motion'
 import { Map, CheckCircle2, Circle, Clock, Wrench } from 'lucide-react'
 
+const ROADMAP_META = {
+  platformVersion: '1.2.0',
+  frontendVersion: '2.0.0',
+  verifiedOn: '19 September 2026',
+}
+
 const PHASES = [
   {
-    phase: 'Phase I',
-    title: 'Core Platform',
+    phase: 'Now',
+    title: 'Verified platform foundation',
     status: 'complete',
     items: [
-      { label: 'VIT Gateway (vitnetwork)',         done: true },
-      { label: 'vit-ai inference engine',          done: true },
-      { label: 'vit-storage object layer',         done: true },
-      { label: 'PostgreSQL 16 integration',        done: true },
-      { label: 'Valkey (Redis) caching',           done: true },
-      { label: 'Health monitoring endpoints',      done: true },
-      { label: 'Docker production deployment',     done: true },
-      { label: 'Render environment groups',        done: true },
+      { label: 'FastAPI gateway, PostgreSQL, Redis and migrations', done: true },
+      { label: 'React/Vite application and production Docker deployment', done: true },
+      { label: 'Authentication, RBAC, admin diagnostics and health checks', done: true },
+      { label: 'VIT Chain ledger, explorer integration and attestations', done: true },
+      { label: 'Tachyon storage coordination and provider-backed workflows', done: true },
     ],
   },
   {
-    phase: 'Phase II',
-    title: 'Frontend & Intelligence Layer',
+    phase: 'Current focus',
+    title: 'Prediction integrity and live evidence',
     status: 'active',
     items: [
-      { label: 'React + Vite + TypeScript frontend', done: true },
-      { label: 'TailwindCSS design system',          done: true },
-      { label: 'Live service health dashboard',      done: true },
-      { label: 'AI model registry UI',               done: true },
-      { label: 'Storage object browser',             done: true },
-      { label: 'Matches & fixture system',           done: true },
-      { label: 'AI-powered prediction engine',       done: true },
-      { label: 'Leaderboard & scoring system',       done: true },
+      { label: 'Provider-backed historical results and team feature samples', done: true },
+      { label: 'Match Intelligence Profile with source provenance', done: true },
+      { label: 'Fail-closed readiness gate for evidence and freshness', done: true },
+      { label: 'Real ensemble path connected in production mode', done: true },
+      { label: 'Live odds credentials and provider coverage', done: false },
+      { label: 'Sports-provider lineage, calibration and drift verification', done: false },
+      { label: 'Genuine data-sufficient production prediction run', done: false },
     ],
   },
   {
-    phase: 'Phase III',
-    title: 'Wallet, Identity & Rewards',
-    status: 'partial',
-    items: [
-      { label: 'VIT token wallet & balance',          done: true },
-      { label: 'JWT auth with refresh tokens',        done: true },
-      { label: 'Role-based access control (RBAC)',    done: true },
-      { label: 'TOTP two-factor authentication',      done: true },
-      { label: 'Reward accumulator & payouts',        done: true },
-      { label: 'CLV tier system (Viewer → Elite)',    done: true },
-      { label: 'KYC screening pipeline',              done: true },
-      { label: 'Withdrawal gatekeeper agent',         done: true },
-    ],
-  },
-  {
-    phase: 'Phase IV',
-    title: 'Blockchain & On-Chain Verification',
-    status: 'partial',
-    items: [
-      { label: 'VIT chain ledger (vit_chain)',         done: true },
-      { label: 'Block explorer UI',                   done: true },
-      { label: 'Transaction indexing',                done: true },
-      { label: 'Node map & network stats',            done: true },
-      { label: 'On-chain prediction attestation',     done: true },
-      { label: 'Smart contract module (SimpleVM)',     done: true },
-      { label: 'Trustless payout verification',       done: true },
-      { label: 'Multi-chain routing in gateway',      done: true },
-    ],
-  },
-  {
-    phase: 'Phase V',
-    title: 'Governance & DAO',
-    status: 'partial',
-    items: [
-      { label: 'Proposal creation & voting',          done: true },
-      { label: 'On-chain governance execution',       done: true },
-      { label: 'Validator staking & slashing',        done: true },
-      { label: 'Treasury management module',          done: true },
-    ],
-  },
-  {
-    phase: 'Phase VI',
-    title: 'Commerce & Marketplace',
-    status: 'partial',
-    items: [
-      { label: 'Decentralised prediction marketplace', done: true },
-      { label: 'Peer-to-peer tip trading',             done: true },
-      { label: 'Affiliate & referral engine',          done: true },
-      { label: 'Commerce API surface',                 done: true },
-    ],
-  },
-  {
-    phase: 'Phase VII',
-    title: 'Mobile & Ecosystem Expansion',
-    status: 'partial',
-    items: [
-      { label: 'vit-mobile React Native app',          done: true },
-      { label: 'Push notifications (Firebase)',        done: true },
-      { label: 'Telegram bot integration (alerts & commands)', done: true },
-      { label: 'Telegram Mini App (WebAppData auth & Stars payment)', done: true },
-      { label: 'SDK & third-party developer API',      done: true },
-      { label: 'Asset CDN via vit-storage',            done: true },
-    ],
-  },
-  {
-    phase: 'Phase VIII',
-    title: 'DeFi, Social & Enterprise',
+    phase: 'Next',
+    title: 'Operational verification',
     status: 'active',
     items: [
-      { label: 'Social prediction feed (follow, react, comment)', done: true },
-      { label: 'DeFi yield & liquidity pools',                    done: true },
-      { label: 'Live in-play prediction markets',                 done: true },
-      { label: 'Analytics Studio (personal + model comparison)',  done: true },
-      { label: 'Enterprise API, data licensing & webhooks',       done: true },
+      { label: 'Verify all live sports providers and current odds sources', done: false },
+      { label: 'Publish prediction evidence snapshots and audit trails', done: false },
+      { label: 'Verify background worker deployment and scheduled agents', done: false },
+      { label: 'Complete browser and deployed endpoint coverage', done: false },
+      { label: 'Add adversarial provider, timeout and restart tests', done: false },
     ],
   },
   {
-    phase: 'Phase IX',
-    title: 'Platform Integrity & Auth Restoration',
-    status: 'partial',
-    items: [
-      { label: 'Global error boundary (no blank-screen crashes)',  done: true },
-      { label: 'Real 404 Not Found page (replace silent redirect)', done: true },
-      { label: 'Toast notification system across all mutations',   done: true },
-      { label: 'Footer rebuilt with all 30+ pages linked',         done: true },
-      { label: 'Forgot password / reset password flows',           done: true },
-      { label: 'Email verification flow',                          done: true },
-      { label: 'User settings (profile, notifications, 2FA)',      done: true },
-      { label: 'Subscription & pricing page (Free → Elite tiers)', done: true },
-      { label: 'Governance & Marketplace added to public nav',     done: true },
-      { label: 'Dashboard quick actions expanded (4 → 8 tiles)',   done: true },
-    ],
-  },
-  {
-    phase: 'Phase X',
-    title: 'Predictions, Analytics & Tools Restoration',
-    status: 'partial',
-    items: [
-      { label: 'Match Detail with intelligence panels (ConsensusPanel, TacticalRadar, ModelBreakdown)', done: true },
-      { label: 'Network Intelligence analytics dashboard (Recharts)',        done: true },
-      { label: 'Live odds comparison (multi-bookmaker, 2-min refresh)',      done: true },
-      { label: 'Validators management UI (apply, stake, slashing history)', done: true },
-      { label: 'AI Assistant chat page (streaming, suggested prompts)',      done: true },
-      { label: 'Accumulator builder (multi-leg, EV, conflict detection)',    done: true },
-      { label: 'Rollover engine (fixture certification, conflict severity)', done: true },
-      { label: 'Backtest (historical simulation with P&L curve chart)',      done: true },
-      { label: 'Bankroll manager (Kelly Criterion, drawdown tracker)',       done: true },
-      { label: 'Tasks & gamification (XP, level, claim rewards)',           done: true },
-    ],
-  },
-  {
-    phase: 'Phase XI',
-    title: 'Financial Flows & Admin Suite Restoration',
-    status: 'partial',
-    items: [
-      { label: 'Wallet deposit — Paystack, Mobile Money, Crypto',            done: true },
-      { label: 'Wallet withdraw with KYC gating',                            done: true },
-      { label: 'Wallet sub-flows — P2P exchange, Bridge, Staking, Vaults',  done: true },
-      { label: 'VITCoin buy/sell with price chart, Currency convert',        done: true },
-      { label: 'Real-time notification bell (predictions, wallet, votes)',   done: true },
-      { label: 'Global search — ⌘K across matches, predictions, users',     done: true },
-      { label: 'Admin multi-page suite (Users, Wallet, Matches, Validators, Models, Config, Audit, System)', done: true },
-      { label: 'Subscription freemium gating via /config/public',           done: true },
-      { label: 'PWA restoration (service worker, install prompt)',           done: true },
-    ],
-  },
-  {
-    phase: 'Phase XII',
-    title: 'Cross-Chain & Institutional Scale',
+    phase: 'Network next',
+    title: 'Decentralization and storage proofs',
     status: 'planned',
     items: [
-      { label: 'Cross-chain liquidity bridges (ETH, BNB, Polygon)', done: false },
-      { label: 'Institutional oracle SLA (99.9% uptime guarantee)', done: false },
-      { label: 'On-chain DeFi settlement via vit-contracts',         done: false },
-      { label: 'AI model marketplace (buy/sell model access)',        done: false },
-      { label: 'ZK-proof prediction attestation',                    done: false },
-      { label: 'Navbar category flyouts (Earn / Predict / Govern)',  done: false },
-      { label: 'KYC compliance gating on all financial flows',       done: false },
+      { label: 'Onboard a second and third VIT Chain validator', done: false },
+      { label: 'Verify quorum, consensus votes and restart synchronization', done: false },
+      { label: 'Activate Tachyon-to-chain storage proof reporting', done: false },
+      { label: 'Require real storage proofs from active storage validators', done: false },
+    ],
+  },
+  {
+    phase: 'Later',
+    title: 'Ecosystem expansion',
+    status: 'planned',
+    items: [
+      { label: 'Complete DID and Academic Passport flows', done: false },
+      { label: 'Ship a public TypeScript SDK and developer documentation', done: false },
+      { label: 'Harden durable exchange settlement and withdrawals', done: false },
+      { label: 'Evaluate Render-to-GCP migration after production verification', done: false },
+      { label: 'Define any future cross-chain settlement only after VIT Chain validation', done: false },
     ],
   },
 ]
@@ -186,7 +82,7 @@ const STATUS_STYLES = {
 export default function Roadmap() {
   const done        = PHASES.filter(p => p.status === 'complete').length
   const active      = PHASES.filter(p => p.status === 'active').length
-  const restoration = PHASES.filter(p => p.status === 'restoration' || p.status === 'partial').length
+  const openItems   = PHASES.reduce((total, phase) => total + phase.items.filter(item => !item.done).length, 0)
   const planned     = PHASES.filter(p => p.status === 'planned').length
 
   return (
@@ -200,8 +96,11 @@ export default function Roadmap() {
               <Map className="w-5 h-5 text-vit-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Platform Roadmap</h1>
-              <p className="text-white/50 text-sm">Live development progress across all VIT Network phases</p>
+              <h1 className="text-2xl font-bold text-white">VIT Network Roadmap</h1>
+              <p className="text-white/50 text-sm">Verified delivery priorities and the next accountable milestones</p>
+              <p className="text-white/30 text-xs mt-1">
+                Platform v{ROADMAP_META.platformVersion} · Frontend v{ROADMAP_META.frontendVersion} · Verified {ROADMAP_META.verifiedOn}
+              </p>
             </div>
           </motion.div>
 
@@ -211,7 +110,7 @@ export default function Roadmap() {
             {[
               { label: 'Complete',    value: done,        color: 'text-emerald-400' },
               { label: 'Active',      value: active,      color: 'text-vit-400'     },
-              { label: 'Restoration', value: restoration, color: 'text-amber-400'   },
+              { label: 'Open items',  value: openItems,  color: 'text-amber-400'   },
               { label: 'Planned',     value: planned,     color: 'text-white/30'    },
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-white/5 border border-white/8 rounded-xl p-4 text-center">
@@ -221,12 +120,12 @@ export default function Roadmap() {
             ))}
           </motion.div>
 
-          {/* Restoration notice */}
+          {/* Verification notice */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             className="mt-6 flex items-start gap-3 px-4 py-3.5 rounded-xl border border-amber-500/25 bg-amber-500/8">
             <Wrench className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
             <p className="text-sm text-amber-300/80 leading-relaxed">
-              <span className="font-semibold text-amber-300">Restoration phases (IX–XI)</span> integrate 52 pages and 172 components from the institutional-grade frontend that pre-dated the Phase II gateway rebuild — including match intelligence panels, full wallet flows, admin suite, analytics with charts, and gamification.
+              <span className="font-semibold text-amber-300">Verified {ROADMAP_META.verifiedOn}.</span> Roadmap status reflects repository evidence and live service checks. A completed code path is not marked production-ready until its provider, runtime, and deployed behavior are verified.
             </p>
           </motion.div>
         </div>
