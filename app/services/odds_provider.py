@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import statistics
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -40,6 +41,14 @@ class NormalizedOdds:
     timestamp: datetime
     provider: str
     source_quality: float = 1.0  # Quality score 0.0 - 1.0
+    event_id: Optional[str] = None
+    raw_implied_probability: Optional[float] = None
+    market_probability: Optional[float] = None
+    source_url: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if self.raw_implied_probability is None and self.odds > 1.0:
+            self.raw_implied_probability = round(1.0 / self.odds, 8)
 
     @property
     def age_seconds(self) -> float:
@@ -79,6 +88,9 @@ class ReconciledMarketOdds:
     provider_sources: List[str] = field(default_factory=list)
     raw_odds_count: int = 0
     odds_age_seconds: float = 0.0
+    min_odds: Dict[str, float] = field(default_factory=dict)
+    max_odds: Dict[str, float] = field(default_factory=dict)
+    dispersion: Dict[str, float] = field(default_factory=dict)
 
 
 class BaseSportsProvider(ABC):
@@ -413,6 +425,9 @@ class OddsIntelligence:
 
         # Detect anomalies & compute median/consensus prices
         consensus_odds: Dict[str, float] = {}
+        min_odds: Dict[str, float] = {}
+        max_odds: Dict[str, float] = {}
+        dispersion: Dict[str, float] = {}
         has_anomaly = False
         anomaly_reasons = []
 
@@ -424,6 +439,9 @@ class OddsIntelligence:
                 if max_p / min_p > 1.35:
                     has_anomaly = True
                     anomaly_reasons.append(f"ODDS_ANOMALY: High variance in {sel} odds ({min_p:.2f} - {max_p:.2f})")
+                    min_odds[sel] = round(min(prices), 3)
+                    max_odds[sel] = round(max(prices), 3)
+                    dispersion[sel] = round(statistics.pstdev(prices), 5) if len(prices) > 1 else 0.0
             consensus_odds[sel] = round(float(statistics.median(prices)), 3)
 
         # Calculate implied probabilities and remove overround (vig)
@@ -468,6 +486,9 @@ class OddsIntelligence:
             provider_sources=list(providers),
             raw_odds_count=len(valid_odds),
             odds_age_seconds=round(avg_age, 1),
+            min_odds=min_odds,
+            max_odds=max_odds,
+            dispersion=dispersion,
         )
 
 
@@ -497,10 +518,23 @@ class ProviderRegistry:
             if sport_clean in [s.lower() for s in p.supported_sports()]
         ]
 
+    def register_configured_defaults(self) -> None:
+        """Lazily register configured legitimate providers without exposing keys."""
+        if "odds_api" not in self._providers:
+            api_key = os.getenv("ODDS_API_KEY") or os.getenv("THE_ODDS_API_KEY")
+            if api_key:
+                from app.services.odds_api import OddsAPIClient
+
+                self.register_odds_provider(
+                    "odds_api",
+                    OddsAPIProviderAdapter(OddsAPIClient(api_key)),
+                )
+
     async def fetch_reconciled_odds(
         self, fixture_id: str, sport: str = "football", market: str = "match_winner"
     ) -> Optional[ReconciledMarketOdds]:
         """Query all active providers supporting sport and reconcile their odds."""
+        self.register_configured_defaults()
         providers = self.get_odds_providers(sport)
         all_odds: List[NormalizedOdds] = []
 
@@ -522,6 +556,7 @@ class ProviderRegistry:
                 ...
             ]
         """
+        self.register_configured_defaults()
         sports_config = [
             {"sport": "Football", "key": "football", "fixtures": True, "stats": True},
             {"sport": "Basketball", "key": "basketball", "fixtures": True, "stats": True},

@@ -104,13 +104,15 @@ async def _refresh_prediction_odds(match: Match, now: datetime) -> list[Normaliz
             "live", "in_progress", "in_play",
         }
         if is_live:
-            odds_candidates = await client.get_odds_for_competition(
+            fetch_odds = getattr(client, "get_bookmaker_odds_for_competition", None) or client.get_odds_for_competition
+            odds_candidates = await fetch_odds(
                 league_key,
                 days_ahead=days_ahead,
                 include_live=True,
             ) or []
         else:
-            odds_candidates = await client.get_odds_for_competition(
+            fetch_odds = getattr(client, "get_bookmaker_odds_for_competition", None) or client.get_odds_for_competition
+            odds_candidates = await fetch_odds(
                 league_key,
                 days_ahead=days_ahead,
             ) or []
@@ -121,43 +123,49 @@ async def _refresh_prediction_odds(match: Match, now: datetime) -> list[Normaliz
         )
         return []
 
-    odds_data = next(
-        (
-            candidate
-            for candidate in odds_candidates
-            if _provider_team_names_match(match.home_team, getattr(candidate, "home_team", None))
+    valid_candidates = []
+    for candidate in odds_candidates:
+        timestamp = getattr(candidate, "timestamp", None)
+        if timestamp and timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        if (
+            _provider_team_names_match(match.home_team, getattr(candidate, "home_team", None))
             and _provider_team_names_match(match.away_team, getattr(candidate, "away_team", None))
-        ),
-        None,
-    )
-    if not odds_data or not all(
-        value and float(value) > 1.0
-        for value in (odds_data.home_odds, odds_data.draw_odds, odds_data.away_odds)
-    ):
+            and (timestamp is None or timestamp <= now + timedelta(seconds=5))
+            and all(value and float(value) > 1.0 for value in (
+                candidate.home_odds, candidate.draw_odds, candidate.away_odds,
+            ))
+        ):
+            valid_candidates.append(candidate)
+    if not valid_candidates:
         logger.warning(
             "PREDICTION_ODDS_EMPTY match=%s external_id=%s league=%s candidates=%s",
             match.id, getattr(match, "external_id", None), match.league, len(odds_candidates),
         )
         return []
 
-    timestamp = odds_data.timestamp or now
-    return [
-        NormalizedOdds(
-            fixture_id=str(getattr(odds_data, "match_id", None) or getattr(match, "external_id", match.id)),
-            sport=match.sport or "football",
-            market="match_winner",
-            selection=selection,
-            odds=float(value),
-            bookmaker=odds_data.bookmaker or "odds_api",
-            timestamp=timestamp,
-            provider="the_odds_api",
+    normalized = []
+    for odds_data in valid_candidates:
+        timestamp = odds_data.timestamp or now
+        normalized.extend(
+            NormalizedOdds(
+                fixture_id=str(getattr(odds_data, "match_id", None) or getattr(match, "external_id", match.id)),
+                sport=match.sport or "football",
+                market="match_winner",
+                selection=selection,
+                odds=float(value),
+                bookmaker=odds_data.bookmaker or "odds_api",
+                timestamp=timestamp,
+                provider="the_odds_api",
+                event_id=str(getattr(odds_data, "match_id", None) or ""),
+            )
+            for selection, value in (
+                ("home", odds_data.home_odds),
+                ("draw", odds_data.draw_odds),
+                ("away", odds_data.away_odds),
+            )
         )
-        for selection, value in (
-            ("home", odds_data.home_odds),
-            ("draw", odds_data.draw_odds),
-            ("away", odds_data.away_odds),
-        )
-    ]
+    return normalized
 
 LEAGUE_DISPLAY_NAMES = {
     "premier_league":       "Premier League",
@@ -1236,7 +1244,11 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                 backfill_days = max(7, int(os.getenv("PREDICTION_HISTORY_BACKFILL_DAYS", "30")))
                 refresh_timeout = max(3.0, float(os.getenv("PREDICTION_HISTORY_REFRESH_TIMEOUT", "15")))
                 backfill = await asyncio.wait_for(
-                    sync_and_insert_historical(db, days_back=backfill_days),
+                    sync_and_insert_historical(
+                        db,
+                        days_back=backfill_days,
+                        before=match.kickoff_time,
+                    ),
                     timeout=refresh_timeout,
                 )
                 logger.info(
@@ -1311,12 +1323,23 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             base_orch = await get_orchestrator_dep()
             orchestrator = MultiSportOrchestrator(football_orchestrator=base_orch)
             market_odds_payload = reconciled_odds.consensus_odds if reconciled_odds else None
+            market_features = {
+                "home_implied_probability": reconciled_odds.vig_free_probabilities.get("home") if reconciled_odds else None,
+                "draw_implied_probability": reconciled_odds.vig_free_probabilities.get("draw") if reconciled_odds else None,
+                "away_implied_probability": reconciled_odds.vig_free_probabilities.get("away") if reconciled_odds else None,
+                "market_margin": reconciled_odds.margin if reconciled_odds else None,
+                "bookmaker_count": reconciled_odds.bookmaker_count if reconciled_odds else 0,
+                "market_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
+                "odds_age_seconds": reconciled_odds.odds_age_seconds if reconciled_odds else None,
+                "dispersion": reconciled_odds.dispersion if reconciled_odds else {},
+            }
             raw_result = await orchestrator.predict(
                 features={
                     "home_team": match.home_team,
                     "away_team": match.away_team,
                     "league": match.league,
                     "market_odds": market_odds_payload,
+                    "market_features": market_features,
                     "match_features": features,
                 },
                 idempotency_key=f"match_init_{match_id}_{job_id}",
@@ -1393,6 +1416,9 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                 "model_agreement_pct": model_agreement_pct,
                 "odds_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
                 "bookmaker_count": reconciled_odds.bookmaker_count if reconciled_odds else 0,
+                "market_consensus": reconciled_odds.vig_free_probabilities if reconciled_odds else None,
+                "market_margin": reconciled_odds.margin if reconciled_odds else None,
+                "market_dispersion": reconciled_odds.dispersion if reconciled_odds else {},
             }
             await db.commit()
             return {
@@ -1489,6 +1515,9 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             "vig_free_probabilities": reconciled_odds.vig_free_probabilities if reconciled_odds else None,
             "bookmaker_count": reconciled_odds.bookmaker_count if reconciled_odds else 0,
             "odds_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
+            "market_consensus": reconciled_odds.vig_free_probabilities if reconciled_odds else None,
+            "market_margin": reconciled_odds.margin if reconciled_odds else None,
+            "market_dispersion": reconciled_odds.dispersion if reconciled_odds else {},
             "feature_completeness": features.get("feature_completeness", 0.0),
             "model_agreement_pct": model_agreement_pct,
             "model_status": "ready" if active_results else "statistical_fallback",
@@ -1599,6 +1628,9 @@ async def get_prediction_diagnostics(match_id: int, db: AsyncSession = Depends(g
             "freshness": provenance.get("odds_freshness"),
             "bookmaker_count": provenance.get("bookmaker_count", 0),
             "consensus": provenance.get("odds_consensus"),
+            "market_consensus": provenance.get("market_consensus"),
+            "margin": provenance.get("market_margin"),
+            "dispersion": provenance.get("market_dispersion", {}),
         },
         "models": {
             "status": provenance.get("model_status"),

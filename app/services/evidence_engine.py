@@ -92,6 +92,7 @@ class EvidenceEngine:
             "sportsdb",
             "footballdata",
             "football-data.org",
+            "football-data-uk",
             "the_odds_api",
             "provider",
             "seed_high_profile",

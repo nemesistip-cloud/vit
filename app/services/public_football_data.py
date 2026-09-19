@@ -19,10 +19,12 @@ import httpx
 logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "football-data-uk"
-PREMIER_LEAGUE_URLS = (
+SEASON_URLS = (
+    "https://football-data.co.uk/mmz4281/2627/E0.csv",
     "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
     "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
 )
+PREMIER_LEAGUE_URLS = SEASON_URLS
 
 
 def _parse_date(value: str) -> datetime | None:
@@ -35,6 +37,14 @@ def _parse_date(value: str) -> datetime | None:
 def _number(value: str) -> int | None:
     try:
         return int(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _float(value: str) -> float | None:
+    try:
+        cleaned = str(value).strip().replace(",", "")
+        return float(cleaned) if cleaned not in (None, "") else None
     except (TypeError, ValueError):
         return None
 
@@ -70,6 +80,23 @@ def _row_to_event(row: dict[str, str], source_url: str) -> dict[str, Any] | None
     else:
         outcome = "draw"
 
+    retrieved_at = datetime.now(timezone.utc).isoformat()
+    stats = {
+        "home_shots": _number(row.get("HS", "")),
+        "away_shots": _number(row.get("AS", "")),
+        "home_shots_on_target": _number(row.get("HST", "")),
+        "away_shots_on_target": _number(row.get("AST", "")),
+        "home_corners": _number(row.get("HC", "")),
+        "away_corners": _number(row.get("AC", "")),
+        "home_fouls": _number(row.get("HF", "")),
+        "away_fouls": _number(row.get("AF", "")),
+        "home_yellow_cards": _number(row.get("HY", "")),
+        "away_yellow_cards": _number(row.get("AY", "")),
+        "home_red_cards": _number(row.get("HR", "")),
+        "away_red_cards": _number(row.get("AR", "")),
+        "home_xg": _float(row.get("HxG", "")) or _float(row.get("HxG", "")),
+        "away_xg": _float(row.get("AxG", "")) or _float(row.get("AxG", "")),
+    }
     return {
         "external_id": None,
         "home_team": home,
@@ -83,21 +110,17 @@ def _row_to_event(row: dict[str, str], source_url: str) -> dict[str, Any] | None
         "actual_outcome": outcome,
         "source": SOURCE_NAME,
         "source_url": source_url,
-        "retrieved_at": datetime.now(timezone.utc).isoformat(),
-        "statistics": {
-            "home_shots": _number(row.get("HS", "")),
-            "away_shots": _number(row.get("AS", "")),
-            "home_shots_on_target": _number(row.get("HST", "")),
-            "away_shots_on_target": _number(row.get("AST", "")),
-            "home_corners": _number(row.get("HC", "")),
-            "away_corners": _number(row.get("AC", "")),
-            "home_fouls": _number(row.get("HF", "")),
-            "away_fouls": _number(row.get("AF", "")),
-            "home_yellow_cards": _number(row.get("HY", "")),
-            "away_yellow_cards": _number(row.get("AY", "")),
-            "home_red_cards": _number(row.get("HR", "")),
-            "away_red_cards": _number(row.get("AR", "")),
+        "retrieved_at": retrieved_at,
+        "source_metadata": {
+            "provider": "football-data.co.uk",
+            "source_type": "public_csv",
+            "url": source_url,
+            "retrieved_at": retrieved_at,
+            "confidence": "high",
+            "data_freshness": "public-season-csv",
+            "reliability": "public",
         },
+        "statistics": stats,
     }
 
 
@@ -117,7 +140,11 @@ async def fetch_historical_matches(before: datetime | None = None) -> list[dict[
             logger.warning("Public football CSV unavailable source=%s error=%s", url, type(response).__name__)
             continue
         response.raise_for_status()
-        for row in csv.DictReader(io.StringIO(response.content.decode("latin1-sig"))):
+        try:
+            csv_text = response.content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            csv_text = response.content.decode("latin-1")
+        for row in csv.DictReader(io.StringIO(csv_text)):
             event = _row_to_event(row, url)
             # The public CSV has no kickoff time. Exclude the entire cutoff
             # date so a result from later that day can never leak backward.

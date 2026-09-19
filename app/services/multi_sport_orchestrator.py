@@ -84,10 +84,18 @@ class MultiSportOrchestrator:
         if self.football_orchestrator and self.use_real_ml:
             try:
                 if self.football_orchestrator.num_models_ready() > 0:
-                    if asyncio.iscoroutinefunction(self.football_orchestrator.predict_ensemble):
-                        return await self.football_orchestrator.predict_ensemble(features)
-                    else:
-                        return self.football_orchestrator.predict_ensemble(features)
+                    predict = self.football_orchestrator.predict
+                    if asyncio.iscoroutinefunction(predict):
+                        return await predict(
+                            features,
+                            match_id=idempotency_key or "unknown",
+                            sport="soccer",
+                        )
+                    return predict(
+                        features,
+                        match_id=idempotency_key or "unknown",
+                        sport="soccer",
+                    )
                 else:
                     logger.info("[orchestrator] ML models not ready, falling back to SCIE")
             except Exception as e:

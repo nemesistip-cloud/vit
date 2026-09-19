@@ -69,6 +69,23 @@ def test_odds_reconciliation_and_anomaly_detection():
     reconciled_anom = OddsIntelligence.reconcile(odds_anomaly, sport="football", market="match_winner")
     assert reconciled_anom is not None
     assert reconciled_anom.has_anomaly is True
+
+
+    def test_reconcile_exposes_market_ranges_and_dispersion():
+        now = datetime.now(timezone.utc)
+        odds = OddsIntelligence.reconcile([
+            NormalizedOdds("f3", "football", "match_winner", "home", 2.0, "BM1", now, "odds_api"),
+            NormalizedOdds("f3", "football", "match_winner", "draw", 3.0, "BM1", now, "odds_api"),
+            NormalizedOdds("f3", "football", "match_winner", "away", 4.0, "BM1", now, "odds_api"),
+            NormalizedOdds("f3", "football", "match_winner", "home", 2.2, "BM2", now, "odds_api"),
+            NormalizedOdds("f3", "football", "match_winner", "draw", 3.2, "BM2", now, "odds_api"),
+            NormalizedOdds("f3", "football", "match_winner", "away", 4.2, "BM2", now, "odds_api"),
+        ], sport="football", market="match_winner")
+
+        assert odds.bookmaker_count == 2
+        assert odds.min_odds["home"] == 2.0
+        assert odds.max_odds["home"] == 2.2
+        assert odds.dispersion["home"] > 0
     assert "ODDS_ANOMALY" in reconciled_anom.anomaly_reason
 
 

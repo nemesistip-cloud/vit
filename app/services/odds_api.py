@@ -22,7 +22,7 @@ import asyncio
 import httpx
 import logging
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -39,6 +39,7 @@ class OddsData:
     away_team:  Optional[str] = None
     bookmaker:  str            = "pinnacle"
     timestamp:  datetime       = None
+    event_time: Optional[datetime] = None
 
     # ── 1X2 / h2h ───────────────────────────────────────────────────────
     home_odds:  float          = 0.0
@@ -352,6 +353,16 @@ class OddsAPIClient:
     def _get_cache_key(self, sport: str, regions: str, markets: str) -> str:
         return f"{sport}:{regions}:{markets}"
 
+    @staticmethod
+    def _parse_event_time(value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            return None
+
     _key_invalid: bool = False
 
     @retry(
@@ -484,9 +495,42 @@ class OddsAPIClient:
         for event in raw_odds:
             od = self._extract_best_odds(event)
             if od:
+                event_time = self._parse_event_time(event.get("commence_time"))
+                if event_time:
+                    od.timestamp = event_time
                 result.append(od)
 
         logger.info(f"Fetched full-market odds for {len(result)} matches in {competition}")
+        return result
+
+    async def get_bookmaker_odds_for_competition(
+        self,
+        competition: str,
+        days_ahead: int = 3,
+        include_live: bool = False,
+    ) -> List["OddsData"]:
+        """Return every complete bookmaker 1X2 snapshot for a competition."""
+        sport = self.SPORT_MAPPING.get(competition.lower(), "soccer_epl")
+        date_from = None if include_live else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        date_to = (datetime.now(timezone.utc) + timedelta(days=days_ahead)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            raw_odds = await self.get_odds(
+                sport=sport,
+                date_from=date_from,
+                date_to=date_to,
+                use_cache=True,
+            )
+        except Exception as exc:
+            logger.warning("Failed to fetch bookmaker odds for %s: %s", competition, exc)
+            return []
+
+        result: List[OddsData] = []
+        for event in raw_odds:
+            for bookmaker in event.get("bookmakers", []):
+                odds = self._extract_from_bookmaker(event, bookmaker)
+                if odds:
+                    result.append(odds)
+        logger.info("Fetched bookmaker snapshots=%d for %s", len(result), competition)
         return result
 
     async def get_all_markets_for_event(
@@ -500,6 +544,7 @@ class OddsAPIClient:
         """
         if self.__class__._key_invalid:
             return None
+        sport = self.SPORT_MAPPING.get(sport.lower(), sport)
         try:
             params: Dict[str, Any] = {
                 "apiKey":     self.api_key,
@@ -517,6 +562,17 @@ class OddsAPIClient:
         except Exception as e:
             logger.warning(f"Event odds fetch failed for {event_id}: {e}")
             return None
+
+    async def get_match_odds(self, fixture_id: str, sport: str = "football") -> Optional["OddsData"]:
+        """Fetch and normalize one Odds API event for the shared provider registry."""
+        event = await self.get_all_markets_for_event(sport, str(fixture_id))
+        if not event:
+            return None
+        odds = self._extract_best_odds(event)
+        if odds:
+            odds.timestamp = self._parse_event_time(event.get("last_update")) or odds.timestamp
+            odds.event_time = self._parse_event_time(event.get("commence_time"))
+        return odds
 
     async def get_sharp_odds(self, competition: str) -> List["OddsData"]:
         """Return Pinnacle-only odds (sharp-book proxy) for a competition."""
@@ -579,6 +635,8 @@ class OddsAPIClient:
             home_team  = home_name,
             away_team  = away_name,
             bookmaker  = bookmaker.get("key", "unknown"),
+            timestamp   = self._parse_event_time(event.get("last_update")),
+            event_time  = self._parse_event_time(event.get("commence_time")),
         )
 
         ah_lines_raw: Dict[float, Dict[str, float]] = {}  # line → {home, away}
@@ -744,6 +802,8 @@ class OddsAPIClient:
             draw_odds = best["draw"],
             away_odds = best["away"],
             bookmaker = "best",
+            timestamp = self._parse_event_time(event.get("last_update")),
+            event_time = self._parse_event_time(event.get("commence_time")),
         )
 
         # Totals

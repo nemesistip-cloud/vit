@@ -725,7 +725,7 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
                     existing.kickoff_time = ko_naive
                     changed = True
                 if changed:
-                    await db.commit()
+                    await db.flush()
                     updated += 1
                 else:
                     skipped += 1
@@ -760,6 +760,7 @@ async def sync_and_insert_historical(
     db,
     days_back: int = 180,
     include_sportsdb: bool = True,
+    before=None,
 ) -> Dict:
     """
     Fetch historical matches from TheSportsDB and upsert them into the DB.
@@ -774,7 +775,7 @@ async def sync_and_insert_historical(
 
     events = []
     try:
-        events.extend(await fetch_historical_matches())
+        events.extend(await fetch_historical_matches(before=before))
     except Exception as public_exc:
         logger.warning("Public football CSV history failed: %s", type(public_exc).__name__)
     if include_sportsdb:
@@ -785,8 +786,12 @@ async def sync_and_insert_historical(
 
     deduped_events: list[Dict] = []
     seen_keys: set[tuple[str, str, str]] = set()
+    cutoff = before.replace(tzinfo=None) if before and before.tzinfo else before
     for ev in events:
         kickoff = ev.get("kickoff_time")
+        kickoff_cmp = kickoff.replace(tzinfo=None) if kickoff and kickoff.tzinfo else kickoff
+        if cutoff is not None and kickoff_cmp is not None and kickoff_cmp >= cutoff:
+            continue
         key = (
             kickoff.date().isoformat() if kickoff else "unknown",
             str(ev.get("home_team", "")).lower(),
@@ -825,6 +830,10 @@ async def sync_and_insert_historical(
 
             if existing:
                 changed = False
+                event_source = ev.get("source") or "unknown"
+                if event_source == "football-data-uk" and existing.source != event_source:
+                    existing.source = event_source
+                    changed = True
                 if ev.get("actual_outcome") and not existing.actual_outcome:
                     existing.actual_outcome = ev["actual_outcome"]
                     existing.home_goals = ev.get("home_goals")
@@ -847,16 +856,18 @@ async def sync_and_insert_historical(
                     home_goals=ev.get("home_goals"),
                     away_goals=ev.get("away_goals"),
                     actual_outcome=ev.get("actual_outcome"),
-                    source="sportsdb",
+                    source=ev.get("source") or "sportsdb",
                     fingerprint=fingerprint,
                 )
                 db.add(match)
-                await db.commit()
+                await db.flush()
                 inserted += 1
         except Exception as exc:
-            logger.debug("[sportsdb] insert error for %s vs %s: %s", home, away, exc)
+            logger.error("[sportsdb] historical batch rolled back at %s vs %s: %s", home, away, exc)
             await db.rollback()
-            skipped += 1
+            raise
+
+    await db.commit()
 
     logger.info(
         "[sportsdb] historical sync done: inserted=%d updated=%d skipped=%d total=%d",
