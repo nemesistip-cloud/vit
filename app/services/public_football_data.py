@@ -139,7 +139,13 @@ async def fetch_historical_matches(before: datetime | None = None) -> list[dict[
         if isinstance(response, Exception):
             logger.warning("Public football CSV unavailable source=%s error=%s", url, type(response).__name__)
             continue
-        response.raise_for_status()
+        if response.status_code != 200:
+            logger.warning(
+                "Public football CSV rejected source=%s status=%s",
+                url,
+                response.status_code,
+            )
+            continue
         try:
             csv_text = response.content.decode("utf-8-sig")
         except UnicodeDecodeError:

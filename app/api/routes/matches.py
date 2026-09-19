@@ -1242,7 +1242,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                 from app.services.sportsdb_api import sync_and_insert_historical
 
                 backfill_days = max(7, int(os.getenv("PREDICTION_HISTORY_BACKFILL_DAYS", "30")))
-                refresh_timeout = max(3.0, float(os.getenv("PREDICTION_HISTORY_REFRESH_TIMEOUT", "15")))
+                refresh_timeout = max(15.0, float(os.getenv("PREDICTION_HISTORY_REFRESH_TIMEOUT", "75")))
                 backfill = await asyncio.wait_for(
                     sync_and_insert_historical(
                         db,

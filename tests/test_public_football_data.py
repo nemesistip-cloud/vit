@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
-from app.services.public_football_data import SEASON_URLS, _row_to_event
+import pytest
+
+from app.services.public_football_data import SEASON_URLS, _row_to_event, fetch_historical_matches
 
 
 def test_public_csv_row_preserves_score_stats_and_provenance():
@@ -65,3 +67,31 @@ def test_public_csv_supports_current_season_and_xg_fields():
     assert event["statistics"]["home_xg"] == 1.4
     assert event["statistics"]["away_xg"] == 0.9
     assert event["source_metadata"]["provider"] == "football-data.co.uk"
+
+
+@pytest.mark.asyncio
+async def test_public_provider_keeps_available_seasons_when_one_source_fails(monkeypatch):
+    class Response:
+        def __init__(self, status_code, content=b""):
+            self.status_code = status_code
+            self.content = content
+
+    csv_content = (
+        b"Date,HomeTeam,AwayTeam,FTHG,FTAG\n"
+        b"16/08/2025,Tottenham,Burnley,3,0\n"
+    )
+
+    class Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url):
+            return Response(503 if "2526" in url else 200, csv_content)
+
+    monkeypatch.setattr("app.services.public_football_data.httpx.AsyncClient", lambda **kwargs: Client())
+    rows = await fetch_historical_matches(before=datetime(2026, 9, 19, tzinfo=timezone.utc))
+
+    assert len(rows) == 1
