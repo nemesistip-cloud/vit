@@ -52,6 +52,12 @@ async def main():
         if existing:
             # Keep the configured email/username pair authoritative when the
             # admin email is rotated through Render environment variables.
+            identity_changed = (
+                existing.email != ADMIN_EMAIL.lower()
+                or existing.username != ADMIN_USERNAME
+                or existing.role != "admin"
+                or not existing.is_active
+            )
             existing.email = ADMIN_EMAIL.lower()
             existing.username = ADMIN_USERNAME
             existing.role = "admin"
@@ -67,7 +73,9 @@ async def main():
 
             if not pw_ok:
                 existing.hashed_password = hash_password(ADMIN_PASSWORD)
+            if not pw_ok or identity_changed:
                 await db.commit()
+            if not pw_ok:
                 print(
                     f"[ensure_admin] Admin user '{ADMIN_EMAIL}' password synced "
                     f"from ADMIN_PASSWORD env var (id={existing.id})."
@@ -76,6 +84,7 @@ async def main():
                 print(
                     f"[ensure_admin] Admin user '{ADMIN_EMAIL}' exists and "
                     f"password is current (id={existing.id})."
+                    + (" Identity fields synchronized." if identity_changed else "")
                 )
             return
 
