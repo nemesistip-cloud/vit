@@ -430,7 +430,7 @@ async def predict(
         # rolling form / H2H / ELO-proxy values queried from the DB.
         try:
             match_features = await build_predict_features(
-                db, match.home_team, match.away_team, match.league
+                db, match.home_team, match.away_team, match.league, before=naive_kickoff
             )
         except Exception as exc:
             logger.warning(

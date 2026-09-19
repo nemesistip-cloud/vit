@@ -25,6 +25,7 @@ Designed to be cheap (≤4 small queries) so it can run on every /predict call.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select, or_, and_, desc
@@ -130,7 +131,10 @@ def _team_search_terms(team: str) -> list[str]:
 
 
 async def _recent_matches_for(
-    db: AsyncSession, team: str, limit: int = 10
+    db: AsyncSession,
+    team: str,
+    limit: int = 10,
+    before: Optional[datetime] = None,
 ) -> List[Match]:
     """Most-recent settled matches for a team (home or away), newest first."""
     terms = _team_search_terms(team)
@@ -138,13 +142,16 @@ async def _recent_matches_for(
     for term in terms:
         conditions.append(Match.home_team.ilike(f'%{term}%'))
         conditions.append(Match.away_team.ilike(f'%{term}%'))
+    filters = [
+        or_(*conditions),
+        Match.home_goals.isnot(None),
+        Match.away_goals.isnot(None),
+    ]
+    if before is not None:
+        filters.append(Match.kickoff_time < before)
     stmt = (
         select(Match)
-        .where(
-            or_(*conditions),
-            Match.home_goals.isnot(None),
-            Match.away_goals.isnot(None),
-        )
+        .where(*filters)
         .order_by(desc(Match.kickoff_time))
         .limit(limit)
     )
@@ -261,6 +268,7 @@ async def build_predict_features(
     home_team: str,
     away_team: str,
     league: Optional[str] = None,
+    before: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """
     Returns a feature dict ready to merge into the orchestrator `features` arg.
@@ -282,12 +290,12 @@ async def build_predict_features(
     completeness_signals: List[float] = []
 
     try:
-        home_recent = await _recent_matches_for(db, home_team, limit=10)
+        home_recent = await _recent_matches_for(db, home_team, limit=10, before=before)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning(f"home recent fetch failed for {home_team}: {exc}")
         home_recent = []
     try:
-        away_recent = await _recent_matches_for(db, away_team, limit=10)
+        away_recent = await _recent_matches_for(db, away_team, limit=10, before=before)
     except Exception as exc:  # pragma: no cover
         logger.warning(f"away recent fetch failed for {away_team}: {exc}")
         away_recent = []

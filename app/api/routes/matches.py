@@ -1059,7 +1059,9 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     d = latest.get("draw_prob")
     a = latest.get("away_prob")
 
-    features = await build_predict_features(db, match.home_team, match.away_team, match.league)
+    features = await build_predict_features(
+        db, match.home_team, match.away_team, match.league, before=match.kickoff_time
+    )
     elo_diff = features.get("elo_diff")
 
     has_primary_probabilities = (prediction_status in ("ready", "stale")) and h is not None and d is not None and a is not None
@@ -1219,7 +1221,9 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
 
     try:
         # 1. Fetch Features
-        features = await build_predict_features(db, match.home_team, match.away_team, match.league)
+        features = await build_predict_features(
+            db, match.home_team, match.away_team, match.league, before=match.kickoff_time
+        )
 
         # A newly started season can leave the local result window empty even
         # though the live results provider has real history. Refresh that
@@ -1240,7 +1244,9 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                     match.id, backfill_days, refresh_timeout,
                     backfill.get("inserted", 0), backfill.get("updated", 0),
                 )
-                features = await build_predict_features(db, match.home_team, match.away_team, match.league)
+                features = await build_predict_features(
+                    db, match.home_team, match.away_team, match.league, before=match.kickoff_time
+                )
             except Exception as refresh_exc:
                 logger.warning(
                     "PREDICTION_HISTORY_REFRESH_FAILED match=%s reason=%s",
