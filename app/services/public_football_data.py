@@ -25,11 +25,22 @@ SEASON_URLS = (
     "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
 )
 PREMIER_LEAGUE_URLS = SEASON_URLS
+GITHUB_DATASET_URL = (
+    "https://raw.githubusercontent.com/AnishKhetani/premier-league-data/"
+    "main/data/processed/results.csv"
+)
 
 
 def _parse_date(value: str) -> datetime | None:
     try:
         return datetime.strptime(value.strip(), "%d/%m/%Y").replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_iso_date(value: str) -> datetime | None:
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
     except (TypeError, ValueError):
         return None
 
@@ -124,18 +135,62 @@ def _row_to_event(row: dict[str, str], source_url: str) -> dict[str, Any] | None
     }
 
 
+def _github_row_to_event(row: dict[str, str]) -> dict[str, Any] | None:
+    kickoff = _parse_iso_date(row.get("date", ""))
+    home = _normalise_team(row.get("home_team", ""))
+    away = _normalise_team(row.get("away_team", ""))
+    home_goals = _number(row.get("fthg", ""))
+    away_goals = _number(row.get("ftag", ""))
+    if not kickoff or not home or not away or home_goals is None or away_goals is None:
+        return None
+
+    if home_goals > away_goals:
+        outcome = "home"
+    elif home_goals < away_goals:
+        outcome = "away"
+    else:
+        outcome = "draw"
+
+    retrieved_at = datetime.now(timezone.utc).isoformat()
+    return {
+        "external_id": row.get("match_id") or None,
+        "home_team": home,
+        "away_team": away,
+        "league": "premier_league",
+        "sport": "football",
+        "kickoff_time": kickoff,
+        "status": "settled",
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "actual_outcome": outcome,
+        "source": "github-premier-league-data",
+        "source_url": GITHUB_DATASET_URL,
+        "retrieved_at": retrieved_at,
+        "source_metadata": {
+            "provider": "github:AnishKhetani/premier-league-data",
+            "source_type": "public_csv_mirror",
+            "url": GITHUB_DATASET_URL,
+            "upstream_provider": "football-data.co.uk",
+            "retrieved_at": retrieved_at,
+            "confidence": "high",
+            "data_freshness": "public-dataset",
+            "reliability": "public",
+        },
+        "statistics": {},
+    }
 async def fetch_historical_matches(before: datetime | None = None) -> list[dict[str, Any]]:
     """Fetch completed Premier League rows from public season CSVs."""
     cutoff = before or datetime.now(timezone.utc)
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
         responses = await asyncio.gather(
-            *(client.get(url) for url in PREMIER_LEAGUE_URLS),
+            *(client.get(url) for url in (*PREMIER_LEAGUE_URLS, GITHUB_DATASET_URL)),
             return_exceptions=True,
         )
 
     events: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
-    for url, response in zip(PREMIER_LEAGUE_URLS, responses):
+    source_urls = (*PREMIER_LEAGUE_URLS, GITHUB_DATASET_URL)
+    for url, response in zip(source_urls, responses):
         if isinstance(response, Exception):
             logger.warning("Public football CSV unavailable source=%s error=%s", url, type(response).__name__)
             continue
@@ -151,7 +206,7 @@ async def fetch_historical_matches(before: datetime | None = None) -> list[dict[
         except UnicodeDecodeError:
             csv_text = response.content.decode("latin-1")
         for row in csv.DictReader(io.StringIO(csv_text)):
-            event = _row_to_event(row, url)
+            event = _github_row_to_event(row) if url == GITHUB_DATASET_URL else _row_to_event(row, url)
             # The public CSV has no kickoff time. Exclude the entire cutoff
             # date so a result from later that day can never leak backward.
             if not event or event["kickoff_time"].date() >= cutoff.date():
