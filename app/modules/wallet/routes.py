@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.models import User
-from app.api.deps import get_current_user
+from app.api.deps import get_current_admin, get_current_user
 from app.services.telegram_service import create_stars_invoice
 from app.modules.wallet.services import WalletService, WithdrawalService, SubscriptionService
 from app.modules.wallet.pricing import VITCoinPricingEngine
@@ -2157,17 +2157,22 @@ async def get_exchange_rates(db: AsyncSession = Depends(get_db)):
 
 # ── ADMIN KYC ──────────────────────────────────────────────────────
 
+
+def _require_admin_kyc_role(current_user: User) -> None:
+    role = (getattr(current_user, "role", "") or "").strip().lower()
+    if role not in {"admin", "super_admin", "superadmin"}:
+        raise HTTPException(403, "Admin privileges required.")
+
 @router.post("/admin/kyc/approve/{user_id}")
 async def admin_approve_kyc(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
 ):
     """Admin: approve a pending KYC submission."""
     from app.db.models import User as _User
 
-    if getattr(current_user, "role", "viewer") not in ("admin", "superadmin"):
-        raise HTTPException(403, "Admin privileges required.")
+    _require_admin_kyc_role(current_user)
 
     user_res = await db.execute(select(_User).where(_User.id == user_id))
     db_user = user_res.scalar_one_or_none()
@@ -2197,13 +2202,12 @@ async def admin_reject_kyc(
     user_id: int,
     body: Optional[KYCRejectRequest] = Body(default=None),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
 ):
     """Admin: reject a pending KYC submission."""
     from app.db.models import User as _User
 
-    if getattr(current_user, "role", "viewer") not in ("admin", "superadmin"):
-        raise HTTPException(403, "Admin privileges required.")
+    _require_admin_kyc_role(current_user)
 
     user_res = await db.execute(select(_User).where(_User.id == user_id))
     db_user = user_res.scalar_one_or_none()
@@ -2219,13 +2223,12 @@ async def admin_reject_kyc(
 @router.get("/admin/kyc/pending")
 async def admin_list_pending_kyc(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
 ):
     """Admin: list users with pending KYC."""
     from app.db.models import User as _User
 
-    if getattr(current_user, "role", "viewer") not in ("admin", "superadmin"):
-        raise HTTPException(403, "Admin privileges required.")
+    _require_admin_kyc_role(current_user)
 
     result = await db.execute(
         select(_User).where(_User.kyc_status == "pending").order_by(_User.kyc_submitted_at.asc())

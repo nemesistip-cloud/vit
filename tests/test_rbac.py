@@ -6,6 +6,8 @@ Uses the conftest `client` fixture so tests run against an in-memory SQLite
 database (no PostgreSQL required).
 """
 import uuid
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import update
 
@@ -77,6 +79,28 @@ async def test_super_admin_role_can_access_shared_admin_dependency(client, db_se
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code not in (401, 403), f"Super admin was denied: {resp.text}"
+
+
+@pytest.mark.asyncio
+async def test_super_admin_can_approve_legacy_wallet_kyc(client, db_session):
+    token, user_id = await _register(client, "legacy-kyc")
+    from app.db.models import User
+
+    await db_session.execute(update(User).where(User.id == user_id).values(
+        role="super_admin",
+        kyc_status="pending",
+        kyc_submitted_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/wallet/admin/kyc/{user_id}/approve",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200, f"Super admin legacy KYC approval was denied: {resp.text}"
+    payload = resp.json()
+    assert payload.get("kyc_status") == "approved"
 
 
 @pytest.mark.asyncio
