@@ -50,15 +50,23 @@ async def list_transactions(
     if user_id:
         q = q.where(WalletTransaction.user_id == user_id)
     if type:
-        q = q.where(WalletTransaction.transaction_type == type)
+        q = q.where(WalletTransaction.type == type)
     if status:
         q = q.where(WalletTransaction.status == status)
     if currency:
         q = q.where(WalletTransaction.currency == currency)
     if date_from:
-        q = q.where(WalletTransaction.created_at >= date_from)
+        try:
+            date_from_dt = datetime.fromisoformat(date_from)
+            q = q.where(WalletTransaction.created_at >= date_from_dt)
+        except ValueError:
+            pass
     if date_to:
-        q = q.where(WalletTransaction.created_at <= date_to)
+        try:
+            date_to_dt = datetime.fromisoformat(date_to)
+            q = q.where(WalletTransaction.created_at <= date_to_dt)
+        except ValueError:
+            pass
 
     total_res = await db.execute(select(func.count()).select_from(q.subquery()))
     total = total_res.scalar_one()
@@ -69,12 +77,13 @@ async def list_transactions(
 
     def fmt(t: WalletTransaction) -> dict:
         return {
-            "id": t.id, "user_id": t.user_id,
-            "type": str(t.transaction_type.value) if hasattr(t.transaction_type, "value") else str(t.transaction_type),
-            "direction": str(t.direction.value) if hasattr(t, "direction") and hasattr(t.direction, "value") else getattr(t, "direction", None),
+            "id": t.id,
+            "user_id": t.user_id,
+            "type": str(t.type),
+            "direction": str(t.direction),
             "amount": float(t.amount or 0),
-            "currency": str(t.currency.value) if hasattr(t.currency, "value") else str(t.currency),
-            "status": str(t.status.value) if hasattr(t.status, "value") else str(t.status),
+            "currency": str(t.currency),
+            "status": str(t.status),
             "description": getattr(t, "description", None),
             "created_at": t.created_at.isoformat() if t.created_at else None,
         }
@@ -113,11 +122,11 @@ async def manual_credit(
         id=str(uuid.uuid4()),
         user_id=body.user_id,
         wallet_id=wallet.id,
-        transaction_type=TransactionType.admin_credit,
-        direction=TransactionDirection.credit,
+        type="admin_credit",
+        direction="credit",
         amount=Decimal(str(body.amount)),
-        currency=Currency.VIT,
-        status=TransactionStatus.completed,
+        currency="VITCoin",
+        status="confirmed",
         description=f"Admin credit: {body.reason}",
         created_at=datetime.now(timezone.utc),
     )
@@ -167,11 +176,11 @@ async def manual_debit(
         id=str(uuid.uuid4()),
         user_id=body.user_id,
         wallet_id=wallet.id,
-        transaction_type=TransactionType.admin_debit,
-        direction=TransactionDirection.debit,
+        type="admin_debit",
+        direction="debit",
         amount=Decimal(str(body.amount)),
-        currency=Currency.VIT,
-        status=TransactionStatus.completed,
+        currency="VITCoin",
+        status="confirmed",
         description=f"Admin debit: {body.reason}",
         created_at=datetime.now(timezone.utc),
     )

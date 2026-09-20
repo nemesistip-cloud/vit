@@ -333,8 +333,15 @@ async def admin_queue(
     _=Depends(get_current_admin),
 ):
     """Admin: list KYC submissions by status."""
-    statuses = [KYCStatus.PENDING, KYCStatus.MANUAL_REVIEW]
-    if status:
+    status_key = (status or "").strip().lower()
+    if status_key in {"", "all", "any", "*"}:
+        statuses = list(KYCStatus)
+    elif status_key in {"pending", "manual_review", "auto_approved", "approved", "rejected", "expired", "none"}:
+        try:
+            statuses = [KYCStatus(status_key)]
+        except ValueError:
+            raise HTTPException(400, f"Invalid status '{status}'")
+    else:
         try:
             statuses = [KYCStatus(status)]
         except ValueError:
