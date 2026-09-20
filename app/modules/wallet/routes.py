@@ -5,6 +5,7 @@ from app.core.cache import cache
 from app.core.cache_keys import VITCOIN_PRICE
 
 import csv
+import hashlib
 import io
 import logging
 import uuid as _uuid_mod
@@ -258,6 +259,32 @@ async def get_my_wallet(
         usdt_balance=float(wallet.usdt_balance),
         pi_balance=float(wallet.pi_balance),
         vitcoin_balance=float(wallet.vitcoin_balance),
+        is_frozen=wallet.is_frozen,
+        kyc_verified=wallet.kyc_verified,
+        address=current_user.wallet_address,
+        subscription_tier=current_user.subscription_tier,
+    )
+
+
+@router.post("/create", response_model=WalletResponse)
+async def create_my_wallet(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create and link the user's internal native VIT wallet address."""
+    wallet = await WalletService(db).get_or_create_wallet(current_user.id)
+    if not current_user.wallet_address:
+        digest = hashlib.sha256(wallet.id.encode("utf-8")).hexdigest()[:40]
+        current_user.wallet_address = f"VIT{digest}"
+        await db.commit()
+        await db.refresh(current_user)
+
+    return WalletResponse(
+        ngn_balance=float(wallet.ngn_balance),
+        usd_balance=float(wallet.usd_balance),
+        usdt_balance=float(wallet.usdt_balance),
+        vitcoin_balance=float(wallet.vitcoin_balance),
+        pi_balance=float(wallet.pi_balance),
         is_frozen=wallet.is_frozen,
         kyc_verified=wallet.kyc_verified,
         address=current_user.wallet_address,

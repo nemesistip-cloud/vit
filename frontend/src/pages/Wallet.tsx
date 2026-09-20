@@ -435,7 +435,7 @@ function KYCModal({ onClose }: { onClose: () => void }) {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/wallet/kyc/submit`, {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/kyc/submit`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ full_name: fullName, date_of_birth: dob, document_type: docType, document_number: docNumber, nationality }),
@@ -607,6 +607,21 @@ export default function Wallet() {
   const [copied, setCopied] = useState(false)
   const [activeModal, setActiveModal] = useState<ModalType>(null)
   const qc = useQueryClient()
+  const createWallet = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/wallet/create`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.detail ?? data.message ?? 'Wallet creation failed')
+      return data
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(['wallet'], data)
+      qc.invalidateQueries({ queryKey: ['wallet'] })
+    },
+  })
 
   function copyAddress() {
     if (wallet?.address) {
@@ -697,6 +712,23 @@ export default function Wallet() {
                 </span>
                 {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 transition-colors" />}
               </button>
+            )}
+            {!wallet?.address && (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white/75">Your wallet is ready to activate</p>
+                  <p className="text-xs text-white/40 mt-1">Create a native VIT address to receive and manage on-chain assets.</p>
+                </div>
+                <button
+                  onClick={() => createWallet.mutate()}
+                  disabled={createWallet.isPending}
+                  className="inline-flex items-center gap-2 rounded-lg bg-vit-500 px-3 py-2 text-xs font-semibold text-white hover:bg-vit-400 disabled:opacity-50"
+                >
+                  {createWallet.isPending ? <Spinner className="w-3.5 h-3.5" /> : <WalletIcon className="w-3.5 h-3.5" />}
+                  {createWallet.isPending ? 'Creating…' : 'Create wallet'}
+                </button>
+                {createWallet.isError && <p className="basis-full text-xs text-red-400">{createWallet.error.message}</p>}
+              </div>
             )}
 
             {/* Quick actions */}

@@ -104,6 +104,21 @@ async def test_super_admin_can_approve_legacy_wallet_kyc(client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_user_can_create_and_link_wallet(client, db_session):
+    token, user_id = await _register(client, "create-wallet")
+
+    resp = await client.post(
+        "/api/wallet/create",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200, f"Wallet creation failed: {resp.text}"
+    payload = resp.json()
+    assert payload["address"].startswith("VIT")
+    assert len(payload["address"]) == 43
+
+
+@pytest.mark.asyncio
 async def test_admin_routes_require_admin_role(client):
     """A fresh user (non-admin) must be blocked from all /api/admin/* routes."""
     token, _ = await _register(client, "norole")
