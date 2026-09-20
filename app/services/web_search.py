@@ -75,9 +75,13 @@ def _strip_html(text: str) -> str:
 
 async def _google_search(query: str, max_results: int = 5) -> List[str]:
     """Google Custom Search API when a live search key is configured."""
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_SEARCH_API_KEY")
+    api_key = (
+        os.getenv("GOOGLE_API_KEY")
+        or os.getenv("GEMINI_API_KEY")
+        or os.getenv("GOOGLE_SEARCH_API_KEY")
+    )
     if not api_key:
-        api_key = await _get_admin_config_value("GOOGLE_API_KEY")
+        api_key = await _get_admin_config_value("GOOGLE_API_KEY") or await _get_admin_config_value("GEMINI_API_KEY")
 
     engine_id = os.getenv("GOOGLE_SEARCH_ENGINE_ID") or os.getenv("GOOGLE_CX")
     if not engine_id:

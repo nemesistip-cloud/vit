@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from app.modules.ai.gateway import ai_gateway
+from app.services.ai_client import call_ai
 from app.services.vit_ai_client import vit_ai_client
 
 @pytest.mark.asyncio
@@ -90,3 +91,17 @@ async def test_vit_ai_client_prediction_always_sends_features():
         posted_json = kwargs.get("json") or args[2]
         assert posted_json["model_id"] == "ensemble_v1"
         assert posted_json["payload"]["features"] == {"market_odds": {"home": 2.0}}
+
+
+@pytest.mark.asyncio
+async def test_call_ai_uses_aiml_fallback_when_gateway_fails():
+    with patch("app.modules.ai.gateway.ai_gateway.route_chat", new_callable=AsyncMock) as mock_gateway, \
+         patch("app.services.ai_client._call_gemini_fallback", new_callable=AsyncMock, return_value=None) as mock_gemini, \
+         patch("app.services.ai_client._call_aimlapi_fallback", new_callable=AsyncMock, return_value="AIML live response") as mock_aiml:
+        mock_gateway.return_value = {"response": "offline failover", "is_fallback": True}
+
+        response = await call_ai("Launch check")
+
+        assert response == "AIML live response"
+        mock_gemini.assert_awaited_once_with("Launch check")
+        mock_aiml.assert_awaited_once_with("Launch check")
