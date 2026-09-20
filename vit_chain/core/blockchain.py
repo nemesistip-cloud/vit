@@ -197,6 +197,7 @@ class VITChain:
                 block_hash=data.get("block_hash", ""),
                 storage_proofs=data.get("storage_proofs", []),
                 consensus_votes=data.get("consensus_votes", []),
+                state_commitment=data.get("state_commitment", ""),
             )
         except Exception as exc:
             logger.warning("_load_block deserialise error at height %d: %s", height, exc)

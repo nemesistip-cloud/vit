@@ -82,6 +82,11 @@ async def test_wallet_send_between_users_by_wallet_address():
             headers=_auth(sender_token),
         )
         assert send_resp.status_code == 200, send_resp.text
+        send_data = send_resp.json()
+        assert send_data["settlement"] == "internal_ledger"
+        assert send_data["on_chain"] is False
+        assert send_data["transaction_id"]
+        assert send_data["transfer_id"]
 
         sender_after = await client.get("/api/wallet/me", headers=_auth(sender_token))
         receiver_after = await client.get("/api/wallet/me", headers=_auth(receiver_token))

@@ -255,8 +255,31 @@ class WalletService:
         f_w = await self.get_or_create_wallet(from_user_id)
         t_w = await self.get_or_create_wallet(to_user_id)
 
-        d_tx = await self.debit(f_w.id, from_user_id, currency, amount, "transfer", reference=f"TO:{to_user_id}", metadata={"note": note})
-        c_tx = await self.credit(t_w.id, to_user_id, currency, amount, "transfer", reference=f"FROM:{from_user_id}", metadata={"note": note})
+        transfer_id = f"INTERNAL-{uuid.uuid4().hex.upper()}"
+        metadata = {
+            "note": note,
+            "settlement": "internal_ledger",
+            "transfer_id": transfer_id,
+            "counterparty_user_id": to_user_id,
+        }
+        d_tx = await self.debit(
+            f_w.id,
+            from_user_id,
+            currency,
+            amount,
+            "transfer",
+            reference=f"{transfer_id}-DEBIT",
+            metadata=metadata,
+        )
+        c_tx = await self.credit(
+            t_w.id,
+            to_user_id,
+            currency,
+            amount,
+            "transfer",
+            reference=f"{transfer_id}-CREDIT",
+            metadata={**metadata, "counterparty_user_id": from_user_id},
+        )
 
         return d_tx, c_tx
 

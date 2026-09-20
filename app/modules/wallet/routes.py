@@ -313,7 +313,7 @@ async def send_wallet(
 
     service = WalletService(db)
     try:
-        _, _ = await service.transfer(
+        debit_tx, credit_tx = await service.transfer(
             from_user_id=current_user.id,
             to_identifier=body.recipient_address,
             currency=currency,
@@ -331,6 +331,12 @@ async def send_wallet(
         "amount": float(body.amount),
         "currency": currency.value,
         "note": body.note,
+        "settlement": "internal_ledger",
+        "on_chain": False,
+        "transaction_id": debit_tx.id,
+        "transfer_id": (debit_tx.tx_metadata or {}).get("transfer_id"),
+        "sender_transaction_id": debit_tx.id,
+        "recipient_transaction_id": credit_tx.id,
     }
 
 

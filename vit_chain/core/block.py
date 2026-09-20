@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Any, Callable
 from .transaction import VITTransaction
 from ..crypto.hash import hash_block_header, sha256_hex
+from ..crypto.hash import hash_block_header, sha3_256_hex
 from ..crypto.merkle import MerkleTree
 from ..crypto.ecdsa import recover_public_key
 from ..crypto.address import public_key_to_address
@@ -11,6 +12,7 @@ BLOCK_TIME_SECONDS = 15
 MAX_TXS_PER_BLOCK = 500
 BASE_BLOCK_REWARD = Decimal("10")
 CURRENT_BLOCK_VERSION = 1
+STATE_COMMITMENT_VERSION = "sha3-256-v1"
 
 @dataclass
 class VITBlock:
@@ -30,6 +32,7 @@ class VITBlock:
     block_hash: str = ""
     storage_proofs: list[dict] = field(default_factory=list)
     consensus_votes: list[dict] = field(default_factory=list)
+    state_commitment: str = ""
 
     def __post_init__(self):
         if not self.block_hash:
@@ -52,7 +55,8 @@ class VITBlock:
             "validator_signature": self.validator_signature,
             "block_hash": self.block_hash,
             "storage_proofs": self.storage_proofs,
-            "consensus_votes": self.consensus_votes
+            "consensus_votes": self.consensus_votes,
+            "state_commitment": self.state_commitment,
         }
 
     def compute_hash(self) -> str:
@@ -64,7 +68,8 @@ class VITBlock:
             height=self.height,
             validator_id=self.validator_id,
             version=self.version,
-            nonce=self.nonce
+            nonce=self.nonce,
+            state_commitment=self.state_commitment,
         )
 
     @classmethod
@@ -103,7 +108,15 @@ class VITBlock:
             block_hash=data.get("block_hash", ""),
             storage_proofs=data.get("storage_proofs", []),
             consensus_votes=data.get("consensus_votes", []),
+            state_commitment=data.get("state_commitment", ""),
         )
+
+def compute_state_commitment(prev_block: Optional["VITBlock"], merkle_root: str,
+                             height: int, tx_count: int) -> str:
+    """Commit to the ordered state transition represented by a block."""
+    previous = prev_block.state_commitment if prev_block else "0" * 64
+    payload = f"{STATE_COMMITMENT_VERSION}:{previous}:{height}:{tx_count}:{merkle_root}"
+    return sha3_256_hex(payload.encode("utf-8"))
 
 def build_block(prev_block: Optional["VITBlock"],
                 transactions: list[VITTransaction],
@@ -128,6 +141,7 @@ def build_block(prev_block: Optional["VITBlock"],
     tx_hashes = [bytes.fromhex(tx.tx_hash) for tx in transactions]
     merkle_tree = MerkleTree(tx_hashes)
     merkle_root = merkle_tree.root
+    state_commitment = compute_state_commitment(prev_block, merkle_root, height, len(transactions))
 
     # Calculate total fees
     total_fees = sum(tx.gas_fee for tx in transactions)
@@ -149,7 +163,8 @@ def build_block(prev_block: Optional["VITBlock"],
         storage_proofs=storage_proofs,
         version=version,
         nonce=nonce,
-        metadata=metadata or {}
+        metadata=metadata or {},
+        state_commitment=state_commitment,
     )
 
     # Sign the block hash (recoverable)
@@ -177,6 +192,10 @@ def validate_block(block: VITBlock, prev_block: Optional[VITBlock],
 
     # 2. Check hash
     if block.block_hash != block.compute_hash():
+        return False
+
+    expected_commitment = compute_state_commitment(prev_block, block.merkle_root, block.height, block.tx_count)
+    if block.state_commitment and block.state_commitment != expected_commitment:
         return False
 
     # 3. Check Merkle root

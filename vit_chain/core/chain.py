@@ -48,7 +48,8 @@ class VITChain:
             validator_signature=p["validator_signature"],
             block_hash=p["block_hash"],
             storage_proofs=p.get("storage_proofs", []),
-            consensus_votes=p.get("consensus_votes", [])
+            consensus_votes=p.get("consensus_votes", []),
+            state_commitment=p.get("state_commitment", ""),
         )
 
     async def get_latest_block(self, db: AsyncSession) -> Optional[VITBlock]:
@@ -116,6 +117,7 @@ class VITChain:
             "total_fees": str(block.total_fees),
             "block_reward": str(block.block_reward),
             "transactions": [tx.to_dict() for tx in block.transactions],
+            "state_commitment": block.state_commitment,
             "storage_proofs": block.storage_proofs,
             "consensus_votes": block.consensus_votes
         }

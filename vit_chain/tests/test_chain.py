@@ -59,8 +59,23 @@ async def test_block_building_and_validation(keys):
     assert block.tx_count == 1
     assert block.block_hash != ""
     assert block.validator_signature != ""
+    assert len(block.state_commitment) == 64
 
     assert validate_block(block, None, [])
+
+@pytest.mark.asyncio
+async def test_state_commitment_changes_across_blocks(keys):
+    priv, _ = keys
+    to_addr = "VIT" + "2" * 40
+    tx = create_transaction(priv, to_addr, Decimal("10"), 0)
+    first = build_block(None, [tx], [], priv, height=0, timestamp=1000)
+    second = build_block(first, [], [], priv, height=1, timestamp=1015)
+
+    assert first.state_commitment != second.state_commitment
+    assert validate_block(second, first, [])
+
+    second.state_commitment = "0" * 64
+    assert not validate_block(second, first, [])
 
 @pytest.mark.asyncio
 async def test_genesis_block():

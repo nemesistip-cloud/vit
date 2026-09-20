@@ -147,7 +147,7 @@ class BlockchainManager:
             return True
 
     async def verify_chain_integrity(self, db: AsyncSession) -> bool:
-        """Verifies the full chain by traversing from genesis."""
+        """Verifies signatures, hashes, and state commitments across the chain."""
         height = await self.chain.chain_height(db)
         if height < 0:
             return True
