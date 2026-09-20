@@ -1086,6 +1086,31 @@ async def get_my_appeal(
     }
 
 
+@router.get("/validators/me")
+async def get_my_validator(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's validator profile, or null when unenrolled."""
+    result = await db.execute(
+        select(ValidatorProfile).where(ValidatorProfile.user_id == current_user.id)
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        return None
+    return {
+        "id": profile.id,
+        "status": profile.status,
+        "stake_amount": float(profile.stake_amount or 0),
+        "stake": float(profile.stake_amount or 0),
+        "pending_rewards": 0.0,
+        "slashing_history": [],
+        "trust_score": float(profile.trust_score or 0),
+        "accuracy_rate": round(profile.accurate_predictions / profile.total_predictions, 4)
+        if profile.total_predictions else 0.0,
+    }
+
+
 class AppealReviewRequest(BaseModel):
     decision: str = Field(..., pattern="^(approved|rejected)$")
     admin_note: str = ""

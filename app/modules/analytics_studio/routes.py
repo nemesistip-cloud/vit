@@ -227,15 +227,16 @@ async def model_comparison(
 
     models = []
     for r in rows:
-        m_metrics = r.metrics or {}
+        predictions = int(r.predictions_total or 0)
+        correct = int(r.predictions_correct or 0)
         models.append({
             "model":       r.name,
             "key":         r.key,
-            "accuracy":    round(float(m_metrics.get("accuracy", 0)), 3),
-            "roc_auc":     round(float(m_metrics.get("roc_auc", 0)), 3),
-            "roi_pct":     round(float(m_metrics.get("roi_pct", 0)), 2),
-            "predictions": int(m_metrics.get("predictions", 0)),
-            "correct":     int(m_metrics.get("correct", 0)),
+            "accuracy":    round(float(r.accuracy or (correct / predictions if predictions else 0)), 3),
+            "roc_auc":     0.0,
+            "roi_pct":     0.0,
+            "predictions": predictions,
+            "correct":     correct,
             "weight":      float(r.weight or 1.0),
             "version":     r.version,
             "is_active":   r.is_active,

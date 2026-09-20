@@ -43,7 +43,7 @@ function useValidators() {
   return useQuery<Validator[]>({
     queryKey: ['validators-active'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/validators/active`, { signal })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/wallet/active`, { signal })
       if (!r.ok) return []
       const d = await r.json()
       return Array.isArray(d) ? d : d.validators ?? d.items ?? []
@@ -57,7 +57,7 @@ function useMyValidator() {
   return useQuery<MyValidator | null>({
     queryKey: ['my-validator'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/validators/me`, { signal, headers: authHeaders() })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/blockchain/validators/me`, { signal, headers: authHeaders() })
       return r.ok ? r.json() : null
     },
     enabled: !!getAuthToken(),

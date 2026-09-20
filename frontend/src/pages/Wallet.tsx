@@ -66,7 +66,7 @@ function useKYCStatus() {
   return useQuery({
     queryKey: ['kyc-status'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/wallet/kyc/status`, { signal, headers: authHeaders() })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/kyc/status`, { signal, headers: authHeaders() })
       return r.ok ? r.json() : null
     },
     retry: false, staleTime: 300_000,
