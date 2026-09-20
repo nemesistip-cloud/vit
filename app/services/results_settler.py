@@ -269,7 +269,9 @@ async def fetch_live_matches() -> list:
     """
     import time as _lt
 
-    # --- Try iSports first ---
+    live_candidates = []
+
+    # --- Fetch iSports ---
     isports_key = os.getenv("ISPORTS_API_KEY")
     if isports_key:
         try:
@@ -294,8 +296,10 @@ async def fetch_live_matches() -> list:
                     })
                     live_formatted.append(formatted)
 
-            if live_formatted:
-                return live_formatted
+            for item in live_formatted:
+                item["provider"] = "isports"
+                item["provider_match_id"] = str(item.get("isports_id") or "")
+                live_candidates.append(item)
         except Exception as e:
             logger.error(f"[live] iSports live fetch failed: {e}")
 
@@ -329,18 +333,21 @@ async def fetch_live_matches() -> list:
                 )
                 if r.status_code == 200:
                     for m in r.json().get("matches", []):
-                        score = (m.get("score", {}).get("currentScore") or
-                                 m.get("score", {}).get("halfTime", {}))
+                        from app.services.live_match_ingestion import extract_live_score
+                        home_score, away_score = extract_live_score(m.get("score"))
                         live.append({
                             "home_team":    m["homeTeam"]["name"],
                             "away_team":    m["awayTeam"]["name"],
                             "league":       league,
                             "kickoff_time": m.get("utcDate", ""),
                             "status":       "live",
-                            "home_score":   score.get("home") if score else None,
-                            "away_score":   score.get("away") if score else None,
+                            "home_score":   home_score,
+                            "away_score":   away_score,
                             "minute":       m.get("minute"),
                             "market_odds":  {},
+                            "provider": "footballdata",
+                            "provider_match_id": str(m.get("id") or ""),
+                            "provider_timestamp": m.get("lastUpdated") or m.get("utcDate"),
                         })
                 elif r.status_code in (401, 403):
                     _FORBIDDEN_LEAGUES.add(league)
@@ -355,7 +362,48 @@ async def fetch_live_matches() -> list:
             except Exception as e:
                 logger.warning(f"Live-match fetch failed for {league}: {e}")
 
-    return live
+    live_candidates.extend(live)
+    if not live_candidates:
+        return []
+
+    from app.services.team_mapper import TeamMapper
+    grouped = {}
+    for item in live_candidates:
+        key = (
+            TeamMapper.normalize_name(item.get("home_team", "")),
+            TeamMapper.normalize_name(item.get("away_team", "")),
+            str(item.get("kickoff_time", ""))[:10],
+        )
+        grouped.setdefault(key, []).append(item)
+
+    reconciled = []
+    for candidates in grouped.values():
+        candidates.sort(
+            key=lambda item: (
+                int(item.get("home_score") or 0) + int(item.get("away_score") or 0),
+                int(item.get("home_score") or 0),
+                int(item.get("away_score") or 0),
+                1 if item.get("provider") == "footballdata" else 0,
+            ),
+            reverse=True,
+        )
+        selected = candidates[0]
+        if len({(c.get("home_score"), c.get("away_score")) for c in candidates}) > 1:
+            logger.warning(
+                "LIVE_SCORE_CONFLICT fixture=%s providers=%s scores=%s selected=%s:%s-%s",
+                selected.get("provider_match_id"),
+                ",".join(sorted({c.get("provider", "unknown") for c in candidates})),
+                sorted({(c.get("home_score"), c.get("away_score")) for c in candidates}),
+                selected.get("provider"), selected.get("home_score"), selected.get("away_score"),
+            )
+        reconciled.append(selected)
+
+    logger.info(
+        "LIVE_PROVIDER_SYNC providers=%s matches=%d",
+        ",".join(sorted({item.get("provider", "unknown") for item in live_candidates})),
+        len(reconciled),
+    )
+    return reconciled
 
 
 def _parse_kickoff(utc_str: str) -> datetime:

@@ -822,11 +822,6 @@ async def get_live_matches(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        _cache_key = f"{FIXTURE_LIST}:live:{sport}"
-        _cached = await cache.get(_cache_key)
-        if _cached is not None:
-            return _cached
-
         from app.services.live_match_ingestion import live_ingestion_service
         ingested = await live_ingestion_service.fetch_and_normalize_all(force_refresh=True)
         live_list = ingested.get("live", [])
@@ -896,11 +891,16 @@ async def get_live_matches(
                     "provider_match_id": lm.provider_match_id,
                     "retrieved_at": datetime.fromtimestamp(lm.source_timestamp, timezone.utc).isoformat(),
                     "last_successful_update": datetime.fromtimestamp(lm.last_successful_update, timezone.utc).isoformat(),
+                    "provider_timestamp": lm.provider_timestamp,
+                    "sync_latency_ms": round((time.time() - lm.source_timestamp) * 1000),
                     "fallback_used": lm.provider == "db",
                 }
             })
-
-        await cache.set(_cache_key, res, ttl=10)
+        logger.info(
+            "LIVE_API_SYNC matches=%d sport=%s last_successful_sync=%s scores=%s",
+            len(res), sport or "all", datetime.now(timezone.utc).isoformat(),
+            [(item["external_id"], item["home_score"], item["away_score"]) for item in res],
+        )
         return res
     except Exception as e:
         logger.exception("get_live_matches read failed")
@@ -1075,6 +1075,25 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
 
+    # Live detail must converge from the provider path, not remain a stale DB
+    # snapshot while the in-play endpoint has newer scores.
+    if (match.status or "").lower() in {"live", "in_play", "in_progress"}:
+        try:
+            from app.services.live_match_ingestion import live_ingestion_service
+
+            await live_ingestion_service.fetch_and_normalize_all(force_refresh=True)
+            await db.refresh(match)
+            logger.info(
+                "LIVE_DETAIL_REFRESH match=%s fixture=%s persisted_score=%s-%s source=%s",
+                match.id,
+                match.external_id,
+                match.home_goals,
+                match.away_goals,
+                match.source,
+            )
+        except Exception as live_refresh_error:
+            logger.warning("LIVE_DETAIL_REFRESH_FAILED match=%s reason=%s", match_id, live_refresh_error)
+
     pred_q = await db.execute(
         select(Prediction)
         .where(Prediction.match_id == match_id)
@@ -1101,7 +1120,22 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     if not latest_pred:
         prediction_status = "not_initialized"
     elif getattr(latest_pred, 'status', None) == "INITIALIZING":
-        prediction_status = "initializing"
+        prediction_ts = latest_pred.timestamp
+        if prediction_ts and prediction_ts.tzinfo is None:
+            prediction_ts = prediction_ts.replace(tzinfo=timezone.utc)
+        if prediction_ts and (datetime.now(timezone.utc) - prediction_ts).total_seconds() >= 120:
+            latest_pred.status = "FAILED"
+            latest_pred.error_message = "Prediction generation timed out before producing a result."
+            await db.commit()
+            prediction_status = "failed"
+            logger.warning(
+                "PREDICTION_STALE_INITIALIZING match=%s job=%s age_seconds=%d",
+                match_id,
+                latest_pred.job_id,
+                int((datetime.now(timezone.utc) - prediction_ts).total_seconds()),
+            )
+        else:
+            prediction_status = "initializing"
     elif getattr(latest_pred, 'status', None) == "FAILED":
         prediction_status = "failed"
     elif getattr(latest_pred, 'status', None) == "STALE":
@@ -1484,6 +1518,22 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             historical_sample_size=int(features.get("history_sample_size", 0) or 0),
             data_freshness_ok=(getattr(reconciled_odds, "freshness", None) in {OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE}) if reconciled_odds else False,
             model_ready=model_ready,
+        )
+
+        logger.info(
+            "PREDICTION_READINESS match=%s fixture=%s status=%s live_score=%s-%s feature_completeness=%.3f evidence_score=%.1f history_samples=%s odds_available=%s odds_freshness=%s model_ready=%s reasons=%s",
+            match.id,
+            match.external_id,
+            "ready" if readiness["ready"] else "blocked",
+            match.home_goals,
+            match.away_goals,
+            float(features.get("feature_completeness", 0.0) or 0.0),
+            float(evidence.total_score or 0.0),
+            features.get("history_sample_size", 0),
+            bool(reconciled_odds and reconciled_odds.consensus_odds),
+            getattr(reconciled_odds, "freshness", None).value if getattr(reconciled_odds, "freshness", None) else None,
+            model_ready,
+            ";".join(readiness.get("reasons", [])),
         )
 
         if not readiness["ready"]:

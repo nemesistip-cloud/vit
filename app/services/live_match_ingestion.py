@@ -84,6 +84,7 @@ class CanonicalLiveMatch(BaseModel):
     source_timestamp: float
     ingestion_timestamp: float
     last_successful_update: float
+    provider_timestamp: Optional[str] = None
     markets_available: bool = False
     raw_odds: Optional[Dict[str, Any]] = None
 
@@ -98,6 +99,50 @@ def _generate_match_fingerprint(home: str, away: str, kickoff_time: str) -> str:
     norm_h = _normalize_name(home)
     norm_a = _normalize_name(away)
     return f"{norm_h}::vs::{norm_a}"
+
+
+def extract_live_score(score: Optional[Dict[str, Any]]) -> tuple[int, int]:
+    """Read the provider's current score without falling back to stale full-time data."""
+    score = score or {}
+    for key in ("currentScore", "fullTime", "halfTime"):
+        current = score.get(key) or {}
+        if current.get("home") is not None or current.get("away") is not None:
+            return int(current.get("home") or 0), int(current.get("away") or 0)
+    return 0, 0
+
+
+def reconcile_live_candidates(candidates: List[CanonicalLiveMatch]) -> CanonicalLiveMatch:
+    """Choose the freshest non-regressing score when providers disagree.
+
+    Football scores are monotonic during live play. Selecting the highest observed
+    goal total prevents a delayed provider response from overwriting a newer goal.
+    Provider priority remains the tie-breaker for equal scores.
+    """
+    provider_priority = {"footballdata": 0, "isports": 1, "db": 2}
+    ordered = sorted(
+        candidates,
+        key=lambda item: (
+            item.home_score + item.away_score,
+            item.home_score,
+            item.away_score,
+            -provider_priority.get(item.provider, 99),
+            item.source_timestamp,
+        ),
+        reverse=True,
+    )
+    selected = ordered[0]
+    score_pairs = {(item.home_score, item.away_score) for item in candidates}
+    if len(score_pairs) > 1:
+        logger.warning(
+            "LIVE_SCORE_CONFLICT fixture=%s providers=%s scores=%s selected=%s:%s-%s",
+            selected.provider_match_id,
+            ",".join(sorted({item.provider for item in candidates})),
+            sorted(score_pairs),
+            selected.provider,
+            selected.home_score,
+            selected.away_score,
+        )
+    return selected
 
 
 class LiveMatchIngestionService:
@@ -148,10 +193,7 @@ class LiveMatchIngestionService:
             # Find best live match or upcoming match
             live_candidates = [m for m in group if m.status == "LIVE"]
             if live_candidates:
-                # Priority: footballdata > isports > db
-                provider_order = {"footballdata": 0, "isports": 1, "db": 2}
-                live_candidates.sort(key=lambda x: provider_order.get(x.provider, 99))
-                best_live = live_candidates[0]
+                best_live = reconcile_live_candidates(live_candidates)
 
                 # Check if there's a DB match in group to attach db_match_id
                 db_cand = next((m for m in group if m.provider == "db" and m.db_match_id), None)
@@ -218,9 +260,7 @@ class LiveMatchIngestionService:
                 status = "LIVE" if is_live else ("UPCOMING" if status_raw in ("SCHEDULED", "TIMED") else "FINISHED")
 
                 score = m.get("score", {})
-                full_time = score.get("fullTime", {})
-                h_score = full_time.get("home") or 0
-                a_score = full_time.get("away") or 0
+                h_score, a_score = extract_live_score(score)
 
                 # Calculate minute if in-play
                 utc_date = m.get("utcDate", "")
@@ -252,6 +292,7 @@ class LiveMatchIngestionService:
                     source_timestamp=now,
                     ingestion_timestamp=now,
                     last_successful_update=now,
+                    provider_timestamp=m.get("lastUpdated") or m.get("utcDate"),
                     markets_available=is_live,
                 )
                 results.append(canon)
@@ -293,6 +334,7 @@ class LiveMatchIngestionService:
                     source_timestamp=now,
                     ingestion_timestamp=now,
                     last_successful_update=now,
+                    provider_timestamp=m.get("lastUpdated") or m.get("matchTime"),
                     markets_available=is_live,
                 )
                 results.append(canon)
@@ -383,6 +425,12 @@ class LiveMatchIngestionService:
                     target_match = None
                     if lm.db_match_id:
                         target_match = (await session.execute(select(Match).where(Match.id == lm.db_match_id))).scalar_one_or_none()
+                    if not target_match and lm.provider_match_id:
+                        target_match = (
+                            await session.execute(
+                                select(Match).where(Match.external_id == lm.provider_match_id)
+                            )
+                        ).scalar_one_or_none()
                     if not target_match:
                         norm_h = _normalize_name(lm.home)
                         norm_a = _normalize_name(lm.away)
@@ -409,6 +457,17 @@ class LiveMatchIngestionService:
                             changed = True
                         if changed:
                             session.add(target_match)
+                        logger.info(
+                            "LIVE_SCORE_SYNC provider=%s fixture=%s db_match=%s provider_score=%s-%s persisted_score=%s-%s sync_latency_ms=%d",
+                            lm.provider,
+                            lm.provider_match_id,
+                            target_match.id,
+                            lm.home_score,
+                            lm.away_score,
+                            target_match.home_goals,
+                            target_match.away_goals,
+                            round((time.time() - lm.source_timestamp) * 1000),
+                        )
                 await session.commit()
         except Exception as e:
             logger.warning("Error syncing live matches to DB: %s", e)

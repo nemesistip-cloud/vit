@@ -28,8 +28,8 @@ class LiveMatchTrackerAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
             name="live-match-tracker",
-            interval_seconds=60,
-            initial_delay_seconds=30,
+            interval_seconds=30,
+            initial_delay_seconds=10,
         )
 
     async def run_cycle(self) -> Dict[str, Any]:
@@ -65,15 +65,22 @@ class LiveMatchTrackerAgent(BaseAgent):
                 away_score: Optional[int] = api_match.get("away_score")
                 minute = api_match.get("minute")
                 league  = api_match.get("league", "")
+                provider = api_match.get("provider", "unknown")
+                provider_match_id = str(api_match.get("provider_match_id") or "")
 
-                # Find DB record via fuzzy name matching
+                # Prefer stable provider fixture mapping; fuzzy names are fallback only.
                 rows = await db.execute(
-                    select(Match).where(
-                        Match.status.in_(["scheduled", "upcoming", "live", "in_play"])
-                    ).limit(500)
+                    select(Match).where(Match.external_id == provider_match_id)
                 )
                 candidates = rows.scalars().all()
-                match_db: Optional[Match] = None
+                match_db: Optional[Match] = candidates[0] if candidates else None
+                if match_db is None:
+                    rows = await db.execute(
+                        select(Match).where(
+                            Match.status.in_(["scheduled", "upcoming", "live", "in_play"])
+                        ).limit(500)
+                    )
+                    candidates = rows.scalars().all()
                 for c in candidates:
                     if (
                         SequenceMatcher(None, c.home_team.lower(), home_name.lower()).ratio() > 0.7
@@ -87,8 +94,8 @@ class LiveMatchTrackerAgent(BaseAgent):
 
                 mid = match_db.id
                 prev = _prev_scores.get(mid, {})
-                prev_home = prev.get("home")
-                prev_away = prev.get("away")
+                prev_home = match_db.home_goals if match_db.home_goals is not None else prev.get("home")
+                prev_away = match_db.away_goals if match_db.away_goals is not None else prev.get("away")
 
                 # Update DB record
                 match_db.status = "live"
@@ -147,6 +154,19 @@ class LiveMatchTrackerAgent(BaseAgent):
                 _prev_scores[mid] = {
                     "home": home_score, "away": away_score, "minute": minute,
                 }
+                logger.info(
+                    "LIVE_TRACKER_SYNC provider=%s fixture=%s db_match=%s provider_timestamp=%s provider_score=%s-%s persisted_score=%s-%s last_successful_sync=%s sync_latency_ms=%d prediction_status=deferred",
+                    provider,
+                    provider_match_id,
+                    mid,
+                    api_match.get("provider_timestamp"),
+                    home_score,
+                    away_score,
+                    match_db.home_goals,
+                    match_db.away_goals,
+                    now.isoformat(),
+                    round((now.timestamp() - (api_match.get("source_timestamp") or now.timestamp())) * 1000),
+                )
 
         # NOTE: Settlement is handled by two dedicated loops in main.py:
         #   • live_match_tracker_loop  → calls settle_completed_db_matches() (DB-only, fast)
