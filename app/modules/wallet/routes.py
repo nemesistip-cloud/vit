@@ -115,6 +115,13 @@ class WalletResponse(BaseModel):
     subscription_tier: Optional[str] = None
 
 
+class SendWalletRequest(BaseModel):
+    recipient_address: str = Field(..., min_length=3, max_length=64)
+    amount: float = Field(..., gt=0)
+    note: Optional[str] = None
+    currency: str = "VITCoin"
+
+
 class VITCoinBuyRequest(BaseModel):
     amount_ngn: Optional[float] = Field(None, gt=0)
     amount_usd: Optional[float] = Field(None, gt=0)
@@ -290,6 +297,41 @@ async def create_my_wallet(
         address=current_user.wallet_address,
         subscription_tier=current_user.subscription_tier,
     )
+
+
+@router.post("/send")
+async def send_wallet(
+    body: SendWalletRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send VITCoin from one wallet to another using a username, email, phone, or wallet address."""
+    try:
+        currency = Currency(body.currency)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unsupported currency: {body.currency}")
+
+    service = WalletService(db)
+    try:
+        _, _ = await service.transfer(
+            from_user_id=current_user.id,
+            to_identifier=body.recipient_address,
+            currency=currency,
+            amount=Decimal(str(body.amount)),
+            note=body.note,
+        )
+        await db.commit()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "ok": True,
+        "status": "sent",
+        "recipient": body.recipient_address,
+        "amount": float(body.amount),
+        "currency": currency.value,
+        "note": body.note,
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════

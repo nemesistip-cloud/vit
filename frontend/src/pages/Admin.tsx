@@ -123,6 +123,22 @@ function useAdminUsers() {
     return r.ok ? r.json() : null
   }, retry: false, staleTime: 60_000 })
 }
+function useAdminKycQueue(status: string = 'all') {
+  return useQuery({
+    queryKey: ['admin-kyc-queue', status],
+    queryFn: async ({ signal }) => {
+      const params = new URLSearchParams({ limit: '50' })
+      if (status && status !== 'all') params.set('status', status)
+      const r = await fetch(`${ENDPOINTS.gateway}/api/kyc/admin/queue?${params}`, { signal, headers: authHeaders() })
+      if (!r.ok) return { items: [], count: 0 }
+      const data = await r.json()
+      const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
+      return { items, count: data?.count ?? items.length }
+    },
+    retry: false,
+    staleTime: 30_000,
+  })
+}
 function useAdminMetrics() {
   return useQuery({ queryKey: ['admin-metrics'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/system/metrics`, { signal, headers: authHeaders() })
@@ -178,6 +194,15 @@ function useAdminModels() {
     }))
   }, retry: false, staleTime: 60_000 })
 }
+function useAdminSecrets() {
+  return useQuery({ queryKey: ['admin-secrets'], queryFn: async ({ signal }) => {
+    const r = await fetch(`${ENDPOINTS.gateway}/api/admin/secrets`, { signal, headers: authHeaders() })
+    if (!r.ok) return []
+    const data = await r.json()
+    return Array.isArray(data) ? data : []
+  }, retry: false, staleTime: 120_000 })
+}
+
 function useAdminConfig() {
   return useQuery({ queryKey: ['admin-config'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/config`, { signal, headers: authHeaders() })
@@ -360,10 +385,32 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
 // ── Tab: Users ────────────────────────────────────────────────────────────────
 
 function UsersTab() {
+  const queryClient = useQueryClient()
   const { data: raw, isLoading, refetch } = useAdminUsers()
   const list: any[] = Array.isArray(raw?.users ?? raw?.items ?? raw)
     ? (raw?.users ?? raw?.items ?? raw)
     : []
+
+  const updateUser = useMutation({
+    mutationFn: async ({ userId, updates }: { userId: number; updates: Record<string, boolean | string> }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.detail ?? payload.message ?? 'Failed to update user')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      toast.success('User status updated')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -376,16 +423,49 @@ function UsersTab() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className="border-b border-white/8">
-                {['ID','User','Role','Tier','Joined','Active'].map(h => <th key={h} className="text-left text-xs font-medium text-white/35 uppercase tracking-wide px-4 py-3">{h}</th>)}
+                {['ID','User','Role','Tier','Joined','Status','Actions'].map(h => <th key={h} className="text-left text-xs font-medium text-white/35 uppercase tracking-wide px-4 py-3">{h}</th>)}
               </tr></thead>
               <tbody>{list.map((u: any) => (
-                <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
+                <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors align-top">
                   <td className="px-4 py-3 text-white/30 text-xs font-mono">#{u.id}</td>
                   <td className="px-4 py-3"><p className="text-white text-sm font-medium">{u.username}</p><p className="text-white/35 text-xs">{u.email}</p></td>
-                  <td className="px-4 py-3"><span className={cn('text-xs px-2 py-0.5 rounded-full border', u.role==='admin' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-white/5 text-white/40 border-white/10')}>{u.role}</span></td>
+                  <td className="px-4 py-3"><span className={cn('text-xs px-2 py-0.5 rounded-full border', u.role==='admin' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : u.role==='super_admin' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-white/40 border-white/10')}>{u.role}</span></td>
                   <td className="px-4 py-3 text-white/40 text-xs capitalize">{u.subscription_tier ?? 'viewer'}</td>
                   <td className="px-4 py-3 text-white/35 text-xs">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-3">{u.is_active !== false ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1 text-xs">
+                      <span className={cn('inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5', u.is_active !== false ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20')}>
+                        {u.is_active !== false ? 'Active' : 'Suspended'}
+                      </span>
+                      {u.withdrawals_frozen && <span className="inline-flex w-fit items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-amber-300 px-2 py-0.5">Withdrawals Frozen</span>}
+                      {u.is_flagged && <span className="inline-flex w-fit items-center gap-1 rounded-full border border-red-500/20 bg-red-500/10 text-red-300 px-2 py-0.5">Flagged</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateUser.mutate({ userId: u.id, updates: { is_active: u.is_active !== false } })}
+                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70 hover:text-white"
+                      >
+                        {u.is_active !== false ? 'Suspend' : 'Restore'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateUser.mutate({ userId: u.id, updates: { withdrawals_frozen: !Boolean(u.withdrawals_frozen) } })}
+                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70 hover:text-white"
+                      >
+                        {u.withdrawals_frozen ? 'Unfreeze' : 'Freeze'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateUser.mutate({ userId: u.id, updates: { is_flagged: !Boolean(u.is_flagged) } })}
+                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70 hover:text-white"
+                      >
+                        {u.is_flagged ? 'Unflag' : 'Flag'}
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
@@ -431,6 +511,160 @@ function WalletAdminTab() {
             </table>
           </div>
         ) : <EmptyState icon={WalletIcon} msg="No transactions found" />}
+      </div>
+    </div>
+  )
+}
+
+// ── Tab: KYC Review ───────────────────────────────────────────────────────────
+
+function KYCReviewTab() {
+  const queryClient = useQueryClient()
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'pending' | 'manual_review'>('all')
+  const [notes, setNotes] = useState<Record<number, string>>({})
+  const [reasons, setReasons] = useState<Record<number, string>>({})
+  const { data, isLoading, refetch } = useAdminKycQueue(selectedStatus)
+  const items = data?.items ?? []
+
+  const approveMutation = useMutation({
+    mutationFn: async ({ id, note }: { id: number; note: string }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/kyc/admin/${id}/approve`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: note.trim() || undefined }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.detail ?? payload.message ?? 'KYC approval failed')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-kyc-queue'] })
+      toast.success('KYC application approved')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, reason, note }: { id: number; reason: string; note: string }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/kyc/admin/${id}/reject`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason.trim() || 'Manual review rejected by admin', note: note.trim() || undefined }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.detail ?? payload.message ?? 'KYC rejection failed')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-kyc-queue'] })
+      toast.success('KYC application rejected')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {['all', 'pending', 'manual_review'].map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => setSelectedStatus(status as 'all' | 'pending' | 'manual_review')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all',
+                selectedStatus === status ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+              )}
+            >
+              {status === 'all' ? 'All' : status.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => refetch()} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors"><RefreshCw className="w-4 h-4" /></button>
+      </div>
+
+      <div className="bg-surface-800/60 border border-white/8 rounded-xl overflow-hidden">
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Spinner className="w-5 h-5 text-vit-400" /></div>
+        ) : items.length === 0 ? (
+          <EmptyState icon={CheckCircle2} msg="No KYC reviews queued" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/8">
+                  {['ID', 'User', 'Applicant', 'Document', 'Risk', 'Flags', 'Actions'].map((h) => (
+                    <th key={h} className="text-left text-xs font-medium text-white/35 uppercase tracking-wide px-4 py-3">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item: any) => (
+                  <tr key={item.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors align-top">
+                    <td className="px-4 py-3 text-white/30 text-xs font-mono">#{item.id}</td>
+                    <td className="px-4 py-3 text-white/60 text-xs">{item.user_id ?? '—'}</td>
+                    <td className="px-4 py-3 text-white text-sm">
+                      <div className="font-medium">{item.full_name ?? '—'}</div>
+                      <div className="text-xs text-white/40">{item.nationality ?? '—'} · {new Date(item.submitted_at ?? Date.now()).toLocaleDateString()}</div>
+                    </td>
+                    <td className="px-4 py-3 text-white/60 text-xs">
+                      <div className="capitalize">{item.document_type ?? '—'}</div>
+                      <div className="font-mono text-[11px] text-white/35">{item.document_number ?? '—'}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <span className={cn('text-xs px-2 py-0.5 rounded-full border inline-block w-fit', item.risk_level === 'high' ? 'bg-red-500/10 text-red-400 border-red-500/20' : item.risk_level === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20')}>
+                          {item.risk_level ?? 'unknown'}
+                        </span>
+                        <span className="text-xs text-white/40">Score: {item.risk_score ?? 0}/100</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-white/60 max-w-[220px]">
+                      {Array.isArray(item.risk_flags) && item.risk_flags.length > 0 ? item.risk_flags.join(', ') : 'None'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-2 min-w-[220px]">
+                        <textarea
+                          value={notes[item.id] ?? ''}
+                          onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))}
+                          placeholder="Approval note"
+                          rows={2}
+                          className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-white placeholder:text-white/30 resize-none"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => approveMutation.mutate({ id: item.id, note: notes[item.id] ?? '' })}
+                            className="flex-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { if (window.confirm('Reject this KYC submission?')) rejectMutation.mutate({ id: item.id, reason: reasons[item.id] ?? 'Manual review rejected by admin', note: notes[item.id] ?? '' }) }}
+                            className="flex-1 rounded-lg bg-red-500/15 border border-red-500/30 px-2 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/20"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                        <input
+                          value={reasons[item.id] ?? ''}
+                          onChange={(event) => setReasons((current) => ({ ...current, [item.id]: event.target.value }))}
+                          placeholder="Rejection reason"
+                          className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-white placeholder:text-white/30"
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -870,15 +1104,122 @@ function TrainingJobsTab() {
 
 // ── Tab: Config ───────────────────────────────────────────────────────────────
 
+function SecretsTab() {
+  const queryClient = useQueryClient()
+  const { data: secrets = [], isLoading, refetch } = useAdminSecrets()
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [reason, setReason] = useState<Record<string, string>>({})
+  const [mfaCode, setMfaCode] = useState<Record<string, string>>({})
+
+  const rotateSecret = useMutation({
+    mutationFn: async ({ name, value, reasonText, code }: { name: string; value: string; reasonText: string; code: string }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/secrets/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value, reason: reasonText || 'Admin secret rotation', confirm: true, mfa_code: code }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.detail ?? payload.message ?? `Failed to rotate ${name}`)
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-secrets'] })
+      toast.success('Secret rotation saved')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-white">Service Secrets</h3>
+        <button type="button" onClick={() => refetch()} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors"><RefreshCw className="w-4 h-4" /></button>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Spinner className="w-5 h-5 text-vit-400" /></div> : (
+        <div className="space-y-3">
+          {secrets.length === 0 ? <EmptyState icon={Lock} msg="No secrets configured" /> : secrets.map((secret: any) => (
+            <div key={secret.name} className="border border-white/8 rounded-xl bg-surface-800/60 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-white">{secret.name}</div>
+                  <div className="text-xs text-white/40">{secret.configured ? 'Configured in platform secret store' : 'Not configured'}</div>
+                </div>
+                <span className={cn('text-[10px] uppercase tracking-wide rounded-full border px-2 py-0.5', secret.configured ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-white/30 border-white/10')}>
+                  {secret.configured ? 'Active' : 'Missing'}
+                </span>
+              </div>
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,140px)]">
+                <input
+                  type="password"
+                  value={values[secret.name] ?? ''}
+                  onChange={(event) => setValues((current) => ({ ...current, [secret.name]: event.target.value }))}
+                  placeholder={secret.configured ? 'Paste replacement value' : 'Enter secret value'}
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-white/30"
+                />
+                <input
+                  type="text"
+                  value={reason[secret.name] ?? ''}
+                  onChange={(event) => setReason((current) => ({ ...current, [secret.name]: event.target.value }))}
+                  placeholder="Rotation reason"
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-white/30"
+                />
+                <input
+                  type="text"
+                  value={mfaCode[secret.name] ?? ''}
+                  onChange={(event) => setMfaCode((current) => ({ ...current, [secret.name]: event.target.value }))}
+                  placeholder="MFA code"
+                  inputMode="numeric"
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-white/30"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={rotateSecret.isPending || !values[secret.name] || !mfaCode[secret.name]}
+                onClick={() => rotateSecret.mutate({
+                  name: secret.name,
+                  value: values[secret.name] ?? '',
+                  reasonText: reason[secret.name] ?? 'Admin secret rotation',
+                  code: mfaCode[secret.name] ?? '',
+                })}
+                className="inline-flex items-center justify-center rounded-lg bg-vit-500/20 px-3 py-2 text-xs font-medium text-vit-200 hover:bg-vit-500/30 disabled:opacity-50"
+              >
+                {secret.configured ? 'Rotate Secret' : 'Save Secret'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ConfigTab() {
   const { data: cfg, isLoading } = useAdminConfig()
   const queryClient = useQueryClient()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [googleDrafts, setGoogleDrafts] = useState<Record<string, string>>({})
   const config = cfg ?? {}
   useEffect(() => {
     if (!cfg) return
     setDrafts(Object.fromEntries(Object.entries(cfg).map(([key, value]) => [key, JSON.stringify(value)])))
   }, [cfg])
+  useEffect(() => {
+    if (!cfg) return
+    const googleKeys = ['GOOGLE_API_KEY', 'GOOGLE_SEARCH_ENGINE_ID']
+    setGoogleDrafts((current) => {
+      const next = { ...current }
+      for (const key of googleKeys) {
+        if (!(key in config)) {
+          continue
+        }
+        const value = config[key]
+        next[key] = typeof value === 'string' ? value : ''
+      }
+      return next
+    })
+  }, [cfg, config])
   const updateConfig = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
       const response = await fetch(`${ENDPOINTS.gateway}/api/admin/config/${encodeURIComponent(key)}`, {
@@ -892,6 +1233,31 @@ function ConfigTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-config'] })
       toast.success('Configuration updated')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  const upsertGoogleConfig = useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: string }) => {
+      const exists = Object.prototype.hasOwnProperty.call(config, key)
+      const endpoint = exists
+        ? `${ENDPOINTS.gateway}/api/admin/config/${encodeURIComponent(key)}`
+        : `${ENDPOINTS.gateway}/api/admin/config`
+      const method = exists ? 'PUT' : 'POST'
+      const payload = exists ? { value } : { key, value, description: `${key} configured from admin panel` }
+      const response = await fetch(endpoint, {
+        method,
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.detail ?? payload.message ?? `Failed to save ${key}`)
+      }
+      return response.json()
+    },
+    onSuccess: (_, { key }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-config'] })
+      toast.success(`${key} saved to backend config`)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -918,6 +1284,37 @@ function ConfigTab() {
                       {enabled ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                       {enabled ? 'Enabled' : 'Disabled'}
                     </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-3">Google Live Search</h3>
+            <p className="text-sm text-white/55 mb-4">Store the Google Custom Search API key and Search Engine ID in the backend so runtime search enrichment can use them without editing environment files.</p>
+            <div className="space-y-3">
+              {['GOOGLE_API_KEY', 'GOOGLE_SEARCH_ENGINE_ID'].map(key => {
+                const hasKey = Object.prototype.hasOwnProperty.call(config, key)
+                return (
+                  <div key={key} className="grid gap-2 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto] items-center">
+                    <label htmlFor={`google-config-${key}`} className="text-sm text-white/70 break-all">{key}</label>
+                    <input
+                      id={`google-config-${key}`}
+                      type={key.includes('KEY') ? 'password' : 'text'}
+                      value={googleDrafts[key] ?? ''}
+                      onChange={event => setGoogleDrafts(current => ({ ...current, [key]: event.target.value }))}
+                      placeholder={hasKey ? 'Replace stored backend value' : 'Enter value'}
+                      className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-vit-400"
+                      aria-label={`Value for ${key}`}
+                    />
+                    <button
+                      type="button"
+                      disabled={upsertGoogleConfig.isPending || !googleDrafts[key]}
+                      onClick={() => upsertGoogleConfig.mutate({ key, value: googleDrafts[key] ?? '' })}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-vit-500/20 px-3 py-2 text-xs font-medium text-vit-200 hover:bg-vit-500/30 disabled:opacity-50"
+                    >
+                      {hasKey ? 'Update' : 'Create'}
+                    </button>
                   </div>
                 )
               })}
@@ -1058,10 +1455,12 @@ const TABS = [
   { id: 'overview',    label: 'Overview',   icon: BarChart2    },
   { id: 'users',       label: 'Users',      icon: Users        },
   { id: 'wallet',      label: 'Wallet',     icon: WalletIcon   },
+  { id: 'kyc',         label: 'KYC',        icon: CheckCircle2 },
   { id: 'matches',     label: 'Matches',    icon: Activity     },
   { id: 'validators',  label: 'Validators', icon: Shield       },
   { id: 'models',      label: 'Models',     icon: Cpu          },
   { id: 'api_keys',    label: 'API Keys',   icon: Lock         },
+  { id: 'secrets',     label: 'Secrets',    icon: Lock         },
   { id: 'marketplace', label: 'Marketplace',icon: Layers       },
   { id: 'training',    label: 'Training',   icon: Cpu          },
   { id: 'config',      label: 'Config',     icon: Settings     },
@@ -1139,10 +1538,12 @@ export default function Admin() {
         {activeTab === 'overview'   && <OverviewTab  status={status} health={health} metrics={metrics} refetchStatus={refetchStatus} refetchHealth={refetchHealth} loadingStatus={loadingStatus} loadingHealth={loadingHealth} />}
         {activeTab === 'users'      && <UsersTab      />}
         {activeTab === 'wallet'     && <WalletAdminTab />}
+        {activeTab === 'kyc'        && <KYCReviewTab />}
         {activeTab === 'matches'    && <MatchesTab    />}
         {activeTab === 'validators' && <ValidatorsTab />}
         {activeTab === 'models'     && <ModelsTab     />}
         {activeTab === 'api_keys'   && <ApiKeysTab     />}
+        {activeTab === 'secrets'    && <SecretsTab    />}
         {activeTab === 'marketplace'&& <MarketplaceAdminTab />}
         {activeTab === 'training'   && <TrainingJobsTab />}
         {activeTab === 'config'     && <ConfigTab     />}

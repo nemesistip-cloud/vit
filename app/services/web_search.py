@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import time
-from typing import List, Optional
+from typing import Any, List, Optional
 from urllib.parse import quote_plus
 
 import httpx
@@ -45,8 +46,70 @@ def _store(key: str, result: list) -> None:
     _cache[key] = (time.monotonic(), result)
 
 
+async def _get_admin_config_value(key: str) -> str:
+    try:
+        from app.modules.wallet.models import PlatformConfig
+        from app.db.database import AsyncSessionLocal
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as session:
+            row = (await session.execute(select(PlatformConfig).where(PlatformConfig.key == key))).scalar_one_or_none()
+            if not row:
+                return ""
+            value = row.value
+            if isinstance(value, dict):
+                for candidate_key in ("value", "api_key", "key", "client_id"):
+                    if candidate_key in value and isinstance(value.get(candidate_key), str):
+                        return value[candidate_key]
+                return ""
+            if isinstance(value, str):
+                return value
+            return ""
+    except Exception:
+        return ""
+
+
 def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", " ", text).strip()
+
+
+async def _google_search(query: str, max_results: int = 5) -> List[str]:
+    """Google Custom Search API when a live search key is configured."""
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_SEARCH_API_KEY")
+    if not api_key:
+        api_key = await _get_admin_config_value("GOOGLE_API_KEY")
+
+    engine_id = os.getenv("GOOGLE_SEARCH_ENGINE_ID") or os.getenv("GOOGLE_CX")
+    if not engine_id:
+        engine_id = await _get_admin_config_value("GOOGLE_SEARCH_ENGINE_ID")
+
+    if not api_key or not engine_id:
+        return []
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
+            resp = await client.get(
+                "https://www.googleapis.com/customsearch/v1",
+                params={
+                    "key": api_key,
+                    "cx": engine_id,
+                    "q": query,
+                    "num": min(max_results, 10),
+                },
+            )
+            resp.raise_for_status()
+            payload = resp.json() if callable(getattr(resp, "json", None)) else getattr(resp, "json", {})
+            data = payload if isinstance(payload, dict) else {}
+        items = data.get("items") or []
+        snippets: List[str] = []
+        for item in items[:max_results]:
+            snip = (item.get("snippet") or item.get("title") or "").strip()
+            if snip and len(snip) > 8:
+                snippets.append(snip)
+        return snippets
+    except Exception as exc:
+        logger.debug("[web-search] Google search failed for %r: %s", query, exc)
+        return []
 
 
 async def _ddg_search(query: str, max_results: int = 5) -> List[str]:
@@ -89,7 +152,9 @@ async def fetch_team_news(team: str, league: str = "") -> List[str]:
     ]
     all_snippets: List[str] = []
     for q in queries:
-        snippets = await _ddg_search(q, max_results=3)
+        snippets = await _google_search(q, max_results=3)
+        if not snippets:
+            snippets = await _ddg_search(q, max_results=3)
         all_snippets.extend(snippets)
         if all_snippets:
             break
@@ -117,7 +182,9 @@ async def fetch_match_context(
     home_task  = fetch_team_news(home_team, league)
     away_task  = fetch_team_news(away_team, league)
     preview_q  = f"{home_team} vs {away_team} prediction preview {league}"
-    preview_task = _ddg_search(preview_q, max_results=3)
+    preview_task = _google_search(preview_q, max_results=3)
+    if not await _google_search(preview_q, max_results=1):
+        preview_task = _ddg_search(preview_q, max_results=3)
 
     home_news, away_news, preview = await asyncio.gather(
         home_task, away_task, preview_task,

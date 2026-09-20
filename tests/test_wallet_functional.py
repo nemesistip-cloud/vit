@@ -55,6 +55,44 @@ async def test_wallet_balances_are_non_negative():
 
 
 @pytest.mark.asyncio
+async def test_wallet_send_between_users_by_wallet_address():
+    async with _client() as client:
+        sender_token, sender_user_id = await _register(client, "send_sender")
+        receiver_token, _ = await _register(client, "send_receiver")
+
+        sender_wallet = await client.post("/api/wallet/create", headers=_auth(sender_token))
+        receiver_wallet = await client.post("/api/wallet/create", headers=_auth(receiver_token))
+        sender_address = sender_wallet.json()["address"]
+        receiver_address = receiver_wallet.json()["address"]
+
+        from app.db.database import AsyncSessionLocal
+        from app.modules.wallet.services import WalletService
+        from app.modules.wallet.models import Currency
+        from decimal import Decimal
+
+        async with AsyncSessionLocal() as db:
+            service = WalletService(db)
+            wallet = await service.get_or_create_wallet(sender_user_id)
+            await service.credit(wallet.id, sender_user_id, Currency.VITCOIN, Decimal("10.0"), "test_funding", reference="test_funding")
+            await db.commit()
+
+        send_resp = await client.post(
+            "/api/wallet/send",
+            json={"recipient_address": receiver_address, "amount": 2.0, "note": "test transfer"},
+            headers=_auth(sender_token),
+        )
+        assert send_resp.status_code == 200, send_resp.text
+
+        sender_after = await client.get("/api/wallet/me", headers=_auth(sender_token))
+        receiver_after = await client.get("/api/wallet/me", headers=_auth(receiver_token))
+
+        assert float(sender_after.json()["vitcoin_balance"]) >= 8.0
+        assert float(receiver_after.json()["vitcoin_balance"]) >= 2.0
+        assert sender_address
+        assert receiver_address
+
+
+@pytest.mark.asyncio
 async def test_wallet_vitcoin_balance_is_numeric():
     async with _client() as client:
         token, _ = await _register(client, "numeric")

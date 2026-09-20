@@ -168,6 +168,13 @@ def build_id_card_data(sys_id: SystemID, user) -> dict:
 async def get_user_id_by_social_identifier(identifier: str, db: AsyncSession) -> Optional[int]:
     clean_id = identifier.strip()
     if clean_id.startswith("@"): clean_id = clean_id[1:]
-    stmt = select(User.id).where(or_(User.username.ilike(clean_id), User.email.ilike(clean_id), User.phone == clean_id))
+    stmt = select(User.id).where(
+        or_(
+            User.username.ilike(clean_id),
+            User.email.ilike(clean_id),
+            User.phone == clean_id,
+            User.wallet_address == clean_id,
+        )
+    )
     res = await db.execute(stmt)
     return res.scalar_one_or_none()

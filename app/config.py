@@ -105,6 +105,8 @@ _ENV_ALIASES = {
     ("external", "telegram_bot_token"): "TELEGRAM_BOT_TOKEN",
     ("external", "telegram_chat_id"): "TELEGRAM_CHAT_ID",
     ("external", "gcp_project_id"): "GCP_PROJECT_ID",
+    ("external", "google_api_key"): "GOOGLE_API_KEY",
+    ("external", "google_search_engine_id"): "GOOGLE_SEARCH_ENGINE_ID",
     ("external", "google_application_credentials"): "GOOGLE_APPLICATION_CREDENTIALS",
     ("external", "google_application_credentials_json"): "GOOGLE_APPLICATION_CREDENTIALS_JSON",
     ("external", "smtp_pass"): "SMTP_PASS",
@@ -155,6 +157,8 @@ THESPORTSDB_API_KEY: str = get_val("ai", "the_sportsdb_api_key", "3")
 
 PAYSTACK_SECRET_KEY: str = get_val("external", "paystack_secret_key", "")
 FLW_SECRET_KEY: str = get_val("external", "flw_secret_key", "")
+GOOGLE_API_KEY: str = get_val("external", "google_api_key", os.getenv("GOOGLE_API_KEY", ""))
+GOOGLE_SEARCH_ENGINE_ID: str = get_val("external", "google_search_engine_id", os.getenv("GOOGLE_SEARCH_ENGINE_ID", ""))
 PI_APP_ID: str = get_val("external", "pi_app_id", "")
 PI_SANDBOX_MODE: str = str(get_val("external", "pi_sandbox_mode", "true")).lower()
 
