@@ -43,15 +43,12 @@ const AUTH_SECONDARY = [
   { label: 'Settings',    path: '/settings',         icon: Settings     },
 ]
 
-const MOBILE_GROUPS = [
-  {
-    heading: 'Explore',
-    items: PUBLIC_LINKS,
-  },
-  {
-    heading: 'Workspace',
-    items: AUTH_PRIMARY,
-  },
+const MOBILE_PUBLIC_GROUPS = [
+  { heading: 'Explore', items: PUBLIC_LINKS },
+]
+
+const MOBILE_AUTH_GROUPS = [
+  { heading: 'Workspace', items: AUTH_PRIMARY },
   {
     heading: 'Ecosystem',
     items: [
@@ -312,6 +309,8 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
             {/* Mobile menu */}
             <button
               onClick={() => setOpen(o => !o)}
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              aria-expanded={open}
               className="lg:hidden p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/8 transition-colors"
             >
               {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -336,7 +335,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
                   </div>
                 )}
 
-                {MOBILE_GROUPS.map(group => (
+                {(isLoggedIn ? MOBILE_AUTH_GROUPS : MOBILE_PUBLIC_GROUPS).map(group => (
                   <div key={group.heading} className="space-y-2">
                     <div className="px-3 text-[10px] uppercase tracking-[0.25em] text-white/30">{group.heading}</div>
                     {group.items.map(link => (

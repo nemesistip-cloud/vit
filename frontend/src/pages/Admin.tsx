@@ -300,17 +300,42 @@ function EmptyState({ icon: Icon, msg }: { icon: React.ElementType; msg: string 
 
 function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, loadingStatus, loadingHealth }: any) {
   if (loadingStatus && loadingHealth) return <div className="flex justify-center py-20"><Spinner className="w-8 h-8 text-vit-400" /></div>
+
+  const actionCards = [
+    { label: 'Audit Log', href: `${ENDPOINTS.gateway}/api/admin/audit-log`, icon: ClipboardList, accent: 'text-vit-400', external: true },
+    { label: 'Transactions', href: `${ENDPOINTS.gateway}/api/admin/wallet/transactions`, icon: TrendingUp, accent: 'text-emerald-400', external: true },
+    { label: 'Training Jobs', href: `${ENDPOINTS.gateway}/api/admin/training-jobs`, icon: Cpu, accent: 'text-purple-400', external: true },
+    { label: 'API Docs', href: `${ENDPOINTS.gateway}/docs`, icon: ChevronRight, accent: 'text-blue-400', external: true },
+  ]
+
+  const quickActions = [
+    { label: 'Predictions', href: '/predictions', icon: TrendingUp, accent: 'text-vit-400' },
+    { label: 'Marketplace', href: '/marketplace', icon: Layers, accent: 'text-purple-400' },
+    { label: 'API Keys', href: '#api_keys', icon: Lock, accent: 'text-emerald-400' },
+    { label: 'Config', href: '#config', icon: Settings, accent: 'text-blue-400' },
+  ]
+
   return (
     <div className="space-y-8">
-      <section>
-        <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Platform Metrics</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard icon={Users}      label="Total Users"      value={status?.total_users?.toLocaleString()}        color="text-vit-400"     i={0} />
-          <MetricCard icon={Activity}   label="Active (30d)"     value={status?.active_users_30d?.toLocaleString()}   color="text-emerald-400" i={1} />
-          <MetricCard icon={Star}       label="Validators"       value={status?.active_validators?.toLocaleString()}  color="text-yellow-400"  i={2} />
-          <MetricCard icon={TrendingUp} label="Predictions Made" value={status?.total_predictions?.toLocaleString()}  color="text-purple-400"  i={3} />
+      <section className="rounded-2xl border border-white/8 bg-surface-800/60 p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-white/40">Operations overview</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Platform health at a glance</h2>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            System operational
+          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard icon={Users} label="Total Users" value={status?.total_users?.toLocaleString()} color="text-vit-400" i={0} />
+          <MetricCard icon={Activity} label="Active (30d)" value={status?.active_users_30d?.toLocaleString()} color="text-emerald-400" i={1} />
+          <MetricCard icon={Star} label="Validators" value={status?.active_validators?.toLocaleString()} color="text-yellow-400" i={2} />
+          <MetricCard icon={TrendingUp} label="Predictions" value={status?.total_predictions?.toLocaleString()} color="text-purple-400" i={3} />
         </div>
       </section>
+
       <section>
         <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">System Health</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -319,10 +344,10 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
               <div className="flex items-center gap-2"><Server className="w-4 h-4 text-vit-400" /><span className="text-white font-medium text-sm">VIT Gateway</span></div>
               <StatusBadge status={health?.status ?? (status ? 'operational' : 'unknown')} size="sm" pulse />
             </div>
-            <Row label="Version"  value={health?.version ?? status?.version} />
+            <Row label="Version" value={health?.version ?? status?.version} />
             <Row label="Database" value={health?.db_connected !== false ? 'Connected' : 'Disconnected'} />
-            <Row label="Redis"    value={health?.redis?.status ?? 'Not configured'} />
-            <Row label="Models"   value={health?.models_loaded != null ? `${health.models_loaded} loaded` : null} />
+            <Row label="Redis" value={health?.redis?.status ?? 'Not configured'} />
+            <Row label="Models" value={health?.models_loaded != null ? `${health.models_loaded} loaded` : null} />
           </div>
           <div className="bg-surface-800/60 border border-white/8 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-4"><Cpu className="w-4 h-4 text-purple-400" /><span className="text-white font-medium text-sm">VIT AI</span></div>
@@ -340,42 +365,48 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
           </div>
         </div>
       </section>
+
       {metrics && (
         <section>
           <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Runtime Metrics</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard icon={Zap}       label="Requests (24h)" value={metrics.requests_24h}                                                color="text-vit-400"     i={0} />
-            <MetricCard icon={BarChart2} label="Avg Latency"  value={metrics.avg_latency_ms ? `${metrics.avg_latency_ms}ms` : null}            color="text-blue-400"   i={1} />
-            <MetricCard icon={Activity}  label="Error Rate"   value={metrics.error_rate ? `${(metrics.error_rate*100).toFixed(2)}%` : null}    color="text-red-400"    i={2} />
-            <MetricCard icon={Database}  label="DB Pool"      value={metrics.db_pool_size}                                                     color="text-emerald-400" i={3} />
+            <MetricCard icon={Zap} label="Requests (24h)" value={metrics.requests_24h} color="text-vit-400" i={0} />
+            <MetricCard icon={BarChart2} label="Avg Latency" value={metrics.avg_latency_ms ? `${metrics.avg_latency_ms}ms` : null} color="text-blue-400" i={1} />
+            <MetricCard icon={Activity} label="Error Rate" value={metrics.error_rate ? `${(metrics.error_rate * 100).toFixed(2)}%` : null} color="text-red-400" i={2} />
+            <MetricCard icon={Database} label="DB Pool" value={metrics.db_pool_size} color="text-emerald-400" i={3} />
           </div>
         </section>
       )}
+
       <section>
         <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Admin Actions</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Audit Log',    href: `${ENDPOINTS.gateway}/api/admin/audit-log`,          icon: ClipboardList },
-            { label: 'Transactions', href: `${ENDPOINTS.gateway}/api/admin/wallet/transactions`, icon: TrendingUp    },
-            { label: 'Training Jobs',href: `${ENDPOINTS.gateway}/api/admin/training-jobs`,       icon: Cpu           },
-            { label: 'API Docs',     href: `${ENDPOINTS.gateway}/docs`,                          icon: ChevronRight  },
-          ].map(({ label, href, icon: Icon }) => (
-            <a key={label} href={href} target="_blank" rel="noopener noreferrer"
+          {quickActions.map(({ label, href, icon: Icon, accent }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                if (href.startsWith('#')) {
+                  const target = document.getElementById(href.slice(1))
+                  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  return
+                }
+                window.location.href = href
+              }}
+              className="group flex items-center gap-3 p-4 bg-surface-800/60 border border-white/8 rounded-xl hover:border-white/20 hover:bg-surface-800/80 transition-all text-left"
+            >
+              <Icon className={`w-4 h-4 ${accent}`} />
+              <span className="text-sm text-white/70 group-hover:text-white transition-colors">{label}</span>
+            </button>
+          ))}
+
+          {actionCards.map(({ label, href, icon: Icon, accent, external }) => (
+            <a key={label} href={href} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}
               className="group flex items-center gap-3 p-4 bg-surface-800/60 border border-white/8 rounded-xl hover:border-white/20 hover:bg-surface-800/80 transition-all">
-              <Icon className="w-4 h-4 text-white/30 group-hover:text-white/60 transition-colors" />
-              <span className="text-sm text-white/60 group-hover:text-white transition-colors">{label}</span>
+              <Icon className={`w-4 h-4 ${accent}`} />
+              <span className="text-sm text-white/70 group-hover:text-white transition-colors">{label}</span>
             </a>
           ))}
-            {[
-              { id: 'api_keys',   label: 'API Keys',   icon: Lock         },
-              { id: 'marketplace',label: 'Marketplace',icon: Layers       },
-              { id: 'training',   label: 'Training',   icon: Cpu          },
-            ].map(({ id, label, icon: Icon }) => (
-              <a key={id} href={`#${id}`} className="group flex items-center gap-3 p-4 bg-surface-800/60 border border-white/8 rounded-xl hover:border-white/20 hover:bg-surface-800/80 transition-all">
-                <Icon className="w-4 h-4 text-white/30 group-hover:text-white/60 transition-colors" />
-                <span className="text-sm text-white/60 group-hover:text-white transition-colors">{label}</span>
-              </a>
-            ))}
         </div>
       </section>
     </div>
@@ -1263,32 +1294,45 @@ function ConfigTab() {
   })
   const featureFlags = [
     { key: 'predictions_enabled', label: 'Predictions' }, { key: 'wallet_enabled', label: 'Wallet' },
-    { key: 'governance_enabled',  label: 'Governance'  }, { key: 'marketplace_enabled', label: 'Marketplace' },
-    { key: 'defi_enabled',        label: 'DeFi Pools'  }, { key: 'social_enabled', label: 'Social Feed' },
-    { key: 'inplay_enabled',      label: 'In-Play'     }, { key: 'analytics_enabled', label: 'Analytics' },
-    { key: 'enterprise_enabled',  label: 'Enterprise'  },
+    { key: 'governance_enabled', label: 'Governance' }, { key: 'marketplace_enabled', label: 'Marketplace' },
+    { key: 'defi_enabled', label: 'DeFi Pools' }, { key: 'social_enabled', label: 'Social Feed' },
+    { key: 'inplay_enabled', label: 'In-Play' }, { key: 'analytics_enabled', label: 'Analytics' },
+    { key: 'enterprise_enabled', label: 'Enterprise' },
   ]
+
   return (
     <div className="space-y-6">
       {isLoading ? <div className="flex justify-center py-12"><Spinner className="w-5 h-5 text-vit-400" /></div> : (
         <>
           <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
-            <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Feature Flags</h3>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider">Feature flags</h3>
+              <span className="text-[10px] uppercase tracking-wide text-white/35">Runtime toggles</span>
+            </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {featureFlags.map(f => {
                 const enabled = config[f.key] !== false
                 return (
                   <div key={f.key} className="flex items-center justify-between p-3 rounded-lg bg-white/3 border border-white/6">
                     <span className="text-sm text-white/70">{f.label}</span>
-                    <div className={cn('flex items-center gap-1.5 text-xs font-medium', enabled ? 'text-emerald-400' : 'text-white/25')}>
+                    <button
+                      type="button"
+                      onClick={() => updateConfig.mutate({ key: f.key, value: !enabled })}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide transition-colors',
+                        enabled ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-white/5 text-white/35'
+                      )}
+                      aria-label={`${f.label} ${enabled ? 'enabled' : 'disabled'}`}
+                    >
                       {enabled ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                       {enabled ? 'Enabled' : 'Disabled'}
-                    </div>
+                    </button>
                   </div>
                 )
               })}
             </div>
           </div>
+
           <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
             <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-3">Google Live Search</h3>
             <p className="text-sm text-white/55 mb-4">Store the Google Custom Search API key and Search Engine ID in the backend so runtime search enrichment can use them without editing environment files.</p>
@@ -1320,9 +1364,13 @@ function ConfigTab() {
               })}
             </div>
           </div>
+
           {cfg && Object.keys(config).length > 0 && (
             <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Platform Configuration</h3>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider">Platform configuration</h3>
+                <span className="text-[10px] uppercase tracking-wide text-white/35">Live backend</span>
+              </div>
               <div className="space-y-3">
                 {Object.keys(config).map(key => (
                   <div key={key} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] items-center">
@@ -1487,14 +1535,18 @@ export default function Admin() {
   if (!token) return <div className="pt-16 min-h-screen flex items-center justify-center"><Spinner className="w-8 h-8 text-vit-400" /></div>
 
   if (user?.role && !['admin', 'super_admin'].includes(user.role)) return (
-    <div className="pt-16 min-h-screen flex items-center justify-center">
-      <div className="text-center max-w-sm mx-4">
-        <div className="w-14 h-14 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mx-auto mb-4">
-          <AlertTriangle className="w-6 h-6 text-yellow-400" />
+    <div className="pt-16 min-h-screen flex items-center justify-center px-4">
+      <div className="max-w-md w-full rounded-2xl border border-yellow-500/20 bg-surface-800/70 p-8 text-center shadow-2xl shadow-black/20">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-500/10 border border-yellow-500/20">
+          <AlertTriangle className="h-7 w-7 text-yellow-400" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Admin Access Required</h2>
-        <p className="text-white/40 text-sm mb-6">This page is restricted to administrators.</p>
-        <Link to="/dashboard" className="px-5 py-2.5 rounded-lg bg-vit-600 hover:bg-vit-500 text-white text-sm font-medium transition-colors">Back to Dashboard</Link>
+        <p className="text-xs uppercase tracking-[0.22em] text-yellow-400/80">Access restricted</p>
+        <h2 className="mt-3 text-2xl font-bold text-white">Admin access required</h2>
+        <p className="mt-3 text-sm text-white/60">This control panel is limited to administrators and super administrators. Sign in with an elevated account to manage the platform.</p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Link to="/dashboard" className="inline-flex items-center justify-center rounded-lg bg-vit-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-vit-500">Back to Dashboard</Link>
+          <button type="button" onClick={() => navigate('/login', { replace: true })} className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/80 transition-colors hover:text-white">Switch account</button>
+        </div>
       </div>
     </div>
   )

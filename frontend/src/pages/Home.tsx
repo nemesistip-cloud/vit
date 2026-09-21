@@ -77,7 +77,7 @@ const FEATURES = [
     title: 'AI Predictions',
     desc: '13+ ML models analyze fixtures across 50+ leagues — real-time probability scores and EV-optimized picks.',
     href: '/ai',
-    tag: 'Live',
+    tag: 'Available',
   },
   {
     icon: Trophy,
@@ -86,7 +86,7 @@ const FEATURES = [
     title: 'Matches & Odds',
     desc: 'Upcoming, live, and completed fixtures with AI confidence chips, odds movement, and H2H form guides.',
     href: '/matches',
-    tag: 'Live',
+    tag: 'Available',
   },
   {
     icon: Layers,
@@ -102,7 +102,7 @@ const FEATURES = [
     color: 'from-emerald-500 to-teal-600',
     glow: 'shadow-emerald-500/20',
     title: 'VITCoin Wallet',
-    desc: 'Send, receive, and stake VIT. Real-time price feeds in USD and NGN. Cross-chain bridge coming soon.',
+    desc: 'Send, receive, and stake VIT with live balance and network details. Cross-chain bridge access is on the roadmap.',
     href: '/wallet',
     tag: 'Beta',
   },
@@ -122,7 +122,7 @@ const FEATURES = [
     title: 'Governance',
     desc: 'Validator-gated proposals, on-chain voting with VIT weight, and automated execution of passed proposals.',
     href: '/platform',
-    tag: 'Soon',
+    tag: 'Roadmap',
   },
 ]
 
@@ -356,7 +356,7 @@ export default function Home() {
                     <f.icon className="w-5 h-5 text-white" />
                   </div>
                   <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border',
-                    f.tag === 'Live' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' :
+                    f.tag === 'Available' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' :
                     f.tag === 'Beta' ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' :
                     'bg-white/5 border-white/10 text-white/30')}>
                     {f.tag}

@@ -55,6 +55,25 @@ test('Matches page renders its real tabs, summary count, and search', async ({ p
   await page.screenshot({ path: 'matches-tabs.png' });
 });
 
+test('admin console shows a production summary and editable feature flags', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'admin-ui-smoke-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'operator', role: 'admin' }));
+  });
+
+  await page.goto('/admin');
+  await expect(page.getByText('Operations overview', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Predictions$/i })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Config' }).nth(0).click();
+  const mainPanel = page.locator('main');
+  await expect(mainPanel.getByText('Feature flags', { exact: false })).toBeVisible();
+  await expect(mainPanel.getByText('Predictions', { exact: true }).first()).toBeVisible();
+  await expect(mainPanel.getByRole('button', { name: /Predictions (enabled|disabled)/i }).first()).toBeVisible();
+
+  await page.screenshot({ path: 'admin-console-ux.png' });
+});
+
 test('authenticated shell exposes product layers and mobile More navigation', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'ui-shell-smoke-token');
@@ -76,4 +95,20 @@ test('authenticated shell exposes product layers and mobile More navigation', as
   await expect(moreMenu.getByRole('link', { name: 'Governance', exact: true })).toBeVisible();
 
   await page.screenshot({ path: 'authenticated-shell-mobile.png' });
+});
+
+test('authenticated mobile navigation starts with workspace actions', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'ui-mobile-nav-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'operator', role: 'user' }));
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: /open menu/i }).click();
+
+  const menu = page.locator('header').getByText('Workspace', { exact: true });
+  await expect(menu).toBeVisible();
+  await expect(page.locator('header').getByText('Explore', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
 });
