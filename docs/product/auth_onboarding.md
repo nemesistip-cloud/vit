@@ -21,7 +21,7 @@ The scope covers API endpoints, database interactions, cryptographic key derivat
 - **The Repair:** The sliding window rate-limiting state must be migrated from volatile in-memory dictionary storage to Redis using a non-blocking token bucket algorithm. Attempt counters should only be incremented *after* a password verification failure occurs.
 
 ### 2.2 Secure Cryptographic Defaults
-- **The Issue:** Fallbacks to `"dev-secret-key"` and `"dev-jwt-secret"` in `app/config.py` can expose user sessions if environment variables are not correctly set.
+- **The Issue:** Fallbacks to `"dev-secret-key"` and `"dev-jwt-secret"` in `backend/app/config.py` can expose user sessions if environment variables are not correctly set.
 - **The Repair:** The system must implement a strict bootstrap gate: if `ENVIRONMENT == "production"` and `JWT_SECRET_KEY` matches a known default fallback, the FastAPI kernel must raise a `StartupError` and fail fast, refusing to listen on any port.
 
 ---

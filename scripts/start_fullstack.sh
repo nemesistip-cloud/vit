@@ -51,7 +51,7 @@ if [ -n "${REPLIT_DEV_DOMAIN:-}" ] || [ -n "${REPL_ID:-}" ]; then
     # private proxy target instead of reusing the preview port.
     LOCAL_BACKEND_PORT="${LOCAL_BACKEND_PORT:-8000}"
     echo "[startup] Replit environment detected — starting local backend on port ${LOCAL_BACKEND_PORT}..."
-    PYTHONPATH="${ROOT_DIR}" \
+    PYTHONPATH="${ROOT_DIR}/backend:${ROOT_DIR}" \
         PORT="${LOCAL_BACKEND_PORT}" \
         python -m uvicorn main:app \
         --host 127.0.0.1 \
@@ -107,4 +107,5 @@ fi
 echo "[startup] Database schema ready"
 echo "[startup] Starting Python backend on port ${BACKEND_PORT}..."
 cd "${ROOT_DIR}"
+PYTHONPATH="${ROOT_DIR}/backend:${ROOT_DIR}" \
 exec python -m uvicorn main:app --host 0.0.0.0 --port "${BACKEND_PORT}"

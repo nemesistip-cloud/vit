@@ -6,7 +6,7 @@ This document outlines the design patterns and shims implemented to ensure **100
 
 ## 🧭 The Compatibility Strategy
 
-To avoid breaking the runtime, API pipelines, or database states in `vit` during the dual-phase extraction, we utilize a **Feature-Flagged Routing Gate** inside the main entry points of the Tachyon APIRouter (`tachyon/api/router.py`).
+To avoid breaking the runtime, API pipelines, or database states in `vit` during the dual-phase extraction, we utilize a **Feature-Flagged Routing Gate** inside the main entry points of the Tachyon APIRouter (`backend/tachyon/api/router.py`).
 
 ```
                               [Incoming Upload/Download Request]
@@ -25,7 +25,7 @@ To avoid breaking the runtime, API pipelines, or database states in `vit` during
 
 ## 🎛️ 1. Compatibility Feature Flag
 
-We have registered a core feature flag in the configuration module (`app/config.py`):
+We have registered a core feature flag in the configuration module (`backend/app/config.py`):
 ```python
 VIT_STORAGE_USE_EXTERNAL: bool = os.getenv("VIT_STORAGE_USE_EXTERNAL", "false").lower() == "true"
 ```
@@ -38,7 +38,7 @@ VIT_STORAGE_USE_EXTERNAL: bool = os.getenv("VIT_STORAGE_USE_EXTERNAL", "false").
 ## 🛠️ 2. Core Compatibility Shims
 
 ### 2.1 Upload Abstraction (`POST /api/v1/upload`)
-The entry point in `/app/tachyon/api/router.py` has been updated with the following routing gate:
+The entry point in `backend/tachyon/api/router.py` has been updated with the following routing gate:
 ```python
 from app.config import VIT_STORAGE_USE_EXTERNAL
 content = await file.read()
@@ -59,7 +59,7 @@ if VIT_STORAGE_USE_EXTERNAL:
 *   **Compatibility Gaps Solved:** The JSON response payload matches the legacy response keys (`file_id`, `filename`, `size_bytes`, `created_at`) exactly. This ensures that frontend interfaces and client SDK consumers require zero code modifications.
 
 ### 2.2 Download Abstraction (`GET /api/v1/download/{file_id}`)
-The retrieval endpoint in `/app/tachyon/api/router.py` has been updated as follows:
+The retrieval endpoint in `backend/tachyon/api/router.py` has been updated as follows:
 ```python
 from app.config import VIT_STORAGE_USE_EXTERNAL
 if VIT_STORAGE_USE_EXTERNAL:

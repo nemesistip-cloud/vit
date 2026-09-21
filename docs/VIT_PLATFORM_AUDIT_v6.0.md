@@ -604,7 +604,7 @@ All latencies are elevated due to Render free plan cold starts (services sleep a
 | **SDK** | 30% | Python SDK files present; not published; no version pinning |
 | **Exchange** | 35% | Matching engine + order book implemented; not wired to live API |
 | **Security** | 52% | RBAC present; auth works; critical defaults unresolved |
-| **Documentation** | 72% | SYSTEM_UPGRADE.md v5.6.0 comprehensive; ENV_VARS.md detailed |
+| **Documentation** | 72% | SYSTEM_UPGRADE.md v5.6.0 comprehensive; configuration guidance is maintained in the integration docs |
 | **DevOps / CI** | 30% | render.yaml, Dockerfile, cloudbuild.yaml; no active CI pipeline |
 | **Infrastructure** | 55% | Terraform (GCP) present; platform runs on Render free plan |
 | **Overall** | **~48%** | |
