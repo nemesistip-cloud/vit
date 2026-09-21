@@ -512,6 +512,9 @@ async def health():
         clv_tracking_enabled=True
     )
 
+# Compatibility alias for frontend and deployment probes.
+app.add_api_route("/api/health", health, methods=["GET"], include_in_schema=False)
+
 # --- Router Registrations ---
 try:
     from app.auth.routes import router as auth_router
@@ -571,6 +574,11 @@ except Exception as _e:
 try:
     from app.modules.blockchain.routes import router as blockchain_module_router
     app.include_router(blockchain_module_router)
+    try:
+        from app.modules.blockchain.routes import list_pending_appeals as admin_appeals_compat
+        app.add_api_route("/api/admin/appeals", admin_appeals_compat, methods=["GET"], include_in_schema=False)
+    except Exception as _e:
+        logging.warning("blockchain admin appeals compatibility alias not mounted: %s", _e)
 except Exception as _e:
     logging.warning("blockchain_module_router not mounted — routes unavailable: %s", _e)
 
@@ -883,6 +891,11 @@ except Exception as _e:
 try:
     from app.modules.enterprise.routes import router as enterprise_router
     app.include_router(enterprise_router, tags=["Enterprise"])
+    try:
+        from app.modules.enterprise.routes import admin_overview as admin_overview_compat
+        app.add_api_route("/api/admin/overview", admin_overview_compat, methods=["GET"], include_in_schema=False)
+    except Exception as _e:
+        logging.warning("enterprise admin overview compatibility alias not mounted: %s", _e)
 except Exception as _e:
     logging.warning("enterprise_router not mounted — routes unavailable: %s", _e)
 
@@ -912,6 +925,11 @@ try:
         if not getattr(route, "path", "").startswith("/api/wallet/p2p")
     ]
     app.include_router(wallet_router)
+    try:
+        from app.modules.wallet.routes import admin_list_pending_kyc as admin_kyc_pending_compat
+        app.add_api_route("/api/admin/kyc/pending", admin_kyc_pending_compat, methods=["GET"], include_in_schema=False)
+    except Exception as _e:
+        logging.warning("wallet admin KYC compatibility alias not mounted: %s", _e)
 except Exception as _e:
     logging.warning("wallet_router not mounted — routes unavailable: %s", _e)
 
@@ -1174,6 +1192,11 @@ except Exception as _e:
 try:
     from app.modules.kyc.routes import router as kyc_router
     app.include_router(kyc_router, tags=["KYC"])
+    try:
+        from app.modules.kyc.routes import submit_kyc as kyc_submit_compat
+        app.add_api_route("/api/kyc/submit", kyc_submit_compat, methods=["POST"], include_in_schema=False)
+    except Exception as _e:
+        logging.warning("kyc compatibility alias not mounted: %s", _e)
 except Exception as _e:
     logging.error("kyc router not mounted: %s", _e, exc_info=True)
 

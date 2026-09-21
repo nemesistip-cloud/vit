@@ -54,3 +54,35 @@ def test_notifications_websocket_connects_and_pongs(monkeypatch):
         assert websocket.receive_json() == {"action": "connected", "unread_count": 0}
         websocket.send_json({"action": "ping"})
         assert websocket.receive_json() == {"action": "pong"}
+
+
+@pytest.mark.asyncio
+async def test_compatibility_aliases_exist_for_frontend_routes():
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        health = await client.get("/api/health")
+        assert health.status_code == 200
+
+        unauth_kys = await client.post("/api/kyc/submit", json={"full_name": "Test User"})
+        assert unauth_kys.status_code in {401, 422}
+
+        auth_resp = await client.post(
+            "/api/auth/login",
+            json={"email": "admin@vit.network", "password": "admin123"},
+        )
+        assert auth_resp.status_code in {200, 401}
+
+        if auth_resp.status_code == 200:
+            token = auth_resp.json().get("access_token")
+            if token:
+                admin_overview = await client.get(
+                    "/api/admin/overview",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                assert admin_overview.status_code == 200
+
+                admin_appeals = await client.get(
+                    "/api/admin/appeals",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                assert admin_appeals.status_code == 200
