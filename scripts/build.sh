@@ -7,7 +7,7 @@ echo "[build] Project root: $ROOT_DIR"
 
 echo "[build] Installing Python dependencies..."
 python3 -m pip install --upgrade "pip>=26.2" "setuptools>=83.0.0" "wheel>=0.46.2"
-pip install -r requirements.txt
+pip install .
 
 # Determine safe pnpm command (Render environment safe, avoiding global permission errors)
 PNPM_CMD="pnpm"
@@ -43,7 +43,7 @@ npm run build
 # Database Schema Sync
 echo "[build] Synchronizing database schema..."
 cd "$ROOT_DIR"
-export PYTHONPATH="${PYTHONPATH:-}:."
+export PYTHONPATH="$ROOT_DIR/backend:$ROOT_DIR:${PYTHONPATH:-}"
 python3 scripts/init_db.py
 
 # Auto-seed matches if empty

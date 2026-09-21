@@ -8,7 +8,9 @@ from sqlalchemy import pool, create_engine
 from sqlalchemy.engine import Connection
 from alembic import context
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+_repo_root = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(_repo_root, "backend"))
+sys.path.insert(1, _repo_root)
 
 # ── Model imports ─────────────────────────────────────────────────────────────
 # Required models (must succeed — these define the core schema).

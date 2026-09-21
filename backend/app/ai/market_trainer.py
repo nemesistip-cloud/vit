@@ -4,7 +4,7 @@ app/ai/market_trainer.py — Phase 2: Specialized Market Model Training Pipeline
 
 Trains BTTSModel, OverUnderModel, and CorrectScoreModel using data from:
   1. The DB (settled match predictions, when available)
-  2. The historical_matches.json CSV-sourced dataset (always available)
+    2. The data/historical_matches.json CSV-sourced dataset (always available)
 
 This ensures market models always train, even on a fresh install.
 """
@@ -33,10 +33,10 @@ from app.ai.market_models import (
 logger = logging.getLogger(__name__)
 
 MODELS_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "models")
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "models")
 )
 HIST_JSON = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "historical_matches.json")
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "historical_matches.json")
 )
 
 

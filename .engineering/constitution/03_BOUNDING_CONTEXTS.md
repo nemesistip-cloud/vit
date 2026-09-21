@@ -12,7 +12,7 @@ The VIT Network is partitioned into the following strict ownership domains:
 | **Blockchain** | Blockchain | Wallets, Treasury, Smart Contracts | `packages/contracts`, `app/modules/wallet`, `app/modules/blockchain` |
 | **Tachyon** | Tachyon | Decentralized Storage | `tachyon/`, `tachyon_loop.py` |
 | **Frontend** | Frontend | UI/UX, Institutional Terminals | `frontend/` |
-| **Infrastructure** | Infrastructure | CI/CD, Terraform, Config | `infrastructure/`, `scripts/`, `Dockerfile`, `requirements.txt` |
+| **Infrastructure** | Infrastructure | CI/CD, Terraform, Config | `infrastructure/`, `scripts/`, `Dockerfile`, `pyproject.toml` |
 | **Task** | Task | Background Jobs, Workers | `app/tasks`, `app/worker` |
 | **Docs** | Docs | Architecture, Constitution | `docs/`, `README.md`, `.engineering/` |
 

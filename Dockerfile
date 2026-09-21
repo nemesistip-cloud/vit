@@ -22,12 +22,15 @@ FROM python:3.11-slim
       && rm -rf /var/lib/apt/lists/* \
       && npm install -g pnpm@9
 
-    COPY requirements.txt .
+    COPY pyproject.toml .
+    COPY backend backend
+    COPY models models
+    COPY vit_chain vit_chain
     RUN python -m pip install --no-cache-dir --upgrade \
       "pip>=26.2" \
       "setuptools>=83.0.0" \
       "wheel>=0.46.2" \
-      && pip install --no-cache-dir -r requirements.txt
+      && pip install --no-cache-dir .
 
     # frontend is a pnpm workspace member: the lockfile and workspace manifest
     # live at the repo root (pnpm-workspace.yaml), not inside frontend/.
@@ -54,7 +57,7 @@ FROM python:3.11-slim
     COPY frontend/ frontend/
     RUN cd frontend && pnpm run build
 
-    COPY explorer/package.json explorer/package-lock.json* explorer/
+    COPY explorer/package.json explorer/
     RUN cd explorer && npm install
 
     COPY explorer/ explorer/

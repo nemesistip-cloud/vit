@@ -36,7 +36,7 @@ app/modules/ai/                     @nemesistip-cloud/ai
 
 # Configuration & secrets (high risk — changes here affect all environments)
 app/config.py                       @nemesistip-cloud/devops @nemesistip-cloud/core
-requirements.txt                    @nemesistip-cloud/devops
+pyproject.toml                      @nemesistip-cloud/devops
 
 # Engineering standards
 .engineering/                       @nemesistip-cloud/core

@@ -3,7 +3,8 @@
 # Starts uvicorn immediately so health checks pass, then runs DB setup in background.
 set -euo pipefail
 
-export PYTHONPATH="${PYTHONPATH:-}:."
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+export PYTHONPATH="$ROOT_DIR/backend:$ROOT_DIR:${PYTHONPATH:-}"
 PORT="${PORT:-8000}"
 
 echo "[production] VIT Network startup — port ${PORT}"
@@ -54,6 +55,7 @@ fi
 
 # ── Start FastAPI immediately ──────────────────────────────────────────────────
 echo "[production] Starting VIT Network on port ${PORT}..."
+cd "$ROOT_DIR"
 exec python3 -m uvicorn main:app \
     --host 0.0.0.0 \
     --port "${PORT}" \

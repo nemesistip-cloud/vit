@@ -48,7 +48,10 @@ git clone https://github.com/nemesistip-cloud/vit.git
 cd vit
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install .
+
+The backend packages live under `backend/`; development commands should use
+`PYTHONPATH=backend:.` when running repository scripts directly.
 cp .env.example .env
 uvicorn main:app --reload
 ```
@@ -78,9 +81,9 @@ The production service is containerized and deployed on Render. Pushing to `main
 
 ## Documentation map
 
-- [Architecture map](VIT_ECOSYSTEM_ARCHITECTURE_MAP.md)
-- [Data lineage](VIT_ECOSYSTEM_DATA_LINEAGE.md)
-- [Implementation matrix](VIT_ECOSYSTEM_IMPLEMENTATION_MATRIX.md)
+- [Architecture map](docs/archive/VIT_ECOSYSTEM_ARCHITECTURE_MAP.md)
+- [Data lineage](docs/archive/VIT_ECOSYSTEM_DATA_LINEAGE.md)
+- [Implementation matrix](docs/archive/VIT_ECOSYSTEM_IMPLEMENTATION_MATRIX.md)
 - [Security policy](SECURITY.md)
 - [Environment variables](ENV_VARS.md)
 - [Next phase](NEXT_PHASE.md)
