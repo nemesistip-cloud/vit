@@ -9,7 +9,7 @@ In alignment with the modular boundaries of the VIT Network, this inventory deta
 ```mermaid
 graph TD
     A[app/services/gcs_storage.py] -->|Local volume /tmp/vit_storage| B(Filesystem)
-    C[app/services/tachyon_client.py] -->|HTTP calls| D[tachyon/api/router.py]
+    C[backend/app/services/tachyon_client.py] -->|HTTP calls| D[backend/tachyon/api/router.py]
 
     subgraph Tachyon Legacy Storage Plane
         D -->|Initializes| E[tachyon/providers/disk.py]
@@ -31,7 +31,7 @@ graph TD
 ## 🔍 Detailed Component Matrix
 
 ### 1. Legacy Providers (`tachyon/providers/`)
-These providers implement the legacy `CloudProvider` interface inside `vit`. They are used primarily by the local `TachyonScheduler` inside `tachyon/api/router.py`.
+These providers implement the legacy `CloudProvider` interface inside the backend. They are used primarily by the local `TachyonScheduler` inside `backend/tachyon/api/router.py`.
 
 #### File: `tachyon/providers/base.py`
 *   **Component Type:** Provider Interface

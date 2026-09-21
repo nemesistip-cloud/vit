@@ -20,7 +20,7 @@ The operating principle is simple: **no evidence, no claim**. Every prediction i
 | **VIT Chain** | Standalone chain and settlement layer, Chain ID 7764 | [Service](https://vit-chain.onrender.com) |
 | **Tachyon** | Verifiable distributed storage fabric | [Service](https://vit-storage-4trt.onrender.com) |
 | **VIT SDK** | Python client for application and chain integrations | [SDK guide](sdk/README.md) |
-| **VIT Node** | Community storage and network participation client | [Node guide](vit_node/README.md) |
+| **VIT Node** | Community storage and network participation client | [Node guide](backend/vit_node/README.md) |
 
 ## What this repository contains
 
@@ -48,10 +48,13 @@ git clone https://github.com/nemesistip-cloud/vit.git
 cd vit
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install .
 cp .env.example .env
-uvicorn main:app --reload
+PYTHONPATH=backend:. uvicorn main:app --reload
 ```
+
+The backend packages live under `backend/`; development commands should use
+`PYTHONPATH=backend:.` when running repository scripts directly.
 
 For the frontend:
 
@@ -61,13 +64,13 @@ npm install
 npm run dev
 ```
 
-Configuration is loaded through [`app/config.py`](app/config.py). Never commit secrets; use `.env.example` as the configuration index.
+Configuration is loaded through [`backend/app/config.py`](backend/app/config.py). Never commit secrets; use `.env.example` as the configuration index.
 
 ## Verify changes
 
 ```bash
 pytest -q
-python -m compileall -q app
+PYTHONPATH=backend:. python -m compileall -q backend
 ```
 
 The repository also includes focused checks for provider health, evidence quality, prediction provenance, migrations, and frontend behavior. See [`docs/QUALITY_ASSURANCE_AGENT_PROMPT.md`](docs/QUALITY_ASSURANCE_AGENT_PROMPT.md) for the verification playbook.
@@ -78,12 +81,12 @@ The production service is containerized and deployed on Render. Pushing to `main
 
 ## Documentation map
 
-- [Architecture map](VIT_ECOSYSTEM_ARCHITECTURE_MAP.md)
-- [Data lineage](VIT_ECOSYSTEM_DATA_LINEAGE.md)
-- [Implementation matrix](VIT_ECOSYSTEM_IMPLEMENTATION_MATRIX.md)
+- [Architecture map](docs/ARCHITECTURE.md)
+- [Data lineage](docs/ARCHITECTURE.md)
+- [Implementation matrix](docs/migration/PRODUCTION_FEATURE_MATRIX.md)
 - [Security policy](SECURITY.md)
-- [Environment variables](ENV_VARS.md)
-- [Next phase](NEXT_PHASE.md)
+- [Environment variables](docs/INTEGRATION_GUIDE.md)
+- [Roadmap](docs/ROADMAP.md)
 
 ## Brand
 

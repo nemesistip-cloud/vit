@@ -5,7 +5,7 @@ Initial audit for `vit_chain` package. This is a new package part of Track 1 —
 
 ## What Exists
 - `vit_chain/` directory structure.
-- `requirements.txt` updated with `eth-hash[pycryptodome]` and `coincurve`.
+- `pyproject.toml` includes `eth-hash[pycryptodome]` and `coincurve`.
 
 ## What's Missing
 - `vit_chain/crypto/hash.py`: Cryptographic hashing functions.

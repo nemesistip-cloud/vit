@@ -126,7 +126,7 @@ class SwarmOrchestrator:
         except ImportError:
             logger.warning(
                 "[swarm] APScheduler not installed — agents will not run automatically. "
-                "Add 'apscheduler' to requirements.txt to enable background agents."
+                "Add 'apscheduler' to pyproject.toml to enable background agents."
             )
             return
 

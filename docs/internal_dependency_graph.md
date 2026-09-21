@@ -43,7 +43,7 @@ This file summarizes the primary services, runtime roles, and integration links 
 
 ## Key Config / Defaults
 
-- `app/config.py` resolves runtime URLs via env vars: `VIT_AI_URL`, `VIT_STORAGE_URL`, `VIT_CHAIN_URL`, `REDIS_URL`, `DATABASE_URL`.
+- `backend/app/config.py` resolves runtime URLs via env vars: `VIT_AI_URL`, `VIT_STORAGE_URL`, `VIT_CHAIN_URL`, `REDIS_URL`, `DATABASE_URL`.
 - Frontend Vite build-time variables are baked in via `VITE_*` env vars from `render.yaml`.
 
 ## Observations / Critical Links

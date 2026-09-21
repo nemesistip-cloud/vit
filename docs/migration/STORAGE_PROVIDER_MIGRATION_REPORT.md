@@ -8,7 +8,7 @@ This report documents the preparation phase of extracting storage provider imple
 
 We have successfully mapped, cataloged, and prepared the decoupling of cloud storage provider implementations. Every provider used within the VIT ecosystem now has a concrete, verified roadmap to migrate to the canonical `vit-storage` repository.
 
-By using an active feature-flagged compatibility shim (`VIT_STORAGE_USE_EXTERNAL` in `app/config.py` and `tachyon/api/router.py`), we have successfully isolated legacy code paths. When the flag is disabled, the local providers operate with 100% fidelity. When the flag is enabled, the API gateway delegates all storage actions to `vit-storage-svc` without breaking the contract interfaces.
+By using an active feature-flagged compatibility shim (`VIT_STORAGE_USE_EXTERNAL` in `backend/app/config.py` and `backend/tachyon/api/router.py`), we have successfully isolated legacy code paths. When the flag is disabled, the local providers operate with 100% fidelity. When the flag is enabled, the API gateway delegates all storage actions to `vit-storage-svc` without breaking the contract interfaces.
 
 ---
 

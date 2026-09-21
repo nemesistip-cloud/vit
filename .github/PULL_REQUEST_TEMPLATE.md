@@ -20,7 +20,7 @@
 - [ ] Code follows the [Engineering Constitution](.engineering/constitution/)
 - [ ] `ruff check` passes locally
 - [ ] New public functions / classes have docstrings or type hints
-- [ ] Any new environment variable is documented in `ENV_VARS.md` and `.env.example`
+- [ ] Any new environment variable is documented in the current configuration guide and `.env.example`
 - [ ] Alembic migration included if schema changed
 - [ ] `CHANGELOG.md` entry added if this is a user-facing change
 

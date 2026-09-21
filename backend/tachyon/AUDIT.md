@@ -41,7 +41,7 @@
 - `TachyonShredder` in `tachyon/core/shredder.py` already implements some Reed-Solomon logic using `reedsolo`.
 - The spec calls for `tachyon/core/erasure.py` and `tachyon/core/providers/` (note the `core/` prefix).
 - Existing providers use `upload_fragment` and `download_fragment` naming, whereas the spec asks for `upload_shard` and `download_shard`.
-- Requirements for `reedsolo`, `google-auth`, `google-api-python-client`, `msal`, and `dropbox` are already in `requirements.txt`. `google-auth-httplib2` is missing.
+- Requirements for `reedsolo`, `google-auth`, `google-api-python-client`, `msal`, and `dropbox` are already in `pyproject.toml`. `google-auth-httplib2` is declared there as well.
 - `ProviderPool` is currently missing; its logic seems partially implemented within `tachyon/api/router.py` and `TachyonScheduler`.
 
 ## Missing / To be implemented

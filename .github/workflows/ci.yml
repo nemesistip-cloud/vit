@@ -44,14 +44,14 @@ jobs:
       - name: Install dependencies + mypy
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install mypy types-redis types-passlib types-python-jose
+          pip install .
+          pip install mypy types-redis types-passlib
 
       - name: Run mypy
         # Check the core app package only; third-party stubs are optional.
         # --ignore-missing-imports lets CI pass even for libs without stubs.
         run: |
-          mypy app/ vit_chain/ \
+          mypy backend/app/ vit_chain/ \
             --ignore-missing-imports \
             --no-error-summary \
             --pretty \
@@ -73,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install .
 
       - name: Run unit & smoke tests
         # Excludes:
@@ -89,7 +89,7 @@ jobs:
             -m "not live and not integration" \
             --tb=short \
             -p no:warnings \
-            --cov=app \
+            --cov=backend/app \
             --cov-report=term-missing \
             --cov-fail-under=0
         env:

@@ -12,8 +12,8 @@
 - `vit_node/storage/monitor.py`
 
 ## Dependencies Check
-- `google-auth-oauthlib` is NOT in `requirements.txt`. Need to install it.
-- `google-api-python-client` IS in `requirements.txt`.
+- `google-auth-oauthlib` is not declared in `pyproject.toml`. Add it if this node integration is enabled.
+- `google-api-python-client` is declared in `pyproject.toml`.
 - `tachyon/core/erasure.py` exists for `ReedSolomonCodec`.
 
 ## Hard Constraints Verification

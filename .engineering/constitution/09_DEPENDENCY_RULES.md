@@ -10,7 +10,7 @@ The system follows a strict dependency hierarchy to prevent circular references:
 
 ## 2. Package Management
 - **Monorepo**: Shared logic lives in `packages/` (e.g., `@vit/sdk`).
-- **Python**: Dependencies are managed via `requirements.txt` and `pyproject.toml`.
+- **Python**: Dependencies are managed via `pyproject.toml`.
 - **Node.js**: Dependencies are managed via `pnpm`.
 
 ## 3. Third-Party Restrictions

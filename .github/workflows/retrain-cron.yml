@@ -20,10 +20,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install .
 
       - name: Run retrain script
         env:
           TACHYON_STORAGE_ENABLED: 'true'
           TACHYON_ENDPOINT: 'https://vitnetwork-nls4.onrender.com/api/tachyon'
+          PYTHONPATH: backend
         run: python scripts/retrain_cron.py

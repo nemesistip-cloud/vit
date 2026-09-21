@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/training", tags=["training"], dependencies=[Depends(verify_api_key)])
 
 VERSION = APP_VERSION
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 _DATA_DIR = os.path.join(ROOT_DIR, "data")
 DEFAULT_TRAINING_LEAGUES = get_env(
     "DEFAULT_TRAINING_LEAGUES",

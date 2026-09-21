@@ -26,7 +26,7 @@ _Last updated: 2026-07-19 — Phase 1 Hardening Sprint, Session 2_
 - [x] vit-ai: Dockerfile — curl installed in final stage (healthcheck fix)
 - [x] vit-ai: .env.example created
 - [x] vit-storage: VIT_SWARM_COORDINATOR_ADDRESS env-var wired in config + router
-- [x] nemesistip-cloud/vit: 3 hardcoded Render/GCP URLs removed from app/config.py
+- [x] nemesistip-cloud/vit: 3 hardcoded Render/GCP URLs removed from backend/app/config.py
 - [x] settlement_task.py: supervised asyncio task with named handle + done-callback
 - [x] vitnetwork org: README, org profile, all 15 repo descriptions updated
 - [x] Frontend login bug fixed: /api/auth/auth/login → /api/auth/login

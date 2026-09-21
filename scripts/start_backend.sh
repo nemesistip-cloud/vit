@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT="${BACKEND_PORT:-8000}"
-export PYTHONPATH="${PYTHONPATH:-}:."
+export PYTHONPATH="$(pwd)/backend:$(pwd):${PYTHONPATH:-}"
 export ENVIRONMENT="${ENVIRONMENT:-development}"
 
 echo "[backend] VIT Network backend starting on port ${PORT}..."
