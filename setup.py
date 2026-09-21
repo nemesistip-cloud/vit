@@ -9,6 +9,7 @@ setuptools.setup(
         "httpx",
         "websockets",
         "cryptography",
+        "PyJWT>=2.10.1",
         "google-auth-oauthlib",
         "google-api-python-client",
         "tabulate",

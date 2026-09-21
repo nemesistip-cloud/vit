@@ -16,6 +16,7 @@ dependencies = [
     "redis>=5.0.0,<6.0.0",
     "celery>=5.3.0,<6.0.0",
     "cryptography",
+    "PyJWT>=2.10.1",
     "google-auth-oauthlib",
     "google-api-python-client",
     "tabulate",
@@ -30,7 +31,7 @@ dependencies = [
 vit-node = "vit_node.cli:cli"
 
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=83.0.0", "wheel>=0.46.2"]
 build-backend = "setuptools.build_meta"
 
 # ---------------------------------------------------------------------------
@@ -101,5 +102,6 @@ ignore = [
 
 [dependency-groups]
 dev = [
-    "pytest (>=9.1.1,<10.0.0)"
+    "pytest (>=9.1.1,<10.0.0)",
+    "Pygments>=2.20.0"
 ]

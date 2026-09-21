@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 echo "[build] Project root: $ROOT_DIR"
 
 echo "[build] Installing Python dependencies..."
+python3 -m pip install --upgrade "pip>=26.2" "setuptools>=83.0.0" "wheel>=0.46.2"
 pip install -r requirements.txt
 
 # Determine safe pnpm command (Render environment safe, avoiding global permission errors)

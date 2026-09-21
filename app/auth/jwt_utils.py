@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import bcrypt as _bcrypt
-from jose import JWTError, jwt
+import jwt
 
 from app.config import JWT_SECRET_KEY as _CONFIG_JWT_SECRET
 
@@ -65,7 +65,7 @@ def decode_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except JWTError:
+    except jwt.PyJWTError:
         return None
 
 

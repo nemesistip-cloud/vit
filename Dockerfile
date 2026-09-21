@@ -23,7 +23,11 @@ FROM python:3.11-slim
       && npm install -g pnpm@9
 
     COPY requirements.txt .
-    RUN pip install --no-cache-dir -r requirements.txt
+    RUN python -m pip install --no-cache-dir --upgrade \
+      "pip>=26.2" \
+      "setuptools>=83.0.0" \
+      "wheel>=0.46.2" \
+      && pip install --no-cache-dir -r requirements.txt
 
     # frontend is a pnpm workspace member: the lockfile and workspace manifest
     # live at the repo root (pnpm-workspace.yaml), not inside frontend/.
