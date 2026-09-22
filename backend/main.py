@@ -44,6 +44,9 @@ except Exception as _reg_exc:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
+    _tachyon_worker = None
+    _tachyon_worker_task = None
+
     try:
         from app.db.database import initialize_schema
         await initialize_schema()
@@ -101,7 +104,9 @@ async def lifespan(app: FastAPI):
         try:
             from tachyon.core.worker import TachyonVerificationWorker
             _tachyon_worker = TachyonVerificationWorker(interval_seconds=3600)
-            asyncio.create_task(_tachyon_worker.start(), name="tachyon-verification-worker")
+            _tachyon_worker_task = asyncio.create_task(
+                _tachyon_worker.start(), name="tachyon-verification-worker"
+            )
             logging.getLogger(__name__).info("[lifespan] Tachyon Verification Worker started")
         except Exception as _te:
             logging.getLogger(__name__).warning("[lifespan] tachyon verification worker failed: %s", _te)
@@ -157,6 +162,15 @@ async def lifespan(app: FastAPI):
         await _watchdog_task
     except asyncio.CancelledError:
         pass
+
+    if _tachyon_worker is not None:
+        await _tachyon_worker.stop()
+    if _tachyon_worker_task is not None:
+        _tachyon_worker_task.cancel()
+        try:
+            await _tachyon_worker_task
+        except asyncio.CancelledError:
+            pass
 
     try:
         from app.modules.agents.workflow import workflow_dispatcher as _wd
@@ -221,8 +235,20 @@ async def emergency_control_guard(request: Request, call_next):
         blocked = blocked or (control is not None and (state.get("services") or {}).get(control) is True)
         if blocked:
             return JSONResponse(status_code=503, content={"code": "service_paused", "message": "This service is temporarily paused"})
-    except Exception:
-        pass
+    except Exception as _control_exc:
+        if control is not None:
+            logging.getLogger(__name__).error(
+                "Emergency control lookup failed for %s; failing closed: %s",
+                control,
+                type(_control_exc).__name__,
+            )
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "emergency_control_unavailable",
+                    "message": "This service is temporarily unavailable while safety controls are checked",
+                },
+            )
     return await call_next(request)
 
 # --- CORS ---
@@ -1424,11 +1450,6 @@ async def get_health_summary():
         summary["overall_status"] = "DEGRADED" if unhealthy_count < total else "UNHEALTHY"
     return summary
 
-if __name__ == "__main__":
-    import uvicorn
-    port = get_int_env("PORT", 8000)
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
 # --- Static Files for Explorer ---
 from fastapi.staticfiles import StaticFiles
 
@@ -1531,3 +1552,9 @@ if os.path.exists(_frontend_dist):
         "method not allowed".
         """
         raise HTTPException(status_code=404, detail="Not Found")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = get_int_env("PORT", 8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
