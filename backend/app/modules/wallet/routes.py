@@ -1159,7 +1159,11 @@ async def stake_vitcoin(
     """Stake VITCoin. Debit vitcoin_balance, credit staked_vitcoin_balance."""
     min_stake_result = await db.execute(select(PlatformConfig).where(PlatformConfig.key == "vitcoin_min_stake"))
     min_stake_config = min_stake_result.scalar_one_or_none()
-    min_stake = Decimal(str(min_stake_config.value.get("value", 10))) if min_stake_config else Decimal("10")
+    raw_min_stake = getattr(min_stake_config, "value", {"amount": 10}) if min_stake_config else {"amount": 10}
+    if isinstance(raw_min_stake, dict):
+        min_stake = Decimal(str(raw_min_stake.get("amount", raw_min_stake.get("value", raw_min_stake.get("validator_min", 10)))))
+    else:
+        min_stake = Decimal(str(raw_min_stake))
 
     amount = Decimal(str(request.amount))
     if amount < min_stake:

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -43,13 +43,28 @@ function useValidators() {
   return useQuery<Validator[]>({
     queryKey: ['validators-active'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/wallet/active`, { signal })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/blockchain/active`, { signal })
       if (!r.ok) return []
       const d = await r.json()
       return Array.isArray(d) ? d : d.validators ?? d.items ?? []
     },
     staleTime: 60_000,
     refetchInterval: 120_000,
+  })
+}
+
+function useGovernanceConfig() {
+  return useQuery<{ key: string; value: string | number; description?: string }[]>({
+    queryKey: ['governance-config'],
+    queryFn: async ({ signal }) => {
+      const headers = getAuthToken() ? authHeaders() : {}
+      const r = await fetch(`${ENDPOINTS.gateway}/api/governance/config`, { signal, headers })
+      if (!r.ok) return []
+      const d = await r.json()
+      return Array.isArray(d) ? d : []
+    },
+    staleTime: 60_000,
+    refetchInterval: 180_000,
   })
 }
 
@@ -143,14 +158,14 @@ function ValidatorRow({ v, i }: { v: Validator; i: number }) {
 
 // ── Apply panel ───────────────────────────────────────────────────────────────
 
-function ApplyPanel() {
+function ApplyPanel({ minimumStake }: { minimumStake: number | null }) {
   const qc = useQueryClient()
   const [stake, setStake] = useState('')
   const [agreed, setAgreed] = useState(false)
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/validators/apply`, {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/blockchain/validators/apply`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ stake_amount: parseFloat(stake) }),
@@ -176,7 +191,7 @@ function ApplyPanel() {
       </div>
 
       <ul className="space-y-2 text-sm text-white/55">
-        <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />Minimum stake: 10,000 VIT</li>
+        <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />Minimum stake: {minimumStake != null ? `${minimumStake.toLocaleString()} VIT` : 'loading…'}</li>
         <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />Earn block rewards + commission from delegators</li>
         <li className="flex gap-2"><AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />Stake is subject to slashing for malicious behaviour</li>
       </ul>
@@ -185,11 +200,11 @@ function ApplyPanel() {
         <label className="block text-xs font-medium text-white/50 mb-1.5">Stake amount (VIT)</label>
         <input
           type="number"
-          min="10000"
-          step="1000"
+          min={minimumStake ?? undefined}
+          step={minimumStake && minimumStake >= 1 ? Math.max(1, minimumStake / 10) : 1}
           value={stake}
           onChange={e => setStake(e.target.value)}
-          placeholder="10000"
+          placeholder={minimumStake != null ? String(minimumStake) : '5'}
           className="w-full bg-surface-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-vit-500/60 focus:ring-1 focus:ring-vit-500/20 transition-colors"
         />
       </div>
@@ -208,7 +223,7 @@ function ApplyPanel() {
 
       <button
         onClick={() => mutation.mutate()}
-        disabled={!stake || parseFloat(stake) < 10000 || !agreed || mutation.isPending}
+        disabled={!stake || (minimumStake != null && parseFloat(stake) < minimumStake) || !agreed || mutation.isPending}
         className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-vit-600 text-white font-semibold text-sm hover:bg-vit-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <ChevronRight className="w-4 h-4" />
@@ -222,7 +237,15 @@ function ApplyPanel() {
 
 export default function Validators() {
   const { data: validators = [], isLoading } = useValidators()
+  const { data: governanceConfig = [] } = useGovernanceConfig()
   const { data: myValidator } = useMyValidator()
+
+  const minimumStake = useMemo(() => {
+    const cfg = governanceConfig.find(item => item.key === 'min_stake_vitcoin')
+    if (!cfg) return null
+    const nextValue = Number(cfg.value)
+    return Number.isFinite(nextValue) ? nextValue : null
+  }, [governanceConfig])
 
   const active  = validators.filter(v => (v.status ?? '').toLowerCase() === 'active').length
   const totalStake = validators.reduce((s, v) => s + (v.stake_amount ?? v.stake ?? 0), 0)
@@ -307,7 +330,7 @@ export default function Validators() {
         </div>
 
         {/* Apply */}
-        {getAuthToken() && !myValidator && <ApplyPanel />}
+        {getAuthToken() && !myValidator && <ApplyPanel minimumStake={minimumStake} />}
         {!getAuthToken() && (
           <div className="flex items-center gap-2.5 p-4 rounded-xl bg-white/3 border border-white/8 text-sm text-white/50">
             <Zap className="w-4 h-4 text-vit-400 shrink-0" />

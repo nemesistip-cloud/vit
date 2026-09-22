@@ -27,6 +27,7 @@ from app.modules.blockchain.models import (
     ValidatorAppeal,
     ValidatorSlashEvent,
 )
+from app.modules.governance import service as governance_service
 from app.modules.notifications.service import NotificationService
 from app.modules.wallet.models import Currency, TransactionType, Wallet, WalletTransaction
 from app.modules.wallet.pricing import VITCoinPricingEngine
@@ -574,9 +575,13 @@ async def apply_as_validator(
             "Upgrade your subscription to unlock validator status.",
         )
 
-    MIN_STAKE = Decimal("100")
-    if Decimal(str(body.stake_amount)) < MIN_STAKE:
-        raise HTTPException(400, f"Minimum stake to apply is {MIN_STAKE} VITCoin")
+    try:
+        min_stake = await governance_service.get_min_stake_vitcoin(db)
+    except ValueError as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+    if Decimal(str(body.stake_amount)) < min_stake:
+        raise HTTPException(400, f"Minimum stake to apply is {min_stake} VITCoin")
 
     existing = await db.execute(
         select(ValidatorProfile).where(ValidatorProfile.user_id == current_user.id)

@@ -29,6 +29,32 @@ if not ADMIN_PASSWORD:
     sys.exit(0)
 
 
+def resolve_admin_user(existing_users, admin_email: str, admin_username: str):
+    """Prefer the configured admin identity, but keep user id 1 authoritative."""
+    if not existing_users:
+        return None
+
+    admin_email = (admin_email or "").lower()
+    admin_username = (admin_username or "").lower()
+
+    for candidate in existing_users:
+        email = getattr(candidate, "email", None)
+        if email and email.lower() == admin_email:
+            return candidate
+
+    if admin_username:
+        for candidate in existing_users:
+            username = getattr(candidate, "username", None)
+            if username and username.lower() == admin_username:
+                return candidate
+
+    for candidate in existing_users:
+        if getattr(candidate, "id", None) == 1:
+            return candidate
+
+    return existing_users[0]
+
+
 async def main():
     from sqlalchemy import select
     from app.db.database import AsyncSessionLocal
@@ -36,24 +62,38 @@ async def main():
     from app.auth.jwt_utils import hash_password, verify_password
 
     async with AsyncSessionLocal() as db:
-        # Resolve by email first, then username. When ADMIN_EMAIL changes,
-        # reuse the existing bootstrap account instead of inserting a duplicate
-        # username and failing the entire admin bootstrap step.
+        # Resolve by email first, then username, and finally the canonical user id 1.
+        # This keeps the first bootstrap account authoritative when the configured
+        # admin email rotates or the deployment is recovered from a stale state.
         result = await db.execute(
             select(User).where(User.email == ADMIN_EMAIL.lower())
         )
-        existing = result.scalar_one_or_none()
-        if existing is None and ADMIN_USERNAME:
+        email_match = result.scalar_one_or_none()
+
+        username_match = None
+        if ADMIN_USERNAME:
             result = await db.execute(
                 select(User).where(User.username == ADMIN_USERNAME)
             )
-            existing = result.scalar_one_or_none()
+            username_match = result.scalar_one_or_none()
+
+        legacy_admin = None
+        result = await db.execute(select(User).where(User.id == 1))
+        legacy_admin = result.scalar_one_or_none()
+
+        existing = resolve_admin_user(
+            [user for user in (email_match, username_match, legacy_admin) if user is not None],
+            ADMIN_EMAIL,
+            ADMIN_USERNAME,
+        )
 
         if existing:
             # Keep the configured email/username pair authoritative when the
-            # admin email is rotated through Render environment variables.
+            # admin email is rotated through Render environment variables, while
+            # still enforcing the canonical id=1 super-admin contract.
             identity_changed = (
-                existing.email != ADMIN_EMAIL.lower()
+                existing.id == 1 and (existing.email != ADMIN_EMAIL.lower() or existing.username != ADMIN_USERNAME)
+                or existing.email != ADMIN_EMAIL.lower()
                 or existing.username != ADMIN_USERNAME
                 or existing.role != "super_admin"
                 or existing.admin_role != "super_admin"

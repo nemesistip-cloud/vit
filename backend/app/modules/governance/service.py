@@ -4,6 +4,7 @@
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import func, select, update
@@ -28,7 +29,7 @@ async def seed_default_config(db: AsyncSession) -> None:
         ("protocol_fee_pct",       "0.15",   "float",  "Protocol fee percentage on marketplace calls"),
         ("validator_reward_share", "0.40",   "float",  "Fraction of pool fees distributed to validators"),
         ("burn_rate",              "0.20",   "float",  "Fraction of settlement fees burned"),
-        ("min_stake_vitcoin",      "100",    "int",    "Minimum VITCoin stake to become a validator"),
+        ("min_stake_vitcoin",      "5",      "int",    "Minimum VITCoin stake to become a validator"),
         ("voting_period_days",     "7",      "int",    "Default governance voting period in days"),
         ("timelock_seconds",       "86400",  "int",    "Seconds between proposal passing and execution"),
         ("quorum_required",        "1000",   "float",  "Minimum total voting power for a proposal to pass"),
@@ -50,6 +51,17 @@ async def get_config(db: AsyncSession, key: str) -> Optional[GovernanceConfig]:
 async def list_configs(db: AsyncSession) -> list[GovernanceConfig]:
     result = await db.execute(select(GovernanceConfig).order_by(GovernanceConfig.key))
     return list(result.scalars().all())
+
+
+async def get_min_stake_vitcoin(db: AsyncSession) -> Decimal:
+    await seed_default_config(db)
+    cfg = await get_config(db, "min_stake_vitcoin")
+    if cfg is None:
+        raise ValueError("Validator minimum stake configuration is missing")
+    try:
+        return Decimal(str(cfg.value))
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        raise ValueError(f"Validator minimum stake configuration is invalid: {cfg.value}") from exc
 
 
 async def update_config(

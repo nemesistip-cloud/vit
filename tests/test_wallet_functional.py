@@ -30,6 +30,40 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.mark.asyncio
+async def test_stake_and_unstake_follow_platform_minimum_config():
+    async with _client() as client:
+        token, user_id = await _register(client, "stake_roundtrip")
+
+        from app.db.database import AsyncSessionLocal
+        from app.modules.wallet.models import PlatformConfig
+        from app.modules.wallet.services import WalletService
+        from app.modules.wallet.models import Currency
+        from decimal import Decimal
+
+        async with AsyncSessionLocal() as db:
+            wallet = await WalletService(db).get_or_create_wallet(user_id)
+            await WalletService(db).credit(
+                wallet.id, user_id, Currency.VITCOIN, Decimal("20.0"), "stake_test_funding", reference="stake_test_funding"
+            )
+            db.add(PlatformConfig(key="vitcoin_min_stake", value={"amount": 5, "validator_min": 5}, description="Minimum stake amount"))
+            await db.commit()
+
+        below = await client.post("/api/wallet/stake", json={"amount": 4}, headers=_auth(token))
+        assert below.status_code == 400, below.text
+
+        stake = await client.post("/api/wallet/stake", json={"amount": 5}, headers=_auth(token))
+        assert stake.status_code == 200, stake.text
+        stake_data = stake.json()
+        assert float(stake_data["staked_balance"]) == 5.0
+
+        unstake = await client.post("/api/wallet/unstake", json={"amount": 5}, headers=_auth(token))
+        assert unstake.status_code == 200, unstake.text
+        unstake_data = unstake.json()
+        assert float(unstake_data["staked_balance"]) == 0.0
+        assert float(unstake_data["vitcoin_balance"]) >= 20.0
+
+
 # ── Wallet Initialization ──────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

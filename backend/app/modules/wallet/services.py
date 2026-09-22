@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import uuid
 from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Tuple, Dict, Any
