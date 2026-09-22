@@ -144,6 +144,30 @@ def get_val(section: str, key: str, default: Any = None) -> Any:
     env_name = _resolve_env_alias(section, key) or key.upper()
     return os.getenv(env_name, default)
 
+def resolve_chain_mode(
+    environment: str | None = None,
+    chain_url: str | None = None,
+    explicit_mode: str | None = None,
+) -> str:
+    """Resolve the authoritative chain mode at runtime.
+
+    Production deployments and standalone chain URLs should default to the
+    external VIT Chain service instead of booting the local gateway ledger.
+    Explicit mode values still win when they are provided.
+    """
+    mode = (explicit_mode or os.getenv("VIT_CHAIN_MODE") or "").strip().lower()
+    if mode in {"external", "local"}:
+        return mode
+
+    environment_name = (environment or os.getenv("ENVIRONMENT") or ENVIRONMENT or "development").strip().lower()
+    configured_url = (chain_url or os.getenv("VIT_CHAIN_URL") or VIT_CHAIN_URL or "").strip()
+
+    if environment_name == "production" or configured_url:
+        return "external"
+
+    return "local"
+
+
 # Redefine legacy constants
 SECRET_KEY: str = get_val("app", "secret_key", "dev-secret-key")
 JWT_SECRET_KEY: str = get_val("app", "jwt_secret_key", "dev-jwt-secret")
@@ -180,10 +204,7 @@ BOOTSTRAP_MATCH_MONTHS: int = int(get_val("app", "bootstrap_match_months", 6))
 
 # Base L2 removed. VIT Chain standalone: VIT_CHAIN_URL points to vitnetwork/vit-chain.
 VIT_CHAIN_URL: str = get_val("chain", "vit_chain_url", "")
-VIT_CHAIN_MODE: str = os.getenv(
-    "VIT_CHAIN_MODE",
-    "external" if ENVIRONMENT.lower() == "production" else "local",
-).strip().lower()
+VIT_CHAIN_MODE: str = resolve_chain_mode(environment=ENVIRONMENT, chain_url=VIT_CHAIN_URL)
 
 ENABLE_SCRAPING: bool = os.getenv("ENABLE_SCRAPING", "false").lower() == "true"
 AUTH_ENABLED: bool = os.getenv("AUTH_ENABLED", "true").lower() == "true"

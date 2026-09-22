@@ -357,10 +357,7 @@ def register_core_subsystems():
 
     # Production uses the standalone VIT Chain service. The gateway must not
     # run local genesis against its own database in that mode.
-    chain_mode = os.getenv(
-        "VIT_CHAIN_MODE",
-        "external" if os.getenv("ENVIRONMENT", "development").lower() == "production" else "local",
-    ).strip().lower()
+    chain_mode = resolve_chain_mode()
     if chain_mode == "external":
         _log.info("[kernel] External VIT Chain configured; local blockchain subsystem skipped.")
     else:

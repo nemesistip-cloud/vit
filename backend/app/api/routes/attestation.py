@@ -39,7 +39,7 @@ class AttestationResponse(BaseModel):
     timestamp: int
     method: str   # "chain" | "hash_only"
     attestation_hash: str
-    proof: dict
+    proof: Optional[dict] = None
     message: str
 
 
@@ -71,6 +71,12 @@ def _build_prediction_proof(prediction: Prediction, timestamp: str) -> dict:
     )
 
 
+def _prediction_attestation(prediction: Prediction, timestamp: str) -> tuple[str, dict]:
+    proof = _build_prediction_proof(prediction, timestamp)
+    attestation_hash = "vit:" + proof["data_hash"].split(":", 1)[1]
+    return attestation_hash, proof
+
+
 @router.post("/{prediction_id}/attest", response_model=AttestationResponse)
 async def attest_prediction(
     prediction_id: int,
@@ -96,8 +102,7 @@ async def attest_prediction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prediction not found")
 
     now_ts = int(time.time())
-    proof = _build_prediction_proof(prediction, str(now_ts))
-    attestation_hash = "vit:" + proof["data_hash"].split(":", 1)[1]
+    attestation_hash, proof = _prediction_attestation(prediction, str(now_ts))
 
     # ── 2. Try to write on-chain ───────────────────────────────────────────────
     tx_hash: Optional[str] = None
@@ -162,15 +167,17 @@ async def get_attestation(
     if not prediction:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prediction not found")
 
-    attestation_hash = _compute_attestation_hash(prediction)
+    now_ts = int(time.time())
+    attestation_hash, proof = _prediction_attestation(prediction, str(now_ts))
 
     return AttestationResponse(
         prediction_id=prediction_id,
         attested=True,
         tx_hash=None,
         block_height=None,
-        timestamp=int(time.time()),
+        timestamp=now_ts,
         method="hash_only",
         attestation_hash=attestation_hash,
+        proof=proof,
         message="Attestation hash recomputed from prediction data.",
     )
