@@ -82,6 +82,27 @@ async def test_super_admin_role_can_access_shared_admin_dependency(client, db_se
 
 
 @pytest.mark.asyncio
+async def test_super_admin_permission_is_respected_via_admin_role_flag(client, db_session):
+    token, user_id = await _register(client, "super-admin-flag")
+    from app.db.models import User
+    from app.modules.wallet.models import PlatformConfig
+
+    await db_session.execute(update(User).where(User.id == user_id).values(
+        role="admin",
+        admin_role="super_admin",
+    ))
+    db_session.add(PlatformConfig(key="vitcoin_min_stake", value={"amount": 10, "validator_min": 100}, description="test"))
+    await db_session.commit()
+
+    resp = await client.put(
+        "/api/admin/config/vitcoin_min_stake",
+        json={"value": {"amount": 10, "validator_min": 150}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, f"admin_role=super_admin was denied: {resp.text}"
+
+
+@pytest.mark.asyncio
 async def test_super_admin_can_approve_legacy_wallet_kyc(client, db_session):
     token, user_id = await _register(client, "legacy-kyc")
     from app.db.models import User

@@ -40,7 +40,8 @@ async def require_admin(
     """
     # Fast-path: role column grants admin immediately (covers fresh deployments)
     user_role = getattr(current_user, "role", None) or ""
-    if user_role in _ADMIN_ROLES:
+    admin_role = getattr(current_user, "admin_role", None) or ""
+    if user_role in _ADMIN_ROLES or admin_role in _ADMIN_ROLES:
         return current_user
 
     # Full ABAC/RBAC evaluation for non-trivially-roled users
@@ -74,8 +75,9 @@ async def require_super_admin(
        (so at minimum the user must be an admin).
     """
     user_role = getattr(current_user, "role", None) or ""
+    admin_role = getattr(current_user, "admin_role", None) or ""
 
-    if user_role in _SUPER_ADMIN_ROLES:
+    if user_role in _SUPER_ADMIN_ROLES or admin_role in _SUPER_ADMIN_ROLES:
         return current_user
 
     # Full policy check for super_admin

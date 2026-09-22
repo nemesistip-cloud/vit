@@ -80,7 +80,8 @@ async def get_current_admin(
         return real_user
 
     real_user = await get_current_user(credentials, db)
-    if real_user.role not in _ADMIN_ROLES:
+    admin_role = getattr(real_user, "admin_role", None) or ""
+    if real_user.role not in _ADMIN_ROLES and admin_role not in _ADMIN_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return real_user
 

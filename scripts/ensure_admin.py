@@ -55,12 +55,14 @@ async def main():
             identity_changed = (
                 existing.email != ADMIN_EMAIL.lower()
                 or existing.username != ADMIN_USERNAME
-                or existing.role != "admin"
+                or existing.role != "super_admin"
+                or existing.admin_role != "super_admin"
                 or not existing.is_active
             )
             existing.email = ADMIN_EMAIL.lower()
             existing.username = ADMIN_USERNAME
-            existing.role = "admin"
+            existing.role = "super_admin"
+            existing.admin_role = "super_admin"
             existing.is_active = True
 
             # Sync password: if the stored hash doesn't match the env-var password,
@@ -92,7 +94,8 @@ async def main():
             email=ADMIN_EMAIL.lower(),
             username=ADMIN_USERNAME,
             hashed_password=hash_password(ADMIN_PASSWORD),
-            role="admin",
+            role="super_admin",
+            admin_role="super_admin",
             is_active=True,
         )
         db.add(admin)

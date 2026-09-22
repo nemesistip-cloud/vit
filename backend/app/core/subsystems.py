@@ -3,6 +3,7 @@ import os
 import asyncio
 from typing import Dict, Any
 from app.core.kernel import Subsystem, kernel
+from app.config import resolve_chain_mode
 from app.db.database import AsyncSessionLocal, engine, Base
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
