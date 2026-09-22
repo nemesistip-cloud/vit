@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from app.services.vit_chain_client import VitChainClient, VitChainClientError
+from vit_chain.rpc.router import router
 
 
 class VitChainClientContractTests(unittest.IsolatedAsyncioTestCase):
@@ -45,6 +46,17 @@ class VitChainClientContractTests(unittest.IsolatedAsyncioTestCase):
 
             with self.assertRaises(VitChainClientError):
                 await client.status()
+
+    def test_exposes_canonical_supply_route(self):
+        routes = {getattr(route, "path", None): set(getattr(route, "methods", set())) for route in router.routes}
+        assert "/api/supply" in routes
+        assert "GET" in routes["/api/supply"]
+
+    def test_exposes_gateway_chain_status_route(self):
+        from backend.app.api.routes.blockchain import router as chain_router
+        routes = {getattr(route, "path", None): set(getattr(route, "methods", set())) for route in chain_router.routes}
+        assert "/api/chain/status" in routes
+        assert "GET" in routes["/api/chain/status"]
 
 
 if __name__ == "__main__":

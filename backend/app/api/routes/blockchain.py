@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.db.database import get_db
 from app.core.kernel import kernel
-from app.config import VIT_CHAIN_MODE
+from app.config import resolve_chain_mode
 from app.services.vit_chain_client import VitChainClient, VitChainClientError
 from vit_chain.core.transaction import VITTransaction
 
@@ -21,7 +21,7 @@ _external_chain = VitChainClient()
 
 async def _chain_db():
     """Avoid gateway DB initialization for read-only external-chain routes."""
-    if VIT_CHAIN_MODE == "external":
+    if resolve_chain_mode() == "external":
         yield None
         return
     from app.db.database import get_db
@@ -62,7 +62,7 @@ def _protocol_response(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def _external_read(method: str, *args: Any) -> Dict[str, Any]:
-    if VIT_CHAIN_MODE != "external":
+    if resolve_chain_mode() != "external":
         raise HTTPException(status_code=503, detail="Standalone blockchain mode is not enabled")
     try:
         return _protocol_response(await getattr(_external_chain, method)(*args))
@@ -115,7 +115,7 @@ async def get_block(height_or_hash: str, db: AsyncSession = Depends(get_db)):
 @router.get("/latest", response_model=BlockHeader)
 async def get_latest_block(db: AsyncSession | None = Depends(_chain_db)):
     """Get the most recent block header."""
-    if VIT_CHAIN_MODE == "external":
+    if resolve_chain_mode() == "external":
         try:
             block = await _external_chain.latest_block()
             return {
@@ -148,7 +148,7 @@ async def get_latest_block(db: AsyncSession | None = Depends(_chain_db)):
 @router.get("/height")
 async def get_chain_height(db: AsyncSession | None = Depends(_chain_db)):
     """Get current blockchain height."""
-    if VIT_CHAIN_MODE == "external":
+    if resolve_chain_mode() == "external":
         try:
             status = await _external_chain.status()
             return {"height": status["block_height"]}
@@ -162,6 +162,29 @@ async def get_chain_height(db: AsyncSession | None = Depends(_chain_db)):
 
     height = await subsystem.manager.chain.chain_height(db)
     return {"height": height}
+
+
+@router.get("/status")
+async def get_protocol_status(db: AsyncSession | None = Depends(_chain_db)):
+    """Read the standalone chain health and height contract."""
+    if resolve_chain_mode() == "external":
+        try:
+            return _protocol_response(await _external_chain.status())
+        except VitChainClientError as exc:
+            logger.warning("External chain status read failed: %s", exc)
+            raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
+
+    subsystem = kernel.get_subsystem("blockchain")
+    if not subsystem or not subsystem.manager:
+        raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")
+
+    height = await subsystem.manager.chain.chain_height(db)
+    return _protocol_response({
+        "chain_id": 7764,
+        "block_height": height,
+        "status": "healthy" if height >= 0 else "degraded",
+        "database_connected": db is not None,
+    })
 
 
 @router.get("/account/{address}")
@@ -236,7 +259,7 @@ async def get_recent_blocks(
     db: AsyncSession | None = Depends(_chain_db)
 ):
     """Retrieves a list of recent blocks via the Query Engine."""
-    if VIT_CHAIN_MODE == "external":
+    if resolve_chain_mode() == "external":
         try:
             return await _external_chain.blocks(limit=limit, offset=offset)
         except VitChainClientError as exc:
