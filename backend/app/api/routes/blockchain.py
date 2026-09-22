@@ -10,10 +10,23 @@ from pydantic import BaseModel
 
 from app.db.database import get_db
 from app.core.kernel import kernel
+from app.config import VIT_CHAIN_MODE
+from app.services.vit_chain_client import VitChainClient, VitChainClientError
 from vit_chain.core.transaction import VITTransaction
 
 router = APIRouter(prefix="/api/chain", tags=["Blockchain Platform"])
 logger = logging.getLogger(__name__)
+_external_chain = VitChainClient()
+
+
+async def _chain_db():
+    """Avoid gateway DB initialization for read-only external-chain routes."""
+    if VIT_CHAIN_MODE == "external":
+        yield None
+        return
+    from app.db.database import get_db
+    async for db in get_db():
+        yield db
 
 # --- Schemas ---
 
@@ -38,6 +51,24 @@ class BlockHeader(BaseModel):
     timestamp: int
     tx_count: int
     validator: str
+
+
+def _protocol_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "source": "vit-chain",
+        "authority": "protocol",
+        "data": data,
+    }
+
+
+async def _external_read(method: str, *args: Any) -> Dict[str, Any]:
+    if VIT_CHAIN_MODE != "external":
+        raise HTTPException(status_code=503, detail="Standalone blockchain mode is not enabled")
+    try:
+        return _protocol_response(await getattr(_external_chain, method)(*args))
+    except VitChainClientError as exc:
+        logger.warning("External chain %s read failed: %s", method, exc)
+        raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
 
 # --- Endpoints ---
 
@@ -82,8 +113,22 @@ async def get_block(height_or_hash: str, db: AsyncSession = Depends(get_db)):
     return block_dict
 
 @router.get("/latest", response_model=BlockHeader)
-async def get_latest_block(db: AsyncSession = Depends(get_db)):
+async def get_latest_block(db: AsyncSession | None = Depends(_chain_db)):
     """Get the most recent block header."""
+    if VIT_CHAIN_MODE == "external":
+        try:
+            block = await _external_chain.latest_block()
+            return {
+                "height": block["height"],
+                "hash": block.get("block_hash", block.get("hash", "")),
+                "timestamp": block.get("timestamp", 0),
+                "tx_count": block.get("tx_count", 0),
+                "validator": block.get("validator_id", block.get("validator", "unknown")),
+            }
+        except VitChainClientError as exc:
+            logger.warning("External chain latest-block read failed: %s", exc)
+            raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
+
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.manager:
         raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")
@@ -101,14 +146,40 @@ async def get_latest_block(db: AsyncSession = Depends(get_db)):
     }
 
 @router.get("/height")
-async def get_chain_height(db: AsyncSession = Depends(get_db)):
+async def get_chain_height(db: AsyncSession | None = Depends(_chain_db)):
     """Get current blockchain height."""
+    if VIT_CHAIN_MODE == "external":
+        try:
+            status = await _external_chain.status()
+            return {"height": status["block_height"]}
+        except VitChainClientError as exc:
+            logger.warning("External chain height read failed: %s", exc)
+            raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
+
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.manager:
         raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")
 
     height = await subsystem.manager.chain.chain_height(db)
     return {"height": height}
+
+
+@router.get("/account/{address}")
+async def get_protocol_account(address: str):
+    """Read a native VIT Chain account; never falls back to gateway wallets."""
+    return await _external_read("account", address)
+
+
+@router.get("/validators")
+async def get_protocol_validators():
+    """Read the standalone protocol validator registry."""
+    return await _external_read("validators")
+
+
+@router.get("/supply")
+async def get_protocol_supply():
+    """Read authoritative supply accounting from VIT Chain."""
+    return await _external_read("supply")
 
 @router.get("/tx/{tx_hash}")
 async def get_transaction(tx_hash: str, db: AsyncSession = Depends(get_db)):
@@ -162,9 +233,16 @@ async def get_recent_transactions(
 async def get_recent_blocks(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession | None = Depends(_chain_db)
 ):
     """Retrieves a list of recent blocks via the Query Engine."""
+    if VIT_CHAIN_MODE == "external":
+        try:
+            return await _external_chain.blocks(limit=limit, offset=offset)
+        except VitChainClientError as exc:
+            logger.warning("External chain blocks read failed: %s", exc)
+            raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
+
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.query_engine:
         raise HTTPException(status_code=503, detail="Blockchain query engine unavailable")

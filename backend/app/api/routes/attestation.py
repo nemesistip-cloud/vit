@@ -7,8 +7,6 @@ trustless verification of prediction history without relying on the central DB.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import time
 from typing import Optional
 
@@ -20,6 +18,7 @@ from sqlalchemy import select
 from app.auth.dependencies import get_current_user
 from app.db.database import get_db
 from app.db.models import Prediction, User
+from vit_protocol.proofs import build_proof_envelope
 
 try:
     from vit_chain.core.transaction import VITTransaction
@@ -40,12 +39,12 @@ class AttestationResponse(BaseModel):
     timestamp: int
     method: str   # "chain" | "hash_only"
     attestation_hash: str
+    proof: dict
     message: str
 
 
-def _compute_attestation_hash(prediction: Prediction) -> str:
-    """Deterministic SHA-256 hash of core prediction fields."""
-    payload = {
+def _prediction_payload(prediction: Prediction) -> dict:
+    return {
         "id": prediction.id,
         "match_id": prediction.match_id,
         "bet_side": prediction.bet_side,
@@ -58,8 +57,18 @@ def _compute_attestation_hash(prediction: Prediction) -> str:
         "timestamp": str(prediction.timestamp),
         "user_id": prediction.user_id,
     }
-    raw = json.dumps(payload, sort_keys=True)
-    return "vit:" + hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _build_prediction_proof(prediction: Prediction, timestamp: str) -> dict:
+    return build_proof_envelope(
+        proof_type="prediction_provenance",
+        object_id=f"prediction:{prediction.id}",
+        object_version="1",
+        timestamp=timestamp,
+        signer=f"did:vit:user:{prediction.user_id}",
+        payload=_prediction_payload(prediction),
+        result={"outcome": prediction.outcome},
+    )
 
 
 @router.post("/{prediction_id}/attest", response_model=AttestationResponse)
@@ -86,8 +95,9 @@ async def attest_prediction(
     if not prediction:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prediction not found")
 
-    attestation_hash = _compute_attestation_hash(prediction)
     now_ts = int(time.time())
+    proof = _build_prediction_proof(prediction, str(now_ts))
+    attestation_hash = "vit:" + proof["data_hash"].split(":", 1)[1]
 
     # ── 2. Try to write on-chain ───────────────────────────────────────────────
     tx_hash: Optional[str] = None
@@ -127,6 +137,7 @@ async def attest_prediction(
         timestamp=now_ts,
         method=method,
         attestation_hash=attestation_hash,
+        proof=proof,
         message=(
             "Prediction attested on VIT chain." if method == "chain"
             else "Attestation hash computed. Will sync to chain on next block."
