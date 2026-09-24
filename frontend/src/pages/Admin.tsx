@@ -525,6 +525,8 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
 
 function UsersTab() {
   const queryClient = useQueryClient()
+  const [query, setQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'super_admin' | 'user'>('all')
   const { data: raw, isLoading, refetch, error } = useAdminUsers()
   if (error) {
     return <AdminErrorState title="Users unavailable" message={error.message} onRetry={refetch} />
@@ -532,6 +534,11 @@ function UsersTab() {
   const list: any[] = Array.isArray(raw?.users ?? raw?.items ?? raw)
     ? (raw?.users ?? raw?.items ?? raw)
     : []
+  const filteredList = list.filter((u: any) => {
+    const matchesQuery = !query || [u.username, u.email, String(u.id), u.role].join(' ').toLowerCase().includes(query.toLowerCase())
+    const matchesRole = roleFilter === 'all' || (u.role ?? 'user') === roleFilter
+    return matchesQuery && matchesRole
+  })
 
   const updateUser = useMutation({
     mutationFn: async ({ userId, updates }: { userId: number; updates: Record<string, boolean | string> }) => {
@@ -555,19 +562,37 @@ function UsersTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-white/40">{list.length > 0 ? `${list.length} users` : 'Users'}</p>
-        <button onClick={() => refetch()} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors"><RefreshCw className="w-4 h-4" /></button>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <p className="text-sm text-white/40">{filteredList.length > 0 ? `${filteredList.length} users` : 'Users'}</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search users"
+            className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white placeholder:text-white/30 sm:w-52"
+          />
+          <select
+            value={roleFilter}
+            onChange={(event) => setRoleFilter(event.target.value as 'all' | 'admin' | 'super_admin' | 'user')}
+            className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white"
+          >
+            <option value="all">All roles</option>
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+          <button onClick={() => refetch()} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors"><RefreshCw className="w-4 h-4" /></button>
+        </div>
       </div>
       <div className="bg-surface-800/60 border border-white/8 rounded-xl overflow-hidden">
         {isLoading ? <div className="flex justify-center py-12"><Spinner className="w-5 h-5 text-vit-400" /></div>
-        : list.length > 0 ? (
+        : filteredList.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className="border-b border-white/8">
                 {['ID','User','Role','Tier','Joined','Status','Actions'].map(h => <th key={h} className="text-left text-xs font-medium text-white/35 uppercase tracking-wide px-4 py-3">{h}</th>)}
               </tr></thead>
-              <tbody>{list.map((u: any) => (
+              <tbody>{filteredList.map((u: any) => (
                 <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors align-top">
                   <td className="px-4 py-3 text-white/30 text-xs font-mono">#{u.id}</td>
                   <td className="px-4 py-3"><p className="text-white text-sm font-medium">{u.username}</p><p className="text-white/35 text-xs">{u.email}</p></td>
@@ -612,7 +637,7 @@ function UsersTab() {
               ))}</tbody>
             </table>
           </div>
-        ) : <EmptyState icon={Users} msg={raw === null ? 'Admin access required' : 'No users found'} />}
+        ) : <EmptyState icon={Users} msg={query || roleFilter !== 'all' ? 'No users match the current filters' : (raw === null ? 'Admin access required' : 'No users found')} />}
       </div>
     </div>
   )
@@ -897,17 +922,30 @@ function ValidatorsTab() {
 // ── Tab: Models ───────────────────────────────────────────────────────────────
 
 function ModelsTab() {
-  const { data: list = [], isLoading, refetch } = useAdminModels()
+  const { data: list = [], isLoading, refetch, error } = useAdminModels()
+  const [query, setQuery] = useState('')
+  if (error) {
+    return <AdminErrorState title="Models unavailable" message={error.message} onRetry={refetch} />
+  }
   const models: any[] = Array.isArray(list) ? list : []
+  const filteredModels = models.filter((m: any) => !query || [m.name, m.model_name, m.type, m.framework, m.status].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-white/40">{models.length > 0 ? `${models.length} models` : 'AI Models'}</p>
-        <button onClick={() => refetch()} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors"><RefreshCw className="w-4 h-4" /></button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-white/40">{filteredModels.length > 0 ? `${filteredModels.length} models` : 'AI Models'}</p>
+        <div className="flex items-center gap-2">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search models"
+            className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white placeholder:text-white/30 sm:w-52"
+          />
+          <button onClick={() => refetch()} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors"><RefreshCw className="w-4 h-4" /></button>
+        </div>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {isLoading ? <div className="col-span-3 flex justify-center py-12"><Spinner className="w-5 h-5 text-vit-400" /></div>
-        : models.length > 0 ? models.map((m: any, i: number) => (
+        : filteredModels.length > 0 ? filteredModels.map((m: any, i: number) => (
           <motion.div key={m.id ?? i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
             className="bg-surface-800/60 border border-white/8 rounded-xl p-5">
             <div className="flex items-center gap-2.5 mb-3">
@@ -918,18 +956,20 @@ function ModelsTab() {
             {m.version  != null && <Row label="Version"  value={m.version} />}
             {m.status   != null && <Row label="Status"   value={m.status}  />}
           </motion.div>
-        )) : <div className="col-span-3"><EmptyState icon={Cpu} msg="No models found" /></div>}
+        )) : <div className="col-span-3"><EmptyState icon={Cpu} msg={query ? 'No models match the current search' : 'No models found'} /></div>}
       </div>
     </div>
   )
 }
 
 function ApiKeysTab() {
+  const [query, setQuery] = useState('')
   const { data: keys = [], isLoading, refetch, error } = useAdminApiKeys()
   const queryClient = useQueryClient()
   if (error) {
     return <AdminErrorState title="API keys unavailable" message={error.message} onRetry={refetch} />
   }
+  const filteredKeys = keys.filter((key: any) => !query || [key.key_prefix, key.user_id, key.plan, String(key.id)].join(' ').toLowerCase().includes(query.toLowerCase()))
   const revoke = useMutation({
     mutationFn: async (id: number) => {
       const response = await fetch(`${ENDPOINTS.gateway}/api/admin/api-keys/${id}`, { method: 'PATCH', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: false }) })
@@ -938,7 +978,7 @@ function ApiKeysTab() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-api-keys'] }); toast.success('API key revoked') },
     onError: (error: Error) => toast.error(error.message),
   })
-  return <div className="space-y-4"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-white">Developer API Keys</h3><button type="button" onClick={() => refetch()} aria-label="Refresh API keys"><RefreshCw className="h-4 w-4" /></button></div>{isLoading ? <Spinner className="w-5 h-5 text-vit-400" /> : keys.length === 0 ? <EmptyState icon={Lock} msg="No API keys found" /> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><tbody>{keys.map((key: any) => <tr key={key.id} className="border-b border-white/6"><td className="p-3 font-mono">{key.key_prefix}</td><td className="p-3">{key.user_id}</td><td className="p-3">{key.plan}</td><td className="p-3">{key.total_requests ?? 0}</td><td className="p-3"><StatusBadge status={key.is_active ? 'active' : 'inactive'} /></td><td className="p-3">{key.is_active && <button type="button" onClick={() => { if (window.confirm('Revoke this API key?')) revoke.mutate(key.id) }}>Revoke</button>}</td></tr>)}</tbody></table></div>}</div>
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><h3 className="text-lg font-semibold text-white">Developer API Keys</h3><div className="flex items-center gap-2"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search keys" className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white placeholder:text-white/30 sm:w-52" /><button type="button" onClick={() => refetch()} aria-label="Refresh API keys"><RefreshCw className="h-4 w-4" /></button></div></div>{isLoading ? <Spinner className="w-5 h-5 text-vit-400" /> : filteredKeys.length === 0 ? <EmptyState icon={Lock} msg={query ? 'No API keys match the current search' : 'No API keys found'} /> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><tbody>{filteredKeys.map((key: any) => <tr key={key.id} className="border-b border-white/6"><td className="p-3 font-mono">{key.key_prefix}</td><td className="p-3">{key.user_id}</td><td className="p-3">{key.plan}</td><td className="p-3">{key.total_requests ?? 0}</td><td className="p-3"><StatusBadge status={key.is_active ? 'active' : 'inactive'} /></td><td className="p-3">{key.is_active && <button type="button" onClick={() => { if (window.confirm('Revoke this API key?')) revoke.mutate(key.id) }}>Revoke</button>}</td></tr>)}</tbody></table></div>}</div>
 }
 
 function MarketplaceAdminTab() {
@@ -963,10 +1003,13 @@ function MarketplaceAdminTab() {
 
 function TrainingJobsTab() {
   const queryClient = useQueryClient()
-  const { data: jobs = [], isLoading, refetch } = useAdminTrainingJobs()
+  const { data: jobs = [], isLoading, refetch, error } = useAdminTrainingJobs()
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
   const [targetModel, setTargetModel] = useState<string>('all')
+  if (error) {
+    return <AdminErrorState title="Training jobs unavailable" message={error.message} onRetry={refetch} />
+  }
 
   const triggerRetrain = useMutation({
     mutationFn: async (modelKey?: string) => {
@@ -1266,10 +1309,13 @@ function TrainingJobsTab() {
 
 function SecretsTab() {
   const queryClient = useQueryClient()
-  const { data: secrets = [], isLoading, refetch } = useAdminSecrets()
+  const { data: secrets = [], isLoading, refetch, error } = useAdminSecrets()
   const [values, setValues] = useState<Record<string, string>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
   const [mfaCode, setMfaCode] = useState<Record<string, string>>({})
+  if (error) {
+    return <AdminErrorState title="Secrets unavailable" message={error.message} onRetry={refetch} />
+  }
 
   const rotateSecret = useMutation({
     mutationFn: async ({ name, value, reasonText, code }: { name: string; value: string; reasonText: string; code: string }) => {
@@ -1356,10 +1402,13 @@ function SecretsTab() {
 }
 
 function ConfigTab() {
-  const { data: cfg, isLoading } = useAdminConfig()
+  const { data: cfg, isLoading, error, refetch } = useAdminConfig()
   const queryClient = useQueryClient()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [googleDrafts, setGoogleDrafts] = useState<Record<string, string>>({})
+  if (error) {
+    return <AdminErrorState title="Configuration unavailable" message={error.message} onRetry={refetch} />
+  }
   const config = cfg ?? {}
   useEffect(() => {
     if (!cfg) return
@@ -1542,7 +1591,10 @@ function ConfigTab() {
 function AuditTab() {
   const [filters, setFilters] = useState({ page: 1, adminId: '', action: '', targetType: '', dateFrom: '', dateTo: '' })
   const [draft, setDraft] = useState(filters)
-  const { data, isLoading, refetch } = useAdminAudit(filters)
+  const { data, isLoading, refetch, error } = useAdminAudit(filters)
+  if (error) {
+    return <AdminErrorState title="Audit log unavailable" message={error.message} onRetry={refetch} />
+  }
   const entries: any[] = data?.rows ?? []
   const total = data?.total ?? 0
   const pageSize = 25
@@ -1580,7 +1632,16 @@ function AuditTab() {
 
 // ── Tab: System ───────────────────────────────────────────────────────────────
 
-function SystemTab({ health, status, metrics, loadingHealth, loadingStatus }: any) {
+function SystemTab({ health, status, metrics, loadingHealth, loadingStatus, statusError, healthError, metricsError }: any) {
+  if (statusError || healthError || metricsError) {
+    return (
+      <div className="space-y-4">
+        {statusError && <AdminErrorState title="System status unavailable" message={statusError.message} onRetry={() => window.location.reload()} />}
+        {healthError && <AdminErrorState title="System health unavailable" message={healthError.message} onRetry={() => window.location.reload()} />}
+        {metricsError && <AdminErrorState title="Metrics unavailable" message={metricsError.message} onRetry={() => window.location.reload()} />}
+      </div>
+    )
+  }
   return (
     <div className="space-y-6">
       <div className="grid sm:grid-cols-2 gap-4">
@@ -1735,7 +1796,7 @@ export default function Admin() {
         {activeTab === 'training'   && <TrainingJobsTab />}
         {activeTab === 'config'     && <ConfigTab     />}
         {activeTab === 'audit'      && <AuditTab      />}
-        {activeTab === 'system'     && <SystemTab     status={status} health={health} metrics={metrics} loadingStatus={loadingStatus} loadingHealth={loadingHealth} />}
+        {activeTab === 'system'     && <SystemTab     status={status} health={health} metrics={metrics} loadingStatus={loadingStatus} loadingHealth={loadingHealth} statusError={statusError} healthError={healthError} metricsError={metricsError} />}
         {activeTab === 'controls'   && <ControlPlaneTab />}
       </div>
     </div>
